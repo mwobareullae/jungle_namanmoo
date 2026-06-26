@@ -15,7 +15,7 @@
 │  └─ examples/          # 데이터 형식 예시 파일
 ├─ docs/                 # 기획, API, 배포, 데이터 계약 문서
 ├─ .github/
-│  └─ workflows/         # GitHub Actions CI/CD 작업 자리
+│  └─ workflows/         # GitHub Actions CI/CD
 ├─ README.md             # 팀 공통 안내
 ├─ .env.example          # 공유 가능한 환경변수 템플릿
 ├─ docker-compose.yml    # 로컬/dev 공통 실행 환경
@@ -348,6 +348,7 @@ docker compose config
 
 - GitHub Actions 파일은 `.github/workflows/`에 둔다.
 - PR에서는 현재 가능한 검증부터 추가한다.
+- 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose config`를 검증한다.
 - 프론트/백엔드 초기화 전에는 앱 빌드를 억지로 넣지 않는다.
 - `main` 배포와 `dev` 배포는 환경을 분리한다.
 - secret 값은 GitHub Secrets 또는 배포 플랫폼 Secrets에 둔다.
@@ -383,6 +384,7 @@ infra 브랜치에서는 프로젝트 골격과 공통 개발환경만 준비한
 - 루트 `.env.example`
 - 루트 `docker-compose.yml`의 Postgres/pgvector 서비스
 - 루트 `AGENTS.md`
+- `.github/workflows/ci.yml` 최소 CI
 
 제외:
 
@@ -409,7 +411,7 @@ Backend: FastAPI 예정
 API Base Path: /api
 DB: PostgreSQL + pgvector
 Infra: Docker Compose
-CI/CD: GitHub Actions 예정
+CI/CD: GitHub Actions 최소 CI
 ```
 
 Spring Boot는 MVP 범위에는 포함하지 않는다. 추후 회원, 권한, 주문, 관리자, 복잡한 서비스 로직이 커질 때 별도 도입을 검토한다.

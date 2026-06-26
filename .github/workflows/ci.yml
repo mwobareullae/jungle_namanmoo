@@ -1,0 +1,57 @@
+name: ci
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+jobs:
+  infra:
+    name: infra checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "README.md"
+            "AGENTS.md"
+            ".env.example"
+            "docker-compose.yml"
+            "apps/frontend/README.md"
+            "apps/backend/README.md"
+            "docs/data-contract.md"
+            "data/README.md"
+          )
+
+          for file in "${required_files[@]}"; do
+            test -f "$file"
+          done
+
+      - name: Check no real env files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if find . -type f -name ".env*" ! -name ".env.example" ! -name ".env.*.example" | grep -q .; then
+            echo "Do not commit real environment files."
+            exit 1
+          fi
+
+      - name: Validate Docker Compose config
+        run: docker compose config

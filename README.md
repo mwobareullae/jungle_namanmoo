@@ -20,7 +20,7 @@
 - Backend: FastAPI 예정
 - Database: PostgreSQL + pgvector 예정
 - Infra: Docker Compose
-- CI/CD: GitHub Actions 예정
+- CI/CD: GitHub Actions 최소 CI
 
 ## 이번 골격에 포함된 것
 
@@ -31,6 +31,7 @@
 - GitHub Actions 작업 자리: `.github/workflows`
 - Docker Compose Postgres 서비스: `docker-compose.yml`
 - 데이터 계약 문서: `docs/data-contract.md`
+- 최소 CI workflow: `.github/workflows/ci.yml`
 
 ## 로컬 개발 환경 준비
 
@@ -95,6 +96,16 @@ docker compose down -v
 5. PR을 열고 CI 통과 후 `dev`에 머지합니다.
 6. `main`은 실배포 브랜치이며 직접 push하지 않습니다.
 
+## 현재 CI 범위
+
+현재 CI는 앱 빌드가 아니라 인프라 골격 검증만 수행합니다.
+
+- 필수 파일 존재 확인
+- 실제 `.env` 파일 커밋 여부 확인
+- `docker compose config`
+
+프론트엔드와 백엔드가 초기화되면 각 담당 브랜치에서 lint, typecheck, test, build 검증을 추가합니다.
+
 ## 아직 하지 않은 것
 
 - 프론트엔드 프로젝트 초기화
@@ -104,5 +115,6 @@ docker compose down -v
 - 실제 데이터 적재
 - 실제 API 연동
 - Docker Compose frontend/backend 서비스 추가
-- CI/CD workflow 작성
+- frontend/backend lint/build/test CI 추가
+- CD workflow 작성
 - 배포 설정
