@@ -17,6 +17,8 @@
 ## 기술 스택
 
 - Frontend: Vite, React, TypeScript 최소 stub
+- Styling: Tailwind CSS
+- Code Quality: ESLint, Prettier
 - Backend: FastAPI 최소 stub
 - Database: PostgreSQL + pgvector 예정
 - Infra: Docker Compose
