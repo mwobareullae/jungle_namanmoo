@@ -1,2 +1,5 @@
 doc_id,source_type,source_id,text
-doc_001,ingredient,ing_001,판테놀은 장벽 강화와 진정 효능 예시 문서입니다.
+doc_prod_001,product,prod_001,라운드랩 자작나무 수분 크림은 건성 중성 수부지 피부의 보습과 장벽 케어에 맞는 상품입니다. 판테놀 글리세린 세라마이드엔피를 포함합니다.
+doc_prod_002,product,prod_002,아누아 어성초 진정 세럼은 민감 복합성 지성 피부의 진정과 피지 고민에 맞는 상품입니다. 어성초추출물과 나이아신아마이드를 포함합니다.
+doc_ing_panthenol,ingredient,ing_panthenol,판테놀은 진정 보습 장벽 강화와 관련된 성분입니다.
+doc_ing_niacinamide,ingredient,ing_niacinamide,나이아신아마이드는 피지 조절 피부결 정돈 모공 고민과 관련된 성분입니다.

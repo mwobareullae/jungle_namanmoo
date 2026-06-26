@@ -4,5 +4,35 @@
     "effect_id": "effect_sebum_control",
     "effect_name": "피지 조절",
     "weight": 1.0
+  },
+  {
+    "tag_id": "concern_pore",
+    "effect_id": "effect_texture",
+    "effect_name": "피부결 정돈",
+    "weight": 0.7
+  },
+  {
+    "tag_id": "concern_dryness",
+    "effect_id": "effect_moisturizing",
+    "effect_name": "보습",
+    "weight": 1.0
+  },
+  {
+    "tag_id": "concern_dryness",
+    "effect_id": "effect_barrier",
+    "effect_name": "장벽 강화",
+    "weight": 0.8
+  },
+  {
+    "tag_id": "concern_sensitive",
+    "effect_id": "effect_calming",
+    "effect_name": "진정",
+    "weight": 1.0
+  },
+  {
+    "tag_id": "concern_trouble",
+    "effect_id": "effect_calming",
+    "effect_name": "진정",
+    "weight": 0.8
   }
 ]

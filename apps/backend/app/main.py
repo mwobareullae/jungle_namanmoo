@@ -1,40 +1,49 @@
-import os
-
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.routes import health, products, recommendations
+from app.core.config import settings
+from app.schemas.common import ApiError, build_error_response, dump_model
 
 
-APP_NAME = os.getenv("APP_NAME", "mwobareullae")
-API_BASE_PATH = os.getenv("API_BASE_PATH", "/api")
-cors_origins = [
-    origin.strip()
-    for origin in os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173").split(",")
-    if origin.strip()
-]
-
-app = FastAPI(title=f"{APP_NAME} API")
+app = FastAPI(title=f"{settings.app_name} API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=settings.backend_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(health.router, prefix=settings.api_base_path)
+app.include_router(recommendations.router, prefix=settings.api_base_path)
+app.include_router(products.router, prefix=settings.api_base_path)
+
+
+@app.exception_handler(ApiError)
+async def api_error_handler(_, exc: ApiError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=dump_model(build_error_response(exc)),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_, __: RequestValidationError) -> JSONResponse:
+    error = ApiError(400, "INVALID_INPUT", "요청 형식이 올바르지 않습니다.")
+    return JSONResponse(
+        status_code=error.status_code,
+        content=dump_model(build_error_response(error)),
+    )
+
 
 @app.get("/")
 def root():
     return {
-        "service": APP_NAME,
+        "service": settings.app_name,
         "message": "hello from mwobareullae backend",
-        "health": f"{API_BASE_PATH}/health",
-    }
-
-
-@app.get(f"{API_BASE_PATH}/health")
-def health():
-    return {
-        "status": "ok",
-        "service": APP_NAME,
+        "health": f"{settings.api_base_path}/health",
     }
