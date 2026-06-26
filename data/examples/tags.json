@@ -2,6 +2,21 @@
   {
     "tag_id": "concern_pore",
     "name": "모공",
-    "synonyms": ["모공", "넓은 모공", "모공 늘어짐"]
+    "synonyms": ["모공", "넓은 모공", "모공 늘어짐", "피지", "번들거림"]
+  },
+  {
+    "tag_id": "concern_dryness",
+    "name": "건조",
+    "synonyms": ["건조", "속건조", "당김", "수분 부족", "각질 들뜸"]
+  },
+  {
+    "tag_id": "concern_sensitive",
+    "name": "민감",
+    "synonyms": ["민감", "자극", "따가움", "붉어짐", "예민"]
+  },
+  {
+    "tag_id": "concern_trouble",
+    "name": "트러블",
+    "synonyms": ["트러블", "여드름", "좁쌀", "뾰루지"]
   }
 ]

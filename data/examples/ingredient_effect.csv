@@ -1,2 +1,8 @@
 ingredient_id,effect_id,effect_name,effect_score
-ing_001,effect_barrier,장벽 강화,90
+ing_panthenol,effect_calming,진정,90
+ing_panthenol,effect_barrier,장벽 강화,85
+ing_glycerin,effect_moisturizing,보습,90
+ing_ceramide_np,effect_barrier,장벽 강화,88
+ing_heartleaf,effect_calming,진정,82
+ing_niacinamide,effect_sebum_control,피지 조절,80
+ing_niacinamide,effect_texture,피부결 정돈,78

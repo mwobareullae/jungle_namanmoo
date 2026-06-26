@@ -19,3 +19,18 @@ FastAPI 백엔드 작업 자리입니다.
 ## 현재 상태
 
 `http://localhost:8000`과 `http://localhost:8000/api/health`가 응답하는 상태입니다.
+
+## 테스트
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+## 데이터 로더
+
+`docs/data-contract.md`의 CSV/JSON 계약은 `app/services/data_loader.py`에서 먼저 검증합니다.
+
+```bash
+pytest tests/test_data_loader.py
+```
