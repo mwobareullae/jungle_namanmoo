@@ -1,10 +1,23 @@
+import os
 from pathlib import Path
 
 from app.services.parser import parse_concern_text
 from app.services.repository import load_repository
 
 
-EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "data" / "examples"
+def _resolve_examples_dir() -> Path:
+    if os.getenv("DATA_EXAMPLES_DIR"):
+        return Path(os.environ["DATA_EXAMPLES_DIR"])
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "data" / "examples"
+        if candidate.exists():
+            return candidate
+
+    return Path("/data/examples")
+
+
+EXAMPLES_DIR = _resolve_examples_dir()
 
 
 def test_parse_concern_text_matches_tags_and_effects() -> None:

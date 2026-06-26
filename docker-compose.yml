@@ -22,6 +22,8 @@ services:
   backend:
     build:
       context: ./apps/backend
+      args:
+        INSTALL_DEV: "true"
     container_name: mwobareullae-backend
     restart: unless-stopped
     environment:
@@ -30,11 +32,13 @@ services:
       API_BASE_PATH: ${API_BASE_PATH:-/api}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
       DATABASE_URL: ${DATABASE_URL:-postgresql://mwobareullae:change-me@postgres:5432/mwobareullae}
+      DATA_DIR: ${DATA_DIR:-/data}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./apps/backend:/app
+      - ./data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy

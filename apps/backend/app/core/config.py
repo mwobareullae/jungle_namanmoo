@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -14,12 +15,21 @@ def _parse_cors_origins(value: str) -> list[str]:
     return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
+def _default_data_dir() -> str:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "data"
+        if candidate.exists():
+            return str(candidate)
+    return "/data"
+
+
 class Settings(BaseModel):
     app_name: str = os.getenv("APP_NAME", "mwobareullae")
     api_base_path: str = _normalize_api_base_path(os.getenv("API_BASE_PATH", "/api"))
     backend_cors_origins: list[str] = _parse_cors_origins(
         os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     )
+    data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
 
 
 settings = Settings()
