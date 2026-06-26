@@ -31,7 +31,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       API_BASE_PATH: ${API_BASE_PATH:-/api}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://mwobareullae:change-me@postgres:5432/mwobareullae}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae}
       DATA_DIR: ${DATA_DIR:-/data}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:

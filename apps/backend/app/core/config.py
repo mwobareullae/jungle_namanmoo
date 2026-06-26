@@ -29,6 +29,10 @@ class Settings(BaseModel):
     backend_cors_origins: list[str] = _parse_cors_origins(
         os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     )
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae",
+    )
     data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
 
 
