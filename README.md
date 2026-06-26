@@ -10,6 +10,7 @@
 
 - Frontend: `apps/frontend`
 - Backend: `apps/backend`
+- Data: `data`
 - Docs: `docs`
 - GitHub workflows: `.github/workflows`
 
@@ -17,16 +18,19 @@
 
 - Frontend: Vite, React, TypeScript, Tailwind CSS 예정
 - Backend: FastAPI 예정
-- Database: PostgreSQL 예정
-- Infra: Docker Compose 예정
+- Database: PostgreSQL + pgvector 예정
+- Infra: Docker Compose
 - CI/CD: GitHub Actions 예정
 
 ## 이번 골격에 포함된 것
 
 - 프론트엔드 작업 자리: `apps/frontend`
 - 백엔드 작업 자리: `apps/backend`
+- 데이터 산출물 작업 자리: `data`
 - 문서 작업 자리: `docs`
 - GitHub Actions 작업 자리: `.github/workflows`
+- Docker Compose Postgres 서비스: `docker-compose.yml`
+- 데이터 계약 문서: `docs/data-contract.md`
 
 ## 아직 하지 않은 것
 
@@ -34,7 +38,8 @@
 - S1~S4 화면 구현
 - mock API 구현
 - 백엔드 구현
+- 실제 데이터 적재
 - 실제 API 연동
-- Docker Compose 작성
+- Docker Compose frontend/backend 서비스 추가
 - CI/CD workflow 작성
 - 배포 설정
