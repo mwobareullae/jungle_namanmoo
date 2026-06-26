@@ -97,6 +97,48 @@
 11. 데이터 파일의 컬럼명이나 JSON key는 `docs/data-contract.md` 없이 임의 변경하지 않는다.
 12. SQL 직접 작성보다 CSV/JSON 원천 데이터와 seed script 방식을 우선한다.
 
+## 프론트 디자인 시스템
+
+프론트엔드는 `dossier_design_system.html`의 무드를 기준으로 에디토리얼, 럭셔리, 미니멀하게 구현한다.
+
+### 폰트
+
+- 로고/브랜드명 `muwobareullae`에만 `Cormorant Garamond`를 사용한다.
+- 로고를 제외한 모든 UI 텍스트, 제목, 본문, 버튼, 카드, 점수, 폼 요소는 `Pretendard`를 사용한다.
+- 새 컴포넌트에서 `Georgia`, 임의 serif, 다른 웹폰트를 추가하지 않는다.
+- 큰 제목도 Pretendard 계층 안에서 굵기, 크기, 줄간격으로 구분한다.
+
+### 컬러 토큰
+
+```text
+Primary / Espresso: #171310
+Accent / Linen:     #D7CDBD
+Surface:            #FAFAF8
+Raised surface:     #FFFFFF
+Edge:               #E8E4DC
+Muted text:         #9B9893
+Success / Forest:   #3D6B4F
+Warning / Ochre:    #8B6914
+Danger / Burgundy:  #8B3535
+Info / Slate:       #3A5A78
+```
+
+### 타이포그래피 계층
+
+- 로고: Cormorant Garamond, 넓은 자간, 얇고 고급스러운 브랜드 표기
+- 화면 H1: Pretendard, 가장 큰 크기, 굵은 weight, 자간 0
+- 섹션 제목: Pretendard, H1보다 작고 굵기 중간 이상
+- 카드/상품명: Pretendard, 섹션 제목보다 작은 굵은 제목
+- 본문/설명: Pretendard, regular weight, 충분한 line-height
+- 라벨/eyebrow: Pretendard, 작은 크기, 제한적인 대문자/자간
+
+### 컴포넌트 무드
+
+- 버튼, 입력창, 칩, 카드의 radius는 기본 2px로 작게 유지한다.
+- 입력창은 흰 배경, `#E8E4DC` border, focus 시 `#D7CDBD` outline을 우선한다.
+- 장식적 그래디언트, 과한 그림자, 둥근 pill 남발을 피한다.
+- 화면은 흰색/오프화이트 기반으로 두고, 검정과 베이지로 밀도와 위계를 만든다.
+
 ## 브랜치 규칙
 
 ```text

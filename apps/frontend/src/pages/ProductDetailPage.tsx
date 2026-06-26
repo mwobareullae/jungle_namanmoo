@@ -41,11 +41,11 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
 
         <div className="detail-info">
           <p className="eyebrow">{product.brand}</p>
-          <h1 className="serif detail-title">{product.name}</h1>
+          <h1 className="detail-title">{product.name}</h1>
           <p className="reason-summary large">{product.reason_summary}</p>
 
           <div className="detail-score">
-            <strong className="serif score-xl">{product.total_score}</strong>
+            <strong className="score-xl">{product.total_score}</strong>
             <span>/ 100 추천점수</span>
           </div>
 
@@ -89,7 +89,7 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
                 className="evidence-item"
                 key={`${evidence.ingredient_name}-${evidence.effect_name}`}
               >
-                <h3 className="serif evidence-name">{evidence.ingredient_name}</h3>
+                <h3 className="evidence-name">{evidence.ingredient_name}</h3>
                 <p>{evidence.effect_name}</p>
                 <p className="muted-copy">{evidence.evidence_text}</p>
                 <Badge tone="notice">근거 {evidence.evidence_level}</Badge>

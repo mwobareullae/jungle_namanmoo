@@ -40,7 +40,7 @@ function RecommendationResultsPage({
       <div className="results-head">
         <div>
           <p className="eyebrow">Recommended for you</p>
-          <h1 className="serif section-title">성분 근거로 고른 추천 결과</h1>
+          <h1 className="section-title">성분 근거로 고른 추천 결과</h1>
         </div>
         <button className="secondary-button" type="button" onClick={onRestart}>
           다시 입력

@@ -25,7 +25,7 @@ function AnalysisLoadingPage({
     <section className="loading-page" aria-live="polite">
       <div className="ring" aria-hidden="true" />
       <p className="eyebrow loading-eyebrow">Analyzing</p>
-      <h1 className="serif loading-title">성분 근거를 맞춰보고 있어요</h1>
+      <h1 className="loading-title">성분 근거를 맞춰보고 있어요</h1>
       <p className="loading-query">“{request.concern_text}”</p>
 
       <div className="steps">

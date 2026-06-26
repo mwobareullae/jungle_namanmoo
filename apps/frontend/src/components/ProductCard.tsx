@@ -26,7 +26,7 @@ function ProductCard({ product, onOpen }: ProductCardProps) {
 
         <div className="product-body">
           <p className="eyebrow">{product.brand}</p>
-          <h3 className="serif product-name">{product.name}</h3>
+          <h3 className="product-name">{product.name}</h3>
           <p className="ingredients">{product.key_ingredients.join(" · ")}</p>
           <p className="reason-summary">{product.reason_summary}</p>
 
@@ -44,7 +44,7 @@ function ProductCard({ product, onOpen }: ProductCardProps) {
           <div className="card-foot">
             <div>
               <span className="score-label">추천점수</span>
-              <strong className="serif score">{product.total_score}</strong>
+              <strong className="score">{product.total_score}</strong>
             </div>
             <div className="price-block">
               <span className="score-label">최저가</span>
