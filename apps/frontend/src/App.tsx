@@ -29,7 +29,7 @@ const logRecommendationRequest = (
   rawRequest: RecommendationRequest,
   nextRequest: RecommendationRequest
 ) => {
-  console.groupCollapsed("[muwobareullae] recommendation request");
+  console.groupCollapsed("[mubareullae] recommendation request");
   console.table({
     skin_type: nextRequest.skin_type,
     sensitivity: nextRequest.sensitivity,
