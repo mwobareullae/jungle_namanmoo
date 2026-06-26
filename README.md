@@ -16,8 +16,8 @@
 
 ## 기술 스택
 
-- Frontend: Vite, React, TypeScript, Tailwind CSS 예정
-- Backend: FastAPI 예정
+- Frontend: Vite, React, TypeScript 최소 stub
+- Backend: FastAPI 최소 stub
 - Database: PostgreSQL + pgvector 예정
 - Infra: Docker Compose
 - CI/CD: GitHub Actions 최소 CI
@@ -29,7 +29,7 @@
 - 데이터 산출물 작업 자리: `data`
 - 문서 작업 자리: `docs`
 - GitHub Actions 작업 자리: `.github/workflows`
-- Docker Compose Postgres 서비스: `docker-compose.yml`
+- Docker Compose frontend/backend/postgres 서비스: `docker-compose.yml`
 - 데이터 계약 문서: `docs/data-contract.md`
 - 최소 CI workflow: `.github/workflows/ci.yml`
 
@@ -51,24 +51,34 @@ docker compose config
 
 이 명령이 통과하면 `.env`와 `docker-compose.yml` 문법이 유효한 상태입니다.
 
-### 3. Postgres/pgvector 실행
+### 3. 전체 개발환경 실행
+
+```bash
+docker compose up --build
+```
+
+현재 Compose는 최소 Hello World 수준의 `frontend`, `backend`, `postgres`를 함께 실행합니다.
+
+- Frontend: <http://localhost:5173>
+- Backend: <http://localhost:8000>
+- Backend health: <http://localhost:8000/api/health>
+
+### 4. DB만 실행
 
 ```bash
 docker compose up -d postgres
 ```
 
-현재 Compose에는 `postgres` 서비스만 포함되어 있습니다. 프론트엔드와 백엔드 서비스는 각 담당 브랜치에서 Dockerfile이 생긴 뒤 추가합니다.
-
-### 4. 컨테이너 상태 확인
+### 5. 컨테이너 상태 확인
 
 ```bash
 docker compose ps
 ```
 
-### 5. Compose smoke test 실행
+### 6. Compose smoke test 실행
 
 ```bash
-docker compose --profile test up --abort-on-container-exit --exit-code-from db-check db-check
+docker compose --profile test run --rm db-check
 ```
 
 이 명령은 Postgres가 정상 기동되는지, DB 접속이 되는지, `vector` extension을 생성할 수 있는지 확인합니다.
@@ -79,7 +89,7 @@ docker compose --profile test up --abort-on-container-exit --exit-code-from db-c
 docker compose --profile test down
 ```
 
-### 6. 로컬 DB 중지
+### 7. 로컬 개발환경 중지
 
 ```bash
 docker compose down
@@ -112,24 +122,24 @@ docker compose down -v
 
 ## 현재 CI 범위
 
-현재 CI는 앱 빌드가 아니라 인프라 골격 검증만 수행합니다.
+현재 CI는 최소 앱 컨테이너와 인프라 골격 검증만 수행합니다.
 
 - 필수 파일 존재 확인
 - 실제 `.env` 파일 커밋 여부 확인
 - `docker compose --profile test config`
-- Docker Compose smoke test
+- frontend/backend 컨테이너 빌드 및 Hello endpoint 확인
+- DB smoke test
 
 프론트엔드와 백엔드가 초기화되면 각 담당 브랜치에서 lint, typecheck, test, build 검증을 추가합니다.
 
 ## 아직 하지 않은 것
 
-- 프론트엔드 프로젝트 초기화
+- 프론트엔드 실제 화면 구현
 - S1~S4 화면 구현
 - mock API 구현
-- 백엔드 구현
+- 실제 백엔드 API 구현
 - 실제 데이터 적재
 - 실제 API 연동
-- Docker Compose frontend/backend 서비스 추가
 - frontend/backend lint/build/test CI 추가
 - CD workflow 작성
 - 배포 설정

@@ -4,7 +4,8 @@ FastAPI 백엔드 작업 자리입니다.
 
 ## 담당 범위
 
-- 팀원2가 FastAPI 앱을 이 디렉터리에서 시작합니다.
+- 현재는 Docker Compose 실행 확인을 위한 FastAPI Hello World만 있습니다.
+- 팀원2가 별도 백엔드 작업 브랜치에서 실제 API, 스코어링, DB 연결을 확장합니다.
 - Phase 0 API base path는 `/api`입니다.
 - 인증은 Phase 0에서 제외합니다.
 
@@ -17,4 +18,4 @@ FastAPI 백엔드 작업 자리입니다.
 
 ## 현재 상태
 
-아직 백엔드 구현은 없습니다. 팀 전체 개발 착수를 위한 디렉터리와 안내만 준비했습니다.
+`http://localhost:8000`과 `http://localhost:8000/api/health`가 응답하는 상태입니다.

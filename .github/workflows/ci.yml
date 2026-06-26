@@ -34,7 +34,17 @@ jobs:
             ".env.example"
             "docker-compose.yml"
             "apps/frontend/README.md"
+            "apps/frontend/Dockerfile"
+            "apps/frontend/package.json"
+            "apps/frontend/index.html"
+            "apps/frontend/vite.config.ts"
+            "apps/frontend/src/main.tsx"
+            "apps/frontend/src/styles.css"
+            "apps/frontend/src/vite-env.d.ts"
             "apps/backend/README.md"
+            "apps/backend/Dockerfile"
+            "apps/backend/requirements.txt"
+            "apps/backend/app/main.py"
             "docs/data-contract.md"
             "data/README.md"
           )
@@ -56,8 +66,17 @@ jobs:
       - name: Validate Docker Compose config
         run: docker compose --profile test config
 
-      - name: Run Docker Compose smoke test
-        run: docker compose --profile test up --abort-on-container-exit --exit-code-from db-check db-check
+      - name: Start Docker Compose services
+        run: docker compose up --build -d postgres backend frontend
+
+      - name: Check backend hello endpoint
+        run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health
+
+      - name: Check frontend hello page
+        run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:5173
+
+      - name: Run DB smoke test
+        run: docker compose --profile test run --rm db-check
 
       - name: Stop Docker Compose services
         if: always()

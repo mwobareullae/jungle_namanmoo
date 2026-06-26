@@ -4,13 +4,13 @@
 
 ## 프로젝트 구조
 
-현재 infra 브랜치는 팀 개발을 시작하기 위한 골격만 둡니다.
+현재 infra 브랜치는 팀 개발을 시작하기 위한 골격과 Docker Compose 실행 확인용 Hello World stub만 둡니다.
 
 ```text
 .
 ├─ apps/
-│  ├─ frontend/          # 프론트엔드 작업 자리
-│  └─ backend/           # 백엔드 작업 자리
+│  ├─ frontend/          # Vite React TypeScript 최소 stub
+│  └─ backend/           # FastAPI 최소 stub
 ├─ data/                 # CSV/JSON 데이터 산출물과 예시
 │  └─ examples/          # 데이터 형식 예시 파일
 ├─ docs/                 # 기획, API, 배포, 데이터 계약 문서
@@ -22,7 +22,7 @@
 └─ AGENTS.md             # AI/팀원 작업 규칙
 ```
 
-아직 프론트엔드와 백엔드 실제 구현은 없습니다. 각 담당자는 별도 브랜치에서 자기 영역을 초기화합니다.
+아직 S1~S4 화면, mock API, 실제 API, 스코어링 구현은 없습니다. 각 담당자는 별도 브랜치에서 자기 영역을 확장합니다.
 
 ## 담당 영역
 
@@ -334,15 +334,16 @@ docker-compose.yml
 ## Docker Compose 규칙
 
 - 루트 `docker-compose.yml`은 팀 공통 실행 기준이다.
-- 현재 Compose에는 Postgres/pgvector만 포함한다.
-- frontend/backend 서비스는 각 담당 브랜치에서 Dockerfile이 생긴 뒤 추가한다.
+- 현재 Compose에는 최소 Hello World 수준의 frontend, backend, Postgres/pgvector를 포함한다.
+- frontend/backend는 실제 기능 구현이 아니라 포트와 컨테이너 실행 확인용 stub이다.
 - 서비스 이름, 포트, 환경변수명을 바꾸면 README와 `.env.example`도 같이 갱신한다.
 
 기본 검증:
 
 ```bash
 docker compose --profile test config
-docker compose --profile test up --abort-on-container-exit --exit-code-from db-check db-check
+docker compose up --build
+docker compose --profile test run --rm db-check
 docker compose --profile test down
 ```
 
@@ -350,7 +351,7 @@ docker compose --profile test down
 
 - GitHub Actions 파일은 `.github/workflows/`에 둔다.
 - PR에서는 현재 가능한 검증부터 추가한다.
-- 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose --profile test config`, Compose smoke test를 검증한다.
+- 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose --profile test config`, frontend/backend Hello endpoint, DB smoke test를 검증한다.
 - 프론트/백엔드 초기화 전에는 앱 빌드를 억지로 넣지 않는다.
 - `main` 배포와 `dev` 배포는 환경을 분리한다.
 - secret 값은 GitHub Secrets 또는 배포 플랫폼 Secrets에 둔다.
@@ -377,39 +378,37 @@ infra 브랜치에서는 프로젝트 골격과 공통 개발환경만 준비한
 
 포함:
 
-- `apps/frontend/README.md`로 팀원1 작업 위치 안내
-- `apps/backend/README.md`로 팀원2 작업 위치 안내
+- `apps/frontend/` Vite React TypeScript Hello World stub
+- `apps/backend/` FastAPI Hello World stub
 - `docs/data-contract.md` 초안
 - `data/README.md`
 - `data/examples/` 예시 파일
 - 루트 `README.md`
 - 루트 `.env.example`
-- 루트 `docker-compose.yml`의 Postgres/pgvector 서비스
+- 루트 `docker-compose.yml`의 frontend/backend/postgres 서비스
 - 루트 `AGENTS.md`
 - `.github/workflows/ci.yml` 최소 CI
 
 제외:
 
-- Vite + React + TypeScript 초기 세팅
+- S1~S4 프론트엔드 화면 구현
 - Tailwind, ESLint, Prettier 설정
-- S1~S4 실제 화면 구현
 - mock API 실제 구현
-- FastAPI 실제 코드 구현
+- FastAPI 실제 추천 API 구현
 - 스코어링 구현
 - DB 모델/마이그레이션 구현
 - 실제 상품/성분/근거 데이터 대량 추가
 - 실제 seed script 구현
-- frontend/backend Dockerfile 작성
 - 실제 배포 secret 추가
 
 ## MVP 기술 스택
 
 ```text
-Frontend: Vite + React + TypeScript 예정
+Frontend: Vite + React + TypeScript 최소 stub
 Styling: Tailwind CSS 예정
 Code Quality: ESLint, Prettier 예정
 Mock API: MSW 또는 mock JSON 예정
-Backend: FastAPI 예정
+Backend: FastAPI 최소 stub
 API Base Path: /api
 DB: PostgreSQL + pgvector
 Infra: Docker Compose
