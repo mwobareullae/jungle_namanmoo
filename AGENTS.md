@@ -103,7 +103,7 @@
 
 ### 폰트
 
-- 로고/브랜드명 `muwobareullae`에만 `Cormorant Garamond`를 사용한다.
+- 로고/브랜드명 `mubareullae`에만 `Cormorant Garamond`를 사용한다.
 - 로고를 제외한 모든 UI 텍스트, 제목, 본문, 버튼, 카드, 점수, 폼 요소는 `Pretendard`를 사용한다.
 - 새 컴포넌트에서 `Georgia`, 임의 serif, 다른 웹폰트를 추가하지 않는다.
 - 큰 제목도 Pretendard 계층 안에서 굵기, 크기, 줄간격으로 구분한다.

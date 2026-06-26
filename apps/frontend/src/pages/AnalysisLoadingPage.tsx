@@ -1,7 +1,7 @@
 import { useElapsedSeconds } from "../hooks/useElapsedSeconds";
 import type { RecommendationRequest } from "../types/recommendation";
 
-const loadingSteps = ["피부 타입 확인", "고민 키워드 해석", "효능 후보 정리", "성분 근거 매칭"];
+const loadingSteps = ["피부타입 분석", "피부 고민 파악", "성분 매칭", "근거 검증"];
 
 type AnalysisLoadingPageProps = {
   request: RecommendationRequest;
@@ -12,7 +12,6 @@ type AnalysisLoadingPageProps = {
 };
 
 function AnalysisLoadingPage({
-  request,
   isLoading,
   errorMessage,
   onRetry,
@@ -24,9 +23,7 @@ function AnalysisLoadingPage({
   return (
     <section className="loading-page" aria-live="polite">
       <div className="ring" aria-hidden="true" />
-      <p className="eyebrow loading-eyebrow">Analyzing</p>
-      <h1 className="loading-title">성분 근거를 맞춰보고 있어요</h1>
-      <p className="loading-query">“{request.concern_text}”</p>
+      <p className="loading-status">AI가 분석하고 있어요</p>
 
       <div className="steps">
         {loadingSteps.map((step, index) => {
@@ -34,7 +31,9 @@ function AnalysisLoadingPage({
             index < activeStepIndex ? "done" : index === activeStepIndex ? "active" : "";
           return (
             <div className={`step ${state}`} key={step}>
-              <span className="dot" aria-hidden="true" />
+              <span className="step-marker" aria-hidden="true">
+                {state === "done" ? "✓" : null}
+              </span>
               <span>{step}</span>
             </div>
           );
