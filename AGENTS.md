@@ -341,14 +341,16 @@ docker-compose.yml
 기본 검증:
 
 ```bash
-docker compose config
+docker compose --profile test config
+docker compose --profile test up --abort-on-container-exit --exit-code-from db-check db-check
+docker compose --profile test down
 ```
 
 ## CI/CD 규칙
 
 - GitHub Actions 파일은 `.github/workflows/`에 둔다.
 - PR에서는 현재 가능한 검증부터 추가한다.
-- 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose config`를 검증한다.
+- 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose --profile test config`, Compose smoke test를 검증한다.
 - 프론트/백엔드 초기화 전에는 앱 빌드를 억지로 넣지 않는다.
 - `main` 배포와 `dev` 배포는 환경을 분리한다.
 - secret 값은 GitHub Secrets 또는 배포 플랫폼 Secrets에 둔다.

@@ -54,4 +54,11 @@ jobs:
           fi
 
       - name: Validate Docker Compose config
-        run: docker compose config
+        run: docker compose --profile test config
+
+      - name: Run Docker Compose smoke test
+        run: docker compose --profile test up --abort-on-container-exit --exit-code-from db-check db-check
+
+      - name: Stop Docker Compose services
+        if: always()
+        run: docker compose --profile test down -v
