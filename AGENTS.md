@@ -329,7 +329,9 @@ docker-compose.yml
 - 로컬 개발자는 `.env.example`을 복사해서 각자 `.env`를 만든다.
 - dev 서버와 production 서버는 서로 다른 실제 환경변수를 사용한다.
 - `VITE_`로 시작하는 값은 브라우저에 노출될 수 있으므로 secret을 넣지 않는다.
-- Phase 0에서는 OpenAI API key를 기본 환경변수로 요구하지 않는다.
+- `.env.example`에는 추후 확장을 위해 `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_EMBEDDING_MODEL` 자리를 둔다.
+- 현재 Phase 0 Hello World 개발환경에서는 OpenAI 관련 환경변수를 사용하지 않는다.
+- 실제 OpenAI API key는 `.env.example`에 넣지 않고 로컬 `.env`, GitHub Secrets, 서버 환경변수에서만 관리한다.
 
 ## Docker Compose 규칙
 

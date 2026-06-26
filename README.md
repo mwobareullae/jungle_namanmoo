@@ -43,6 +43,8 @@ cp .env.example .env
 
 `.env`는 각자 로컬 또는 서버에서만 사용합니다. 실제 비밀번호, API key, secret은 커밋하지 않습니다.
 
+`OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_EMBEDDING_MODEL`은 추후 LLM 기반 고민 해석이나 임베딩 기능을 붙일 때 사용할 자리입니다. 현재 Phase 0 Hello World 개발환경에서는 사용하지 않습니다.
+
 ### 2. Docker Compose 설정 확인
 
 ```bash
