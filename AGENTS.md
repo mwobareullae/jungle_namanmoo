@@ -354,8 +354,10 @@ docker compose down
 - PR에서는 현재 가능한 검증부터 추가한다.
 - 현재 최소 CI는 필수 파일 존재 여부, 실제 `.env` 커밋 여부, `docker compose config`, frontend/backend Hello endpoint를 검증한다.
 - 프론트/백엔드 초기화 전에는 앱 빌드를 억지로 넣지 않는다.
-- `main` 배포와 `dev` 배포는 환경을 분리한다.
+- `dev` push는 EC2 개발 서버 자동 배포 대상으로 사용한다.
+- `main` production 자동 배포는 아직 만들지 않는다.
 - secret 값은 GitHub Secrets 또는 배포 플랫폼 Secrets에 둔다.
+- dev CD는 `DEV_HOST`, `DEV_USER`, `DEV_SSH_KEY`, `DEV_APP_DIR` GitHub Secrets를 사용한다.
 
 ## PR 체크리스트
 
@@ -389,6 +391,8 @@ infra 브랜치에서는 프로젝트 골격과 공통 개발환경만 준비한
 - 루트 `docker-compose.yml`의 frontend/backend/postgres 서비스
 - 루트 `AGENTS.md`
 - `.github/workflows/ci.yml` 최소 CI
+- `.github/workflows/cd-dev.yml` dev 서버 배포 workflow
+- `docs/deployment-summary.md` dev 배포 결정 기록
 
 제외:
 
@@ -401,6 +405,7 @@ infra 브랜치에서는 프로젝트 골격과 공통 개발환경만 준비한
 - 실제 상품/성분/근거 데이터 대량 추가
 - 실제 seed script 구현
 - 실제 배포 secret 추가
+- production 자동 배포
 
 ## MVP 기술 스택
 
