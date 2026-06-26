@@ -26,3 +26,11 @@ FastAPI 백엔드 작업 자리입니다.
 pip install -r requirements-dev.txt
 pytest
 ```
+
+## 데이터 로더
+
+`docs/data-contract.md`의 CSV/JSON 계약은 `app/services/data_loader.py`에서 먼저 검증합니다.
+
+```bash
+pytest tests/test_data_loader.py
+```
