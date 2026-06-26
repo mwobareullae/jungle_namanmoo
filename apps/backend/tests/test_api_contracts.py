@@ -51,6 +51,33 @@ def test_create_recommendation_applies_request_defaults() -> None:
     }.issubset(product)
 
 
+def test_create_recommendation_uses_concern_parser() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "모공이랑 속건조가 고민이에요"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert any("모공" in concern for concern in data["summary"]["matched_concerns"])
+    assert any("속건조" in concern for concern in data["summary"]["matched_concerns"])
+    assert data["unmatched_terms"] == []
+
+
+def test_create_recommendation_keeps_unmatched_terms_from_parser() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "모공이랑 빤딱빤딱"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert any("모공" in concern for concern in data["summary"]["matched_concerns"])
+    assert data["unmatched_terms"] == ["빤딱빤딱"]
+
+
 def test_create_recommendation_rejects_blank_concern_text() -> None:
     response = client.post("/api/recommendations", json={"concern_text": "   "})
 

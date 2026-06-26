@@ -110,6 +110,14 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
     return catalog
 
 
+def load_concern_tags(data_dir: str | Path) -> tuple[ConcernTag, ...]:
+    return _load_tags(Path(data_dir))
+
+
+def load_concern_effects(data_dir: str | Path) -> tuple[ConcernEffect, ...]:
+    return _load_concern_effects(Path(data_dir))
+
+
 def _load_csv(
     base_path: Path,
     file_name: str,
