@@ -1,0 +1,32 @@
+name: mwobareullae
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mwobareullae-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mwobareullae}
+      POSTGRES_USER: ${POSTGRES_USER:-mwobareullae}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+    name: mwobareullae_postgres_data
+
+networks:
+  app_network:
+    name: mwobareullae_network
+    driver: bridge
