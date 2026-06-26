@@ -1,0 +1,2 @@
+product_id,ingredient_id,ingredient_name,content_confidence,display_order
+prod_001,ing_001,판테놀,high,1

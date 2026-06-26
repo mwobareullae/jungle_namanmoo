@@ -1,0 +1,89 @@
+name: cd-dev
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+concurrency:
+  group: dev-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: deploy dev server
+    runs-on: ubuntu-latest
+
+    env:
+      DEV_HOST: ${{ secrets.DEV_HOST }}
+      DEV_USER: ${{ secrets.DEV_USER }}
+      DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
+      DEV_APP_DIR: ${{ secrets.DEV_APP_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "$DEV_HOST"
+          test -n "$DEV_USER"
+          test -n "$DEV_APP_DIR"
+          test -n "$DEV_SSH_KEY"
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEV_SSH_KEY" > ~/.ssh/dev_key
+          chmod 600 ~/.ssh/dev_key
+          ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync checkout to dev server
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dev_key "$DEV_USER@$DEV_HOST" "mkdir -p '$DEV_APP_DIR'"
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            --exclude 'docker-data' \
+            -e "ssh -i ~/.ssh/dev_key" \
+            ./ "$DEV_USER@$DEV_HOST:$DEV_APP_DIR/"
+
+      - name: Deploy with Docker Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dev_key "$DEV_USER@$DEV_HOST" "
+            set -euo pipefail
+            cd '$DEV_APP_DIR'
+            test -f .env || cp .env.example .env
+            docker compose config
+            docker compose up --build -d
+            docker compose ps
+          "
+
+      - name: Check dev server health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dev_key "$DEV_USER@$DEV_HOST" "
+            set -euo pipefail
+            curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health
+            curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:5173
+          "
