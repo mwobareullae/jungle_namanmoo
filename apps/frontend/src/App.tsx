@@ -1,122 +1,142 @@
-type ProductPreview = {
-  brand: string;
-  name: string;
-  ingredients: string;
-  score: number;
-  grade: "A" | "B";
-  tone: string;
-  badges: string[];
+import { useState } from "react";
+import AppHeader from "./components/AppHeader";
+import { api } from "./lib/api";
+import AnalysisLoadingPage from "./pages/AnalysisLoadingPage";
+import ConcernInputPage from "./pages/ConcernInputPage";
+import ProductDetailPage from "./pages/ProductDetailPage";
+import ProductNotFoundPage from "./pages/ProductNotFoundPage";
+import RecommendationResultsPage from "./pages/RecommendationResultsPage";
+import type {
+  ProductDetail,
+  RecommendationRequest,
+  RecommendationResponse
+} from "./types/recommendation";
+
+type View = "input" | "loading" | "results" | "detail" | "notFound";
+
+const initialRequest: RecommendationRequest = {
+  skin_type: "수부지",
+  sensitivity: "보통",
+  avoid_ingredients: [],
+  concern_text: "수부지인데 모공 넓고 좁쌀 여드름이 있어요"
 };
 
-const previewProducts: ProductPreview[] = [
-  {
-    brand: "MAISON CREME",
-    name: "Hydra Veil Serum",
-    ingredients: "히알루론산 · 판테놀 · 세라마이드",
-    score: 94,
-    grade: "A",
-    tone: "tone-a",
-    badges: ["성분 근거", "장벽 보습"]
-  },
-  {
-    brand: "ATELIER N",
-    name: "Pore Refining Essence",
-    ingredients: "나이아신아마이드 · 아연 PCA",
-    score: 88,
-    grade: "B",
-    tone: "tone-b",
-    badges: ["피지 조절", "모공"]
-  },
-  {
-    brand: "HERBARIUM",
-    name: "Calming Centella Ampoule",
-    ingredients: "마데카소사이드 · 알란토인",
-    score: 91,
-    grade: "A",
-    tone: "tone-c",
-    badges: ["진정", "주의 성분 없음"]
-  }
-];
+const minimumLoadingMs = 3200;
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 function App() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+  const [view, setView] = useState<View>("input");
+  const [request, setRequest] = useState<RecommendationRequest>(initialRequest);
+  const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [analysisRunId, setAnalysisRunId] = useState(0);
+
+  const startRecommendation = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    const concernText = request.concern_text.trim();
+    if (concernText.length === 0) {
+      setErrorMessage("피부 고민을 입력해주세요.");
+      return;
+    }
+
+    const nextRequest = {
+      ...request,
+      concern_text: concernText
+    };
+
+    setRequest(nextRequest);
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    setAnalysisRunId((currentId) => currentId + 1);
+    setView("loading");
+
+    try {
+      const [response] = await Promise.all([
+        api.createRecommendation(nextRequest),
+        wait(minimumLoadingMs)
+      ]);
+      setRecommendation(response);
+      setView("results");
+    } catch {
+      setErrorMessage("분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openProduct = async (productId: string) => {
+    setErrorMessage(null);
+    try {
+      const product = await api.getProduct(productId);
+      setSelectedProduct(product);
+      setView("detail");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      setSelectedProduct(null);
+      setView("notFound");
+    }
+  };
+
+  const goHome = () => {
+    setView("input");
+    setErrorMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goResults = () => {
+    setView(recommendation ? "results" : "input");
+    setErrorMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <main className="app-shell">
-      <header className="site-header">
-        <a className="brand-mark" href="/">
-          뭐바를래
-        </a>
-        <nav className="header-actions" aria-label="개발 환경 확인">
-          <a href={`${apiBaseUrl}/health`}>API</a>
-          <span>DEV</span>
-        </nav>
-      </header>
+      <AppHeader apiBaseUrl={apiBaseUrl} onHome={goHome} />
 
-      <section className="search-hero" aria-labelledby="hero-title">
-        <p className="eyebrow">Evidence-led skincare</p>
-        <h1 id="hero-title" className="serif hero-title">
-          피부 고민을 쓰면 <br />
-          성분 근거로 고릅니다
-        </h1>
-        <p className="hero-copy">
-          수부지, 모공, 좁쌀, 진정처럼 복잡한 고민을 한 문장으로 남기면 필요한 효능과 성분을 먼저
-          정리합니다.
-        </p>
+      {view === "input" ? (
+        <ConcernInputPage
+          value={request}
+          isSubmitting={isSubmitting}
+          errorMessage={errorMessage}
+          onChange={(nextValue) => {
+            setRequest(nextValue);
+            setErrorMessage(null);
+          }}
+          onSubmit={startRecommendation}
+        />
+      ) : null}
 
-        <form className="search-form">
-          <label className="field-label" htmlFor="concern">
-            피부 고민
-          </label>
-          <div className="field-row">
-            <input
-              id="concern"
-              className="concern-input"
-              placeholder="수부지인데 모공 넓고 좁쌀 여드름이 있어요"
-              maxLength={100}
-            />
-            <button className="primary-button" type="button">
-              추천 시작
-            </button>
-          </div>
-        </form>
-      </section>
+      {view === "loading" ? (
+        <AnalysisLoadingPage
+          key={analysisRunId}
+          request={request}
+          isLoading={isSubmitting}
+          errorMessage={errorMessage}
+          onRetry={startRecommendation}
+          onEdit={() => setView("input")}
+        />
+      ) : null}
 
-      <section className="preview-section" aria-labelledby="preview-title">
-        <div className="section-heading">
-          <p className="eyebrow">Recommendation preview</p>
-          <h2 id="preview-title" className="serif section-title">
-            결과는 이렇게 보여줄 예정입니다
-          </h2>
-        </div>
+      {view === "results" && recommendation ? (
+        <RecommendationResultsPage
+          recommendation={recommendation}
+          onOpenProduct={openProduct}
+          onRestart={goHome}
+        />
+      ) : null}
 
-        <div className="product-grid">
-          {previewProducts.map((product) => (
-            <article className="product-card" key={product.name}>
-              <div className={`product-thumb ${product.tone}`} aria-hidden="true" />
-              <div className="product-body">
-                <p className="eyebrow">{product.brand}</p>
-                <h3 className="serif product-name">{product.name}</h3>
-                <p className="ingredients">{product.ingredients}</p>
-                <div className="badges">
-                  {product.badges.map((badge) => (
-                    <span className="badge" key={badge}>
-                      {badge}
-                    </span>
-                  ))}
-                </div>
-                <div className="card-foot">
-                  <div>
-                    <span className="score-label">추천점수</span>
-                    <strong className="serif score">{product.score}</strong>
-                  </div>
-                  <div className={`grade grade-${product.grade}`}>{product.grade}</div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {view === "detail" && selectedProduct ? (
+        <ProductDetailPage product={selectedProduct} onBack={goResults} />
+      ) : null}
+
+      {view === "notFound" ? <ProductNotFoundPage onBack={goResults} /> : null}
     </main>
   );
 }
