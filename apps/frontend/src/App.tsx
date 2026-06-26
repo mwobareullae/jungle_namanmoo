@@ -18,12 +18,27 @@ const initialRequest: RecommendationRequest = {
   skin_type: "수부지",
   sensitivity: "보통",
   avoid_ingredients: [],
-  concern_text: "수부지인데 모공 넓고 좁쌀 여드름이 있어요"
+  concern_text: ""
 };
 
 const minimumLoadingMs = 3200;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const logRecommendationRequest = (
+  rawRequest: RecommendationRequest,
+  nextRequest: RecommendationRequest
+) => {
+  console.groupCollapsed("[muwobareullae] recommendation request");
+  console.table({
+    skin_type: nextRequest.skin_type,
+    sensitivity: nextRequest.sensitivity,
+    concern_text_raw: rawRequest.concern_text,
+    concern_text_trimmed: nextRequest.concern_text,
+    is_concern_text_trimmed: rawRequest.concern_text !== nextRequest.concern_text
+  });
+  console.groupEnd();
+};
 
 function App() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
@@ -50,6 +65,8 @@ function App() {
       ...request,
       concern_text: concernText
     };
+
+    logRecommendationRequest(request, nextRequest);
 
     setRequest(nextRequest);
     setErrorMessage(null);

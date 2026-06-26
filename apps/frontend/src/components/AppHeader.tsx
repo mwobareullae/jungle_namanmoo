@@ -7,7 +7,7 @@ function AppHeader({ apiBaseUrl, onHome }: AppHeaderProps) {
   return (
     <header className="site-header">
       <button className="brand-mark" type="button" onClick={onHome}>
-        뭐바를래
+        mubareullae
       </button>
       <nav className="header-actions" aria-label="개발 환경 확인">
         <a href={`${apiBaseUrl}/health`}>API</a>
