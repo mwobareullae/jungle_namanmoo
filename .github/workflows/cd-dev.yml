@@ -49,7 +49,7 @@ jobs:
           chmod 600 ~/.ssh/dev_key
           ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts
 
-      - name: Sync repository to dev server
+      - name: Sync checkout to dev server
         shell: bash
         run: |
           set -euo pipefail

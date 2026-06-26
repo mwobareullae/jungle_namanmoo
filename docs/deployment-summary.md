@@ -7,7 +7,7 @@
 Phase 0에서는 production 배포를 만들지 않고, `dev` 브랜치 전용 개발 서버만 운영합니다.
 
 ```text
-dev branch push -> GitHub Actions -> EC2 dev server -> Docker Compose
+dev branch push -> GitHub Actions checkout -> rsync to EC2 -> Docker Compose
 main branch push -> no production deployment yet
 ```
 
@@ -16,9 +16,11 @@ main branch push -> no production deployment yet
 - AWS EC2 1대
 - Ubuntu 24.04 LTS 권장
 - Docker + Docker Compose
+- curl + rsync
 - `frontend`, `backend`, `postgres` 컨테이너를 같은 EC2에서 실행
 - DB는 RDS가 아니라 EC2 내부 Postgres container로 시작
 - OpenAI 관련 환경변수는 placeholder만 있으며 현재 Hello World 환경에서는 사용하지 않음
+- EC2에 git 또는 repository clone은 필수 아님
 
 ## 권장 EC2 사양
 

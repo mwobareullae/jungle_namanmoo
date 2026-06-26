@@ -121,21 +121,21 @@ docker compose down -v
 
 ## Dev 서버 배포
 
-현재 production 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버에 SSH로 접속해 Docker Compose를 재실행합니다.
+현재 production 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 현재 소스를 EC2 개발 서버로 동기화한 뒤 Docker Compose를 재실행합니다.
 
 배포 구조:
 
 ```text
-dev push -> GitHub Actions cd-dev -> EC2 -> docker compose up --build -d
+dev push -> GitHub Actions checkout -> rsync to EC2 -> docker compose up --build -d
 ```
 
 ### EC2 최초 준비
 
-EC2에는 Docker, Docker Compose, curl, rsync가 필요합니다.
+EC2에는 Docker, Docker Compose, curl, rsync가 필요합니다. GitHub Actions가 소스를 전송하므로 EC2에 git을 설치하거나 repository를 clone할 필요는 없습니다.
 
 ```bash
 sudo apt update
-sudo apt install -y ca-certificates curl git rsync
+sudo apt install -y ca-certificates curl rsync
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker ubuntu
 ```
@@ -160,7 +160,7 @@ DEV_APP_DIR   예: /home/ubuntu/mwobareullae
 
 `DEV_SSH_KEY`는 공개키가 아니라 private key입니다. 레포 파일에 넣지 않습니다.
 
-EC2에 repository를 미리 clone할 필요는 없습니다. GitHub Actions가 현재 소스를 `DEV_APP_DIR`로 동기화합니다.
+EC2에 repository를 미리 clone할 필요는 없습니다. GitHub Actions가 현재 checkout된 소스를 `rsync`로 `DEV_APP_DIR`에 동기화합니다.
 
 서버의 `.env`는 배포 시 덮어쓰지 않습니다. `.env`가 없으면 첫 배포 때 `.env.example`을 복사해 만들고, 실제 dev secret은 EC2에서 직접 수정합니다.
 
