@@ -32,6 +32,69 @@
 - Docker Compose Postgres 서비스: `docker-compose.yml`
 - 데이터 계약 문서: `docs/data-contract.md`
 
+## 로컬 개발 환경 준비
+
+### 1. 환경변수 파일 만들기
+
+```bash
+cp .env.example .env
+```
+
+`.env`는 각자 로컬 또는 서버에서만 사용합니다. 실제 비밀번호, API key, secret은 커밋하지 않습니다.
+
+### 2. Docker Compose 설정 확인
+
+```bash
+docker compose config
+```
+
+이 명령이 통과하면 `.env`와 `docker-compose.yml` 문법이 유효한 상태입니다.
+
+### 3. Postgres/pgvector 실행
+
+```bash
+docker compose up -d postgres
+```
+
+현재 Compose에는 `postgres` 서비스만 포함되어 있습니다. 프론트엔드와 백엔드 서비스는 각 담당 브랜치에서 Dockerfile이 생긴 뒤 추가합니다.
+
+### 4. 컨테이너 상태 확인
+
+```bash
+docker compose ps
+```
+
+### 5. 로컬 DB 중지
+
+```bash
+docker compose down
+```
+
+DB 데이터를 포함해 완전히 초기화해야 할 때만 volume을 함께 삭제합니다.
+
+```bash
+docker compose down -v
+```
+
+## 팀원별 시작 위치
+
+- 팀원1 프론트엔드/인프라: `apps/frontend`, `.env.example`, `docker-compose.yml`, `.github/workflows`, `docs`
+- 팀원2 백엔드/API: `apps/backend`
+- 팀원3 고민 태그/효능 매핑: `data`, `docs/data-contract.md`
+- 팀원4 성분/근거/주의 성분: `data`, `docs/data-contract.md`
+- 팀원5 상품/가격/이미지/seed 원천 데이터: `data`, `docs/data-contract.md`
+
+공통 작업 규칙은 `AGENTS.md`를 따릅니다.
+
+## 개발 흐름
+
+1. `dev` 브랜치에서 작업 브랜치를 생성합니다.
+2. 브랜치 이름은 `feat/*`, `fix/*`, `docs/*`, `chore/*` 규칙을 따릅니다.
+3. 담당 영역만 수정합니다.
+4. 커밋 메시지는 `type(scope): subject` 형식을 사용합니다.
+5. PR을 열고 CI 통과 후 `dev`에 머지합니다.
+6. `main`은 실배포 브랜치이며 직접 push하지 않습니다.
+
 ## 아직 하지 않은 것
 
 - 프론트엔드 프로젝트 초기화
