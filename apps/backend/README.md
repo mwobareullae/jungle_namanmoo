@@ -19,3 +19,10 @@ FastAPI 백엔드 작업 자리입니다.
 ## 현재 상태
 
 `http://localhost:8000`과 `http://localhost:8000/api/health`가 응답하는 상태입니다.
+
+## 테스트
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
