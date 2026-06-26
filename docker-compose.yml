@@ -72,29 +72,6 @@ services:
     networks:
       - app_network
 
-  db-check:
-    image: pgvector/pgvector:pg16
-    container_name: mwobareullae-db-check
-    profiles:
-      - test
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-mwobareullae}
-      POSTGRES_USER: ${POSTGRES_USER:-mwobareullae}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    command:
-      - sh
-      - -c
-      - |
-        psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 \
-          -c "CREATE EXTENSION IF NOT EXISTS vector;" \
-          -c "SELECT 1;" \
-          -c "SELECT extname FROM pg_extension WHERE extname = 'vector';"
-    networks:
-      - app_network
-
 volumes:
   frontend_node_modules:
     name: mwobareullae_frontend_node_modules

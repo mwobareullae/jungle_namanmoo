@@ -75,21 +75,7 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-### 6. Compose smoke test 실행
-
-```bash
-docker compose --profile test run --rm db-check
-```
-
-이 명령은 Postgres가 정상 기동되는지, DB 접속이 되는지, `vector` extension을 생성할 수 있는지 확인합니다.
-
-테스트 후 컨테이너를 정리합니다.
-
-```bash
-docker compose --profile test down
-```
-
-### 7. 로컬 개발환경 중지
+### 6. 로컬 개발환경 중지
 
 ```bash
 docker compose down
@@ -126,9 +112,8 @@ docker compose down -v
 
 - 필수 파일 존재 확인
 - 실제 `.env` 파일 커밋 여부 확인
-- `docker compose --profile test config`
+- `docker compose config`
 - frontend/backend 컨테이너 빌드 및 Hello endpoint 확인
-- DB smoke test
 
 프론트엔드와 백엔드가 초기화되면 각 담당 브랜치에서 lint, typecheck, test, build 검증을 추가합니다.
 
