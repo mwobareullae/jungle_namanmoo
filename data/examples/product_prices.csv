@@ -1,2 +1,4 @@
-product_id,lowest_price,purchase_url,currency
-prod_001,19900,,KRW
+product_id,mall_name,price,product_url,is_lowest,currency
+prod_001,올리브영,19900,https://example.com/products/prod_001,true,KRW
+prod_001,쿠팡,20500,https://example.com/products/prod_001_coupang,false,KRW
+prod_002,올리브영,22900,https://example.com/products/prod_002,true,KRW
