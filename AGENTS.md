@@ -411,8 +411,8 @@ infra 브랜치에서는 프로젝트 골격과 공통 개발환경만 준비한
 
 ```text
 Frontend: Vite + React + TypeScript 최소 stub
-Styling: Tailwind CSS 예정
-Code Quality: ESLint, Prettier 예정
+Styling: Tailwind CSS
+Code Quality: ESLint, Prettier
 Mock API: MSW 또는 mock JSON 예정
 Backend: FastAPI 최소 stub
 API Base Path: /api
