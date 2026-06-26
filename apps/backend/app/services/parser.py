@@ -1,8 +1,16 @@
 import re
 from dataclasses import dataclass
+from typing import Protocol
 
-from app.models.data_contract import ConcernTag
-from app.services.repository import DataRepository
+from app.models.data_contract import ConcernEffect, ConcernTag
+
+
+class ConcernRepository(Protocol):
+    def list_concern_tags(self) -> list[ConcernTag]:
+        pass
+
+    def get_effects_for_concern(self, tag_id: str) -> list[ConcernEffect]:
+        pass
 
 
 @dataclass(frozen=True)
@@ -30,7 +38,7 @@ class ParsedConcernResult:
 
 def parse_concern_text(
     concern_text: str,
-    repository: DataRepository,
+    repository: ConcernRepository,
 ) -> ParsedConcernResult:
     normalized_text = _normalize_text(concern_text)
     if not normalized_text:
@@ -76,7 +84,7 @@ def _match_concerns(
 
 def _build_effects(
     concerns: list[ParsedConcern],
-    repository: DataRepository,
+    repository: ConcernRepository,
 ) -> list[ParsedEffect]:
     effects_by_id: dict[str, ParsedEffect] = {}
     for concern in concerns:
