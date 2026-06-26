@@ -3,6 +3,8 @@ import type { RecommendationRequest, Sensitivity, SkinType } from "../types/reco
 
 const skinTypes: SkinType[] = ["건성", "지성", "복합성", "수부지", "중성"];
 const sensitivities: Sensitivity[] = ["낮음", "보통", "높음"];
+const concernPlaceholder =
+  "수부지인데 오후엔 번들거리고 볼은 당겨서 진정과 보습 제품을 찾고 있어요.";
 
 type ConcernInputPageProps = {
   value: RecommendationRequest;
@@ -31,13 +33,13 @@ function ConcernInputPage({
 
   return (
     <section className="search-hero" aria-labelledby="hero-title">
-      <p className="eyebrow">Evidence-led skincare</p>
+      <p className="eyebrow">AI skincare recommendation</p>
       <h1 id="hero-title" className="serif hero-title">
-        피부 고민을 쓰면 <br />
-        성분 근거로 고릅니다
+        내 피부 고민에 맞는 <br />
+        최적의 화장품 추천
       </h1>
       <p className="hero-copy">
-        피부 타입과 민감도를 함께 보고, MVP 점수 정책에 맞춰 성분 효능 근거 중심으로 추천합니다.
+        내 피부 고민에 맞는 최적의 화장품을 확실한 근거로 빠르게 추천해주는 AI 서비스입니다.
       </p>
 
       <form className="concern-form" onSubmit={handleSubmit}>
@@ -80,8 +82,9 @@ function ConcernInputPage({
           <textarea
             id="concern"
             className="concern-textarea"
+            autoFocus
             maxLength={100}
-            placeholder="수부지인데 모공 넓고 좁쌀 여드름이 있어요"
+            placeholder={concernPlaceholder}
             value={value.concern_text}
             onChange={(event) => onChange({ ...value, concern_text: event.target.value })}
           />
