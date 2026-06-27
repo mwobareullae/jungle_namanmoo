@@ -105,7 +105,7 @@ a {
   cursor: pointer;
   font-family: var(--font-brand);
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.18em;
   line-height: 1;
   padding: 0;
@@ -117,7 +117,7 @@ a {
   gap: 12px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
 }
 
@@ -131,7 +131,7 @@ a {
   margin: 0;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -215,7 +215,7 @@ a {
   margin: 14px 0 0;
   max-width: 820px;
   font-size: clamp(30px, 5.2vw, 52px);
-  font-weight: 500;
+  font-weight: 400;
   font-kerning: normal;
   letter-spacing: 0;
   line-height: 1.15;
@@ -258,7 +258,7 @@ a {
   margin-bottom: 10px;
   color: var(--muted);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -296,7 +296,7 @@ a {
 .segment.selected {
   background: var(--paper);
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 400;
   outline: 1px solid var(--ink);
   outline-offset: -1px;
   z-index: 1;
@@ -402,7 +402,7 @@ a {
   margin: 0 0 10px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.02em;
 }
 
@@ -451,7 +451,7 @@ a {
 
 .form-meta-danger {
   color: var(--danger);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .form-error {
@@ -471,7 +471,7 @@ a {
   background: var(--paper);
   color: var(--ink);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
   padding: 12px 16px;
   transform: translateX(-50%);
@@ -519,7 +519,7 @@ a {
   margin: 42px 0 0;
   color: var(--muted);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.12em;
 }
 
@@ -617,7 +617,7 @@ a {
   max-width: 820px;
   margin: 14px 0 0;
   font-size: clamp(30px, 5.2vw, 52px);
-  font-weight: 500;
+  font-weight: 400;
   font-kerning: normal;
   letter-spacing: 0;
   line-height: 1.15;
@@ -638,7 +638,7 @@ a {
   margin: 0 0 12px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
 }
 
@@ -772,7 +772,7 @@ a {
 .product-name {
   margin: 8px 0 0;
   font-size: 25px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0;
   line-height: 1.16;
 }
@@ -812,7 +812,7 @@ a {
   display: block;
   color: var(--muted);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -821,7 +821,7 @@ a {
   display: block;
   margin-top: 6px;
   font-size: 34px;
-  font-weight: 650;
+  font-weight: 500;
   line-height: 0.9;
 }
 
@@ -851,7 +851,7 @@ a {
 .empty-title {
   margin: 12px 0 0;
   font-size: 28px;
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: 0;
 }
 
@@ -912,7 +912,7 @@ a {
 .detail-title {
   margin: 8px 0 0;
   font-size: clamp(34px, 5vw, 54px);
-  font-weight: 680;
+  font-weight: 500;
   letter-spacing: 0;
   line-height: 1.12;
 }
@@ -926,7 +926,7 @@ a {
 
 .score-xl {
   font-size: 54px;
-  font-weight: 680;
+  font-weight: 500;
   line-height: 1;
 }
 
@@ -961,7 +961,7 @@ a {
 .evidence-name {
   margin: 0;
   font-size: 24px;
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: 0;
 }
 
@@ -1115,7 +1115,7 @@ a {
     overflow: hidden;
     margin-top: 6px;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.28;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1182,7 +1182,7 @@ a {
   .product-card .price-text {
     margin-top: 0;
     font-size: 15px;
-    font-weight: 650;
+    font-weight: 500;
   }
 
   .results-page,
