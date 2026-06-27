@@ -1,12 +1,6 @@
 # Frontend
 
-프론트엔드 작업 자리입니다.
-
-## 담당 범위
-
-- 현재는 Docker Compose 실행 확인을 위한 Vite, React, TypeScript Hello World만 있습니다.
-- S1~S4 화면 구현과 mock API 연동은 별도 프론트엔드 작업 브랜치에서 진행합니다.
-- Tailwind, ESLint, Prettier 설정도 별도 프론트엔드 작업 브랜치에서 확장합니다.
+Vite, React, TypeScript 기반 프론트엔드입니다.
 
 ## 예정 화면
 
@@ -17,7 +11,25 @@
 
 ## 현재 상태
 
-`http://localhost:5173`에서 최소 Hello World 화면이 뜨는 상태입니다.
+`http://localhost:5173`에서 S1~S4 mock 플로우를 확인할 수 있습니다.
+
+## API 전환
+
+기본값은 mock API입니다.
+
+```env
+VITE_USE_MOCK_API=true
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+FastAPI 백엔드와 직접 연결하려면 `.env`에서 아래처럼 변경합니다.
+
+```env
+VITE_USE_MOCK_API=false
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+변경 후에는 프론트 dev server 또는 Docker Compose frontend 서비스를 다시 시작합니다.
 
 ## 개발 명령
 
