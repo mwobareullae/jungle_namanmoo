@@ -9,6 +9,7 @@ from app.services.purchase_conditions import ParsedPurchaseConditions
 
 @dataclass(frozen=True)
 class ProductCandidate:
+    db_product_id: int
     product_id: str
     brand_code: str
     brand: str
@@ -28,6 +29,7 @@ def list_product_candidates(
 
     statement = (
         select(
+            Product.id,
             Product.product_code,
             Brand.brand_code,
             Brand.name.label("brand_name"),
@@ -77,6 +79,7 @@ def list_product_candidates(
     rows = session.execute(statement).all()
     return [
         ProductCandidate(
+            db_product_id=int(row.id),
             product_id=row.product_code,
             brand_code=row.brand_code,
             brand=row.brand_name,
