@@ -1,0 +1,9 @@
+ingredient_id,risk_type,display_text,severity
+ing_salicylic_acid,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_aha,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
+ing_kojic_acid,안전성검토,코직애씨드는 안전성 검토가 진행 중인 성분입니다,high
+ing_tea_tree,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
+ing_retinol,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_retinal,레티노이드주의,레티날은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_petrolatum,정제등급확인,페트롤라툼/미네랄오일은 화장품 정제등급 여부 확인이 필요합니다,low
+ing_vitamin_c,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
