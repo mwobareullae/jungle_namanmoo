@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.models.data_contract import (
     ConcernEffect,
+    ConcernTag,
     DataCatalog,
     Ingredient,
     IngredientEvidence,
@@ -40,6 +41,9 @@ class DataRepository:
 
     def get_ingredient(self, ingredient_id: str) -> Ingredient | None:
         return self._ingredients_by_id.get(ingredient_id)
+
+    def list_concern_tags(self) -> list[ConcernTag]:
+        return list(self._catalog.concern_tags)
 
     def get_effects_for_concern(self, tag_id: str) -> list[ConcernEffect]:
         return [effect for effect in self._catalog.concern_effects if effect.tag_id == tag_id]

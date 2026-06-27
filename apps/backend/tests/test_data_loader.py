@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from shutil import copytree
 
@@ -7,7 +8,19 @@ from app.services.data_loader import DataLoadError, load_data_catalog
 from app.services.repository import DataRepository, load_repository
 
 
-EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "data" / "examples"
+def _resolve_examples_dir() -> Path:
+    if os.getenv("DATA_EXAMPLES_DIR"):
+        return Path(os.environ["DATA_EXAMPLES_DIR"])
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "data" / "examples"
+        if candidate.exists():
+            return candidate
+
+    return Path("/data/examples")
+
+
+EXAMPLES_DIR = _resolve_examples_dir()
 
 
 def test_load_data_catalog_reads_example_files() -> None:

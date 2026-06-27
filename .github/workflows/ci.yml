@@ -43,7 +43,12 @@ jobs:
             "apps/frontend/src/vite-env.d.ts"
             "apps/backend/README.md"
             "apps/backend/Dockerfile"
+            "apps/backend/alembic.ini"
+            "apps/backend/migrations/env.py"
+            "apps/backend/migrations/script.py.mako"
             "apps/backend/requirements.txt"
+            "apps/backend/requirements-dev.txt"
+            "apps/backend/pytest.ini"
             "apps/backend/app/main.py"
             "docs/data-contract.md"
             "data/README.md"
@@ -71,6 +76,12 @@ jobs:
 
       - name: Check backend hello endpoint
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health
+
+      - name: Run backend tests
+        run: docker compose exec -T backend python -m pytest
+
+      - name: Check backend Alembic config
+        run: docker compose exec -T backend python -m alembic heads
 
       - name: Check frontend hello page
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:5173

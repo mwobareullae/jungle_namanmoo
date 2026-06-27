@@ -10,6 +10,8 @@ from app.schemas.recommendation import (
     RecommendationResponse,
     RecommendationSummary,
 )
+from app.services.concern_repository import get_default_concern_repository
+from app.services.parser import parse_concern_text
 
 
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
@@ -251,7 +253,10 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
     )
     avoid_ingredients = _normalize_avoid_ingredients(request.avoid_ingredients)
 
-    matched_concerns, expected_effects, unmatched_terms = _analyze_concern(concern_text)
+    parsed_concern = parse_concern_text(concern_text, get_default_concern_repository())
+    matched_concerns = [concern.name for concern in parsed_concern.concerns]
+    expected_effects = [effect.name for effect in parsed_concern.effects]
+    unmatched_terms = list(parsed_concern.unmatched_terms)
     products = _build_recommended_products(avoid_ingredients)
 
     recommendation_id = f"rec_{next(_id_sequence):06d}"
