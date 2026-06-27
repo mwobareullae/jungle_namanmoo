@@ -1,9 +1,36 @@
 ingredient_id,risk_type,display_text,severity
-ing_salicylic_acid,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
-ing_aha,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
-ing_kojic_acid,안전성검토,코직애씨드는 안전성 검토가 진행 중인 성분입니다,high
-ing_tea_tree,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
-ing_retinol,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
-ing_retinal,레티노이드주의,레티날은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
-ing_petrolatum,정제등급확인,페트롤라툼/미네랄오일은 화장품 정제등급 여부 확인이 필요합니다,low
-ing_vitamin_c,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_0036a4c14fd7,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_pending_0e2b041409e0,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_pending_33dfd5258c8f,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_pending_80a485b0dacc,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_pending_c26770056796,농도한도,살리실산은 화장품 사용 한도 규정이 있어 고농도 사용에 주의가 필요합니다,medium
+ing_pending_03f97fe63cc6,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
+ing_pending_1acf3f4d16af,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
+ing_pending_41d4bbd36996,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
+ing_pending_7b5bd3517e82,자극주의,AHA는 각질제거제로 자극·광민감을 유발할 수 있어 자외선 차단을 병행하세요,medium
+ing_pending_19212f510ffe,안전성검토,코직애씨드는 안전성 검토가 진행 중인 성분입니다,high
+ing_pending_9d1862c4f8db,안전성검토,코직애씨드는 안전성 검토가 진행 중인 성분입니다,high
+ing_pending_1403d81e744b,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
+ing_pending_184175f2d30d,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
+ing_pending_41e6fae68023,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
+ing_pending_99dc80c4bfd1,향료주의,티트리는 에센셜오일로 민감성 피부에 자극·알레르기를 줄 수 있습니다,medium
+ing_pending_2088a633b7e9,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_229446f650dc,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_4766ba3c3b5e,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_496500b1347c,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_80eb0e065838,레티노이드주의,레티놀은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_efb697c9f316,레티노이드주의,레티날은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high
+ing_pending_0a17f10aa94c,정제등급확인,페트롤라툼/미네랄오일은 화장품 정제등급 여부 확인이 필요합니다,low
+ing_pending_a74be05cc8e8,정제등급확인,페트롤라툼/미네랄오일은 화장품 정제등급 여부 확인이 필요합니다,low
+ing_pending_00d2c1d23f56,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_46f9055cd877,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_67f5b0f2c438,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_a3eb5fab4bd4,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_bd0e2692bbd4,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_cd43a398726d,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_cf28198fbc39,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_cf75d80e3412,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_d432230e052d,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_e78eea664745,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_ec6da355243d,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
+ing_pending_f7a0972e4f26,고농도자극,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low
