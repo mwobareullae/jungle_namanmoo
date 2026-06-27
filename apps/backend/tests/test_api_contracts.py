@@ -16,6 +16,20 @@ def test_health_endpoint_returns_ok() -> None:
     }
 
 
+def test_health_endpoint_includes_request_observability_headers(caplog) -> None:
+    caplog.set_level("INFO", logger="mwobareullae.request")
+
+    response = client.get("/api/health", headers={"X-Request-ID": "test-request-id"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "test-request-id"
+    assert float(response.headers["X-Process-Time-Ms"]) >= 0
+    assert any(
+        "request_finished" in record.message and "test-request-id" in record.message
+        for record in caplog.records
+    )
+
+
 def test_create_recommendation_applies_request_defaults() -> None:
     response = client.post(
         "/api/recommendations",
