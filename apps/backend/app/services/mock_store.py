@@ -30,10 +30,12 @@ _recommendations: dict[str, RecommendationResponse] = {}
 _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
     {
         "product_id": "mock-calming-cream",
+        "brand_code": "닥터지",
+        "category_code": "cream",
         "rank": 1,
         "total_score": 92,
         "reason_summary": "판테놀과 세라마이드 조합으로 건조감과 자극 완화 근거가 가장 잘 맞습니다.",
-        "brand": "바를랩",
+        "brand": "닥터지",
         "name": "판테놀 카밍 수분 크림",
         "thumbnail_url": "https://placehold.co/320x320/f6f8fa/111827?text=Calming+Cream",
         "lowest_price": 18900,
@@ -50,10 +52,12 @@ _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
     },
     {
         "product_id": "mock-pore-serum",
+        "brand_code": "스킨푸드",
+        "category_code": "serum",
         "rank": 2,
         "total_score": 86,
         "reason_summary": "나이아신아마이드와 녹차추출물이 모공, 피지 고민 키워드와 잘 연결됩니다.",
-        "brand": "그린더마",
+        "brand": "스킨푸드",
         "name": "나이아신아마이드 포어 세럼",
         "thumbnail_url": "https://placehold.co/320x320/f3fbf7/111827?text=Pore+Serum",
         "lowest_price": 21900,
@@ -70,10 +74,12 @@ _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
     },
     {
         "product_id": "mock-aha-toner",
+        "brand_code": "라운드랩",
+        "category_code": "toner",
         "rank": 3,
         "total_score": 78,
         "reason_summary": "저농도 AHA/PHA 조합으로 각질과 좁쌀 고민에 대한 보조 후보입니다.",
-        "brand": "클리어웨이",
+        "brand": "라운드랩",
         "name": "PHA 데일리 토너",
         "thumbnail_url": "https://placehold.co/320x320/f8f5ff/111827?text=PHA+Toner",
         "lowest_price": 15400,
@@ -94,7 +100,7 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
     "mock-calming-cream": {
         "product": {
             "product_id": "mock-calming-cream",
-            "brand": "바를랩",
+            "brand": "닥터지",
             "name": "판테놀 카밍 수분 크림",
             "thumbnail_url": "https://placehold.co/320x320/f6f8fa/111827?text=Calming+Cream",
             "lowest_price": 18900,
@@ -151,7 +157,7 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
     "mock-pore-serum": {
         "product": {
             "product_id": "mock-pore-serum",
-            "brand": "그린더마",
+            "brand": "스킨푸드",
             "name": "나이아신아마이드 포어 세럼",
             "thumbnail_url": "https://placehold.co/320x320/f3fbf7/111827?text=Pore+Serum",
             "lowest_price": 21900,
@@ -196,7 +202,7 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
     "mock-aha-toner": {
         "product": {
             "product_id": "mock-aha-toner",
-            "brand": "클리어웨이",
+            "brand": "라운드랩",
             "name": "PHA 데일리 토너",
             "thumbnail_url": "https://placehold.co/320x320/f8f5ff/111827?text=PHA+Toner",
             "lowest_price": 15400,
@@ -262,7 +268,7 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
     matched_concerns = [concern.name for concern in parsed_concern.concerns]
     expected_effects = [effect.name for effect in parsed_concern.effects]
     unmatched_terms = list(parsed_concern.unmatched_terms)
-    products = _build_recommended_products(avoid_ingredients)
+    products = _build_recommended_products(avoid_ingredients, parsed_purchase_conditions)
 
     recommendation_id = f"rec_{next(_id_sequence):06d}"
     response = RecommendationResponse(
@@ -369,18 +375,46 @@ def _analyze_concern(concern_text: str) -> tuple[list[str], list[str], list[str]
     return matched_concerns, list(dict.fromkeys(expected_effects)), []
 
 
-def _build_recommended_products(avoid_ingredients: list[str]) -> list[RecommendedProduct]:
+def _build_recommended_products(
+    avoid_ingredients: list[str],
+    purchase_conditions: ParsedPurchaseConditions,
+) -> list[RecommendedProduct]:
     normalized_avoid = {ingredient.lower() for ingredient in avoid_ingredients}
     products = []
     for product in _RECOMMENDED_PRODUCTS:
         key_ingredients = {ingredient.lower() for ingredient in product["key_ingredients"]}
         if normalized_avoid.intersection(key_ingredients):
             continue
+        if not _matches_purchase_conditions(product, purchase_conditions):
+            continue
         products.append(RecommendedProduct(**product))
 
     for rank, product in enumerate(products, start=1):
         product.rank = rank
     return products
+
+
+def _matches_purchase_conditions(
+    product: dict[str, Any],
+    purchase_conditions: ParsedPurchaseConditions,
+) -> bool:
+    if purchase_conditions.categories:
+        allowed_categories = {category.category_code for category in purchase_conditions.categories}
+        if product.get("category_code") not in allowed_categories:
+            return False
+
+    if purchase_conditions.brands:
+        allowed_brands = {brand.brand_code for brand in purchase_conditions.brands}
+        if product.get("brand_code") not in allowed_brands:
+            return False
+
+    lowest_price = int(product["lowest_price"])
+    if purchase_conditions.price_min is not None and lowest_price < purchase_conditions.price_min:
+        return False
+    if purchase_conditions.price_max is not None and lowest_price > purchase_conditions.price_max:
+        return False
+
+    return True
 
 
 def _build_purchase_constraints(parsed: ParsedPurchaseConditions) -> PurchaseConstraints:

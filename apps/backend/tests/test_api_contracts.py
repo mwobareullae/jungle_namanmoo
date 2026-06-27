@@ -48,6 +48,11 @@ def test_create_recommendation_applies_request_defaults() -> None:
     assert data["summary"]["sensitivity"] == "보통"
     assert data["summary"]["avoid_ingredients"] == []
     assert data["products"]
+    assert [product["product_id"] for product in data["products"]] == [
+        "mock-calming-cream",
+        "mock-pore-serum",
+        "mock-aha-toner",
+    ]
 
     product = data["products"][0]
     assert {
@@ -94,7 +99,7 @@ def test_create_recommendation_includes_purchase_constraints() -> None:
     assert constraints["price_max"] == 20000
 
 
-def test_create_recommendation_includes_price_range_constraint() -> None:
+def test_create_recommendation_applies_category_brand_and_price_hard_filters() -> None:
     response = client.post(
         "/api/recommendations",
         json={"concern_text": "스킨푸드 세럼 2만원대 추천"},
@@ -108,6 +113,34 @@ def test_create_recommendation_includes_price_range_constraint() -> None:
     assert constraints["price_min"] == 20000
     assert constraints["price_max"] == 29999
     assert constraints["price_text"] == "2만원대"
+
+    products = response.json()["products"]
+    assert [product["product_id"] for product in products] == ["mock-pore-serum"]
+    assert products[0]["brand"] == "스킨푸드"
+    assert 20000 <= products[0]["lowest_price"] <= 29999
+
+
+def test_create_recommendation_applies_price_max_hard_filter() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "크림 2만원 이하 추천"},
+    )
+
+    assert response.status_code == 200
+
+    products = response.json()["products"]
+    assert [product["product_id"] for product in products] == ["mock-calming-cream"]
+    assert products[0]["lowest_price"] <= 20000
+
+
+def test_create_recommendation_returns_empty_products_when_hard_filter_has_no_match() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "라운드랩 앰플 2만원 이하로 추천해줘"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["products"] == []
 
 
 def test_create_recommendation_keeps_unmatched_terms_from_parser() -> None:
