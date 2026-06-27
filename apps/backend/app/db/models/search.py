@@ -4,12 +4,13 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import big_integer_pk_type
 
 
 class SearchDocument(Base):
     __tablename__ = "search_documents"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     document_code: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     document_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True, index=True)
