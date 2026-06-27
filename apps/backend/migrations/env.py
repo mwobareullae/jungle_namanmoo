@@ -12,6 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
+import app.db.models  # noqa: F401, E402
 from app.db.session import normalize_database_url  # noqa: E402
 
 
