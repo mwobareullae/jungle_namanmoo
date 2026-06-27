@@ -1,0 +1,31 @@
+ingredient_id,name_ko,name_en,description,source_url
+ing_niacinamide,나이아신아마이드,Niacinamide,피지·미백·장벽 다기능 비타민B3 유도체,https://www.incidecoder.com/ingredients/niacinamide
+ing_vitamin_c,비타민C,Ascorbic Acid,미백·항산화 대표 성분,https://www.incidecoder.com/ingredients/vitamin-c
+ing_arbutin,알부틴,Arbutin,멜라닌 생성 억제 미백 기능성,https://www.incidecoder.com/ingredients/arbutin
+ing_tranexamic_acid,트라넥사믹애씨드,Tranexamic Acid,색소·홍조 보조 성분,https://www.incidecoder.com/ingredients/tranexamic-acid
+ing_kojic_acid,코직애씨드,Kojic Acid,티로시나아제 억제 미백(안전성 검토 중),https://www.incidecoder.com/ingredients/kojic-acid
+ing_licorice,감초추출물/리코리스,Glycyrrhiza Glabra Root Extract,글라브리딘 함유 미백·진정 감초 유래(고시형 유용성감초),https://www.incidecoder.com/ingredients/licorice-root-extract
+ing_bisabolol,비사보롤,Bisabolol,진정·미백 보조(알파-비사보롤 고시형),https://www.incidecoder.com/ingredients/bisabolol
+ing_retinol,레티놀,Retinol,주름·턴오버 개선 대표 레티노이드,https://www.incidecoder.com/ingredients/retinol
+ing_retinal,레티날,Retinaldehyde,레티놀보다 전환 빠른 레티노이드,https://www.incidecoder.com/ingredients/retinal
+ing_adenosine,아데노신,Adenosine,주름개선 기능성 고시 성분,https://www.incidecoder.com/ingredients/adenosine
+ing_peptide,펩타이드,Palmitoyl Pentapeptide-4,콜라겐 신호 시그널 펩타이드 pal-KTTKS(광노화 주름·결 개선),https://www.incidecoder.com/ingredients/palmitoyl-pentapeptide-4
+ing_salicylic_acid,살리실산/BHA,Salicylic Acid,모공 속 각질·피지를 녹이는 지용성 BHA,https://www.incidecoder.com/ingredients/salicylic-acid
+ing_zinc_pca,징크 PCA,Zinc PCA,피지 조절 보조 아연 화합물,https://www.incidecoder.com/ingredients/zinc-pca
+ing_green_tea,녹차/그린티,Camellia Sinensis Leaf Extract,항산화·진정·피지 보조,https://www.incidecoder.com/ingredients/green-tea
+ing_tea_tree,티트리/멜라루카,Melaleuca Alternifolia Leaf Oil,항균·진정 에센셜오일(향료 주의),https://www.incidecoder.com/ingredients/tea-tree
+ing_hyaluronic_acid,히알루론산,Hyaluronic Acid,수분 보유 보습 성분,https://www.incidecoder.com/ingredients/hyaluronic-acid
+ing_glycerin,글리세린,Glycerin,대표 휴멕턴트 보습 성분,https://www.incidecoder.com/ingredients/glycerin
+ing_panthenol,판테놀,Panthenol,보습·장벽·진정 프로비타민 B5,https://www.incidecoder.com/ingredients/panthenol
+ing_urea,유레아,Urea,보습+각질연화 이중 작용(농도주의),https://www.incidecoder.com/ingredients/urea
+ing_squalane,스쿠알란,Squalane,에몰리언트 보습 보조 오일,https://www.incidecoder.com/ingredients/squalane
+ing_petrolatum,페트롤라툼/미네랄오일,Petrolatum,폐색성 보습·장벽 보호(정제등급 확인),https://www.incidecoder.com/ingredients/petrolatum
+ing_ceramide,세라마이드,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_cholesterol_fa,콜레스테롤/지방산,Cholesterol,세라마이드와 함께 장벽 복원(3:1:1),https://www.incidecoder.com/ingredients/cholesterol-fa
+ing_dimethicone,디메치콘,Dimethicone,수분 손실 차단 실리콘 보조,https://www.incidecoder.com/ingredients/dimethicone
+ing_centella,센텔라아시아티카/병풀,Centella Asiatica Extract,진정·장벽 병풀 추출물,https://www.incidecoder.com/ingredients/centella
+ing_madecassoside,마데카소사이드,Madecassoside,센텔라 유래 진정 성분,https://www.incidecoder.com/ingredients/madecassoside
+ing_allantoin,알란토인,Allantoin,자극완화·진정 보조,https://www.incidecoder.com/ingredients/allantoin
+ing_colloidal_oatmeal,콜로이달오트밀,Colloidal Oatmeal,가려움·장벽 진정(OTC 인정),https://www.incidecoder.com/ingredients/colloidal-oatmeal
+ing_aha,AHA,Glycolic Acid,표면 각질·광노화를 개선하는 AHA(글라이콜릭산),https://www.incidecoder.com/ingredients/glycolic-acid
+ing_pha,PHA,Gluconolactone,저자극 차세대 각질제거 산,https://www.incidecoder.com/ingredients/gluconolactone
