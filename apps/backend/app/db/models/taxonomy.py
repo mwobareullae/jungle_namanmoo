@@ -5,12 +5,13 @@ from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Numeric,
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import big_integer_pk_type
 
 
 class Concern(Base):
     __tablename__ = "concerns"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     concern_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -23,7 +24,7 @@ class ConcernAlias(Base):
         UniqueConstraint("concern_id", "normalized_alias", name="uq_concern_aliases_concern_normalized_alias"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     concern_id: Mapped[int] = mapped_column(ForeignKey("concerns.id"), nullable=False, index=True)
     alias: Mapped[str] = mapped_column(String(80), nullable=False)
     normalized_alias: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -32,7 +33,7 @@ class ConcernAlias(Base):
 class Effect(Base):
     __tablename__ = "effects"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     effect_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -45,7 +46,7 @@ class EffectAlias(Base):
         UniqueConstraint("effect_id", "normalized_alias", name="uq_effect_aliases_effect_normalized_alias"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     effect_id: Mapped[int] = mapped_column(ForeignKey("effects.id"), nullable=False, index=True)
     alias: Mapped[str] = mapped_column(String(80), nullable=False)
     normalized_alias: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -57,7 +58,7 @@ class ConcernEffect(Base):
         UniqueConstraint("concern_id", "effect_id", name="uq_concern_effects_concern_effect"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     concern_id: Mapped[int] = mapped_column(ForeignKey("concerns.id"), nullable=False, index=True)
     effect_id: Mapped[int] = mapped_column(ForeignKey("effects.id"), nullable=False, index=True)
     weight: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False, default=1, server_default="1.0")
@@ -66,7 +67,7 @@ class ConcernEffect(Base):
 class Ingredient(Base):
     __tablename__ = "ingredients"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name_ko: Mapped[str] = mapped_column(String(120), nullable=False)
     name_en: Mapped[str | None] = mapped_column(String(160), nullable=True)
@@ -84,7 +85,7 @@ class IngredientEffect(Base):
         UniqueConstraint("ingredient_id", "effect_id", name="uq_ingredient_effects_ingredient_effect"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
     effect_id: Mapped[int] = mapped_column(ForeignKey("effects.id"), nullable=False, index=True)
     effect_score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=0, server_default="0.0")
@@ -93,7 +94,7 @@ class IngredientEffect(Base):
 class IngredientEvidence(Base):
     __tablename__ = "ingredient_evidence"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
     effect_id: Mapped[int | None] = mapped_column(ForeignKey("effects.id"), nullable=True, index=True)
     evidence_level: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -107,7 +108,7 @@ class IngredientEvidence(Base):
 class RiskFlag(Base):
     __tablename__ = "risk_flags"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
     risk_type: Mapped[str] = mapped_column(String(80), nullable=False)
     display_text: Mapped[str] = mapped_column(Text, nullable=False)

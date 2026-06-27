@@ -5,13 +5,13 @@ from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Numeric, Strin
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.types import jsonb_type
+from app.db.types import big_integer_pk_type, jsonb_type
 
 
 class RecommendationRun(Base):
     __tablename__ = "recommendation_runs"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_code: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     concern_text: Mapped[str] = mapped_column(Text, nullable=False)
     skin_type: Mapped[str] = mapped_column(String(40), nullable=False, default="중성", server_default="중성")
@@ -34,7 +34,7 @@ class RecommendationRunConcern(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_run_id: Mapped[int] = mapped_column(
         ForeignKey("recommendation_runs.id"),
         nullable=False,
@@ -48,7 +48,7 @@ class RecommendationRunConcern(Base):
 class RecommendationRunConstraint(Base):
     __tablename__ = "recommendation_run_constraints"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_run_id: Mapped[int] = mapped_column(
         ForeignKey("recommendation_runs.id"),
         nullable=False,
@@ -70,7 +70,7 @@ class SearchCandidate(Base):
         UniqueConstraint("recommendation_run_id", "product_id", name="uq_search_candidates_run_product"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_run_id: Mapped[int] = mapped_column(
         ForeignKey("recommendation_runs.id"),
         nullable=False,
@@ -95,7 +95,7 @@ class RecommendationResult(Base):
         UniqueConstraint("recommendation_run_id", "rank_order", name="uq_recommendation_results_run_rank"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_run_id: Mapped[int] = mapped_column(
         ForeignKey("recommendation_runs.id"),
         nullable=False,
@@ -111,7 +111,7 @@ class RecommendationResult(Base):
 class RecommendationScoreEvidence(Base):
     __tablename__ = "recommendation_score_evidence"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     recommendation_result_id: Mapped[int] = mapped_column(
         ForeignKey("recommendation_results.id"),
         nullable=False,
