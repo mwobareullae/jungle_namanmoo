@@ -26,6 +26,12 @@ def _default_data_dir() -> str:
 class Settings(BaseModel):
     app_name: str = os.getenv("APP_NAME", "mwobareullae")
     api_base_path: str = _normalize_api_base_path(os.getenv("API_BASE_PATH", "/api"))
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    enable_request_logging: bool = os.getenv("ENABLE_REQUEST_LOGGING", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
     backend_cors_origins: list[str] = _parse_cors_origins(
         os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     )
