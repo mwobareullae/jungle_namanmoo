@@ -1,0 +1,57 @@
+from app.db.models.catalog import (
+    Brand,
+    BrandAlias,
+    Product,
+    ProductCategory,
+    ProductCategoryAlias,
+    ProductImage,
+    ProductIngredient,
+    ProductPrice,
+)
+from app.db.models.recommendation import (
+    RecommendationResult,
+    RecommendationRun,
+    RecommendationRunConcern,
+    RecommendationRunConstraint,
+    RecommendationScoreEvidence,
+    SearchCandidate,
+)
+from app.db.models.search import SearchDocument
+from app.db.models.taxonomy import (
+    Concern,
+    ConcernAlias,
+    ConcernEffect,
+    Effect,
+    EffectAlias,
+    Ingredient,
+    IngredientEffect,
+    IngredientEvidence,
+    RiskFlag,
+)
+
+__all__ = [
+    "Brand",
+    "BrandAlias",
+    "Concern",
+    "ConcernAlias",
+    "ConcernEffect",
+    "Effect",
+    "EffectAlias",
+    "Ingredient",
+    "IngredientEffect",
+    "IngredientEvidence",
+    "Product",
+    "ProductCategory",
+    "ProductCategoryAlias",
+    "ProductImage",
+    "ProductIngredient",
+    "ProductPrice",
+    "RecommendationResult",
+    "RecommendationRun",
+    "RecommendationRunConcern",
+    "RecommendationRunConstraint",
+    "RecommendationScoreEvidence",
+    "RiskFlag",
+    "SearchCandidate",
+    "SearchDocument",
+]
