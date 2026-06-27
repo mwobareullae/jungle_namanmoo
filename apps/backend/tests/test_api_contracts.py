@@ -79,6 +79,37 @@ def test_create_recommendation_uses_concern_parser() -> None:
     assert data["unmatched_terms"] == []
 
 
+def test_create_recommendation_includes_purchase_constraints() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "라운드랩 앰플 2만원 이하로 추천해줘"},
+    )
+
+    assert response.status_code == 200
+
+    constraints = response.json()["summary"]["purchase_constraints"]
+    assert constraints["categories"][0]["category_code"] == "serum"
+    assert constraints["brands"][0]["brand_code"] == "라운드랩"
+    assert constraints["price_min"] is None
+    assert constraints["price_max"] == 20000
+
+
+def test_create_recommendation_includes_price_range_constraint() -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "스킨푸드 세럼 2만원대 추천"},
+    )
+
+    assert response.status_code == 200
+
+    constraints = response.json()["summary"]["purchase_constraints"]
+    assert constraints["categories"][0]["category_code"] == "serum"
+    assert constraints["brands"][0]["brand_code"] == "스킨푸드"
+    assert constraints["price_min"] == 20000
+    assert constraints["price_max"] == 29999
+    assert constraints["price_text"] == "2만원대"
+
+
 def test_create_recommendation_keeps_unmatched_terms_from_parser() -> None:
     response = client.post(
         "/api/recommendations",
