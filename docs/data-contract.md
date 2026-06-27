@@ -83,6 +83,7 @@
 | `name_ko` | 성분 한글명 |
 | `name_en` | 성분 영문명 |
 | `description` | 성분 설명 |
+| `source_url` | 성분 정보 출처 URL (선택, 비어 있을 수 있음) |
 
 ### `data/ingredient_effect.csv`
 
@@ -101,7 +102,9 @@
 | `effect_id` | 효능 고유 ID |
 | `evidence_level` | 근거 등급: `high`, `medium`, `low` |
 | `evidence_score` | 성분근거점수 계산용 점수 |
-| `source` | 근거 출처명 또는 요약 |
+| `source_title` | 근거 출처명 (논문/식약처 고시 제목 등) |
+| `source_url` | 근거 출처 URL (선택, 비어 있을 수 있음) |
+| `summary` | 근거 요약 |
 
 ### `data/risk_flags.csv`
 
@@ -110,6 +113,7 @@
 | `ingredient_id` | 성분 고유 ID |
 | `risk_type` | 주의 유형 |
 | `display_text` | 프론트에 표시할 주의 문구 |
+| `severity` | 주의 심각도: `high`, `medium`, `low` |
 
 ### `data/products.csv`
 
