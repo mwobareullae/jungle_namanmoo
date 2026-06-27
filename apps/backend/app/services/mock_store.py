@@ -5,6 +5,9 @@ from typing import Any
 from app.schemas.common import ApiError, dump_model
 from app.schemas.product import ProductDetailResponse
 from app.schemas.recommendation import (
+    MatchedBrandConstraint,
+    MatchedCategoryConstraint,
+    PurchaseConstraints,
     RecommendedProduct,
     RecommendationRequest,
     RecommendationResponse,
@@ -12,6 +15,7 @@ from app.schemas.recommendation import (
 )
 from app.services.concern_repository import get_default_concern_repository
 from app.services.parser import parse_concern_text
+from app.services.purchase_conditions import ParsedPurchaseConditions, parse_purchase_conditions
 
 
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
@@ -254,6 +258,7 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
     avoid_ingredients = _normalize_avoid_ingredients(request.avoid_ingredients)
 
     parsed_concern = parse_concern_text(concern_text, get_default_concern_repository())
+    parsed_purchase_conditions = parse_purchase_conditions(concern_text)
     matched_concerns = [concern.name for concern in parsed_concern.concerns]
     expected_effects = [effect.name for effect in parsed_concern.effects]
     unmatched_terms = list(parsed_concern.unmatched_terms)
@@ -269,6 +274,7 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
             avoid_ingredients=avoid_ingredients,
             matched_concerns=matched_concerns,
             expected_effects=expected_effects,
+            purchase_constraints=_build_purchase_constraints(parsed_purchase_conditions),
         ),
         unmatched_terms=unmatched_terms,
         products=products,
@@ -375,6 +381,31 @@ def _build_recommended_products(avoid_ingredients: list[str]) -> list[Recommende
     for rank, product in enumerate(products, start=1):
         product.rank = rank
     return products
+
+
+def _build_purchase_constraints(parsed: ParsedPurchaseConditions) -> PurchaseConstraints:
+    return PurchaseConstraints(
+        categories=[
+            MatchedCategoryConstraint(
+                category_code=category.category_code,
+                name=category.name,
+                matched_text=category.matched_text,
+            )
+            for category in parsed.categories
+        ],
+        brands=[
+            MatchedBrandConstraint(
+                brand_code=brand.brand_code,
+                name=brand.name,
+                matched_text=brand.matched_text,
+            )
+            for brand in parsed.brands
+        ],
+        price_min=parsed.price_min,
+        price_max=parsed.price_max,
+        price_text=parsed.price_text,
+        price_max_text=parsed.price_max_text,
+    )
 
 
 def _find_recommended_product(
