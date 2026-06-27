@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppHeader from "./components/AppHeader";
 import { api } from "./lib/api";
 import AnalysisLoadingPage from "./pages/AnalysisLoadingPage";
@@ -14,6 +14,12 @@ import type {
 
 type View = "input" | "loading" | "results" | "detail" | "notFound";
 
+type AppHistoryState = {
+  app: "mubareullae";
+  view: View;
+  productId?: string;
+};
+
 const initialRequest: RecommendationRequest = {
   skin_type: "수부지",
   sensitivity: "보통",
@@ -24,6 +30,34 @@ const initialRequest: RecommendationRequest = {
 const minimumLoadingMs = 3200;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const writeHistoryState = (
+  view: View,
+  mode: "push" | "replace",
+  productId?: string
+) => {
+  const state: AppHistoryState = {
+    app: "mubareullae",
+    view,
+    ...(productId ? { productId } : {})
+  };
+
+  if (mode === "replace") {
+    window.history.replaceState(state, "", window.location.href);
+    return;
+  }
+
+  window.history.pushState(state, "", window.location.href);
+};
+
+const isAppHistoryState = (value: unknown): value is AppHistoryState => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const state = value as Partial<AppHistoryState>;
+  return state.app === "mubareullae" && typeof state.view === "string";
+};
 
 const logRecommendationRequest = (
   rawRequest: RecommendationRequest,
@@ -49,6 +83,78 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [analysisRunId, setAnalysisRunId] = useState(0);
+  const recommendationRef = useRef<RecommendationResponse | null>(null);
+  const restoreRequestIdRef = useRef(0);
+  const submissionRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    recommendationRef.current = recommendation;
+  }, [recommendation]);
+
+  useEffect(() => {
+    writeHistoryState("input", "replace");
+
+    const restoreView = async (state: unknown) => {
+      restoreRequestIdRef.current += 1;
+      submissionRequestIdRef.current += 1;
+      const restoreRequestId = restoreRequestIdRef.current;
+
+      setErrorMessage(null);
+      setIsSubmitting(false);
+
+      if (!isAppHistoryState(state)) {
+        setSelectedProduct(null);
+        setView("input");
+        return;
+      }
+
+      if (state.view === "detail" && state.productId) {
+        try {
+          const product = await api.getProduct(
+            state.productId,
+            recommendationRef.current?.recommendation_id
+          );
+
+          if (restoreRequestIdRef.current !== restoreRequestId) {
+            return;
+          }
+
+          setSelectedProduct(product);
+          setView("detail");
+        } catch {
+          if (restoreRequestIdRef.current !== restoreRequestId) {
+            return;
+          }
+
+          setSelectedProduct(null);
+          setView("notFound");
+        }
+        return;
+      }
+
+      if (state.view === "results") {
+        setSelectedProduct(null);
+        setView(recommendationRef.current ? "results" : "input");
+        return;
+      }
+
+      if (state.view === "loading") {
+        setSelectedProduct(null);
+        setView(recommendationRef.current ? "results" : "input");
+        return;
+      }
+
+      setSelectedProduct(null);
+      setView(state.view);
+    };
+
+    const handlePopState = (event: PopStateEvent) => {
+      void restoreView(event.state);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const startRecommendation = async () => {
     if (isSubmitting) {
@@ -73,18 +179,31 @@ function App() {
     setIsSubmitting(true);
     setAnalysisRunId((currentId) => currentId + 1);
     setView("loading");
+    const submissionRequestId = submissionRequestIdRef.current + 1;
+    submissionRequestIdRef.current = submissionRequestId;
+    writeHistoryState("loading", view === "loading" ? "replace" : "push");
 
     try {
       const [response] = await Promise.all([
         api.createRecommendation(nextRequest),
         wait(minimumLoadingMs)
       ]);
+
+      if (submissionRequestIdRef.current !== submissionRequestId) {
+        return;
+      }
+
       setRecommendation(response);
       setView("results");
+      writeHistoryState("results", "replace");
     } catch {
-      setErrorMessage("분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요.");
+      if (submissionRequestIdRef.current === submissionRequestId) {
+        setErrorMessage("분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요.");
+      }
     } finally {
-      setIsSubmitting(false);
+      if (submissionRequestIdRef.current === submissionRequestId) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -94,22 +213,44 @@ function App() {
       const product = await api.getProduct(productId, recommendation?.recommendation_id);
       setSelectedProduct(product);
       setView("detail");
+      writeHistoryState("detail", "push", productId);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       setSelectedProduct(null);
       setView("notFound");
+      writeHistoryState("notFound", "push", productId);
     }
   };
 
   const goHome = () => {
+    submissionRequestIdRef.current += 1;
+    setSelectedProduct(null);
     setView("input");
     setErrorMessage(null);
+    writeHistoryState("input", "push");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const editRequest = () => {
+    submissionRequestIdRef.current += 1;
+    setIsSubmitting(false);
+    setSelectedProduct(null);
+    setView("input");
+    setErrorMessage(null);
+    writeHistoryState("input", "replace");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goResults = () => {
+    if (recommendation && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    setSelectedProduct(null);
     setView(recommendation ? "results" : "input");
     setErrorMessage(null);
+    writeHistoryState(recommendation ? "results" : "input", "push");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -137,7 +278,7 @@ function App() {
           isLoading={isSubmitting}
           errorMessage={errorMessage}
           onRetry={startRecommendation}
-          onEdit={() => setView("input")}
+          onEdit={editRequest}
         />
       ) : null}
 
