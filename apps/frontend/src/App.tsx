@@ -91,7 +91,7 @@ function App() {
   const openProduct = async (productId: string) => {
     setErrorMessage(null);
     try {
-      const product = await api.getProduct(productId);
+      const product = await api.getProduct(productId, recommendation?.recommendation_id);
       setSelectedProduct(product);
       setView("detail");
       window.scrollTo({ top: 0, behavior: "smooth" });
