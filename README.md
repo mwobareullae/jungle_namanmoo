@@ -1,6 +1,6 @@
 # 뭐바를래
 
-피부 고민을 입력하면 성분 효능 근거를 바탕으로 나에게 맞는 화장품을 추천해주는 서비스입니다.
+내 피부 고민에 맞는 최적의 화장품을 확실한 근거로 빠르게 추천해주는 AI 서비스입니다.
 
 - 서비스 식별자: `mwobareullae`
 
@@ -17,6 +17,8 @@
 ## 기술 스택
 
 - Frontend: Vite, React, TypeScript 최소 stub
+- Styling: Tailwind CSS
+- Code Quality: ESLint, Prettier
 - Backend: FastAPI 최소 stub
 - Database: PostgreSQL + pgvector 예정
 - Infra: Docker Compose
