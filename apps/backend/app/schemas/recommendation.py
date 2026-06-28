@@ -1,6 +1,27 @@
 from pydantic import BaseModel
 
 
+class MatchedCategoryConstraint(BaseModel):
+    category_code: str
+    name: str
+    matched_text: str
+
+
+class MatchedBrandConstraint(BaseModel):
+    brand_code: str
+    name: str
+    matched_text: str
+
+
+class PurchaseConstraints(BaseModel):
+    categories: list[MatchedCategoryConstraint]
+    brands: list[MatchedBrandConstraint]
+    price_min: int | None = None
+    price_max: int | None = None
+    price_text: str | None = None
+    price_max_text: str | None = None
+
+
 class RecommendationRequest(BaseModel):
     concern_text: str | None = None
     skin_type: str | None = None
@@ -15,6 +36,7 @@ class RecommendationSummary(BaseModel):
     avoid_ingredients: list[str]
     matched_concerns: list[str]
     expected_effects: list[str]
+    purchase_constraints: PurchaseConstraints
 
 
 class ScoreBreakdown(BaseModel):

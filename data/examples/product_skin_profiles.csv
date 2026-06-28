@@ -1,0 +1,3 @@
+product_id,dry_fit,oily_fit,combination_fit,normal_fit,dehydrated_oily_fit,sensitive_fit,sensitivity_tag,confidence,reason
+prod_001,0.9,0.3,0.6,0.8,0.9,0.8,민감가능,medium,보습 장벽 컨셉과 저자극 이미지
+prod_002,0.4,0.9,0.8,0.6,0.6,0.9,민감추천,medium,진정 피지 케어 컨셉

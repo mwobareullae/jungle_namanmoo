@@ -67,7 +67,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
     products_by_code = _seed_products(session, catalog, brands_by_name, categories_by_code)
     _seed_product_images(session, catalog, products_by_code)
     _seed_product_prices(session, catalog, products_by_code)
-    _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
+    product_ingredient_count = _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
     _seed_search_documents(session, catalog, products_by_code, ingredients_by_code, evidence_rows)
 
     return SeedResult(
@@ -77,7 +77,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         brands=len(brands_by_name),
         categories=len(categories_by_code),
         products=len(catalog.products),
-        product_ingredients=len(catalog.product_ingredients),
+        product_ingredients=product_ingredient_count,
         ingredient_evidence=len(catalog.ingredient_evidence),
         search_documents=len(catalog.search_documents),
     )
@@ -488,10 +488,16 @@ def _seed_product_ingredients(
     catalog: DataCatalog,
     products_by_code: dict[str, ProductRow],
     ingredients_by_code: dict[str, IngredientRow],
-) -> None:
+) -> int:
+    seen_pairs: set[tuple[int, int]] = set()
     for record in catalog.product_ingredients:
         product = products_by_code[record.product_id]
         ingredient = ingredients_by_code[record.ingredient_id]
+        pair = (product.id, ingredient.id)
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+
         row = _one_or_none(
             session,
             ProductIngredientRow,
@@ -513,6 +519,7 @@ def _seed_product_ingredients(
             row.content_confidence = record.content_confidence
             row.display_order = record.display_order
     session.flush()
+    return len(seen_pairs)
 
 
 def _seed_search_documents(
