@@ -37,6 +37,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "effect_aliases",
         "effects",
         "ingredient_effects",
+        "ingredient_effect_ranges",
         "ingredient_evidence",
         "ingredients",
         "product_categories",

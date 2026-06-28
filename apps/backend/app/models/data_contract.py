@@ -69,6 +69,21 @@ class IngredientEffect:
 
 
 @dataclass(frozen=True)
+class IngredientEffectRange:
+    ingredient_id: str
+    effect_id: str
+    unit: str
+    meaningful_min: float
+    optimal_min: float
+    optimal_max: float
+    excessive_min: float | None
+    range_confidence: str
+    source_type: str
+    source_url: str | None
+    note: str
+
+
+@dataclass(frozen=True)
 class IngredientEvidence:
     ingredient_id: str
     effect_id: str
@@ -118,6 +133,7 @@ class DataCatalog:
     product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]
     ingredient_effects: tuple[IngredientEffect, ...]
+    ingredient_effect_ranges: tuple[IngredientEffectRange, ...]
     ingredient_evidence: tuple[IngredientEvidence, ...]
     risk_flags: tuple[RiskFlag, ...]
     concern_tags: tuple[ConcernTag, ...]
