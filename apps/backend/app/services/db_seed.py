@@ -561,6 +561,7 @@ def _seed_search_documents(
                 )
             )
         else:
+            should_reset_embedding = row.title != title or row.content != document.text
             row.document_type = document.source_type
             row.product_id = product_id
             row.ingredient_id = ingredient_id
@@ -568,6 +569,11 @@ def _seed_search_documents(
             row.title = title
             row.content = document.text
             row.keywords = _normalize_text(document.text)
+            if should_reset_embedding:
+                row.embedding = None
+                row.embedding_model = None
+                row.embedding_dimensions = None
+                row.embedding_updated_at = None
     session.flush()
 
 

@@ -26,7 +26,7 @@ def test_format_markdown_report_limits_products_to_top_n() -> None:
     assert "rec_test" in report
     assert "Product 1" in report
     assert "Product 2" not in report
-    assert "eff 90 / ev 80 / skin 70 / price 60 / search 50 / risk 0" in report
+    assert "eff 90 / ev 80 / skin 70 / price 60 / kw 40 / vec 30 / search 50 / risk 0" in report
 
 
 def test_format_markdown_report_includes_case_errors() -> None:
@@ -96,6 +96,8 @@ def _product(product_id: str, rank: int, name: str) -> RecommendedProduct:
             ingredient_evidence_score=80,
             skin_type_score=70,
             price_score=60,
+            keyword_score=40,
+            vector_score=30,
             search_match_score=50,
             risk_penalty=0,
         ),

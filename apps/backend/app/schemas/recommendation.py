@@ -44,6 +44,8 @@ class ScoreBreakdown(BaseModel):
     ingredient_evidence_score: int
     skin_type_score: int
     price_score: int
+    keyword_score: int = 0
+    vector_score: int = 0
     search_match_score: int
     risk_penalty: int
 

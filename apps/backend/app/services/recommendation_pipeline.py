@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models.catalog import Brand, Product, ProductIngredient, ProductPrice
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -33,6 +34,7 @@ from app.services.search_matching import match_product_search_documents
 
 
 DEFAULT_RESULT_LIMIT = 50
+DEFAULT_CANDIDATE_POOL_LIMIT = settings.recommendation_candidate_pool_limit
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
 ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
 DEFAULT_SKIN_TYPE = "중성"
@@ -67,6 +69,7 @@ def create_recommendation_response(
     request: RecommendationRequest,
     *,
     result_limit: int = DEFAULT_RESULT_LIMIT,
+    candidate_pool_limit: int = DEFAULT_CANDIDATE_POOL_LIMIT,
     commit: bool = True,
 ) -> RecommendationResponse:
     normalized_request = normalize_recommendation_request(request)
@@ -84,7 +87,7 @@ def create_recommendation_response(
         candidates = list_product_candidates(
             session,
             intent.purchase_conditions,
-            limit=result_limit,
+            limit=max(candidate_pool_limit, result_limit),
         )
         candidates = _filter_avoided_ingredients(
             session,
@@ -405,6 +408,8 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
         ingredient_evidence_score=_component_to_percent(raw.get("ingredient_evidence_score")),
         skin_type_score=_component_to_percent(skin_score),
         price_score=_component_to_percent(raw.get("price_score")),
+        keyword_score=_component_to_percent(raw.get("keyword_score")),
+        vector_score=_component_to_percent(raw.get("vector_score")),
         search_match_score=_component_to_percent(raw.get("search_match_score")),
         risk_penalty=_score_to_int(raw.get("risk_penalty", 0)),
     )
