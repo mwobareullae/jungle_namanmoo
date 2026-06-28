@@ -20,6 +20,19 @@ ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
 DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"
 
+_PRODUCT_IMAGE_1 = (
+    "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0022/"
+    "A00000022429206ko.jpg?l=ko&QT=85&SF=webp&sharpen=1x0.5"
+)
+_PRODUCT_IMAGE_2 = (
+    "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0022/"
+    "A000000223414114ko.jpg?l=ko&QT=85&SF=webp&sharpen=1x0.5"
+)
+_PRODUCT_IMAGE_3 = (
+    "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0024/"
+    "A00000024777318ko.png?l=ko&QT=100&SF=webp&sharpen=1x0.5"
+)
+
 _id_sequence = count(1)
 _recommendations: dict[str, RecommendationResponse] = {}
 
@@ -31,7 +44,7 @@ _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
         "reason_summary": "판테놀과 세라마이드 조합으로 건조감과 자극 완화 근거가 가장 잘 맞습니다.",
         "brand": "바를랩",
         "name": "판테놀 카밍 수분 크림",
-        "thumbnail_url": "https://placehold.co/320x320/f6f8fa/111827?text=Calming+Cream",
+        "thumbnail_url": _PRODUCT_IMAGE_1,
         "lowest_price": 18900,
         "evidence_tags": ["진정", "장벽", "보습"],
         "key_ingredients": ["판테놀", "세라마이드엔피", "글리세린"],
@@ -51,7 +64,7 @@ _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
         "reason_summary": "나이아신아마이드와 녹차추출물이 모공, 피지 고민 키워드와 잘 연결됩니다.",
         "brand": "그린더마",
         "name": "나이아신아마이드 포어 세럼",
-        "thumbnail_url": "https://placehold.co/320x320/f3fbf7/111827?text=Pore+Serum",
+        "thumbnail_url": _PRODUCT_IMAGE_2,
         "lowest_price": 21900,
         "evidence_tags": ["피지", "모공", "결 정돈"],
         "key_ingredients": ["나이아신아마이드", "녹차추출물", "알란토인"],
@@ -71,7 +84,7 @@ _RECOMMENDED_PRODUCTS: list[dict[str, Any]] = [
         "reason_summary": "저농도 AHA/PHA 조합으로 각질과 좁쌀 고민에 대한 보조 후보입니다.",
         "brand": "클리어웨이",
         "name": "PHA 데일리 토너",
-        "thumbnail_url": "https://placehold.co/320x320/f8f5ff/111827?text=PHA+Toner",
+        "thumbnail_url": _PRODUCT_IMAGE_3,
         "lowest_price": 15400,
         "evidence_tags": ["각질", "결 정돈", "저자극"],
         "key_ingredients": ["글루코노락톤", "락틱애씨드", "베타인"],
@@ -92,12 +105,12 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
             "product_id": "mock-calming-cream",
             "brand": "바를랩",
             "name": "판테놀 카밍 수분 크림",
-            "thumbnail_url": "https://placehold.co/320x320/f6f8fa/111827?text=Calming+Cream",
+            "thumbnail_url": _PRODUCT_IMAGE_1,
             "lowest_price": 18900,
         },
         "images": [
             {
-                "url": "https://placehold.co/720x720/f6f8fa/111827?text=Calming+Cream",
+                "url": _PRODUCT_IMAGE_1,
                 "alt": "판테놀 카밍 수분 크림 대표 이미지",
             }
         ],
@@ -149,12 +162,12 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
             "product_id": "mock-pore-serum",
             "brand": "그린더마",
             "name": "나이아신아마이드 포어 세럼",
-            "thumbnail_url": "https://placehold.co/320x320/f3fbf7/111827?text=Pore+Serum",
+            "thumbnail_url": _PRODUCT_IMAGE_2,
             "lowest_price": 21900,
         },
         "images": [
             {
-                "url": "https://placehold.co/720x720/f3fbf7/111827?text=Pore+Serum",
+                "url": _PRODUCT_IMAGE_2,
                 "alt": "나이아신아마이드 포어 세럼 대표 이미지",
             }
         ],
@@ -194,12 +207,12 @@ _PRODUCT_DETAILS: dict[str, dict[str, Any]] = {
             "product_id": "mock-aha-toner",
             "brand": "클리어웨이",
             "name": "PHA 데일리 토너",
-            "thumbnail_url": "https://placehold.co/320x320/f8f5ff/111827?text=PHA+Toner",
+            "thumbnail_url": _PRODUCT_IMAGE_3,
             "lowest_price": 15400,
         },
         "images": [
             {
-                "url": "https://placehold.co/720x720/f8f5ff/111827?text=PHA+Toner",
+                "url": _PRODUCT_IMAGE_3,
                 "alt": "PHA 데일리 토너 대표 이미지",
             }
         ],

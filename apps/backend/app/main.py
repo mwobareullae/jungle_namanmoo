@@ -5,8 +5,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import health, products, recommendations
 from app.core.config import settings
+from app.core.logging import configure_logging
+from app.middleware.request_logging import request_logging_middleware
 from app.schemas.common import ApiError, build_error_response, dump_model
 
+
+configure_logging(settings.log_level)
 
 app = FastAPI(title=f"{settings.app_name} API")
 
@@ -17,6 +21,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.enable_request_logging:
+    app.middleware("http")(request_logging_middleware)
 
 app.include_router(health.router, prefix=settings.api_base_path)
 app.include_router(recommendations.router, prefix=settings.api_base_path)
