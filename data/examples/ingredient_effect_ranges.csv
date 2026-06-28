@@ -1,0 +1,3 @@
+ingredient_id,effect_id,unit,meaningful_min,optimal_min,optimal_max,excessive_min,range_confidence,source_type,source_url,note
+ing_niacinamide,effect_sebum_control,%,2,4,5,10,medium,paper,https://example.com/sources/niacinamide-sebum,2%부터 의미 있고 4~5%를 적정 범위로 봄
+ing_panthenol,effect_barrier,%,1,2,5,,low,paper,https://example.com/sources/panthenol-barrier,정확한 과다 기준은 비워 둠

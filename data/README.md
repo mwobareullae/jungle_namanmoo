@@ -17,9 +17,11 @@ data/
   ingredients.csv
   ingredient_effect.csv
   ingredient_evidence.csv
+  ingredient_effect_ranges.csv
   risk_flags.csv
 
   products.csv
+  product_skin_profiles.csv
   product_ingredients.csv
   product_prices.csv
   vector_docs.csv
@@ -40,6 +42,7 @@ concern_to_effect.json
 ingredients.csv
 ingredient_effect.csv
 ingredient_evidence.csv
+ingredient_effect_ranges.csv
 risk_flags.csv
 ```
 
@@ -47,6 +50,7 @@ risk_flags.csv
 
 ```text
 products.csv
+product_skin_profiles.csv
 product_ingredients.csv
 product_prices.csv
 vector_docs.csv
@@ -62,14 +66,17 @@ vector_docs.csv
   - 예: `prod_001`, `ing_panthenol`, `concern_pore`, `effect_calming`
 - 점수는 0~100 정수로 둡니다.
 - `weight`는 0.0~1.0 숫자로 둡니다.
+- 피부타입 적합도, 민감도 적합도, 출처 신뢰도처럼 `*_fit`, `*_score`로 끝나는 확장 점수는 0.0~1.0 숫자로 둡니다.
 - 실제 API key, 개인 정보, 운영 secret은 넣지 않습니다.
 
 ## ID 연결 규칙
 
 - `products.csv`의 `product_id`는 `product_ingredients.csv`, `product_prices.csv`, `vector_docs.csv`에서 그대로 사용합니다.
+- `products.csv`의 `product_id`는 `product_skin_profiles.csv`에서도 그대로 사용합니다.
 - `ingredients.csv`의 `ingredient_id`는 `product_ingredients.csv`, `ingredient_effect.csv`, `ingredient_evidence.csv`, `risk_flags.csv`, `vector_docs.csv`에서 그대로 사용합니다.
+- `ingredients.csv`의 `ingredient_id`는 `ingredient_effect_ranges.csv`에서도 그대로 사용합니다.
 - `tags.json`의 `tag_id`는 `concern_to_effect.json`에서 그대로 사용합니다.
-- `ingredient_effect.csv`의 `effect_id`는 `ingredient_evidence.csv`, `concern_to_effect.json`에서 같은 의미로 사용합니다.
+- `ingredient_effect.csv`의 `effect_id`는 `ingredient_evidence.csv`, `ingredient_effect_ranges.csv`, `concern_to_effect.json`에서 같은 의미로 사용합니다.
 
 ## 다시 수집하지 않으려면 꼭 필요한 정보
 
@@ -77,7 +84,8 @@ vector_docs.csv
 
 ```text
 상품 ID, 브랜드, 상품명, 카테고리, 권장 피부 타입,
-대표 이미지, 상세 이미지, 판매몰, 가격, 구매 링크
+대표 이미지, 상세 이미지, 판매몰, 가격, 구매 링크,
+피부타입 적합도, 민감도 적합도, 판단 근거
 ```
 
 성분:
@@ -85,7 +93,9 @@ vector_docs.csv
 ```text
 성분 ID, 한글명, 영문명, 설명,
 효능, 효능 점수, 근거 수준, 근거 점수,
-근거 제목, 근거 URL, 근거 요약, 주의 문구
+근거 제목, 근거 URL, 근거 요약, 출처 타입,
+주의 문구, 주의 적용 조건,
+성분-효능별 유효/적정/과다 함량 범위
 ```
 
 검색:
