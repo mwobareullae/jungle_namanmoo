@@ -26,6 +26,7 @@ from app.db.models.taxonomy import (
     EffectAlias,
     Ingredient,
     IngredientEffect,
+    IngredientEffectRange,
     IngredientEvidence,
     RiskFlag,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "EffectAlias",
     "Ingredient",
     "IngredientEffect",
+    "IngredientEffectRange",
     "IngredientEvidence",
     "Product",
     "ProductCategory",

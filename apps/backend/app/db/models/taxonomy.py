@@ -91,6 +91,31 @@ class IngredientEffect(Base):
     effect_score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=0, server_default="0.0")
 
 
+class IngredientEffectRange(Base):
+    __tablename__ = "ingredient_effect_ranges"
+    __table_args__ = (
+        UniqueConstraint(
+            "ingredient_id",
+            "effect_id",
+            "unit",
+            name="uq_ingredient_effect_ranges_ingredient_effect_unit",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
+    effect_id: Mapped[int] = mapped_column(ForeignKey("effects.id"), nullable=False, index=True)
+    unit: Mapped[str] = mapped_column(String(16), nullable=False)
+    meaningful_min: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False)
+    optimal_min: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False)
+    optimal_max: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False)
+    excessive_min: Mapped[Decimal | None] = mapped_column(Numeric(14, 8), nullable=True)
+    range_confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class IngredientEvidence(Base):
     __tablename__ = "ingredient_evidence"
 

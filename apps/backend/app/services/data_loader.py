@@ -9,6 +9,7 @@ from app.models.data_contract import (
     DataCatalog,
     Ingredient,
     IngredientEffect,
+    IngredientEffectRange,
     IngredientEvidence,
     Product,
     ProductIngredient,
@@ -68,6 +69,19 @@ CSV_HEADERS = {
     },
     "ingredients.csv": {"ingredient_id", "name_ko", "name_en", "description"},
     "ingredient_effect.csv": {"ingredient_id", "effect_id", "effect_name", "effect_score"},
+    "ingredient_effect_ranges.csv": {
+        "ingredient_id",
+        "effect_id",
+        "unit",
+        "meaningful_min",
+        "optimal_min",
+        "optimal_max",
+        "excessive_min",
+        "range_confidence",
+        "source_type",
+        "source_url",
+        "note",
+    },
     "ingredient_evidence.csv": {
         "ingredient_id",
         "effect_id",
@@ -84,6 +98,7 @@ CSV_HEADERS = {
 CONTENT_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 CONCENTRATION_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 PROFILE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
+RANGE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
 
 T = TypeVar("T")
@@ -110,6 +125,11 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         "ingredient_effect.csv",
         _parse_ingredient_effect,
     )
+    ingredient_effect_ranges = _load_csv(
+        base_path,
+        "ingredient_effect_ranges.csv",
+        _parse_ingredient_effect_range,
+    )
     ingredient_evidence = _load_csv(
         base_path,
         "ingredient_evidence.csv",
@@ -127,6 +147,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
         ingredient_effects=ingredient_effects,
+        ingredient_effect_ranges=ingredient_effect_ranges,
         ingredient_evidence=ingredient_evidence,
         risk_flags=risk_flags,
         concern_tags=concern_tags,
@@ -333,6 +354,31 @@ def _parse_ingredient_effect(
     )
 
 
+def _parse_ingredient_effect_range(
+    row: dict[str, str],
+    file_name: str,
+    line_number: int,
+) -> IngredientEffectRange:
+    range_confidence = _required_text(row, "range_confidence", file_name, line_number)
+    if range_confidence not in RANGE_CONFIDENCE_VALUES:
+        allowed = ", ".join(sorted(RANGE_CONFIDENCE_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} range_confidence는 {allowed} 중 하나여야 합니다.")
+
+    return IngredientEffectRange(
+        ingredient_id=_required_text(row, "ingredient_id", file_name, line_number),
+        effect_id=_required_text(row, "effect_id", file_name, line_number),
+        unit=_required_text(row, "unit", file_name, line_number),
+        meaningful_min=_required_float_from_row(row, "meaningful_min", file_name, line_number),
+        optimal_min=_required_float_from_row(row, "optimal_min", file_name, line_number),
+        optimal_max=_required_float_from_row(row, "optimal_max", file_name, line_number),
+        excessive_min=_optional_float(row.get("excessive_min"), "excessive_min", file_name, line_number),
+        range_confidence=range_confidence,
+        source_type=_required_text(row, "source_type", file_name, line_number),
+        source_url=_optional_text(row.get("source_url")),
+        note=_optional_text(row.get("note")) or "",
+    )
+
+
 def _parse_ingredient_evidence(
     row: dict[str, str],
     file_name: str,
@@ -413,6 +459,18 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         ingredient_ids,
     )
     _validate_references(
+        "ingredient_effect_ranges.csv",
+        "ingredient_id",
+        (effect_range.ingredient_id for effect_range in catalog.ingredient_effect_ranges),
+        ingredient_ids,
+    )
+    _validate_references(
+        "ingredient_effect_ranges.csv",
+        "effect_id",
+        (effect_range.effect_id for effect_range in catalog.ingredient_effect_ranges),
+        effect_ids,
+    )
+    _validate_references(
         "ingredient_evidence.csv",
         "ingredient_id",
         (evidence.ingredient_id for evidence in catalog.ingredient_evidence),
@@ -477,6 +535,13 @@ def _required_unit_score(row: dict[str, str], key: str, file_name: str, line_num
         raise DataLoadError(f"{file_name}:{line_number} {key} 값이 비어 있습니다.")
     if not 0.0 <= value <= 1.0:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값은 0.0~1.0 사이여야 합니다.")
+    return value
+
+
+def _required_float_from_row(row: dict[str, str], key: str, file_name: str, line_number: int) -> float:
+    value = _optional_float(row.get(key), key, file_name, line_number)
+    if value is None:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값이 비어 있습니다.")
     return value
 
 

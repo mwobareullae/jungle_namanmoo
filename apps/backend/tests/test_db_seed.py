@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.base import Base
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductSkinProfile
 from app.db.models.search import SearchDocument
-from app.db.models.taxonomy import Concern, ConcernAlias, Effect, IngredientEvidence
+from app.db.models.taxonomy import Concern, ConcernAlias, Effect, IngredientEffectRange, IngredientEvidence
 from app.db.session import make_engine
 from app.services.data_loader import load_data_catalog
 from app.services.db_seed import seed_catalog, seed_database
@@ -20,6 +20,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
 
     assert result.products == 2
     assert result.product_skin_profiles == 2
+    assert result.ingredient_effect_ranges == 2
     assert result.search_documents == 4
     assert _count(session, Concern) == 4
     assert _count(session, Effect) == 5
@@ -28,6 +29,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, Product) == 2
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
+    assert _count(session, IngredientEffectRange) == 2
     assert _count(session, IngredientEvidence) == 6
     assert _count(session, SearchDocument) == 4
     niacinamide_row = session.execute(
@@ -46,6 +48,7 @@ def test_seed_database_is_idempotent_for_example_catalog() -> None:
     assert _count(session, Product) == 2
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
+    assert _count(session, IngredientEffectRange) == 2
     assert _count(session, ConcernAlias) == 19
     assert _count(session, SearchDocument) == 4
 

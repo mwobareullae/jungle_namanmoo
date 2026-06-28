@@ -41,6 +41,9 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.product_skin_profiles[0].sensitive_fit == pytest.approx(0.8)
     assert catalog.ingredients[0].name_ko == "판테놀"
     assert catalog.ingredient_effects[0].effect_score == 90
+    assert catalog.ingredient_effect_ranges[0].ingredient_id == "ing_niacinamide"
+    assert catalog.ingredient_effect_ranges[0].optimal_min == pytest.approx(4.0)
+    assert catalog.ingredient_effect_ranges[0].excessive_min == pytest.approx(10.0)
     assert catalog.ingredient_evidence[0].evidence_level == "high"
     assert catalog.ingredient_evidence[0].summary
     assert catalog.risk_flags[0].severity == "medium"

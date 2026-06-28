@@ -410,6 +410,9 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
     return ScoreBreakdown(
         ingredient_effect_score=_component_to_percent(raw.get("ingredient_effect_score")),
         ingredient_evidence_score=_component_to_percent(raw.get("ingredient_evidence_score")),
+        concentration_fit_score=_component_to_percent(raw.get("concentration_fit_score", 0.5)),
+        concentration_bucket=_optional_str(raw.get("concentration_bucket")),
+        concentration_warning=_optional_str(raw.get("concentration_warning")),
         skin_type_score=_component_to_percent(skin_score),
         price_score=_component_to_percent(raw.get("price_score")),
         keyword_score=_component_to_percent(raw.get("keyword_score")),
