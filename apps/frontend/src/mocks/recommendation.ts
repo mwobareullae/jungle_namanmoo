@@ -5,8 +5,12 @@ import type {
   RecommendationResponse
 } from "../types/recommendation";
 
-const mockImage = (seed: string, width = 720, height = 900) =>
-  `https://picsum.photos/seed/mwobareullae-${seed}/${width}/${height}`;
+const productImages = [
+  "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0022/A00000022429206ko.jpg?l=ko&QT=85&SF=webp&sharpen=1x0.5",
+  "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0022/A000000223414114ko.jpg?l=ko&QT=85&SF=webp&sharpen=1x0.5",
+  "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0024/A00000024777318ko.png?l=ko&QT=100&SF=webp&sharpen=1x0.5",
+  "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/10/0000/0025/A00000025512414ko.jpg?l=ko&QT=85&SF=webp&sharpen=1x0.5"
+];
 
 const products: ProductDetail[] = [
   {
@@ -16,7 +20,7 @@ const products: ProductDetail[] = [
     reason_summary: "수분 장벽과 진정 효능이 함께 필요할 때 맞는 성분 구성이에요.",
     brand: "MAISON CREME",
     name: "Hydra Veil Serum",
-    thumbnail_url: mockImage("prod-001-thumb"),
+    thumbnail_url: productImages[0],
     lowest_price: 19900,
     evidence_tags: ["성분 근거", "장벽 보습", "진정"],
     key_ingredients: ["히알루론산", "판테놀", "세라마이드"],
@@ -27,7 +31,7 @@ const products: ProductDetail[] = [
       skin_type_match_score: 22,
       price_value_score: 11
     },
-    image_urls: [mockImage("prod-001-detail-1"), mockImage("prod-001-detail-2")],
+    image_urls: [productImages[0]],
     content_confidence: "high",
     related_ingredients: ["히알루론산", "판테놀", "세라마이드"],
     purchase_url: "https://example.com/products/prod_001",
@@ -53,7 +57,7 @@ const products: ProductDetail[] = [
     reason_summary: "모공과 피지 고민에 맞춰 나이아신아마이드와 아연 PCA를 우선 반영했어요.",
     brand: "ATELIER N",
     name: "Pore Refining Essence",
-    thumbnail_url: mockImage("prod-002-thumb"),
+    thumbnail_url: productImages[1],
     lowest_price: 24500,
     evidence_tags: ["피지 조절", "모공", "부분 매칭"],
     key_ingredients: ["나이아신아마이드", "아연 PCA"],
@@ -64,7 +68,7 @@ const products: ProductDetail[] = [
       skin_type_match_score: 21,
       price_value_score: 11
     },
-    image_urls: [mockImage("prod-002-detail-1"), mockImage("prod-002-detail-2")],
+    image_urls: [productImages[1]],
     content_confidence: "medium",
     related_ingredients: ["나이아신아마이드", "아연 PCA"],
     purchase_url: "https://example.com/products/prod_002",
@@ -84,7 +88,7 @@ const products: ProductDetail[] = [
     reason_summary: "민감도가 높을 때 진정 성분 중심으로 보수적으로 추천했어요.",
     brand: "HERBARIUM",
     name: "Calming Centella Ampoule",
-    thumbnail_url: mockImage("prod-003-thumb"),
+    thumbnail_url: productImages[2],
     lowest_price: null,
     evidence_tags: ["진정", "민감 피부", "가격 정보 없음"],
     key_ingredients: ["마데카소사이드", "알란토인", "판테놀"],
@@ -95,7 +99,7 @@ const products: ProductDetail[] = [
       skin_type_match_score: 24,
       price_value_score: 8
     },
-    image_urls: [mockImage("prod-003-detail-1"), mockImage("prod-003-detail-2")],
+    image_urls: [productImages[2]],
     content_confidence: "low",
     related_ingredients: ["마데카소사이드", "알란토인", "판테놀"],
     purchase_url: null,
@@ -108,7 +112,7 @@ const products: ProductDetail[] = [
     reason_summary: "좁쌀과 각질 고민에는 일부만 맞지만 가격 접근성이 좋아 후보로 남겼어요.",
     brand: "TERRA",
     name: "Clear Balance Drops",
-    thumbnail_url: mockImage("prod-004-thumb"),
+    thumbnail_url: productImages[3],
     lowest_price: 15900,
     evidence_tags: ["부분 매칭", "가격 접근성"],
     key_ingredients: ["살리실산", "아연 PCA"],
@@ -119,7 +123,7 @@ const products: ProductDetail[] = [
       skin_type_match_score: 18,
       price_value_score: 14
     },
-    image_urls: [mockImage("prod-004-detail-1"), mockImage("prod-004-detail-2")],
+    image_urls: [productImages[3]],
     content_confidence: "unknown",
     related_ingredients: ["살리실산", "아연 PCA"],
     purchase_url: "https://example.com/products/prod_004",
