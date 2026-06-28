@@ -67,6 +67,7 @@ def create_recommendation_response(
     request: RecommendationRequest,
     *,
     result_limit: int = DEFAULT_RESULT_LIMIT,
+    commit: bool = True,
 ) -> RecommendationResponse:
     normalized_request = normalize_recommendation_request(request)
     intent = build_recommendation_intent(normalized_request.concern_text)
@@ -109,7 +110,10 @@ def create_recommendation_response(
             result_limit=result_limit,
         )
         recommendation_code = saved_run.run.recommendation_code
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         return get_recommendation_response(session, recommendation_code)
     except Exception:
         session.rollback()
