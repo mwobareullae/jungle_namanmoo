@@ -142,6 +142,158 @@ a {
   padding: 0 24px;
 }
 
+.home-page {
+  min-height: calc(100vh - 66px);
+  padding: 88px 24px 92px;
+}
+
+.home-inner {
+  width: min(100%, 760px);
+  margin: 0 auto;
+}
+
+.home-eyebrow {
+  letter-spacing: 0.18em;
+}
+
+.home-title {
+  margin: 18px 0 0;
+  color: var(--ink);
+  font-size: clamp(36px, 7vw, 72px);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.02;
+  word-break: keep-all;
+}
+
+.home-title span {
+  display: block;
+}
+
+.home-copy {
+  max-width: 560px;
+  margin: 22px 0 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.home-search {
+  display: grid;
+  width: 100%;
+  min-height: 68px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin-top: 42px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 17px;
+  letter-spacing: 0;
+  padding: 0 22px 0 28px;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.home-search:hover,
+.home-search:focus-visible {
+  border-color: var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.home-search-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: var(--ink);
+}
+
+.home-search-icon::before {
+  width: 20px;
+  height: 20px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+}
+
+.home-search-icon::after {
+  position: absolute;
+  width: 10px;
+  height: 2px;
+  background: currentColor;
+  content: "";
+  transform: translate(10px, 10px) rotate(45deg);
+  transform-origin: center;
+}
+
+.home-trends {
+  margin-top: 56px;
+}
+
+.home-trends-date {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.home-trend-list {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.home-trend-list button {
+  display: grid;
+  width: 100%;
+  min-height: 72px;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 20px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.home-trend-list button:hover,
+.home-trend-list button:focus-visible {
+  color: var(--taupe);
+  outline: 0;
+}
+
+.home-trend-list span {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.home-trend-list strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
 .primary-button,
 .secondary-button {
   display: inline-flex;
@@ -1006,6 +1158,46 @@ a {
 
   .eyebrow {
     letter-spacing: 0.14em;
+  }
+
+  .home-page {
+    padding: 54px 20px 72px;
+  }
+
+  .home-title {
+    font-size: 42px;
+    line-height: 1.08;
+  }
+
+  .home-copy {
+    font-size: 14px;
+  }
+
+  .home-search {
+    min-height: 58px;
+    margin-top: 32px;
+    font-size: 15px;
+    padding: 0 15px 0 18px;
+  }
+
+  .home-search-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .home-trends {
+    margin-top: 44px;
+  }
+
+  .home-trend-list button {
+    min-height: 68px;
+    grid-template-columns: 26px 1fr;
+    gap: 14px;
+  }
+
+  .home-trend-list span,
+  .home-trend-list strong {
+    font-size: 15px;
   }
 
   .search-hero {

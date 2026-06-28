@@ -3,6 +3,7 @@ import AppHeader from "./components/AppHeader";
 import { api } from "./lib/api";
 import AnalysisLoadingPage from "./pages/AnalysisLoadingPage";
 import ConcernInputPage from "./pages/ConcernInputPage";
+import HomePage from "./pages/HomePage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import ProductNotFoundPage from "./pages/ProductNotFoundPage";
 import RecommendationResultsPage from "./pages/RecommendationResultsPage";
@@ -12,7 +13,7 @@ import type {
   RecommendationResponse
 } from "./types/recommendation";
 
-type View = "input" | "loading" | "results" | "detail" | "notFound";
+type View = "home" | "input" | "loading" | "results" | "detail" | "notFound";
 
 type AppHistoryState = {
   app: "mubareullae";
@@ -76,7 +77,7 @@ const logRecommendationRequest = (
 
 function App() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
-  const [view, setView] = useState<View>("input");
+  const [view, setView] = useState<View>("home");
   const [request, setRequest] = useState<RecommendationRequest>(initialRequest);
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
@@ -92,7 +93,7 @@ function App() {
   }, [recommendation]);
 
   useEffect(() => {
-    writeHistoryState("input", "replace");
+    writeHistoryState("home", "replace");
 
     const restoreView = async (state: unknown) => {
       restoreRequestIdRef.current += 1;
@@ -104,7 +105,7 @@ function App() {
 
       if (!isAppHistoryState(state)) {
         setSelectedProduct(null);
-        setView("input");
+        setView("home");
         return;
       }
 
@@ -134,13 +135,13 @@ function App() {
 
       if (state.view === "results") {
         setSelectedProduct(null);
-        setView(recommendationRef.current ? "results" : "input");
+        setView(recommendationRef.current ? "results" : "home");
         return;
       }
 
       if (state.view === "loading") {
         setSelectedProduct(null);
-        setView(recommendationRef.current ? "results" : "input");
+        setView(recommendationRef.current ? "results" : "home");
         return;
       }
 
@@ -225,8 +226,22 @@ function App() {
   const goHome = () => {
     submissionRequestIdRef.current += 1;
     setSelectedProduct(null);
-    setView("input");
+    setView("home");
     setErrorMessage(null);
+    writeHistoryState("home", "push");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const startConcernInput = (concernText = "") => {
+    submissionRequestIdRef.current += 1;
+    setIsSubmitting(false);
+    setSelectedProduct(null);
+    setErrorMessage(null);
+    setRequest((currentRequest) => ({
+      ...currentRequest,
+      concern_text: concernText
+    }));
+    setView("input");
     writeHistoryState("input", "push");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -248,15 +263,17 @@ function App() {
     }
 
     setSelectedProduct(null);
-    setView(recommendation ? "results" : "input");
+    setView(recommendation ? "results" : "home");
     setErrorMessage(null);
-    writeHistoryState(recommendation ? "results" : "input", "push");
+    writeHistoryState(recommendation ? "results" : "home", "push");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <main className="app-shell">
       <AppHeader apiBaseUrl={apiBaseUrl} onHome={goHome} />
+
+      {view === "home" ? <HomePage onStart={startConcernInput} /> : null}
 
       {view === "input" ? (
         <ConcernInputPage
@@ -286,7 +303,7 @@ function App() {
         <RecommendationResultsPage
           recommendation={recommendation}
           onOpenProduct={openProduct}
-          onRestart={goHome}
+          onRestart={() => startConcernInput()}
         />
       ) : null}
 
