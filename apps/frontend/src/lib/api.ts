@@ -104,7 +104,7 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/
   ""
 );
 
-const useMockApi = import.meta.env.VITE_USE_MOCK_API !== "false";
+const useMockApi = import.meta.env.VITE_USE_MOCK_API === "true";
 
 const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown | undefined => {
   if (!score) {
