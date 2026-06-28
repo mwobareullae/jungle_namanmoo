@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
-      VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-true}
+      VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-false}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
@@ -34,7 +34,8 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae}
       DATA_DIR: ${DATA_DIR:-/data}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
