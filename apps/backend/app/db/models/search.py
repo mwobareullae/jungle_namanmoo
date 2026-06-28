@@ -24,4 +24,7 @@ class SearchDocument(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    embedding_dimensions: Mapped[int | None] = mapped_column(nullable=True)
+    embedding_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
