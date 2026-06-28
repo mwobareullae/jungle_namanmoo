@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -6,7 +8,8 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngred
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import Concern, ConcernAlias, Effect, IngredientEvidence
 from app.db.session import make_engine
-from app.services.db_seed import seed_database
+from app.services.data_loader import load_data_catalog
+from app.services.db_seed import seed_catalog, seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -37,6 +40,23 @@ def test_seed_database_is_idempotent_for_example_catalog() -> None:
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ConcernAlias) == 19
     assert _count(session, SearchDocument) == 4
+
+
+def test_seed_catalog_skips_duplicate_product_ingredient_pairs() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    catalog_with_duplicate = replace(
+        catalog,
+        product_ingredients=(
+            *catalog.product_ingredients,
+            catalog.product_ingredients[0],
+        ),
+    )
+
+    result = seed_catalog(session, catalog_with_duplicate)
+
+    assert result.product_ingredients == 5
+    assert _count(session, ProductIngredient) == 5
 
 
 def test_seed_database_links_search_documents_to_source_rows() -> None:
