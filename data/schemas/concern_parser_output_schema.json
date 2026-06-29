@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConcernParserOutput",
+  "description": "고민 파싱 보조 LLM(Part 1)의 출력 스키마. data/docs/llm-system-prompt.md Part 1 참고.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "matched_concerns",
+    "expected_effects",
+    "excluded_concerns",
+    "priority_effects",
+    "unmatched_terms",
+    "needs_review",
+    "confidence"
+  ],
+  "properties": {
+    "matched_concerns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tag_id", "matched_text", "confidence"],
+        "properties": {
+          "tag_id": {
+            "type": "string",
+            "enum": [
+              "concern_acne",
+              "concern_brightening_spots",
+              "concern_pore",
+              "concern_dry_barrier",
+              "concern_wrinkle_elasticity",
+              "concern_redness_irritation",
+              "concern_dead_skin_texture",
+              "concern_blemish_mark",
+              "concern_dull_uneven_tone",
+              "concern_folliculitis",
+              "concern_dark_circle"
+            ]
+          },
+          "matched_text": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "expected_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effect_id", "weight", "source"],
+        "properties": {
+          "effect_id": {
+            "type": "string",
+            "enum": [
+              "effect_brightening",
+              "effect_wrinkle",
+              "effect_acne_sebum",
+              "effect_moisture_barrier",
+              "effect_calming",
+              "effect_exfoliation"
+            ]
+          },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "source": {
+            "type": "string",
+            "enum": ["concern_to_effect", "semantic_inference"]
+          }
+        }
+      }
+    },
+    "excluded_concerns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "concern_acne",
+          "concern_brightening_spots",
+          "concern_pore",
+          "concern_dry_barrier",
+          "concern_wrinkle_elasticity",
+          "concern_redness_irritation",
+          "concern_dead_skin_texture",
+          "concern_blemish_mark",
+          "concern_dull_uneven_tone",
+          "concern_folliculitis",
+          "concern_dark_circle"
+        ]
+      }
+    },
+    "priority_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effect_id", "reason"],
+        "properties": {
+          "effect_id": {
+            "type": "string",
+            "enum": [
+              "effect_brightening",
+              "effect_wrinkle",
+              "effect_acne_sebum",
+              "effect_moisture_barrier",
+              "effect_calming",
+              "effect_exfoliation"
+            ]
+          },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "unmatched_terms": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "needs_review": { "type": "boolean" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

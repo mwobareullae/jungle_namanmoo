@@ -16,6 +16,16 @@ const confidenceLabel: Record<ProductDetail["content_confidence"], string> = {
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
+const scoreLabels = {
+  ingredient_effect_score: "효능",
+  ingredient_evidence_score: "근거",
+  skin_type_match_score: "피부타입",
+  price_value_score: "가격",
+  keyword_score: "키워드",
+  vector_score: "벡터",
+  search_match_score: "검색매칭"
+};
+
 function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
   return (
     <section className="wrap detail-page">
@@ -76,6 +86,22 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
         </div>
       </div>
 
+      {product.score_breakdown ? (
+        <section className="detail-section">
+          <p className="eyebrow">점수 구성</p>
+          <div className="badges">
+            {Object.entries(scoreLabels).map(([key, label]) => (
+              <Badge key={key} tone="notice">
+                {label} {product.score_breakdown?.[key as keyof typeof scoreLabels]}점
+              </Badge>
+            ))}
+            {product.score_breakdown.risk_penalty < 0 ? (
+              <Badge tone="risk">주의 항목 {Math.abs(product.score_breakdown.risk_penalty)}점</Badge>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section className="detail-section">
         <p className="eyebrow">추천 근거</p>
         {product.evidence.length === 0 ? (
@@ -92,6 +118,9 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
                 <h3 className="evidence-name">{evidence.ingredient_name}</h3>
                 <p>{evidence.effect_name}</p>
                 <p className="muted-copy">{evidence.evidence_text}</p>
+                {evidence.source_title ? (
+                  <p className="muted-copy">출처: {evidence.source_title}</p>
+                ) : null}
                 <Badge tone="notice">근거 {evidence.evidence_level}</Badge>
               </article>
             ))}
@@ -106,6 +135,58 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
             <Badge key={ingredient}>{ingredient}</Badge>
           ))}
         </div>
+      </section>
+
+      {product.risk_flags.length > 0 ? (
+        <section className="detail-section">
+          <p className="eyebrow">주의 성분</p>
+          <div className="evidence-list">
+            {product.risk_flags.map((riskFlag) => (
+              <article className="evidence-item" key={riskFlag}>
+                <p className="muted-copy">{riskFlag}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="detail-section">
+        <p className="eyebrow">구매처</p>
+        {product.prices.length > 0 ? (
+          <div className="evidence-list">
+            {product.prices.map((price) => (
+              <article className="evidence-item" key={`${price.mall_name}-${price.product_url}`}>
+                <h3 className="evidence-name">{price.mall_name}</h3>
+                <p>{formatPrice(price.price)}</p>
+                {price.is_lowest ? <Badge tone="notice">최저가</Badge> : null}
+                <a className="text-link" href={price.product_url} target="_blank" rel="noreferrer">
+                  상품 보기
+                </a>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted-copy">구매처 정보가 없습니다.</p>
+        )}
+      </section>
+
+      <section className="detail-section">
+        <p className="eyebrow">근거 출처</p>
+        {product.sources.length > 0 ? (
+          <div className="evidence-list">
+            {product.sources.map((source) => (
+              <article className="evidence-item" key={`${source.title}-${source.url}`}>
+                <h3 className="evidence-name">{source.title}</h3>
+                <p className="muted-copy">{source.source_type}</p>
+                <a className="text-link" href={source.url} target="_blank" rel="noreferrer">
+                  출처 보기
+                </a>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted-copy">표시 가능한 출처가 없습니다.</p>
+        )}
       </section>
     </section>
   );
