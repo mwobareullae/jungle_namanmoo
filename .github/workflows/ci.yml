@@ -38,14 +38,8 @@ jobs:
         working-directory: apps/frontend
         run: npm run lint
 
-      - name: Build frontend with mock API
+      - name: Build frontend
         working-directory: apps/frontend
-        run: npm run build
-
-      - name: Build frontend with real API mode
-        working-directory: apps/frontend
-        env:
-          VITE_USE_MOCK_API: "false"
         run: npm run build
 
       - name: Check required files

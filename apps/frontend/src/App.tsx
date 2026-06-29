@@ -8,6 +8,7 @@ import ProductDetailPage from "./pages/ProductDetailPage";
 import ProductNotFoundPage from "./pages/ProductNotFoundPage";
 import RecommendationResultsPage from "./pages/RecommendationResultsPage";
 import type {
+  ApiError,
   ProductDetail,
   RecommendationRequest,
   RecommendationResponse
@@ -31,6 +32,15 @@ const initialRequest: RecommendationRequest = {
 const minimumLoadingMs = 3200;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const isApiError = (error: unknown): error is ApiError => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as Partial<ApiError>;
+  return typeof candidate.status === "number" && typeof candidate.message === "string";
+};
 
 const writeHistoryState = (
   view: View,
@@ -197,9 +207,13 @@ function App() {
       setRecommendation(response);
       setView("results");
       writeHistoryState("results", "replace");
-    } catch {
+    } catch (error) {
       if (submissionRequestIdRef.current === submissionRequestId) {
-        setErrorMessage("분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요.");
+        setErrorMessage(
+          isApiError(error)
+            ? error.message
+            : "분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요."
+        );
       }
     } finally {
       if (submissionRequestIdRef.current === submissionRequestId) {

@@ -198,7 +198,6 @@ curl http://localhost:8000/api/health
 
 - 프론트엔드 실제 화면 구현
 - S1~S4 화면 구현
-- mock API 구현
 - 실제 백엔드 API 구현
 - 실제 데이터 적재
 - 실제 API 연동
