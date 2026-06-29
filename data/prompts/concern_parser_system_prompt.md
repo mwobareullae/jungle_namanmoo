@@ -1,6 +1,7 @@
 # 고민 파싱 보조 LLM — 운영용 시스템 프롬프트
 
 > 출처: `data/docs/llm-system-prompt.md` Part 1. 설계 변경 시 그 문서를 먼저 고치고 이 파일에 반영할 것.
+> 출력 스키마 강제: OpenAI API 호출 시 `data/schemas/concern_parser_output_schema.openai.json`을 `response_format`(structured output, strict mode)에 그대로 넣을 것. 사람이 읽는 원본 스키마는 `data/schemas/concern_parser_output_schema.json`.
 
 ## 역할
 
