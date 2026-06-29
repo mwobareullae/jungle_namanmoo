@@ -40,6 +40,8 @@
 
 ## 4. 출력 형식(Output format)
 
+> 강제 스키마: `data/schemas/concern_parser_output_schema.json` (JSON Schema, tag_id/effect_id enum 포함, 사람이 읽는 원본). OpenAI API에 실제로 넘길 땐 strict mode 제약(범위 제약 미지원, 전부 required)에 맞춘 `data/schemas/concern_parser_output_schema.openai.json`을 사용 — 두 파일은 같이 갱신할 것.
+
 ```json
 {
   "matched_concerns": [
