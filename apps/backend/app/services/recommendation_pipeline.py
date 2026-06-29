@@ -17,6 +17,7 @@ from app.schemas.common import ApiError
 from app.schemas.recommendation import (
     MatchedBrandConstraint,
     MatchedCategoryConstraint,
+    Pagination,
     PurchaseConstraints,
     RecommendedProduct,
     RecommendationRequest,
@@ -39,6 +40,9 @@ from app.services.search_matching import match_product_search_documents
 
 DEFAULT_RESULT_LIMIT = 50
 DEFAULT_CANDIDATE_POOL_LIMIT = settings.recommendation_candidate_pool_limit
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 10
+MAX_PAGE_SIZE = 50
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
 ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
 DEFAULT_SKIN_TYPE = "중성"
@@ -51,6 +55,16 @@ class NormalizedRecommendationRequest:
     skin_type: str
     sensitivity: str
     avoid_ingredients: list[str]
+
+
+@dataclass(frozen=True)
+class NormalizedPagination:
+    page: int
+    page_size: int
+
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.page_size
 
 
 @dataclass(frozen=True)
@@ -74,8 +88,11 @@ def create_recommendation_response(
     *,
     result_limit: int = DEFAULT_RESULT_LIMIT,
     candidate_pool_limit: int = DEFAULT_CANDIDATE_POOL_LIMIT,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
     commit: bool = True,
 ) -> RecommendationResponse:
+    pagination = normalize_pagination(page, page_size)
     normalized_request = normalize_recommendation_request(request)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
     intent = build_recommendation_intent(
@@ -125,7 +142,12 @@ def create_recommendation_response(
             session.commit()
         else:
             session.flush()
-        return get_recommendation_response(session, recommendation_code)
+        return get_recommendation_response(
+            session,
+            recommendation_code,
+            page=pagination.page,
+            page_size=pagination.page_size,
+        )
     except Exception:
         session.rollback()
         raise
@@ -134,9 +156,19 @@ def create_recommendation_response(
 def get_recommendation_response(
     session: Session,
     recommendation_id: str,
+    *,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> RecommendationResponse:
+    pagination = normalize_pagination(page, page_size)
     run = load_recommendation_run(session, recommendation_id)
-    result_rows = _load_result_rows(session, run.id)
+    total_items = _count_result_rows(session, run.id)
+    result_rows = _load_result_rows(
+        session,
+        run.id,
+        offset=pagination.offset,
+        limit=pagination.page_size,
+    )
     evidence_by_result_id = _load_result_evidence(session, [row.result.id for row in result_rows])
 
     return RecommendationResponse(
@@ -150,6 +182,11 @@ def get_recommendation_response(
             )
             for row in result_rows
         ],
+        pagination=_build_pagination(
+            page=pagination.page,
+            page_size=pagination.page_size,
+            total_items=total_items,
+        ),
     )
 
 
@@ -183,6 +220,16 @@ def normalize_recommendation_request(
     )
 
 
+def normalize_pagination(page: int, page_size: int) -> NormalizedPagination:
+    if page < 1:
+        raise ApiError(400, "INVALID_INPUT", "page는 1 이상이어야 합니다.")
+    if page_size < 1:
+        raise ApiError(400, "INVALID_INPUT", "page_size는 1 이상이어야 합니다.")
+    if page_size > MAX_PAGE_SIZE:
+        raise ApiError(400, "INVALID_INPUT", f"page_size는 {MAX_PAGE_SIZE} 이하여야 합니다.")
+    return NormalizedPagination(page=page, page_size=page_size)
+
+
 def load_recommendation_run(session: Session, recommendation_id: str) -> RecommendationRun:
     run = session.execute(
         select(RecommendationRun).where(
@@ -195,7 +242,23 @@ def load_recommendation_run(session: Session, recommendation_id: str) -> Recomme
     return run
 
 
-def _load_result_rows(session: Session, recommendation_run_id: int) -> list[_ResultRow]:
+def _count_result_rows(session: Session, recommendation_run_id: int) -> int:
+    return int(
+        session.execute(
+            select(func.count(RecommendationResult.id)).where(
+                RecommendationResult.recommendation_run_id == recommendation_run_id,
+            )
+        ).scalar_one()
+    )
+
+
+def _load_result_rows(
+    session: Session,
+    recommendation_run_id: int,
+    *,
+    offset: int,
+    limit: int,
+) -> list[_ResultRow]:
     lowest_prices = (
         select(
             ProductPrice.product_id.label("product_id"),
@@ -217,6 +280,8 @@ def _load_result_rows(session: Session, recommendation_run_id: int) -> list[_Res
         .outerjoin(lowest_prices, lowest_prices.c.product_id == Product.id)
         .where(RecommendationResult.recommendation_run_id == recommendation_run_id)
         .order_by(RecommendationResult.rank_order.asc())
+        .offset(offset)
+        .limit(limit)
     ).all()
 
     return [
@@ -228,6 +293,18 @@ def _load_result_rows(session: Session, recommendation_run_id: int) -> list[_Res
         )
         for result, product, brand, lowest_price in rows
     ]
+
+
+def _build_pagination(*, page: int, page_size: int, total_items: int) -> Pagination:
+    total_pages = (total_items + page_size - 1) // page_size if total_items else 0
+    return Pagination(
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1 and total_items > 0,
+    )
 
 
 def _load_result_evidence(

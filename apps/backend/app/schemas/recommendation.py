@@ -67,8 +67,18 @@ class RecommendedProduct(BaseModel):
     score_breakdown: ScoreBreakdown
 
 
+class Pagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
 class RecommendationResponse(BaseModel):
     recommendation_id: str
     summary: RecommendationSummary
     unmatched_terms: list[str]
     products: list[RecommendedProduct]
+    pagination: Pagination
