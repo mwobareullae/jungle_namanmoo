@@ -38,6 +38,20 @@ class ProductIngredient:
 
 
 @dataclass(frozen=True)
+class ProductSkinProfile:
+    product_id: str
+    dry_fit: float
+    oily_fit: float
+    combination_fit: float
+    normal_fit: float
+    dehydrated_oily_fit: float
+    sensitive_fit: float
+    sensitivity_tag: str
+    confidence: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class Ingredient:
     ingredient_id: str
     name_ko: str
@@ -52,6 +66,21 @@ class IngredientEffect:
     effect_id: str
     effect_name: str
     effect_score: int
+
+
+@dataclass(frozen=True)
+class IngredientEffectRange:
+    ingredient_id: str
+    effect_id: str
+    unit: str
+    meaningful_min: float
+    optimal_min: float
+    optimal_max: float
+    excessive_min: float | None
+    range_confidence: str
+    source_type: str
+    source_url: str | None
+    note: str
 
 
 @dataclass(frozen=True)
@@ -101,8 +130,10 @@ class DataCatalog:
     products: tuple[Product, ...]
     product_prices: tuple[ProductPrice, ...]
     product_ingredients: tuple[ProductIngredient, ...]
+    product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]
     ingredient_effects: tuple[IngredientEffect, ...]
+    ingredient_effect_ranges: tuple[IngredientEffectRange, ...]
     ingredient_evidence: tuple[IngredientEvidence, ...]
     risk_flags: tuple[RiskFlag, ...]
     concern_tags: tuple[ConcernTag, ...]

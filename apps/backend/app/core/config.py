@@ -41,6 +41,7 @@ class Settings(BaseModel):
     )
     data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_embedding_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     embedding_dimensions: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
     hybrid_keyword_weight: float = float(os.getenv("HYBRID_KEYWORD_WEIGHT", "0.5"))

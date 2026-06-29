@@ -212,6 +212,7 @@ def _product_row(product: RecommendedProduct) -> str:
     breakdown_text = (
         f"eff {breakdown.ingredient_effect_score} / "
         f"ev {breakdown.ingredient_evidence_score} / "
+        f"conc {breakdown.concentration_fit_score} / "
         f"skin {breakdown.skin_type_score} / "
         f"price {breakdown.price_score} / "
         f"kw {breakdown.keyword_score} / "

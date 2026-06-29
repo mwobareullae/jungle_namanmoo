@@ -4,7 +4,7 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.types import big_integer_pk_type
+from app.db.types import EmbeddingVector, big_integer_pk_type
 
 
 class SearchDocument(Base):
@@ -23,7 +23,7 @@ class SearchDocument(Base):
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[str | None] = mapped_column(EmbeddingVector(1536), nullable=True)
     embedding_model: Mapped[str | None] = mapped_column(String(80), nullable=True)
     embedding_dimensions: Mapped[int | None] = mapped_column(nullable=True)
     embedding_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

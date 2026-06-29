@@ -36,8 +36,14 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.product_ingredients[-1].concentration_text == "나이아신아마이드 5%"
     assert catalog.product_ingredients[-1].concentration_value == 5.0
     assert catalog.product_ingredients[-1].normalized_concentration_unit == "%"
+    assert catalog.product_skin_profiles[0].product_id == "prod_001"
+    assert catalog.product_skin_profiles[0].dry_fit == pytest.approx(0.9)
+    assert catalog.product_skin_profiles[0].sensitive_fit == pytest.approx(0.8)
     assert catalog.ingredients[0].name_ko == "판테놀"
     assert catalog.ingredient_effects[0].effect_score == 90
+    assert catalog.ingredient_effect_ranges[0].ingredient_id == "ing_niacinamide"
+    assert catalog.ingredient_effect_ranges[0].optimal_min == pytest.approx(4.0)
+    assert catalog.ingredient_effect_ranges[0].excessive_min == pytest.approx(10.0)
     assert catalog.ingredient_evidence[0].evidence_level == "high"
     assert catalog.ingredient_evidence[0].summary
     assert catalog.risk_flags[0].severity == "medium"
@@ -71,6 +77,20 @@ def test_loader_reports_missing_csv_header(tmp_path: Path) -> None:
     )
 
     with pytest.raises(DataLoadError, match="products.csv 필수 컬럼이 없습니다: skin_type_tags"):
+        load_data_catalog(data_dir)
+
+
+def test_loader_reports_invalid_product_skin_profile_reference(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_skin_profiles.csv").write_text(
+        "product_id,dry_fit,oily_fit,combination_fit,normal_fit,dehydrated_oily_fit,"
+        "sensitive_fit,sensitivity_tag,confidence,reason\n"
+        "missing_product,0.9,0.3,0.6,0.8,0.9,0.8,민감가능,medium,missing\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataLoadError, match="product_id"):
         load_data_catalog(data_dir)
 
 
