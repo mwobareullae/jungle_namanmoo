@@ -1,8 +1,8 @@
-import { mockRecommendationApi } from "../mocks/recommendation";
 import type {
   ApiError,
   ProductCardItem,
   ProductDetail,
+  PurchaseConstraints,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
@@ -25,6 +25,8 @@ type BackendScoreBreakdown = {
   ingredient_evidence_score: number;
   skin_type_score: number;
   price_score: number;
+  keyword_score?: number;
+  vector_score?: number;
   search_match_score?: number;
   risk_penalty?: number;
 };
@@ -43,6 +45,23 @@ type BackendRecommendedProduct = {
   score_breakdown: BackendScoreBreakdown;
 };
 
+type BackendPurchaseConstraints = {
+  categories: {
+    category_code: string;
+    name: string;
+    matched_text: string;
+  }[];
+  brands: {
+    brand_code: string;
+    name: string;
+    matched_text: string;
+  }[];
+  price_min: number | null;
+  price_max: number | null;
+  price_text: string | null;
+  price_max_text: string | null;
+};
+
 type BackendRecommendationResponse = {
   recommendation_id: string;
   summary: {
@@ -52,6 +71,7 @@ type BackendRecommendationResponse = {
     avoid_ingredients: string[];
     matched_concerns: string[];
     expected_effects: string[];
+    purchase_constraints: BackendPurchaseConstraints;
   };
   unmatched_terms: string[];
   products: BackendRecommendedProduct[];
@@ -104,7 +124,16 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/
   ""
 );
 
-const useMockApi = import.meta.env.VITE_USE_MOCK_API === "true";
+const requestTimeoutMs = 15000;
+
+const emptyPurchaseConstraints: PurchaseConstraints = {
+  categories: [],
+  brands: [],
+  price_min: null,
+  price_max: null,
+  price_text: null,
+  price_max_text: null
+};
 
 const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown | undefined => {
   if (!score) {
@@ -115,7 +144,11 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     ingredient_effect_score: score.ingredient_effect_score,
     ingredient_evidence_score: score.ingredient_evidence_score,
     skin_type_match_score: score.skin_type_score,
-    price_value_score: score.price_score
+    price_value_score: score.price_score,
+    keyword_score: score.keyword_score ?? 0,
+    vector_score: score.vector_score ?? 0,
+    search_match_score: score.search_match_score ?? 0,
+    risk_penalty: score.risk_penalty ?? 0
   };
 };
 
@@ -137,8 +170,13 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
 const mapRecommendation = (response: BackendRecommendationResponse): RecommendationResponse => ({
   recommendation_id: response.recommendation_id,
   summary: {
+    concern_text: response.summary.concern_text,
+    skin_type: response.summary.skin_type,
+    sensitivity: response.summary.sensitivity,
+    avoid_ingredients: response.summary.avoid_ingredients,
     concerns: response.summary.matched_concerns,
-    effects: response.summary.expected_effects
+    effects: response.summary.expected_effects,
+    purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
   },
   unmatched_terms: response.unmatched_terms,
   products: response.products.map(mapProductCard)
@@ -183,9 +221,36 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
       ingredient_name: item.ingredient,
       effect_name: item.effect,
       evidence_level: "medium",
-      evidence_text: item.description
-    }))
+      evidence_text: item.description,
+      source_title: item.source_title || null
+    })),
+    prices: response.prices,
+    sources: response.sources
   };
+};
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      const apiError: ApiError = {
+        status: 408,
+        message: "분석 요청이 지연되고 있어요. 잠시 후 다시 시도해주세요."
+      };
+      throw apiError;
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 };
 
 const parseJson = async <T>(response: Response): Promise<T> => {
@@ -203,9 +268,9 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return body as T;
 };
 
-const realRecommendationApi: RecommendationApi = {
+export const api: RecommendationApi = {
   async createRecommendation(request) {
-    const response = await fetch(`${apiBaseUrl}/recommendations`, {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -222,9 +287,9 @@ const realRecommendationApi: RecommendationApi = {
     }
 
     const query = searchParams.toString();
-    const response = await fetch(`${apiBaseUrl}/products/${productId}${query ? `?${query}` : ""}`);
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/products/${productId}${query ? `?${query}` : ""}`
+    );
     return mapProductDetail(await parseJson<BackendProductDetailResponse>(response));
   }
 };
-
-export const api: RecommendationApi = useMockApi ? mockRecommendationApi : realRecommendationApi;

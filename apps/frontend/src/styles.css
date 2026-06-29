@@ -1027,6 +1027,15 @@ a {
   color: var(--ink);
 }
 
+.text-link {
+  display: inline-flex;
+  margin-top: 12px;
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .detail-hero {
   display: grid;
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
