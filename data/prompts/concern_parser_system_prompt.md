@@ -234,3 +234,37 @@
   "confidence": 0.15
 }
 ```
+
+### 예시 6. 트리거 단어 없이 문맥(시제 전환)만으로 덮어쓰기
+
+```json
+입력: {
+  "concern_text": "예전엔 여드름 때문에 고생했는데 지금은 칙칙함이 고민이에요",
+  "rule_parser_partial": {
+    "matched_concerns": [
+      { "tag_id": "concern_acne", "matched_text": "여드름", "confidence": 1.0 },
+      { "tag_id": "concern_dull_uneven_tone", "matched_text": "칙칙함", "confidence": 1.0 }
+    ],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": [],
+    "needs_llm": true
+  }
+}
+
+출력: {
+  "matched_concerns": [
+    { "tag_id": "concern_dull_uneven_tone", "matched_text": "칙칙함", "confidence": 0.9 }
+  ],
+  "expected_effects": [
+    { "effect_id": "effect_brightening", "weight": 1.0, "source": "concern_to_effect" },
+    { "effect_id": "effect_exfoliation", "weight": 0.5, "source": "concern_to_effect" }
+  ],
+  "excluded_concerns": ["concern_acne"],
+  "priority_effects": [],
+  "unmatched_terms": [],
+  "needs_review": false,
+  "confidence": 0.8
+}
+```

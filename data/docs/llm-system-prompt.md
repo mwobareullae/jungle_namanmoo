@@ -105,7 +105,7 @@
 
 ## 8. Few-shot 예시
 
-> 아래 예시들은 실제 `apps/backend/app/services/parser.py`(`parse_concern_text`)에 문장을 직접 돌려서 나온 `rule_parser_partial`만 사용함. 운영 프롬프트(`concern_parser_system_prompt.md`)에는 이 5개를 그대로 사용. 제외/우선순위 트리거 단독 예시는 `needs_llm`이 `false`가 되어 LLM이 호출 안 되는 것으로 확인되어 맨 아래 "보류된 예시"로 분리함.
+> 아래 예시들은 실제 `apps/backend/app/services/parser.py`(`parse_concern_text`)에 문장을 직접 돌려서 나온 `rule_parser_partial`만 사용함. 운영 프롬프트(`concern_parser_system_prompt.md`)에는 이 6개를 그대로 사용.
 
 ### 케이스 1. 순수 의미 기반 매칭 (사전 매칭 0%)
 
@@ -274,13 +274,44 @@
 - 11개 고민 중 어느 것과도 매칭 안 됨 (`concern-categories.md`의 unmatched_terms 정책)
 - 단순 모호함(매칭 0건)은 "검색결과 없음" 같은 즉시·자동 안내 화면으로 처리되어야 하므로 `needs_review: false` — 위험 표현(케이스 3)과 달리 지연·검토 큐로 보낼 필요 없음
 
-## 보류된 예시 (현재 needs_llm 로직 한계로 실제 도달 불가)
+### 케이스 6. 트리거 단어 없이 문맥(시제 전환)만으로 덮어쓰기
 
-아래는 설계 의도는 유효하지만, 실제 `parser.py`로 돌려보면 규칙 파서가 이미 매칭/제외/우선순위를 다 처리해버려서 `needs_llm`이 `false`가 되어 **LLM이 호출조차 안 되는** 케이스다. 원우에게 `_needs_llm`(트리거 단어가 있는데 정규식에 정확히 안 걸리면 `true`로) 수정을 요청한 상태 — 고쳐지면 본문 few-shot으로 다시 옮길 것.
+```json
+입력: {
+  "concern_text": "예전엔 여드름 때문에 고생했는데 지금은 칙칙함이 고민이에요",
+  "rule_parser_partial": {
+    "matched_concerns": [
+      { "tag_id": "concern_acne", "matched_text": "여드름", "confidence": 1.0 },
+      { "tag_id": "concern_dull_uneven_tone", "matched_text": "칙칙함", "confidence": 1.0 }
+    ],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": [],
+    "needs_llm": true
+  }
+}
 
-- **제외 표현 트리거**: "여드름은 상관없고/안 중요해, 미백 추천" — `상관없고`는 이미 정규식에 있어서 규칙 파서가 알아서 제외 처리하고, `안 중요해`로 바꿔도 정규식에 없는 단어라 오히려 못 걸러서 `concerns`가 비지 않아 `needs_llm: false`가 됨
-- **우선순위 표현**: "모공이랑 속건조 둘 다 고민인데 보습이 최우선이에요" — 규칙 파서가 둘 다 키워드로 잡고 `needs_llm: false`
-- **트리거 단어 없이 문맥만**: "예전엔 여드름 때문에 고생했는데 지금은 칙칙함이 고민이에요" — 규칙 파서가 "여드름"·"칙칙함" 둘 다 키워드로 잡고 `needs_llm: false`
+출력: {
+  "matched_concerns": [
+    { "tag_id": "concern_dull_uneven_tone", "matched_text": "칙칙함", "confidence": 0.9 }
+  ],
+  "expected_effects": [
+    { "effect_id": "effect_brightening", "weight": 1.0, "source": "concern_to_effect" },
+    { "effect_id": "effect_exfoliation", "weight": 0.5, "source": "concern_to_effect" }
+  ],
+  "excluded_concerns": ["concern_acne"],
+  "priority_effects": [],
+  "unmatched_terms": [],
+  "needs_review": false,
+  "confidence": 0.8
+}
+```
+
+체크 포인트:
+- "예전엔" → "지금은" 시제 전환 패턴을 규칙 파서가 감지해 `needs_llm: true`로 표시(원우가 `_has_temporal_shift_context`로 보강). 단, 제외 판단 자체는 아직 규칙 파서가 못 해서 `concern_acne`가 `matched_concerns`에 그대로 남아있음
+- LLM이 "예전엔 ~했는데 지금은"이라는 문맥을 이해해 `concern_acne`를 `excluded_concerns`로 덮어씀(규칙 4)
+- `concern_dull_uneven_tone`은 `effect_brightening`(1.0)·`effect_exfoliation`(0.5) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6)
 
 ---
 
