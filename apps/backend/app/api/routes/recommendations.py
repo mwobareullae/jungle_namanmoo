@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -6,6 +6,9 @@ from app.schemas.common import ErrorResponse
 from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
 from app.services.recommendation_pipeline import (
     create_recommendation_response,
+    DEFAULT_PAGE,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
     get_recommendation_response,
 )
 
@@ -20,9 +23,11 @@ router = APIRouter(tags=["recommendations"])
 )
 def post_recommendation(
     request: RecommendationRequest,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
-    return create_recommendation_response(session, request)
+    return create_recommendation_response(session, request, page=page, page_size=page_size)
 
 
 @router.get(
@@ -35,6 +40,13 @@ def post_recommendation(
 )
 def get_recommendation_by_id(
     recommendation_id: str,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
-    return get_recommendation_response(session, recommendation_id)
+    return get_recommendation_response(
+        session,
+        recommendation_id,
+        page=page,
+        page_size=page_size,
+    )

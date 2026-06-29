@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from app.services.concern_llm_parser import (
@@ -6,8 +7,9 @@ from app.services.concern_llm_parser import (
     LlmExpectedEffect,
     LlmMatchedConcern,
     LlmPriorityEffect,
+    OpenAIConcernLlmParser,
 )
-from app.services.parser import ConcernRepository, ParsedConcernResult
+from app.services.parser import ConcernRepository, ParsedConcernResult, parse_concern_text
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 
@@ -124,6 +126,63 @@ def test_concern_llm_parser_output_rejects_unknown_ids() -> None:
         assert "unknown concern ids" in str(exc)
     else:
         raise AssertionError("unknown concern id should fail validation")
+
+
+def test_openai_concern_llm_parser_sends_deterministic_seed(monkeypatch) -> None:
+    repository = load_repository(DATA_DIR)
+    rule_result = parse_concern_text("까무잡잡한데 밝아지고 싶어", repository)
+    captured_payload: dict = {}
+
+    def fake_urlopen(request, timeout):
+        captured_payload.update(json.loads(request.data.decode("utf-8")))
+        return _FakeHTTPResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "matched_concerns": [],
+                                    "expected_effects": [],
+                                    "excluded_concerns": [],
+                                    "priority_effects": [],
+                                    "unmatched_terms": [],
+                                    "needs_review": False,
+                                    "confidence": 0,
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    parser = OpenAIConcernLlmParser(api_key="test-key", model="gpt-test")
+    parser._request_structured_output(
+        prompt="system prompt",
+        schema={"name": "concern_parser_output", "schema": {"type": "object"}},
+        concern_text="까무잡잡한데 밝아지고 싶어",
+        rule_result=rule_result,
+    )
+
+    assert captured_payload["temperature"] == 0
+    assert captured_payload["seed"] == 42
+
+
+class _FakeHTTPResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
 
 
 class _FakeConcernLlmParser:

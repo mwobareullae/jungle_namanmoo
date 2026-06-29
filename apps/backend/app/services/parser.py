@@ -14,6 +14,14 @@ NEGATION_CONTEXT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         r"관심\s*없",
         r"고민\s*(?:은\s*)?아니",
         r"아니(?:고|라|야|에요|예요|다|라는)",
+        r"신경\s*안\s*써도\s*돼",
+        r"안\s*그래도\s*돼",
+        r"굳이",
+        r"그닥",
+        r"패스",
+        r"넘어가고",
+        r"안\s*중요",
+        r"싫고",
         r"말고",
         r"제외",
         r"빼고",
@@ -31,6 +39,12 @@ PRIORITY_CONTEXT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         r"중요",
         r"제일",
         r"먼저",
+        r"가장",
+        r"특히",
+        r"중점적",
+        r"핵심은",
+        r"무엇보다",
+        r"신경\s*쓰고\s*싶은\s*건",
         r"focus",
         r"main",
     )
@@ -49,6 +63,14 @@ AMBIGUOUS_NATURAL_LANGUAGE_TERMS = (
     "빤딱",
     "번쩍",
     "광나",
+)
+
+TEMPORAL_SHIFT_CONTEXT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern)
+    for pattern in (
+        r"(?:예전|예전엔|예전에는|전엔|전에는|과거|이전|옛날)(?:.{0,40})(?:지금|요즘|현재|이제)",
+        r"(?:전에|예전에)(?:.{0,40})(?:지금은|요즘은|현재는|이제는)",
+    )
 )
 
 
@@ -360,6 +382,8 @@ def _needs_llm(
 ) -> bool:
     if _has_ambiguous_natural_language(normalized_text):
         return True
+    if _has_temporal_shift_context(normalized_text):
+        return True
     if not concerns and not effects:
         return True
     return bool(unmatched_terms and len(" ".join(unmatched_terms)) >= 8)
@@ -367,6 +391,10 @@ def _needs_llm(
 
 def _has_ambiguous_natural_language(normalized_text: str) -> bool:
     return any(term in normalized_text for term in AMBIGUOUS_NATURAL_LANGUAGE_TERMS)
+
+
+def _has_temporal_shift_context(normalized_text: str) -> bool:
+    return any(pattern.search(normalized_text) is not None for pattern in TEMPORAL_SHIFT_CONTEXT_PATTERNS)
 
 
 def _split_phrases(normalized_text: str) -> list[str]:
