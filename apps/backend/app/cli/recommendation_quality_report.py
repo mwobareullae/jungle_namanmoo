@@ -11,6 +11,7 @@ from app.schemas.recommendation import RecommendedProduct, RecommendationRequest
 from app.services.recommendation_pipeline import (
     DEFAULT_CANDIDATE_POOL_LIMIT,
     DEFAULT_RESULT_LIMIT,
+    MAX_PAGE_SIZE,
     create_recommendation_response,
 )
 
@@ -119,6 +120,7 @@ def run_quality_case(
             ),
             result_limit=result_limit,
             candidate_pool_limit=candidate_pool_limit,
+            page_size=min(result_limit, MAX_PAGE_SIZE),
             commit=persist,
         )
         elapsed_ms = (perf_counter() - started_at) * 1000

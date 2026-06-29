@@ -5,6 +5,7 @@ from app.cli.recommendation_quality_report import (
     format_markdown_report,
 )
 from app.schemas.recommendation import (
+    Pagination,
     PurchaseConstraints,
     RecommendedProduct,
     RecommendationResponse,
@@ -76,6 +77,14 @@ def _response_with_products() -> RecommendationResponse:
             _product("prod_1", 1, "Product 1"),
             _product("prod_2", 2, "Product 2"),
         ],
+        pagination=Pagination(
+            page=1,
+            page_size=10,
+            total_items=2,
+            total_pages=1,
+            has_next=False,
+            has_prev=False,
+        ),
     )
 
 

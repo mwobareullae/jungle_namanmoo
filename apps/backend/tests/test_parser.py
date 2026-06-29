@@ -108,6 +108,49 @@ def test_parse_concern_text_excludes_negated_concern_and_prioritizes_effect() ->
     assert result.needs_llm is False
 
 
+def test_parse_concern_text_excludes_added_negation_trigger() -> None:
+    repository = load_repository(DATA_DIR)
+
+    result = parse_concern_text("여드름은 안 중요해, 미백 추천", repository)
+
+    assert "concern_acne" not in [concern.tag_id for concern in result.concerns]
+    assert [concern.tag_id for concern in result.excluded_concerns] == ["concern_acne"]
+    assert "concern_brightening_spots" in [concern.tag_id for concern in result.concerns]
+    assert "effect_brightening" in [effect.effect_id for effect in result.effects]
+
+
+def test_parse_concern_text_prioritizes_added_priority_trigger() -> None:
+    repository = load_repository(DATA_DIR)
+
+    result = parse_concern_text("미백을 특히 신경 쓰고 싶은 건데 앰플 추천", repository)
+
+    assert "concern_brightening_spots" in [concern.tag_id for concern in result.concerns]
+    assert "effect_brightening" in [effect.effect_id for effect in result.effects]
+    assert [effect.effect_id for effect in result.priority_effects] == ["effect_brightening"]
+
+
+def test_parse_concern_text_marks_temporal_shift_for_llm() -> None:
+    repository = load_repository(DATA_DIR)
+
+    result = parse_concern_text(
+        "예전엔 여드름 때문에 힘들었는데 지금은 칙칙함이 고민이에요",
+        repository,
+    )
+
+    assert "concern_acne" in [concern.tag_id for concern in result.concerns]
+    assert "concern_dull_uneven_tone" in [concern.tag_id for concern in result.concerns]
+    assert result.needs_llm is True
+
+
+def test_parse_concern_text_keeps_dislike_as_prevention_need() -> None:
+    repository = load_repository(DATA_DIR)
+
+    result = parse_concern_text("여드름 생기기 싫어", repository)
+
+    assert "concern_acne" in [concern.tag_id for concern in result.concerns]
+    assert result.excluded_concerns == ()
+
+
 def test_parse_concern_text_keeps_prevention_need_with_negative_word() -> None:
     repository = load_repository(DATA_DIR)
 

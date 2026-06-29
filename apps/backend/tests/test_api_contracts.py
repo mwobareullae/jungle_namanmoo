@@ -241,6 +241,40 @@ def test_get_recommendation_returns_created_payload(client: TestClient) -> None:
     assert response.json() == created
 
 
+def test_recommendation_response_supports_pagination(client: TestClient) -> None:
+    created_response = client.post(
+        "/api/recommendations",
+        params={"page": 1, "page_size": 1},
+        json={"concern_text": "속건조 보습 추천"},
+    )
+
+    assert created_response.status_code == 200
+
+    first_page = created_response.json()
+    assert len(first_page["products"]) == 1
+    assert first_page["pagination"]["page"] == 1
+    assert first_page["pagination"]["page_size"] == 1
+    assert first_page["pagination"]["total_items"] >= 2
+    assert first_page["pagination"]["total_pages"] >= 2
+    assert first_page["pagination"]["has_next"] is True
+    assert first_page["pagination"]["has_prev"] is False
+
+    second_response = client.get(
+        f"/api/recommendations/{first_page['recommendation_id']}",
+        params={"page": 2, "page_size": 1},
+    )
+
+    assert second_response.status_code == 200
+
+    second_page = second_response.json()
+    assert len(second_page["products"]) == 1
+    assert second_page["products"][0]["rank"] == 2
+    assert second_page["pagination"]["page"] == 2
+    assert second_page["pagination"]["page_size"] == 1
+    assert second_page["pagination"]["total_items"] == first_page["pagination"]["total_items"]
+    assert second_page["pagination"]["has_prev"] is True
+
+
 def test_get_recommendation_returns_404_for_missing_id(client: TestClient) -> None:
     response = client.get("/api/recommendations/rec_missing")
 
