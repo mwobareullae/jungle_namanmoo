@@ -6,6 +6,27 @@ export type SortOption = "score" | "price" | "risk";
 
 export type ContentConfidence = "high" | "medium" | "low" | "unknown";
 
+export type MatchedCategoryConstraint = {
+  category_code: string;
+  name: string;
+  matched_text: string;
+};
+
+export type MatchedBrandConstraint = {
+  brand_code: string;
+  name: string;
+  matched_text: string;
+};
+
+export type PurchaseConstraints = {
+  categories: MatchedCategoryConstraint[];
+  brands: MatchedBrandConstraint[];
+  price_min: number | null;
+  price_max: number | null;
+  price_text: string | null;
+  price_max_text: string | null;
+};
+
 export type RecommendationRequest = {
   skin_type: SkinType;
   sensitivity: Sensitivity;
@@ -18,6 +39,10 @@ export type ScoreBreakdown = {
   ingredient_evidence_score: number;
   skin_type_match_score: number;
   price_value_score: number;
+  keyword_score: number;
+  vector_score: number;
+  search_match_score: number;
+  risk_penalty: number;
 };
 
 export type ProductCardItem = {
@@ -36,8 +61,13 @@ export type ProductCardItem = {
 };
 
 export type RecommendationSummary = {
+  concern_text: string;
+  skin_type: string;
+  sensitivity: string;
+  avoid_ingredients: string[];
   concerns: string[];
   effects: string[];
+  purchase_constraints: PurchaseConstraints;
 };
 
 export type RecommendationResponse = {
@@ -52,6 +82,20 @@ export type IngredientEvidence = {
   effect_name: string;
   evidence_level: "high" | "medium" | "low";
   evidence_text: string;
+  source_title: string | null;
+};
+
+export type ProductPrice = {
+  mall_name: string;
+  price: number;
+  product_url: string;
+  is_lowest: boolean;
+};
+
+export type ProductSource = {
+  title: string;
+  url: string;
+  source_type: string;
 };
 
 export type ProductDetail = ProductCardItem & {
@@ -60,6 +104,8 @@ export type ProductDetail = ProductCardItem & {
   related_ingredients: string[];
   purchase_url: string | null;
   evidence: IngredientEvidence[];
+  prices: ProductPrice[];
+  sources: ProductSource[];
 };
 
 export type ApiError = {
