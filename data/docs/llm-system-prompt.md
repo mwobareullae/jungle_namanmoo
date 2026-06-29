@@ -27,16 +27,26 @@
 
 ```json
 {
-  "concern_text": "여드름은 상관없고 미백 앰플 추천",
+  "concern_text": "까무잡잡한데 허예지고 싶어",
   "rule_parser_partial": {
-    "matched_concerns": ["concern_acne"],
-    "confidence": 0.3
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": ["까무잡잡한데 허예지고 싶어"],
+    "needs_llm": true
   }
 }
 ```
 
 - `concern_text`: 사용자 원문
-- `rule_parser_partial`: 규칙 파서가 1차로 찾은 부분 결과(있으면 참고, 없으면 빈 값) — LLM이 처음부터 다시 분석하지 않고 그 위에서 보강·수정하도록 함
+- `rule_parser_partial`: 규칙 파서(`apps/backend/app/services/parser.py`)의 실제 출력(`ParsedConcernResult`)을 그대로 변환한 것 — 백엔드는 `needs_llm`이 `true`일 때만 이 객체와 함께 LLM을 호출한다(`recommendation_intent.py`에서 이미 분기됨). 단순화된 형태가 아니라 **실제 코드가 보내는 모양 그대로**임에 유의.
+  - `matched_concerns`: `{tag_id, matched_text, confidence}` — `confidence`는 규칙 파서 구현상 키워드가 매칭되면 항상 `1.0`(애매함의 정도를 표현하지 않음). LLM은 이 값과 무관하게 문장 전체를 항상 재검토한다(규칙 4)
+  - `expected_effects`: `{effect_id, weight}` — 매칭된 `concerns`에 연결된 모든 효능(규칙 6과 동일한 원리로 규칙 파서도 전부 포함)
+  - `excluded_concerns`: `{tag_id, matched_text, reason}` — 규칙 파서가 이미 제외 처리한 항목(정규식에 등록된 부정 표현만 잡으므로, 등록 안 된 표현은 여기 안 나타날 수 있음 — 알려진 한계)
+  - `priority_effects`: `{effect_id, weight}` — 규칙 파서가 이미 우선순위로 잡은 항목
+  - `unmatched_terms`: 매칭 안 된 구문(phrase) 목록
+  - `needs_llm`: 규칙 파서가 판단한 "LLM 호출 필요 여부" — 참고용일 뿐, 이 입력 자체가 왔다는 것은 이미 `true`였다는 뜻
 
 ## 4. 출력 형식(Output format)
 
@@ -60,7 +70,7 @@
 
 - `matched_concerns`: `matched_text`+`confidence`로 백엔드가 판단 근거와 신뢰도를 추적 가능
 - `expected_effects.source`: `concern_to_effect`(매핑 테이블 기반, 신뢰도 높음) vs `semantic_inference`(LLM 추론, 신뢰도 낮게 취급 가능) 구분 — 백엔드가 가중치 처리를 다르게 할 수 있게 함
-- `excluded_concerns`: 규칙 파서(키워드 포함 매칭)는 절대 못 잡는 부정 표현("여드름은 상관없고")을 명시적으로 제외 처리
+- `excluded_concerns`: 규칙 파서의 정규식이 못 잡는 부정 표현을 LLM이 명시적으로 제외 처리. **입력의 `rule_parser_partial.excluded_concerns`는 `{tag_id, matched_text, reason}` 객체 배열이지만, 출력의 `excluded_concerns`는 `tag_id` 문자열 배열로 더 단순함** — 입출력 형태가 다르니 혼동 주의
 - `priority_effects.reason`: 우선순위 판단 근거를 남겨 디버깅/투명성 확보
 - `unmatched_terms`: `concern-categories.md`의 기존 unmatched_terms 정책 재사용
 - `needs_review`: 자동 보정하면 위험한 표현(예: "모낭암")에 대한 안전장치
@@ -95,42 +105,57 @@
 
 ## 8. Few-shot 예시
 
-> **운영 프롬프트에는 케이스 2를 빼고 1·3·4·5·6·7·8 (7개)만 사용.** 케이스 2(복합 매칭)는 케이스 4와 메커니즘이 겹쳐 중복 — 문서 레퍼런스용으로만 8개 다 유지.
+> 아래 예시들은 실제 `apps/backend/app/services/parser.py`(`parse_concern_text`)에 문장을 직접 돌려서 나온 `rule_parser_partial`만 사용함. 운영 프롬프트(`concern_parser_system_prompt.md`)에는 이 6개를 그대로 사용.
 
-### 케이스 1. 제외 표현 + rule_parser_partial 덮어쓰기
+### 케이스 1. 순수 의미 기반 매칭 (사전 매칭 0%)
 
 ```json
 입력: {
-  "concern_text": "여드름은 상관없고 미백 앰플 추천",
-  "rule_parser_partial": { "matched_concerns": ["concern_acne"], "confidence": 0.3 }
+  "concern_text": "까무잡잡한데 허예지고 싶어",
+  "rule_parser_partial": {
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": ["까무잡잡한데 허예지고 싶어"],
+    "needs_llm": true
+  }
 }
 
 출력: {
   "matched_concerns": [
-    { "tag_id": "concern_brightening_spots", "matched_text": "미백", "confidence": 0.9 }
+    { "tag_id": "concern_dull_uneven_tone", "matched_text": "까무잡잡한데 허예지고 싶어", "confidence": 0.8 }
   ],
   "expected_effects": [
-    { "effect_id": "effect_brightening", "weight": 1.0, "source": "concern_to_effect" }
+    { "effect_id": "effect_brightening", "weight": 1.0, "source": "concern_to_effect" },
+    { "effect_id": "effect_exfoliation", "weight": 0.5, "source": "concern_to_effect" }
   ],
-  "excluded_concerns": ["concern_acne"],
+  "excluded_concerns": [],
   "priority_effects": [],
   "unmatched_terms": [],
   "needs_review": false,
-  "confidence": 0.9
+  "confidence": 0.8
 }
 ```
 
 체크 포인트:
-- `rule_parser_partial`이 1차로 "여드름"을 잡았지만, "상관없고"(제외 트리거) 때문에 LLM이 `excluded_concerns`로 덮어씀 (규칙 4)
-- "미백"은 명확한 키워드라 높은 confidence로 매칭
-- 우선순위 트리거가 없어 `priority_effects`는 빈 배열
+- "까무잡잡"/"허예지다"는 사전에 전혀 없어 규칙 파서가 아무것도 못 찾음(`matched_concerns` 등 전부 빈 배열) → `needs_llm: true`
+- 사전 매칭 0%여도 의미가 명확히 같으면 매칭(규칙 3) — 순수 의미 추론
+- `concern_dull_uneven_tone`은 `effect_brightening`(1.0)·`effect_exfoliation`(0.5) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6)
 
-### 케이스 2. 복합 매칭 (의미 기반 매칭으로 추가 발견)
+### 케이스 2. 복합 매칭 (의미 기반, 양쪽 다 사전에 없음)
 
 ```json
 입력: {
   "concern_text": "속은 당기는데 겉은 기름져",
-  "rule_parser_partial": { "matched_concerns": ["concern_dry_barrier"], "confidence": 0.35 }
+  "rule_parser_partial": {
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": ["속은 당기는데 겉은 기름져"],
+    "needs_llm": true
+  }
 }
 
 출력: {
@@ -152,80 +177,119 @@
 ```
 
 체크 포인트:
-- 규칙 파서는 "속은 당기는"만 낮은 confidence로 잡았고 "겉은 기름져"는 못 잡음
-- LLM이 의미 기반 매칭(규칙 3)으로 `concern_pore`까지 추가 발견
-- 제외/우선순위 표현 없이 두 고민이 동시에 정상적으로 매칭되는 케이스
+- "속은 당기는"/"겉은 기름져" 둘 다 사전에 없어 규칙 파서가 전혀 못 잡음 → `needs_llm: true`
+- LLM이 의미 기반 매칭(규칙 3)으로 두 고민을 동시에 발견
 - `concern_dry_barrier`는 `effect_moisture_barrier`(1.0)·`effect_calming`(0.6) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6)
 
-### 케이스 3. 순수 의미 기반 매칭 (사전 매칭 0%)
+### 케이스 3. 위험 표현 (자동 보정 금지)
 
 ```json
 입력: {
-  "concern_text": "까무잡잡한데 허예지고 싶어",
-  "rule_parser_partial": null
+  "concern_text": "모낭암 같은 게 있는 것 같아",
+  "rule_parser_partial": {
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": ["모낭암 같은 게 있는 것 같아"],
+    "needs_llm": true
+  }
 }
 
 출력: {
-  "matched_concerns": [
-    { "tag_id": "concern_dull_uneven_tone", "matched_text": "까무잡잡한데 허예지고 싶어", "confidence": 0.8 }
-  ],
-  "expected_effects": [
-    { "effect_id": "effect_brightening", "weight": 1.0, "source": "concern_to_effect" },
-    { "effect_id": "effect_exfoliation", "weight": 0.5, "source": "concern_to_effect" }
-  ],
+  "matched_concerns": [],
+  "expected_effects": [],
   "excluded_concerns": [],
   "priority_effects": [],
-  "unmatched_terms": [],
-  "needs_review": false,
-  "confidence": 0.8
+  "unmatched_terms": ["모낭암"],
+  "needs_review": true,
+  "confidence": 0.2
 }
 ```
 
 체크 포인트:
-- "까무잡잡"/"허예지다"는 사전에 전혀 없어 `rule_parser_partial`도 없음 (예외처리 2 — 힌트 없이 처음부터 분석)
-- 사전 매칭 0%여도 의미가 명확히 같으면 매칭(규칙 3) — 순수 의미 추론
-- 키워드 근거가 없는 만큼 confidence를 약간 낮게 책정
-- `concern_dull_uneven_tone`은 `effect_brightening`(1.0)·`effect_exfoliation`(0.5) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6). `effect_id`는 매핑 테이블 그대로 가져온 것이라 `source`는 `concern_to_effect`(태그 자체가 의미 추론으로 매칭된 것과는 별개)
+- "모낭암"을 "모낭염"으로 자동 보정하지 않음(금지사항 1번) — 종양을 뜻하는 별개의 심각한 질환
+- `matched_concerns`에 넣지 않고 `unmatched_terms`에 위험 단어만 보존(금지사항 1번, 문장 전체가 아님), `needs_review: true`로 표시
 
-### 케이스 4. 우선순위 표현
+### 케이스 4. 모순 표현 (제외+우선순위 동시 발생)
 
 ```json
 입력: {
-  "concern_text": "모공이랑 속건조 둘 다 고민인데 보습이 최우선이에요",
-  "rule_parser_partial": { "matched_concerns": ["concern_pore", "concern_dry_barrier"], "confidence": 0.6 }
+  "concern_text": "여드름 집중하고 싶었는데 사실 상관없어",
+  "rule_parser_partial": {
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [
+      { "tag_id": "concern_acne", "matched_text": "여드름", "reason": "negated_or_irrelevant" }
+    ],
+    "priority_effects": [],
+    "unmatched_terms": ["싶었는데 사실 상관없어"],
+    "needs_llm": true
+  }
 }
 
 출력: {
-  "matched_concerns": [
-    { "tag_id": "concern_pore", "matched_text": "모공", "confidence": 0.9 },
-    { "tag_id": "concern_dry_barrier", "matched_text": "속건조", "confidence": 0.9 }
-  ],
-  "expected_effects": [
-    { "effect_id": "effect_acne_sebum", "weight": 1.0, "source": "concern_to_effect" },
-    { "effect_id": "effect_moisture_barrier", "weight": 1.0, "source": "concern_to_effect" },
-    { "effect_id": "effect_calming", "weight": 0.6, "source": "concern_to_effect" }
-  ],
+  "matched_concerns": [],
+  "expected_effects": [],
   "excluded_concerns": [],
-  "priority_effects": [
-    { "effect_id": "effect_moisture_barrier", "reason": "보습이 최우선이라는 표현에서 보습 효능을 우선시함" }
-  ],
-  "unmatched_terms": [],
-  "needs_review": false,
-  "confidence": 0.85
+  "priority_effects": [],
+  "unmatched_terms": ["여드름 집중하고 싶었는데 사실 상관없어"],
+  "needs_review": true,
+  "confidence": 0.3
 }
 ```
 
 체크 포인트:
-- 두 고민 다 매칭되지만 우선순위 트리거("최우선")로 `priority_effects`에 보습만 추가(제외가 아니라 "더 중요함" 표시)
-- 규칙 파서가 이미 둘 다 잡았어도 우선순위 문맥 때문에 LLM 호출 조건(4번)에 해당
-- `concern_dry_barrier`는 `effect_moisture_barrier`(1.0)·`effect_calming`(0.6) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6)
+- 규칙 파서는 "상관없어"(정규식 등록됨)를 잡아 이미 `concern_acne`를 `excluded_concerns`로 처리했지만, "집중"(우선순위 트리거)을 함께 못 봐서 모순을 놓침
+- LLM은 `concern_text` 원문에서 "집중"과 "상관없어"가 같은 고민에 동시에 걸리는 모순을 발견 → 규칙 파서가 이미 내린 제외 판단까지 다시 비워서(`excluded_concerns: []`) `unmatched_terms`로 보존, `needs_review: true` (예외처리 3번, 규칙 4의 "rule_parser_partial 덮어쓰기"가 제외 판단 자체도 취소할 수 있음을 보여줌)
+- `confidence` 0.3은 0.4 미만 자동 검토 규칙(예외처리 4번)과도 같이 작동
 
-### 케이스 5. 트리거 단어 없이 문맥만으로 덮어쓰기
+### 케이스 5. 완전 매칭 없음 (모호함, 위험 표현 아님)
+
+```json
+입력: {
+  "concern_text": "피부가 그냥 이상한 느낌이에요",
+  "rule_parser_partial": {
+    "matched_concerns": [],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": ["피부가 그냥 이상한 느낌이에요"],
+    "needs_llm": true
+  }
+}
+
+출력: {
+  "matched_concerns": [],
+  "expected_effects": [],
+  "excluded_concerns": [],
+  "priority_effects": [],
+  "unmatched_terms": ["피부가 그냥 이상한 느낌이에요"],
+  "needs_review": false,
+  "confidence": 0.15
+}
+```
+
+체크 포인트:
+- 11개 고민 중 어느 것과도 매칭 안 됨 (`concern-categories.md`의 unmatched_terms 정책)
+- 단순 모호함(매칭 0건)은 "검색결과 없음" 같은 즉시·자동 안내 화면으로 처리되어야 하므로 `needs_review: false` — 위험 표현(케이스 3)과 달리 지연·검토 큐로 보낼 필요 없음
+
+### 케이스 6. 트리거 단어 없이 문맥(시제 전환)만으로 덮어쓰기
 
 ```json
 입력: {
   "concern_text": "예전엔 여드름 때문에 고생했는데 지금은 칙칙함이 고민이에요",
-  "rule_parser_partial": { "matched_concerns": ["concern_acne", "concern_dull_uneven_tone"], "confidence": 0.4 }
+  "rule_parser_partial": {
+    "matched_concerns": [
+      { "tag_id": "concern_acne", "matched_text": "여드름", "confidence": 1.0 },
+      { "tag_id": "concern_dull_uneven_tone", "matched_text": "칙칙함", "confidence": 1.0 }
+    ],
+    "expected_effects": [],
+    "excluded_concerns": [],
+    "priority_effects": [],
+    "unmatched_terms": [],
+    "needs_llm": true
+  }
 }
 
 출력: {
@@ -245,79 +309,9 @@
 ```
 
 체크 포인트:
-- 규칙 파서는 "여드름"·"칙칙함" 둘 다 키워드로만 잡음(confidence 0.4), 문맥은 모름
-- "예전엔 ~했는데 지금은"이라는 시제 전환(트리거 단어 목록 밖의 패턴)을 LLM이 문맥으로 추론해 여드름을 제외 처리
-- 트리거 단어가 아닌 순수 문맥 추론으로 `rule_parser_partial`을 덮어쓴 사례 (규칙 4의 일반성)
+- "예전엔" → "지금은" 시제 전환 패턴을 규칙 파서가 감지해 `needs_llm: true`로 표시(원우가 `_has_temporal_shift_context`로 보강). 단, 제외 판단 자체는 아직 규칙 파서가 못 해서 `concern_acne`가 `matched_concerns`에 그대로 남아있음
+- LLM이 "예전엔 ~했는데 지금은"이라는 문맥을 이해해 `concern_acne`를 `excluded_concerns`로 덮어씀(규칙 4)
 - `concern_dull_uneven_tone`은 `effect_brightening`(1.0)·`effect_exfoliation`(0.5) 두 효능에 매핑되어 있어 둘 다 출력(규칙 6)
-
-### 케이스 6. 위험 표현 (자동 보정 금지)
-
-```json
-입력: {
-  "concern_text": "모낭암 같은 게 있는 것 같아",
-  "rule_parser_partial": null
-}
-
-출력: {
-  "matched_concerns": [],
-  "expected_effects": [],
-  "excluded_concerns": [],
-  "priority_effects": [],
-  "unmatched_terms": ["모낭암"],
-  "needs_review": true,
-  "confidence": 0.2
-}
-```
-
-체크 포인트:
-- "모낭암"을 "모낭염"으로 자동 보정하지 않음(금지사항 1번) — 종양을 뜻하는 별개의 심각한 질환
-- `matched_concerns`에 넣지 않고 `unmatched_terms`에 원문 보존, `needs_review: true`로 표시
-
-### 케이스 7. 모순 표현 (제외+우선순위 동시 발생)
-
-```json
-입력: {
-  "concern_text": "여드름 집중하고 싶었는데 사실 상관없어",
-  "rule_parser_partial": { "matched_concerns": ["concern_acne"], "confidence": 0.5 }
-}
-
-출력: {
-  "matched_concerns": [],
-  "expected_effects": [],
-  "excluded_concerns": [],
-  "priority_effects": [],
-  "unmatched_terms": ["여드름 집중하고 싶었는데 사실 상관없어"],
-  "needs_review": true,
-  "confidence": 0.3
-}
-```
-
-체크 포인트:
-- "집중"(우선순위)과 "상관없어"(제외)가 같은 고민(여드름)에 동시에 걸려 모순 → 임의로 고르지 않고 `unmatched_terms`로 보존, `needs_review: true` (예외처리 3번)
-- `confidence` 0.3은 0.4 미만 자동 검토 규칙(예외처리 4번)과도 같이 작동
-
-### 케이스 8. 완전 매칭 없음 (모호함, 위험 표현 아님)
-
-```json
-입력: {
-  "concern_text": "피부가 그냥 이상한 느낌이에요",
-  "rule_parser_partial": null
-}
-
-출력: {
-  "matched_concerns": [],
-  "expected_effects": [],
-  "excluded_concerns": [],
-  "priority_effects": [],
-  "unmatched_terms": ["피부가 그냥 이상한 느낌이에요"],
-  "needs_review": false,
-  "confidence": 0.15
-}
-```
-
-체크 포인트:
-- 11개 고민 중 어느 것과도 매칭 안 됨 (`concern-categories.md`의 unmatched_terms 정책)
-- 단순 모호함(매칭 0건)은 "검색결과 없음" 같은 즉시·자동 안내 화면으로 처리되어야 하므로 `needs_review: false` — 위험 표현(케이스 6)과 달리 지연·검토 큐로 보낼 필요 없음
 
 ---
 
