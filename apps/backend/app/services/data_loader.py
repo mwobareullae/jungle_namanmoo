@@ -13,6 +13,7 @@ from app.models.data_contract import (
     Product,
     ProductIngredient,
     ProductPrice,
+    ProductSkinProfile,
     RiskFlag,
     SearchDocument,
 )
@@ -53,6 +54,18 @@ CSV_HEADERS = {
         "normalized_concentration_value",
         "normalized_concentration_unit",
     },
+    "product_skin_profiles.csv": {
+        "product_id",
+        "dry_fit",
+        "oily_fit",
+        "combination_fit",
+        "normal_fit",
+        "dehydrated_oily_fit",
+        "sensitive_fit",
+        "sensitivity_tag",
+        "confidence",
+        "reason",
+    },
     "ingredients.csv": {"ingredient_id", "name_ko", "name_en", "description"},
     "ingredient_effect.csv": {"ingredient_id", "effect_id", "effect_name", "effect_score"},
     "ingredient_evidence.csv": {
@@ -70,6 +83,7 @@ CSV_HEADERS = {
 
 CONTENT_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 CONCENTRATION_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
+PROFILE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
 
 T = TypeVar("T")
@@ -84,6 +98,11 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         base_path,
         "product_ingredients.csv",
         _parse_product_ingredient,
+    )
+    product_skin_profiles = _load_csv(
+        base_path,
+        "product_skin_profiles.csv",
+        _parse_product_skin_profile,
     )
     ingredients = _load_csv(base_path, "ingredients.csv", _parse_ingredient)
     ingredient_effects = _load_csv(
@@ -105,6 +124,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         products=products,
         product_prices=product_prices,
         product_ingredients=product_ingredients,
+        product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
         ingredient_effects=ingredient_effects,
         ingredient_evidence=ingredient_evidence,
@@ -266,6 +286,30 @@ def _parse_product_ingredient(
     )
 
 
+def _parse_product_skin_profile(
+    row: dict[str, str],
+    file_name: str,
+    line_number: int,
+) -> ProductSkinProfile:
+    confidence = _required_text(row, "confidence", file_name, line_number)
+    if confidence not in PROFILE_CONFIDENCE_VALUES:
+        allowed = ", ".join(sorted(PROFILE_CONFIDENCE_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} confidence는 {allowed} 중 하나여야 합니다.")
+
+    return ProductSkinProfile(
+        product_id=_required_text(row, "product_id", file_name, line_number),
+        dry_fit=_required_unit_score(row, "dry_fit", file_name, line_number),
+        oily_fit=_required_unit_score(row, "oily_fit", file_name, line_number),
+        combination_fit=_required_unit_score(row, "combination_fit", file_name, line_number),
+        normal_fit=_required_unit_score(row, "normal_fit", file_name, line_number),
+        dehydrated_oily_fit=_required_unit_score(row, "dehydrated_oily_fit", file_name, line_number),
+        sensitive_fit=_required_unit_score(row, "sensitive_fit", file_name, line_number),
+        sensitivity_tag=_required_text(row, "sensitivity_tag", file_name, line_number),
+        confidence=confidence,
+        reason=_optional_text(row.get("reason")) or "",
+    )
+
+
 def _parse_ingredient(row: dict[str, str], file_name: str, line_number: int) -> Ingredient:
     return Ingredient(
         ingredient_id=_required_text(row, "ingredient_id", file_name, line_number),
@@ -351,6 +395,12 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         product_ids,
     )
     _validate_references(
+        "product_skin_profiles.csv",
+        "product_id",
+        (profile.product_id for profile in catalog.product_skin_profiles),
+        product_ids,
+    )
+    _validate_references(
         "product_ingredients.csv",
         "ingredient_id",
         (ingredient.ingredient_id for ingredient in catalog.product_ingredients),
@@ -418,6 +468,15 @@ def _required_int(row: dict[str, str], key: str, file_name: str, line_number: in
     value = _optional_int(row.get(key), key, file_name, line_number)
     if value is None:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값이 비어 있습니다.")
+    return value
+
+
+def _required_unit_score(row: dict[str, str], key: str, file_name: str, line_number: int) -> float:
+    value = _optional_float(row.get(key), key, file_name, line_number)
+    if value is None:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값이 비어 있습니다.")
+    if not 0.0 <= value <= 1.0:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값은 0.0~1.0 사이여야 합니다.")
     return value
 
 

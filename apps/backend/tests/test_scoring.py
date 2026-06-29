@@ -34,7 +34,7 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
     assert top.total_score > 90
     assert top.score_breakdown["ingredient_effect_score"] == pytest.approx(1.0)
     assert top.score_breakdown["ingredient_evidence_score"] == pytest.approx(1.0)
-    assert top.score_breakdown["skin_profile_score"] > 0.9
+    assert top.score_breakdown["skin_profile_score"] == pytest.approx(0.86)
     assert top.score_breakdown["risk_penalty"] == 0.0
     assert set(top.key_ingredients) >= {"글리세린", "세라마이드엔피"}
 
@@ -57,8 +57,8 @@ def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
 
     scored_by_id = {product.product_id: product for product in scored_products}
     assert scored_products[0].product_id == "prod_002"
-    assert scored_by_id["prod_002"].score_breakdown["skin_profile_score"] == pytest.approx(1.0)
-    assert scored_by_id["prod_001"].score_breakdown["skin_profile_score"] < 0.5
+    assert scored_by_id["prod_002"].score_breakdown["skin_profile_score"] == pytest.approx(0.9)
+    assert scored_by_id["prod_001"].score_breakdown["skin_profile_score"] <= 0.5
     assert scored_by_id["prod_002"].total_score > scored_by_id["prod_001"].total_score
 
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Product, ProductIngredient
+from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence, RiskFlag
 from app.services.product_candidates import ProductCandidate
 from app.services.purchase_conditions import ParsedPurchaseConditions
@@ -89,6 +89,19 @@ class _IngredientEffectInfo:
 
 
 @dataclass(frozen=True)
+class _SkinProfileInfo:
+    dry_fit: float
+    oily_fit: float
+    combination_fit: float
+    normal_fit: float
+    dehydrated_oily_fit: float
+    sensitive_fit: float
+    sensitivity_tag: str | None
+    confidence: str | None
+    reason: str | None
+
+
+@dataclass(frozen=True)
 class _EffectContribution:
     ingredient: _IngredientEffectInfo
     decay: float
@@ -114,6 +127,7 @@ def score_candidates(
     product_ids = [candidate.db_product_id for candidate in candidates]
     ingredients_by_product = _load_ingredient_effects(session, product_ids, desired_effects)
     skin_tags_by_product = _load_skin_tags(session, product_ids)
+    skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     matches_by_product_code = {match.product_id: match for match in matches}
 
@@ -123,6 +137,7 @@ def score_candidates(
             desired_effects,
             ingredients_by_product.get(candidate.db_product_id, ()),
             skin_tags_by_product.get(candidate.db_product_id, ()),
+            skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
@@ -160,6 +175,7 @@ def _score_candidate(
     desired_effects: tuple[_DesiredEffect, ...],
     ingredients: tuple[_IngredientEffectInfo, ...],
     skin_tags: tuple[str, ...],
+    skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
@@ -172,8 +188,8 @@ def _score_candidate(
     contributions_by_effect = _build_contributions_by_effect(ingredients)
     ingredient_effect_score = _score_ingredient_effects(desired_effects, contributions_by_effect)
     ingredient_evidence_score = _score_ingredient_evidence(desired_effects, contributions_by_effect)
-    skin_type_score = _score_skin_type(skin_type, skin_tags)
-    sensitivity_score = _score_sensitivity(sensitivity, skin_tags, risk_flags)
+    skin_type_score = _score_skin_type(skin_type, skin_tags, skin_profile)
+    sensitivity_score = _score_sensitivity(sensitivity, skin_tags, risk_flags, skin_profile)
     skin_profile_score = _weighted_average(
         (
             (skin_type_score, skin_profile_weights.skin_type),
@@ -379,6 +395,26 @@ def _load_skin_tags(session: Session, product_ids: list[int]) -> dict[int, tuple
     }
 
 
+def _load_skin_profiles(session: Session, product_ids: list[int]) -> dict[int, _SkinProfileInfo]:
+    rows = session.execute(
+        select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_ids))
+    ).scalars()
+    return {
+        int(row.product_id): _SkinProfileInfo(
+            dry_fit=_decimal_to_float(row.dry_fit),
+            oily_fit=_decimal_to_float(row.oily_fit),
+            combination_fit=_decimal_to_float(row.combination_fit),
+            normal_fit=_decimal_to_float(row.normal_fit),
+            dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
+            sensitive_fit=_decimal_to_float(row.sensitive_fit),
+            sensitivity_tag=row.sensitivity_tag,
+            confidence=row.confidence,
+            reason=row.reason,
+        )
+        for row in rows
+    }
+
+
 def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tuple[RiskFlag, ...]]:
     rows = (
         session.execute(
@@ -468,8 +504,17 @@ def _score_weighted_effect_axis(
     return _clamp(_weighted_average(tuple(weighted_scores)))
 
 
-def _score_skin_type(skin_type: str | None, skin_tags: tuple[str, ...]) -> float:
+def _score_skin_type(
+    skin_type: str | None,
+    skin_tags: tuple[str, ...],
+    skin_profile: _SkinProfileInfo | None,
+) -> float:
     normalized_skin_type = _normalize_profile_value(skin_type) or "중성"
+    if skin_profile is not None:
+        profile_score = _skin_type_profile_score(normalized_skin_type, skin_profile)
+        if profile_score is not None:
+            return profile_score
+
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
 
@@ -499,8 +544,12 @@ def _score_sensitivity(
     sensitivity: str | None,
     skin_tags: tuple[str, ...],
     risk_flags: tuple[RiskFlag, ...],
+    skin_profile: _SkinProfileInfo | None,
 ) -> float:
     normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
+    if skin_profile is not None:
+        return _sensitivity_profile_score(normalized_sensitivity, skin_profile)
+
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
     most_severe = _most_severe_risk(risk_flags)
@@ -524,6 +573,28 @@ def _score_sensitivity(
     if most_severe == "medium":
         return 0.8
     return 0.9
+
+
+def _skin_type_profile_score(skin_type: str, skin_profile: _SkinProfileInfo) -> float | None:
+    scores = {
+        "건성": skin_profile.dry_fit,
+        "지성": skin_profile.oily_fit,
+        "복합성": skin_profile.combination_fit,
+        "중성": skin_profile.normal_fit,
+        "보통": skin_profile.normal_fit,
+        "수부지": skin_profile.dehydrated_oily_fit,
+    }
+    score = scores.get(skin_type)
+    return _clamp(score) if score is not None else None
+
+
+def _sensitivity_profile_score(sensitivity: str, skin_profile: _SkinProfileInfo) -> float:
+    sensitive_score = _clamp(skin_profile.sensitive_fit)
+    if sensitivity in {"높음", "민감", "예민"}:
+        return sensitive_score
+    if sensitivity == "낮음":
+        return max(sensitive_score, 0.85)
+    return max(sensitive_score, 0.6)
 
 
 def _most_severe_risk(risk_flags: tuple[RiskFlag, ...]) -> str | None:
