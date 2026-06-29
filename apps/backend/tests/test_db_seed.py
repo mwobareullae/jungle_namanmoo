@@ -28,6 +28,11 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, ProductIngredient) == 5
     assert _count(session, IngredientEvidence) == 6
     assert _count(session, SearchDocument) == 4
+    niacinamide_row = session.execute(
+        select(ProductIngredient).where(ProductIngredient.ingredient_name == "나이아신아마이드")
+    ).scalar_one()
+    assert niacinamide_row.concentration_text == "나이아신아마이드 5%"
+    assert niacinamide_row.normalized_concentration_unit == "%"
 
 
 def test_seed_database_is_idempotent_for_example_catalog() -> None:

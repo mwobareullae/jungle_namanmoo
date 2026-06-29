@@ -512,12 +512,24 @@ def _seed_product_ingredients(
                     ingredient_name=record.ingredient_name,
                     content_confidence=record.content_confidence,
                     display_order=record.display_order,
+                    concentration_text=record.concentration_text,
+                    concentration_value=_decimal_or_none(record.concentration_value),
+                    concentration_unit=record.concentration_unit,
+                    concentration_confidence=record.concentration_confidence,
+                    normalized_concentration_value=_decimal_or_none(record.normalized_concentration_value),
+                    normalized_concentration_unit=record.normalized_concentration_unit,
                 )
             )
         else:
             row.ingredient_name = record.ingredient_name
             row.content_confidence = record.content_confidence
             row.display_order = record.display_order
+            row.concentration_text = record.concentration_text
+            row.concentration_value = _decimal_or_none(record.concentration_value)
+            row.concentration_unit = record.concentration_unit
+            row.concentration_confidence = record.concentration_confidence
+            row.normalized_concentration_value = _decimal_or_none(record.normalized_concentration_value)
+            row.normalized_concentration_unit = record.normalized_concentration_unit
     session.flush()
     return len(seen_pairs)
 
@@ -610,6 +622,12 @@ def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
             aliases.append(value)
             seen.add(normalized)
     return tuple(aliases)
+
+
+def _decimal_or_none(value: float | None) -> Decimal | None:
+    if value is None:
+        return None
+    return Decimal(str(value))
 
 
 def _join_values(values: tuple[str, ...]) -> str | None:
