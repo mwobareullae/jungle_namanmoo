@@ -15,7 +15,8 @@
 - 민감정보, API key, 실제 운영 secret은 데이터 파일에 넣지 않습니다.
 - 상품근거점수와 리뷰매칭점수는 MVP 점수에서 제외합니다.
 - 위험성분은 점수 감점이 아니라 별도 주의 표기로 제공합니다.
-- 확장 컬럼은 비워둘 수 있습니다. 백엔드는 우선 기존 필수 컬럼으로 동작하고, 값이 들어오면 v1 스코어링에서 반영합니다.
+- 확장 컬럼은 파일에 포함하되 값은 비워둘 수 있습니다. 값이 들어오면 v1 스코어링에서 반영합니다.
+- 함량 컬럼은 `product_ingredients.csv`에 포함하되, 함량이 공개되지 않은 행은 빈 값과 `unknown`으로 둡니다.
 
 ## 담당자별 산출물
 
@@ -171,6 +172,7 @@ excessive     -> 0.4 + 주의 문구
 | `product_id` | 상품 고유 ID |
 | `brand` | 브랜드명 |
 | `name` | 상품명 |
+| `category` | 상품 카테고리. 예: `toner`, `serum`, `cream`, `lotion` |
 | `skin_type_tags` | 권장 피부 타입 태그 |
 | `thumbnail_url` | 대표 이미지 URL |
 | `image_urls` | 상세 이미지 URL 목록 |
@@ -219,6 +221,19 @@ skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
 | `concentration_value` | 선택. 숫자로 추출한 함량값 |
 | `concentration_unit` | 선택. `%`, `ppm`, `ppb`, `mg/g` 등 |
 | `concentration_confidence` | 선택. 함량 추출 신뢰도: `high`, `medium`, `low`, `unknown` |
+| `normalized_concentration_value` | 선택. 계산용으로 `%` 단위로 변환한 함량값 |
+| `normalized_concentration_unit` | 선택. 계산용 단위. 변환 가능하면 `%`, 변환 불가하면 빈 값 |
+
+함량 처리 원칙:
+
+- 상품 성분 행에 명시된 숫자와 단위만 함량으로 인정합니다.
+- 함량이 없으면 전성분 순서로 추정하지 않고 `unknown`으로 둡니다.
+- 원문 표기는 `concentration_text`에 그대로 보존합니다.
+- 추천 점수 계산용 비교 단위는 `%`로 통일합니다.
+  - `ppm`은 `값 / 10000`
+  - `ppb`는 `값 / 10000000`
+  - `mg/g`는 `값 / 10`
+  - `IU/g`처럼 단순 변환이 어려운 단위는 정규화 값을 비웁니다.
 
 ### `data/product_prices.csv`
 

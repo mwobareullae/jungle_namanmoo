@@ -29,6 +29,12 @@ class ProductIngredient:
     ingredient_name: str
     content_confidence: str
     display_order: int
+    concentration_text: str | None
+    concentration_value: float | None
+    concentration_unit: str | None
+    concentration_confidence: str
+    normalized_concentration_value: float | None
+    normalized_concentration_unit: str | None
 
 
 @dataclass(frozen=True)
