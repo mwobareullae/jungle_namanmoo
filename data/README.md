@@ -69,6 +69,32 @@ vector_docs.csv
 - 피부타입 적합도, 민감도 적합도, 출처 신뢰도처럼 `*_fit`, `*_score`로 끝나는 확장 점수는 0.0~1.0 숫자로 둡니다.
 - 실제 API key, 개인 정보, 운영 secret은 넣지 않습니다.
 
+## 피부타입 태그 규칙
+
+- `product_skin_profiles.csv`는 모든 상품에 대해 건성/지성/복합성/중성/수부지/민감성 적합도 점수를 0.0~1.0으로 저장합니다.
+- `products.csv`의 `skin_type_tags`는 추천 필터에 바로 쓰는 강한 태그만 저장합니다.
+- 피부타입 적합도는 상품명, 상세페이지의 제품 주요 사양/사용방법 문구, 성분 효능, 성분 리스크를 함께 보고 자동 생성합니다.
+- 상세페이지 문구는 마케팅 표현일 수 있으므로 최종 점수를 덮어쓰지 않고 보정 근거로만 사용합니다.
+- 피부타입 판단 근거가 애매한 상품은 `skin_type_tags`를 비워둡니다.
+- 빈 `skin_type_tags`는 데이터 누락이 아니라, 피부타입 추천에서 기본 점수로 중립 처리한다는 의미입니다.
+- 기능성 세럼처럼 피부타입보다 미백/주름/트러블 고민 축이 더 중요한 상품은 피부타입 태그가 비어 있을 수 있습니다.
+
+## 상품 성분 함량 규칙
+
+- `product_ingredients.csv`는 성분명과 표시 순서뿐 아니라 가능한 경우 함량 표기도 함께 저장합니다.
+- 함량이 명시되지 않은 성분은 `concentration_text`, `concentration_value`, `concentration_unit`을 비워두고 `concentration_confidence=unknown`으로 둡니다.
+- 전성분 표시 순서만 보고 함량을 억지로 추정하지 않습니다.
+- `concentration_text`는 상품 정보에 적힌 원문 표기를 그대로 보존합니다.
+  - 예: `나이아신아마이드 5%`, `병풀추출물 2970ppm`
+- `concentration_value`는 숫자만 저장하고, 원문 단위는 `concentration_unit`에 따로 저장합니다.
+- 계산용 비교값은 `normalized_concentration_value`, `normalized_concentration_unit`에 저장합니다.
+- 계산용 단위는 `%`로 통일합니다.
+  - `%`는 그대로 사용합니다.
+  - `ppm`은 `값 / 10000`으로 변환합니다.
+  - `ppb`는 `값 / 10000000`으로 변환합니다.
+  - `mg/g`는 `값 / 10`으로 변환합니다.
+  - `IU/g`처럼 단순 `%` 변환이 어려운 단위는 원문만 보존하고 정규화 값은 비워둡니다.
+
 ## ID 연결 규칙
 
 - `products.csv`의 `product_id`는 `product_ingredients.csv`, `product_prices.csv`, `vector_docs.csv`에서 그대로 사용합니다.
