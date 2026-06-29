@@ -11,21 +11,13 @@ Vite, React, TypeScript 기반 프론트엔드입니다.
 
 ## 현재 상태
 
-`http://localhost:5173`에서 S1~S4 mock 플로우를 확인할 수 있습니다.
+`http://localhost:5173`에서 FastAPI 백엔드와 연결된 S1~S4 플로우를 확인할 수 있습니다.
 
-## API 전환
+## API 설정
 
-기본값은 mock API입니다.
-
-```env
-VITE_USE_MOCK_API=true
-VITE_API_BASE_URL=http://localhost:8000/api
-```
-
-FastAPI 백엔드와 직접 연결하려면 `.env`에서 아래처럼 변경합니다.
+프론트는 `VITE_API_BASE_URL`의 실제 백엔드 API를 호출합니다.
 
 ```env
-VITE_USE_MOCK_API=false
 VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
