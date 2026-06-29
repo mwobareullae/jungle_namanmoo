@@ -3,16 +3,20 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, ProductCategory
 from app.db.models.recommendation import (
+    RecommendationResult,
     RecommendationRun,
     RecommendationRunConcern,
     RecommendationRunConstraint,
+    RecommendationScoreEvidence,
+    SearchCandidate,
 )
 from app.db.models.taxonomy import Concern
+from app.schemas.common import ApiError
 from app.services.parser import ParsedConcern, ParsedEffect, ParsedExcludedConcern
 from app.services.purchase_conditions import MatchedBrand, MatchedCategory, ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
@@ -23,6 +27,8 @@ DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"
 DEFAULT_SCORING_VERSION = "v0"
 CONFIDENCE_QUANTIZE = Decimal("0.0001")
+EXPIRED_RECOMMENDATION_CODE = "EXPIRED_RECOMMENDATION"
+EXPIRED_RECOMMENDATION_MESSAGE = "추천 결과 조회 기간이 만료되었습니다."
 
 
 @dataclass(frozen=True)
@@ -30,6 +36,18 @@ class SavedRecommendationRun:
     run: RecommendationRun
     constraints: tuple[RecommendationRunConstraint, ...]
     concerns: tuple[RecommendationRunConcern, ...]
+
+
+@dataclass(frozen=True)
+class CleanupRecommendationRunsResult:
+    cutoff: datetime
+    dry_run: bool
+    recommendation_runs: int
+    recommendation_run_constraints: int
+    recommendation_run_concerns: int
+    search_candidates: int
+    recommendation_results: int
+    recommendation_score_evidence: int
 
 
 def save_recommendation_run(
@@ -72,8 +90,162 @@ def save_recommendation_run(
     )
 
 
+def ensure_recommendation_run_active(
+    run: RecommendationRun,
+    *,
+    now: datetime | None = None,
+) -> None:
+    if is_recommendation_run_expired(run, now=now):
+        raise ApiError(
+            410,
+            EXPIRED_RECOMMENDATION_CODE,
+            EXPIRED_RECOMMENDATION_MESSAGE,
+        )
+
+
+def is_recommendation_run_expired(
+    run: RecommendationRun,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    expires_at = _as_utc(run.expires_at)
+    current_time = _as_utc(now or datetime.now(UTC))
+    return expires_at <= current_time
+
+
+def cleanup_expired_recommendation_runs(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> CleanupRecommendationRunsResult:
+    cutoff = _as_utc(now or datetime.now(UTC))
+    run_ids = _load_expired_run_ids(session, cutoff, limit=limit)
+    result_ids = _load_result_ids(session, run_ids)
+
+    counts = CleanupRecommendationRunsResult(
+        cutoff=cutoff,
+        dry_run=dry_run,
+        recommendation_runs=len(run_ids),
+        recommendation_run_constraints=_count_by_run_ids(
+            session,
+            RecommendationRunConstraint,
+            run_ids,
+        ),
+        recommendation_run_concerns=_count_by_run_ids(
+            session,
+            RecommendationRunConcern,
+            run_ids,
+        ),
+        search_candidates=_count_by_run_ids(session, SearchCandidate, run_ids),
+        recommendation_results=len(result_ids),
+        recommendation_score_evidence=_count_score_evidence(session, result_ids),
+    )
+
+    if dry_run or not run_ids:
+        return counts
+
+    if result_ids:
+        session.execute(
+            delete(RecommendationScoreEvidence).where(
+                RecommendationScoreEvidence.recommendation_result_id.in_(result_ids),
+            )
+        )
+    session.execute(
+        delete(RecommendationResult).where(
+            RecommendationResult.recommendation_run_id.in_(run_ids),
+        )
+    )
+    session.execute(
+        delete(SearchCandidate).where(SearchCandidate.recommendation_run_id.in_(run_ids))
+    )
+    session.execute(
+        delete(RecommendationRunConstraint).where(
+            RecommendationRunConstraint.recommendation_run_id.in_(run_ids),
+        )
+    )
+    session.execute(
+        delete(RecommendationRunConcern).where(
+            RecommendationRunConcern.recommendation_run_id.in_(run_ids),
+        )
+    )
+    session.execute(delete(RecommendationRun).where(RecommendationRun.id.in_(run_ids)))
+    session.flush()
+    return counts
+
+
 def _generate_recommendation_code() -> str:
     return f"rec_{uuid4().hex[:12]}"
+
+
+def _load_expired_run_ids(
+    session: Session,
+    cutoff: datetime,
+    *,
+    limit: int | None,
+) -> list[int]:
+    statement = (
+        select(RecommendationRun.id)
+        .where(RecommendationRun.expires_at <= cutoff)
+        .order_by(RecommendationRun.expires_at.asc(), RecommendationRun.id.asc())
+    )
+    if limit is not None:
+        statement = statement.limit(max(0, limit))
+    return [int(run_id) for run_id in session.execute(statement).scalars().all()]
+
+
+def _load_result_ids(session: Session, run_ids: list[int]) -> list[int]:
+    if not run_ids:
+        return []
+    return [
+        int(result_id)
+        for result_id in session.execute(
+            select(RecommendationResult.id).where(
+                RecommendationResult.recommendation_run_id.in_(run_ids),
+            )
+        ).scalars()
+    ]
+
+
+def _count_by_run_ids(
+    session: Session,
+    model: type[
+        RecommendationRunConstraint
+        | RecommendationRunConcern
+        | SearchCandidate
+    ],
+    run_ids: list[int],
+) -> int:
+    if not run_ids:
+        return 0
+    return len(
+        session.execute(
+            select(model.id).where(model.recommendation_run_id.in_(run_ids))
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _count_score_evidence(session: Session, result_ids: list[int]) -> int:
+    if not result_ids:
+        return 0
+    return len(
+        session.execute(
+            select(RecommendationScoreEvidence.id).where(
+                RecommendationScoreEvidence.recommendation_result_id.in_(result_ids),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _build_request_context(intent: RecommendationIntent) -> dict:
