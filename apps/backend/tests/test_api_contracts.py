@@ -1,11 +1,14 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.db.models.recommendation import RecommendationRun
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -245,6 +248,22 @@ def test_get_recommendation_returns_404_for_missing_id(client: TestClient) -> No
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_get_recommendation_returns_410_for_expired_id(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl recommendation smoke test"},
+    ).json()
+    _expire_recommendation(db_engine, created["recommendation_id"])
+
+    response = client.get(f"/api/recommendations/{created['recommendation_id']}")
+
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "EXPIRED_RECOMMENDATION"
+
+
 def test_get_product_detail_returns_general_db_detail(client: TestClient) -> None:
     response = client.get("/api/products/prod_001")
 
@@ -298,7 +317,38 @@ def test_get_product_detail_returns_404_for_missing_recommendation_context(
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_get_product_detail_returns_410_for_expired_recommendation_context(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl product detail smoke test"},
+    ).json()
+    recommended_product = created["products"][0]
+    _expire_recommendation(db_engine, created["recommendation_id"])
+
+    response = client.get(
+        f"/api/products/{recommended_product['product_id']}",
+        params={"recommendation_id": created["recommendation_id"]},
+    )
+
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "EXPIRED_RECOMMENDATION"
+
+
 def test_openapi_docs_are_available(client: TestClient) -> None:
     response = client.get("/docs")
 
     assert response.status_code == 200
+
+
+def _expire_recommendation(db_engine: Engine, recommendation_id: str) -> None:
+    with Session(db_engine) as session:
+        run = session.execute(
+            select(RecommendationRun).where(
+                RecommendationRun.recommendation_code == recommendation_id,
+            )
+        ).scalar_one()
+        run.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()

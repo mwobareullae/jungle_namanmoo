@@ -27,7 +27,10 @@ from app.schemas.recommendation import (
 from app.services.product_candidates import ProductCandidate, list_product_candidates
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_result_store import save_recommendation_results
-from app.services.recommendation_run_store import save_recommendation_run
+from app.services.recommendation_run_store import (
+    ensure_recommendation_run_active,
+    save_recommendation_run,
+)
 from app.services.scoring import SCORING_VERSION, score_candidates
 from app.services.search_candidate_store import save_search_candidates
 from app.services.search_matching import match_product_search_documents
@@ -183,6 +186,7 @@ def load_recommendation_run(session: Session, recommendation_id: str) -> Recomme
     ).scalar_one_or_none()
     if run is None:
         raise ApiError(404, "NOT_FOUND", "추천 결과를 찾을 수 없습니다.")
+    ensure_recommendation_run_active(run)
     return run
 
 
