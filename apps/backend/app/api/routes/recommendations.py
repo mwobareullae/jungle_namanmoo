@@ -28,7 +28,10 @@ def post_recommendation(
 @router.get(
     "/recommendations/{recommendation_id}",
     response_model=RecommendationResponse,
-    responses={404: {"model": ErrorResponse}},
+    responses={
+        404: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
+    },
 )
 def get_recommendation_by_id(
     recommendation_id: str,

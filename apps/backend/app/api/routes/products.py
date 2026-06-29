@@ -13,7 +13,10 @@ router = APIRouter(tags=["products"])
 @router.get(
     "/products/{product_id}",
     response_model=ProductDetailResponse,
-    responses={404: {"model": ErrorResponse}},
+    responses={
+        404: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
+    },
 )
 def get_product_by_id(
     product_id: str,

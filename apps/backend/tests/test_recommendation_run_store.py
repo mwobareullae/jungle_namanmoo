@@ -6,13 +6,22 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.models.recommendation import (
+    RecommendationResult,
+    RecommendationRun,
     RecommendationRunConcern,
     RecommendationRunConstraint,
+    RecommendationScoreEvidence,
+    SearchCandidate,
 )
+from app.schemas.recommendation import RecommendationRequest
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
+from app.services.recommendation_pipeline import create_recommendation_response
 from app.services.recommendation_intent import build_recommendation_intent
-from app.services.recommendation_run_store import save_recommendation_run
+from app.services.recommendation_run_store import (
+    cleanup_expired_recommendation_runs,
+    save_recommendation_run,
+)
 from app.services.repository import load_repository
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -92,12 +101,66 @@ def test_save_recommendation_run_persists_brand_category_and_default_inputs() ->
     assert constraints[1].normalized_value == "라운드랩"
 
 
+def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:
+    session = _seed_example_session()
+    now = datetime(2026, 6, 29, 4, 0, 0, tzinfo=UTC)
+    response = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="?띻굔議?蹂댁뒿 異붿쿇"),
+        commit=False,
+    )
+    run = _load_run(session, response.recommendation_id)
+    run.expires_at = now - timedelta(seconds=1)
+    session.flush()
+
+    dry_run = cleanup_expired_recommendation_runs(session, now=now, dry_run=True)
+
+    assert dry_run.dry_run is True
+    assert dry_run.recommendation_runs == 1
+    assert dry_run.search_candidates > 0
+    assert dry_run.recommendation_results > 0
+    assert _count_rows(session, RecommendationRun) == 1
+
+    result = cleanup_expired_recommendation_runs(session, now=now)
+
+    assert result.dry_run is False
+    assert result.recommendation_runs == 1
+    assert _count_rows(session, RecommendationScoreEvidence) == 0
+    assert _count_rows(session, RecommendationResult) == 0
+    assert _count_rows(session, SearchCandidate) == 0
+    assert _count_rows(session, RecommendationRunConstraint) == 0
+    assert _count_rows(session, RecommendationRunConcern) == 0
+    assert _count_rows(session, RecommendationRun) == 0
+
+
 def _seed_example_session() -> Session:
     engine = make_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = Session(engine)
     seed_database(session, EXAMPLES_DIR)
     return session
+
+
+def _load_run(session: Session, recommendation_code: str) -> RecommendationRun:
+    return session.execute(
+        select(RecommendationRun).where(
+            RecommendationRun.recommendation_code == recommendation_code,
+        )
+    ).scalar_one()
+
+
+def _count_rows(
+    session: Session,
+    model: type[
+        RecommendationRun
+        | RecommendationRunConstraint
+        | RecommendationRunConcern
+        | SearchCandidate
+        | RecommendationResult
+        | RecommendationScoreEvidence
+    ],
+) -> int:
+    return len(session.execute(select(model.id)).scalars().all())
 
 
 def _load_constraints(
