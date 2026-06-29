@@ -95,6 +95,22 @@ class ProductPrice(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class ProductSkinProfile(Base):
+    __tablename__ = "product_skin_profiles"
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), unique=True, nullable=False)
+    dry_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    oily_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    combination_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    normal_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    dehydrated_oily_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    sensitive_fit: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    sensitivity_tag: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class ProductIngredient(Base):
     __tablename__ = "product_ingredients"
     __table_args__ = (

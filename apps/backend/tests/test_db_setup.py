@@ -44,6 +44,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_images",
         "product_ingredients",
         "product_prices",
+        "product_skin_profiles",
         "products",
         "recommendation_results",
         "recommendation_run_concerns",

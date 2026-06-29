@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductSkinProfile
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import Concern, ConcernAlias, Effect, IngredientEvidence
 from app.db.session import make_engine
@@ -19,6 +19,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     result = seed_database(session, EXAMPLES_DIR)
 
     assert result.products == 2
+    assert result.product_skin_profiles == 2
     assert result.search_documents == 4
     assert _count(session, Concern) == 4
     assert _count(session, Effect) == 5
@@ -26,6 +27,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, ProductCategory) == 2
     assert _count(session, Product) == 2
     assert _count(session, ProductIngredient) == 5
+    assert _count(session, ProductSkinProfile) == 2
     assert _count(session, IngredientEvidence) == 6
     assert _count(session, SearchDocument) == 4
     niacinamide_row = session.execute(
@@ -43,6 +45,7 @@ def test_seed_database_is_idempotent_for_example_catalog() -> None:
 
     assert _count(session, Product) == 2
     assert _count(session, ProductIngredient) == 5
+    assert _count(session, ProductSkinProfile) == 2
     assert _count(session, ConcernAlias) == 19
     assert _count(session, SearchDocument) == 4
 

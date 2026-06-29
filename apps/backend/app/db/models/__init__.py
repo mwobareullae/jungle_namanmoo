@@ -7,6 +7,7 @@ from app.db.models.catalog import (
     ProductImage,
     ProductIngredient,
     ProductPrice,
+    ProductSkinProfile,
 )
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -46,6 +47,7 @@ __all__ = [
     "ProductImage",
     "ProductIngredient",
     "ProductPrice",
+    "ProductSkinProfile",
     "RecommendationResult",
     "RecommendationRun",
     "RecommendationRunConcern",
