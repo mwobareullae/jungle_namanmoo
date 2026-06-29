@@ -68,7 +68,14 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     assert {"brand_id", "category_id", "numeric_value", "is_hard"}.issubset(
         recommendation_run_constraints.columns.keys()
     )
-    assert {"product_id", "ingredient_id", "ingredient_evidence_id"}.issubset(
+    assert {
+        "product_id",
+        "ingredient_id",
+        "ingredient_evidence_id",
+        "embedding_model",
+        "embedding_dimensions",
+        "embedding_updated_at",
+    }.issubset(
         search_documents.columns.keys()
     )
     assert "score_breakdown" in recommendation_results.columns.keys()

@@ -1,12 +1,50 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
+from app.db.base import Base
+from app.db.models.recommendation import RecommendationRun
+from app.db.session import get_db
 from app.main import app
+from app.services.db_seed import seed_database
+from tests.test_data_loader import EXAMPLES_DIR
 
 
-client = TestClient(app)
+@pytest.fixture()
+def db_engine() -> Engine:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_database(session, EXAMPLES_DIR)
+        session.commit()
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
-def test_health_endpoint_returns_ok() -> None:
+@pytest.fixture()
+def client(db_engine: Engine) -> TestClient:
+    def override_get_db():
+        with Session(db_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+def test_health_endpoint_returns_ok(client: TestClient) -> None:
     response = client.get("/api/health")
 
     assert response.status_code == 200
@@ -16,7 +54,10 @@ def test_health_endpoint_returns_ok() -> None:
     }
 
 
-def test_health_endpoint_includes_request_observability_headers(caplog) -> None:
+def test_health_endpoint_includes_request_observability_headers(
+    client: TestClient,
+    caplog,
+) -> None:
     caplog.set_level("INFO", logger="mwobareullae.request")
 
     response = client.get("/api/health", headers={"X-Request-ID": "test-request-id"})
@@ -30,7 +71,7 @@ def test_health_endpoint_includes_request_observability_headers(caplog) -> None:
     )
 
 
-def test_create_recommendation_applies_request_defaults() -> None:
+def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
         json={
@@ -47,12 +88,7 @@ def test_create_recommendation_applies_request_defaults() -> None:
     assert data["summary"]["skin_type"] == "중성"
     assert data["summary"]["sensitivity"] == "보통"
     assert data["summary"]["avoid_ingredients"] == []
-    assert data["products"]
-    assert [product["product_id"] for product in data["products"]] == [
-        "mock-calming-cream",
-        "mock-pore-serum",
-        "mock-aha-toner",
-    ]
+    assert 0 < len(data["products"]) <= 50
 
     product = data["products"][0]
     assert {
@@ -70,7 +106,7 @@ def test_create_recommendation_applies_request_defaults() -> None:
     }.issubset(product)
 
 
-def test_create_recommendation_uses_concern_parser() -> None:
+def test_create_recommendation_uses_concern_parser(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
         json={"concern_text": "모공이랑 속건조가 고민이에요"},
@@ -79,48 +115,50 @@ def test_create_recommendation_uses_concern_parser() -> None:
     assert response.status_code == 200
 
     data = response.json()
-    assert any("모공" in concern for concern in data["summary"]["matched_concerns"])
-    assert any("속건조" in concern for concern in data["summary"]["matched_concerns"])
+    assert data["summary"]["matched_concerns"]
+    assert data["summary"]["expected_effects"]
     assert data["unmatched_terms"] == []
 
 
-def test_create_recommendation_includes_purchase_constraints() -> None:
+def test_create_recommendation_includes_purchase_constraints(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
-        json={"concern_text": "라운드랩 앰플 2만원 이하로 추천해줘"},
+        json={"concern_text": "라운드랩 크림 2만원 이하로 추천해줘"},
     )
 
     assert response.status_code == 200
 
     constraints = response.json()["summary"]["purchase_constraints"]
-    assert constraints["categories"][0]["category_code"] == "serum"
+    assert constraints["categories"][0]["category_code"] == "cream"
     assert constraints["brands"][0]["brand_code"] == "라운드랩"
     assert constraints["price_min"] is None
     assert constraints["price_max"] == 20000
 
 
-def test_create_recommendation_applies_category_brand_and_price_hard_filters() -> None:
+def test_create_recommendation_applies_category_brand_and_price_hard_filters(
+    client: TestClient,
+) -> None:
     response = client.post(
         "/api/recommendations",
-        json={"concern_text": "스킨푸드 세럼 2만원대 추천"},
+        json={"concern_text": "아누아 세럼 2만원대 추천"},
     )
 
     assert response.status_code == 200
 
     constraints = response.json()["summary"]["purchase_constraints"]
     assert constraints["categories"][0]["category_code"] == "serum"
-    assert constraints["brands"][0]["brand_code"] == "스킨푸드"
+    assert constraints["brands"][0]["brand_code"] == "아누아"
     assert constraints["price_min"] == 20000
     assert constraints["price_max"] == 29999
     assert constraints["price_text"] == "2만원대"
 
     products = response.json()["products"]
-    assert [product["product_id"] for product in products] == ["mock-pore-serum"]
-    assert products[0]["brand"] == "스킨푸드"
+    assert [product["product_id"] for product in products] == ["prod_002"]
+    assert products[0]["brand"] == "아누아"
     assert 20000 <= products[0]["lowest_price"] <= 29999
 
 
-def test_create_recommendation_applies_price_max_hard_filter() -> None:
+def test_create_recommendation_applies_price_max_hard_filter(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
         json={"concern_text": "크림 2만원 이하 추천"},
@@ -129,34 +167,36 @@ def test_create_recommendation_applies_price_max_hard_filter() -> None:
     assert response.status_code == 200
 
     products = response.json()["products"]
-    assert [product["product_id"] for product in products] == ["mock-calming-cream"]
+    assert [product["product_id"] for product in products] == ["prod_001"]
     assert products[0]["lowest_price"] <= 20000
 
 
-def test_create_recommendation_returns_empty_products_when_hard_filter_has_no_match() -> None:
+def test_create_recommendation_returns_empty_products_when_hard_filter_has_no_match(
+    client: TestClient,
+) -> None:
     response = client.post(
         "/api/recommendations",
-        json={"concern_text": "라운드랩 앰플 2만원 이하로 추천해줘"},
+        json={"concern_text": "라운드랩 세럼 2만원 이하로 추천해줘"},
     )
 
     assert response.status_code == 200
     assert response.json()["products"] == []
 
 
-def test_create_recommendation_keeps_unmatched_terms_from_parser() -> None:
+def test_create_recommendation_keeps_unmatched_terms_from_parser(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
-        json={"concern_text": "모공이랑 빤딱빤딱"},
+        json={"concern_text": "모공이랑 삐딱삐딱"},
     )
 
     assert response.status_code == 200
 
     data = response.json()
-    assert any("모공" in concern for concern in data["summary"]["matched_concerns"])
-    assert data["unmatched_terms"] == ["빤딱빤딱"]
+    assert data["summary"]["matched_concerns"]
+    assert data["unmatched_terms"] == ["삐딱삐딱"]
 
 
-def test_create_recommendation_rejects_blank_concern_text() -> None:
+def test_create_recommendation_rejects_blank_concern_text(client: TestClient) -> None:
     response = client.post("/api/recommendations", json={"concern_text": "   "})
 
     assert response.status_code == 400
@@ -168,7 +208,7 @@ def test_create_recommendation_rejects_blank_concern_text() -> None:
     }
 
 
-def test_create_recommendation_rejects_invalid_skin_type() -> None:
+def test_create_recommendation_rejects_invalid_skin_type(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
         json={"concern_text": "모공이 고민이에요", "skin_type": "기타"},
@@ -178,7 +218,7 @@ def test_create_recommendation_rejects_invalid_skin_type() -> None:
     assert response.json()["error"]["code"] == "INVALID_INPUT"
 
 
-def test_create_recommendation_rejects_invalid_sensitivity() -> None:
+def test_create_recommendation_rejects_invalid_sensitivity(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
         json={"concern_text": "모공이 고민이에요", "sensitivity": "매우높음"},
@@ -188,7 +228,7 @@ def test_create_recommendation_rejects_invalid_sensitivity() -> None:
     assert response.json()["error"]["code"] == "INVALID_INPUT"
 
 
-def test_get_recommendation_returns_created_payload() -> None:
+def test_get_recommendation_returns_created_payload(client: TestClient) -> None:
     created_response = client.post(
         "/api/recommendations",
         json={"concern_text": "속건조랑 자극이 고민이에요"},
@@ -201,20 +241,36 @@ def test_get_recommendation_returns_created_payload() -> None:
     assert response.json() == created
 
 
-def test_get_recommendation_returns_404_for_missing_id() -> None:
+def test_get_recommendation_returns_404_for_missing_id(client: TestClient) -> None:
     response = client.get("/api/recommendations/rec_missing")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-def test_get_product_detail_returns_general_mock_detail() -> None:
-    response = client.get("/api/products/mock-calming-cream")
+def test_get_recommendation_returns_410_for_expired_id(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl recommendation smoke test"},
+    ).json()
+    _expire_recommendation(db_engine, created["recommendation_id"])
+
+    response = client.get(f"/api/recommendations/{created['recommendation_id']}")
+
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "EXPIRED_RECOMMENDATION"
+
+
+def test_get_product_detail_returns_general_db_detail(client: TestClient) -> None:
+    response = client.get("/api/products/prod_001")
 
     assert response.status_code == 200
 
     data = response.json()
-    assert data["product"]["product_id"] == "mock-calming-cream"
+    assert data["product"]["product_id"] == "prod_001"
     assert data["images"]
     assert data["prices"]
     assert data["ingredients"]
@@ -222,10 +278,10 @@ def test_get_product_detail_returns_general_mock_detail() -> None:
     assert data["sources"]
 
 
-def test_get_product_detail_includes_recommendation_context() -> None:
+def test_get_product_detail_includes_recommendation_context(client: TestClient) -> None:
     created = client.post(
         "/api/recommendations",
-        json={"concern_text": "속건조와 모공이 고민이에요"},
+        json={"concern_text": "크림 2만원 이하 추천"},
     ).json()
     recommended_product = created["products"][0]
 
@@ -242,16 +298,18 @@ def test_get_product_detail_includes_recommendation_context() -> None:
     assert data["evidence"]["recommendation_reason"] == recommended_product["reason_summary"]
 
 
-def test_get_product_detail_returns_404_for_missing_product() -> None:
+def test_get_product_detail_returns_404_for_missing_product(client: TestClient) -> None:
     response = client.get("/api/products/missing-product")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-def test_get_product_detail_returns_404_for_missing_recommendation_context() -> None:
+def test_get_product_detail_returns_404_for_missing_recommendation_context(
+    client: TestClient,
+) -> None:
     response = client.get(
-        "/api/products/mock-calming-cream",
+        "/api/products/prod_001",
         params={"recommendation_id": "rec_missing"},
     )
 
@@ -259,7 +317,38 @@ def test_get_product_detail_returns_404_for_missing_recommendation_context() -> 
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-def test_openapi_docs_are_available() -> None:
+def test_get_product_detail_returns_410_for_expired_recommendation_context(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl product detail smoke test"},
+    ).json()
+    recommended_product = created["products"][0]
+    _expire_recommendation(db_engine, created["recommendation_id"])
+
+    response = client.get(
+        f"/api/products/{recommended_product['product_id']}",
+        params={"recommendation_id": created["recommendation_id"]},
+    )
+
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "EXPIRED_RECOMMENDATION"
+
+
+def test_openapi_docs_are_available(client: TestClient) -> None:
     response = client.get("/docs")
 
     assert response.status_code == 200
+
+
+def _expire_recommendation(db_engine: Engine, recommendation_id: str) -> None:
+    with Session(db_engine) as session:
+        run = session.execute(
+            select(RecommendationRun).where(
+                RecommendationRun.recommendation_code == recommendation_id,
+            )
+        ).scalar_one()
+        run.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()

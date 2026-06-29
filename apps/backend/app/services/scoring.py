@@ -181,6 +181,8 @@ def _score_candidate(
         )
     )
     search_match_score = match.search_match_score if match else 0.0
+    keyword_score = match.keyword_score if match else 0.0
+    vector_score = match.vector_score if match else 0.0
     price_score = _score_price(candidate.lowest_price, purchase_conditions)
     risk_penalty = 0.0
 
@@ -200,6 +202,8 @@ def _score_candidate(
         "skin_profile_score": _round_component(skin_profile_score),
         "skin_type_score": _round_component(skin_type_score),
         "sensitivity_score": _round_component(sensitivity_score),
+        "keyword_score": _round_component(keyword_score),
+        "vector_score": _round_component(vector_score),
         "search_match_score": _round_component(search_match_score),
         "price_score": _round_component(price_score),
         "risk_penalty": risk_penalty,

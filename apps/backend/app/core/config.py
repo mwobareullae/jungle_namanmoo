@@ -40,6 +40,14 @@ class Settings(BaseModel):
         "postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae",
     )
     data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    openai_embedding_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    embedding_dimensions: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
+    hybrid_keyword_weight: float = float(os.getenv("HYBRID_KEYWORD_WEIGHT", "0.5"))
+    hybrid_vector_weight: float = float(os.getenv("HYBRID_VECTOR_WEIGHT", "0.5"))
+    recommendation_candidate_pool_limit: int = int(
+        os.getenv("RECOMMENDATION_CANDIDATE_POOL_LIMIT", "500")
+    )
 
 
 settings = Settings()
