@@ -268,6 +268,10 @@ def _build_parser_result(intent: RecommendationIntent) -> dict:
         "priority_effects": [_parsed_effect_to_dict(effect) for effect in intent.priority_effects],
         "unmatched_terms": list(intent.unmatched_terms),
         "needs_llm": intent.needs_llm,
+        "llm_used": intent.llm_used,
+        "needs_review": intent.needs_review,
+        "parser_confidence": intent.parser_confidence,
+        "llm_error": intent.llm_error,
     }
 
 
