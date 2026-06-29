@@ -33,6 +33,9 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.product_prices[0].mall_name == "올리브영"
     assert catalog.product_prices[0].is_lowest is True
     assert catalog.product_ingredients[0].ingredient_id == "ing_panthenol"
+    assert catalog.product_ingredients[-1].concentration_text == "나이아신아마이드 5%"
+    assert catalog.product_ingredients[-1].concentration_value == 5.0
+    assert catalog.product_ingredients[-1].normalized_concentration_unit == "%"
     assert catalog.ingredients[0].name_ko == "판테놀"
     assert catalog.ingredient_effects[0].effect_score == 90
     assert catalog.ingredient_evidence[0].evidence_level == "high"
@@ -75,8 +78,10 @@ def test_loader_reports_invalid_product_reference(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)
     (data_dir / "product_ingredients.csv").write_text(
-        "product_id,ingredient_id,ingredient_name,content_confidence,display_order\n"
-        "missing_product,ing_panthenol,판테놀,high,1\n",
+        "product_id,ingredient_id,ingredient_name,content_confidence,display_order,"
+        "concentration_text,concentration_value,concentration_unit,concentration_confidence,"
+        "normalized_concentration_value,normalized_concentration_unit\n"
+        "missing_product,ing_panthenol,판테놀,high,1,,,,unknown,,\n",
         encoding="utf-8",
     )
 

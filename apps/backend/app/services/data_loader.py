@@ -46,6 +46,12 @@ CSV_HEADERS = {
         "ingredient_name",
         "content_confidence",
         "display_order",
+        "concentration_text",
+        "concentration_value",
+        "concentration_unit",
+        "concentration_confidence",
+        "normalized_concentration_value",
+        "normalized_concentration_unit",
     },
     "ingredients.csv": {"ingredient_id", "name_ko", "name_en", "description"},
     "ingredient_effect.csv": {"ingredient_id", "effect_id", "effect_name", "effect_score"},
@@ -63,6 +69,7 @@ CSV_HEADERS = {
 }
 
 CONTENT_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
+CONCENTRATION_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
 
 T = TypeVar("T")
@@ -227,6 +234,12 @@ def _parse_product_ingredient(
     if confidence not in CONTENT_CONFIDENCE_VALUES:
         allowed = ", ".join(sorted(CONTENT_CONFIDENCE_VALUES))
         raise DataLoadError(f"{file_name}:{line_number} content_confidence는 {allowed} 중 하나여야 합니다.")
+    concentration_confidence = _required_text(row, "concentration_confidence", file_name, line_number)
+    if concentration_confidence not in CONCENTRATION_CONFIDENCE_VALUES:
+        allowed = ", ".join(sorted(CONCENTRATION_CONFIDENCE_VALUES))
+        raise DataLoadError(
+            f"{file_name}:{line_number} concentration_confidence는 {allowed} 중 하나여야 합니다."
+        )
 
     return ProductIngredient(
         product_id=_required_text(row, "product_id", file_name, line_number),
@@ -234,6 +247,22 @@ def _parse_product_ingredient(
         ingredient_name=_required_text(row, "ingredient_name", file_name, line_number),
         content_confidence=confidence,
         display_order=_required_int(row, "display_order", file_name, line_number),
+        concentration_text=_optional_text(row.get("concentration_text")),
+        concentration_value=_optional_float(
+            row.get("concentration_value"),
+            "concentration_value",
+            file_name,
+            line_number,
+        ),
+        concentration_unit=_optional_text(row.get("concentration_unit")),
+        concentration_confidence=concentration_confidence,
+        normalized_concentration_value=_optional_float(
+            row.get("normalized_concentration_value"),
+            "normalized_concentration_value",
+            file_name,
+            line_number,
+        ),
+        normalized_concentration_unit=_optional_text(row.get("normalized_concentration_unit")),
     )
 
 
@@ -409,6 +438,16 @@ def _optional_int(value: object, key: str, file_name: str, line_number: int) -> 
         return int(text)
     except ValueError as exc:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값은 정수여야 합니다.") from exc
+
+
+def _optional_float(value: object, key: str, file_name: str, line_number: int) -> float | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값은 숫자여야 합니다.") from exc
 
 
 def _required_float(record: dict, key: str, file_name: str, index: int) -> float:
