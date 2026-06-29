@@ -17,7 +17,7 @@ ing_pending_29cb11c38109,젤란검,,,
 ing_pending_ee74f6e2b348,소듐시트레이트,,,
 ing_pending_ea3173cc7a84,소듐글루코네이트,,,
 ing_pending_f58d771c95d7,벤조익애씨드,,,
-ing_pending_3db8a4dedc4c,세라마이드엔피,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_3db8a4dedc4c,세라마이드엔피,Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_bbc493f653a6,하이드로제네이티드레시틴,,,
 ing_pending_83576d52915b,소듐벤조에이트,,,
 ing_pending_69bf114a2384,실리카,,,
@@ -34,7 +34,7 @@ ing_pending_14953e041d15,시트릭애씨드,,,
 ing_pending_43a3274d6a0c,판테놀,Panthenol,보습·장벽·진정 프로비타민 B5,https://www.incidecoder.com/ingredients/panthenol
 ing_pending_d5a75e7d8737,하이드롤라이즈드하이알루로닉애씨드,Hyaluronic Acid,수분 보유 보습 성분,https://www.incidecoder.com/ingredients/hyaluronic-acid
 ing_pending_e691ae540d09,베타인,,,
-ing_pending_33dd2aa3d667,징크피씨에이,Zinc PCA,피지 조절 보조 아연 화합물,https://www.incidecoder.com/ingredients/zinc-pca
+ing_pending_33dd2aa3d667,징크피씨에이,,피지 조절 보조 아연 화합물,
 ing_pending_d0cc1b592476,미리스토일/팔미토일옥소스테아라마이드/아라카마이드엠이에이,,,
 ing_pending_78cf093c5856,다이소듐이디티에이,,,
 ing_pending_464c1435e271,"비타민나무수117,600ppm",,,
@@ -647,8 +647,8 @@ ing_pending_82b18e82f937,쿠티박테리움그라눌로숨발효추출여과물1
 ing_pending_9d62d23465a1,비피다발효여과물2ppb,,,
 ing_pending_3c5ea1f94aa3,우엉뿌리추출물,,,
 ing_pending_30757741d8c3,하이드롤라이즈드호호바에스터,,,
-ing_pending_742cd15ac3e7,세라마이드에이피,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
-ing_pending_f1de7c712f85,세라마이드이오피,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_742cd15ac3e7,세라마이드에이피,Ceramide AP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_f1de7c712f85,세라마이드이오피,Ceramide EOP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_4db464ce27bd,테트라헥실데실아스코베이트,,,
 ing_pending_fd8104a07591,올레스-10,,,
 ing_pending_0d1127b638fb,소듐라우로일락틸레이트,,,
@@ -884,7 +884,7 @@ ing_pending_ebf9cdf5a1c8,에스에이치-폴리펩타이드-1,,,
 ing_pending_fceab7c1a231,귤껍질추출물,,,
 ing_pending_8a94ca471e15,로즈힙열매추출물,,,
 ing_pending_6faa7f194935,세라마이드에이에스,Ceramide AS,피부 장벽 구성 지질(AS),https://pubmed.ncbi.nlm.nih.gov/37269189/
-ing_pending_ed4d1dc71a25,세라마이드엔에스,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_ed4d1dc71a25,세라마이드엔에스,Ceramide NS,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_16d31fc158b0,퉁퉁마디추출물,,,
 ing_pending_17b619e0db6e,아라비안자스민꽃오일,,,
 ing_pending_12e3289eaf4d,C12-13알케스-9,,,
@@ -1038,7 +1038,7 @@ ing_pending_c3fad14c8bc7,띠뿌리추출물,,,
 ing_pending_319e714932a0,칼슘카보네이트,,,
 ing_pending_7a15fe42cb40,카퍼트라이펩타이드-1트라이펩타이드-1,,,
 ing_pending_9a7863b96a7d,헥사펩타이드-11,,,
-ing_pending_2bfa9864655e,"세라마이드엔피1,100ppm",Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_2bfa9864655e,"세라마이드엔피1,100ppm",Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_1d637fc3694e,"세라마이드엔에스1,500ppb",Ceramide NS,피부 장벽 구성 지질(NS),https://pubmed.ncbi.nlm.nih.gov/37269189/
 ing_pending_f775bc894c98,세라마이드에이에스500ppb,Ceramide AS,피부 장벽 구성 지질(AS),https://pubmed.ncbi.nlm.nih.gov/37269189/
 ing_pending_6367d1feb60f,세라마이드에이피500ppb,Ceramide AP,피부 장벽 구성 지질(AP),https://pubmed.ncbi.nlm.nih.gov/37269189/
@@ -1262,7 +1262,7 @@ ing_pending_5791975e7cab,알부틴*,Arbutin,멜라닌 생성 억제 미백 기�
 ing_pending_85dea2f3110c,아스코빅애씨드1.0005ppb*,,,
 ing_pending_4b5f2fb6da7c,아스코빌글루코사이드0.00025ppb*,,,
 ing_pending_4b0822fd3e8a,하이드롤라이즈드콜라겐*,,,
-ing_pending_830c0f8bbd31,세라마이드엔피*,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_830c0f8bbd31,세라마이드엔피*,Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_96e9e9fbb3fe,풀러린,,,
 ing_pending_525706656a1e,라우다이모늄하이드록시프로필하이드롤라이즈드밀단백질*,,,
 ing_pending_6681b63caa43,다이프로필렌글라이콜*,,,
@@ -1887,7 +1887,7 @@ ing_pending_579452d1d261,디페닐디메치콘,,,
 ing_pending_e820bddb2e71,트라이실록세인,,,
 ing_pending_73acffff03df,옥틸도데실스테아로일스테아레이트,,,
 ing_pending_be5c9ccf65d6,작약꽃추출물,,,
-ing_pending_dba85900153c,세라마이드엔지,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_dba85900153c,세라마이드엔지,Ceramide NG,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_dac8728ea922,만주자작나무껍질추출물,,,
 ing_pending_2497aed93ad8,테르무스테르모필루스발효물,,,
 ing_pending_a3e13f72ee3f,소듐마그네슘실리케이트,,,
@@ -2011,7 +2011,7 @@ ing_pending_f6478a8dfd4e,"병풀추출물8,000ppm",Centella Asiatica Extract,진
 ing_pending_b975d8f930d1,아시아티코사이두,,,
 ing_pending_5e4cb5762cab,비터오렌지꽃오일,,,
 ing_pending_93c2472853a0,비터오렌지잎/잔가지오일,,,
-ing_pending_5aed08595019,"세라마이드엔피1,086ppm",Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_5aed08595019,"세라마이드엔피1,086ppm",Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_450a74c875b3,C13-16아이소알케인,,,
 ing_pending_d25de44907dd,헵틸운데실레네이트,,,
 ing_pending_def43cdc59e5,칸데릴라/호호바/쌀겨폴리글리세릴-3에스터,,,
@@ -2101,12 +2101,12 @@ ing_pending_b417455ef54d,구아바잎추출물,,,
 ing_pending_84d941bfa52b,다이펜타에리스리틸헥사하이드록시스테아레이트/헥사스테아레이트/헥사로지네이트,,,
 ing_pending_654362f0cb43,토코페롤*,,,
 ing_pending_f46c2cbdd842,아스코빌팔미테이트*,,,
-ing_pending_b47b08dfa3ba,세라마이드에이피*,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_b47b08dfa3ba,세라마이드에이피*,Ceramide AP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_4324fb4e34c1,세라마이드에이에스*,,,
-ing_pending_561bc1796e22,세라마이드엔에스*,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
-ing_pending_c145df1d7093,세라마이드엔지*,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_561bc1796e22,세라마이드엔에스*,Ceramide NS,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_c145df1d7093,세라마이드엔지*,Ceramide NG,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_d5ac34f7d3f0,세라마이드이오에스*,,,
-ing_pending_d28c2d1ee997,세라마이드이오피*,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_d28c2d1ee997,세라마이드이오피*,Ceramide EOP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_2cb23451f469,카프로오일스핑고신*,,,
 ing_pending_23a12f863226,카프로오일피토스핑고신*,,,
 ing_pending_99ae93ea0073,글리세릴올리에이트*,,,
@@ -2176,7 +2176,7 @@ ing_pending_544cd256145e,소듐하이알루로네이트크로스폴리머0.001PP
 ing_pending_c14096474d3d,하이드롤라이즈드소듐하이알루로네이트0.001PPM,,,
 ing_pending_f26f9cc60a36,포타슘하이알루로네이트0.0002PPM,,,
 ing_pending_a4d9de93b053,"나이아신아마이드1,000ppm",Niacinamide,피지·미백·장벽 다기능 비타민B3 유도체,https://www.incidecoder.com/ingredients/niacinamide
-ing_pending_069d47c6f140,징크피씨에이10ppm,Zinc PCA,피지 조절 보조 아연 화합물,https://www.incidecoder.com/ingredients/zinc-pca
+ing_pending_069d47c6f140,징크피씨에이10ppm,,피지 조절 보조 아연 화합물,
 ing_pending_b8099b6a700c,도코사헥사에노익애씨드,,,
 ing_pending_07ef9fbbf2fc,피리독신에이치씨엘,,,
 ing_pending_6e4c065f27b8,제비꽃꽃추출물,,,
@@ -2441,8 +2441,8 @@ ing_pending_277cf6559f47,C20-22알코올,,,
 ing_pending_ebd00f57ab73,리보오스,,,
 ing_pending_738b44376e87,팩스추출물,,,
 ing_pending_5728cbb1f9f0,폴리글리세릴-10데카아이소스테아레이트,,,
-ing_pending_dc89449ef38b,세라마이드엔피3120ppm,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
-ing_pending_a01bddba73a4,세라마이드에이피11ppm,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_dc89449ef38b,세라마이드엔피3120ppm,Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_a01bddba73a4,세라마이드에이피11ppm,Ceramide AP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_81358b9301be,팔미토일프롤린,,,
 ing_pending_0e378e92d71f,마그네슘팔미토일글루타메이트,,,
 ing_pending_19efdb930a94,소듐세테아릴설페이트,,,
@@ -2558,7 +2558,7 @@ ing_pending_2da308c825d2,프로필렌글라이콜디카프레이트,,,
 ing_pending_3ef4bd2bb191,라우레스-23,,,
 ing_pending_c737166482d5,라우레스-4,,,
 ing_pending_c09cf5268976,황색5호ILN41195*,,,
-ing_pending_006df1172a80,세라마이드엔피0.2%,Ceramide,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
+ing_pending_006df1172a80,세라마이드엔피0.2%,Ceramide NP,피부 장벽 구성 지질,https://www.incidecoder.com/ingredients/ceramide
 ing_pending_f96ad6535c76,하이드록시피나콜론레티노에이트,,,
 ing_pending_1d9eaf5026c8,세테아레스-12,,,
 ing_pending_d0aba38505ce,세테아레스-20,,,
