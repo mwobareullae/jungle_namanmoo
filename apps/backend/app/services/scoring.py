@@ -4,8 +4,15 @@ from decimal import Decimal
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Product, ProductIngredient
-from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence, RiskFlag
+from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
+from app.db.models.taxonomy import (
+    Effect,
+    Ingredient,
+    IngredientEffect,
+    IngredientEffectRange,
+    IngredientEvidence,
+    RiskFlag,
+)
 from app.services.product_candidates import ProductCandidate
 from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
@@ -23,9 +30,20 @@ DEFAULT_PROFILE_SCORE = 0.5
 class ScoreWeights:
     ingredient_effect: float = 0.45
     ingredient_evidence: float = 0.35
+    concentration_fit: float = 0.05
     skin_profile: float = 0.10
     search_match: float = 0.05
     price: float = 0.05
+
+
+@dataclass(frozen=True)
+class ConcentrationScorePolicy:
+    unknown: float = 0.50
+    below_meaningful: float = 0.55
+    meaningful: float = 0.75
+    optimal: float = 1.00
+    above_optimal: float = 0.80
+    excessive: float = 0.60
 
 
 @dataclass(frozen=True)
@@ -75,6 +93,37 @@ class _EvidenceInfo:
 
 
 @dataclass(frozen=True)
+class _ConcentrationRangeInfo:
+    meaningful_min: float
+    optimal_min: float
+    optimal_max: float
+    excessive_min: float | None
+    range_confidence: str
+    source_type: str
+    source_url: str | None
+    note: str | None
+
+
+@dataclass(frozen=True)
+class _ConcentrationInfo:
+    value: float | None
+    unit: str | None
+    text: str | None
+    confidence: str | None
+    range: _ConcentrationRangeInfo | None
+
+
+@dataclass(frozen=True)
+class _ConcentrationResult:
+    bucket: str
+    score: float
+    ingredient_name: str | None = None
+    effect_name: str | None = None
+    concentration_text: str | None = None
+    warning: str | None = None
+
+
+@dataclass(frozen=True)
 class _IngredientEffectInfo:
     product_db_id: int
     ingredient_id: int
@@ -86,6 +135,20 @@ class _IngredientEffectInfo:
     effect_score: float
     display_order: int
     evidence: _EvidenceInfo | None
+    concentration: _ConcentrationInfo
+
+
+@dataclass(frozen=True)
+class _SkinProfileInfo:
+    dry_fit: float
+    oily_fit: float
+    combination_fit: float
+    normal_fit: float
+    dehydrated_oily_fit: float
+    sensitive_fit: float
+    sensitivity_tag: str | None
+    confidence: str | None
+    reason: str | None
 
 
 @dataclass(frozen=True)
@@ -105,6 +168,7 @@ def score_candidates(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     weights: ScoreWeights = ScoreWeights(),
+    concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
 ) -> list[ScoredProduct]:
     if not candidates:
@@ -114,6 +178,7 @@ def score_candidates(
     product_ids = [candidate.db_product_id for candidate in candidates]
     ingredients_by_product = _load_ingredient_effects(session, product_ids, desired_effects)
     skin_tags_by_product = _load_skin_tags(session, product_ids)
+    skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     matches_by_product_code = {match.product_id: match for match in matches}
 
@@ -123,12 +188,14 @@ def score_candidates(
             desired_effects,
             ingredients_by_product.get(candidate.db_product_id, ()),
             skin_tags_by_product.get(candidate.db_product_id, ()),
+            skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
             skin_type=skin_type,
             sensitivity=sensitivity,
             weights=weights,
+            concentration_policy=concentration_policy,
             skin_profile_weights=skin_profile_weights,
         )
         for candidate in candidates
@@ -160,6 +227,7 @@ def _score_candidate(
     desired_effects: tuple[_DesiredEffect, ...],
     ingredients: tuple[_IngredientEffectInfo, ...],
     skin_tags: tuple[str, ...],
+    skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
@@ -167,13 +235,19 @@ def _score_candidate(
     skin_type: str | None,
     sensitivity: str | None,
     weights: ScoreWeights,
+    concentration_policy: ConcentrationScorePolicy,
     skin_profile_weights: SkinProfileWeights,
 ) -> ScoredProduct:
     contributions_by_effect = _build_contributions_by_effect(ingredients)
     ingredient_effect_score = _score_ingredient_effects(desired_effects, contributions_by_effect)
     ingredient_evidence_score = _score_ingredient_evidence(desired_effects, contributions_by_effect)
-    skin_type_score = _score_skin_type(skin_type, skin_tags)
-    sensitivity_score = _score_sensitivity(sensitivity, skin_tags, risk_flags)
+    concentration_result = _score_concentration_fit(
+        desired_effects,
+        contributions_by_effect,
+        concentration_policy,
+    )
+    skin_type_score = _score_skin_type(skin_type, skin_tags, skin_profile)
+    sensitivity_score = _score_sensitivity(sensitivity, skin_tags, risk_flags, skin_profile)
     skin_profile_score = _weighted_average(
         (
             (skin_type_score, skin_profile_weights.skin_type),
@@ -189,6 +263,7 @@ def _score_candidate(
     raw_score = (
         ingredient_effect_score * weights.ingredient_effect
         + ingredient_evidence_score * weights.ingredient_evidence
+        + (concentration_result.score - concentration_policy.unknown) * weights.concentration_fit
         + skin_profile_score * weights.skin_profile
         + search_match_score * weights.search_match
         + price_score * weights.price
@@ -199,6 +274,9 @@ def _score_candidate(
         "scoring_version": SCORING_VERSION,
         "ingredient_effect_score": _round_component(ingredient_effect_score),
         "ingredient_evidence_score": _round_component(ingredient_evidence_score),
+        "concentration_fit_score": _round_component(concentration_result.score),
+        "concentration_bucket": concentration_result.bucket,
+        "concentration_warning": concentration_result.warning,
         "skin_profile_score": _round_component(skin_profile_score),
         "skin_type_score": _round_component(skin_type_score),
         "sensitivity_score": _round_component(sensitivity_score),
@@ -212,6 +290,7 @@ def _score_candidate(
         "weights": {
             "ingredient_effect": weights.ingredient_effect,
             "ingredient_evidence": weights.ingredient_evidence,
+            "concentration_fit": weights.concentration_fit,
             "skin_profile": weights.skin_profile,
             "search_match": weights.search_match,
             "price": weights.price,
@@ -220,6 +299,15 @@ def _score_candidate(
             "skin_type": skin_profile_weights.skin_type,
             "sensitivity": skin_profile_weights.sensitivity,
         },
+        "concentration_policy": {
+            "unknown": concentration_policy.unknown,
+            "below_meaningful": concentration_policy.below_meaningful,
+            "meaningful": concentration_policy.meaningful,
+            "optimal": concentration_policy.optimal,
+            "above_optimal": concentration_policy.above_optimal,
+            "excessive": concentration_policy.excessive,
+        },
+        "concentration_weight_mode": "neutral_delta",
         "effect_cap": EFFECT_CAP,
         "top_ingredient_decays": list(TOP_INGREDIENT_DECAYS),
         "total_score": total_score,
@@ -278,6 +366,10 @@ def _load_ingredient_effects(
         select(
             ProductIngredient.product_id.label("product_db_id"),
             ProductIngredient.display_order,
+            ProductIngredient.concentration_text,
+            ProductIngredient.concentration_confidence,
+            ProductIngredient.normalized_concentration_value,
+            ProductIngredient.normalized_concentration_unit,
             Ingredient.id.label("ingredient_id"),
             Ingredient.ingredient_code,
             Ingredient.name_ko.label("ingredient_name"),
@@ -289,10 +381,26 @@ def _load_ingredient_effects(
             IngredientEvidence.evidence_score,
             IngredientEvidence.evidence_level,
             IngredientEvidence.summary,
+            IngredientEffectRange.meaningful_min,
+            IngredientEffectRange.optimal_min,
+            IngredientEffectRange.optimal_max,
+            IngredientEffectRange.excessive_min,
+            IngredientEffectRange.range_confidence,
+            IngredientEffectRange.source_type,
+            IngredientEffectRange.source_url.label("range_source_url"),
+            IngredientEffectRange.note.label("range_note"),
         )
         .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
         .join(IngredientEffect, IngredientEffect.ingredient_id == Ingredient.id)
         .join(Effect, IngredientEffect.effect_id == Effect.id)
+        .outerjoin(
+            IngredientEffectRange,
+            and_(
+                IngredientEffectRange.ingredient_id == Ingredient.id,
+                IngredientEffectRange.effect_id == Effect.id,
+                IngredientEffectRange.unit == ProductIngredient.normalized_concentration_unit,
+            ),
+        )
         .outerjoin(
             IngredientEvidence,
             and_(
@@ -323,6 +431,7 @@ def _load_ingredient_effects(
                 effect_score=_decimal_to_float(row.effect_score),
                 display_order=row.display_order or 999,
                 evidence=evidence,
+                concentration=_row_to_concentration(row),
             )
             continue
 
@@ -338,6 +447,7 @@ def _load_ingredient_effects(
                 effect_score=existing.effect_score,
                 display_order=existing.display_order,
                 evidence=evidence,
+                concentration=existing.concentration,
             )
 
     ingredients_by_product: dict[int, list[_IngredientEffectInfo]] = {}
@@ -361,6 +471,29 @@ def _row_to_evidence(row) -> _EvidenceInfo | None:
     )
 
 
+def _row_to_concentration(row) -> _ConcentrationInfo:
+    concentration_range = None
+    if row.meaningful_min is not None:
+        concentration_range = _ConcentrationRangeInfo(
+            meaningful_min=_decimal_to_float(row.meaningful_min),
+            optimal_min=_decimal_to_float(row.optimal_min),
+            optimal_max=_decimal_to_float(row.optimal_max),
+            excessive_min=_optional_decimal_to_float(row.excessive_min),
+            range_confidence=row.range_confidence,
+            source_type=row.source_type,
+            source_url=row.range_source_url,
+            note=row.range_note,
+        )
+
+    return _ConcentrationInfo(
+        value=_optional_decimal_to_float(row.normalized_concentration_value),
+        unit=row.normalized_concentration_unit,
+        text=row.concentration_text,
+        confidence=row.concentration_confidence,
+        range=concentration_range,
+    )
+
+
 def _is_better_evidence(candidate: _EvidenceInfo | None, existing: _EvidenceInfo | None) -> bool:
     if candidate is None:
         return False
@@ -375,6 +508,26 @@ def _load_skin_tags(session: Session, product_ids: list[int]) -> dict[int, tuple
     ).all()
     return {
         int(row.id): _split_tags(row.skin_type_tags)
+        for row in rows
+    }
+
+
+def _load_skin_profiles(session: Session, product_ids: list[int]) -> dict[int, _SkinProfileInfo]:
+    rows = session.execute(
+        select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_ids))
+    ).scalars()
+    return {
+        int(row.product_id): _SkinProfileInfo(
+            dry_fit=_decimal_to_float(row.dry_fit),
+            oily_fit=_decimal_to_float(row.oily_fit),
+            combination_fit=_decimal_to_float(row.combination_fit),
+            normal_fit=_decimal_to_float(row.normal_fit),
+            dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
+            sensitive_fit=_decimal_to_float(row.sensitive_fit),
+            sensitivity_tag=row.sensitivity_tag,
+            confidence=row.confidence,
+            reason=row.reason,
+        )
         for row in rows
     }
 
@@ -452,6 +605,95 @@ def _score_ingredient_evidence(
     )
 
 
+def _score_concentration_fit(
+    desired_effects: tuple[_DesiredEffect, ...],
+    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    policy: ConcentrationScorePolicy,
+) -> _ConcentrationResult:
+    if not desired_effects:
+        return _ConcentrationResult(bucket="unknown", score=policy.unknown)
+
+    effect_scores: list[tuple[float, float]] = []
+    concentration_results: list[_ConcentrationResult] = []
+    for desired_effect in desired_effects:
+        contributions = contributions_by_effect.get(desired_effect.effect_code, ())
+        if not contributions:
+            effect_scores.append((policy.unknown, desired_effect.weight))
+            continue
+
+        contribution_scores: list[tuple[float, float]] = []
+        for contribution in contributions:
+            result = _score_single_concentration(contribution.ingredient, policy)
+            concentration_results.append(result)
+            contribution_scores.append((result.score, contribution.decay))
+
+        effect_scores.append((_weighted_average(tuple(contribution_scores)), desired_effect.weight))
+
+    aggregate_score = _clamp(_weighted_average(tuple(effect_scores)))
+    display_result = _select_display_concentration_result(concentration_results, policy)
+    warning_result = next((result for result in concentration_results if result.warning), None)
+    return _ConcentrationResult(
+        bucket=display_result.bucket,
+        score=aggregate_score,
+        ingredient_name=display_result.ingredient_name,
+        effect_name=display_result.effect_name,
+        concentration_text=display_result.concentration_text,
+        warning=warning_result.warning if warning_result else None,
+    )
+
+
+def _score_single_concentration(
+    ingredient: _IngredientEffectInfo,
+    policy: ConcentrationScorePolicy,
+) -> _ConcentrationResult:
+    concentration = ingredient.concentration
+    concentration_range = concentration.range
+    if concentration.value is None or concentration_range is None:
+        return _build_concentration_result("unknown", policy.unknown, ingredient)
+
+    value = concentration.value
+    if concentration_range.excessive_min is not None and value >= concentration_range.excessive_min:
+        warning = (
+            f"{ingredient.ingredient_name} 함량이 과다 기준 이상으로 표시되어 "
+            "민감 피부는 주의가 필요합니다."
+        )
+        return _build_concentration_result("excessive", policy.excessive, ingredient, warning=warning)
+    if value < concentration_range.meaningful_min:
+        return _build_concentration_result("below_meaningful", policy.below_meaningful, ingredient)
+    if value < concentration_range.optimal_min:
+        return _build_concentration_result("meaningful", policy.meaningful, ingredient)
+    if value <= concentration_range.optimal_max:
+        return _build_concentration_result("optimal", policy.optimal, ingredient)
+    return _build_concentration_result("above_optimal", policy.above_optimal, ingredient)
+
+
+def _build_concentration_result(
+    bucket: str,
+    score: float,
+    ingredient: _IngredientEffectInfo,
+    *,
+    warning: str | None = None,
+) -> _ConcentrationResult:
+    return _ConcentrationResult(
+        bucket=bucket,
+        score=_clamp(score),
+        ingredient_name=ingredient.ingredient_name,
+        effect_name=ingredient.effect_name,
+        concentration_text=ingredient.concentration.text,
+        warning=warning,
+    )
+
+
+def _select_display_concentration_result(
+    results: list[_ConcentrationResult],
+    policy: ConcentrationScorePolicy,
+) -> _ConcentrationResult:
+    known_results = [result for result in results if result.bucket != "unknown"]
+    if not known_results:
+        return _ConcentrationResult(bucket="unknown", score=policy.unknown)
+    return max(known_results, key=lambda result: result.score)
+
+
 def _score_weighted_effect_axis(
     desired_effects: tuple[_DesiredEffect, ...],
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
@@ -468,8 +710,17 @@ def _score_weighted_effect_axis(
     return _clamp(_weighted_average(tuple(weighted_scores)))
 
 
-def _score_skin_type(skin_type: str | None, skin_tags: tuple[str, ...]) -> float:
+def _score_skin_type(
+    skin_type: str | None,
+    skin_tags: tuple[str, ...],
+    skin_profile: _SkinProfileInfo | None,
+) -> float:
     normalized_skin_type = _normalize_profile_value(skin_type) or "중성"
+    if skin_profile is not None:
+        profile_score = _skin_type_profile_score(normalized_skin_type, skin_profile)
+        if profile_score is not None:
+            return profile_score
+
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
 
@@ -499,8 +750,12 @@ def _score_sensitivity(
     sensitivity: str | None,
     skin_tags: tuple[str, ...],
     risk_flags: tuple[RiskFlag, ...],
+    skin_profile: _SkinProfileInfo | None,
 ) -> float:
     normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
+    if skin_profile is not None:
+        return _sensitivity_profile_score(normalized_sensitivity, skin_profile)
+
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
     most_severe = _most_severe_risk(risk_flags)
@@ -524,6 +779,28 @@ def _score_sensitivity(
     if most_severe == "medium":
         return 0.8
     return 0.9
+
+
+def _skin_type_profile_score(skin_type: str, skin_profile: _SkinProfileInfo) -> float | None:
+    scores = {
+        "건성": skin_profile.dry_fit,
+        "지성": skin_profile.oily_fit,
+        "복합성": skin_profile.combination_fit,
+        "중성": skin_profile.normal_fit,
+        "보통": skin_profile.normal_fit,
+        "수부지": skin_profile.dehydrated_oily_fit,
+    }
+    score = scores.get(skin_type)
+    return _clamp(score) if score is not None else None
+
+
+def _sensitivity_profile_score(sensitivity: str, skin_profile: _SkinProfileInfo) -> float:
+    sensitive_score = _clamp(skin_profile.sensitive_fit)
+    if sensitivity in {"높음", "민감", "예민"}:
+        return sensitive_score
+    if sensitivity == "낮음":
+        return max(sensitive_score, 0.85)
+    return max(sensitive_score, 0.6)
 
 
 def _most_severe_risk(risk_flags: tuple[RiskFlag, ...]) -> str | None:
@@ -647,6 +924,12 @@ def _dedupe_tuple(values: list[str]) -> tuple[str, ...]:
 def _decimal_to_float(value: Decimal | int | float | None) -> float:
     if value is None:
         return 0.0
+    return float(value)
+
+
+def _optional_decimal_to_float(value: Decimal | int | float | None) -> float | None:
+    if value is None:
+        return None
     return float(value)
 
 

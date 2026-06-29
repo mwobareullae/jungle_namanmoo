@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.session import make_engine
+from app.services.parser import ParsedEffect
 from app.services.db_seed import seed_database
 from app.services.product_candidates import list_product_candidates
+from app.services.purchase_conditions import ParsedPurchaseConditions
+from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 from app.services.scoring import score_candidates
@@ -34,7 +37,7 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
     assert top.total_score > 90
     assert top.score_breakdown["ingredient_effect_score"] == pytest.approx(1.0)
     assert top.score_breakdown["ingredient_evidence_score"] == pytest.approx(1.0)
-    assert top.score_breakdown["skin_profile_score"] > 0.9
+    assert top.score_breakdown["skin_profile_score"] == pytest.approx(0.86)
     assert top.score_breakdown["risk_penalty"] == 0.0
     assert set(top.key_ingredients) >= {"글리세린", "세라마이드엔피"}
 
@@ -57,8 +60,8 @@ def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
 
     scored_by_id = {product.product_id: product for product in scored_products}
     assert scored_products[0].product_id == "prod_002"
-    assert scored_by_id["prod_002"].score_breakdown["skin_profile_score"] == pytest.approx(1.0)
-    assert scored_by_id["prod_001"].score_breakdown["skin_profile_score"] < 0.5
+    assert scored_by_id["prod_002"].score_breakdown["skin_profile_score"] == pytest.approx(0.9)
+    assert scored_by_id["prod_001"].score_breakdown["skin_profile_score"] <= 0.5
     assert scored_by_id["prod_002"].total_score > scored_by_id["prod_001"].total_score
 
 
@@ -73,6 +76,36 @@ def test_score_candidates_uses_price_condition_as_small_bonus() -> None:
 
     assert [product.product_id for product in scored_products] == ["prod_001"]
     assert scored_products[0].score_breakdown["price_score"] == pytest.approx(1.0)
+
+
+def test_score_candidates_adds_concentration_fit_bonus() -> None:
+    session = _seed_example_session()
+    intent = RecommendationIntent(
+        concern_text="sebum",
+        normalized_text="sebum",
+        purchase_conditions=ParsedPurchaseConditions(
+            categories=(),
+            brands=(),
+            price_min=None,
+            price_max=None,
+            price_text=None,
+            price_max_text=None,
+        ),
+        concerns=(),
+        effects=(ParsedEffect(effect_id="effect_sebum_control", name="sebum", weight=1.0),),
+        excluded_concerns=(),
+        priority_effects=(),
+        unmatched_terms=(),
+        needs_llm=False,
+    )
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+
+    scored_products = score_candidates(session, intent, candidates, [])
+    scored_by_id = {product.product_id: product for product in scored_products}
+
+    assert scored_by_id["prod_002"].score_breakdown["concentration_fit_score"] == pytest.approx(1.0)
+    assert scored_by_id["prod_002"].score_breakdown["concentration_bucket"] == "optimal"
+    assert scored_by_id["prod_001"].score_breakdown["concentration_fit_score"] == pytest.approx(0.5)
 
 
 def test_score_candidates_handles_purchase_only_query_without_effects() -> None:

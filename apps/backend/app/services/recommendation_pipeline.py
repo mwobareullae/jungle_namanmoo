@@ -25,6 +25,7 @@ from app.schemas.recommendation import (
     ScoreBreakdown,
 )
 from app.services.product_candidates import ProductCandidate, list_product_candidates
+from app.services.concern_llm_parser import get_default_concern_llm_parser
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_result_store import save_recommendation_results
 from app.services.recommendation_run_store import (
@@ -76,7 +77,11 @@ def create_recommendation_response(
     commit: bool = True,
 ) -> RecommendationResponse:
     normalized_request = normalize_recommendation_request(request)
-    intent = build_recommendation_intent(normalized_request.concern_text)
+    llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
+    intent = build_recommendation_intent(
+        normalized_request.concern_text,
+        llm_parser=llm_parser,
+    )
 
     try:
         saved_run = save_recommendation_run(
@@ -410,6 +415,9 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
     return ScoreBreakdown(
         ingredient_effect_score=_component_to_percent(raw.get("ingredient_effect_score")),
         ingredient_evidence_score=_component_to_percent(raw.get("ingredient_evidence_score")),
+        concentration_fit_score=_component_to_percent(raw.get("concentration_fit_score", 0.5)),
+        concentration_bucket=_optional_str(raw.get("concentration_bucket")),
+        concentration_warning=_optional_str(raw.get("concentration_warning")),
         skin_type_score=_component_to_percent(skin_score),
         price_score=_component_to_percent(raw.get("price_score")),
         keyword_score=_component_to_percent(raw.get("keyword_score")),

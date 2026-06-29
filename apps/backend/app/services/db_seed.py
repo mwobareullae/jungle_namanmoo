@@ -15,6 +15,7 @@ from app.db.models.catalog import (
     ProductImage as ProductImageRow,
     ProductIngredient as ProductIngredientRow,
     ProductPrice as ProductPriceRow,
+    ProductSkinProfile as ProductSkinProfileRow,
 )
 from app.db.models.search import SearchDocument as SearchDocumentRow
 from app.db.models.taxonomy import (
@@ -24,6 +25,7 @@ from app.db.models.taxonomy import (
     Effect as EffectRow,
     Ingredient as IngredientRow,
     IngredientEffect as IngredientEffectRow,
+    IngredientEffectRange as IngredientEffectRangeRow,
     IngredientEvidence as IngredientEvidenceRow,
     RiskFlag as RiskFlagRow,
 )
@@ -40,6 +42,8 @@ class SeedResult:
     categories: int
     products: int
     product_ingredients: int
+    product_skin_profiles: int
+    ingredient_effect_ranges: int
     ingredient_evidence: int
     search_documents: int
 
@@ -59,6 +63,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
 
     ingredients_by_code = _seed_ingredients(session, catalog)
     _seed_ingredient_effects(session, catalog, ingredients_by_code, effects_by_code)
+    _seed_ingredient_effect_ranges(session, catalog, ingredients_by_code, effects_by_code)
     evidence_rows = _seed_ingredient_evidence(session, catalog, ingredients_by_code, effects_by_code)
     _seed_risk_flags(session, catalog, ingredients_by_code)
 
@@ -68,6 +73,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
     _seed_product_images(session, catalog, products_by_code)
     _seed_product_prices(session, catalog, products_by_code)
     product_ingredient_count = _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
+    _seed_product_skin_profiles(session, catalog, products_by_code)
     _seed_search_documents(session, catalog, products_by_code, ingredients_by_code, evidence_rows)
 
     return SeedResult(
@@ -78,6 +84,8 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         categories=len(categories_by_code),
         products=len(catalog.products),
         product_ingredients=product_ingredient_count,
+        product_skin_profiles=len(catalog.product_skin_profiles),
+        ingredient_effect_ranges=len(catalog.ingredient_effect_ranges),
         ingredient_evidence=len(catalog.ingredient_evidence),
         search_documents=len(catalog.search_documents),
     )
@@ -231,6 +239,47 @@ def _seed_ingredient_effects(
             )
         else:
             row.effect_score = Decimal(str(record.effect_score))
+    session.flush()
+
+
+def _seed_ingredient_effect_ranges(
+    session: Session,
+    catalog: DataCatalog,
+    ingredients_by_code: dict[str, IngredientRow],
+    effects_by_code: dict[str, EffectRow],
+) -> None:
+    for record in catalog.ingredient_effect_ranges:
+        ingredient = ingredients_by_code[record.ingredient_id]
+        effect = effects_by_code[record.effect_id]
+        row = _one_or_none(
+            session,
+            IngredientEffectRangeRow,
+            IngredientEffectRangeRow.ingredient_id == ingredient.id,
+            IngredientEffectRangeRow.effect_id == effect.id,
+            IngredientEffectRangeRow.unit == record.unit,
+        )
+        values = {
+            "meaningful_min": Decimal(str(record.meaningful_min)),
+            "optimal_min": Decimal(str(record.optimal_min)),
+            "optimal_max": Decimal(str(record.optimal_max)),
+            "excessive_min": _decimal_or_none(record.excessive_min),
+            "range_confidence": record.range_confidence,
+            "source_type": record.source_type,
+            "source_url": record.source_url,
+            "note": record.note,
+        }
+        if row is None:
+            session.add(
+                IngredientEffectRangeRow(
+                    ingredient_id=ingredient.id,
+                    effect_id=effect.id,
+                    unit=record.unit,
+                    **values,
+                )
+            )
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
     session.flush()
 
 
@@ -532,6 +581,37 @@ def _seed_product_ingredients(
             row.normalized_concentration_unit = record.normalized_concentration_unit
     session.flush()
     return len(seen_pairs)
+
+
+def _seed_product_skin_profiles(
+    session: Session,
+    catalog: DataCatalog,
+    products_by_code: dict[str, ProductRow],
+) -> None:
+    for record in catalog.product_skin_profiles:
+        product = products_by_code[record.product_id]
+        row = _one_or_none(
+            session,
+            ProductSkinProfileRow,
+            ProductSkinProfileRow.product_id == product.id,
+        )
+        values = {
+            "dry_fit": _decimal_or_none(record.dry_fit),
+            "oily_fit": _decimal_or_none(record.oily_fit),
+            "combination_fit": _decimal_or_none(record.combination_fit),
+            "normal_fit": _decimal_or_none(record.normal_fit),
+            "dehydrated_oily_fit": _decimal_or_none(record.dehydrated_oily_fit),
+            "sensitive_fit": _decimal_or_none(record.sensitive_fit),
+            "sensitivity_tag": record.sensitivity_tag,
+            "confidence": record.confidence,
+            "reason": record.reason,
+        }
+        if row is None:
+            session.add(ProductSkinProfileRow(product_id=product.id, **values))
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+    session.flush()
 
 
 def _seed_search_documents(

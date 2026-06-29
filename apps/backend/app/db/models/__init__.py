@@ -7,6 +7,7 @@ from app.db.models.catalog import (
     ProductImage,
     ProductIngredient,
     ProductPrice,
+    ProductSkinProfile,
 )
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -25,6 +26,7 @@ from app.db.models.taxonomy import (
     EffectAlias,
     Ingredient,
     IngredientEffect,
+    IngredientEffectRange,
     IngredientEvidence,
     RiskFlag,
 )
@@ -39,6 +41,7 @@ __all__ = [
     "EffectAlias",
     "Ingredient",
     "IngredientEffect",
+    "IngredientEffectRange",
     "IngredientEvidence",
     "Product",
     "ProductCategory",
@@ -46,6 +49,7 @@ __all__ = [
     "ProductImage",
     "ProductIngredient",
     "ProductPrice",
+    "ProductSkinProfile",
     "RecommendationResult",
     "RecommendationRun",
     "RecommendationRunConcern",

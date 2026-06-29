@@ -42,6 +42,9 @@ class RecommendationSummary(BaseModel):
 class ScoreBreakdown(BaseModel):
     ingredient_effect_score: int
     ingredient_evidence_score: int
+    concentration_fit_score: int = 50
+    concentration_bucket: str | None = None
+    concentration_warning: str | None = None
     skin_type_score: int
     price_score: int
     keyword_score: int = 0
