@@ -219,7 +219,8 @@ body {
   position: relative;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  padding: 0 52px;
+  overflow: visible;
 }
 
 .home-ranking-rail {
@@ -234,7 +235,7 @@ body {
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  padding: 30px 42px 4px;
+  padding: 30px 0 4px;
 }
 
 .home-ranking-rail::-webkit-scrollbar {
@@ -358,11 +359,11 @@ body {
 }
 
 .home-rail-btn.prev {
-  left: 8px;
+  left: 0;
 }
 
 .home-rail-btn.next {
-  right: 8px;
+  right: 0;
 }
 
 .home-deal-section {
@@ -1344,6 +1345,10 @@ html[data-app-mode="community"] .search-results-shell {
   .home-section-head {
     align-items: start;
     flex-direction: column;
+  }
+
+  .home-ranking-wrap {
+    padding: 0;
   }
 
   .home-ranking-rail {
