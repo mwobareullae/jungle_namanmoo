@@ -48,6 +48,18 @@ function App() {
       injectedNodes.push(node as HTMLElement);
     });
 
+    const backgroundReset = document.createElement("style");
+    backgroundReset.textContent = `
+      html,
+      body,
+      #root,
+      .spa-origin-shell {
+        background: #ffffff !important;
+      }
+    `;
+    document.head.appendChild(backgroundReset);
+    injectedNodes.push(backgroundReset);
+
     window.setTimeout(() => {
       page.scripts.forEach((scriptText) => {
         const script = document.createElement("script");
