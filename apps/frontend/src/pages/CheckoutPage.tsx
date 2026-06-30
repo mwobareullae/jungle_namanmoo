@@ -71,7 +71,7 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("간편결제");
 
   useEffect(() => {
-    if (!selectedId || fallbackProducts.some((product) => product.id === selectedId)) return;
+    if (!selectedId) return;
 
     let isMounted = true;
     api.getProduct(selectedId, recommendationId)

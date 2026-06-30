@@ -58,8 +58,6 @@ function PaymentCompletePage() {
   const orderNo = useMemo(() => `MWB-${String(Date.now()).slice(-8)}`, []);
 
   useEffect(() => {
-    if (fallbackProducts[id]) return;
-
     let isMounted = true;
     api.getProduct(id)
       .then((product) => {

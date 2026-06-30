@@ -355,6 +355,11 @@ html[data-app-mode="community"] .search-results-shell {
     grid-template-columns: 96px minmax(0, 1fr);
   }
 
+  .cart-image-empty {
+    width: 76px;
+    height: 76px;
+  }
+
   .search-product-card .search-result-side {
     grid-column: 1 / -1;
   }
