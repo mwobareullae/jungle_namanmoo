@@ -152,13 +152,15 @@ function HomeRankingSection({
                 role="link"
                 tabIndex={0}
               >
-                <div className="home-ranking-media">
+                <div className="home-ranking-visual">
                   <span className="home-rank-badge">{product.rank || index + 1}</span>
-                  {hasImage ? (
-                    <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
-                  ) : (
-                    <div className="home-rank-empty">이미지 준비중</div>
-                  )}
+                  <div className="home-ranking-media">
+                    {hasImage ? (
+                      <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+                    ) : (
+                      <div className="home-rank-empty">이미지 준비중</div>
+                    )}
+                  </div>
                 </div>
                 <div className="home-ranking-brand">{product.brand}</div>
                 <div className="home-ranking-name">{product.name}</div>
