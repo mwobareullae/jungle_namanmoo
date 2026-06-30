@@ -1,8 +1,15 @@
-import type { KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import type { Sensitivity, SkinType } from "../types/recommendation";
 
 const setSearch = (text: string) => callOriginal("setSearch", text);
+
+const placeholderExamples = [
+  "모공이 넓고 번들거려요",
+  "건조하고 주름이 걱정돼요",
+  "색소침착과 잡티가 있어요",
+  "민감하고 자주 붉어져요",
+];
 
 type HomeHeroProps = {
   initialQuery?: string;
@@ -19,8 +26,62 @@ function HomeHero({
     sensitivity: "보통",
   },
 }: HomeHeroProps) {
+  const [query, setQuery] = useState(initialQuery);
+  const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
+
+  useEffect(() => {
+    if (query.trim()) return;
+
+    let timeoutId = 0;
+    let phraseIndex = 0;
+    let charIndex = 0;
+    let isDeleting = false;
+    let isActive = true;
+
+    const tick = () => {
+      if (!isActive) return;
+
+      const phrase = placeholderExamples[phraseIndex];
+      setPlaceholder(phrase.slice(0, charIndex));
+
+      if (!isDeleting && charIndex < phrase.length) {
+        charIndex += 1;
+        timeoutId = window.setTimeout(tick, 70);
+        return;
+      }
+
+      if (!isDeleting && charIndex === phrase.length) {
+        isDeleting = true;
+        timeoutId = window.setTimeout(tick, 1500);
+        return;
+      }
+
+      if (isDeleting && charIndex > 0) {
+        charIndex -= 1;
+        timeoutId = window.setTimeout(tick, 32);
+        return;
+      }
+
+      isDeleting = false;
+      phraseIndex = (phraseIndex + 1) % placeholderExamples.length;
+      timeoutId = window.setTimeout(tick, 240);
+    };
+
+    tick();
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [query]);
+
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     callOriginal("handleSearch", event);
+  };
+
+  const handleExampleClick = (text: string) => {
+    setQuery(text);
+    setSearch(text);
   };
 
   return (
@@ -64,11 +125,14 @@ function HomeHero({
                 {initialProfile.skin} · {initialProfile.sensitivity}
               </button>
               <input
-                defaultValue={initialQuery}
                 id="searchInput"
+                onChange={(event) => setQuery(event.target.value)}
+                onClick={() => callOriginal("openSearchSuggestions")}
+                onFocus={() => callOriginal("openSearchSuggestions")}
                 onKeyDown={handleSearchKey}
-                placeholder="모공이 넓고 번들거려요"
+                placeholder={placeholder}
                 type="text"
+                value={query}
               />
               <button className="search-btn" onClick={() => callOriginal("doSearch")} type="button">
                 <svg
@@ -160,16 +224,16 @@ function HomeHero({
           </div>
 
           <div className="search-examples">
-            <span className="example-chip" onClick={() => setSearch("모공이 넓고 피지가 많아요")}>
+            <span className="example-chip" onClick={() => handleExampleClick("모공이 넓고 피지가 많아요")}>
               모공이 넓고 피지가 많아요
             </span>
-            <span className="example-chip" onClick={() => setSearch("건조하고 주름이 걱정돼요")}>
+            <span className="example-chip" onClick={() => handleExampleClick("건조하고 주름이 걱정돼요")}>
               건조하고 주름이 걱정돼요
             </span>
-            <span className="example-chip" onClick={() => setSearch("색소침착과 잡티가 있어요")}>
+            <span className="example-chip" onClick={() => handleExampleClick("색소침착과 잡티가 있어요")}>
               색소침착과 잡티가 있어요
             </span>
-            <span className="example-chip" onClick={() => setSearch("민감하고 자주 붉어져요")}>
+            <span className="example-chip" onClick={() => handleExampleClick("민감하고 자주 붉어져요")}>
               민감하고 자주 붉어져요
             </span>
           </div>
