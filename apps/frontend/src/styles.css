@@ -174,15 +174,28 @@ body {
 }
 
 .home-section-stack .product-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.42;
   overflow: hidden;
+  background: #f2f6f7;
 }
 
 .home-section-stack .product-photo,
 .home-ranking-media img,
 .home-deal-media img {
+  display: block;
   transform: scale(1);
   transition: transform 260ms ease;
   will-change: transform;
+}
+
+.home-section-stack .product-photo {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  object-fit: cover;
+  object-position: center bottom;
 }
 
 .home-section-stack .product-card-hit:hover .product-photo,
@@ -290,7 +303,7 @@ body {
 
 .home-ranking-rail {
   display: grid;
-  grid-auto-columns: calc((100% - 96px) / 5);
+  grid-auto-columns: minmax(0, calc((100% - 96px) / 5));
   grid-auto-flow: column;
   gap: 24px;
   width: 100%;
@@ -300,7 +313,7 @@ body {
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  padding: 10px 0 8px;
+  padding: 8px 2px;
 }
 
 .home-ranking-rail::-webkit-scrollbar {
@@ -315,9 +328,8 @@ body {
 
 .home-ranking-visual {
   position: relative;
-  width: min(210px, 100%);
+  width: min(202px, 100%);
   margin: 0 auto 15px;
-  padding-top: 24px;
 }
 
 .home-ranking-media {
@@ -341,18 +353,18 @@ body {
 
 .home-rank-badge {
   position: absolute;
-  top: 10px;
-  left: 4px;
+  top: 20px;
+  left: 18px;
   z-index: 2;
   display: inline-grid;
   place-items: center;
-  min-width: 48px;
-  height: 48px;
-  padding: 0 12px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 10px;
   border-radius: 999px;
   background: var(--mint);
   color: #063445;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   box-shadow: 0 8px 18px rgba(34, 154, 194, 0.18);
 }
@@ -1553,8 +1565,16 @@ html[data-app-mode="community"] .search-results-shell {
     gap: 18px;
   }
 
-  .home-ranking-media {
-    width: min(190px, 100%);
+  .home-ranking-visual {
+    width: min(176px, 100%);
+  }
+
+  .home-rank-badge {
+    top: 16px;
+    left: 16px;
+    min-width: 38px;
+    height: 38px;
+    font-size: 14px;
   }
 
   .home-rail-btn {
