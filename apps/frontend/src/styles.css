@@ -1242,19 +1242,80 @@ html[data-app-mode="community"] .search-results-shell {
   margin-bottom: 12px;
 }
 
-.detail-page .ingredient-sheet {
-  color: var(--ink);
-  font-size: 14px;
+.ingredient-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: none;
+  background: rgba(0, 0, 0, 0.34);
 }
 
-.detail-page .ingredient-sheet-head {
+.ingredient-sheet-backdrop.open {
+  display: block;
+}
+
+.ingredient-sheet {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 181;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 64px));
+  padding: 28px;
+  overflow-y: auto;
+  border-radius: 22px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 14px;
+  box-shadow: 0 28px 90px rgba(20, 34, 40, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -48%) scale(0.96);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.ingredient-sheet.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.ingredient-sheet-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f7f7;
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ingredient-sheet-handle {
+  display: none;
+  width: 68px;
+  height: 6px;
+  margin: 0 auto 22px;
+  border-radius: 999px;
+  background: #d9dddd;
+}
+
+.ingredient-sheet-head {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: start;
+  padding-right: 34px;
 }
 
-.detail-page .ingredient-sheet-icon {
+.ingredient-sheet-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1267,7 +1328,7 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 700;
 }
 
-.detail-page .ingredient-sheet-head h3 {
+.ingredient-sheet-head h3 {
   margin: 0 0 4px;
   color: var(--ink);
   font-size: 17px;
@@ -1275,7 +1336,7 @@ html[data-app-mode="community"] .search-results-shell {
   line-height: 1.35;
 }
 
-.detail-page .ingredient-sheet-head p {
+.ingredient-sheet-head p {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
@@ -1283,40 +1344,49 @@ html[data-app-mode="community"] .search-results-shell {
   line-height: 1.5;
 }
 
-.detail-page .ingredient-sheet-head > strong {
+.ingredient-sheet-head > strong {
   color: var(--ink);
   font-size: 15px;
   font-weight: 700;
 }
 
-.detail-page .ingredient-sheet-list {
+.ingredient-sheet-list {
   display: grid;
   gap: 10px;
   margin-top: 18px;
 }
 
-.detail-page .ingredient-sheet-item {
+.ingredient-sheet-item {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   gap: 10px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
+  align-items: start;
+  padding: 13px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: #f7fafb;
 }
 
-.detail-page .ingredient-sheet-item > span {
+.ingredient-sheet-item > span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #e9faff;
   color: #25a8ca;
   font-size: 12px;
   font-weight: 700;
 }
 
-.detail-page .ingredient-sheet-item strong {
+.ingredient-sheet-item strong {
   color: var(--ink);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
 }
 
-.detail-page .ingredient-sheet-item p {
+.ingredient-sheet-item p {
   margin-top: 4px;
   color: var(--ink2);
   font-size: 13px;
@@ -1482,6 +1552,30 @@ html[data-app-mode="community"] .search-results-shell {
   .search-product-card .search-result-side .product-price-row {
     justify-content: flex-start;
     text-align: left;
+  }
+
+  .ingredient-sheet {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-height: 78vh;
+    padding: 22px 24px 28px;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+  }
+
+  .ingredient-sheet.open {
+    transform: translateY(0);
+  }
+
+  .ingredient-sheet-handle {
+    display: block;
+  }
+
+  .ingredient-sheet-close {
+    display: none;
   }
 
   .detail-loading {

@@ -121,6 +121,19 @@ function ProductDetailSpaPage() {
   }, []);
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedEffect(null);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    setSelectedEffect(null);
+  }, [productId]);
+
+  useEffect(() => {
     if (!productId) {
       setErrorMessage("상품 정보를 찾을 수 없습니다.");
       setIsLoading(false);
@@ -676,6 +689,7 @@ function ProductDetailSpaPage() {
             id="ingredientSheet"
             aria-hidden="false"
             aria-labelledby="ingredientSheetTitle"
+            role="dialog"
           >
             <button className="ingredient-sheet-close" type="button" aria-label="닫기" onClick={() => setSelectedEffect(null)}>
               ×
