@@ -247,6 +247,30 @@ header .btn-login:hover {
   display: grid;
 }
 
+.cart-image-empty,
+.complete-image-empty {
+  display: grid;
+  place-items: center;
+  border: 1px solid #edf1f3;
+  background: #f7fbfc;
+  color: var(--muted);
+  font-size: var(--fs-12);
+  font-weight: 700;
+  text-align: center;
+}
+
+.cart-image-empty {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--r-sm);
+}
+
+.complete-image-empty {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-sm);
+}
+
 .detail-page .detail-title,
 .detail-page .review-item p,
 .detail-page .evidence-card p {
@@ -260,7 +284,8 @@ header .btn-login:hover {
 }
 
 .detail-page .effect-toggle-row {
-  cursor: default;
+  width: 100%;
+  cursor: pointer;
 }
 
 .detail-page .source-chip strong {

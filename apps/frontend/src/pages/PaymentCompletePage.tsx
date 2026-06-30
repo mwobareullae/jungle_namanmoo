@@ -33,15 +33,15 @@ const fallbackProducts: Record<string, CompleteProduct> = {
 
 const formatWon = (value: number) =>
   value > 0 ? `${value.toLocaleString("ko-KR")}원` : "결제금액 확인 중";
-const transparentImage =
-  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-
 const getCompleteParams = () => {
   const params = new URLSearchParams(window.location.search);
   return {
     id: params.get("id") ?? "10",
     total: Number(params.get("total") ?? 0),
     count: Number(params.get("count") ?? 1),
+    recommendationId: params.get("recommendation_id") ?? undefined,
+    skinType: params.get("skin_type") ?? "",
+    sensitivity: params.get("sensitivity") ?? "",
   };
 };
 
@@ -53,7 +53,7 @@ const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => 
 });
 
 function PaymentCompletePage() {
-  const [{ id, total, count }] = useState(getCompleteParams);
+  const [{ id, total, count, recommendationId, skinType, sensitivity }] = useState(getCompleteParams);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
   const orderNo = useMemo(() => `MWB-${String(Date.now()).slice(-8)}`, []);
 
@@ -76,6 +76,10 @@ function PaymentCompletePage() {
 
   const product = apiProduct ?? fallbackProducts[id] ?? fallbackProducts["10"];
   const productName = count > 1 ? `${product.name} 외 ${count - 1}개` : product.name;
+  const detailParams = new URLSearchParams({ id: product.id });
+  if (recommendationId) detailParams.set("recommendation_id", recommendationId);
+  if (skinType) detailParams.set("skin_type", skinType);
+  if (sensitivity) detailParams.set("sensitivity", sensitivity);
 
   return (
     <>
@@ -116,11 +120,17 @@ function PaymentCompletePage() {
             <section className="complete-card">
               <h2>주문 상품</h2>
               <div className="complete-product">
-                <img
-                  id="productImage"
-                  src={product.image || transparentImage}
-                  alt={`${product.brand} ${product.name}`}
-                />
+                {product.image ? (
+                  <img
+                    id="productImage"
+                    src={product.image}
+                    alt={`${product.brand} ${product.name}`}
+                  />
+                ) : (
+                  <div className="complete-image-empty" id="productImage">
+                    이미지 준비중
+                  </div>
+                )}
                 <div>
                   <div className="complete-brand" id="productBrand">{product.brand}</div>
                   <div className="complete-name" id="productName">{productName}</div>
@@ -131,7 +141,7 @@ function PaymentCompletePage() {
 
           <div className="complete-actions">
             <a className="complete-btn" href="/">쇼핑 계속하기</a>
-            <a className="complete-btn primary" href={`/product-detail?id=${encodeURIComponent(product.id)}`}>상품 다시 보기</a>
+            <a className="complete-btn primary" href={`/product-detail?${detailParams.toString()}`}>상품 다시 보기</a>
           </div>
         </section>
       </main>

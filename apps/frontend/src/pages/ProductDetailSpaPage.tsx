@@ -54,6 +54,11 @@ function ProductDetailSpaPage() {
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState(window.location.hash || "#summary");
+  const [selectedEffect, setSelectedEffect] = useState<{
+    icon: string;
+    label: string;
+    items: IngredientEvidence[];
+  } | null>(null);
 
   useEffect(() => installHomeRuntime(), []);
 
@@ -320,12 +325,17 @@ function ProductDetailSpaPage() {
                         <>
                           <div className="effect-toggle-title">목적별 성분</div>
                           {detailData.effectGroups.map((group) => (
-                            <div className="effect-toggle-row" key={group.effect}>
+                            <button
+                              className="effect-toggle-row"
+                              type="button"
+                              onClick={() => setSelectedEffect(group)}
+                              key={group.effect}
+                            >
                               <span className="effect-toggle-icon">{group.icon}</span>
                               <span>{group.label}</span>
                               <strong>{group.items.length}</strong>
                               <span className="effect-toggle-caret">⌄</span>
-                            </div>
+                            </button>
                           ))}
                         </>
                       ) : null}
@@ -461,6 +471,42 @@ function ProductDetailSpaPage() {
           </>
         ) : null}
       </main>
+
+      <div
+        className={`ingredient-sheet-backdrop${selectedEffect ? " open" : ""}`}
+        id="ingredientSheetBackdrop"
+        onClick={() => setSelectedEffect(null)}
+      />
+      <aside
+        className={`ingredient-sheet${selectedEffect ? " open" : ""}`}
+        id="ingredientSheet"
+        aria-hidden={selectedEffect ? "false" : "true"}
+        aria-labelledby="ingredientSheetTitle"
+      >
+        <button className="ingredient-sheet-close" type="button" aria-label="닫기" onClick={() => setSelectedEffect(null)}>
+          ×
+        </button>
+        <div className="ingredient-sheet-handle" />
+        <div className="ingredient-sheet-head">
+          <div className="ingredient-sheet-icon" id="ingredientSheetIcon">{selectedEffect?.icon ?? "•"}</div>
+          <div>
+            <h3 id="ingredientSheetTitle">{selectedEffect?.label ?? "효능 성분"}</h3>
+            <p id="ingredientSheetDescription">해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.</p>
+          </div>
+          <strong id="ingredientSheetCount">{selectedEffect?.items.length ?? 0}</strong>
+        </div>
+        <div className="ingredient-sheet-list" id="ingredientSheetList">
+          {selectedEffect?.items.map((item, index) => (
+            <div className="ingredient-sheet-item" key={`${item.ingredient_name}-${item.source_title}-${index}`}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{item.ingredient_name || "성분"}</strong>
+                <p>{item.evidence_text || item.source_title || "성분 효능 근거를 확인했습니다."}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
     </>
   );
 }

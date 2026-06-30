@@ -44,15 +44,14 @@ const fallbackProducts: OrderProduct[] = [
 ];
 
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
-const transparentImage =
-  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-
 const getCheckoutParams = () => {
   const params = new URLSearchParams(window.location.search);
   return {
     selectedId: params.get("id") ?? "",
     mode: params.get("mode") ?? "cart",
     recommendationId: params.get("recommendation_id") ?? undefined,
+    skinType: params.get("skin_type") ?? "",
+    sensitivity: params.get("sensitivity") ?? "",
   };
 };
 
@@ -67,7 +66,7 @@ const mapDetailToOrderProduct = (product: ProductDetail): OrderProduct => ({
 });
 
 function CheckoutPage() {
-  const [{ selectedId, mode, recommendationId }] = useState(getCheckoutParams);
+  const [{ selectedId, mode, recommendationId, skinType, sensitivity }] = useState(getCheckoutParams);
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("간편결제");
 
@@ -103,7 +102,15 @@ function CheckoutPage() {
 
   const handlePayment = () => {
     const representative = items[0] ?? fallbackProducts[0];
-    window.location.href = `/payment-complete?id=${encodeURIComponent(representative.id)}&total=${total}&count=${items.length}`;
+    const params = new URLSearchParams({
+      id: representative.id,
+      total: String(total),
+      count: String(items.length),
+    });
+    if (recommendationId) params.set("recommendation_id", recommendationId);
+    if (skinType) params.set("skin_type", skinType);
+    if (sensitivity) params.set("sensitivity", sensitivity);
+    window.location.href = `/payment-complete?${params.toString()}`;
   };
 
   return (
@@ -135,7 +142,13 @@ function CheckoutPage() {
                 <div id="cartItems">
                   {items.map((item) => (
                     <div className="cart-line" key={item.id}>
-                      <img src={item.image || transparentImage} alt={`${item.brand} ${item.name}`} />
+                      {item.image ? (
+                        <img src={item.image} alt={`${item.brand} ${item.name}`} />
+                      ) : (
+                        <div className="cart-image-empty" aria-label={`${item.brand} ${item.name} 이미지 준비중`}>
+                          이미지 준비중
+                        </div>
+                      )}
                       <div>
                         <div className="cart-brand">{item.brand}</div>
                         <div className="cart-name">{item.name}</div>
