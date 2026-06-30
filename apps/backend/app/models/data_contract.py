@@ -73,9 +73,9 @@ class IngredientEffectRange:
     ingredient_id: str
     effect_id: str
     unit: str
-    meaningful_min: float
-    optimal_min: float
-    optimal_max: float
+    meaningful_min: float | None
+    optimal_min: float | None
+    optimal_max: float | None
     excessive_min: float | None
     range_confidence: str
     source_type: str
