@@ -60,6 +60,39 @@ export type ProductCardItem = {
   score_breakdown?: ScoreBreakdown;
 };
 
+export type HomeSectionProduct = {
+  product_id: string;
+  brand: string;
+  name: string;
+  category_code: string;
+  category_name: string;
+  thumbnail_url: string | null;
+  lowest_price: number | null;
+  original_price: number | null;
+  discount_rate: number | null;
+  purchase_url: string | null;
+  badges: string[];
+  tags: string[];
+  reason_summary: string;
+  display_score: number;
+};
+
+export type HomeSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  algorithm: string;
+  products: HomeSectionProduct[];
+};
+
+export type HomeSectionsResponse = {
+  skin_type: string;
+  sensitivity: string;
+  category_code: string | null;
+  sections: HomeSection[];
+};
+
 export type RecommendationSummary = {
   concern_text: string;
   skin_type: string;

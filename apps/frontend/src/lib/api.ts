@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  HomeSectionsResponse,
   ProductCardItem,
   ProductDetail,
   PurchaseConstraints,
@@ -10,6 +11,12 @@ import type {
 
 type RecommendationApi = {
   createRecommendation: (request: RecommendationRequest) => Promise<RecommendationResponse>;
+  getHomeSections: (params?: {
+    skinType?: string;
+    sensitivity?: string;
+    categoryCode?: string | null;
+    limitPerSection?: number;
+  }) => Promise<HomeSectionsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
 };
 
@@ -118,6 +125,8 @@ type BackendProductDetailResponse = {
     source_type: string;
   }[];
 };
+
+type BackendHomeSectionsResponse = HomeSectionsResponse;
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
@@ -278,6 +287,20 @@ export const api: RecommendationApi = {
       body: JSON.stringify(request)
     });
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+  },
+
+  async getHomeSections(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.skinType) searchParams.set("skin_type", params.skinType);
+    if (params.sensitivity) searchParams.set("sensitivity", params.sensitivity);
+    if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
+    if (params.limitPerSection) searchParams.set("limit_per_section", String(params.limitPerSection));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/home/sections${query ? `?${query}` : ""}`
+    );
+    return parseJson<BackendHomeSectionsResponse>(response);
   },
 
   async getProduct(productId, recommendationId) {

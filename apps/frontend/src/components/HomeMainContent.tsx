@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
-import type { RecommendationResponse, Sensitivity, SkinType } from "../types/recommendation";
+import type {
+  HomeSection,
+  HomeSectionProduct,
+  ProductCardItem,
+  RecommendationResponse,
+  Sensitivity,
+  SkinType,
+} from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 
 const categoryTabs = [
@@ -15,6 +22,20 @@ const categoryTabs = [
 ] as const;
 
 const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
+
+const mapHomeProductToCard = (product: HomeSectionProduct, index: number): ProductCardItem => ({
+  product_id: product.product_id,
+  rank: index + 1,
+  total_score: product.display_score,
+  reason_summary: product.reason_summary,
+  brand: product.brand,
+  name: product.name,
+  thumbnail_url: product.thumbnail_url,
+  lowest_price: product.lowest_price,
+  evidence_tags: product.tags,
+  key_ingredients: product.tags,
+  risk_flags: [],
+});
 
 type HomeSearchEvent = CustomEvent<{
   query: string;
@@ -46,6 +67,10 @@ function HomeMainContent({
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [homeSection, setHomeSection] = useState<HomeSection | null>(null);
+  const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
+  const [homeSectionError, setHomeSectionError] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -105,6 +130,37 @@ function HomeMainContent({
     }
   }, [initialProfile, initialQuery, runSearch]);
 
+  useEffect(() => {
+    if (!showDefaultSection) return;
+
+    let isMounted = true;
+    setIsHomeSectionLoading(true);
+    setHomeSectionError("");
+
+    api.getHomeSections({
+      skinType: initialProfile.skin,
+      sensitivity: initialProfile.sensitivity,
+      categoryCode: activeCategory === "all" ? null : activeCategory,
+      limitPerSection: 10,
+    })
+      .then((response) => {
+        if (!isMounted) return;
+        setHomeSection(response.sections[0] ?? null);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setHomeSection(null);
+        setHomeSectionError("인기 상품을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (isMounted) setIsHomeSectionLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCategory, initialProfile.sensitivity, initialProfile.skin, showDefaultSection]);
+
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
     return [...products].sort((a, b) => {
@@ -115,6 +171,7 @@ function HomeMainContent({
   }, [recommendation, sortType]);
 
   const products = recommendation?.products ?? [];
+  const homeProducts = homeSection?.products.map(mapHomeProductToCard) ?? [];
   const isFallbackResult = recommendation?.recommendation_id === "fallback-original-design";
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
 
@@ -254,8 +311,10 @@ function HomeMainContent({
         <div className="section-header">
           <div>
             <div className="sec-eyebrow">Best Sellers</div>
-            <div className="section-title">지금 인기있는 제품</div>
-            <div className="section-subtitle">실시간 인기와 성분 근거를 함께 본 베스트셀러</div>
+            <div className="section-title">{homeSection?.title ?? "지금 인기있는 제품"}</div>
+            <div className="section-subtitle">
+              {homeSection?.subtitle ?? "실시간 인기와 성분 근거를 함께 본 베스트셀러"}
+            </div>
           </div>
           <a className="see-all" href="/#defaultSection">
             전체보기
@@ -265,9 +324,9 @@ function HomeMainContent({
         <div className="cat-tabs">
           {categoryTabs.map(([label, category]) => (
             <button
-              className={`cat-tab${category === "all" ? " active" : ""}`}
+              className={`cat-tab${category === activeCategory ? " active" : ""}`}
               key={category}
-              onClick={(event) => callOriginal("filterCat", event.currentTarget, category)}
+              onClick={() => setActiveCategory(category)}
               type="button"
             >
               {label}
@@ -276,7 +335,17 @@ function HomeMainContent({
         </div>
 
         <div className="product-grid" id="defaultProductGrid">
-          <div className="empty-state">추천 검색을 시작하면 상품이 표시됩니다.</div>
+          {isHomeSectionLoading ? (
+            <div className="empty-state">인기 상품을 불러오는 중입니다.</div>
+          ) : homeSectionError ? (
+            <div className="empty-state">{homeSectionError}</div>
+          ) : homeProducts.length ? (
+            homeProducts.map((product) => (
+              <HomeProductCard key={product.product_id} product={product} />
+            ))
+          ) : (
+            <div className="empty-state">표시할 상품이 없습니다.</div>
+          )}
         </div>
       </div>
     </main>
