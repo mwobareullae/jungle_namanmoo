@@ -122,6 +122,21 @@ body {
   cursor: pointer;
 }
 
+.home-section-stack {
+  display: grid;
+  gap: 48px;
+}
+
+.home-api-section {
+  display: grid;
+  gap: 18px;
+}
+
+.home-api-section + .home-api-section {
+  padding-top: 10px;
+  border-top: 1px solid #eef2f4;
+}
+
 .search-product-card .product-info,
 .search-product-card .search-result-side {
   min-width: 0;

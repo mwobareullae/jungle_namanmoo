@@ -124,7 +124,7 @@ function HomeMainContent({
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [homeSection, setHomeSection] = useState<HomeSection | null>(null);
+  const [homeSections, setHomeSections] = useState<HomeSection[]>([]);
   const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
   const [homeSectionError, setHomeSectionError] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -228,11 +228,11 @@ function HomeMainContent({
     })
       .then((response) => {
         if (!isMounted) return;
-        setHomeSection(response.sections[0] ?? null);
+        setHomeSections(response.sections);
       })
       .catch(() => {
         if (!isMounted) return;
-        setHomeSection(null);
+        setHomeSections([]);
         setHomeSectionError("인기 상품을 불러오지 못했습니다.");
       })
       .finally(() => {
@@ -254,7 +254,6 @@ function HomeMainContent({
   }, [recommendation, sortType]);
 
   const products = recommendation?.products ?? [];
-  const homeProducts = homeSection?.products.map(mapHomeProductToCard) ?? [];
   const pagination = recommendation?.pagination ?? createFallbackPagination(products.length);
   const isFallbackResult = recommendation?.recommendation_id === "fallback-original-design";
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
@@ -433,19 +432,6 @@ function HomeMainContent({
       </div>
 
       <div id="defaultSection" style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}>
-        <div className="section-header">
-          <div>
-            <div className="sec-eyebrow">Best Sellers</div>
-            <div className="section-title">{homeSection?.title ?? "지금 인기있는 제품"}</div>
-            <div className="section-subtitle">
-              {homeSection?.subtitle ?? "실시간 인기와 성분 근거를 함께 본 베스트셀러"}
-            </div>
-          </div>
-          <a className="see-all" href="/#defaultSection">
-            전체보기
-          </a>
-        </div>
-
         <div className="cat-tabs">
           {categoryTabs.map(([label, category]) => (
             <button
@@ -459,19 +445,55 @@ function HomeMainContent({
           ))}
         </div>
 
-        <div className="product-grid" id="defaultProductGrid">
-          {isHomeSectionLoading ? (
-            <ProductSkeletonList count={6} />
-          ) : homeSectionError ? (
-            <div className="empty-state">{homeSectionError}</div>
-          ) : homeProducts.length ? (
-            homeProducts.map((product) => (
-              <HomeProductCard key={product.product_id} product={product} />
-            ))
-          ) : (
-            <div className="empty-state">표시할 상품이 없습니다.</div>
-          )}
-        </div>
+        {isHomeSectionLoading ? (
+          <section className="home-api-section">
+            <div className="section-header">
+              <div>
+                <div className="sec-eyebrow">Best Sellers</div>
+                <div className="section-title">상품 섹션을 불러오는 중입니다</div>
+                <div className="section-subtitle">피부 조건에 맞는 섹션을 준비하고 있습니다</div>
+              </div>
+            </div>
+            <div className="product-grid" id="defaultProductGrid">
+              <ProductSkeletonList count={6} />
+            </div>
+          </section>
+        ) : homeSectionError ? (
+          <div className="empty-state">{homeSectionError}</div>
+        ) : homeSections.length ? (
+          <div className="home-section-stack">
+            {homeSections.map((section, sectionIndex) => {
+              const sectionProducts = section.products.map(mapHomeProductToCard);
+              return (
+                <section className="home-api-section" key={section.section_id || sectionIndex}>
+                  <div className="section-header">
+                    <div>
+                      <div className="sec-eyebrow">
+                        {section.section_type || section.algorithm || "Best Sellers"}
+                      </div>
+                      <div className="section-title">{section.title}</div>
+                      <div className="section-subtitle">{section.subtitle}</div>
+                    </div>
+                    <a className="see-all" href="/#defaultSection">
+                      전체보기
+                    </a>
+                  </div>
+                  <div className="product-grid">
+                    {sectionProducts.length ? (
+                      sectionProducts.map((product) => (
+                        <HomeProductCard key={product.product_id} product={product} />
+                      ))
+                    ) : (
+                      <div className="empty-state">표시할 상품이 없습니다.</div>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">표시할 섹션이 없습니다.</div>
+        )}
       </div>
     </main>
   );
