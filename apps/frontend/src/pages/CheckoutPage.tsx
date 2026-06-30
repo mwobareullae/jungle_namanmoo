@@ -13,6 +13,8 @@ type OrderProduct = {
   chips: string[];
 };
 
+type ProductLoadState = "idle" | "loading" | "success" | "fallback";
+
 const fallbackProducts: OrderProduct[] = [
   {
     id: "10",
@@ -68,18 +70,27 @@ const mapDetailToOrderProduct = (product: ProductDetail): OrderProduct => ({
 function CheckoutPage() {
   const [{ selectedId, mode, recommendationId, skinType, sensitivity }] = useState(getCheckoutParams);
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
+  const [productLoadState, setProductLoadState] = useState<ProductLoadState>(selectedId ? "loading" : "idle");
   const [paymentMethod, setPaymentMethod] = useState("간편결제");
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      setProductLoadState("idle");
+      return;
+    }
 
     let isMounted = true;
+    setProductLoadState("loading");
     api.getProduct(selectedId, recommendationId)
       .then((product) => {
-        if (isMounted) setApiProduct(mapDetailToOrderProduct(product));
+        if (!isMounted) return;
+        setApiProduct(mapDetailToOrderProduct(product));
+        setProductLoadState("success");
       })
       .catch(() => {
-        if (isMounted) setApiProduct(null);
+        if (!isMounted) return;
+        setApiProduct(null);
+        setProductLoadState("fallback");
       });
 
     return () => {
@@ -87,13 +98,15 @@ function CheckoutPage() {
     };
   }, [recommendationId, selectedId]);
 
+  const isResolvingProduct = Boolean(selectedId) && productLoadState === "loading";
   const items = useMemo(() => {
+    if (isResolvingProduct) return [];
     if (selectedId) {
       const fallback = fallbackProducts.find((product) => product.id === selectedId);
       return [apiProduct ?? fallback ?? fallbackProducts[0]];
     }
     return fallbackProducts;
-  }, [apiProduct, selectedId]);
+  }, [apiProduct, isResolvingProduct, selectedId]);
 
   const subtotal = items.reduce((sum, item) => sum + item.original, 0);
   const total = items.reduce((sum, item) => sum + item.price, 0);
@@ -137,9 +150,17 @@ function CheckoutPage() {
               <section className="checkout-card">
                 <div className="checkout-card-head">
                   <h2>주문 상품</h2>
-                  <span id="cartCountLabel">상품 {items.length}개</span>
+                  <span id="cartCountLabel">
+                    {isResolvingProduct ? "상품 확인 중" : `상품 ${items.length}개`}
+                  </span>
                 </div>
                 <div id="cartItems">
+                  {isResolvingProduct ? (
+                    <div className="checkout-empty-state">주문 상품 정보를 불러오는 중입니다.</div>
+                  ) : null}
+                  {!isResolvingProduct && productLoadState === "fallback" ? (
+                    <div className="checkout-empty-state">API 응답 전 원본 샘플 상품으로 주문서를 표시 중입니다.</div>
+                  ) : null}
                   {items.map((item) => (
                     <div className="cart-line" key={item.id}>
                       {item.image ? (
@@ -233,7 +254,7 @@ function CheckoutPage() {
                 <span>총 결제금액</span>
                 <strong id="summaryTotal">{formatWon(total)}</strong>
               </div>
-              <button className="checkout-btn-main" type="button" onClick={handlePayment}>결제하기</button>
+              <button className="checkout-btn-main" type="button" onClick={handlePayment} disabled={isResolvingProduct || items.length === 0}>결제하기</button>
               <p className="summary-note">결제하기를 누르면 주문 내용을 확인한 것으로 간주됩니다. 실제 결제는 연결되지 않은 시안 화면입니다.</p>
             </aside>
           </div>
@@ -245,7 +266,7 @@ function CheckoutPage() {
           <span>총 결제금액</span>
           <strong id="mobileTotal">{formatWon(total)}</strong>
         </div>
-        <button className="checkout-btn-main" type="button" onClick={handlePayment}>결제하기</button>
+        <button className="checkout-btn-main" type="button" onClick={handlePayment} disabled={isResolvingProduct || items.length === 0}>결제하기</button>
       </div>
     </>
   );

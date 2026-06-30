@@ -59,7 +59,7 @@ function PaymentCompletePage() {
 
   useEffect(() => {
     let isMounted = true;
-    api.getProduct(id)
+    api.getProduct(id, recommendationId)
       .then((product) => {
         if (isMounted) setApiProduct(mapDetailToCompleteProduct(product));
       })
@@ -70,7 +70,7 @@ function PaymentCompletePage() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, recommendationId]);
 
   const product = apiProduct ?? fallbackProducts[id] ?? fallbackProducts["10"];
   const productName = count > 1 ? `${product.name} 외 ${count - 1}개` : product.name;

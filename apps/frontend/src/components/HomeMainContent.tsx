@@ -115,6 +115,7 @@ function HomeMainContent({
   }, [recommendation, sortType]);
 
   const products = recommendation?.products ?? [];
+  const isFallbackResult = recommendation?.recommendation_id === "fallback-original-design";
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
 
   return (
@@ -176,7 +177,12 @@ function HomeMainContent({
                 <option value="price-high">가격 높은순</option>
               </select>
             </div>
-            <div className={`api-result-summary${recommendation?.unmatched_terms.length ? " active" : ""}`} id="apiResultSummary">
+            <div className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`} id="apiResultSummary">
+              {isFallbackResult ? (
+                <span className="api-summary-chip warning">
+                  API 응답 전 원본 샘플 결과를 표시 중입니다
+                </span>
+              ) : null}
               {recommendation?.unmatched_terms.map((term) => (
                 <span className="api-summary-chip warning" key={term}>
                   추가 확인 필요: {term}

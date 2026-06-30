@@ -161,6 +161,6 @@ export const createFallbackRecommendation = (
       price_max_text: null,
     },
   },
-  unmatched_terms: ["API 미연결로 원본 샘플 결과를 표시 중입니다"],
+  unmatched_terms: [],
   products: fallbackProductCards,
 });
