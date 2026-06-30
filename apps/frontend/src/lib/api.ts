@@ -1,15 +1,35 @@
 import type {
   ApiError,
+  HomeSectionsResponse,
   ProductCardItem,
   ProductDetail,
   PurchaseConstraints,
+  RecommendationNarrativeRequest,
+  RecommendationNarrativeResponse,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
 } from "../types/recommendation";
 
 type RecommendationApi = {
-  createRecommendation: (request: RecommendationRequest) => Promise<RecommendationResponse>;
+  createRecommendation: (
+    request: RecommendationRequest,
+    params?: { page?: number; pageSize?: number }
+  ) => Promise<RecommendationResponse>;
+  getRecommendation: (
+    recommendationId: string,
+    params?: { page?: number; pageSize?: number }
+  ) => Promise<RecommendationResponse>;
+  createRecommendationNarrative: (
+    recommendationId: string,
+    request?: RecommendationNarrativeRequest
+  ) => Promise<RecommendationNarrativeResponse>;
+  getHomeSections: (params?: {
+    skinType?: string;
+    sensitivity?: string;
+    categoryCode?: string | null;
+    limitPerSection?: number;
+  }) => Promise<HomeSectionsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
 };
 
@@ -23,6 +43,9 @@ type BackendErrorResponse = {
 type BackendScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  concentration_fit_score?: number;
+  concentration_bucket?: string | null;
+  concentration_warning?: string | null;
   skin_type_score: number;
   price_score: number;
   keyword_score?: number;
@@ -75,6 +98,14 @@ type BackendRecommendationResponse = {
   };
   unmatched_terms: string[];
   products: BackendRecommendedProduct[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_items: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
 };
 
 type BackendProductDetailResponse = {
@@ -119,6 +150,8 @@ type BackendProductDetailResponse = {
   }[];
 };
 
+type BackendHomeSectionsResponse = HomeSectionsResponse;
+
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
   ""
@@ -143,6 +176,9 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
   return {
     ingredient_effect_score: score.ingredient_effect_score,
     ingredient_evidence_score: score.ingredient_evidence_score,
+    concentration_fit_score: score.concentration_fit_score ?? 50,
+    concentration_bucket: score.concentration_bucket ?? null,
+    concentration_warning: score.concentration_warning ?? null,
     skin_type_match_score: score.skin_type_score,
     price_value_score: score.price_score,
     keyword_score: score.keyword_score ?? 0,
@@ -179,7 +215,8 @@ const mapRecommendation = (response: BackendRecommendationResponse): Recommendat
     purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
   },
   unmatched_terms: response.unmatched_terms,
-  products: response.products.map(mapProductCard)
+  products: response.products.map(mapProductCard),
+  pagination: response.pagination
 });
 
 const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail => {
@@ -269,8 +306,13 @@ const parseJson = async <T>(response: Response): Promise<T> => {
 };
 
 export const api: RecommendationApi = {
-  async createRecommendation(request) {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations`, {
+  async createRecommendation(request, params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    const query = searchParams.toString();
+
+    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations${query ? `?${query}` : ""}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -278,6 +320,46 @@ export const api: RecommendationApi = {
       body: JSON.stringify(request)
     });
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+  },
+
+  async getRecommendation(recommendationId, params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
+    );
+    return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+  },
+
+  async createRecommendationNarrative(recommendationId, request = {}) {
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+      }
+    );
+    return parseJson<RecommendationNarrativeResponse>(response);
+  },
+
+  async getHomeSections(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.skinType) searchParams.set("skin_type", params.skinType);
+    if (params.sensitivity) searchParams.set("sensitivity", params.sensitivity);
+    if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
+    if (params.limitPerSection) searchParams.set("limit_per_section", String(params.limitPerSection));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/home/sections${query ? `?${query}` : ""}`
+    );
+    return parseJson<BackendHomeSectionsResponse>(response);
   },
 
   async getProduct(productId, recommendationId) {
