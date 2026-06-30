@@ -29,6 +29,10 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.products[0].product_id == "prod_001"
     assert catalog.products[0].category == "cream"
     assert catalog.products[0].skin_type_tags == ("건성", "중성", "수부지")
+    assert catalog.products[0].functional_cosmetic_status == "NOT_FUNCTIONAL"
+    assert catalog.products[0].functional_claim_confidence == "not_applicable"
+    assert catalog.products[1].functional_cosmetic_status == "FUNCTIONAL_CONFIRMED"
+    assert catalog.products[1].functional_claim_confidence == "unknown"
     assert catalog.product_prices[0].price == 19900
     assert catalog.product_prices[0].mall_name == "올리브영"
     assert catalog.product_prices[0].is_lowest is True

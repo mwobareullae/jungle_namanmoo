@@ -280,6 +280,11 @@ def _parse_product(row: dict[str, str], file_name: str, line_number: int) -> Pro
         skin_type_tags=_split_values(row.get("skin_type_tags", "")),
         thumbnail_url=_optional_text(row.get("thumbnail_url")),
         image_urls=_split_values(row.get("image_urls", "")),
+        functional_review_text=_optional_text(row.get("functional_review_text")),
+        functional_cosmetic_status=_optional_text(row.get("functional_cosmetic_status")),
+        functional_cosmetic_claims=_split_values(row.get("functional_cosmetic_claims", "")),
+        functional_claim_confidence=_optional_text(row.get("functional_claim_confidence")),
+        functional_claim_basis=_optional_text(row.get("functional_claim_basis")),
     )
 
 
