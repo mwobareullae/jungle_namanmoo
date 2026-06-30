@@ -1,3 +1,5 @@
+import HomeHeader from "../components/HomeHeader";
+
 type HomeSection = {
   id: string;
   html: string;
@@ -45,11 +47,15 @@ function HomePage({ bodyHtml }: HomePageProps) {
   return (
     <>
       {sections.map((section) => (
-        <div
-          className="spa-origin-section"
-          dangerouslySetInnerHTML={{ __html: section.html }}
-          key={section.id}
-        />
+        section.id === "header" ? (
+          <HomeHeader key={section.id} />
+        ) : (
+          <div
+            className="spa-origin-section"
+            dangerouslySetInnerHTML={{ __html: section.html }}
+            key={section.id}
+          />
+        )
       ))}
     </>
   );
