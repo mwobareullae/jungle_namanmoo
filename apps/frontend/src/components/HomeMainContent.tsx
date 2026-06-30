@@ -47,6 +47,25 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   risk_flags: [],
 });
 
+const formatPrice = (price: number | null) =>
+  price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
+
+const hasUsableImageUrl = (url: string | null) =>
+  Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
+
+const openProductDetail = (product: ProductCardItem) => {
+  window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
+};
+
+const scrollHomeRail = (railId: string, direction: "prev" | "next") => {
+  const rail = document.getElementById(railId);
+  if (!rail) return;
+  rail.scrollBy({
+    left: direction === "next" ? rail.clientWidth * 0.85 : -rail.clientWidth * 0.85,
+    behavior: "smooth",
+  });
+};
+
 function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
   return (
     <div className="search-loading-state" aria-live="polite">
@@ -87,6 +106,151 @@ function ProductSkeletonList({ count, variant = "home" }: { count: number; varia
         </div>
       ))}
     </>
+  );
+}
+
+function HomeRankingSection({
+  products,
+  section,
+  sectionIndex,
+}: {
+  products: ProductCardItem[];
+  section: HomeSection;
+  sectionIndex: number;
+}) {
+  const railId = `home-ranking-rail-${section.section_id || sectionIndex}`;
+  const visibleProducts = products.slice(0, 5);
+
+  return (
+    <section className="home-api-section home-ranking-section">
+      <div className="home-section-head">
+        <div>
+          <div className="section-title">{section.title}</div>
+          <div className="section-subtitle">{section.subtitle}</div>
+        </div>
+        <a className="home-see-all" href="/#defaultSection">
+          전체보기
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <div className="home-ranking-wrap">
+        <button
+          aria-label="이전 랭킹 상품"
+          className="home-rail-btn prev"
+          onClick={() => scrollHomeRail(railId, "prev")}
+          type="button"
+        >
+          ‹
+        </button>
+        <div className="home-ranking-rail" id={railId}>
+          {visibleProducts.map((product, index) => {
+            const hasImage = hasUsableImageUrl(product.thumbnail_url);
+            return (
+              <article
+                aria-label={`${product.brand} ${product.name} 상세 보기`}
+                className="home-ranking-card"
+                key={product.product_id}
+                onClick={() => openProductDetail(product)}
+                role="link"
+                tabIndex={0}
+              >
+                <div className="home-ranking-media">
+                  <span className="home-rank-badge">{product.rank || index + 1}</span>
+                  {hasImage ? (
+                    <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+                  ) : (
+                    <div className="home-rank-empty">이미지 준비중</div>
+                  )}
+                </div>
+                <div className="home-ranking-brand">{product.brand}</div>
+                <div className="home-ranking-name">{product.name}</div>
+                <div className="home-ranking-price">{formatPrice(product.lowest_price)}</div>
+                <div className="home-ranking-reason">{product.reason_summary}</div>
+              </article>
+            );
+          })}
+        </div>
+        <button
+          aria-label="다음 랭킹 상품"
+          className="home-rail-btn next"
+          onClick={() => scrollHomeRail(railId, "next")}
+          type="button"
+        >
+          ›
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function HomeDealSection({
+  products,
+  section,
+  sectionIndex,
+}: {
+  products: ProductCardItem[];
+  section: HomeSection;
+  sectionIndex: number;
+}) {
+  const visibleProducts = products.slice(0, 8);
+  const toneClass = sectionIndex % 2 === 0 ? "tone-soft" : "tone-mint";
+
+  return (
+    <section className={`home-api-section home-deal-section ${toneClass}`}>
+      <div className="home-section-head">
+        <div>
+          <div className="section-title">{section.title}</div>
+          <div className="section-subtitle">{section.subtitle}</div>
+        </div>
+        <a className="home-see-all" href="/#defaultSection">
+          전체보기
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div className="home-deal-grid">
+        {visibleProducts.length ? (
+          visibleProducts.map((product) => {
+            const hasImage = hasUsableImageUrl(product.thumbnail_url);
+            return (
+              <article
+                aria-label={`${product.brand} ${product.name} 상세 보기`}
+                className="home-deal-card"
+                key={product.product_id}
+                onClick={() => openProductDetail(product)}
+                role="link"
+                tabIndex={0}
+              >
+                <div className="home-deal-media">
+                  {hasImage ? (
+                    <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+                  ) : (
+                    <div className="home-deal-empty">이미지 준비중</div>
+                  )}
+                  <span className="home-deal-score">{product.total_score}점</span>
+                </div>
+                <div className="home-deal-body">
+                  <div className="home-ranking-brand">{product.brand}</div>
+                  <div className="home-deal-name">{product.name}</div>
+                  <div className="home-deal-tags">
+                    {product.key_ingredients.slice(0, 2).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <div className="home-deal-price">{formatPrice(product.lowest_price)}</div>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="empty-state">표시할 상품이 없습니다.</div>
+        )}
+      </div>
+      <a className="home-section-more" href="/#defaultSection">
+        {section.title} 전체보기
+        <span aria-hidden="true">→</span>
+      </a>
+    </section>
   );
 }
 
@@ -464,30 +628,24 @@ function HomeMainContent({
           <div className="home-section-stack">
             {homeSections.map((section, sectionIndex) => {
               const sectionProducts = section.products.map(mapHomeProductToCard);
+              if (sectionIndex === 0) {
+                return (
+                  <HomeRankingSection
+                    key={section.section_id || sectionIndex}
+                    products={sectionProducts}
+                    section={section}
+                    sectionIndex={sectionIndex}
+                  />
+                );
+              }
+
               return (
-                <section className="home-api-section" key={section.section_id || sectionIndex}>
-                  <div className="section-header">
-                    <div>
-                      <div className="sec-eyebrow">
-                        {section.section_type || section.algorithm || "Best Sellers"}
-                      </div>
-                      <div className="section-title">{section.title}</div>
-                      <div className="section-subtitle">{section.subtitle}</div>
-                    </div>
-                    <a className="see-all" href="/#defaultSection">
-                      전체보기
-                    </a>
-                  </div>
-                  <div className="product-grid">
-                    {sectionProducts.length ? (
-                      sectionProducts.map((product) => (
-                        <HomeProductCard key={product.product_id} product={product} />
-                      ))
-                    ) : (
-                      <div className="empty-state">표시할 상품이 없습니다.</div>
-                    )}
-                  </div>
-                </section>
+                <HomeDealSection
+                  key={section.section_id || sectionIndex}
+                  products={sectionProducts}
+                  section={section}
+                  sectionIndex={sectionIndex}
+                />
               );
             })}
           </div>
