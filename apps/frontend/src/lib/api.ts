@@ -1,38 +1,16 @@
 import type {
   ApiError,
-  HomeSectionsResponse,
-  Pagination,
   ProductCardItem,
   ProductDetail,
   PurchaseConstraints,
-  RecommendationNarrative,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
 } from "../types/recommendation";
 
 type RecommendationApi = {
-  createRecommendation: (
-    request: RecommendationRequest,
-    page?: number,
-    pageSize?: number
-  ) => Promise<RecommendationResponse>;
-  getRecommendation: (
-    recommendationId: string,
-    page?: number,
-    pageSize?: number
-  ) => Promise<RecommendationResponse>;
+  createRecommendation: (request: RecommendationRequest) => Promise<RecommendationResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
-  getHomeSections: (params: {
-    skinType: string;
-    sensitivity: string;
-    categoryCode?: string | null;
-    limitPerSection?: number;
-  }) => Promise<HomeSectionsResponse>;
-  getRecommendationNarrative: (
-    recommendationId: string,
-    options?: { productLimit?: number; useLlm?: boolean }
-  ) => Promise<RecommendationNarrative>;
 };
 
 type BackendErrorResponse = {
@@ -45,9 +23,6 @@ type BackendErrorResponse = {
 type BackendScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
-  concentration_fit_score?: number;
-  concentration_bucket?: string | null;
-  concentration_warning?: string | null;
   skin_type_score: number;
   price_score: number;
   keyword_score?: number;
@@ -70,37 +45,6 @@ type BackendRecommendedProduct = {
   score_breakdown: BackendScoreBreakdown;
 };
 
-type BackendHomeProduct = {
-  product_id: string;
-  brand: string;
-  name: string;
-  category_code: string;
-  category_name: string;
-  thumbnail_url: string;
-  lowest_price: number;
-  original_price: number | null;
-  discount_rate: number | null;
-  purchase_url: string | null;
-  badges: string[];
-  tags: string[];
-  reason_summary: string;
-  display_score: number;
-};
-
-type BackendHomeSectionsResponse = {
-  skin_type: string;
-  sensitivity: string;
-  category_code: string | null;
-  sections: {
-    section_id: string;
-    title: string;
-    subtitle: string;
-    section_type: string;
-    algorithm: string;
-    products: BackendHomeProduct[];
-  }[];
-};
-
 type BackendPurchaseConstraints = {
   categories: {
     category_code: string;
@@ -118,15 +62,6 @@ type BackendPurchaseConstraints = {
   price_max_text: string | null;
 };
 
-type BackendPagination = {
-  page: number;
-  page_size: number;
-  total_items: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
-};
-
 type BackendRecommendationResponse = {
   recommendation_id: string;
   summary: {
@@ -140,7 +75,6 @@ type BackendRecommendationResponse = {
   };
   unmatched_terms: string[];
   products: BackendRecommendedProduct[];
-  pagination?: BackendPagination;
 };
 
 type BackendProductDetailResponse = {
@@ -185,18 +119,12 @@ type BackendProductDetailResponse = {
   }[];
 };
 
-type BackendNarrativeResponse = {
-  recommendation_id: string;
-  narrative: RecommendationNarrative;
-};
-
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
   ""
 );
 
 const requestTimeoutMs = 15000;
-const defaultPageSize = 10;
 
 const emptyPurchaseConstraints: PurchaseConstraints = {
   categories: [],
@@ -206,20 +134,6 @@ const emptyPurchaseConstraints: PurchaseConstraints = {
   price_text: null,
   price_max_text: null
 };
-
-const defaultPagination = (productCount: number): Pagination => ({
-  page: 1,
-  page_size: defaultPageSize,
-  total_items: productCount,
-  total_pages: productCount > 0 ? Math.ceil(productCount / defaultPageSize) : 0,
-  has_next: false,
-  has_prev: false
-});
-
-const mapPagination = (
-  pagination: BackendPagination | undefined,
-  productCount: number
-): Pagination => pagination ?? defaultPagination(productCount);
 
 const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown | undefined => {
   if (!score) {
@@ -253,53 +167,19 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
   score_breakdown: mapScoreBreakdown(product.score_breakdown)
 });
 
-const mapHomeProductCard = (product: BackendHomeProduct, rank: number): ProductCardItem => ({
-  product_id: product.product_id,
-  rank,
-  total_score: product.display_score,
-  reason_summary: product.reason_summary,
-  brand: product.brand,
-  name: product.name,
-  thumbnail_url: product.thumbnail_url || null,
-  lowest_price: product.lowest_price ?? null,
-  evidence_tags: product.badges.length > 0 ? product.badges : product.tags,
-  key_ingredients: product.tags,
-  risk_flags: [],
-  score_breakdown: undefined
-});
-
-const mapRecommendation = (response: BackendRecommendationResponse): RecommendationResponse => {
-  const products = response.products.map(mapProductCard);
-
-  return {
-    recommendation_id: response.recommendation_id,
-    summary: {
-      concern_text: response.summary.concern_text,
-      skin_type: response.summary.skin_type,
-      sensitivity: response.summary.sensitivity,
-      avoid_ingredients: response.summary.avoid_ingredients,
-      concerns: response.summary.matched_concerns,
-      effects: response.summary.expected_effects,
-      purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
-    },
-    unmatched_terms: response.unmatched_terms,
-    products,
-    pagination: mapPagination(response.pagination, products.length)
-  };
-};
-
-const mapHomeSections = (response: BackendHomeSectionsResponse): HomeSectionsResponse => ({
-  skin_type: response.skin_type,
-  sensitivity: response.sensitivity,
-  category_code: response.category_code,
-  sections: response.sections.map((section) => ({
-    section_id: section.section_id,
-    title: section.title,
-    subtitle: section.subtitle,
-    section_type: section.section_type,
-    algorithm: section.algorithm,
-    products: section.products.map((product, index) => mapHomeProductCard(product, index + 1))
-  }))
+const mapRecommendation = (response: BackendRecommendationResponse): RecommendationResponse => ({
+  recommendation_id: response.recommendation_id,
+  summary: {
+    concern_text: response.summary.concern_text,
+    skin_type: response.summary.skin_type,
+    sensitivity: response.summary.sensitivity,
+    avoid_ingredients: response.summary.avoid_ingredients,
+    concerns: response.summary.matched_concerns,
+    effects: response.summary.expected_effects,
+    purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
+  },
+  unmatched_terms: response.unmatched_terms,
+  products: response.products.map(mapProductCard)
 });
 
 const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail => {
@@ -388,30 +268,15 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return body as T;
 };
 
-const buildPageQuery = (page = 1, pageSize = defaultPageSize) => {
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize)
-  });
-  return params.toString();
-};
-
 export const api: RecommendationApi = {
-  async createRecommendation(request, page = 1, pageSize = defaultPageSize) {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations?${buildPageQuery(page, pageSize)}`, {
+  async createRecommendation(request) {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(request)
     });
-    return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
-  },
-
-  async getRecommendation(recommendationId, page = 1, pageSize = defaultPageSize) {
-    const response = await fetchWithTimeout(
-      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}?${buildPageQuery(page, pageSize)}`
-    );
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
   },
 
@@ -423,42 +288,8 @@ export const api: RecommendationApi = {
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/products/${encodeURIComponent(productId)}${query ? `?${query}` : ""}`
+      `${apiBaseUrl}/products/${productId}${query ? `?${query}` : ""}`
     );
     return mapProductDetail(await parseJson<BackendProductDetailResponse>(response));
-  },
-
-  async getHomeSections({ skinType, sensitivity, categoryCode, limitPerSection = 8 }) {
-    const params = new URLSearchParams({
-      skin_type: skinType,
-      sensitivity,
-      limit_per_section: String(limitPerSection)
-    });
-
-    if (categoryCode) {
-      params.set("category_code", categoryCode);
-    }
-
-    const response = await fetchWithTimeout(`${apiBaseUrl}/home/sections?${params.toString()}`);
-    return mapHomeSections(await parseJson<BackendHomeSectionsResponse>(response));
-  },
-
-  async getRecommendationNarrative(recommendationId, options = {}) {
-    const response = await fetchWithTimeout(
-      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          mode: "community_beta",
-          product_limit: options.productLimit ?? 10,
-          use_llm: options.useLlm ?? false
-        })
-      }
-    );
-    const payload = await parseJson<BackendNarrativeResponse>(response);
-    return payload.narrative;
   }
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppHeader from "./components/AppHeader";
 import { api } from "./lib/api";
 import AnalysisLoadingPage from "./pages/AnalysisLoadingPage";
@@ -11,18 +11,16 @@ import type {
   ApiError,
   ProductDetail,
   RecommendationRequest,
-  RecommendationResponse,
-  Sensitivity,
-  SkinType
+  RecommendationResponse
 } from "./types/recommendation";
 
-type Route =
-  | { name: "home"; community: boolean }
-  | { name: "search"; request: RecommendationRequest; page: number; recommendationId?: string }
-  | { name: "product"; productId: string; recommendationId?: string }
-  | { name: "checkout"; productId?: string; recommendationId?: string; mode?: string }
-  | { name: "paymentComplete" }
-  | { name: "notFound" };
+type View = "home" | "input" | "loading" | "results" | "detail" | "notFound";
+
+type AppHistoryState = {
+  app: "mubareullae";
+  view: View;
+  productId?: string;
+};
 
 const initialRequest: RecommendationRequest = {
   skin_type: "수부지",
@@ -31,10 +29,7 @@ const initialRequest: RecommendationRequest = {
   concern_text: ""
 };
 
-const pageSize = 10;
-const minimumLoadingMs = 450;
-const skinTypes: SkinType[] = ["건성", "지성", "복합성", "수부지", "중성"];
-const sensitivities: Sensitivity[] = ["낮음", "보통", "높음"];
+const minimumLoadingMs = 3200;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -47,417 +42,290 @@ const isApiError = (error: unknown): error is ApiError => {
   return typeof candidate.status === "number" && typeof candidate.message === "string";
 };
 
-const normalizeSkinType = (value: string | null): SkinType =>
-  skinTypes.includes(value as SkinType) ? (value as SkinType) : initialRequest.skin_type;
-
-const normalizeSensitivity = (value: string | null): Sensitivity =>
-  sensitivities.includes(value as Sensitivity) ? (value as Sensitivity) : initialRequest.sensitivity;
-
-const parsePositiveInt = (value: string | null, fallback: number) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
-};
-
-const getAppModeFromEnv = () => {
-  const envMode = import.meta.env.VITE_APP_MODE;
-  return typeof envMode === "string" && envMode.toLowerCase() === "community"
-    ? "community"
-    : "commerce";
-};
-
-const parseRoute = (location: Location): Route => {
-  const { pathname, search } = location;
-  const params = new URLSearchParams(search);
-
-  if (pathname === "/" || pathname === "/community") {
-    return { name: "home", community: pathname === "/community" || getAppModeFromEnv() === "community" };
-  }
-
-  if (pathname === "/search") {
-    return {
-      name: "search",
-      request: {
-        skin_type: normalizeSkinType(params.get("skin_type")),
-        sensitivity: normalizeSensitivity(params.get("sensitivity")),
-        avoid_ingredients: [],
-        concern_text: params.get("keyword") ?? params.get("concern_text") ?? ""
-      },
-      page: parsePositiveInt(params.get("page"), 1),
-      recommendationId: params.get("recommendation_id") || undefined
-    };
-  }
-
-  const productMatch = pathname.match(/^\/products\/([^/]+)$/);
-  if (productMatch) {
-    return {
-      name: "product",
-      productId: decodeURIComponent(productMatch[1]),
-      recommendationId: params.get("recommendation_id") || undefined
-    };
-  }
-
-  if (pathname === "/checkout") {
-    return {
-      name: "checkout",
-      productId: params.get("id") || undefined,
-      recommendationId: params.get("recommendation_id") || undefined,
-      mode: params.get("mode") || undefined
-    };
-  }
-
-  if (pathname === "/payment-complete") {
-    return { name: "paymentComplete" };
-  }
-
-  return { name: "notFound" };
-};
-
-const legacyPathToSpaPath = (location: Location) => {
-  const params = new URLSearchParams(location.search);
-  const pathname = location.pathname;
-
-  if (pathname.endsWith("/beauty-commerce-aqua-glass.html") || pathname.endsWith("/index.html")) {
-    return "/";
-  }
-
-  if (pathname.endsWith("/beauty-commerce-search.html")) {
-    return `/search${location.search}`;
-  }
-
-  if (pathname.endsWith("/beauty-commerce-product-detail.html")) {
-    const productId = params.get("id");
-    if (!productId) return "/";
-    const nextParams = new URLSearchParams();
-    const recommendationId = params.get("recommendation_id");
-    if (recommendationId) nextParams.set("recommendation_id", recommendationId);
-    const query = nextParams.toString();
-    return `/products/${encodeURIComponent(productId)}${query ? `?${query}` : ""}`;
-  }
-
-  if (pathname.endsWith("/beauty-commerce-checkout.html")) {
-    return `/checkout${location.search}`;
-  }
-
-  if (pathname.endsWith("/beauty-commerce-payment-complete.html")) {
-    return "/payment-complete";
-  }
-
-  return null;
-};
-
-const buildSearchPath = (
-  request: RecommendationRequest,
-  page = 1,
-  recommendationId?: string
+const writeHistoryState = (
+  view: View,
+  mode: "push" | "replace",
+  productId?: string
 ) => {
-  const params = new URLSearchParams({
-    keyword: request.concern_text.trim(),
-    skin_type: request.skin_type,
-    sensitivity: request.sensitivity,
-    page_size: String(pageSize)
+  const state: AppHistoryState = {
+    app: "mubareullae",
+    view,
+    ...(productId ? { productId } : {})
+  };
+
+  if (mode === "replace") {
+    window.history.replaceState(state, "", window.location.href);
+    return;
+  }
+
+  window.history.pushState(state, "", window.location.href);
+};
+
+const isAppHistoryState = (value: unknown): value is AppHistoryState => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const state = value as Partial<AppHistoryState>;
+  return state.app === "mubareullae" && typeof state.view === "string";
+};
+
+const logRecommendationRequest = (
+  rawRequest: RecommendationRequest,
+  nextRequest: RecommendationRequest
+) => {
+  console.groupCollapsed("[mubareullae] recommendation request");
+  console.table({
+    skin_type: nextRequest.skin_type,
+    sensitivity: nextRequest.sensitivity,
+    concern_text_raw: rawRequest.concern_text,
+    concern_text_trimmed: nextRequest.concern_text,
+    is_concern_text_trimmed: rawRequest.concern_text !== nextRequest.concern_text
   });
-
-  if (page > 1) params.set("page", String(page));
-  if (recommendationId) params.set("recommendation_id", recommendationId);
-
-  return `/search?${params.toString()}`;
+  console.groupEnd();
 };
-
-const applyNarrativeToProduct = (product: ProductDetail, narrative: ProductDetail["narrative"]) => {
-  if (!narrative) return product;
-
-  const explanation = narrative.product_explanations.find((item) => item.product_id === product.product_id);
-
-  return {
-    ...product,
-    narrative,
-    reason_summary: explanation?.card.reason ?? product.reason_summary,
-    evidence_tags: explanation?.card.chips.length ? explanation.card.chips : product.evidence_tags
-  };
-};
-
-function SearchRoute({
-  route,
-  onNavigate,
-  onOpenProduct
-}: {
-  route: Extract<Route, { name: "search" }>;
-  onNavigate: (path: string, mode?: "push" | "replace") => void;
-  onOpenProduct: (productId: string, recommendationId?: string) => void;
-}) {
-  const [request, setRequest] = useState<RecommendationRequest>(route.request);
-  const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const keyword = route.request.concern_text.trim();
-
-  useEffect(() => {
-    setRequest(route.request);
-  }, [route.request.concern_text, route.request.sensitivity, route.request.skin_type]);
-
-  useEffect(() => {
-    if (!keyword) {
-      setRecommendation(null);
-      setIsLoading(false);
-      setErrorMessage(null);
-      return;
-    }
-
-    let isActive = true;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const load = async () => {
-      try {
-        const [response] = await Promise.all([
-          route.recommendationId
-            ? api.getRecommendation(route.recommendationId, route.page, pageSize)
-            : api.createRecommendation(route.request, route.page, pageSize),
-          wait(minimumLoadingMs)
-        ]);
-
-        if (!isActive) return;
-        setRecommendation(response);
-        setErrorMessage(null);
-
-        if (!route.recommendationId) {
-          onNavigate(buildSearchPath(route.request, route.page, response.recommendation_id), "replace");
-        }
-      } catch (error) {
-        if (!isActive) return;
-        setRecommendation(null);
-        setErrorMessage(
-          isApiError(error)
-            ? error.message
-            : "분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요."
-        );
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    void load();
-
-    return () => {
-      isActive = false;
-    };
-  }, [keyword, route.page, route.recommendationId]);
-
-  const submitSearch = () => {
-    const concernText = request.concern_text.trim();
-    if (!concernText) {
-      setErrorMessage("피부 고민을 입력해주세요.");
-      return;
-    }
-
-    onNavigate(buildSearchPath({ ...request, concern_text: concernText }));
-  };
-
-  if (!keyword) {
-    return (
-      <ConcernInputPage
-        value={request}
-        isSubmitting={false}
-        errorMessage={errorMessage}
-        onChange={(nextValue) => {
-          setRequest(nextValue);
-          setErrorMessage(null);
-        }}
-        onSubmit={submitSearch}
-      />
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <AnalysisLoadingPage
-        request={route.request}
-        isLoading={isLoading}
-        errorMessage={null}
-        onRetry={() => onNavigate(buildSearchPath(route.request, route.page, route.recommendationId), "replace")}
-        onEdit={() => onNavigate("/search")}
-      />
-    );
-  }
-
-  if (errorMessage || !recommendation) {
-    return (
-      <AnalysisLoadingPage
-        request={route.request}
-        isLoading={false}
-        errorMessage={errorMessage}
-        onRetry={() => onNavigate(buildSearchPath(route.request, route.page, route.recommendationId), "replace")}
-        onEdit={() => onNavigate("/search")}
-      />
-    );
-  }
-
-  return (
-    <RecommendationResultsPage
-      recommendation={recommendation}
-      onOpenProduct={(productId) => onOpenProduct(productId, recommendation.recommendation_id)}
-      onRestart={() => onNavigate("/search")}
-      onPageChange={(page) => onNavigate(buildSearchPath(route.request, page, recommendation.recommendation_id))}
-    />
-  );
-}
-
-function ProductRoute({
-  route,
-  isCommerceMode,
-  onNavigate
-}: {
-  route: Extract<Route, { name: "product" }>;
-  isCommerceMode: boolean;
-  onNavigate: (path: string) => void;
-}) {
-  const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMissing, setIsMissing] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-    setIsLoading(true);
-    setIsMissing(false);
-
-    const load = async () => {
-      try {
-        const [detail, narrative] = await Promise.all([
-          api.getProduct(route.productId, route.recommendationId),
-          route.recommendationId
-            ? api.getRecommendationNarrative(route.recommendationId).catch(() => null)
-            : Promise.resolve(null)
-        ]);
-
-        if (!isActive) return;
-        setProduct(applyNarrativeToProduct(detail, narrative));
-      } catch {
-        if (!isActive) return;
-        setProduct(null);
-        setIsMissing(true);
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    void load();
-
-    return () => {
-      isActive = false;
-    };
-  }, [route.productId, route.recommendationId]);
-
-  if (isLoading) {
-    return <div className="wrap empty-box">상품 정보를 불러오는 중입니다.</div>;
-  }
-
-  if (isMissing || !product) {
-    return <ProductNotFoundPage onBack={() => onNavigate("/search")} />;
-  }
-
-  return (
-    <ProductDetailPage
-      product={product}
-      isCommerceMode={isCommerceMode}
-      onBack={() => onNavigate(route.recommendationId ? `/search?recommendation_id=${route.recommendationId}` : "/search")}
-    />
-  );
-}
-
-function CheckoutPage({ onNavigate }: { onNavigate: (path: string) => void }) {
-  return (
-    <section className="wrap checkout-page">
-      <p className="eyebrow">Checkout</p>
-      <h1 className="section-title">체크아웃</h1>
-      <p className="muted-copy">결제 기능은 커머스 버전에서 연결됩니다.</p>
-      <button className="primary-button" type="button" onClick={() => onNavigate("/")}>홈으로</button>
-    </section>
-  );
-}
-
-function PaymentCompletePage({ onNavigate }: { onNavigate: (path: string) => void }) {
-  return (
-    <section className="wrap checkout-page">
-      <p className="eyebrow">Payment Complete</p>
-      <h1 className="section-title">결제 완료</h1>
-      <p className="muted-copy">결제 완료 화면은 커머스 버전에서 사용됩니다.</p>
-      <button className="primary-button" type="button" onClick={() => onNavigate("/")}>홈으로</button>
-    </section>
-  );
-}
 
 function App() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
-  const [route, setRoute] = useState<Route>(() => parseRoute(window.location));
-  const isCommunityMode = useMemo(
-    () => route.name === "home" ? route.community : getAppModeFromEnv() === "community",
-    [route]
-  );
-  const isCommerceMode = !isCommunityMode;
-
-  const navigate = (path: string, mode: "push" | "replace" = "push") => {
-    if (mode === "replace") {
-      window.history.replaceState({}, "", path);
-    } else {
-      window.history.pushState({}, "", path);
-    }
-    setRoute(parseRoute(window.location));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const [view, setView] = useState<View>("home");
+  const [request, setRequest] = useState<RecommendationRequest>(initialRequest);
+  const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [analysisRunId, setAnalysisRunId] = useState(0);
+  const recommendationRef = useRef<RecommendationResponse | null>(null);
+  const restoreRequestIdRef = useRef(0);
+  const submissionRequestIdRef = useRef(0);
 
   useEffect(() => {
-    const canonicalPath = legacyPathToSpaPath(window.location);
-    if (canonicalPath) {
-      navigate(canonicalPath, "replace");
-    }
+    recommendationRef.current = recommendation;
+  }, [recommendation]);
 
-    const handlePopState = () => {
-      setRoute(parseRoute(window.location));
-      window.scrollTo({ top: 0, behavior: "auto" });
+  useEffect(() => {
+    writeHistoryState("home", "replace");
+
+    const restoreView = async (state: unknown) => {
+      restoreRequestIdRef.current += 1;
+      submissionRequestIdRef.current += 1;
+      const restoreRequestId = restoreRequestIdRef.current;
+
+      setErrorMessage(null);
+      setIsSubmitting(false);
+
+      if (!isAppHistoryState(state)) {
+        setSelectedProduct(null);
+        setView("home");
+        return;
+      }
+
+      if (state.view === "detail" && state.productId) {
+        try {
+          const product = await api.getProduct(
+            state.productId,
+            recommendationRef.current?.recommendation_id
+          );
+
+          if (restoreRequestIdRef.current !== restoreRequestId) {
+            return;
+          }
+
+          setSelectedProduct(product);
+          setView("detail");
+        } catch {
+          if (restoreRequestIdRef.current !== restoreRequestId) {
+            return;
+          }
+
+          setSelectedProduct(null);
+          setView("notFound");
+        }
+        return;
+      }
+
+      if (state.view === "results") {
+        setSelectedProduct(null);
+        setView(recommendationRef.current ? "results" : "home");
+        return;
+      }
+
+      if (state.view === "loading") {
+        setSelectedProduct(null);
+        setView(recommendationRef.current ? "results" : "home");
+        return;
+      }
+
+      setSelectedProduct(null);
+      setView(state.view);
+    };
+
+    const handlePopState = (event: PopStateEvent) => {
+      void restoreView(event.state);
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const openProduct = (productId: string, recommendationId?: string) => {
-    const params = new URLSearchParams();
-    if (recommendationId) params.set("recommendation_id", recommendationId);
-    const query = params.toString();
-    navigate(`/products/${encodeURIComponent(productId)}${query ? `?${query}` : ""}`);
+  const startRecommendation = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    const concernText = request.concern_text.trim();
+    if (concernText.length === 0) {
+      setErrorMessage("피부 고민을 입력해주세요.");
+      return;
+    }
+
+    const nextRequest = {
+      ...request,
+      concern_text: concernText
+    };
+
+    logRecommendationRequest(request, nextRequest);
+
+    setRequest(nextRequest);
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    setAnalysisRunId((currentId) => currentId + 1);
+    setView("loading");
+    const submissionRequestId = submissionRequestIdRef.current + 1;
+    submissionRequestIdRef.current = submissionRequestId;
+    writeHistoryState("loading", view === "loading" ? "replace" : "push");
+
+    try {
+      const [response] = await Promise.all([
+        api.createRecommendation(nextRequest),
+        wait(minimumLoadingMs)
+      ]);
+
+      if (submissionRequestIdRef.current !== submissionRequestId) {
+        return;
+      }
+
+      setRecommendation(response);
+      setView("results");
+      writeHistoryState("results", "replace");
+    } catch (error) {
+      if (submissionRequestIdRef.current === submissionRequestId) {
+        setErrorMessage(
+          isApiError(error)
+            ? error.message
+            : "분석에 실패했어요. 입력값은 보존했으니 다시 시도해주세요."
+        );
+      }
+    } finally {
+      if (submissionRequestIdRef.current === submissionRequestId) {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const openProduct = async (productId: string) => {
+    setErrorMessage(null);
+    try {
+      const product = await api.getProduct(productId, recommendation?.recommendation_id);
+      setSelectedProduct(product);
+      setView("detail");
+      writeHistoryState("detail", "push", productId);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      setSelectedProduct(null);
+      setView("notFound");
+      writeHistoryState("notFound", "push", productId);
+    }
+  };
+
+  const goHome = () => {
+    submissionRequestIdRef.current += 1;
+    setSelectedProduct(null);
+    setView("home");
+    setErrorMessage(null);
+    writeHistoryState("home", "push");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const startConcernInput = (concernText = "") => {
+    submissionRequestIdRef.current += 1;
+    setIsSubmitting(false);
+    setSelectedProduct(null);
+    setErrorMessage(null);
+    setRequest((currentRequest) => ({
+      ...currentRequest,
+      concern_text: concernText
+    }));
+    setView("input");
+    writeHistoryState("input", "push");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const editRequest = () => {
+    submissionRequestIdRef.current += 1;
+    setIsSubmitting(false);
+    setSelectedProduct(null);
+    setView("input");
+    setErrorMessage(null);
+    writeHistoryState("input", "replace");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goResults = () => {
+    if (recommendation && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    setSelectedProduct(null);
+    setView(recommendation ? "results" : "home");
+    setErrorMessage(null);
+    writeHistoryState(recommendation ? "results" : "home", "push");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <main className={isCommunityMode ? "app-shell community-mode" : "app-shell commerce-mode"}>
-      <AppHeader apiBaseUrl={apiBaseUrl} isCommunityMode={isCommunityMode} onNavigate={navigate} />
+    <main className="app-shell">
+      <AppHeader apiBaseUrl={apiBaseUrl} onHome={goHome} />
 
-      {route.name === "home" ? (
-        <HomePage
-          onSearch={(concernText = "") => {
-            if (!concernText) {
-              navigate("/search");
-              return;
-            }
-            navigate(buildSearchPath({ ...initialRequest, concern_text: concernText }));
+      {view === "home" ? <HomePage onStart={startConcernInput} /> : null}
+
+      {view === "input" ? (
+        <ConcernInputPage
+          value={request}
+          isSubmitting={isSubmitting}
+          errorMessage={errorMessage}
+          onChange={(nextValue) => {
+            setRequest(nextValue);
+            setErrorMessage(null);
           }}
-          onOpenProduct={openProduct}
+          onSubmit={startRecommendation}
         />
       ) : null}
 
-      {route.name === "search" ? (
-        <SearchRoute route={route} onNavigate={navigate} onOpenProduct={openProduct} />
+      {view === "loading" ? (
+        <AnalysisLoadingPage
+          key={analysisRunId}
+          request={request}
+          isLoading={isSubmitting}
+          errorMessage={errorMessage}
+          onRetry={startRecommendation}
+          onEdit={editRequest}
+        />
       ) : null}
 
-      {route.name === "product" ? (
-        <ProductRoute route={route} isCommerceMode={isCommerceMode} onNavigate={navigate} />
+      {view === "results" && recommendation ? (
+        <RecommendationResultsPage
+          recommendation={recommendation}
+          onOpenProduct={openProduct}
+          onRestart={() => startConcernInput()}
+        />
       ) : null}
 
-      {route.name === "checkout" ? <CheckoutPage onNavigate={navigate} /> : null}
+      {view === "detail" && selectedProduct ? (
+        <ProductDetailPage product={selectedProduct} onBack={goResults} />
+      ) : null}
 
-      {route.name === "paymentComplete" ? <PaymentCompletePage onNavigate={navigate} /> : null}
-
-      {route.name === "notFound" ? <ProductNotFoundPage onBack={() => navigate("/")} /> : null}
+      {view === "notFound" ? <ProductNotFoundPage onBack={goResults} /> : null}
     </main>
   );
 }

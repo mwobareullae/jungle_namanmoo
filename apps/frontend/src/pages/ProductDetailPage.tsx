@@ -4,7 +4,6 @@ import type { ProductDetail } from "../types/recommendation";
 type ProductDetailPageProps = {
   product: ProductDetail;
   onBack: () => void;
-  isCommerceMode: boolean;
 };
 
 const confidenceLabel: Record<ProductDetail["content_confidence"], string> = {
@@ -27,7 +26,7 @@ const scoreLabels = {
   search_match_score: "검색매칭"
 };
 
-function ProductDetailPage({ product, onBack, isCommerceMode }: ProductDetailPageProps) {
+function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
   return (
     <section className="wrap detail-page">
       <button className="text-back" type="button" onClick={onBack}>
@@ -70,50 +69,22 @@ function ProductDetailPage({ product, onBack, isCommerceMode }: ProductDetailPag
             <Badge>{formatPrice(product.lowest_price)}</Badge>
           </div>
 
-          {isCommerceMode ? (
-            product.purchase_url ? (
-              <a
-                className="primary-button detail-buy"
-                href={product.purchase_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                구매하러 가기
-              </a>
-            ) : (
-              <button className="primary-button detail-buy" type="button" disabled>
-                구매 URL 없음
-              </button>
-            )
-          ) : null}
+          {product.purchase_url ? (
+            <a
+              className="primary-button detail-buy"
+              href={product.purchase_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              구매하러 가기
+            </a>
+          ) : (
+            <button className="primary-button detail-buy" type="button" disabled>
+              구매 URL 없음
+            </button>
+          )}
         </div>
       </div>
-
-      {product.narrative ? (
-        <section className="detail-section">
-          <p className="eyebrow">추천 요약</p>
-          <div className="evidence-list">
-            <article className="evidence-item wide-item">
-              <h3 className="evidence-name">{product.narrative.overview.headline}</h3>
-              <p className="muted-copy">{product.narrative.overview.summary}</p>
-              <div className="badges">
-                {product.narrative.overview.key_points.map((point) => (
-                  <Badge key={point} tone="notice">{point}</Badge>
-                ))}
-              </div>
-            </article>
-            {product.narrative.product_explanations
-              .find((item) => item.product_id === product.product_id)
-              ?.detail_sections.slice(0, 2)
-              .map((section) => (
-                <article className="evidence-item wide-item" key={section.title}>
-                  <h3 className="evidence-name">{section.title}</h3>
-                  <p className="muted-copy">{section.body}</p>
-                </article>
-              ))}
-          </div>
-        </section>
-      ) : null}
 
       {product.score_breakdown ? (
         <section className="detail-section">
@@ -179,8 +150,7 @@ function ProductDetailPage({ product, onBack, isCommerceMode }: ProductDetailPag
         </section>
       ) : null}
 
-      {isCommerceMode ? (
-        <section className="detail-section">
+      <section className="detail-section">
         <p className="eyebrow">구매처</p>
         {product.prices.length > 0 ? (
           <div className="evidence-list">
@@ -199,7 +169,6 @@ function ProductDetailPage({ product, onBack, isCommerceMode }: ProductDetailPag
           <p className="muted-copy">구매처 정보가 없습니다.</p>
         )}
       </section>
-      ) : null}
 
       <section className="detail-section">
         <p className="eyebrow">근거 출처</p>

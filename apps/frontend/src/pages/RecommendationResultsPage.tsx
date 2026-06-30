@@ -13,7 +13,6 @@ type RecommendationResultsPageProps = {
   recommendation: RecommendationResponse;
   onOpenProduct: (productId: string) => void;
   onRestart: () => void;
-  onPageChange?: (page: number) => void;
 };
 
 const hasPurchaseConstraints = (constraints: PurchaseConstraints) =>
@@ -66,8 +65,7 @@ const getRiskSortScore = (product: ProductCardItem) =>
 function RecommendationResultsPage({
   recommendation,
   onOpenProduct,
-  onRestart,
-  onPageChange
+  onRestart
 }: RecommendationResultsPageProps) {
   const [sortOption, setSortOption] = useState<SortOption>("score");
   const purchaseBadges = buildPurchaseBadges(recommendation.summary.purchase_constraints);
@@ -167,7 +165,7 @@ function RecommendationResultsPage({
       </div>
 
       <div className="toolbar">
-        <span>{recommendation.pagination.total_items}개 상품</span>
+        <span>{sortedProducts.length}개 상품</span>
         <div className="sort-control" aria-label="정렬">
           <button
             className={sortOption === "score" ? "sort selected" : "sort"}
@@ -192,31 +190,6 @@ function RecommendationResultsPage({
           </button>
         </div>
       </div>
-
-
-      {recommendation.pagination.total_pages > 1 ? (
-        <div className="pagination" aria-label="검색 결과 페이지">
-          <button
-            className="secondary-button compact-button"
-            type="button"
-            disabled={!recommendation.pagination.has_prev}
-            onClick={() => onPageChange?.(recommendation.pagination.page - 1)}
-          >
-            이전
-          </button>
-          <span className="page-count">
-            {recommendation.pagination.page} / {recommendation.pagination.total_pages}
-          </span>
-          <button
-            className="secondary-button compact-button"
-            type="button"
-            disabled={!recommendation.pagination.has_next}
-            onClick={() => onPageChange?.(recommendation.pagination.page + 1)}
-          >
-            다음
-          </button>
-        </div>
-      ) : null}
 
       {sortedProducts.length === 0 ? (
         <EmptyState

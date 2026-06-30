@@ -70,21 +70,11 @@ export type RecommendationSummary = {
   purchase_constraints: PurchaseConstraints;
 };
 
-export type Pagination = {
-  page: number;
-  page_size: number;
-  total_items: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
-};
-
 export type RecommendationResponse = {
   recommendation_id: string;
   summary: RecommendationSummary;
   unmatched_terms: string[];
   products: ProductCardItem[];
-  pagination: Pagination;
 };
 
 export type IngredientEvidence = {
@@ -108,32 +98,6 @@ export type ProductSource = {
   source_type: string;
 };
 
-export type RecommendationNarrative = {
-  generation_source: string;
-  fallback_reason: string | null;
-  overview: {
-    headline: string;
-    summary: string;
-    key_points: string[];
-  };
-  product_explanations: {
-    product_id: string;
-    rank: number;
-    role: string;
-    card: {
-      headline: string;
-      reason: string;
-      chips: string[];
-    };
-    detail_sections: {
-      title: string;
-      body: string;
-    }[];
-    caution: string | null;
-  }[];
-  selection_guide: string | null;
-};
-
 export type ProductDetail = ProductCardItem & {
   image_urls: string[];
   content_confidence: ContentConfidence;
@@ -142,23 +106,6 @@ export type ProductDetail = ProductCardItem & {
   evidence: IngredientEvidence[];
   prices: ProductPrice[];
   sources: ProductSource[];
-  narrative?: RecommendationNarrative | null;
-};
-
-export type HomeSection = {
-  section_id: string;
-  title: string;
-  subtitle: string;
-  section_type: string;
-  algorithm: string;
-  products: ProductCardItem[];
-};
-
-export type HomeSectionsResponse = {
-  skin_type: string;
-  sensitivity: string;
-  category_code: string | null;
-  sections: HomeSection[];
 };
 
 export type ApiError = {
