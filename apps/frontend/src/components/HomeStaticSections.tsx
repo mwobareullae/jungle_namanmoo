@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { RecommendationResponse } from "../types/recommendation";
 
 const ArrowIcon = () => (
   <svg
@@ -30,18 +31,42 @@ const LoadingIcon = () => (
   </svg>
 );
 
+type RecommendationStateEvent = CustomEvent<{
+  status: "idle" | "loading" | "success" | "error";
+  query: string;
+  recommendation: RecommendationResponse | null;
+}>;
+
 function HomeMatchResult() {
-  const flowCards = [
-    { step: "1", label: "피부 고민", title: "입력된 고민", id: "flowConcernTags", titleId: "flowConcern" },
-    { step: "2", label: "필요 효능", title: "분석된 효능", id: "flowEffects" },
-    { step: "3", label: "핵심 성분", title: "추천 성분", id: "flowIngredients" },
-    { step: "4", label: "매칭 결과", title: "추천 상품", id: "flowScores", count: true },
-  ];
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [query, setQuery] = useState("");
+  const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
+
+  useEffect(() => {
+    const handleRecommendationState = (event: Event) => {
+      const detail = (event as RecommendationStateEvent).detail;
+      setStatus(detail.status);
+      setQuery(detail.query);
+      setRecommendation(detail.recommendation);
+    };
+
+    window.addEventListener("home-recommendation-state", handleRecommendationState);
+    return () => window.removeEventListener("home-recommendation-state", handleRecommendationState);
+  }, []);
+
+  const keyIngredients = useMemo(
+    () => Array.from(new Set((recommendation?.products ?? []).flatMap((product) => product.key_ingredients))).slice(0, 6),
+    [recommendation]
+  );
+
+  const scoreItems = (recommendation?.products ?? []).slice(0, 4);
+  const isActive = status !== "idle";
+  const isLoading = status === "loading";
 
   return (
-    <div className="ai-result-section" id="aiResultSection">
+    <div className={`ai-result-section${isActive ? " active" : ""}`} id="aiResultSection">
       <div className="ai-result-inner">
-        <div className="ai-thinking" id="aiThinking">
+        <div className="ai-thinking" id="aiThinking" style={{ display: isLoading ? "flex" : "none" }}>
           <div className="thinking-icon">
             <LoadingIcon />
           </div>
@@ -58,32 +83,59 @@ function HomeMatchResult() {
           </div>
         </div>
 
-        <div className="analysis-flow" id="analysisFlow" style={{ display: "none" }}>
-          {flowCards.map((card, index) => (
-            <Fragment key={card.id}>
-              <div className="flow-card active">
-                <div className="flow-step">
-                  <span className="step-num">{card.step}</span>
-                  {card.label}
-                </div>
-                <h4 id={card.titleId}>
-                  {card.title}
-                  {card.count ? (
-                    <>
-                      {" "}
-                      <span id="matchCount">4</span>개
-                    </>
-                  ) : null}
-                </h4>
-                <div className={card.id === "flowScores" ? undefined : "flow-tags"} id={card.id} />
+        <div className="analysis-flow" id="analysisFlow" style={{ display: status === "success" ? "grid" : "none" }}>
+          <Fragment>
+            <div className="flow-card active">
+              <div className="flow-step"><span className="step-num">1</span>피부 고민</div>
+              <h4 id="flowConcern">{query.length > 30 ? `${query.slice(0, 30)}...` : query || "입력된 고민"}</h4>
+              <div className="flow-tags" id="flowConcernTags">
+                {(recommendation?.summary.concerns ?? []).slice(0, 4).map((concern, index) => (
+                  <span className={`flow-tag${index < 2 ? " highlight" : ""}`} key={concern}>{concern}</span>
+                ))}
+                {recommendation ? (
+                  <>
+                    <span className="flow-tag profile">피부 {recommendation.summary.skin_type}</span>
+                    <span className="flow-tag profile">민감도 {recommendation.summary.sensitivity}</span>
+                  </>
+                ) : null}
               </div>
-              {index < flowCards.length - 1 ? (
-                <div className="flow-arrow">
-                  <ArrowIcon />
-                </div>
-              ) : null}
-            </Fragment>
-          ))}
+            </div>
+            <div className="flow-arrow"><ArrowIcon /></div>
+            <div className="flow-card active">
+              <div className="flow-step"><span className="step-num">2</span>필요 효능</div>
+              <h4>분석된 효능</h4>
+              <div className="flow-tags" id="flowEffects">
+                {(recommendation?.summary.effects ?? []).slice(0, 5).map((effect, index) => (
+                  <span className={`flow-tag${index < 2 ? " highlight" : ""}`} key={effect}>{effect}</span>
+                ))}
+              </div>
+            </div>
+            <div className="flow-arrow"><ArrowIcon /></div>
+            <div className="flow-card active">
+              <div className="flow-step"><span className="step-num">3</span>핵심 성분</div>
+              <h4>추천 성분</h4>
+              <div className="flow-tags" id="flowIngredients">
+                {keyIngredients.map((ingredient, index) => (
+                  <span className={`flow-tag${index < 2 ? " highlight" : ""}`} key={ingredient}>{ingredient}</span>
+                ))}
+              </div>
+            </div>
+            <div className="flow-arrow"><ArrowIcon /></div>
+            <div className="flow-card active">
+              <div className="flow-step"><span className="step-num">4</span>매칭 결과</div>
+              <h4>추천 상품 <span id="matchCount">{recommendation?.products.length ?? 0}</span>개</h4>
+              <div id="flowScores">
+                <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 500, color: "var(--accent-text)", textTransform: "uppercase" }}>매칭 점수</div>
+                {scoreItems.map((product) => (
+                  <div className="score-bar" key={product.product_id}>
+                    <span style={{ fontSize: 12, minWidth: 90, color: "var(--muted)" }}>{product.brand}</span>
+                    <div className="score-track"><div className="score-fill" style={{ width: `${product.total_score}%` }} /></div>
+                    <span className="score-num">{product.total_score}점</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Fragment>
         </div>
       </div>
     </div>

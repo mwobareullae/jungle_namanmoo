@@ -40,6 +40,9 @@ function HomeMainContent() {
       setIsLoading(true);
       setErrorMessage("");
       setRecommendation(null);
+      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+        detail: { status: "loading", query: trimmedQuery, recommendation: null },
+      }));
       window.requestAnimationFrame(() => {
         document.getElementById("searchResultsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -52,8 +55,14 @@ function HomeMainContent() {
           avoid_ingredients: [],
         });
         setRecommendation(response);
+        window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+          detail: { status: "success", query: trimmedQuery, recommendation: response },
+        }));
       } catch {
         setErrorMessage("분석에 실패했어요. 잠시 후 다시 시도해주세요");
+        window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+          detail: { status: "error", query: trimmedQuery, recommendation: null },
+        }));
       } finally {
         setIsLoading(false);
       }
