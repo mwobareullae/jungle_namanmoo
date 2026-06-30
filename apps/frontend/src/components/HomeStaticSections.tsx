@@ -337,7 +337,7 @@ function HomeFooter() {
             <ul>
               {items.map((item) => (
                 <li key={item}>
-                  <a href="#">{item}</a>
+                  <a href="/#defaultSection">{item}</a>
                 </li>
               ))}
             </ul>

@@ -62,7 +62,7 @@ function HomeOverlays() {
       />
       <aside aria-label="카테고리 메뉴" className="category-panel" id="categoryPanel">
         {categories.map((category) => (
-          <a href="#" key={category}>
+          <a href="/#defaultSection" key={category}>
             {category}
           </a>
         ))}

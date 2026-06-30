@@ -230,7 +230,7 @@ function HomeMainContent({
                 </div>
                 <a
                   className="see-all"
-                  href="#"
+                  href="/#defaultSection"
                   onClick={(event) => {
                     event.preventDefault();
                     callOriginal("showToast", "함께 구매 데이터는 준비 중입니다");
@@ -251,7 +251,7 @@ function HomeMainContent({
             <div className="section-title">지금 인기있는 제품</div>
             <div className="section-subtitle">실시간 인기와 성분 근거를 함께 본 베스트셀러</div>
           </div>
-          <a className="see-all" href="#">
+          <a className="see-all" href="/#defaultSection">
             전체보기
           </a>
         </div>

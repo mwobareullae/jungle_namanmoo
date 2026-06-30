@@ -39,6 +39,12 @@ function App() {
   const page = useMemo(() => originalPages[visiblePageKey], [visiblePageKey]);
 
   useEffect(() => {
+    if (appMode === "community" && visiblePageKey !== pageKey) {
+      window.history.replaceState(null, "", "/");
+    }
+  }, [pageKey, visiblePageKey]);
+
+  useEffect(() => {
     const handleNavigation = () => setPageKey(getCurrentPageKey());
 
     window.addEventListener("popstate", handleNavigation);
