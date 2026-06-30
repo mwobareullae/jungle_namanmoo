@@ -35,3 +35,4 @@ ing_pending_ec6da355243d,irritation,고농도 순수 비타민C는 자극을 줄
 ing_pending_efb697c9f316,retinoid_caution,레티날은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high,0.8,sensitive;pregnancy;photosensitivity,임신 중 또는 광노출 시 주의,official,
 ing_pending_f350636ec6e6,retinoid_caution,레티날은 자극·광민감을 유발할 수 있고 임신 중 사용에 주의가 필요합니다,high,0.8,sensitive;pregnancy;photosensitivity,임신 중 또는 광노출 시 주의,official,
 ing_pending_f7a0972e4f26,irritation,고농도 순수 비타민C는 자극을 줄 수 있어 농도·pH 확인이 필요합니다,low,0.3,sensitive,고농도 또는 민감 피부에서 자극 가능,unknown,
+bisabolol,botanical_allergy,비사보롤은 일반적으로 안전성이 높은 성분이지만 국화과·캐모마일 알레르기 이력이 있는 민감 피부는 주의가 필요합니다,low,0.3,sensitive,국화과 또는 캐모마일 알레르기 이력,official,https://www.cir-safety.org/sites/default/files/bisabolol.pdf
