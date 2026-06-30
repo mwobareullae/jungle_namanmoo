@@ -110,6 +110,10 @@ body {
   overflow-wrap: anywhere;
 }
 
+body.search-results-page #searchResultsGrid .product-card:last-child {
+  border-bottom: 0;
+}
+
 .detail-loading {
   min-height: 360px;
   display: grid;
