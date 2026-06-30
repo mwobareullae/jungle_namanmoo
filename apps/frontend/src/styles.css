@@ -364,6 +364,19 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 @media (max-width: 760px) {
+  header .header-inner {
+    gap: 16px;
+    justify-content: space-between;
+  }
+
+  header nav {
+    display: none;
+  }
+
+  header .header-actions {
+    gap: 6px;
+  }
+
   .search-results-panel .results-header {
     align-items: stretch;
     flex-direction: column;
