@@ -434,13 +434,10 @@ body {
 .home-deal-section {
   width: 100vw;
   margin-left: calc(50% - 50vw);
-  padding: 42px max(40px, calc((100vw - 1280px) / 2));
+  padding: 42px 40px;
 }
 
 .home-deal-section .home-section-head {
-  max-width: 1280px;
-  margin-right: auto;
-  margin-left: auto;
   text-align: left;
 }
 
@@ -463,9 +460,6 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
-  max-width: 1280px;
-  margin-right: auto;
-  margin-left: auto;
 }
 
 .home-deal-card {
