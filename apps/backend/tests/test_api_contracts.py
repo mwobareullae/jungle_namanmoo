@@ -71,6 +71,51 @@ def test_health_endpoint_includes_request_observability_headers(
     )
 
 
+def test_get_home_sections_returns_main_page_products(client: TestClient) -> None:
+    response = client.get(
+        "/api/home/sections",
+        params={
+            "skin_type": "건성",
+            "sensitivity": "보통",
+            "limit_per_section": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["skin_type"] == "건성"
+    assert data["sensitivity"] == "보통"
+    assert [section["section_id"] for section in data["sections"]] == [
+        "best_sellers",
+        "evidence_picks",
+        "recommended_for_you",
+    ]
+
+    first_section = data["sections"][0]
+    assert first_section["title"] == "지금 인기있는 제품"
+    assert first_section["algorithm"]
+    assert 0 < len(first_section["products"]) <= 2
+
+    product = first_section["products"][0]
+    assert {
+        "product_id",
+        "brand",
+        "name",
+        "category_code",
+        "category_name",
+        "thumbnail_url",
+        "lowest_price",
+        "purchase_url",
+        "badges",
+        "tags",
+        "reason_summary",
+        "display_score",
+    }.issubset(product)
+    assert product["badges"]
+    assert 0 <= product["display_score"] <= 100
+
+
 def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
