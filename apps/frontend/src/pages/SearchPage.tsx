@@ -39,6 +39,7 @@ function SearchPage() {
       <HomeMainContent
         initialProfile={profile}
         initialQuery={keyword}
+        mode="search"
         showDefaultSection={false}
       />
     </div>

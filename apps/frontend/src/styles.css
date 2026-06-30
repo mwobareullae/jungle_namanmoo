@@ -57,3 +57,15 @@ body {
 .search-page-shell .search-results-shell {
   padding-top: 22px;
 }
+
+.search-main-content {
+  padding-top: 0;
+}
+
+.search-main-content #searchResultsSection {
+  display: block;
+}
+
+.search-main-content .search-results-panel {
+  min-width: 0;
+}

@@ -29,6 +29,7 @@ type HomeMainContentProps = {
     skin: SkinType;
     sensitivity: Sensitivity;
   };
+  mode?: "home" | "search";
   showDefaultSection?: boolean;
 };
 
@@ -38,6 +39,7 @@ function HomeMainContent({
     skin: "수부지",
     sensitivity: "보통",
   },
+  mode = "home",
   showDefaultSection = true,
 }: HomeMainContentProps) {
   const [query, setQuery] = useState("");
@@ -111,7 +113,7 @@ function HomeMainContent({
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
 
   return (
-    <main className="main-content" id="mainContent">
+    <main className={`main-content${mode === "search" ? " search-main-content" : ""}`} id="mainContent">
       <div id="searchResultsSection" style={{ display: hasSearchState ? "block" : "none" }}>
         <div className="search-results-shell">
           <aside aria-label="검색 조건" className="search-filter-sidebar" data-commerce-only>
@@ -124,7 +126,7 @@ function HomeMainContent({
                 </div>
                 <div className="filter-option">
                   <span className="filter-dot" />
-                  <span id="filterProfile">수부지 · 민감도 보통</span>
+                  <span id="filterProfile">{initialProfile.skin} · 민감도 {initialProfile.sensitivity}</span>
                 </div>
                 <div className="filter-note">
                   입력한 고민과 피부 조건을 기준으로 성분 효능 근거를 먼저 비교합니다.
