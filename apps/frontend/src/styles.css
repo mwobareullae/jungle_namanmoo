@@ -150,16 +150,50 @@ header .category-menu-btn svg {
 }
 
 header .icon-btn {
+  position: relative;
   width: 38px;
   height: 38px;
   border: 0;
+  border-radius: var(--rm);
   background: transparent;
+  color: var(--muted);
+}
+
+header .badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #94e0f8;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 header .btn-login {
-  min-height: 0;
-  padding: 8px 18px;
-  border-radius: var(--rs);
+  display: inline;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink2);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+header .btn-login:hover {
+  background: transparent;
+  color: var(--ink);
+  opacity: 1;
 }
 
 .detail-loading {

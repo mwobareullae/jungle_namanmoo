@@ -26,6 +26,8 @@ const getDetailParams = () => {
   return {
     productId: params.get("id") ?? "",
     recommendationId: params.get("recommendation_id") ?? undefined,
+    skinType: params.get("skin_type") ?? "",
+    sensitivity: params.get("sensitivity") ?? "",
   };
 };
 
@@ -47,7 +49,7 @@ const getEffectLabel = (effect: string) => {
 };
 
 function ProductDetailSpaPage() {
-  const [{ productId, recommendationId }] = useState(getDetailParams);
+  const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
@@ -118,6 +120,17 @@ function ProductDetailSpaPage() {
   }, [product]);
 
   const tabClassName = (hash: string) => `detail-tab${activeTab === hash ? " active" : ""}`;
+  const checkoutQuery = useMemo(() => {
+    const params = new URLSearchParams({ id: productId });
+    if (recommendationId) params.set("recommendation_id", recommendationId);
+    return params;
+  }, [productId, recommendationId]);
+
+  const goToCheckout = (mode: "cart" | "buy") => {
+    const params = new URLSearchParams(checkoutQuery);
+    params.set("mode", mode);
+    window.location.href = `/checkout?${params.toString()}`;
+  };
 
   return (
     <>
@@ -163,6 +176,21 @@ function ProductDetailSpaPage() {
               <div className="detail-summary">
                 <div className="detail-brand-row">
                   <div className="detail-brand" id="productBrand">{product.brand}</div>
+                  <div className="detail-actions">
+                    <button className="detail-icon-btn" type="button" aria-label="공유">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
+                      </svg>
+                    </button>
+                    <button data-commerce-only className="detail-icon-btn" type="button" aria-label="찜">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <h1 className="detail-title" id="productName">{product.name}</h1>
                 <div className="detail-rating">
@@ -213,6 +241,24 @@ function ProductDetailSpaPage() {
                       </div>
                     </>
                   ) : null}
+                </div>
+                <div
+                  className="detail-selectors"
+                  id="profileSelectors"
+                  style={{ display: skinType || sensitivity ? undefined : "none" }}
+                >
+                  <div className="detail-select-row" id="skinTypeRow" style={{ display: skinType ? undefined : "none" }}>
+                    <span>피부 타입</span>
+                    <strong id="skinTypeValue">{skinType}</strong>
+                  </div>
+                  <div className="detail-select-row" id="sensitivityRow" style={{ display: sensitivity ? undefined : "none" }}>
+                    <span>민감성</span>
+                    <strong id="sensitivityValue">{sensitivity}</strong>
+                  </div>
+                </div>
+                <div data-commerce-only className="detail-cta-row">
+                  <button className="detail-btn" type="button" onClick={() => goToCheckout("cart")}>장바구니</button>
+                  <button className="detail-btn primary" type="button" onClick={() => goToCheckout("buy")}>구매하기</button>
                 </div>
               </div>
             </div>
