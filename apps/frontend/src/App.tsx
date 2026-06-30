@@ -72,6 +72,11 @@ function App() {
       .spa-origin-shell {
         background: #ffffff !important;
       }
+
+      .ingredient-stat-grid,
+      .ingredient-stat {
+        display: none !important;
+      }
     `;
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
