@@ -37,6 +37,9 @@ export type RecommendationRequest = {
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  concentration_fit_score: number;
+  concentration_bucket: string | null;
+  concentration_warning: string | null;
   skin_type_match_score: number;
   price_value_score: number;
   keyword_score: number;
@@ -60,6 +63,39 @@ export type ProductCardItem = {
   score_breakdown?: ScoreBreakdown;
 };
 
+export type HomeSectionProduct = {
+  product_id: string;
+  brand: string;
+  name: string;
+  category_code: string;
+  category_name: string;
+  thumbnail_url: string | null;
+  lowest_price: number | null;
+  original_price: number | null;
+  discount_rate: number | null;
+  purchase_url: string | null;
+  badges: string[];
+  tags: string[];
+  reason_summary: string;
+  display_score: number;
+};
+
+export type HomeSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  algorithm: string;
+  products: HomeSectionProduct[];
+};
+
+export type HomeSectionsResponse = {
+  skin_type: string;
+  sensitivity: string;
+  category_code: string | null;
+  sections: HomeSection[];
+};
+
 export type RecommendationSummary = {
   concern_text: string;
   skin_type: string;
@@ -75,6 +111,59 @@ export type RecommendationResponse = {
   summary: RecommendationSummary;
   unmatched_terms: string[];
   products: ProductCardItem[];
+  pagination: RecommendationPagination;
+};
+
+export type RecommendationNarrativeRequest = {
+  mode?: string;
+  product_limit?: number;
+  use_llm?: boolean;
+};
+
+export type RecommendationNarrativeOverview = {
+  headline: string;
+  summary: string;
+  key_points: string[];
+};
+
+export type RecommendationNarrativeCard = {
+  headline: string;
+  reason: string;
+  chips: string[];
+};
+
+export type RecommendationNarrativeDetailSection = {
+  title: string;
+  body: string;
+};
+
+export type RecommendationNarrativeProduct = {
+  product_id: string;
+  rank: number;
+  role: string;
+  card: RecommendationNarrativeCard;
+  detail_sections: RecommendationNarrativeDetailSection[];
+  caution: string | null;
+};
+
+export type RecommendationNarrativeResponse = {
+  recommendation_id: string;
+  narrative: {
+    generation_source: string;
+    fallback_reason: string | null;
+    overview: RecommendationNarrativeOverview;
+    product_explanations: RecommendationNarrativeProduct[];
+    selection_guide: string | null;
+  };
+};
+
+export type RecommendationPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 };
 
 export type IngredientEvidence = {
