@@ -6,6 +6,8 @@ import PaymentCompletePage from "./pages/PaymentCompletePage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 
+const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
+
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
 
@@ -30,7 +32,10 @@ const getCurrentPageKey = (): OriginalPageKey => {
 
 function App() {
   const [pageKey, setPageKey] = useState<OriginalPageKey>(() => getCurrentPageKey());
-  const page = useMemo(() => originalPages[pageKey], [pageKey]);
+  const visiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey)
+    ? "home"
+    : pageKey;
+  const page = useMemo(() => originalPages[visiblePageKey], [visiblePageKey]);
 
   useEffect(() => {
     const handleNavigation = () => setPageKey(getCurrentPageKey());
@@ -41,10 +46,9 @@ function App() {
 
   useLayoutEffect(() => {
     const injectedNodes: HTMLElement[] = [];
-    document.documentElement.dataset.appMode =
-      import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
+    document.documentElement.dataset.appMode = appMode;
 
-    document.body.classList.toggle("search-results-page", pageKey === "search");
+    document.body.classList.toggle("search-results-page", visiblePageKey === "search");
 
     const headContainer = document.createElement("div");
     headContainer.innerHTML = page.headHtml;
@@ -65,7 +69,7 @@ function App() {
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
 
-    if (!["home", "search", "productDetail", "checkout", "paymentComplete"].includes(pageKey)) {
+    if (!["home", "search", "productDetail", "checkout", "paymentComplete"].includes(visiblePageKey)) {
       window.setTimeout(() => {
         page.scripts.forEach((scriptText) => {
           const script = document.createElement("script");
@@ -80,19 +84,19 @@ function App() {
       injectedNodes.forEach((node) => node.remove());
       document.body.classList.remove("search-results-page");
     };
-  }, [page, pageKey]);
+  }, [page, visiblePageKey]);
 
   return (
     <main className="spa-origin-shell">
-      {pageKey === "home" ? (
+      {visiblePageKey === "home" ? (
         <HomePage bodyHtml={page.bodyHtml} />
-      ) : pageKey === "search" ? (
+      ) : visiblePageKey === "search" ? (
         <SearchPage />
-      ) : pageKey === "productDetail" ? (
+      ) : visiblePageKey === "productDetail" ? (
         <ProductDetailSpaPage />
-      ) : pageKey === "checkout" ? (
+      ) : visiblePageKey === "checkout" ? (
         <CheckoutPage />
-      ) : pageKey === "paymentComplete" ? (
+      ) : visiblePageKey === "paymentComplete" ? (
         <PaymentCompletePage />
       ) : (
         <div

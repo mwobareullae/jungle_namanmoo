@@ -228,6 +228,14 @@ header .btn-login:hover {
   opacity: 1;
 }
 
+html[data-app-mode="community"] [data-commerce-only] {
+  display: none !important;
+}
+
+html[data-app-mode="community"] .search-results-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .detail-loading {
   min-height: 360px;
   display: grid;

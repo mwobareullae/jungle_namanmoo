@@ -71,9 +71,11 @@ function HomeMainContent({
         sensitivity: profile.sensitivity,
         avoid_ingredients: [],
       });
-      setRecommendation(response);
+      const displayResponse =
+        response.products.length > 0 ? response : createFallbackRecommendation(trimmedQuery, profile);
+      setRecommendation(displayResponse);
       window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-        detail: { status: "success", query: trimmedQuery, recommendation: response },
+        detail: { status: "success", query: trimmedQuery, recommendation: displayResponse },
       }));
     } catch {
       const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
