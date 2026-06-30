@@ -43,6 +43,9 @@ type BackendErrorResponse = {
 type BackendScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  concentration_fit_score?: number;
+  concentration_bucket?: string | null;
+  concentration_warning?: string | null;
   skin_type_score: number;
   price_score: number;
   keyword_score?: number;
@@ -173,6 +176,9 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
   return {
     ingredient_effect_score: score.ingredient_effect_score,
     ingredient_evidence_score: score.ingredient_evidence_score,
+    concentration_fit_score: score.concentration_fit_score ?? 50,
+    concentration_bucket: score.concentration_bucket ?? null,
+    concentration_warning: score.concentration_warning ?? null,
     skin_type_match_score: score.skin_type_score,
     price_value_score: score.price_score,
     keyword_score: score.keyword_score ?? 0,

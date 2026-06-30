@@ -74,6 +74,7 @@ function ProductDetailSpaPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
+  const [narrativeSelectionGuide, setNarrativeSelectionGuide] = useState<string | null>(null);
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
@@ -135,6 +136,7 @@ function ProductDetailSpaPage() {
     if (!productId || !recommendationId) {
       setNarrativeProduct(null);
       setNarrativeOverview(null);
+      setNarrativeSelectionGuide(null);
       setIsNarrativeLoading(false);
       return;
     }
@@ -152,11 +154,13 @@ function ProductDetailSpaPage() {
           response.narrative.product_explanations.find((item) => item.product_id === productId) ?? null;
         setNarrativeProduct(productNarrative);
         setNarrativeOverview(response.narrative.overview);
+        setNarrativeSelectionGuide(response.narrative.selection_guide);
       })
       .catch(() => {
         if (!isMounted) return;
         setNarrativeProduct(null);
         setNarrativeOverview(null);
+        setNarrativeSelectionGuide(null);
       })
       .finally(() => {
         if (isMounted) setIsNarrativeLoading(false);
@@ -211,6 +215,11 @@ function ProductDetailSpaPage() {
   const narrativeHeadline =
     narrativeCard?.headline || narrativeOverview?.headline || "내 피부 고민 기준 추천 근거";
   const narrativeReason = narrativeCard?.reason || product?.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다.";
+  const narrativeRole = narrativeProduct?.role;
+  const narrativeOverviewSummary = narrativeOverview?.summary;
+  const narrativeKeyPoints = narrativeOverview?.key_points ?? [];
+  const narrativeCaution = narrativeProduct?.caution;
+  const narrativeSummaryText = narrativeProduct && narrativeOverviewSummary ? narrativeOverviewSummary : null;
   const narrativeChips = narrativeCard?.chips?.length
     ? narrativeCard.chips
     : [
@@ -316,17 +325,30 @@ function ProductDetailSpaPage() {
                     <span aria-label="추천 문구는 성분 근거와 매칭 점수를 바탕으로 생성됩니다">i</span>
                   </div>
                   <div className="ai-narrative-body">
+                    {narrativeRole ? (
+                      <div className="ai-narrative-role">{narrativeRole}</div>
+                    ) : null}
                     <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : narrativeHeadline}</strong>
                     <p id="matchReason">
                       <span aria-hidden="true">◆</span>
                       {narrativeReason}
                     </p>
+                    {narrativeSummaryText ? (
+                      <p className="ai-narrative-summary">{narrativeSummaryText}</p>
+                    ) : null}
                     <div className="ai-narrative-chip-list">
                       {narrativeChips.map((chip) => (
                         <span key={chip}>{chip}</span>
                       ))}
                       <span className="score-chip" id="matchScore">추천 점수 {product.total_score}</span>
                     </div>
+                    {narrativeKeyPoints.length > 0 ? (
+                      <div className="ai-narrative-keypoints">
+                        {narrativeKeyPoints.slice(0, 3).map((point) => (
+                          <span key={point}>{point}</span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="ai-narrative-detail-list">
                       {narrativeDetailSections.map((section) => (
                         <div className="ai-narrative-detail-item" key={section.title}>
@@ -335,6 +357,12 @@ function ProductDetailSpaPage() {
                         </div>
                       ))}
                     </div>
+                    {narrativeCaution ? (
+                      <div className="ai-narrative-caution">{narrativeCaution}</div>
+                    ) : null}
+                    {narrativeSelectionGuide ? (
+                      <div className="ai-narrative-guide">{narrativeSelectionGuide}</div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="detail-score-breakdown" id="detailScoreBreakdown">
@@ -351,6 +379,16 @@ function ProductDetailSpaPage() {
                           {product.score_breakdown.ingredient_evidence_score}점
                         </span>
                         <span className="detail-score-chip">
+                          <b>함량 적합</b>
+                          {product.score_breakdown.concentration_fit_score}점
+                        </span>
+                        {product.score_breakdown.concentration_bucket ? (
+                          <span className="detail-score-chip">
+                            <b>농도 구간</b>
+                            {product.score_breakdown.concentration_bucket}
+                          </span>
+                        ) : null}
+                        <span className="detail-score-chip">
                           <b>피부 타입</b>
                           {product.score_breakdown.skin_type_match_score}점
                         </span>
@@ -362,6 +400,11 @@ function ProductDetailSpaPage() {
                           <b>검색 매칭</b>
                           {product.score_breakdown.search_match_score}점
                         </span>
+                        {product.score_breakdown.concentration_warning ? (
+                          <span className="detail-score-chip warning">
+                            {product.score_breakdown.concentration_warning}
+                          </span>
+                        ) : null}
                       </div>
                     </>
                   ) : null}

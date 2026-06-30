@@ -37,6 +37,9 @@ export type RecommendationRequest = {
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  concentration_fit_score: number;
+  concentration_bucket: string | null;
+  concentration_warning: string | null;
   skin_type_match_score: number;
   price_value_score: number;
   keyword_score: number;

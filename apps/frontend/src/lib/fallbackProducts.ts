@@ -3,6 +3,9 @@ import type { ProductCardItem, ProductDetail, RecommendationResponse } from "../
 const scoreBreakdown = {
   ingredient_effect_score: 28,
   ingredient_evidence_score: 24,
+  concentration_fit_score: 50,
+  concentration_bucket: null,
+  concentration_warning: null,
   skin_type_match_score: 18,
   price_value_score: 14,
   keyword_score: 8,
