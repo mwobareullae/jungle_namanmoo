@@ -93,3 +93,40 @@ body {
 .search-page-shell .ai-result-section.compact .flow-card {
   min-height: 116px;
 }
+
+.product-card-hit {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-product-card .product-card-hit {
+  display: grid;
+  grid-template-columns: minmax(150px, 180px) minmax(0, 1fr) minmax(150px, 190px);
+  align-items: stretch;
+}
+
+.search-product-card .product-info,
+.search-product-card .search-result-side {
+  min-width: 0;
+}
+
+.search-product-card .product-name {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .search-product-card .product-card-hit {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .search-product-card .search-result-side {
+    grid-column: 1 / -1;
+  }
+}
