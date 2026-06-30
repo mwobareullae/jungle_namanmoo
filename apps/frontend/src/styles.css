@@ -31,3 +31,29 @@ body {
 .search-page-shell #defaultSection {
   display: none;
 }
+
+.search-page-top {
+  padding: 34px 20px 18px;
+  background: #ffffff;
+}
+
+.search-page-top-inner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.search-page-title {
+  margin: 4px 0 18px;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.search-page-shell .search-container {
+  margin: 0;
+}
+
+.search-page-shell .search-results-shell {
+  padding-top: 22px;
+}

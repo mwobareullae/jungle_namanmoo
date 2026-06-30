@@ -1,0 +1,155 @@
+import type { KeyboardEvent } from "react";
+import { callOriginal } from "../lib/originalRuntime";
+import type { Sensitivity, SkinType } from "../types/recommendation";
+
+type SearchBarPanelProps = {
+  initialQuery?: string;
+  initialProfile: {
+    skin: SkinType;
+    sensitivity: Sensitivity;
+  };
+};
+
+const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
+const sensitivities = ["낮음", "보통", "높음"] as const;
+
+function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelProps) {
+  const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    callOriginal("handleSearch", event);
+  };
+
+  return (
+    <section className="search-page-top">
+      <div className="search-page-top-inner">
+        <div>
+          <div className="sec-eyebrow">Search Results</div>
+          <h1 className="search-page-title">맞춤 추천 결과</h1>
+        </div>
+        <div className="search-container">
+          <div className="search-combo">
+            <div className="search-box" id="searchBox">
+              <div className="search-icon">
+                <svg
+                  fill="none"
+                  height="18"
+                  stroke="#94e0f8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  width="18"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <button
+                className="search-profile-chip"
+                id="searchProfileChip"
+                onClick={() => callOriginal("openSearchSuggestions")}
+                type="button"
+              >
+                {initialProfile.skin} · {initialProfile.sensitivity}
+              </button>
+              <input
+                defaultValue={initialQuery}
+                id="searchInput"
+                onKeyDown={handleSearchKey}
+                placeholder="모공이 넓고 번들거려요"
+                type="text"
+              />
+              <button className="search-btn" onClick={() => callOriginal("doSearch")} type="button">
+                <svg
+                  fill="none"
+                  height="14"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  viewBox="0 0 24 24"
+                  width="14"
+                >
+                  <path d="m22 2-7 20-4-9-9-4z" />
+                </svg>
+                추천 찾기
+              </button>
+            </div>
+
+            <div
+              aria-label="최근 고민과 피부 조건"
+              className="search-suggest-panel"
+              id="searchSuggestPanel"
+            >
+              <div className="suggest-section">
+                <div className="suggest-header">
+                  <span>최근 고민</span>
+                  <button
+                    className="recent-clear"
+                    id="recentClearButton"
+                    onClick={(event) => callOriginal("clearRecentConcerns", event)}
+                    type="button"
+                  >
+                    전체 삭제
+                  </button>
+                </div>
+                <div className="recent-list" id="recentConcernList" />
+              </div>
+
+              <div className="suggest-section">
+                <div className="profile-picker-grid">
+                  <div className="profile-picker-group">
+                    <span className="profile-picker-label">피부 타입</span>
+                    <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
+                      {skinTypes.map((skinType) => (
+                        <button
+                          className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
+                          data-profile="skin"
+                          data-value={skinType}
+                          key={skinType}
+                          onClick={() => callOriginal("selectProfileOption", "skin", skinType)}
+                          type="button"
+                        >
+                          {skinType}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="profile-picker-group">
+                    <span className="profile-picker-label">민감도</span>
+                    <div
+                      aria-label="민감도"
+                      className="profile-segments sensitivity"
+                      role="radiogroup"
+                    >
+                      {sensitivities.map((sensitivity) => (
+                        <button
+                          className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
+                          data-profile="sensitivity"
+                          data-value={sensitivity}
+                          key={sensitivity}
+                          onClick={() => callOriginal("selectProfileOption", "sensitivity", sensitivity)}
+                          type="button"
+                        >
+                          {sensitivity}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="suggest-actions">
+                  <span className="profile-summary" id="profileSummary">
+                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default SearchBarPanel;

@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
+import SearchBarPanel from "../components/SearchBarPanel";
 import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import type { Sensitivity, SkinType } from "../types/recommendation";
@@ -34,7 +34,7 @@ function SearchPage() {
     <div className="search-page-shell">
       <HomeOverlays />
       <HomeHeader />
-      <HomeHero initialProfile={profile} initialQuery={keyword} />
+      <SearchBarPanel initialProfile={profile} initialQuery={keyword} />
       <HomeMatchResult />
       <HomeMainContent
         initialProfile={profile}
