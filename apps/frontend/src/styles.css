@@ -24,6 +24,41 @@ body {
   display: contents;
 }
 
+.hero {
+  position: relative !important;
+  z-index: 120 !important;
+  isolation: isolate;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.main-content {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.search-container,
+.search-container.suggestions-open {
+  position: relative !important;
+  z-index: 600 !important;
+}
+
+.search-container.suggestions-open {
+  z-index: 800 !important;
+}
+
+.search-combo {
+  position: relative;
+  z-index: 2;
+}
+
+.search-suggest-panel {
+  z-index: 20 !important;
+}
+
 .ingredient-stat-grid,
 .ingredient-stat,
 .ingredient-summary-line {
@@ -44,11 +79,16 @@ body {
 }
 
 .search-page-top {
+  position: relative;
+  z-index: 120;
+  isolation: isolate;
   padding: 34px 20px 18px;
   background: #ffffff;
 }
 
 .search-page-top-inner {
+  position: relative;
+  z-index: 1;
   width: min(1180px, 100%);
   margin: 0 auto;
 }
@@ -155,6 +195,8 @@ body {
 }
 
 .home-section-stack {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 50px;
 }
@@ -231,6 +273,8 @@ body {
 }
 
 .home-ranking-section {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   overflow: visible;
   padding: 4px 0 8px;
