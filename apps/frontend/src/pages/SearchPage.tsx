@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
@@ -34,9 +34,9 @@ const getSearchParams = () => {
 
 function SearchPage() {
   const { keyword, skin, sensitivity, page, pageSize, recommendationId } = getSearchParams();
-  const profile = { skin, sensitivity };
+  const profile = useMemo(() => ({ skin, sensitivity }), [skin, sensitivity]);
 
-  useEffect(() => installHomeRuntime(profile), [skin, sensitivity]);
+  useEffect(() => installHomeRuntime(profile), [profile]);
 
   return (
     <div className="search-page-shell">

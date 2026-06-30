@@ -393,7 +393,9 @@ function HomeMainContent({
 
   useEffect(() => {
     if (initialQuery) {
-      runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId);
+      queueMicrotask(() => {
+        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId);
+      });
     }
   }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
 
@@ -401,26 +403,29 @@ function HomeMainContent({
     if (!showDefaultSection) return;
 
     let isMounted = true;
-    setIsHomeSectionLoading(true);
-    setHomeSectionError("");
 
-    api.getHomeSections({
-      skinType: initialProfile.skin,
-      sensitivity: initialProfile.sensitivity,
-      limitPerSection: 10,
-    })
-      .then((response) => {
+    const loadHomeSections = async () => {
+      setIsHomeSectionLoading(true);
+      setHomeSectionError("");
+
+      try {
+        const response = await api.getHomeSections({
+          skinType: initialProfile.skin,
+          sensitivity: initialProfile.sensitivity,
+          limitPerSection: 10,
+        });
         if (!isMounted) return;
         setHomeSections(response.sections);
-      })
-      .catch(() => {
+      } catch {
         if (!isMounted) return;
         setHomeSections([]);
         setHomeSectionError("인기 상품을 불러오지 못했습니다.");
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) setIsHomeSectionLoading(false);
-      });
+      }
+    };
+
+    loadHomeSections();
 
     return () => {
       isMounted = false;

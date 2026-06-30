@@ -97,7 +97,7 @@ function ProductDetailSpaPage() {
   const [narrativeSelectionGuide, setNarrativeSelectionGuide] = useState<string | null>(null);
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState(() => productId ? "" : "상품 정보를 찾을 수 없습니다.");
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [selectedEffect, setSelectedEffect] = useState<{
     icon: string;
@@ -130,23 +130,20 @@ function ProductDetailSpaPage() {
   }, []);
 
   useEffect(() => {
-    setSelectedEffect(null);
-  }, [productId]);
-
-  useEffect(() => {
     if (!productId) {
-      setErrorMessage("상품 정보를 찾을 수 없습니다.");
-      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
-    setIsLoading(true);
-    api.getProduct(productId, recommendationId)
-      .then((response) => {
+
+    const loadProduct = async () => {
+      setSelectedEffect(null);
+      setIsLoading(true);
+
+      try {
+        const response = await api.getProduct(productId, recommendationId);
         if (isMounted) setProduct(response);
-      })
-      .catch(() => {
+      } catch {
         if (!isMounted) return;
         const fallbackProduct = getFallbackProductDetail(productId);
         if (fallbackProduct) {
@@ -155,10 +152,12 @@ function ProductDetailSpaPage() {
           return;
         }
         setErrorMessage("상품 상세 정보를 불러오지 못했습니다.");
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) setIsLoading(false);
-      });
+      }
+    };
+
+    loadProduct();
 
     return () => {
       isMounted = false;
@@ -167,37 +166,40 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     if (!productId || !recommendationId) {
-      setNarrativeProduct(null);
-      setNarrativeOverview(null);
-      setNarrativeSelectionGuide(null);
-      setIsNarrativeLoading(false);
       return;
     }
 
     let isMounted = true;
-    setIsNarrativeLoading(true);
-    api.createRecommendationNarrative(recommendationId, {
-      mode: "community_beta",
-      product_limit: 5,
-      use_llm: true,
-    })
-      .then((response) => {
+
+    const loadNarrative = async () => {
+      setNarrativeProduct(null);
+      setNarrativeOverview(null);
+      setNarrativeSelectionGuide(null);
+      setIsNarrativeLoading(true);
+
+      try {
+        const response = await api.createRecommendationNarrative(recommendationId, {
+          mode: "community_beta",
+          product_limit: 5,
+          use_llm: true,
+        });
         if (!isMounted) return;
         const productNarrative =
           response.narrative.product_explanations.find((item) => item.product_id === productId) ?? null;
         setNarrativeProduct(productNarrative);
         setNarrativeOverview(response.narrative.overview);
         setNarrativeSelectionGuide(response.narrative.selection_guide);
-      })
-      .catch(() => {
+      } catch {
         if (!isMounted) return;
         setNarrativeProduct(null);
         setNarrativeOverview(null);
         setNarrativeSelectionGuide(null);
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) setIsNarrativeLoading(false);
-      });
+      }
+    };
+
+    loadNarrative();
 
     return () => {
       isMounted = false;

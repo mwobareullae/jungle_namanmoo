@@ -75,23 +75,27 @@ function CheckoutPage() {
 
   useEffect(() => {
     if (!selectedId) {
-      setProductLoadState("idle");
       return;
     }
 
     let isMounted = true;
-    setProductLoadState("loading");
-    api.getProduct(selectedId, recommendationId)
-      .then((product) => {
+
+    const loadProduct = async () => {
+      setProductLoadState("loading");
+
+      try {
+        const product = await api.getProduct(selectedId, recommendationId);
         if (!isMounted) return;
         setApiProduct(mapDetailToOrderProduct(product));
         setProductLoadState("success");
-      })
-      .catch(() => {
+      } catch {
         if (!isMounted) return;
         setApiProduct(null);
         setProductLoadState("fallback");
-      });
+      }
+    };
+
+    loadProduct();
 
     return () => {
       isMounted = false;

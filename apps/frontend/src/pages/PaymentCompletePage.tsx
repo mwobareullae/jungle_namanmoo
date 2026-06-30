@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import type { ProductDetail } from "../types/recommendation";
@@ -55,7 +55,7 @@ const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => 
 function PaymentCompletePage() {
   const [{ id, total, count, recommendationId, skinType, sensitivity }] = useState(getCompleteParams);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
-  const orderNo = useMemo(() => `MWB-${String(Date.now()).slice(-8)}`, []);
+  const [orderNo] = useState(() => `MWB-${String(Date.now()).slice(-8)}`);
 
   useEffect(() => {
     let isMounted = true;
