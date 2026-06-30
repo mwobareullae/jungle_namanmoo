@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { originalPages, type OriginalPageKey } from "./originalPages";
+import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
+import PaymentCompletePage from "./pages/PaymentCompletePage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 
@@ -63,7 +65,7 @@ function App() {
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
 
-    if (pageKey !== "home" && pageKey !== "search" && pageKey !== "productDetail") {
+    if (!["home", "search", "productDetail", "checkout", "paymentComplete"].includes(pageKey)) {
       window.setTimeout(() => {
         page.scripts.forEach((scriptText) => {
           const script = document.createElement("script");
@@ -88,6 +90,10 @@ function App() {
         <SearchPage />
       ) : pageKey === "productDetail" ? (
         <ProductDetailSpaPage />
+      ) : pageKey === "checkout" ? (
+        <CheckoutPage />
+      ) : pageKey === "paymentComplete" ? (
+        <PaymentCompletePage />
       ) : (
         <div
           className="spa-origin-section"
