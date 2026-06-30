@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.recommendation import RecommendationRun
+from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -69,6 +69,51 @@ def test_health_endpoint_includes_request_observability_headers(
         "request_finished" in record.message and "test-request-id" in record.message
         for record in caplog.records
     )
+
+
+def test_get_home_sections_returns_main_page_products(client: TestClient) -> None:
+    response = client.get(
+        "/api/home/sections",
+        params={
+            "skin_type": "건성",
+            "sensitivity": "보통",
+            "limit_per_section": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["skin_type"] == "건성"
+    assert data["sensitivity"] == "보통"
+    assert [section["section_id"] for section in data["sections"]] == [
+        "best_sellers",
+        "evidence_picks",
+        "recommended_for_you",
+    ]
+
+    first_section = data["sections"][0]
+    assert first_section["title"] == "지금 인기있는 제품"
+    assert first_section["algorithm"]
+    assert 0 < len(first_section["products"]) <= 2
+
+    product = first_section["products"][0]
+    assert {
+        "product_id",
+        "brand",
+        "name",
+        "category_code",
+        "category_name",
+        "thumbnail_url",
+        "lowest_price",
+        "purchase_url",
+        "badges",
+        "tags",
+        "reason_summary",
+        "display_score",
+    }.issubset(product)
+    assert product["badges"]
+    assert 0 <= product["display_score"] <= 100
 
 
 def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:
@@ -239,6 +284,109 @@ def test_get_recommendation_returns_created_payload(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == created
+
+
+def test_recommendation_response_supports_pagination(client: TestClient) -> None:
+    created_response = client.post(
+        "/api/recommendations",
+        params={"page": 1, "page_size": 1},
+        json={"concern_text": "속건조 보습 추천"},
+    )
+
+    assert created_response.status_code == 200
+
+    first_page = created_response.json()
+    assert len(first_page["products"]) == 1
+    assert first_page["pagination"]["page"] == 1
+    assert first_page["pagination"]["page_size"] == 1
+    assert first_page["pagination"]["total_items"] >= 2
+    assert first_page["pagination"]["total_pages"] >= 2
+    assert first_page["pagination"]["has_next"] is True
+    assert first_page["pagination"]["has_prev"] is False
+
+    second_response = client.get(
+        f"/api/recommendations/{first_page['recommendation_id']}",
+        params={"page": 2, "page_size": 1},
+    )
+
+    assert second_response.status_code == 200
+
+    second_page = second_response.json()
+    assert len(second_page["products"]) == 1
+    assert second_page["products"][0]["rank"] == 2
+    assert second_page["pagination"]["page"] == 2
+    assert second_page["pagination"]["page_size"] == 1
+    assert second_page["pagination"]["total_items"] == first_page["pagination"]["total_items"]
+    assert second_page["pagination"]["has_prev"] is True
+
+
+def test_create_recommendation_narrative_returns_fallback_payload(client: TestClient) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative smoke test"},
+    ).json()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "use_llm": False,
+            "product_limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    narrative = data["narrative"]
+    assert data["recommendation_id"] == created["recommendation_id"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["overview"]["headline"]
+    assert narrative["overview"]["summary"]
+    assert narrative["overview"]["key_points"]
+    assert len(narrative["product_explanations"]) == 2
+    product = narrative["product_explanations"][0]
+    assert product["product_id"] == created["products"][0]["product_id"]
+    assert product["role"]
+    assert product["card"]["headline"]
+    assert product["card"]["reason"]
+    assert product["card"]["chips"]
+    assert product["detail_sections"]
+
+
+def test_create_recommendation_narrative_handles_empty_results(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative empty result smoke test"},
+    ).json()
+
+    with Session(db_engine) as session:
+        run = session.execute(
+            select(RecommendationRun).where(
+                RecommendationRun.recommendation_code == created["recommendation_id"],
+            )
+        ).scalar_one()
+        session.query(RecommendationResult).filter(
+            RecommendationResult.recommendation_run_id == run.id,
+        ).delete()
+        session.commit()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "use_llm": True,
+            "product_limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    narrative = response.json()["narrative"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["overview"]["headline"]
+    assert narrative["product_explanations"] == []
 
 
 def test_get_recommendation_returns_404_for_missing_id(client: TestClient) -> None:

@@ -195,6 +195,7 @@ class OpenAIConcernLlmParser:
                     },
                 ],
                 "temperature": 0,
+                "seed": 42,
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": schema,
