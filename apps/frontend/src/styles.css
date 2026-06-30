@@ -14,21 +14,10 @@ body,
 }
 
 body {
-  overflow: hidden;
   background: #fafafa;
 }
 
 .spa-origin-shell {
-  width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   margin: 0;
-  overflow: hidden;
-}
-
-.spa-origin-frame {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #fafafa;
 }
