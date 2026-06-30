@@ -65,6 +65,26 @@ const getPurchaseOptions = (product: ProductDetail) => {
   }];
 };
 
+const normalizeNarrativeTitle = (title: string) => {
+  if (/내 피부 고민 기준 추천 근거|추천\s*근거/.test(title)) return "추천 근거";
+  if (/핵심\s*성분/.test(title)) return "핵심 성분";
+  if (/피부\s*타입/.test(title)) return "피부 타입";
+  return title;
+};
+
+const getSourceUrlForEvidence = (product: ProductDetail, sourceTitle: string | null) => {
+  if (!sourceTitle) return "";
+  return product.sources.find((source) => source.title === sourceTitle)?.url ?? "";
+};
+
+const parseRiskFlag = (riskFlag: string) => {
+  const [name, ...noteParts] = riskFlag.split(":");
+  return {
+    name: name.trim() || "주의 성분",
+    note: noteParts.join(":").trim(),
+  };
+};
+
 const isCommunityMode = import.meta.env.VITE_APP_MODE === "community";
 const normalizeDetailHash = (hash: string) =>
   isCommunityMode && hash === "#related" ? "#summary" : hash || "#summary";
@@ -228,8 +248,8 @@ function ProductDetailSpaPage() {
         ...(product?.key_ingredients ?? []),
       ]),
     ].slice(0, 5);
-  const narrativeDetailSections = narrativeProduct?.detail_sections?.length
-    ? narrativeProduct.detail_sections.slice(0, 4)
+  const baseNarrativeDetailSections = narrativeProduct?.detail_sections?.length
+    ? narrativeProduct.detail_sections
     : [
       {
         title: "추천 근거",
@@ -244,6 +264,18 @@ function ProductDetailSpaPage() {
         body: skinType || sensitivity ? `${skinType || "피부 타입"} · 민감도 ${sensitivity || "확인 중"}` : "피부 타입 조건을 함께 반영했습니다.",
       },
     ];
+  const narrativeDetailSections = baseNarrativeDetailSections
+    .map((section) => ({
+      ...section,
+      title: normalizeNarrativeTitle(section.title),
+    }))
+    .filter((section, index, sections) => {
+      const body = section.body.trim();
+      if (!body) return false;
+      if (body === narrativeReason.trim()) return false;
+      return sections.findIndex((item) => item.title === section.title && item.body.trim() === body) === index;
+    })
+    .slice(0, 4);
 
   return (
     <>
@@ -527,23 +559,31 @@ function ProductDetailSpaPage() {
                 <h2>성분 효능 근거</h2>
                 <div className="review-list" id="evidenceList">
                   {product.evidence.length > 0 ? (
-                    product.evidence.map((evidence) => (
-                      <article
-                        className="review-item"
-                        key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
-                      >
-                        <div className="review-item-head">
-                          <strong>{evidence.ingredient_name || "성분"}</strong>
-                          <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
-                        </div>
-                        <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
-                        {evidence.source_title ? (
-                          <a className="review-source-link" href="#sourceList">
-                            {evidence.source_title}
-                          </a>
-                        ) : null}
-                      </article>
-                    ))
+                    product.evidence.map((evidence) => {
+                      const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
+                      return (
+                        <article
+                          className="review-item"
+                          key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
+                        >
+                          <div className="review-item-head">
+                            <strong>{evidence.ingredient_name || "성분"}</strong>
+                            <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
+                          </div>
+                          <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
+                          {evidence.source_title ? (
+                            <a
+                              className="review-source-link"
+                              href={sourceUrl || "#sourceList"}
+                              target={sourceUrl ? "_blank" : undefined}
+                              rel={sourceUrl ? "noopener noreferrer" : undefined}
+                            >
+                              {evidence.source_title}
+                            </a>
+                          ) : null}
+                        </article>
+                      );
+                    })
                   ) : (
                     <div className="review-item"><p>표시할 성분 효능 근거가 없습니다.</p></div>
                   )}
@@ -578,15 +618,18 @@ function ProductDetailSpaPage() {
                 <h2>주의 성분</h2>
                 <div className="review-list" id="riskList">
                   {product.risk_flags.length > 0 ? (
-                    product.risk_flags.map((riskFlag) => (
-                      <article className="review-item" key={riskFlag}>
-                        <div className="review-item-head">
-                          <strong>{riskFlag}</strong>
-                          <span>주의 정보</span>
-                        </div>
-                        <p>민감도와 피부 타입에 따라 사용 전 성분 확인이 필요합니다.</p>
-                      </article>
-                    ))
+                    product.risk_flags.map((riskFlag) => {
+                      const risk = parseRiskFlag(riskFlag);
+                      return (
+                        <article className="review-item" key={riskFlag}>
+                          <div className="review-item-head">
+                            <strong>{risk.name}</strong>
+                            <span>주의 정보</span>
+                          </div>
+                          <p>{risk.note || "민감도와 피부 타입에 따라 사용 전 성분 확인이 필요합니다."}</p>
+                        </article>
+                      );
+                    })
                   ) : (
                     <div className="review-item"><p>표시할 주의 성분 정보가 없습니다.</p></div>
                   )}
