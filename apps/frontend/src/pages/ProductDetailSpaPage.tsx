@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
@@ -44,38 +45,6 @@ const getEffectLabel = (effect: string) => {
   if (effect.includes("보습")) return "보습에 도움되는 성분";
   return `${effect} 효능과 연결된 성분`;
 };
-
-function ProductDetailHeader() {
-  return (
-    <header>
-      <div className="header-inner">
-        <a href="/" className="logo">뭐바를래</a>
-        <nav>
-          <a href="/#defaultSection">신상품</a>
-          <a href="/#defaultSection">베스트</a>
-          <a href="/#defaultSection">스킨케어</a>
-          <a href="/#defaultSection">메이크업</a>
-          <a href="/#defaultSection">브랜드</a>
-          <a href="/" className="nav-ai">맞춤 추천</a>
-        </nav>
-        <div className="header-actions">
-          <button
-            className="icon-btn"
-            type="button"
-            aria-label="검색"
-            onClick={() => { window.location.href = "/"; }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
-          <button data-commerce-only className="btn-login" type="button">로그인</button>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId }] = useState(getDetailParams);
@@ -152,7 +121,7 @@ function ProductDetailSpaPage() {
 
   return (
     <>
-      <ProductDetailHeader />
+      <HomeHeader />
       <main className="detail-page">
         <section className="detail-shell">
           <div className="detail-breadcrumb">
