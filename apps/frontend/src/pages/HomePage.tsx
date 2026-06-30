@@ -1,5 +1,11 @@
 import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
+import {
+  HomeFooter,
+  HomeHowItWorks,
+  HomeIngredientGuide,
+  HomeMatchResult,
+} from "../components/HomeStaticSections";
 
 type HomeSection = {
   id: string;
@@ -52,6 +58,14 @@ function HomePage({ bodyHtml }: HomePageProps) {
           <HomeHeader key={section.id} />
         ) : section.id === "hero" ? (
           <HomeHero key={section.id} />
+        ) : section.id === "matchresultsection" ? (
+          <HomeMatchResult key={section.id} />
+        ) : section.id === "howitworks" ? (
+          <HomeHowItWorks key={section.id} />
+        ) : section.id === "ingredients" ? (
+          <HomeIngredientGuide key={section.id} />
+        ) : section.id === "footer" ? (
+          <HomeFooter key={section.id} />
         ) : (
           <div
             className="spa-origin-section"
