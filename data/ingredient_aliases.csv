@@ -1,0 +1,300 @@
+alias,canonical_id,alias_type,confidence,source
+나이아신아마이드,niacinamide,ko,high,KCIA 표준화명칭목록
+나이아신아미드,niacinamide,typo,medium,common Korean label typo
+니아신아마이드,niacinamide,typo,medium,common Korean label typo
+니아신아미드,niacinamide,typo,medium,common Korean label typo
+Niacinamide,niacinamide,inci,high,INCI/CosIng
+Nicotinamide,niacinamide,synonym,high,chemical synonym
+니코틴아마이드,niacinamide,synonym,high,chemical synonym
+비타민B3,niacinamide,synonym,high,common market synonym
+비타민 B3,niacinamide,synonym,high,common market synonym
+Vitamin B3,niacinamide,synonym,high,common market synonym
+살리실릭애씨드,salicylic_acid_bha,ko,high,KCIA 표준화명칭목록
+살리실산,salicylic_acid_bha,synonym,high,common Korean synonym
+살리실릭산,salicylic_acid_bha,typo,medium,common Korean label typo
+Salicylic Acid,salicylic_acid_bha,inci,high,INCI/CosIng
+BHA,salicylic_acid_bha,abbrev,high,common cosmetic abbreviation
+비에이치에이,salicylic_acid_bha,abbrev,medium,common Korean label
+베타하이드록시애씨드,salicylic_acid_bha,synonym,high,common cosmetic synonym
+Beta Hydroxy Acid,salicylic_acid_bha,synonym,high,common cosmetic synonym
+Beta-Hydroxy Acid,salicylic_acid_bha,synonym,high,common cosmetic synonym
+AHA,aha,abbrev,high,common cosmetic abbreviation
+에이에이치에이,aha,abbrev,medium,common Korean label
+알파하이드록시애씨드,aha,synonym,high,common cosmetic synonym
+Alpha Hydroxy Acid,aha,synonym,high,common cosmetic synonym
+Alpha-Hydroxy Acid,aha,synonym,high,common cosmetic synonym
+글라이콜릭애씨드,aha,ko,high,KCIA 표준화명칭목록
+글리콜릭애씨드,aha,typo,medium,common Korean label typo
+Glycolic Acid,aha,inci,high,INCI/CosIng
+락틱애씨드,aha,ko,high,KCIA 표준화명칭목록
+젖산,aha,synonym,high,common Korean synonym
+Lactic Acid,aha,inci,high,INCI/CosIng
+만델릭애씨드,aha,ko,medium,KCIA 표준화명칭목록
+Mandelic Acid,aha,inci,medium,INCI/CosIng
+말릭애씨드,aha,ko,medium,KCIA 표준화명칭목록
+Malic Acid,aha,inci,medium,INCI/CosIng
+타타릭애씨드,aha,ko,medium,KCIA 표준화명칭목록
+Tartaric Acid,aha,inci,medium,INCI/CosIng
+PHA,pha,abbrev,high,common cosmetic abbreviation
+피에이치에이,pha,abbrev,medium,common Korean label
+폴리하이드록시애씨드,pha,synonym,high,common cosmetic synonym
+Polyhydroxy Acid,pha,synonym,high,common cosmetic synonym
+Poly Hydroxy Acid,pha,synonym,high,common cosmetic synonym
+글루코노락톤,pha,ko,high,KCIA 표준화명칭목록
+Gluconolactone,pha,inci,high,INCI/CosIng
+락토바이오닉애씨드,pha,ko,high,KCIA 표준화명칭목록
+Lactobionic Acid,pha,inci,high,INCI/CosIng
+말토바이오닉애씨드,pha,ko,medium,KCIA 표준화명칭목록
+Maltobionic Acid,pha,inci,medium,INCI/CosIng
+징크피씨에이,zinc_pca,ko,high,KCIA 표준화명칭목록
+징크PCA,zinc_pca,abbrev,high,common Korean label
+아연피씨에이,zinc_pca,synonym,high,common Korean synonym
+아연 PCA,zinc_pca,synonym,high,common Korean synonym
+Zinc PCA,zinc_pca,inci,high,INCI/CosIng
+Zinc Pidolate,zinc_pca,synonym,medium,chemical synonym
+레티놀,retinol,ko,high,KCIA 표준화명칭목록
+Retinol,retinol,inci,high,INCI/CosIng
+all-trans Retinol,retinol,synonym,high,chemical synonym
+All-trans Retinol,retinol,synonym,high,chemical synonym
+레티놀*,retinol,typo,medium,project raw crawl
+레티놀함량,retinol,typo,low,project raw crawl
+레티날,retinal,ko,high,KCIA 표준화명칭목록
+레틴알,retinal,typo,medium,common Korean label typo
+Retinal,retinal,inci,high,INCI/CosIng
+Retinaldehyde,retinal,synonym,high,chemical synonym
+retinaldehyde,retinal,synonym,high,chemical synonym
+아데노신,adenosine,ko,high,KCIA 표준화명칭목록
+Adenosine,adenosine,inci,high,INCI/CosIng
+아데노신주름개선,adenosine,typo,low,project raw crawl
+아데노신 주름개선,adenosine,typo,low,project raw crawl
+펩타이드,peptides,ko,high,common cosmetic family
+Peptide,peptides,en,high,common cosmetic family
+Peptides,peptides,en,high,common cosmetic family
+다이펩타이드,peptides,ko,medium,KCIA peptide naming
+Dipeptide,peptides,en,medium,KCIA peptide naming
+트라이펩타이드,peptides,ko,medium,KCIA peptide naming
+Tripeptide,peptides,en,medium,KCIA peptide naming
+테트라펩타이드,peptides,ko,medium,KCIA peptide naming
+Tetrapeptide,peptides,en,medium,KCIA peptide naming
+펜타펩타이드,peptides,ko,medium,KCIA peptide naming
+Pentapeptide,peptides,en,medium,KCIA peptide naming
+헥사펩타이드,peptides,ko,medium,KCIA peptide naming
+Hexapeptide,peptides,en,medium,KCIA peptide naming
+올리고펩타이드,peptides,ko,medium,KCIA peptide naming
+Oligopeptide,peptides,en,medium,KCIA peptide naming
+폴리펩타이드,peptides,ko,medium,KCIA peptide naming
+Polypeptide,peptides,en,medium,KCIA peptide naming
+아세틸헥사펩타이드-8,peptides,ko,high,KCIA 표준화명칭목록
+Acetyl Hexapeptide-8,peptides,inci,high,INCI/CosIng
+아르지렐린,peptides,synonym,high,common market synonym
+Argireline,peptides,synonym,high,common market synonym
+카퍼트라이펩타이드-1,peptides,ko,high,KCIA 표준화명칭목록
+Copper Tripeptide-1,peptides,inci,high,INCI/CosIng
+구리펩타이드,peptides,synonym,high,common Korean synonym
+Copper Peptide,peptides,synonym,high,common market synonym
+팔미토일펜타펩타이드-4,peptides,ko,high,KCIA 표준화명칭목록
+Palmitoyl Pentapeptide-4,peptides,inci,high,INCI/CosIng
+마트릭실,peptides,synonym,medium,common market synonym
+Matrixyl,peptides,synonym,medium,common market synonym
+팔미토일트라이펩타이드-1,peptides,ko,high,KCIA 표준화명칭목록
+Palmitoyl Tripeptide-1,peptides,inci,high,INCI/CosIng
+팔미토일테트라펩타이드-7,peptides,ko,high,KCIA 표준화명칭목록
+Palmitoyl Tetrapeptide-7,peptides,inci,high,INCI/CosIng
+팔미토일트라이펩타이드-38,peptides,ko,high,KCIA 표준화명칭목록
+Palmitoyl Tripeptide-38,peptides,inci,high,INCI/CosIng
+트라이펩타이드-1,peptides,ko,high,KCIA 표준화명칭목록
+Tripeptide-1,peptides,inci,high,INCI/CosIng
+비타민C,ascorbic_acid,synonym,medium,common market synonym
+비타민 C,ascorbic_acid,synonym,medium,common market synonym
+Vitamin C,ascorbic_acid,synonym,medium,common market synonym
+아스코빅애씨드,ascorbic_acid,ko,high,KCIA 표준화명칭목록
+아스코르브산,ascorbic_acid,synonym,high,chemical synonym
+Ascorbic Acid,ascorbic_acid,inci,high,INCI/CosIng
+L-Ascorbic Acid,ascorbic_acid,synonym,high,chemical synonym
+L-아스코빅애씨드,ascorbic_acid,synonym,high,chemical synonym
+LAA,ascorbic_acid,abbrev,medium,common cosmetic abbreviation
+알부틴,arbutin,ko,high,KCIA 표준화명칭목록
+Arbutin,arbutin,inci,high,INCI/CosIng
+베타알부틴,arbutin,synonym,medium,chemical synonym
+베타-알부틴,arbutin,synonym,medium,chemical synonym
+Beta-Arbutin,arbutin,synonym,medium,chemical synonym
+트라넥사믹애씨드,tranexamic_acid,ko,high,KCIA 표준화명칭목록
+트라넥사믹산,tranexamic_acid,synonym,high,common Korean synonym
+트라넥삼산,tranexamic_acid,synonym,high,common Korean synonym
+Tranexamic Acid,tranexamic_acid,inci,high,INCI/CosIng
+Tranexamic,tranexamic_acid,synonym,medium,common cosmetic shorthand
+TXA,tranexamic_acid,abbrev,medium,common cosmetic abbreviation
+티엑스에이,tranexamic_acid,abbrev,medium,common Korean abbreviation
+코직애씨드,kojic_acid,ko,high,KCIA 표준화명칭목록
+코직산,kojic_acid,synonym,high,common Korean synonym
+코지산,kojic_acid,typo,medium,common Korean label typo
+Kojic Acid,kojic_acid,inci,high,INCI/CosIng
+Kojic,kojic_acid,synonym,medium,common cosmetic shorthand
+감초추출물,licorice_extract,ko,high,KCIA 표준화명칭목록
+감초뿌리추출물,licorice_extract,ko,high,KCIA 표준화명칭목록
+스페인감초뿌리추출물,licorice_extract,ko,high,KCIA 표준화명칭목록
+창과감초뿌리추출물,licorice_extract,ko,high,KCIA 표준화명칭목록
+Licorice Extract,licorice_extract,en,high,common market synonym
+Licorice Root Extract,licorice_extract,en,high,common market synonym
+Glycyrrhiza Glabra Root Extract,licorice_extract,inci,high,INCI/CosIng
+Glycyrrhiza Uralensis Root Extract,licorice_extract,inci,high,INCI/CosIng
+Glycyrrhiza Inflata Root Extract,licorice_extract,inci,high,INCI/CosIng
+Glycyrrhiza Glabra (Licorice) Root Extract,licorice_extract,inci,high,INCI/CosIng
+유용성감초추출물,licorice_extract,synonym,medium,MFDS functional ingredient label
+Oil Soluble Licorice Extract,licorice_extract,synonym,medium,MFDS functional ingredient label
+글리세린,glycerin,ko,high,KCIA 표준화명칭목록
+Glycerin,glycerin,inci,high,INCI/CosIng
+글리세롤,glycerin,synonym,high,chemical synonym
+Glycerol,glycerin,synonym,high,chemical synonym
+식물성글리세린,glycerin,synonym,medium,common market synonym
+Vegetable Glycerin,glycerin,synonym,medium,common market synonym
+히알루론산,hyaluronic_acid,synonym,high,common Korean synonym
+하이알루로닉애씨드,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Hyaluronic Acid,hyaluronic_acid,inci,high,INCI/CosIng
+소듐하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Sodium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
+하이드롤라이즈드하이알루로닉애씨드,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Hydrolyzed Hyaluronic Acid,hyaluronic_acid,inci,high,INCI/CosIng
+하이드롤라이즈드소듐하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Hydrolyzed Sodium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
+포타슘하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Potassium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
+소듐아세틸레이티드하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
+Sodium Acetylated Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
+소듐하이알루로네이트크로스폴리머,hyaluronic_acid,ko,medium,KCIA 표준화명칭목록
+Sodium Hyaluronate Crosspolymer,hyaluronic_acid,inci,medium,INCI/CosIng
+하이드록시프로필트라이모늄하이알루로네이트,hyaluronic_acid,ko,medium,KCIA 표준화명칭목록
+Hydroxypropyltrimonium Hyaluronate,hyaluronic_acid,inci,medium,INCI/CosIng
+저분자히알루론산,hyaluronic_acid,synonym,medium,common market synonym
+고분자히알루론산,hyaluronic_acid,synonym,medium,common market synonym
+판테놀,panthenol,ko,high,KCIA 표준화명칭목록
+Panthenol,panthenol,inci,high,INCI/CosIng
+덱스판테놀,panthenol,synonym,high,chemical synonym
+Dexpanthenol,panthenol,synonym,high,chemical synonym
+프로비타민B5,panthenol,synonym,high,common market synonym
+프로비타민 B5,panthenol,synonym,high,common market synonym
+Provitamin B5,panthenol,synonym,high,common market synonym
+비타민B5,panthenol,synonym,medium,common market shorthand
+비타민 B5,panthenol,synonym,medium,common market shorthand
+세라마이드,ceramides,ko,high,common cosmetic family
+Ceramide,ceramides,en,high,common cosmetic family
+Ceramides,ceramides,en,high,common cosmetic family
+세라마이드엔피,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide NP,ceramides,inci,high,INCI/CosIng
+세라마이드3,ceramides,synonym,high,KCIA 구명칭
+Ceramide 3,ceramides,synonym,high,KCIA 구명칭
+세라마이드에이피,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide AP,ceramides,inci,high,INCI/CosIng
+세라마이드이오피,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide EOP,ceramides,inci,high,INCI/CosIng
+세라마이드엔에스,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide NS,ceramides,inci,high,INCI/CosIng
+세라마이드엔지,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide NG,ceramides,inci,high,INCI/CosIng
+세라마이드에이에스,ceramides,ko,high,KCIA 표준화명칭목록
+Ceramide AS,ceramides,inci,high,INCI/CosIng
+세라마이드엔디에스,ceramides,ko,medium,KCIA 표준화명칭목록
+Ceramide NDS,ceramides,inci,medium,INCI/CosIng
+콜레스테롤,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Cholesterol,cholesterol_fatty_acids,inci,high,INCI/CosIng
+지방산,cholesterol_fatty_acids,synonym,medium,common cosmetic family
+Fatty Acid,cholesterol_fatty_acids,synonym,medium,common cosmetic family
+Fatty Acids,cholesterol_fatty_acids,synonym,medium,common cosmetic family
+리놀레익애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Linoleic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+리놀레닉애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Linolenic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+올레익애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Oleic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+스테아릭애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Stearic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+팔미틱애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Palmitic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+라우릭애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Lauric Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+미리스틱애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Myristic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+베헤닉애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
+Behenic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+스쿠알란,squalane,ko,high,KCIA 표준화명칭목록
+Squalane,squalane,inci,high,INCI/CosIng
+식물성스쿠알란,squalane,synonym,high,common Korean label
+Phytosqualane,squalane,synonym,medium,common market synonym
+Plant-derived Squalane,squalane,synonym,medium,common market synonym
+올리브스쿠알란,squalane,synonym,medium,common market synonym
+Olive Squalane,squalane,synonym,medium,common market synonym
+다이메티콘,dimethicone,ko,high,KCIA 표준화명칭목록
+디메치콘,dimethicone,synonym,high,KCIA 구명칭
+Dimethicone,dimethicone,inci,high,INCI/CosIng
+폴리다이메틸실록세인,dimethicone,synonym,medium,chemical synonym
+Polydimethylsiloxane,dimethicone,synonym,medium,chemical synonym
+PDMS,dimethicone,abbrev,medium,chemical abbreviation
+페트롤라툼,petrolatum_mineral_oil,ko,high,KCIA 표준화명칭목록
+Petrolatum,petrolatum_mineral_oil,inci,high,INCI/CosIng
+바셀린,petrolatum_mineral_oil,synonym,medium,common Korean synonym
+Vaseline,petrolatum_mineral_oil,synonym,medium,common market synonym
+Petroleum Jelly,petrolatum_mineral_oil,synonym,high,common English synonym
+White Petrolatum,petrolatum_mineral_oil,synonym,high,common English synonym
+미네랄오일,petrolatum_mineral_oil,ko,high,KCIA 표준화명칭목록
+Mineral Oil,petrolatum_mineral_oil,inci,high,INCI/CosIng
+파라핀오일,petrolatum_mineral_oil,synonym,medium,common Korean synonym
+Paraffinum Liquidum,petrolatum_mineral_oil,synonym,high,EU label synonym
+Liquid Paraffin,petrolatum_mineral_oil,synonym,high,common English synonym
+유레아,urea,ko,high,KCIA 표준화명칭목록
+우레아,urea,synonym,high,common Korean synonym
+Urea,urea,inci,high,INCI/CosIng
+카바마이드,urea,synonym,high,chemical synonym
+Carbamide,urea,synonym,high,chemical synonym
+병풀추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
+병풀잎추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
+병풀뿌리추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
+병풀잎수,centella_asiatica,ko,medium,KCIA 표준화명칭목록
+병풀수,centella_asiatica,synonym,medium,common Korean label
+센텔라아시아티카추출물,centella_asiatica,synonym,high,common Korean label
+센텔라추출물,centella_asiatica,synonym,high,common Korean label
+Centella Asiatica Extract,centella_asiatica,inci,high,INCI/CosIng
+Centella Asiatica Leaf Extract,centella_asiatica,inci,high,INCI/CosIng
+Centella Asiatica Root Extract,centella_asiatica,inci,high,INCI/CosIng
+Centella Asiatica Leaf Water,centella_asiatica,inci,medium,INCI/CosIng
+Hydrolyzed Centella Asiatica Extract,centella_asiatica,inci,medium,INCI/CosIng
+시카,centella_asiatica,synonym,medium,common market synonym
+Cica,centella_asiatica,synonym,medium,common market synonym
+마데카소사이드,madecassoside,ko,high,KCIA 표준화명칭목록
+Madecassoside,madecassoside,inci,high,INCI/CosIng
+마데카소사이드*,madecassoside,typo,medium,project raw crawl
+티트리,tea_tree,synonym,high,common Korean label
+티트리잎오일,tea_tree,ko,high,KCIA 표준화명칭목록
+티트리잎추출물,tea_tree,ko,high,KCIA 표준화명칭목록
+티트리추출물,tea_tree,ko,high,KCIA 표준화명칭목록
+티트리꽃/잎/줄기추출물,tea_tree,ko,high,KCIA 표준화명칭목록
+Tea Tree,tea_tree,synonym,high,common market synonym
+Tea Tree Leaf Oil,tea_tree,en,high,common market synonym
+Melaleuca Alternifolia Leaf Oil,tea_tree,inci,high,INCI/CosIng
+Melaleuca Alternifolia (Tea Tree) Leaf Extract,tea_tree,inci,high,INCI/CosIng
+Melaleuca Alternifolia (Tea Tree) Extract,tea_tree,inci,high,INCI/CosIng
+알란토인,allantoin,ko,high,KCIA 표준화명칭목록
+Allantoin,allantoin,inci,high,INCI/CosIng
+알란토인*,allantoin,typo,medium,project raw crawl
+콜로이달오트밀,colloidal_oatmeal,ko,high,KCIA 표준화명칭목록
+콜로이드오트밀,colloidal_oatmeal,synonym,medium,common Korean synonym
+콜로이드성오트밀,colloidal_oatmeal,synonym,medium,common Korean synonym
+Colloidal Oatmeal,colloidal_oatmeal,inci,high,INCI/CosIng
+Oatmeal Colloid,colloidal_oatmeal,synonym,medium,common English synonym
+비사보롤,bisabolol,ko,high,KCIA 표준화명칭목록
+Bisabolol,bisabolol,inci,high,INCI/CosIng
+알파-비사보롤,bisabolol,synonym,high,common Korean synonym
+Alpha-Bisabolol,bisabolol,synonym,high,chemical synonym
+레보메놀,bisabolol,synonym,medium,chemical synonym
+Levomenol,bisabolol,synonym,medium,chemical synonym
+녹차,green_tea,synonym,high,common Korean label
+녹차추출물,green_tea,ko,high,KCIA 표준화명칭목록
+녹차잎추출물,green_tea,ko,high,common Korean label
+차나무잎추출물,green_tea,ko,high,KCIA 표준화명칭목록
+Green Tea Extract,green_tea,en,high,common market synonym
+Camellia Sinensis Leaf Extract,green_tea,inci,high,INCI/CosIng
+녹차수,green_tea,ko,medium,KCIA 표준화명칭목록
+Green Tea Water,green_tea,en,medium,common market synonym
+Camellia Sinensis Leaf Water,green_tea,inci,medium,INCI/CosIng
+녹차가루,green_tea,ko,medium,KCIA 표준화명칭목록
+Green Tea Powder,green_tea,en,medium,common market synonym
+Camellia Sinensis Leaf Powder,green_tea,inci,medium,INCI/CosIng
