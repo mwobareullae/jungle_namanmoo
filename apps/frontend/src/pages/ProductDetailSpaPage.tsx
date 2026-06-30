@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
-import HomeOverlays from "../components/HomeOverlays";
 import { api } from "../lib/api";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
@@ -122,7 +121,6 @@ function ProductDetailSpaPage() {
 
   return (
     <>
-      <HomeOverlays />
       <HomeHeader />
       <main className="detail-page">
         <section className="detail-shell">

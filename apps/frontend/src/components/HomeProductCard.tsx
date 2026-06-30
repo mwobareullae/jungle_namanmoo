@@ -18,16 +18,24 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
   const detailUrl = `/product-detail?${searchParams.toString()}`;
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
 
+  const openDetail = () => {
+    window.location.href = detailUrl;
+  };
+
   return (
-    <article className={`product-card${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}`}>
-      <button
-        aria-label={`${product.brand} ${product.name} 상세 보기`}
-        className="product-card-hit"
-        onClick={() => {
-          window.location.href = detailUrl;
-        }}
-        type="button"
-      >
+    <article
+      aria-label={`${product.brand} ${product.name} 상세 보기`}
+      className={`product-card product-card-hit${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}`}
+      onClick={openDetail}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openDetail();
+        }
+      }}
+      role="link"
+      tabIndex={0}
+    >
       <div className="product-img">
         {hasImage ? (
           <img className="product-photo" src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
@@ -86,7 +94,6 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
           </div>
         </div>
       ) : null}
-      </button>
     </article>
   );
 }
