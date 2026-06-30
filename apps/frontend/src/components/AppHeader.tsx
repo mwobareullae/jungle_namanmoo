@@ -1,17 +1,26 @@
 type AppHeaderProps = {
   apiBaseUrl: string;
-  onHome: () => void;
+  isCommunityMode: boolean;
+  onNavigate: (path: string) => void;
 };
 
-function AppHeader({ apiBaseUrl, onHome }: AppHeaderProps) {
+function AppHeader({ apiBaseUrl, isCommunityMode, onNavigate }: AppHeaderProps) {
+  const homePath = isCommunityMode ? "/community" : "/";
+
   return (
     <header className="site-header">
-      <button className="brand-mark" type="button" onClick={onHome}>
-        mubareullae
+      <button className="brand-mark" type="button" onClick={() => onNavigate(homePath)}>
+        뭐바를래
       </button>
-      <nav className="header-actions" aria-label="개발 환경 확인">
+      <nav className="header-actions" aria-label="주요 이동">
+        <button type="button" onClick={() => onNavigate(homePath)}>
+          홈
+        </button>
+        <button type="button" onClick={() => onNavigate("/search")}>
+          검색
+        </button>
         <a href={`${apiBaseUrl}/health`}>API</a>
-        <span>DEV</span>
+        <span>{isCommunityMode ? "COMMUNITY" : "COMMERCE"}</span>
       </nav>
     </header>
   );
