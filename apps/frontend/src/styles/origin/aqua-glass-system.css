@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'GmarketSans';
-  src: url('./assets/fonts/ttf/GmarketSansTTFLight.ttf') format('truetype');
+  src: url('/fonts/gmarket/GmarketSansTTFLight.ttf') format('truetype');
   font-weight: 300;
   font-style: normal;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: 'GmarketSans';
-  src: url('./assets/fonts/ttf/GmarketSansTTFMedium.ttf') format('truetype');
+  src: url('/fonts/gmarket/GmarketSansTTFMedium.ttf') format('truetype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -16,7 +16,7 @@
 
 @font-face {
   font-family: 'GmarketSans';
-  src: url('./assets/fonts/ttf/GmarketSansTTFBold.ttf') format('truetype');
+  src: url('/fonts/gmarket/GmarketSansTTFBold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -24,7 +24,7 @@
 
 @font-face {
   font-family: 'Pretendard Variable';
-  src: url('../system_design/Pretendard-1.3.9/web/variable/woff2/PretendardVariable.woff2') format('woff2-variations');
+  src: url('/fonts/pretendard/PretendardVariable.woff2') format('woff2-variations');
   font-weight: 45 920;
   font-style: normal;
   font-display: swap;
