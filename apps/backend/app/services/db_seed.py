@@ -24,6 +24,7 @@ from app.db.models.taxonomy import (
     ConcernEffect as ConcernEffectRow,
     Effect as EffectRow,
     Ingredient as IngredientRow,
+    IngredientAlias as IngredientAliasRow,
     IngredientEffect as IngredientEffectRow,
     IngredientEffectRange as IngredientEffectRangeRow,
     IngredientEvidence as IngredientEvidenceRow,
@@ -38,6 +39,7 @@ class SeedResult:
     concerns: int
     effects: int
     ingredients: int
+    ingredient_aliases: int
     brands: int
     categories: int
     products: int
@@ -62,6 +64,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
     _seed_concern_effects(session, catalog, concerns_by_code, effects_by_code)
 
     ingredients_by_code = _seed_ingredients(session, catalog)
+    ingredient_alias_count = _seed_ingredient_aliases(session, catalog, ingredients_by_code)
     _seed_ingredient_effects(session, catalog, ingredients_by_code, effects_by_code)
     _seed_ingredient_effect_ranges(session, catalog, ingredients_by_code, effects_by_code)
     evidence_rows = _seed_ingredient_evidence(session, catalog, ingredients_by_code, effects_by_code)
@@ -80,6 +83,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         concerns=len(catalog.concern_tags),
         effects=len(effects_by_code),
         ingredients=len(catalog.ingredients),
+        ingredient_aliases=ingredient_alias_count,
         brands=len(brands_by_name),
         categories=len(categories_by_code),
         products=len(catalog.products),
@@ -212,6 +216,52 @@ def _seed_ingredients(session: Session, catalog: DataCatalog) -> dict[str, Ingre
 
     session.flush()
     return ingredients_by_code
+
+
+def _seed_ingredient_aliases(
+    session: Session,
+    catalog: DataCatalog,
+    ingredients_by_code: dict[str, IngredientRow],
+) -> int:
+    missing_ingredient_ids = sorted(
+        {
+            record.ingredient_id
+            for record in catalog.ingredient_aliases
+            if record.ingredient_id not in ingredients_by_code
+        }
+    )
+    if missing_ingredient_ids:
+        missing = ", ".join(missing_ingredient_ids)
+        raise ValueError(f"ingredient_aliases.csv의 canonical_id 참조를 찾을 수 없습니다: {missing}")
+
+    for record in catalog.ingredient_aliases:
+        ingredient = ingredients_by_code[record.ingredient_id]
+        normalized_alias = _normalize_text(record.alias)
+        row = _one_or_none(
+            session,
+            IngredientAliasRow,
+            IngredientAliasRow.normalized_alias == normalized_alias,
+        )
+        values = {
+            "ingredient_id": ingredient.id,
+            "alias": record.alias,
+            "alias_type": record.alias_type,
+            "confidence": record.confidence,
+            "source": record.source or None,
+        }
+        if row is None:
+            session.add(
+                IngredientAliasRow(
+                    normalized_alias=normalized_alias,
+                    **values,
+                )
+            )
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+
+    session.flush()
+    return len({_normalize_text(record.alias) for record in catalog.ingredient_aliases})
 
 
 def _seed_ingredient_effects(
