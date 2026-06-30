@@ -1010,6 +1010,8 @@ html[data-app-mode="community"] .search-results-shell {
 
 .detail-page .effect-toggle-list {
   display: grid;
+  margin-top: 26px;
+  padding-top: 24px;
   border-top: 1px solid var(--line);
 }
 
@@ -1069,6 +1071,51 @@ html[data-app-mode="community"] .search-results-shell {
   font-size: 14px;
   font-weight: 600;
   text-align: right;
+}
+
+.detail-page .ingredient-tags {
+  display: grid;
+  gap: 22px;
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-page .ingredient-tag-group {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-page .ingredient-tag-label,
+.detail-page .ingredient-copy-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.detail-page .ingredient-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-page .ingredient-copy {
+  margin-top: 26px;
+  padding: 22px 24px;
+  border: 1px solid #eef2f4;
+  border-radius: 14px;
+  background: #f8fbfb;
+  color: var(--ink2);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.68;
+  letter-spacing: 0;
+}
+
+.detail-page .ingredient-copy-label {
+  margin-bottom: 12px;
 }
 
 .detail-page .ingredient-sheet {

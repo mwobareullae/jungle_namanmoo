@@ -484,6 +484,7 @@ function ProductDetailSpaPage() {
                       </div>
                     </div>
                     <div className="ingredient-copy" id="ingredientCopy">
+                      <div className="ingredient-copy-label">전성분</div>
                       {detailData.relatedIngredients.length > 0
                         ? detailData.relatedIngredients.join(", ")
                         : "성분 정보가 준비 중입니다."}
