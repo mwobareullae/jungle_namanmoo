@@ -139,6 +139,47 @@ body.search-results-page #searchResultsGrid .product-info {
   align-self: center;
 }
 
+.search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 22px;
+  border-top: 1px solid #e8eef1;
+}
+
+.page-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #dce6ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.page-btn.active {
+  border-color: var(--mint);
+  background: var(--mint);
+  color: #ffffff;
+}
+
+.page-btn:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.search-page-summary {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 body.search-results-page #searchResultsGrid .search-result-side {
   min-width: 148px;
 }

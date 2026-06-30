@@ -10,7 +10,10 @@ import type {
 } from "../types/recommendation";
 
 type RecommendationApi = {
-  createRecommendation: (request: RecommendationRequest) => Promise<RecommendationResponse>;
+  createRecommendation: (
+    request: RecommendationRequest,
+    params?: { page?: number; pageSize?: number }
+  ) => Promise<RecommendationResponse>;
   getHomeSections: (params?: {
     skinType?: string;
     sensitivity?: string;
@@ -82,6 +85,14 @@ type BackendRecommendationResponse = {
   };
   unmatched_terms: string[];
   products: BackendRecommendedProduct[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_items: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
 };
 
 type BackendProductDetailResponse = {
@@ -188,7 +199,8 @@ const mapRecommendation = (response: BackendRecommendationResponse): Recommendat
     purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
   },
   unmatched_terms: response.unmatched_terms,
-  products: response.products.map(mapProductCard)
+  products: response.products.map(mapProductCard),
+  pagination: response.pagination
 });
 
 const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail => {
@@ -278,8 +290,13 @@ const parseJson = async <T>(response: Response): Promise<T> => {
 };
 
 export const api: RecommendationApi = {
-  async createRecommendation(request) {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations`, {
+  async createRecommendation(request, params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    const query = searchParams.toString();
+
+    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations${query ? `?${query}` : ""}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

@@ -163,4 +163,12 @@ export const createFallbackRecommendation = (
   },
   unmatched_terms: [],
   products: fallbackProductCards,
+  pagination: {
+    page: 1,
+    page_size: fallbackProductCards.length,
+    total_items: fallbackProductCards.length,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  },
 });

@@ -108,6 +108,16 @@ export type RecommendationResponse = {
   summary: RecommendationSummary;
   unmatched_terms: string[];
   products: ProductCardItem[];
+  pagination: RecommendationPagination;
+};
+
+export type RecommendationPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 };
 
 export type IngredientEvidence = {

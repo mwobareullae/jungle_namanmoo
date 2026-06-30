@@ -7,6 +7,7 @@ import type {
   HomeSectionProduct,
   ProductCardItem,
   RecommendationResponse,
+  RecommendationPagination,
   Sensitivity,
   SkinType,
 } from "../types/recommendation";
@@ -22,6 +23,15 @@ const categoryTabs = [
 ] as const;
 
 const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
+
+const createFallbackPagination = (productCount: number): RecommendationPagination => ({
+  page: 1,
+  page_size: productCount,
+  total_items: productCount,
+  total_pages: productCount > 0 ? 1 : 0,
+  has_next: false,
+  has_prev: false,
+});
 
 const mapHomeProductToCard = (product: HomeSectionProduct, index: number): ProductCardItem => ({
   product_id: product.product_id,
@@ -47,21 +57,25 @@ type HomeSearchEvent = CustomEvent<{
 
 type HomeMainContentProps = {
   initialQuery?: string;
+  initialPage?: number;
   initialProfile?: {
     skin: SkinType;
     sensitivity: Sensitivity;
   };
   mode?: "home" | "search";
+  pageSize?: number;
   showDefaultSection?: boolean;
 };
 
 function HomeMainContent({
   initialQuery = "",
+  initialPage = 1,
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
   },
   mode = "home",
+  pageSize = 10,
   showDefaultSection = true,
 }: HomeMainContentProps) {
   const [query, setQuery] = useState("");
@@ -74,7 +88,28 @@ function HomeMainContent({
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const runSearch = useCallback(async (nextQuery: string, profile: { skin: SkinType; sensitivity: Sensitivity }) => {
+  const updateSearchUrl = useCallback((
+    nextQuery: string,
+    profile: { skin: SkinType; sensitivity: Sensitivity },
+    page: number,
+  ) => {
+    if (mode !== "search") return;
+
+    const params = new URLSearchParams({
+      keyword: nextQuery,
+      skin_type: profile.skin,
+      sensitivity: profile.sensitivity,
+      page_size: String(pageSize),
+    });
+    if (page > 1) params.set("page", String(page));
+    window.history.replaceState(null, "", `/search?${params.toString()}`);
+  }, [mode, pageSize]);
+
+  const runSearch = useCallback(async (
+    nextQuery: string,
+    profile: { skin: SkinType; sensitivity: Sensitivity },
+    page = 1,
+  ) => {
     const trimmedQuery = nextQuery.trim();
     if (!trimmedQuery) return;
 
@@ -95,15 +130,20 @@ function HomeMainContent({
         skin_type: profile.skin,
         sensitivity: profile.sensitivity,
         avoid_ingredients: [],
+      }, {
+        page,
+        pageSize,
       });
       const displayResponse =
         response.products.length > 0 ? response : createFallbackRecommendation(trimmedQuery, profile);
+      updateSearchUrl(trimmedQuery, profile, displayResponse.pagination.page);
       setRecommendation(displayResponse);
       window.dispatchEvent(new CustomEvent("home-recommendation-state", {
         detail: { status: "success", query: trimmedQuery, recommendation: displayResponse },
       }));
     } catch {
       const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
+      updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
       setRecommendation(fallbackResponse);
       setErrorMessage("");
       window.dispatchEvent(new CustomEvent("home-recommendation-state", {
@@ -112,7 +152,7 @@ function HomeMainContent({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [pageSize, updateSearchUrl]);
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
@@ -126,9 +166,9 @@ function HomeMainContent({
 
   useEffect(() => {
     if (initialQuery) {
-      runSearch(initialQuery, initialProfile);
+      runSearch(initialQuery, initialProfile, initialPage);
     }
-  }, [initialProfile, initialQuery, runSearch]);
+  }, [initialPage, initialProfile, initialQuery, runSearch]);
 
   useEffect(() => {
     if (!showDefaultSection) return;
@@ -172,8 +212,15 @@ function HomeMainContent({
 
   const products = recommendation?.products ?? [];
   const homeProducts = homeSection?.products.map(mapHomeProductToCard) ?? [];
+  const pagination = recommendation?.pagination ?? createFallbackPagination(products.length);
   const isFallbackResult = recommendation?.recommendation_id === "fallback-original-design";
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
+  const showPagination = mode === "search" && !isLoading && pagination.total_pages > 1;
+  const goToPage = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
+    if (nextPage === pagination.page) return;
+    runSearch(query || initialQuery, initialProfile, nextPage);
+  };
 
   return (
     <main className={`main-content${mode === "search" ? " search-main-content" : ""}`} id="mainContent">
@@ -225,7 +272,7 @@ function HomeMainContent({
                   &quot; 검색 결과 · <span id="sortDisplay">{sortType === "price-low" ? "가격 낮은순" : sortType === "price-high" ? "가격 높은순" : "매칭 점수순"}</span>
                 </div>
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
-                  {isLoading ? "추천 결과를 불러오는 중입니다" : `${products.length}개 제품이 피부 고민에 매칭되었습니다`}
+                  {isLoading ? "추천 결과를 불러오는 중입니다" : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
               <select aria-label="검색 결과 정렬" className="sort-select" onChange={(event) => setSortType(event.target.value)} value={sortType}>
@@ -276,7 +323,42 @@ function HomeMainContent({
                 <div className="search-empty">검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.</div>
               ) : null}
             </div>
-            <div className="search-pagination" id="searchPagination" />
+            <div className="search-pagination" id="searchPagination">
+              {showPagination ? (
+                <>
+                  <button
+                    className="page-btn nav"
+                    disabled={!pagination.has_prev}
+                    onClick={() => goToPage(pagination.page - 1)}
+                    type="button"
+                  >
+                    이전
+                  </button>
+                  {Array.from({ length: pagination.total_pages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      className={`page-btn${page === pagination.page ? " active" : ""}`}
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      type="button"
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    className="page-btn nav"
+                    disabled={!pagination.has_next}
+                    onClick={() => goToPage(pagination.page + 1)}
+                    type="button"
+                  >
+                    다음
+                  </button>
+                  <span className="search-page-summary">
+                    {(pagination.page - 1) * pagination.page_size + 1}-
+                    {Math.min(pagination.page * pagination.page_size, pagination.total_items)} / {pagination.total_items}개
+                  </span>
+                </>
+              ) : null}
+            </div>
             <div
               className="search-related-placeholder"
               data-commerce-only

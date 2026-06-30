@@ -10,6 +10,11 @@ import type { Sensitivity, SkinType } from "../types/recommendation";
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
 const sensitivities = ["낮음", "보통", "높음"] as const;
 
+const normalizePositiveNumber = (value: string | null, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
 const getSearchParams = () => {
   const params = new URLSearchParams(window.location.search);
   const skinType = params.get("skin_type");
@@ -21,11 +26,13 @@ const getSearchParams = () => {
     sensitivity: sensitivities.includes(sensitivity as Sensitivity)
       ? (sensitivity as Sensitivity)
       : "보통",
+    page: normalizePositiveNumber(params.get("page"), 1),
+    pageSize: normalizePositiveNumber(params.get("page_size"), 10),
   };
 };
 
 function SearchPage() {
-  const { keyword, skin, sensitivity } = getSearchParams();
+  const { keyword, skin, sensitivity, page, pageSize } = getSearchParams();
   const profile = { skin, sensitivity };
 
   useEffect(() => installHomeRuntime(profile), [skin, sensitivity]);
@@ -39,6 +46,8 @@ function SearchPage() {
       <HomeMainContent
         initialProfile={profile}
         initialQuery={keyword}
+        initialPage={page}
+        pageSize={pageSize}
         mode="search"
         showDefaultSection={false}
       />
