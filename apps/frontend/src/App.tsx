@@ -7,6 +7,7 @@ import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
+const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
@@ -68,6 +69,24 @@ function App() {
     `;
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
+
+    if (gaMeasurementId) {
+      const gaScript = document.createElement("script");
+      gaScript.async = true;
+      gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`;
+      document.head.appendChild(gaScript);
+      injectedNodes.push(gaScript);
+
+      const gaInlineScript = document.createElement("script");
+      gaInlineScript.textContent = `
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '${gaMeasurementId}', { page_path: window.location.pathname + window.location.search });
+      `;
+      document.head.appendChild(gaInlineScript);
+      injectedNodes.push(gaInlineScript);
+    }
 
     if (!["home", "search", "productDetail", "checkout", "paymentComplete"].includes(visiblePageKey)) {
       window.setTimeout(() => {

@@ -48,6 +48,18 @@ const getEffectLabel = (effect: string) => {
   return `${effect} 효능과 연결된 성분`;
 };
 
+const getPurchaseOptions = (product: ProductDetail) => {
+  if (product.prices.length > 0) return product.prices.slice(0, 8);
+  if (!product.purchase_url || product.lowest_price === null) return [];
+
+  return [{
+    mall_name: "구매처",
+    price: product.lowest_price,
+    product_url: product.purchase_url,
+    is_lowest: true,
+  }];
+};
+
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -121,6 +133,7 @@ function ProductDetailSpaPage() {
       relatedIngredients,
       effectiveIngredients,
       effectGroups,
+      purchaseOptions: getPurchaseOptions(product),
     };
   }, [product]);
 
@@ -420,7 +433,9 @@ function ProductDetailSpaPage() {
                         ))}
                       </div>
                     </>
-                  ) : null}
+                  ) : (
+                    <div className="review-item"><p>근거 출처 정보가 준비 중입니다.</p></div>
+                  )}
                 </div>
               </section>
 
@@ -448,8 +463,8 @@ function ProductDetailSpaPage() {
                 <div className="section-kicker">Purchase Options</div>
                 <h2>구매처 가격 비교</h2>
                 <div className="related-grid" id="relatedGrid">
-                  {product.prices.length > 0 ? (
-                    product.prices.slice(0, 8).map((price) => (
+                  {detailData.purchaseOptions.length > 0 ? (
+                    detailData.purchaseOptions.map((price) => (
                       <a
                         className={`related-card${price.is_lowest ? " is-lowest-price" : ""}`}
                         href={price.product_url || product.purchase_url || "#"}
