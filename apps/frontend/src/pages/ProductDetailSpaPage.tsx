@@ -223,7 +223,7 @@ function ProductDetailSpaPage() {
     ? narrativeProduct.detail_sections.slice(0, 4)
     : [
       {
-        title: "내 피부 고민 기준 추천 근거",
+        title: "추천 근거",
         body: product?.reason_summary || "피부 고민과 성분 근거를 함께 확인했습니다.",
       },
       {
