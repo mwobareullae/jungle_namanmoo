@@ -66,6 +66,15 @@ class Ingredient:
 
 
 @dataclass(frozen=True)
+class IngredientAlias:
+    ingredient_id: str
+    alias: str
+    alias_type: str
+    confidence: str
+    source: str
+
+
+@dataclass(frozen=True)
 class IngredientEffect:
     ingredient_id: str
     effect_id: str
@@ -137,6 +146,7 @@ class DataCatalog:
     product_ingredients: tuple[ProductIngredient, ...]
     product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]
+    ingredient_aliases: tuple[IngredientAlias, ...]
     ingredient_effects: tuple[IngredientEffect, ...]
     ingredient_effect_ranges: tuple[IngredientEffectRange, ...]
     ingredient_evidence: tuple[IngredientEvidence, ...]

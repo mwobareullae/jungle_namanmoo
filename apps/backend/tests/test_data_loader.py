@@ -44,6 +44,7 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.product_skin_profiles[0].dry_fit == pytest.approx(0.9)
     assert catalog.product_skin_profiles[0].sensitive_fit == pytest.approx(0.8)
     assert catalog.ingredients[0].name_ko == "판테놀"
+    assert catalog.ingredient_aliases == ()
     assert catalog.ingredient_effects[0].effect_score == 90
     assert catalog.ingredient_effect_ranges[0].ingredient_id == "ing_niacinamide"
     assert catalog.ingredient_effect_ranges[0].optimal_min == pytest.approx(4.0)
@@ -54,6 +55,52 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.concern_tags[0].synonyms
     assert catalog.concern_effects[0].weight == 1.0
     assert catalog.search_documents[0].text
+
+
+def test_load_data_catalog_reads_optional_ingredient_aliases(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "ingredient_aliases.csv").write_text(
+        "alias,canonical_id,alias_type,confidence,source\n"
+        "판테놀,ing_panthenol,ko,high,식약처\n"
+        "Panthenol,ing_panthenol,inci,high,INCI\n"
+        "비타민B5,ing_panthenol,synonym,med,common\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.ingredient_aliases) == 3
+    assert catalog.ingredient_aliases[2].ingredient_id == "ing_panthenol"
+    assert catalog.ingredient_aliases[2].alias == "비타민B5"
+    assert catalog.ingredient_aliases[2].confidence == "medium"
+
+
+def test_load_data_catalog_reports_missing_ingredient_alias_reference(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "ingredient_aliases.csv").write_text(
+        "alias,canonical_id,alias_type,confidence,source\n"
+        "없는성분,missing_ingredient,ko,high,식약처\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataLoadError, match="canonical_id 참조를 찾을 수 없습니다"):
+        load_data_catalog(data_dir)
+
+
+def test_loader_reports_ingredient_alias_conflict(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "ingredient_aliases.csv").write_text(
+        "alias,canonical_id,alias_type,confidence,source\n"
+        "동일별칭,ing_panthenol,ko,high,식약처\n"
+        "동일 별칭,ing_glycerin,ko,high,식약처\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataLoadError, match="둘 이상의 canonical_id"):
+        load_data_catalog(data_dir)
 
 
 def test_repository_exposes_lookup_methods() -> None:
