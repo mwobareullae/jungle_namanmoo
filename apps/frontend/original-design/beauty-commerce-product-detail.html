@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>뭐바를래</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>뭐바를래 - 상품 상세</title>
   <link rel="stylesheet" href="./Design_system/aqua-glass-system.css">
   <link rel="stylesheet" href="./Design_system/aqua-glass-shopping.css">
   <link rel="stylesheet" href="./Design_system/aqua-product-detail.css">
@@ -16,7 +15,7 @@
   const runtimeMode = window.MWBR_APP_MODE && !String(window.MWBR_APP_MODE).startsWith("%") ? window.MWBR_APP_MODE : "";
   const viteMode = envAppMode && !envAppMode.startsWith("%") ? envAppMode : "";
   const viteApiBaseUrl = envApiBaseUrl && !envApiBaseUrl.startsWith("%") ? envApiBaseUrl : "";
-  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || viteMode || localStorage.getItem("mwbr_app_mode") || "commerce";
+  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || localStorage.getItem("mwbr_app_mode") || viteMode || "commerce";
   const mode = String(rawMode).toLowerCase() === "community" ? "community" : "commerce";
   document.documentElement.dataset.appMode = mode;
   window.MWBR_APP_MODE = mode;
@@ -27,17 +26,17 @@
 <body>
   <header>
     <div class="header-inner">
-      <a href="/" class="logo">뭐바를래</a>
+      <a href="./beauty-commerce-aqua-glass.html" class="logo">뭐바를래</a>
       <nav>
-        <a href="/#defaultSection">신상품</a>
-        <a href="/#defaultSection">베스트</a>
-        <a href="/#defaultSection">스킨케어</a>
-        <a href="/#defaultSection">메이크업</a>
-        <a href="/#defaultSection">브랜드</a>
-        <a href="/" class="nav-ai">맞춤 추천</a>
+        <a href="./beauty-commerce-aqua-glass.html#defaultSection">신상품</a>
+        <a href="./beauty-commerce-aqua-glass.html#defaultSection">베스트</a>
+        <a href="./beauty-commerce-aqua-glass.html#defaultSection">스킨케어</a>
+        <a href="./beauty-commerce-aqua-glass.html#defaultSection">메이크업</a>
+        <a href="./beauty-commerce-aqua-glass.html#defaultSection">브랜드</a>
+        <a href="./beauty-commerce-aqua-glass.html" class="nav-ai">맞춤 추천</a>
       </nav>
       <div class="header-actions">
-        <button class="icon-btn" type="button" aria-label="검색" onclick="location.href='/'">
+        <button class="icon-btn" type="button" aria-label="검색" onclick="location.href='./beauty-commerce-aqua-glass.html'">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
         <button data-commerce-only class="btn-login" type="button">로그인</button>
@@ -48,7 +47,7 @@
   <main class="detail-page">
     <section class="detail-shell">
       <div class="detail-breadcrumb">
-        <a href="/">홈</a>
+        <a href="./beauty-commerce-aqua-glass.html">홈</a>
         <span>/</span>
         <span>스킨케어</span>
         <span>/</span>
@@ -371,29 +370,7 @@
       return response.json();
     }
 
-
-    async function fetchRecommendationNarrative(id) {
-      if (!id) return null;
-      const response = await fetchWithTimeout(`${API_BASE_URL}/recommendations/${encodeURIComponent(id)}/narrative`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          mode: 'community_beta',
-          product_limit: 10,
-          use_llm: false
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`recommendation narrative api failed: ${response.status}`);
-      }
-
-      return response.json();
-    }
-
-    function mapApiProductDetail(response, recommendation = null, narrativeResponse = null) {
+    function mapApiProductDetail(response, recommendation = null) {
       const product = response.product || {};
       const prices = Array.isArray(response.prices) ? response.prices : [];
       const lowestPrice = prices.find((item) => item.is_lowest) || prices[0];
@@ -404,10 +381,7 @@
       const ingredientNames = getUniqueValues(ingredients.map((ingredient) => ingredient.name));
       const effectiveIngredientNames = getUniqueValues(evidenceItems.map((item) => item.ingredient));
       const effects = getUniqueValues(evidenceItems.map((item) => item.effect));
-      const narrative = narrativeResponse?.narrative || null;
-      const narrativeProduct = narrative?.product_explanations?.find((item) => item.product_id === product.product_id) || null;
-      const narrativeChips = Array.isArray(narrativeProduct?.card?.chips) ? narrativeProduct.card.chips.filter(Boolean) : [];
-      const tags = getUniqueValues([...narrativeChips, ...effects, ...effectiveIngredientNames]).slice(0, 6);
+      const tags = getUniqueValues([...effects, ...effectiveIngredientNames]).slice(0, 6);
       const riskItems = getRiskItems(ingredients);
       const summary = recommendation?.summary || {};
       const constraints = summary.purchase_constraints || {};
@@ -425,9 +399,7 @@
         score: product.total_score || '-',
         review: prices.length > 0 ? `${prices.length}개 구매처 가격 비교` : '가격 정보 확인 중',
         ingredients: ingredientNames.length > 0 ? ingredientNames.join(', ') : '성분 정보 준비 중입니다.',
-        reason: cleanRecommendationReason(narrativeProduct?.card?.reason || product.reason_summary || response.evidence?.recommendation_reason),
-        narrative,
-        narrativeProduct,
+        reason: cleanRecommendationReason(product.reason_summary || response.evidence?.recommendation_reason),
         purchaseUrl: lowestPrice?.product_url || '',
         images: Array.isArray(response.images) ? response.images : [],
         imageAlt: response.images?.[0]?.alt || product.name || '',
@@ -481,43 +453,8 @@
       const avoidIngredients = profile.avoidIngredients?.length ? profile.avoidIngredients.join(', ') : '';
       const unmatchedTerms = profile.unmatchedTerms?.length ? profile.unmatchedTerms.join(', ') : '';
       const purchaseConstraints = formatDetailPurchaseConstraints(profile.purchaseConstraints || {});
-      const narrative = product.narrative || null;
-      const narrativeProduct = product.narrativeProduct || null;
-      const overview = narrative?.overview || null;
-      const overviewPoints = Array.isArray(overview?.key_points) ? overview.key_points.filter(Boolean).join(' / ') : '';
-      const detailSections = Array.isArray(narrativeProduct?.detail_sections) ? narrativeProduct.detail_sections : [];
-      const summaryItems = [];
-
-      if (overview?.headline || overview?.summary || overviewPoints) {
-        summaryItems.push({
-          title: overview?.headline || '추천 요약',
-          body: [overview?.summary, overviewPoints].filter(Boolean).join(' / ')
-        });
-      }
-
-      if (narrativeProduct?.role || narrativeProduct?.card?.headline) {
-        summaryItems.push({
-          title: narrativeProduct.card?.headline || '상품 역할',
-          body: [narrativeProduct.role, narrativeProduct.caution].filter(Boolean).join(' / ')
-        });
-      }
-
-      detailSections.slice(0, 2).forEach((section) => {
-        summaryItems.push({
-          title: section.title || '상세 근거',
-          body: section.body || '상세 설명을 준비 중입니다.'
-        });
-      });
-
-      if (narrative?.selection_guide) {
-        summaryItems.push({
-          title: '선택 가이드',
-          body: narrative.selection_guide
-        });
-      }
 
       document.getElementById('summaryGrid').innerHTML = [
-        ...summaryItems,
         {
           title: '입력 고민',
           body: concernText
@@ -814,12 +751,11 @@
 
       if (!staticProduct && selectedIdParam) {
         try {
-          const [response, recommendation, narrative] = await Promise.all([
+          const [response, recommendation] = await Promise.all([
             fetchProductDetail(selectedIdParam),
-            fetchRecommendationSummary(recommendationId).catch(() => null),
-            fetchRecommendationNarrative(recommendationId).catch(() => null)
+            fetchRecommendationSummary(recommendationId).catch(() => null)
           ]);
-          renderProductDetail(mapApiProductDetail(response, recommendation, narrative));
+          renderProductDetail(mapApiProductDetail(response, recommendation));
           return;
         } catch (error) {
           console.error(error);
