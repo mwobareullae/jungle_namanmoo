@@ -165,7 +165,13 @@ const installFunctions = () => {
   runtime.openSearchSuggestions = openSearchSuggestions;
   runtime.closeSearchSuggestions = closeSearchSuggestions;
   runtime.focusSearch = () => {
-    document.getElementById("searchInput")?.focus();
+    const input = document.getElementById("searchInput");
+    if (!input) {
+      window.location.href = "/";
+      return;
+    }
+
+    input.focus();
     openSearchSuggestions();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };

@@ -123,7 +123,10 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
                           data-profile="skin"
                           data-value={skinType}
                           key={skinType}
-                          onClick={() => setProfile((current) => ({ ...current, skin: skinType }))}
+                          onClick={() => {
+                            setProfile((current) => ({ ...current, skin: skinType }));
+                            callOriginal("selectProfileOption", "skin", skinType);
+                          }}
                           type="button"
                         >
                           {skinType}
@@ -145,7 +148,10 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
                           data-profile="sensitivity"
                           data-value={sensitivity}
                           key={sensitivity}
-                          onClick={() => setProfile((current) => ({ ...current, sensitivity }))}
+                          onClick={() => {
+                            setProfile((current) => ({ ...current, sensitivity }));
+                            callOriginal("selectProfileOption", "sensitivity", sensitivity);
+                          }}
                           type="button"
                         >
                           {sensitivity}

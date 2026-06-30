@@ -1,6 +1,8 @@
 import { callOriginal } from "../lib/originalRuntime";
 
 function HomeHeader() {
+  const defaultSectionHref = "/#defaultSection";
+
   return (
     <header>
       <div className="header-inner">
@@ -30,13 +32,13 @@ function HomeHeader() {
           </a>
         </div>
         <nav>
-          <a href="#">신상품</a>
-          <a href="#">베스트</a>
-          <a href="#">스킨케어</a>
-          <a href="#">메이크업</a>
-          <a href="#">헤어/바디</a>
-          <a href="#">브랜드</a>
-          <a className="nav-ai" href="#">
+          <a href={defaultSectionHref}>신상품</a>
+          <a href={defaultSectionHref}>베스트</a>
+          <a href={defaultSectionHref}>스킨케어</a>
+          <a href={defaultSectionHref}>메이크업</a>
+          <a href={defaultSectionHref}>헤어/바디</a>
+          <a href={defaultSectionHref}>브랜드</a>
+          <a className="nav-ai" href="/">
             맞춤 추천
           </a>
         </nav>
