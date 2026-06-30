@@ -24,6 +24,17 @@ body {
   display: contents;
 }
 
+.ingredient-stat-grid,
+.ingredient-stat,
+.ingredient-summary-line {
+  display: none !important;
+}
+
+.ingredient-sheet:not(.open),
+.ingredient-sheet-backdrop:not(.open) {
+  display: none !important;
+}
+
 .search-page-shell #searchResultsSection {
   display: block;
 }
@@ -1008,35 +1019,10 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
-.detail-page .ingredient-summary-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  align-items: center;
-  padding: 12px 0 18px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: 0;
-}
-
-.detail-page .ingredient-summary-line span {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-
-.detail-page .ingredient-summary-line strong {
-  color: #25a8ca;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .detail-page .effect-toggle-list {
   display: grid;
-  margin-top: 24px;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .detail-page .effect-toggle-title {
@@ -1054,7 +1040,6 @@ html[data-app-mode="community"] .search-results-shell {
   min-height: 58px;
   padding: 11px 0;
   border: 0;
-  border-bottom: 1px solid var(--line);
   background: transparent;
   color: var(--ink2);
   font-family: inherit;
@@ -1101,8 +1086,8 @@ html[data-app-mode="community"] .search-results-shell {
   display: grid;
   gap: 22px;
   margin-top: 26px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
+  padding-top: 0;
+  border-top: 0;
 }
 
 .detail-page .ingredient-tag-group {

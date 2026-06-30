@@ -423,17 +423,6 @@ function ProductDetailSpaPage() {
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
                   <div className="ingredient-panel">
-                    <div className="ingredient-summary-line">
-                      <span>
-                        전체 성분 <strong id="totalIngredientCount">{detailData.relatedIngredients.length || "-"}</strong>
-                      </span>
-                      <span>
-                        효능 성분 <strong id="effectiveIngredientCount">{detailData.effectiveIngredients.length}</strong>
-                      </span>
-                      <span>
-                        주의 성분 <strong id="riskIngredientCount">{product.risk_flags.length}</strong>
-                      </span>
-                    </div>
                     <div className="effect-toggle-list" id="effectToggleList">
                       {detailData.effectGroups.length > 0 ? (
                         <>
@@ -589,41 +578,45 @@ function ProductDetailSpaPage() {
         ) : null}
       </main>
 
-      <div
-        className={`ingredient-sheet-backdrop${selectedEffect ? " open" : ""}`}
-        id="ingredientSheetBackdrop"
-        onClick={() => setSelectedEffect(null)}
-      />
-      <aside
-        className={`ingredient-sheet${selectedEffect ? " open" : ""}`}
-        id="ingredientSheet"
-        aria-hidden={selectedEffect ? "false" : "true"}
-        aria-labelledby="ingredientSheetTitle"
-      >
-        <button className="ingredient-sheet-close" type="button" aria-label="닫기" onClick={() => setSelectedEffect(null)}>
-          ×
-        </button>
-        <div className="ingredient-sheet-handle" />
-        <div className="ingredient-sheet-head">
-          <div className="ingredient-sheet-icon" id="ingredientSheetIcon">{selectedEffect?.icon ?? "•"}</div>
-          <div>
-            <h3 id="ingredientSheetTitle">{selectedEffect?.label ?? "효능 성분"}</h3>
-            <p id="ingredientSheetDescription">해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.</p>
-          </div>
-          <strong id="ingredientSheetCount">{selectedEffect?.items.length ?? 0}</strong>
-        </div>
-        <div className="ingredient-sheet-list" id="ingredientSheetList">
-          {selectedEffect?.items.map((item, index) => (
-            <div className="ingredient-sheet-item" key={`${item.ingredient_name}-${item.source_title}-${index}`}>
-              <span>{index + 1}</span>
+      {selectedEffect ? (
+        <>
+          <div
+            className="ingredient-sheet-backdrop open"
+            id="ingredientSheetBackdrop"
+            onClick={() => setSelectedEffect(null)}
+          />
+          <aside
+            className="ingredient-sheet open"
+            id="ingredientSheet"
+            aria-hidden="false"
+            aria-labelledby="ingredientSheetTitle"
+          >
+            <button className="ingredient-sheet-close" type="button" aria-label="닫기" onClick={() => setSelectedEffect(null)}>
+              ×
+            </button>
+            <div className="ingredient-sheet-handle" />
+            <div className="ingredient-sheet-head">
+              <div className="ingredient-sheet-icon" id="ingredientSheetIcon">{selectedEffect.icon}</div>
               <div>
-                <strong>{item.ingredient_name || "성분"}</strong>
-                <p>{item.evidence_text || item.source_title || "성분 효능 근거를 확인했습니다."}</p>
+                <h3 id="ingredientSheetTitle">{selectedEffect.label}</h3>
+                <p id="ingredientSheetDescription">해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.</p>
               </div>
+              <strong id="ingredientSheetCount">{selectedEffect.items.length}</strong>
             </div>
-          ))}
-        </div>
-      </aside>
+            <div className="ingredient-sheet-list" id="ingredientSheetList">
+              {selectedEffect.items.map((item, index) => (
+                <div className="ingredient-sheet-item" key={`${item.ingredient_name}-${item.source_title}-${index}`}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{item.ingredient_name || "성분"}</strong>
+                    <p>{item.evidence_text || item.source_title || "성분 효능 근거를 확인했습니다."}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </>
+      ) : null}
     </>
   );
 }
