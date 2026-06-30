@@ -1,0 +1,87 @@
+import type { ProductCardItem } from "../types/recommendation";
+
+type HomeProductCardProps = {
+  product: ProductCardItem;
+  recommendationId?: string;
+  showScore?: boolean;
+};
+
+const formatPrice = (price: number | null) =>
+  price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
+
+const hasUsableImageUrl = (url: string | null) =>
+  Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
+
+function HomeProductCard({ product, recommendationId, showScore = false }: HomeProductCardProps) {
+  const searchParams = new URLSearchParams({ id: product.product_id });
+  if (recommendationId) searchParams.set("recommendation_id", recommendationId);
+  const detailUrl = `/product-detail?${searchParams.toString()}`;
+  const hasImage = hasUsableImageUrl(product.thumbnail_url);
+
+  return (
+    <div className={`product-card${hasImage ? "" : " is-missing-image"}`} onClick={() => {
+      window.location.href = detailUrl;
+    }}>
+      <div className="product-img">
+        {hasImage ? (
+          <img className="product-photo" src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+        ) : (
+          <div className="product-image-empty">
+            <span>이미지 준비중</span>
+          </div>
+        )}
+        <div className="product-labels">
+          {showScore ? <span className="label label-ai">{product.rank ? `${product.rank}위` : "추천"}</span> : null}
+        </div>
+        {showScore ? (
+          <div className="match-score">
+            <span className="score-val">{product.total_score}</span>
+            <span className="score-label">점</span>
+          </div>
+        ) : null}
+      </div>
+      <div className="product-info">
+        <div className="product-brand">{product.brand}</div>
+        <div className="product-name">{product.name}</div>
+        <div className={`key-ingredients${product.key_ingredients.length ? "" : " empty"}`}>
+          {product.key_ingredients.length ? (
+            product.key_ingredients.slice(0, 3).map((ingredient) => (
+              <span className="ingr-tag" key={ingredient}>
+                {ingredient}
+              </span>
+            ))
+          ) : (
+            <span className="ingr-tag missing">대표 성분 정보 없음</span>
+          )}
+        </div>
+        {!showScore ? (
+          <div className="product-price-row">
+            <div>
+              <div>
+                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}`}>
+                  {formatPrice(product.lowest_price)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {showScore ? (
+        <div className="search-result-side">
+          <div className="search-result-note">성분 근거 기준</div>
+          <div className="product-price-row">
+            <div>
+              <div>
+                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}`}>
+                  {formatPrice(product.lowest_price)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default HomeProductCard;

@@ -110,7 +110,8 @@ const closeSearchSuggestions = () => {
 const goToSearchResultsPage = (query: string) => {
   saveRecentConcern(query);
   closeSearchSuggestions();
-  window.location.href = buildSearchResultsUrl(query);
+  window.dispatchEvent(new CustomEvent("home-search-request", { detail: { query, profile: { ...searchProfile } } }));
+  window.history.replaceState(null, "", buildSearchResultsUrl(query));
 };
 
 const showToast = (message: string) => {
