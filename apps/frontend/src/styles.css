@@ -376,7 +376,8 @@ body {
 .home-deal-media {
   position: relative;
   display: grid;
-  place-items: center;
+  align-items: end;
+  justify-items: center;
   aspect-ratio: 1.55;
   overflow: hidden;
   background: #f8fbfc;
@@ -384,8 +385,9 @@ body {
 
 .home-deal-media img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: 92%;
+  object-fit: contain;
+  object-position: center bottom;
 }
 
 .home-deal-score {
