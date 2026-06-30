@@ -315,7 +315,14 @@ const footerColumns = [
   ["회사", "회사소개", "이용약관", "개인정보처리방침", "입점 문의", "채용"],
 ];
 
+const communityFooterColumns = [
+  ["서비스", "맞춤 추천", "성분 가이드", "자주 묻는 질문"],
+  ["회사", "회사소개", "이용약관", "개인정보처리방침"],
+];
+
 function HomeFooter() {
+  const columns = import.meta.env.VITE_APP_MODE === "community" ? communityFooterColumns : footerColumns;
+
   return (
     <footer>
       <div className="footer-inner">
@@ -331,7 +338,7 @@ function HomeFooter() {
             납득 가능한 선택지를 골라드립니다.
           </p>
         </div>
-        {footerColumns.map(([title, ...items]) => (
+        {columns.map(([title, ...items]) => (
           <div className="footer-col" key={title}>
             <h5>{title}</h5>
             <ul>
@@ -346,7 +353,7 @@ function HomeFooter() {
       </div>
       <div className="footer-bottom">
         <span>© 2025 뭐바를래. All rights reserved.</span>
-        <span>사업자등록번호 123-45-67890 | 대표 홍길동</span>
+        <span data-commerce-only>사업자등록번호 123-45-67890 | 대표 홍길동</span>
       </div>
     </footer>
   );
