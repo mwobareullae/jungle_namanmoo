@@ -4,6 +4,8 @@ import type {
   ProductCardItem,
   ProductDetail,
   PurchaseConstraints,
+  RecommendationNarrativeRequest,
+  RecommendationNarrativeResponse,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
@@ -18,6 +20,10 @@ type RecommendationApi = {
     recommendationId: string,
     params?: { page?: number; pageSize?: number }
   ) => Promise<RecommendationResponse>;
+  createRecommendationNarrative: (
+    recommendationId: string,
+    request?: RecommendationNarrativeRequest
+  ) => Promise<RecommendationNarrativeResponse>;
   getHomeSections: (params?: {
     skinType?: string;
     sensitivity?: string;
@@ -320,6 +326,20 @@ export const api: RecommendationApi = {
       `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
     );
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+  },
+
+  async createRecommendationNarrative(recommendationId, request = {}) {
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+      }
+    );
+    return parseJson<RecommendationNarrativeResponse>(response);
   },
 
   async getHomeSections(params = {}) {

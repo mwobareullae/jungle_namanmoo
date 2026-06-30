@@ -111,6 +111,49 @@ export type RecommendationResponse = {
   pagination: RecommendationPagination;
 };
 
+export type RecommendationNarrativeRequest = {
+  mode?: string;
+  product_limit?: number;
+  use_llm?: boolean;
+};
+
+export type RecommendationNarrativeOverview = {
+  headline: string;
+  summary: string;
+  key_points: string[];
+};
+
+export type RecommendationNarrativeCard = {
+  headline: string;
+  reason: string;
+  chips: string[];
+};
+
+export type RecommendationNarrativeDetailSection = {
+  title: string;
+  body: string;
+};
+
+export type RecommendationNarrativeProduct = {
+  product_id: string;
+  rank: number;
+  role: string;
+  card: RecommendationNarrativeCard;
+  detail_sections: RecommendationNarrativeDetailSection[];
+  caution: string | null;
+};
+
+export type RecommendationNarrativeResponse = {
+  recommendation_id: string;
+  narrative: {
+    generation_source: string;
+    fallback_reason: string | null;
+    overview: RecommendationNarrativeOverview;
+    product_explanations: RecommendationNarrativeProduct[];
+    selection_guide: string | null;
+  };
+};
+
 export type RecommendationPagination = {
   page: number;
   page_size: number;

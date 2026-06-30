@@ -3,7 +3,12 @@ import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
-import type { IngredientEvidence, ProductDetail } from "../types/recommendation";
+import type {
+  IngredientEvidence,
+  ProductDetail,
+  RecommendationNarrativeOverview,
+  RecommendationNarrativeProduct,
+} from "../types/recommendation";
 
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
@@ -67,6 +72,9 @@ const normalizeDetailHash = (hash: string) =>
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
+  const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
+  const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
@@ -123,6 +131,40 @@ function ProductDetailSpaPage() {
     };
   }, [productId, recommendationId]);
 
+  useEffect(() => {
+    if (!productId || !recommendationId) {
+      setNarrativeProduct(null);
+      setNarrativeOverview(null);
+      setIsNarrativeLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsNarrativeLoading(true);
+    api.createRecommendationNarrative(recommendationId, {
+      product_limit: 5,
+    })
+      .then((response) => {
+        if (!isMounted) return;
+        const productNarrative =
+          response.narrative.product_explanations.find((item) => item.product_id === productId) ?? null;
+        setNarrativeProduct(productNarrative);
+        setNarrativeOverview(response.narrative.overview);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setNarrativeProduct(null);
+        setNarrativeOverview(null);
+      })
+      .finally(() => {
+        if (isMounted) setIsNarrativeLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [productId, recommendationId]);
+
   const detailData = useMemo(() => {
     if (!product) return null;
 
@@ -162,6 +204,19 @@ function ProductDetailSpaPage() {
     params.set("mode", mode);
     window.location.href = `/checkout?${params.toString()}`;
   };
+
+  const narrativeCard = narrativeProduct?.card;
+  const narrativeHeadline =
+    narrativeCard?.headline || narrativeOverview?.headline || "내 피부 고민 기준 추천 근거";
+  const narrativeReason = narrativeCard?.reason || product?.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다.";
+  const narrativeChips = narrativeCard?.chips?.length
+    ? narrativeCard.chips
+    : [
+      ...new Set([
+        ...(product?.evidence_tags ?? []),
+        ...(product?.key_ingredients ?? []),
+      ]),
+    ].slice(0, 5);
 
   return (
     <>
@@ -237,11 +292,23 @@ function ProductDetailSpaPage() {
                     <span className="detail-tag" key={tag}>{tag}</span>
                   ))}
                 </div>
-                <div className="detail-match">
-                  <div className="detail-match-score" id="matchScore">{product.total_score}</div>
-                  <div>
-                    <strong>내 피부 고민 기준 추천 근거</strong>
-                    <p id="matchReason">{product.reason_summary}</p>
+                <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
+                  <div className="ai-narrative-head">
+                    <strong>AI 추천 요약</strong>
+                    <span aria-label="추천 문구는 성분 근거와 매칭 점수를 바탕으로 생성됩니다">i</span>
+                  </div>
+                  <div className="ai-narrative-body">
+                    <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : narrativeHeadline}</strong>
+                    <p id="matchReason">
+                      <span aria-hidden="true">◆</span>
+                      {narrativeReason}
+                    </p>
+                    <div className="ai-narrative-chip-list">
+                      {narrativeChips.map((chip) => (
+                        <span key={chip}>{chip}</span>
+                      ))}
+                      <span className="score-chip" id="matchScore">추천 점수 {product.total_score}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="detail-score-breakdown" id="detailScoreBreakdown">
