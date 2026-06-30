@@ -14,7 +14,6 @@ pha,effect_moisture_barrier,보습·장벽,48
 pha,effect_wrinkle,주름·탄력,42
 pha,effect_calming,진정,35
 zinc_pca,effect_acne_sebum,여드름·피지,48
-zinc_pca,effect_calming,진정,42
 zinc_pca,effect_moisture_barrier,보습·장벽,32
 glycerin,effect_moisture_barrier,보습·장벽,72
 glycerin,effect_calming,진정,40
@@ -47,7 +46,6 @@ allantoin,effect_calming,진정,50
 allantoin,effect_moisture_barrier,보습·장벽,40
 colloidal_oatmeal,effect_calming,진정,58
 colloidal_oatmeal,effect_moisture_barrier,보습·장벽,46
-bisabolol,effect_calming,진정,46
 bisabolol,effect_brightening,미백·톤,58
 green_tea,effect_acne_sebum,여드름·피지,52
 green_tea,effect_calming,진정,46

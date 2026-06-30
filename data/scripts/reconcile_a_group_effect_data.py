@@ -34,6 +34,15 @@ EFFECT_NAMES = {
     "effect_exfoliation": "각질",
 }
 
+EXCLUDED_EFFECT_KEYS = {
+    ("zinc_pca", "effect_calming"),
+    ("bisabolol", "effect_calming"),
+}
+
+STATUS_OVERRIDES = {
+    ("centella_asiatica", "effect_wrinkle"): "확정",
+}
+
 REVIEW_FIELDS = [
     "canonical_id",
     "effect_id",
@@ -82,7 +91,26 @@ def load_export(export_dir: Path) -> tuple[list[dict[str, str]], list[dict[str, 
     require_fields(EFFECT_FILE, effects, {"canonical_id", "effect_id", "role", "tier", "effect_score", "evidence_score", "status"})
     require_fields(EVIDENCE_FILE, evidence, {"canonical_id", "effect_id", "evidence", "summary"})
     require_fields(RANGE_FILE, ranges, {"canonical_id", "name_ko", "concentration_range_text", "confidence"})
+    effects = apply_final_decisions(effects)
+    evidence = [
+        row
+        for row in evidence
+        if (row["canonical_id"], row["effect_id"]) not in EXCLUDED_EFFECT_KEYS
+    ]
     return effects, evidence, ranges
+
+
+def apply_final_decisions(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    decided_rows = []
+    for row in rows:
+        key = (row["canonical_id"], row["effect_id"])
+        if key in EXCLUDED_EFFECT_KEYS:
+            continue
+        next_row = dict(row)
+        if key in STATUS_OVERRIDES:
+            next_row["status"] = STATUS_OVERRIDES[key]
+        decided_rows.append(next_row)
+    return decided_rows
 
 
 def require_fields(file_name: str, rows: list[dict[str, str]], required: set[str]) -> None:
