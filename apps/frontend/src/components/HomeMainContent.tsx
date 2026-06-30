@@ -115,7 +115,7 @@ function HomeRankingSection({
   sectionIndex: number;
 }) {
   const railId = `home-ranking-rail-${section.section_id || sectionIndex}`;
-  const visibleProducts = products.slice(0, 5);
+  const visibleProducts = products.slice(0, 12);
 
   return (
     <section className="home-api-section home-ranking-section">

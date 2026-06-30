@@ -77,6 +77,26 @@ function App() {
       .ingredient-stat {
         display: none !important;
       }
+
+      .hero {
+        position: relative !important;
+        z-index: 120 !important;
+      }
+
+      .main-content {
+        position: relative !important;
+        z-index: 1 !important;
+      }
+
+      .search-container,
+      .search-container.suggestions-open {
+        position: relative !important;
+        z-index: 600 !important;
+      }
+
+      .search-suggest-panel {
+        z-index: 620 !important;
+      }
     `;
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
