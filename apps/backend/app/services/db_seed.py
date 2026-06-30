@@ -259,9 +259,9 @@ def _seed_ingredient_effect_ranges(
             IngredientEffectRangeRow.unit == record.unit,
         )
         values = {
-            "meaningful_min": Decimal(str(record.meaningful_min)),
-            "optimal_min": Decimal(str(record.optimal_min)),
-            "optimal_max": Decimal(str(record.optimal_max)),
+            "meaningful_min": _decimal_or_none(record.meaningful_min),
+            "optimal_min": _decimal_or_none(record.optimal_min),
+            "optimal_max": _decimal_or_none(record.optimal_max),
             "excessive_min": _decimal_or_none(record.excessive_min),
             "range_confidence": record.range_confidence,
             "source_type": record.source_type,

@@ -364,13 +364,23 @@ def _parse_ingredient_effect_range(
         allowed = ", ".join(sorted(RANGE_CONFIDENCE_VALUES))
         raise DataLoadError(f"{file_name}:{line_number} range_confidence는 {allowed} 중 하나여야 합니다.")
 
+    # range_confidence가 unknown이면 농도 근거가 없는 행 → 범위 값 공란 허용 (중립 처리 대상)
+    if range_confidence == "unknown":
+        meaningful_min = _optional_float(row.get("meaningful_min"), "meaningful_min", file_name, line_number)
+        optimal_min = _optional_float(row.get("optimal_min"), "optimal_min", file_name, line_number)
+        optimal_max = _optional_float(row.get("optimal_max"), "optimal_max", file_name, line_number)
+    else:
+        meaningful_min = _required_float_from_row(row, "meaningful_min", file_name, line_number)
+        optimal_min = _required_float_from_row(row, "optimal_min", file_name, line_number)
+        optimal_max = _required_float_from_row(row, "optimal_max", file_name, line_number)
+
     return IngredientEffectRange(
         ingredient_id=_required_text(row, "ingredient_id", file_name, line_number),
         effect_id=_required_text(row, "effect_id", file_name, line_number),
         unit=_required_text(row, "unit", file_name, line_number),
-        meaningful_min=_required_float_from_row(row, "meaningful_min", file_name, line_number),
-        optimal_min=_required_float_from_row(row, "optimal_min", file_name, line_number),
-        optimal_max=_required_float_from_row(row, "optimal_max", file_name, line_number),
+        meaningful_min=meaningful_min,
+        optimal_min=optimal_min,
+        optimal_max=optimal_max,
         excessive_min=_optional_float(row.get("excessive_min"), "excessive_min", file_name, line_number),
         range_confidence=range_confidence,
         source_type=_required_text(row, "source_type", file_name, line_number),
