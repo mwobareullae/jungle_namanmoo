@@ -1,5 +1,6 @@
 import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
+import HomeMainContent from "../components/HomeMainContent";
 import {
   HomeFooter,
   HomeHowItWorks,
@@ -60,6 +61,8 @@ function HomePage({ bodyHtml }: HomePageProps) {
           <HomeHero key={section.id} />
         ) : section.id === "matchresultsection" ? (
           <HomeMatchResult key={section.id} />
+        ) : section.id === "maincontent" ? (
+          <HomeMainContent key={section.id} />
         ) : section.id === "howitworks" ? (
           <HomeHowItWorks key={section.id} />
         ) : section.id === "ingredients" ? (
