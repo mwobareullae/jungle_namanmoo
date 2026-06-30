@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import HomeOverlays from "../components/HomeOverlays";
 import { api } from "../lib/api";
+import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import type { IngredientEvidence, ProductDetail } from "../types/recommendation";
 
@@ -75,7 +76,14 @@ function ProductDetailSpaPage() {
         if (isMounted) setProduct(response);
       })
       .catch(() => {
-        if (isMounted) setErrorMessage("상품 상세 정보를 불러오지 못했습니다.");
+        if (!isMounted) return;
+        const fallbackProduct = getFallbackProductDetail(productId);
+        if (fallbackProduct) {
+          setProduct(fallbackProduct);
+          setErrorMessage("");
+          return;
+        }
+        setErrorMessage("상품 상세 정보를 불러오지 못했습니다.");
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);

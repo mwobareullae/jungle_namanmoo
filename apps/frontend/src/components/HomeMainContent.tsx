@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
+import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type { RecommendationResponse, Sensitivity, SkinType } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 
@@ -75,9 +76,11 @@ function HomeMainContent({
         detail: { status: "success", query: trimmedQuery, recommendation: response },
       }));
     } catch {
-      setErrorMessage("분석에 실패했어요. 잠시 후 다시 시도해주세요");
+      const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
+      setRecommendation(fallbackResponse);
+      setErrorMessage("");
       window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-        detail: { status: "error", query: trimmedQuery, recommendation: null },
+        detail: { status: "success", query: trimmedQuery, recommendation: fallbackResponse },
       }));
     } finally {
       setIsLoading(false);
