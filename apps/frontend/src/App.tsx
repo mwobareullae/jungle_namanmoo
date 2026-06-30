@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import HomePage from "./pages/HomePage";
+import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 
 const getCurrentPageKey = (): OriginalPageKey => {
@@ -62,7 +63,7 @@ function App() {
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
 
-    if (pageKey !== "home" && pageKey !== "search") {
+    if (pageKey !== "home" && pageKey !== "search" && pageKey !== "productDetail") {
       window.setTimeout(() => {
         page.scripts.forEach((scriptText) => {
           const script = document.createElement("script");
@@ -85,6 +86,8 @@ function App() {
         <HomePage bodyHtml={page.bodyHtml} />
       ) : pageKey === "search" ? (
         <SearchPage />
+      ) : pageKey === "productDetail" ? (
+        <ProductDetailSpaPage />
       ) : (
         <div
           className="spa-origin-section"
