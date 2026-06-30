@@ -133,6 +133,27 @@ body {
   cursor: pointer;
 }
 
+.home-section-stack .product-img {
+  overflow: hidden;
+}
+
+.home-section-stack .product-photo,
+.home-ranking-media img,
+.home-deal-media img {
+  transform: scale(1);
+  transition: transform 260ms ease;
+  will-change: transform;
+}
+
+.home-section-stack .product-card-hit:hover .product-photo,
+.home-section-stack .product-card-hit:focus-visible .product-photo,
+.home-ranking-card:hover .home-ranking-media img,
+.home-ranking-card:focus-visible .home-ranking-media img,
+.home-deal-card:hover .home-deal-media img,
+.home-deal-card:focus-visible .home-deal-media img {
+  transform: scale(1.07);
+}
+
 .home-section-stack {
   display: grid;
   gap: 50px;
@@ -255,7 +276,7 @@ body {
   width: min(210px, 100%);
   aspect-ratio: 1;
   margin: 0 auto 15px;
-  overflow: visible;
+  overflow: hidden;
   border: 1px solid #e8eef1;
   border-radius: 50%;
   background: #f7fbfc;
@@ -273,7 +294,7 @@ body {
   position: absolute;
   top: 18px;
   left: 14px;
-  z-index: 1;
+  z-index: 2;
   display: inline-grid;
   place-items: center;
   min-width: 48px;
