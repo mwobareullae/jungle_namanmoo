@@ -252,7 +252,7 @@ function ProductDetailSpaPage() {
   const narrativeOverviewSummary = narrativeOverview?.summary;
   const narrativeKeyPoints = narrativeOverview?.key_points ?? [];
   const narrativeCaution = narrativeProduct?.caution;
-  const narrativeSummaryText = narrativeProduct && narrativeOverviewSummary ? narrativeOverviewSummary : null;
+  const narrativeSummaryText = narrativeOverviewSummary || null;
   const narrativeChips = narrativeCard?.chips?.length
     ? narrativeCard.chips
     : [

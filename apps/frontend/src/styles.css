@@ -320,7 +320,6 @@ body {
   width: min(210px, 100%);
   aspect-ratio: 1;
   margin: 0 auto 15px;
-  overflow: hidden;
   border: 1px solid #e8eef1;
   border-radius: 50%;
   background: #f7fbfc;
@@ -332,12 +331,13 @@ body {
   border-radius: 50%;
   object-fit: cover;
   object-position: center center;
+  overflow: hidden;
 }
 
 .home-rank-badge {
   position: absolute;
-  top: 18px;
-  left: 14px;
+  top: 20px;
+  left: 10px;
   z-index: 2;
   display: inline-grid;
   place-items: center;
