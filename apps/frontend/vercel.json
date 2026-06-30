@@ -1,12 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/beauty-commerce-aqua-glass.html"
-    },
-    {
-      "source": "/community",
-      "destination": "/beauty-commerce-aqua-glass.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
