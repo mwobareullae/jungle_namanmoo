@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import HomePage from "./pages/HomePage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
@@ -37,7 +37,7 @@ function App() {
     return () => window.removeEventListener("popstate", handleNavigation);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const injectedNodes: HTMLElement[] = [];
     document.documentElement.dataset.appMode =
       import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
