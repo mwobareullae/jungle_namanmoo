@@ -1,279 +1,70 @@
 ingredient_id,effect_id,unit,meaningful_min,optimal_min,optimal_max,excessive_min,range_confidence,source_type,source_url,note
-ing_pending_22d1b5fd35e0,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_32c6afad409b,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_32d4a86ef429,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6c83a81380b4,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_758aeb610bb1,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a0032158b960,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a4d9de93b053,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a5d1b4bd260b,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b7f31863d5f0,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_bd34de4cd96c,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c4e162fe65ed,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d2655ae2e043,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f190f1f32d34,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/12100180/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_00d2c1d23f56,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_46f9055cd877,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_67f5b0f2c438,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a3eb5fab4bd4,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_bd0e2692bbd4,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cd43a398726d,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cf28198fbc39,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cf75d80e3412,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d432230e052d,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e78eea664745,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ec6da355243d,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f7a0972e4f26,effect_brightening,%,5,5,15,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37128827/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4bfee86f25dd,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_53824849c9ba,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5791975e7cab,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c3021c69757c,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d2315aa48f21,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_fd877f0b3de1,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/34356362/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_14cc9d61a57a,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1f7f7945316d,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_944a4ef4197a,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_97d2f6af81cf,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ba8d93dbb873,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e467dceeb026,effect_brightening,%,2,2,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38843906/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_19212f510ffe,effect_brightening,%,1,1,2,,high,paper,https://www.mdpi.com/2079-9284/9/3/64,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_9d1862c4f8db,effect_brightening,%,1,1,2,,high,paper,https://www.mdpi.com/2079-9284/9/3/64,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2147b1ea062d,effect_brightening,%,0.05,0.05,0.05,,high,paper,https://pubmed.ncbi.nlm.nih.gov/9870547/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_34b0287042fc,effect_brightening,%,0.05,0.05,0.05,,high,paper,https://pubmed.ncbi.nlm.nih.gov/9870547/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2088a633b7e9,effect_wrinkle,IU/g,2500,2500,2500,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_229446f650dc,effect_wrinkle,IU/g,2500,2500,2500,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4766ba3c3b5e,effect_wrinkle,IU/g,2500,2500,2500,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_496500b1347c,effect_wrinkle,IU/g,2500,2500,2500,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_80eb0e065838,effect_wrinkle,IU/g,2500,2500,2500,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_efb697c9f316,effect_wrinkle,%,0.03,0.03,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/29663701/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_bda58dc3c046,effect_wrinkle,%,0.04,0.04,0.04,,high,official,https://mfds.go.kr/brd/m_207/view.do?seq=2709,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1af9a895ed19,effect_wrinkle,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/18492182/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_0036a4c14fd7,effect_acne_sebum,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38300170/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_0e2b041409e0,effect_acne_sebum,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38300170/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_33dfd5258c8f,effect_acne_sebum,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38300170/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_80a485b0dacc,effect_acne_sebum,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38300170/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c26770056796,effect_acne_sebum,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38300170/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ac4bf60ce792,effect_acne_sebum,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/19363854/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_afdb3e983fa9,effect_acne_sebum,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/19363854/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c2719421cd0a,effect_acne_sebum,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/19363854/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1403d81e744b,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_184175f2d30d,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_41e6fae68023,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_99dc80c4bfd1,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1e416583864f,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_29a33ad9d41d,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2a70c7167edc,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2b0940808ead,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2b4dff48827f,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_30dc1b5c5c02,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_3d4d5c5f9224,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_492524a49e5b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5830c0d1d488,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5bbbc82f504f,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_633e00932c4a,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_66692bddecf7,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_699a72e62403,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6a86203e8069,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_70adc74de702,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_755daa4cdd9b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_79167e5de8b7,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_79e5df69ff1c,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_8bb6494cdb8b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_919269c551c2,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_97f776ccff89,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_aa189ebd42e6,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_bf8646c2e28b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cdb9ed48c8d0,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d29f776db998,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d5a75e7d8737,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_dc86714c6b9b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e16581c1a689,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ebe20aa739f4,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f2d61baf2689,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ff9fd9525047,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4ee7df969306,effect_moisture_barrier,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10598752/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_70150945e717,effect_moisture_barrier,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10598752/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ce01ed60a0f8,effect_moisture_barrier,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10598752/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1ba776696787,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_43a3274d6a0c,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_74061ee57ce0,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_78e2aa1b022d,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c837be20882d,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c91c603ef00b,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e6ded5ba29ff,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e8e7ba8aa822,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f91ba3084ff1,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_fd2ec6337ddd,effect_moisture_barrier,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/10965426/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4d85c093b729,effect_moisture_barrier,%,2,2,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/35663767/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ee8076afb579,effect_moisture_barrier,%,2,2,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/35663767/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_09258fa86b32,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/19169201/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_ffae19848d1e,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/19169201/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_0a17f10aa94c,effect_moisture_barrier,%,5,5,30,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26431582/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_a74be05cc8e8,effect_moisture_barrier,%,5,5,30,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26431582/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_006df1172a80,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2bfa9864655e,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_3db8a4dedc4c,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_561bc1796e22,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5aed08595019,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_742cd15ac3e7,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_830c0f8bbd31,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a01bddba73a4,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b47b08dfa3ba,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c145df1d7093,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d28c2d1ee997,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_dba85900153c,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_dc89449ef38b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ed4d1dc71a25,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f1de7c712f85,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5cb0c75a5c67,effect_moisture_barrier,%,0.1,0.1,1,,low,paper,https://pubmed.ncbi.nlm.nih.gov/9308554/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_bf86770f3c63,effect_moisture_barrier,%,0.1,0.1,1,,low,paper,https://pubmed.ncbi.nlm.nih.gov/9308554/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_6d9f0bff0fd0,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26990096/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_8d4c6e32d675,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26990096/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_9de59d6914b6,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26990096/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_d3eda56bd42b,effect_moisture_barrier,%,1,1,5,,low,paper,https://pubmed.ncbi.nlm.nih.gov/26990096/,"에몰리언트/occlusive — 임상 유효농도 기준 없음(제형 의존), 낮은 신뢰도"
-ing_pending_04c695db8237,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_0e1ae9322504,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_10193020b4ba,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_10c2eb9412e0,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_10d6c77df0e3,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_127465fc04c5,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1fa63f6ac962,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_292ee3cb95b5,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_298eb69203ef,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2c02e5ba1399,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_33c182c05f59,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_355c30fdbf2d,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4191a2ba3f07,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_44a113ef503a,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_455851af5331,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6d9a42468435,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_70aa0ceb9107,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_721c854ee0aa,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_7f8ba14c5c99,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_8d72ef28ab5c,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_8daf32d0d68a,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_90641d5ad516,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a42437b0d5d6,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a7045595db89,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_abc11c24e8a7,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ae9fa1bd4d57,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b3ea0c1cfdc4,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b93133b8ce9c,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_bfbb42ee50a0,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_c3f7341b0b50,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ca7023996b25,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cb61dc1fe377,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d28ed1056078,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_d50571812a03,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e55732f4751d,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_e81d4e5d2311,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_ecc4ff92e329,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f6478a8dfd4e,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_facd3a0bf327,effect_calming,%,1,1,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/39458583/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_31729db1f56b,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4d314e61df21,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_64ffdc13a889,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_8ac59690692b,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_989e6b650f41,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a2e35233c4ef,effect_calming,%,0.01,0.01,0.1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/36756687/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a0686d768ad3,effect_calming,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/20877959/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_faeff90fd990,effect_calming,%,0.1,0.1,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/20877959/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_9bc5ea5a7900,effect_calming,%,0.5,0.5,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/24894548/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_cc4c892d9d61,effect_calming,%,0.5,0.5,0.5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/24894548/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_03f97fe63cc6,effect_exfoliation,%,5,5,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/8651713/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1acf3f4d16af,effect_exfoliation,%,5,5,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/8651713/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_41d4bbd36996,effect_exfoliation,%,5,5,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/8651713/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_7b5bd3517e82,effect_exfoliation,%,5,5,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/8651713/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_127a44cfe4a0,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1cd03ec1cf72,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_45afb0bea219,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_5b50fe940d19,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6eb84244b756,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a12f5c6f271b,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b72f53da1193,effect_exfoliation,%,3,3,10,,high,paper,https://pubmed.ncbi.nlm.nih.gov/15002657/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_2326ae2ec645,effect_wrinkle,%,3,5,10,,high,paper,https://anndermatol.org/DOIx.php?id=10.5021%2Fad.2019.31.3.263,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_76b0eea43494,effect_calming,%,0.1,0.2,2,,high,paper,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12302091/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6faa7f194935,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6bad68e0548a,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_926dfc4f799d,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_1d637fc3694e,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_6367d1feb60f,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_f775bc894c98,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37269189/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_91a214fb54fa,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_201c3ca7d51b,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_a72661720c9d,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4cef5981a071,effect_moisture_barrier,%,0.1,0.1,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/38829483/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_41a0903d8eee,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_b63dd75f15c4,effect_acne_sebum,%,0.5,0.5,5,,high,paper,https://pubmed.ncbi.nlm.nih.gov/37033604/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_7494c935a2e9,effect_moisture_barrier,%,0.1,0.5,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/33128496/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_4133ebbbf09e,effect_moisture_barrier,%,0.1,0.5,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/33128496/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_243b01c0fec0,effect_moisture_barrier,%,0.1,0.5,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/33128496/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_45d2fbd598af,effect_moisture_barrier,%,0.1,0.5,1,,high,paper,https://pubmed.ncbi.nlm.nih.gov/33128496/,임상 RCT/식약처 고시로 유효농도 확인
-ing_pending_7e1542d1e080,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_e11efd7e558d,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_8fc558733e4e,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_748047733bd4,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_44e097eed6ef,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_9d775777bc7c,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/31424962/,"효능 근거 논문 보유, 함량은 산업 표준 추정"
-ing_pending_22d1b5fd35e0,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_22d1b5fd35e0,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_32c6afad409b,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_32c6afad409b,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_32d4a86ef429,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_32d4a86ef429,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_6c83a81380b4,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_6c83a81380b4,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_758aeb610bb1,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_758aeb610bb1,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a0032158b960,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a0032158b960,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a4d9de93b053,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a4d9de93b053,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a5d1b4bd260b,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_a5d1b4bd260b,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_b7f31863d5f0,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_b7f31863d5f0,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_bd34de4cd96c,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_bd34de4cd96c,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_c4e162fe65ed,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_c4e162fe65ed,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_d2655ae2e043,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_d2655ae2e043,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_f190f1f32d34,effect_acne_sebum,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/16766489/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_f190f1f32d34,effect_moisture_barrier,%,2,2,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/10971324/,보조 효능은 2% 이상 근거 중심으로 보수 설정
-ing_pending_0036a4c14fd7,effect_exfoliation,%,0.5,0.5,2,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/37894698/,BHA 각질 용해 문헌 기준이며 유도체는 보수적으로 medium 처리
-ing_pending_0e2b041409e0,effect_exfoliation,%,0.5,0.5,2,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/37894698/,BHA 각질 용해 문헌 기준이며 유도체는 보수적으로 medium 처리
-ing_pending_33dfd5258c8f,effect_exfoliation,%,0.5,0.5,2,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/37894698/,BHA 각질 용해 문헌 기준이며 유도체는 보수적으로 medium 처리
-ing_pending_80a485b0dacc,effect_exfoliation,%,0.5,0.5,2,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/37894698/,BHA 각질 용해 문헌 기준이며 유도체는 보수적으로 medium 처리
-ing_pending_c26770056796,effect_exfoliation,%,0.5,0.5,2,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/37894698/,BHA 각질 용해 문헌 기준이며 유도체는 보수적으로 medium 처리
-ing_pending_1ba776696787,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_43a3274d6a0c,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_74061ee57ce0,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_78e2aa1b022d,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_c837be20882d,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_c91c603ef00b,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_e6ded5ba29ff,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_e8e7ba8aa822,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_f91ba3084ff1,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_fd2ec6337ddd,effect_calming,%,1,1,5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/35887707/,보습 장벽 근거와 자극 완화 리뷰를 기준으로 보조 진정 범위 설정
-ing_pending_2088a633b7e9,effect_exfoliation,IU/g,2500,2500,2500,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_229446f650dc,effect_exfoliation,IU/g,2500,2500,2500,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_4766ba3c3b5e,effect_exfoliation,IU/g,2500,2500,2500,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_496500b1347c,effect_exfoliation,IU/g,2500,2500,2500,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_80eb0e065838,effect_exfoliation,IU/g,2500,2500,2500,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_efb697c9f316,effect_exfoliation,%,0.03,0.03,0.1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/29947134/,주름 주효능 범위를 턴오버 보조 효능에도 보수 적용
-ing_pending_4d85c093b729,effect_exfoliation,%,10,10,40,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/34596890/,"저농도는 보습 중심, 10% 이상부터 각질연화 효능으로 보수 설정"
-ing_pending_ee8076afb579,effect_exfoliation,%,10,10,40,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/34596890/,"저농도는 보습 중심, 10% 이상부터 각질연화 효능으로 보수 설정"
-ing_pending_9bc5ea5a7900,effect_brightening,%,0.5,0.5,0.5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/20642768/,알파-비사보롤 미백 임상 근거 기준
-ing_pending_cc4c892d9d61,effect_brightening,%,0.5,0.5,0.5,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/20642768/,알파-비사보롤 미백 임상 근거 기준
-ing_pending_01ca2d5bb5e0,effect_acne_sebum,%,,,,,unknown,paper,https://pubmed.ncbi.nlm.nih.gov/32356369/,Zinc PCA 직접 유효농도 근거 부족. 농도 점수는 중립 처리 대상
-ing_pending_069d47c6f140,effect_acne_sebum,%,,,,,unknown,paper,https://pubmed.ncbi.nlm.nih.gov/32356369/,Zinc PCA 직접 유효농도 근거 부족. 농도 점수는 중립 처리 대상
-ing_pending_33dd2aa3d667,effect_acne_sebum,%,,,,,unknown,paper,https://pubmed.ncbi.nlm.nih.gov/32356369/,Zinc PCA 직접 유효농도 근거 부족. 농도 점수는 중립 처리 대상
-ing_pending_5a3e860d025b,effect_calming,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/28697218/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_5a3e860d025b,effect_moisture_barrier,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/32524381/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_8425d2e8031f,effect_calming,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/28697218/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_8425d2e8031f,effect_moisture_barrier,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/32524381/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_a2988b7cdc94,effect_calming,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/28697218/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_a2988b7cdc94,effect_moisture_barrier,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/32524381/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_fb89515984f7,effect_calming,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/28697218/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
-ing_pending_fb89515984f7,effect_moisture_barrier,%,1,1,1,,medium,paper,https://pubmed.ncbi.nlm.nih.gov/32524381/,1% colloidal oatmeal 임상 근거 기준. 귀리추출물 계열은 보수 적용
+niacinamide,effect_brightening,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_moisture_barrier,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_acne_sebum,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_wrinkle,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_calming,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+salicylic_acid_bha,effect_acne_sebum,%,0.5,0.5,0.5,,high,unknown,,source_confidence=high; 여드름0.5%(세정용고시)·세정제≤2%·두발용≤3%·leave-on 활성금지
+salicylic_acid_bha,effect_exfoliation,%,0.5,0.5,0.5,,high,unknown,,source_confidence=high; 여드름0.5%(세정용고시)·세정제≤2%·두발용≤3%·leave-on 활성금지
+aha,effect_exfoliation,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+aha,effect_wrinkle,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+aha,effect_moisture_barrier,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+pha,effect_exfoliation,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_moisture_barrier,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_wrinkle,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_calming,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+zinc_pca,effect_acne_sebum,%,0.1,0.1,1,,medium,unknown,,source_confidence=med; 0.1~1%(통상) · 고시 아님
+zinc_pca,effect_calming,%,0.1,0.1,1,,medium,unknown,,source_confidence=med; 0.1~1%(통상) · 고시 아님
+zinc_pca,effect_moisture_barrier,%,0.1,0.1,1,,medium,unknown,,source_confidence=med; 0.1~1%(통상) · 고시 아님
+glycerin,effect_moisture_barrier,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+glycerin,effect_calming,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+glycerin,effect_exfoliation,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+panthenol,effect_moisture_barrier,%,1,1,5,,high,unknown,,source_confidence=high; 1~5%(통상) · 피부효능 고시 아님(탈모 덱스판테놀은 별건)
+panthenol,effect_calming,%,1,1,5,,high,unknown,,source_confidence=high; 1~5%(통상) · 피부효능 고시 아님(탈모 덱스판테놀은 별건)
+ceramides,effect_moisture_barrier,%,0.1,0.1,1,,high,unknown,,"source_confidence=high; 0.1~1%(통상 <0.5%, 콜레스테롤·지방산 비율 중요) · 장벽 기능성 카테고리 존재(심사기반, 고시 함량 없음) · NP/AP/EOP/NS/AS/NG"
+ceramides,effect_calming,%,0.1,0.1,1,,high,unknown,,"source_confidence=high; 0.1~1%(통상 <0.5%, 콜레스테롤·지방산 비율 중요) · 장벽 기능성 카테고리 존재(심사기반, 고시 함량 없음) · NP/AP/EOP/NS/AS/NG"
+cholesterol_fatty_acids,effect_moisture_barrier,%,0.5,0.5,3,,medium,unknown,,"source_confidence=med-high; 콜레스테롤 ~0.5~3%, 지방산 가변 · 생리지질 복합(총 >5%)에서 효능 · 고시 없음"
+cholesterol_fatty_acids,effect_calming,%,0.5,0.5,3,,medium,unknown,,"source_confidence=med-high; 콜레스테롤 ~0.5~3%, 지방산 가변 · 생리지질 복합(총 >5%)에서 효능 · 고시 없음"
+hyaluronic_acid,effect_moisture_barrier,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+hyaluronic_acid,effect_wrinkle,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+hyaluronic_acid,effect_calming,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+squalane,effect_moisture_barrier,%,100,100,100,,medium,unknown,,source_confidence=med-high; 가변(단독 오일 100%~배합 수%) · 경량 폐색 에몰리언트 · 고시 없음
+dimethicone,effect_moisture_barrier,%,1,1,30,,high,unknown,,source_confidence=high; 1~30%(FDA 피부보호제) · 통기성 실리콘 폐색·포뮬러 의존 · 한국 고시 없음
+dimethicone,effect_calming,%,1,1,30,,high,unknown,,source_confidence=high; 1~30%(FDA 피부보호제) · 통기성 실리콘 폐색·포뮬러 의존 · 한국 고시 없음
+petrolatum_mineral_oil,effect_moisture_barrier,%,100,100,100,,high,unknown,,source_confidence=high; 가변(순수 100%~배합) · FDA 피부보호제 · 고형=강폐색/액상·미네랄오일=경량 · 한국 고시 없음
+petrolatum_mineral_oil,effect_calming,%,100,100,100,,high,unknown,,source_confidence=high; 가변(순수 100%~배합) · FDA 피부보호제 · 고형=강폐색/액상·미네랄오일=경량 · 한국 고시 없음
+urea,effect_moisture_barrier,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+urea,effect_exfoliation,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+urea,effect_calming,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+centella_asiatica,effect_calming,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+centella_asiatica,effect_wrinkle,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+centella_asiatica,effect_moisture_barrier,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+madecassoside,effect_calming,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+madecassoside,effect_wrinkle,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+madecassoside,effect_moisture_barrier,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+tea_tree,effect_acne_sebum,%,5,5,5,,medium,unknown,,source_confidence=med-high; 여드름 임상 5% gel · 통상 ≤5%(정유 희석) · ISO 4730(terpinen-4-ol ≥30%/cineole ≤15%) · 고시 없음 · ★산화 시 자극/감작↑
+allantoin,effect_calming,%,0.5,0.5,2,,high,unknown,,source_confidence=high; 0.5~2%(FDA 피부보호제 21CFR347.10) · 통상 0.1~2%(용해도 한계) · 한국 고시 없음 · 매우 순함(비자극/비감작)
+allantoin,effect_moisture_barrier,%,0.5,0.5,2,,high,unknown,,source_confidence=high; 0.5~2%(FDA 피부보호제 21CFR347.10) · 통상 0.1~2%(용해도 한계) · 한국 고시 없음 · 매우 순함(비자극/비감작)
+colloidal_oatmeal,effect_calming,%,1,1,1,,high,unknown,,source_confidence=high; FDA 피부보호제 등재(2003 OTC 모노그래프) · AD 임상 1% 크림 · 한국 고시 없음 · 영유아 OK(매우 순함)
+colloidal_oatmeal,effect_moisture_barrier,%,1,1,1,,high,unknown,,source_confidence=high; FDA 피부보호제 등재(2003 OTC 모노그래프) · AD 임상 1% 크림 · 한국 고시 없음 · 영유아 OK(매우 순함)
+bisabolol,effect_calming,%,0.1,0.1,1,,medium,unknown,,source_confidence=med-high; 통상 0.1~1%(흔히 0.2~0.5%) · 고시 없음 · 비자극/비광독성 · ★Asteraceae 교차 알레르기 주의
+bisabolol,effect_brightening,%,0.1,0.1,1,,medium,unknown,,source_confidence=med-high; 통상 0.1~1%(흔히 0.2~0.5%) · 고시 없음 · 비자극/비광독성 · ★Asteraceae 교차 알레르기 주의
+green_tea,effect_acne_sebum,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+green_tea,effect_calming,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+green_tea,effect_wrinkle,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+retinol,effect_wrinkle,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_brightening,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_exfoliation,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_acne_sebum,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinal,effect_wrinkle,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+retinal,effect_exfoliation,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+retinal,effect_brightening,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+adenosine,effect_wrinkle,%,0.04,0.04,0.04,,high,unknown,,source_confidence=high; 0.04%(고시)
+peptides,effect_wrinkle,unknown,,,,,unknown,unknown,,source_confidence=med; 성분별 상이
+ascorbic_acid,effect_brightening,%,10,10,20,,medium,unknown,,source_confidence=med; 순수10~20%/유도체2%
+ascorbic_acid,effect_wrinkle,%,10,10,20,,medium,unknown,,source_confidence=med; 순수10~20%/유도체2%
+arbutin,effect_brightening,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%(고시)
+tranexamic_acid,effect_brightening,%,2,2,5,,medium,unknown,,source_confidence=med; 2~5%
+kojic_acid,effect_brightening,%,1,1,2,,medium,unknown,,source_confidence=med; 1~2%
+licorice_extract,effect_brightening,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
+licorice_extract,effect_calming,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
