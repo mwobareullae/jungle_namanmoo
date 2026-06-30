@@ -32,6 +32,8 @@ const fallbackProducts: Record<string, CompleteProduct> = {
 
 const formatWon = (value: number) =>
   value > 0 ? `${value.toLocaleString("ko-KR")}원` : "결제금액 확인 중";
+const transparentImage =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
 const getCompleteParams = () => {
   const params = new URLSearchParams(window.location.search);
@@ -130,7 +132,11 @@ function PaymentCompletePage() {
             <section className="complete-card">
               <h2>주문 상품</h2>
               <div className="complete-product">
-                <img id="productImage" src={product.image} alt={`${product.brand} ${product.name}`} />
+                <img
+                  id="productImage"
+                  src={product.image || transparentImage}
+                  alt={`${product.brand} ${product.name}`}
+                />
                 <div>
                   <div className="complete-brand" id="productBrand">{product.brand}</div>
                   <div className="complete-name" id="productName">{productName}</div>

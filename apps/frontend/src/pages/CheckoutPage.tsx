@@ -43,6 +43,8 @@ const fallbackProducts: OrderProduct[] = [
 ];
 
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
+const transparentImage =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
 const getCheckoutParams = () => {
   const params = new URLSearchParams(window.location.search);
@@ -159,7 +161,7 @@ function CheckoutPage() {
                 <div id="cartItems">
                   {items.map((item) => (
                     <div className="cart-line" key={item.id}>
-                      <img src={item.image} alt={`${item.brand} ${item.name}`} />
+                      <img src={item.image || transparentImage} alt={`${item.brand} ${item.name}`} />
                       <div>
                         <div className="cart-brand">{item.brand}</div>
                         <div className="cart-name">{item.name}</div>
