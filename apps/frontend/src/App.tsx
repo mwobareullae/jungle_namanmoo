@@ -9,6 +9,8 @@ import SearchPage from "./pages/SearchPage";
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
+document.documentElement.dataset.appMode = appMode;
+
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
 
