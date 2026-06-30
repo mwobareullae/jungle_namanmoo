@@ -422,7 +422,7 @@ function ProductDetailSpaPage() {
                       </article>
                     ))
                   ) : (
-                    <div className="review-item"><p>성분 효능 근거를 준비 중입니다.</p></div>
+                    <div className="review-item"><p>표시할 성분 효능 근거가 없습니다.</p></div>
                   )}
                 </div>
                 <div className="source-list" id="sourceList">
@@ -445,7 +445,7 @@ function ProductDetailSpaPage() {
                       </div>
                     </>
                   ) : (
-                    <div className="review-item"><p>근거 출처 정보가 준비 중입니다.</p></div>
+                    <div className="review-item"><p>표시할 근거 출처 정보가 없습니다.</p></div>
                   )}
                 </div>
               </section>
@@ -489,7 +489,7 @@ function ProductDetailSpaPage() {
                       </a>
                     ))
                   ) : (
-                    <div className="review-item"><p>구매처 가격 정보가 준비 중입니다.</p></div>
+                    <div className="review-item"><p>표시할 구매처 가격 정보가 없습니다.</p></div>
                   )}
                 </div>
               </section>

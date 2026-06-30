@@ -377,6 +377,10 @@ html[data-app-mode="community"] .search-results-shell {
     grid-template-columns: 96px minmax(0, 1fr);
   }
 
+  body.search-results-page #searchResultsGrid .product-img {
+    width: 96px;
+  }
+
   .cart-image-empty {
     width: 76px;
     height: 76px;
@@ -384,6 +388,17 @@ html[data-app-mode="community"] .search-results-shell {
 
   .search-product-card .search-result-side {
     grid-column: 1 / -1;
+    align-self: auto;
+    justify-items: start;
+    border-left: 0;
+    border-top: 1px solid #eef2f4;
+    padding-top: 14px;
+    padding-left: 0;
+  }
+
+  .search-product-card .search-result-side .product-price-row {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   .detail-loading {
