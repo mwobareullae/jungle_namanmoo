@@ -3,7 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
-from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
+from app.schemas.recommendation import (
+    RecommendationNarrativeRequest,
+    RecommendationNarrativeResponse,
+    RecommendationRequest,
+    RecommendationResponse,
+)
+from app.services.recommendation_narrative import create_recommendation_narrative_response
 from app.services.recommendation_pipeline import (
     create_recommendation_response,
     DEFAULT_PAGE,
@@ -49,4 +55,24 @@ def get_recommendation_by_id(
         recommendation_id,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.post(
+    "/recommendations/{recommendation_id}/narrative",
+    response_model=RecommendationNarrativeResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
+    },
+)
+def post_recommendation_narrative(
+    recommendation_id: str,
+    request: RecommendationNarrativeRequest | None = None,
+    session: Session = Depends(get_db),
+) -> RecommendationNarrativeResponse:
+    return create_recommendation_narrative_response(
+        session,
+        recommendation_id,
+        request,
     )
