@@ -51,7 +51,8 @@ body {
 }
 
 .search-page-shell .search-container {
-  margin: 0;
+  width: min(920px, 100%);
+  margin: 0 auto;
 }
 
 .search-page-shell .search-results-shell {
