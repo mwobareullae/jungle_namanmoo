@@ -1008,11 +1008,35 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
+.detail-page .ingredient-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  padding: 12px 0 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.detail-page .ingredient-summary-line span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.detail-page .ingredient-summary-line strong {
+  color: #25a8ca;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .detail-page .effect-toggle-list {
   display: grid;
-  margin-top: 26px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
+  margin-top: 24px;
 }
 
 .detail-page .effect-toggle-title {

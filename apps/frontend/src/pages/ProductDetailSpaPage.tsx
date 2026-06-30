@@ -423,19 +423,16 @@ function ProductDetailSpaPage() {
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
                   <div className="ingredient-panel">
-                    <div className="ingredient-stat-grid">
-                      <div className="ingredient-stat stat-total">
-                        <strong id="totalIngredientCount">{detailData.relatedIngredients.length || "-"}</strong>
-                        <span>전체 성분</span>
-                      </div>
-                      <div className="ingredient-stat stat-effective">
-                        <strong id="effectiveIngredientCount">{detailData.effectiveIngredients.length}</strong>
-                        <span>효능 성분</span>
-                      </div>
-                      <div className="ingredient-stat stat-risk">
-                        <strong id="riskIngredientCount">{product.risk_flags.length}</strong>
-                        <span>주의 성분</span>
-                      </div>
+                    <div className="ingredient-summary-line">
+                      <span>
+                        전체 성분 <strong id="totalIngredientCount">{detailData.relatedIngredients.length || "-"}</strong>
+                      </span>
+                      <span>
+                        효능 성분 <strong id="effectiveIngredientCount">{detailData.effectiveIngredients.length}</strong>
+                      </span>
+                      <span>
+                        주의 성분 <strong id="riskIngredientCount">{product.risk_flags.length}</strong>
+                      </span>
                     </div>
                     <div className="effect-toggle-list" id="effectToggleList">
                       {detailData.effectGroups.length > 0 ? (
