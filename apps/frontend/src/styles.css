@@ -23,3 +23,11 @@ body {
 .spa-origin-section {
   display: contents;
 }
+
+.search-page-shell #searchResultsSection {
+  display: block;
+}
+
+.search-page-shell #defaultSection {
+  display: none;
+}

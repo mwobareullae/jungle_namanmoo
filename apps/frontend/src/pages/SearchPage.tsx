@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import { HomeMatchResult } from "../components/HomeStaticSections";
+import { installHomeRuntime } from "../lib/homeRuntime";
 import type { Sensitivity, SkinType } from "../types/recommendation";
 
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
@@ -24,19 +26,22 @@ const getSearchParams = () => {
 
 function SearchPage() {
   const { keyword, skin, sensitivity } = getSearchParams();
+  const profile = { skin, sensitivity };
+
+  useEffect(() => installHomeRuntime(profile), [skin, sensitivity]);
 
   return (
-    <>
+    <div className="search-page-shell">
       <HomeOverlays />
       <HomeHeader />
-      <HomeHero />
+      <HomeHero initialProfile={profile} initialQuery={keyword} />
       <HomeMatchResult />
       <HomeMainContent
-        initialProfile={{ skin, sensitivity }}
+        initialProfile={profile}
         initialQuery={keyword}
         showDefaultSection={false}
       />
-    </>
+    </div>
   );
 }
 

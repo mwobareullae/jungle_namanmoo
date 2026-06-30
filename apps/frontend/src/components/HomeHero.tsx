@@ -1,9 +1,24 @@
 import type { KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
+import type { Sensitivity, SkinType } from "../types/recommendation";
 
 const setSearch = (text: string) => callOriginal("setSearch", text);
 
-function HomeHero() {
+type HomeHeroProps = {
+  initialQuery?: string;
+  initialProfile?: {
+    skin: SkinType;
+    sensitivity: Sensitivity;
+  };
+};
+
+function HomeHero({
+  initialQuery = "",
+  initialProfile = {
+    skin: "수부지",
+    sensitivity: "보통",
+  },
+}: HomeHeroProps) {
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     callOriginal("handleSearch", event);
   };
@@ -46,9 +61,10 @@ function HomeHero() {
                 onClick={() => callOriginal("openSearchSuggestions")}
                 type="button"
               >
-                수부지 · 보통
+                {initialProfile.skin} · {initialProfile.sensitivity}
               </button>
               <input
+                defaultValue={initialQuery}
                 id="searchInput"
                 onKeyDown={handleSearchKey}
                 placeholder="모공이 넓고 번들거려요"
@@ -98,7 +114,7 @@ function HomeHero() {
                     <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
                       {["건성", "지성", "복합성", "수부지", "중성"].map((skinType) => (
                         <button
-                          className={`profile-option${skinType === "수부지" ? " active" : ""}`}
+                          className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
                           data-profile="skin"
                           data-value={skinType}
                           key={skinType}
@@ -120,7 +136,7 @@ function HomeHero() {
                     >
                       {["낮음", "보통", "높음"].map((sensitivity) => (
                         <button
-                          className={`profile-option${sensitivity === "보통" ? " active" : ""}`}
+                          className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
                           data-profile="sensitivity"
                           data-value={sensitivity}
                           key={sensitivity}
@@ -136,7 +152,7 @@ function HomeHero() {
 
                 <div className="suggest-actions">
                   <span className="profile-summary" id="profileSummary">
-                    수부지 · 민감도 보통 기준으로 추천
+                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
                   </span>
                 </div>
               </div>
