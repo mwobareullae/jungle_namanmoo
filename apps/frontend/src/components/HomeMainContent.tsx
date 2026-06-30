@@ -47,6 +47,49 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   risk_flags: [],
 });
 
+function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
+  return (
+    <div className="search-loading-state" aria-live="polite">
+      <div className="search-loading-banner">
+        <div>
+          <div className="search-loading-title">{message}</div>
+          <div className="search-loading-subtitle">필요 효능, 근거 성분, 상품 점수를 순서대로 계산하는 중입니다.</div>
+        </div>
+        <div className="search-loading-meter" aria-hidden="true" />
+      </div>
+      <ProductSkeletonList count={3} variant="search" />
+    </div>
+  );
+}
+
+function ProductSkeletonList({ count, variant = "home" }: { count: number; variant?: "home" | "search" }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, index) => (
+        <div className={`product-skeleton ${variant}`} key={index} aria-hidden="true">
+          <div className="product-skeleton-media skeleton-shimmer" />
+          <div className="product-skeleton-body">
+            <div className="skeleton-line skeleton-brand skeleton-shimmer" />
+            <div className="skeleton-line skeleton-title skeleton-shimmer" />
+            <div className="skeleton-line skeleton-title short skeleton-shimmer" />
+            <div className="skeleton-pill-row">
+              <div className="skeleton-pill skeleton-shimmer" />
+              <div className="skeleton-pill skeleton-shimmer" />
+              <div className="skeleton-pill skeleton-shimmer" />
+            </div>
+          </div>
+          {variant === "search" ? (
+            <div className="product-skeleton-side">
+              <div className="skeleton-line skeleton-brand skeleton-shimmer" />
+              <div className="skeleton-price skeleton-shimmer" />
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </>
+  );
+}
+
 type HomeSearchEvent = CustomEvent<{
   query: string;
   profile: {
@@ -307,7 +350,7 @@ function HomeMainContent({
             </div>
             <div className="product-grid" id="searchResultsGrid">
               {isLoading ? (
-                <div className="search-empty">피부 고민을 분석하고 있어요.</div>
+                <SearchLoadingState />
               ) : errorMessage ? (
                 <div className="search-empty">{errorMessage}</div>
               ) : sortedProducts.length ? (
@@ -418,7 +461,7 @@ function HomeMainContent({
 
         <div className="product-grid" id="defaultProductGrid">
           {isHomeSectionLoading ? (
-            <div className="empty-state">인기 상품을 불러오는 중입니다.</div>
+            <ProductSkeletonList count={6} />
           ) : homeSectionError ? (
             <div className="empty-state">{homeSectionError}</div>
           ) : homeProducts.length ? (
