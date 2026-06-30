@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import type { Sensitivity, SkinType } from "../types/recommendation";
 
@@ -14,8 +14,24 @@ const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as co
 const sensitivities = ["낮음", "보통", "높음"] as const;
 
 function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelProps) {
+  const [query, setQuery] = useState(initialQuery);
+  const [profile, setProfile] = useState(initialProfile);
+
+  const goToSearch = (nextQuery = query) => {
+    const trimmedQuery = nextQuery.trim();
+    if (!trimmedQuery) return;
+
+    const params = new URLSearchParams({
+      keyword: trimmedQuery,
+      skin_type: profile.skin,
+      sensitivity: profile.sensitivity,
+      page_size: "10",
+    });
+    window.location.href = `/search?${params.toString()}`;
+  };
+
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    callOriginal("handleSearch", event);
+    if (event.key === "Enter") goToSearch();
   };
 
   return (
@@ -49,16 +65,17 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
                 onClick={() => callOriginal("openSearchSuggestions")}
                 type="button"
               >
-                {initialProfile.skin} · {initialProfile.sensitivity}
+                {profile.skin} · {profile.sensitivity}
               </button>
               <input
-                defaultValue={initialQuery}
                 id="searchInput"
                 onKeyDown={handleSearchKey}
+                onChange={(event) => setQuery(event.target.value)}
                 placeholder="모공이 넓고 번들거려요"
                 type="text"
+                value={query}
               />
-              <button className="search-btn" onClick={() => callOriginal("doSearch")} type="button">
+              <button className="search-btn" onClick={() => goToSearch()} type="button">
                 <svg
                   fill="none"
                   height="14"
@@ -102,11 +119,11 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
                     <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
                       {skinTypes.map((skinType) => (
                         <button
-                          className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
+                          className={`profile-option${skinType === profile.skin ? " active" : ""}`}
                           data-profile="skin"
                           data-value={skinType}
                           key={skinType}
-                          onClick={() => callOriginal("selectProfileOption", "skin", skinType)}
+                          onClick={() => setProfile((current) => ({ ...current, skin: skinType }))}
                           type="button"
                         >
                           {skinType}
@@ -124,11 +141,11 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
                     >
                       {sensitivities.map((sensitivity) => (
                         <button
-                          className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
+                          className={`profile-option${sensitivity === profile.sensitivity ? " active" : ""}`}
                           data-profile="sensitivity"
                           data-value={sensitivity}
                           key={sensitivity}
-                          onClick={() => callOriginal("selectProfileOption", "sensitivity", sensitivity)}
+                          onClick={() => setProfile((current) => ({ ...current, sensitivity }))}
                           type="button"
                         >
                           {sensitivity}
@@ -140,7 +157,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
 
                 <div className="suggest-actions">
                   <span className="profile-summary" id="profileSummary">
-                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
+                    {profile.skin} · 민감도 {profile.sensitivity} 기준으로 추천
                   </span>
                 </div>
               </div>
