@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>뭐바를래 - 상품 상세</title>
+  <title>뭐바를래</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="./Design_system/aqua-glass-system.css">
   <link rel="stylesheet" href="./Design_system/aqua-glass-shopping.css">
   <link rel="stylesheet" href="./Design_system/aqua-product-detail.css">
@@ -15,7 +16,7 @@
   const runtimeMode = window.MWBR_APP_MODE && !String(window.MWBR_APP_MODE).startsWith("%") ? window.MWBR_APP_MODE : "";
   const viteMode = envAppMode && !envAppMode.startsWith("%") ? envAppMode : "";
   const viteApiBaseUrl = envApiBaseUrl && !envApiBaseUrl.startsWith("%") ? envApiBaseUrl : "";
-  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || localStorage.getItem("mwbr_app_mode") || viteMode || "commerce";
+  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || viteMode || localStorage.getItem("mwbr_app_mode") || "commerce";
   const mode = String(rawMode).toLowerCase() === "community" ? "community" : "commerce";
   document.documentElement.dataset.appMode = mode;
   window.MWBR_APP_MODE = mode;
@@ -370,7 +371,29 @@
       return response.json();
     }
 
-    function mapApiProductDetail(response, recommendation = null) {
+
+    async function fetchRecommendationNarrative(id) {
+      if (!id) return null;
+      const response = await fetchWithTimeout(`${API_BASE_URL}/recommendations/${encodeURIComponent(id)}/narrative`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mode: 'community_beta',
+          product_limit: 10,
+          use_llm: false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`recommendation narrative api failed: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    function mapApiProductDetail(response, recommendation = null, narrativeResponse = null) {
       const product = response.product || {};
       const prices = Array.isArray(response.prices) ? response.prices : [];
       const lowestPrice = prices.find((item) => item.is_lowest) || prices[0];
@@ -381,7 +404,10 @@
       const ingredientNames = getUniqueValues(ingredients.map((ingredient) => ingredient.name));
       const effectiveIngredientNames = getUniqueValues(evidenceItems.map((item) => item.ingredient));
       const effects = getUniqueValues(evidenceItems.map((item) => item.effect));
-      const tags = getUniqueValues([...effects, ...effectiveIngredientNames]).slice(0, 6);
+      const narrative = narrativeResponse?.narrative || null;
+      const narrativeProduct = narrative?.product_explanations?.find((item) => item.product_id === product.product_id) || null;
+      const narrativeChips = Array.isArray(narrativeProduct?.card?.chips) ? narrativeProduct.card.chips.filter(Boolean) : [];
+      const tags = getUniqueValues([...narrativeChips, ...effects, ...effectiveIngredientNames]).slice(0, 6);
       const riskItems = getRiskItems(ingredients);
       const summary = recommendation?.summary || {};
       const constraints = summary.purchase_constraints || {};
@@ -399,7 +425,9 @@
         score: product.total_score || '-',
         review: prices.length > 0 ? `${prices.length}개 구매처 가격 비교` : '가격 정보 확인 중',
         ingredients: ingredientNames.length > 0 ? ingredientNames.join(', ') : '성분 정보 준비 중입니다.',
-        reason: cleanRecommendationReason(product.reason_summary || response.evidence?.recommendation_reason),
+        reason: cleanRecommendationReason(narrativeProduct?.card?.reason || product.reason_summary || response.evidence?.recommendation_reason),
+        narrative,
+        narrativeProduct,
         purchaseUrl: lowestPrice?.product_url || '',
         images: Array.isArray(response.images) ? response.images : [],
         imageAlt: response.images?.[0]?.alt || product.name || '',
@@ -453,8 +481,43 @@
       const avoidIngredients = profile.avoidIngredients?.length ? profile.avoidIngredients.join(', ') : '';
       const unmatchedTerms = profile.unmatchedTerms?.length ? profile.unmatchedTerms.join(', ') : '';
       const purchaseConstraints = formatDetailPurchaseConstraints(profile.purchaseConstraints || {});
+      const narrative = product.narrative || null;
+      const narrativeProduct = product.narrativeProduct || null;
+      const overview = narrative?.overview || null;
+      const overviewPoints = Array.isArray(overview?.key_points) ? overview.key_points.filter(Boolean).join(' / ') : '';
+      const detailSections = Array.isArray(narrativeProduct?.detail_sections) ? narrativeProduct.detail_sections : [];
+      const summaryItems = [];
+
+      if (overview?.headline || overview?.summary || overviewPoints) {
+        summaryItems.push({
+          title: overview?.headline || '추천 요약',
+          body: [overview?.summary, overviewPoints].filter(Boolean).join(' / ')
+        });
+      }
+
+      if (narrativeProduct?.role || narrativeProduct?.card?.headline) {
+        summaryItems.push({
+          title: narrativeProduct.card?.headline || '상품 역할',
+          body: [narrativeProduct.role, narrativeProduct.caution].filter(Boolean).join(' / ')
+        });
+      }
+
+      detailSections.slice(0, 2).forEach((section) => {
+        summaryItems.push({
+          title: section.title || '상세 근거',
+          body: section.body || '상세 설명을 준비 중입니다.'
+        });
+      });
+
+      if (narrative?.selection_guide) {
+        summaryItems.push({
+          title: '선택 가이드',
+          body: narrative.selection_guide
+        });
+      }
 
       document.getElementById('summaryGrid').innerHTML = [
+        ...summaryItems,
         {
           title: '입력 고민',
           body: concernText
@@ -751,11 +814,12 @@
 
       if (!staticProduct && selectedIdParam) {
         try {
-          const [response, recommendation] = await Promise.all([
+          const [response, recommendation, narrative] = await Promise.all([
             fetchProductDetail(selectedIdParam),
-            fetchRecommendationSummary(recommendationId).catch(() => null)
+            fetchRecommendationSummary(recommendationId).catch(() => null),
+            fetchRecommendationNarrative(recommendationId).catch(() => null)
           ]);
-          renderProductDetail(mapApiProductDetail(response, recommendation));
+          renderProductDetail(mapApiProductDetail(response, recommendation, narrative));
           return;
         } catch (error) {
           console.error(error);
