@@ -297,7 +297,7 @@ body {
   position: relative;
   min-width: 0;
   max-width: 100%;
-  padding: 0 54px;
+  padding: 0;
   overflow: visible;
 }
 
@@ -420,32 +420,6 @@ body {
   text-align: center;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.home-rail-btn {
-  position: absolute;
-  top: 32%;
-  z-index: 2;
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid #dfe7ea;
-  border-radius: 50%;
-  background: #ffffff;
-  color: var(--ink2);
-  font-size: 28px;
-  line-height: 1;
-  box-shadow: 0 8px 22px rgba(12, 17, 23, 0.08);
-  cursor: pointer;
-}
-
-.home-rail-btn.prev {
-  left: 4px;
-}
-
-.home-rail-btn.next {
-  right: 4px;
 }
 
 .home-deal-section {
@@ -1580,10 +1554,6 @@ html[data-app-mode="community"] .search-results-shell {
     min-width: 38px;
     height: 38px;
     font-size: 14px;
-  }
-
-  .home-rail-btn {
-    display: none;
   }
 
   .home-deal-section {

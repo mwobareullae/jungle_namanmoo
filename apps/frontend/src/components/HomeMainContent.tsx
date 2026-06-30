@@ -48,15 +48,6 @@ const openProductDetail = (product: ProductCardItem) => {
   window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
 };
 
-const scrollHomeRail = (railId: string, direction: "prev" | "next") => {
-  const rail = document.getElementById(railId);
-  if (!rail) return;
-  rail.scrollBy({
-    left: direction === "next" ? rail.clientWidth * 0.85 : -rail.clientWidth * 0.85,
-    behavior: "smooth",
-  });
-};
-
 const isPersonalRecommendationSection = (section: HomeSection) => {
   const text = `${section.section_id} ${section.title} ${section.subtitle} ${section.section_type} ${section.algorithm}`;
   return /너에게|당신에게|추천하는 제품|personal|recommend/i.test(text);
@@ -108,13 +99,11 @@ function ProductSkeletonList({ count, variant = "home" }: { count: number; varia
 function HomeRankingSection({
   products,
   section,
-  sectionIndex,
 }: {
   products: ProductCardItem[];
   section: HomeSection;
   sectionIndex: number;
 }) {
-  const railId = `home-ranking-rail-${section.section_id || sectionIndex}`;
   const visibleProducts = products.slice(0, 5);
 
   return (
@@ -132,15 +121,7 @@ function HomeRankingSection({
       </div>
 
       <div className="home-ranking-wrap">
-        <button
-          aria-label="이전 랭킹 상품"
-          className="home-rail-btn prev"
-          onClick={() => scrollHomeRail(railId, "prev")}
-          type="button"
-        >
-          ‹
-        </button>
-        <div className="home-ranking-rail" id={railId}>
+        <div className="home-ranking-rail">
           {visibleProducts.map((product, index) => {
             const hasImage = hasUsableImageUrl(product.thumbnail_url);
             return (
@@ -170,14 +151,6 @@ function HomeRankingSection({
             );
           })}
         </div>
-        <button
-          aria-label="다음 랭킹 상품"
-          className="home-rail-btn next"
-          onClick={() => scrollHomeRail(railId, "next")}
-          type="button"
-        >
-          ›
-        </button>
       </div>
     </section>
   );
