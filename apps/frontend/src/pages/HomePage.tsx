@@ -1,6 +1,7 @@
 import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
+import HomeOverlays from "../components/HomeOverlays";
 import {
   HomeFooter,
   HomeHowItWorks,
@@ -55,7 +56,9 @@ function HomePage({ bodyHtml }: HomePageProps) {
   return (
     <>
       {sections.map((section) => (
-        section.id === "header" ? (
+        section.id === "cartoverlay" ? (
+          <HomeOverlays key={section.id} />
+        ) : section.id === "header" ? (
           <HomeHeader key={section.id} />
         ) : section.id === "hero" ? (
           <HomeHero key={section.id} />
