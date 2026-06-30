@@ -1,14 +1,14 @@
 [
   { "tag_id": "concern_acne", "effect_id": "effect_acne_sebum", "effect_name": "여드름·피지", "weight": 1.0 },
-  { "tag_id": "concern_acne", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.8 },
-  { "tag_id": "concern_acne", "effect_id": "effect_exfoliation", "effect_name": "각질", "weight": 0.5 },
+  { "tag_id": "concern_acne", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.6 },
+  { "tag_id": "concern_acne", "effect_id": "effect_exfoliation", "effect_name": "각질", "weight": 0.3 },
 
   { "tag_id": "concern_brightening_spots", "effect_id": "effect_brightening", "effect_name": "미백·톤", "weight": 1.0 },
 
   { "tag_id": "concern_pore", "effect_id": "effect_acne_sebum", "effect_name": "여드름·피지", "weight": 1.0 },
 
   { "tag_id": "concern_dry_barrier", "effect_id": "effect_moisture_barrier", "effect_name": "보습·장벽", "weight": 1.0 },
-  { "tag_id": "concern_dry_barrier", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.6 },
+  { "tag_id": "concern_dry_barrier", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.3 },
 
   { "tag_id": "concern_wrinkle_elasticity", "effect_id": "effect_wrinkle", "effect_name": "주름·탄력", "weight": 1.0 },
 
@@ -17,7 +17,7 @@
   { "tag_id": "concern_dead_skin_texture", "effect_id": "effect_exfoliation", "effect_name": "각질", "weight": 1.0 },
 
   { "tag_id": "concern_blemish_mark", "effect_id": "effect_brightening", "effect_name": "미백·톤", "weight": 1.0 },
-  { "tag_id": "concern_blemish_mark", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.6 },
+  { "tag_id": "concern_blemish_mark", "effect_id": "effect_calming", "effect_name": "진정", "weight": 0.4 },
 
   { "tag_id": "concern_dull_uneven_tone", "effect_id": "effect_brightening", "effect_name": "미백·톤", "weight": 1.0 },
   { "tag_id": "concern_dull_uneven_tone", "effect_id": "effect_exfoliation", "effect_name": "각질", "weight": 0.5 },
