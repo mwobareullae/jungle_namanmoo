@@ -72,7 +72,7 @@
 - `expected_effects.source`: `concern_to_effect`(매핑 테이블 기반, 신뢰도 높음) vs `semantic_inference`(LLM 추론, 신뢰도 낮게 취급 가능) 구분 — 백엔드가 가중치 처리를 다르게 할 수 있게 함
 - `excluded_concerns`: 규칙 파서의 정규식이 못 잡는 부정 표현을 LLM이 명시적으로 제외 처리. **입력의 `rule_parser_partial.excluded_concerns`는 `{tag_id, matched_text, reason}` 객체 배열이지만, 출력의 `excluded_concerns`는 `tag_id` 문자열 배열로 더 단순함** — 입출력 형태가 다르니 혼동 주의
 - `priority_effects.reason`: 우선순위 판단 근거를 남겨 디버깅/투명성 확보
-- `unmatched_terms`: `concern-categories.md`의 기존 unmatched_terms 정책 재사용
+- `unmatched_terms`: 표준 고민 태그 어디에도 안 걸리는 표현. 제품 유형·피부 타입 단독 언급, 너무 모호한 증상은 고민으로 확정하지 않고 여기 담는다
 - `needs_review`: 자동 보정하면 위험한 표현(예: "모낭암")에 대한 안전장치
 - 최상위 `confidence`: 응답 전체에 대한 종합 신뢰도 (항목별 confidence와 별개)
 
@@ -271,7 +271,7 @@
 ```
 
 체크 포인트:
-- 11개 고민 중 어느 것과도 매칭 안 됨 (`concern-categories.md`의 unmatched_terms 정책)
+- 11개 고민 중 어느 것과도 매칭 안 됨 → unmatched_terms로 보존
 - 단순 모호함(매칭 0건)은 "검색결과 없음" 같은 즉시·자동 안내 화면으로 처리되어야 하므로 `needs_review: false` — 위험 표현(케이스 3)과 달리 지연·검토 큐로 보낼 필요 없음
 
 ### 케이스 6. 트리거 단어 없이 문맥(시제 전환)만으로 덮어쓰기

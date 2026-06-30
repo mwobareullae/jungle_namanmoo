@@ -36,6 +36,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "concerns",
         "effect_aliases",
         "effects",
+        "ingredient_aliases",
         "ingredient_effects",
         "ingredient_effect_ranges",
         "ingredient_evidence",
@@ -65,6 +66,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     recommendation_run_constraints = Base.metadata.tables["recommendation_run_constraints"]
     search_documents = Base.metadata.tables["search_documents"]
     recommendation_results = Base.metadata.tables["recommendation_results"]
+    ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
 
     assert {"brand_id", "category_id"}.issubset(products.columns.keys())
     assert {"brand_id", "category_id", "numeric_value", "is_hard"}.issubset(
@@ -81,6 +83,9 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         search_documents.columns.keys()
     )
     assert "score_breakdown" in recommendation_results.columns.keys()
+    assert {"ingredient_id", "alias", "normalized_alias", "alias_type", "confidence", "source"}.issubset(
+        ingredient_aliases.columns.keys()
+    )
 
 
 def test_mvp_schema_can_create_all_with_sqlite() -> None:

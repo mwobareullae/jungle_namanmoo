@@ -79,6 +79,21 @@ class Ingredient(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class IngredientAlias(Base):
+    __tablename__ = "ingredient_aliases"
+    __table_args__ = (
+        UniqueConstraint("normalized_alias", name="uq_ingredient_aliases_normalized_alias"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
+    alias: Mapped[str] = mapped_column(String(160), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(160), nullable=False)
+    alias_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class IngredientEffect(Base):
     __tablename__ = "ingredient_effects"
     __table_args__ = (
