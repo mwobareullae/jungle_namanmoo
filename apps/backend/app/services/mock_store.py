@@ -7,6 +7,7 @@ from app.schemas.product import ProductDetailResponse
 from app.schemas.recommendation import (
     MatchedBrandConstraint,
     MatchedCategoryConstraint,
+    Pagination,
     PurchaseConstraints,
     RecommendedProduct,
     RecommendationRequest,
@@ -292,6 +293,14 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
         ),
         unmatched_terms=list(intent.unmatched_terms),
         products=products,
+        pagination=Pagination(
+            page=1,
+            page_size=len(products) or 10,
+            total_items=len(products),
+            total_pages=1 if products else 0,
+            has_next=False,
+            has_prev=False,
+        ),
     )
     _recommendations[recommendation_id] = response
     return response
