@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
+import { installHomeRuntime } from "../lib/homeRuntime";
 import {
   HomeFooter,
   HomeHowItWorks,
@@ -52,6 +54,8 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
+
+  useEffect(() => installHomeRuntime(), []);
 
   return (
     <>

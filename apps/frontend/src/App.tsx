@@ -61,14 +61,16 @@ function App() {
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
 
-    window.setTimeout(() => {
-      page.scripts.forEach((scriptText) => {
-        const script = document.createElement("script");
-        script.textContent = scriptText;
-        document.body.appendChild(script);
-        injectedNodes.push(script);
-      });
-    }, 0);
+    if (pageKey !== "home") {
+      window.setTimeout(() => {
+        page.scripts.forEach((scriptText) => {
+          const script = document.createElement("script");
+          script.textContent = scriptText;
+          document.body.appendChild(script);
+          injectedNodes.push(script);
+        });
+      }, 0);
+    }
 
     return () => {
       injectedNodes.forEach((node) => node.remove());
