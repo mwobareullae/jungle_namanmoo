@@ -15,10 +15,20 @@ Vite, React, TypeScript 기반 프론트엔드입니다.
 
 ## API 설정
 
-프론트는 `VITE_API_BASE_URL`의 실제 백엔드 API를 호출합니다.
+프론트는 `VITE_API_BASE_URL`의 실제 백엔드 API를 호출하고, `VITE_APP_MODE`로 커머스/커뮤니티 노출 범위를 나눕니다.
 
 ```env
+VITE_APP_MODE=commerce
 VITE_API_BASE_URL=http://localhost:8000/api
+VITE_GA_MEASUREMENT_ID=
+```
+
+커뮤니티 프리뷰 배포 예시:
+
+```env
+VITE_APP_MODE=community
+VITE_API_BASE_URL=https://api.mubarelle.com/api
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
 변경 후에는 프론트 dev server 또는 Docker Compose frontend 서비스를 다시 시작합니다.
