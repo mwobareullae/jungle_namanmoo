@@ -511,9 +511,8 @@ function ProductDetailSpaPage() {
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
                   <div className="ingredient-panel">
-                    <div className="effect-toggle-list" id="effectToggleList">
-                      {detailData.effectGroups.length > 0 ? (
-                        <>
+                    {detailData.effectGroups.length > 0 ? (
+                      <div className="effect-toggle-list" id="effectToggleList">
                           <div className="effect-toggle-title">목적별 성분</div>
                           {detailData.effectGroups.map((group) => (
                             <button
@@ -528,9 +527,8 @@ function ProductDetailSpaPage() {
                               <span className="effect-toggle-caret">⌄</span>
                             </button>
                           ))}
-                        </>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : null}
                     <div className="ingredient-tags" id="ingredientTags">
                       <div className="ingredient-tag-group">
                         <div className="ingredient-tag-label">효능 성분</div>
@@ -609,9 +607,9 @@ function ProductDetailSpaPage() {
                         {product.sources.map((source) => (
                           <a
                             className="source-chip"
-                            href={source.url || "#"}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href={source.url || "#sourceList"}
+                            target={source.url ? "_blank" : undefined}
+                            rel={source.url ? "noopener noreferrer" : undefined}
                             key={`${source.title}-${source.url}`}
                           >
                             <span>{source.source_type || "source"}</span>
