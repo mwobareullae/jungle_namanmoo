@@ -243,6 +243,10 @@ header .btn-login:hover {
   display: none;
 }
 
+.detail-page .detail-image-empty {
+  display: grid;
+}
+
 .detail-page .detail-title,
 .detail-page .review-item p,
 .detail-page .evidence-card p {

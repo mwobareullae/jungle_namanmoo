@@ -15,6 +15,11 @@ const hasUsableImageUrl = (url: string | null) =>
 function HomeProductCard({ product, recommendationId, showScore = false }: HomeProductCardProps) {
   const searchParams = new URLSearchParams({ id: product.product_id });
   if (recommendationId) searchParams.set("recommendation_id", recommendationId);
+  const currentParams = new URLSearchParams(window.location.search);
+  const skinType = currentParams.get("skin_type");
+  const sensitivity = currentParams.get("sensitivity");
+  if (skinType) searchParams.set("skin_type", skinType);
+  if (sensitivity) searchParams.set("sensitivity", sensitivity);
   const detailUrl = `/product-detail?${searchParams.toString()}`;
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
 

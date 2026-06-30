@@ -123,8 +123,10 @@ function ProductDetailSpaPage() {
   const checkoutQuery = useMemo(() => {
     const params = new URLSearchParams({ id: productId });
     if (recommendationId) params.set("recommendation_id", recommendationId);
+    if (skinType) params.set("skin_type", skinType);
+    if (sensitivity) params.set("sensitivity", sensitivity);
     return params;
-  }, [productId, recommendationId]);
+  }, [productId, recommendationId, skinType, sensitivity]);
 
   const goToCheckout = (mode: "cart" | "buy") => {
     const params = new URLSearchParams(checkoutQuery);
