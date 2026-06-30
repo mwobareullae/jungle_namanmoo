@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MatchedCategoryConstraint(BaseModel):
@@ -82,3 +82,48 @@ class RecommendationResponse(BaseModel):
     unmatched_terms: list[str]
     products: list[RecommendedProduct]
     pagination: Pagination
+
+
+class RecommendationNarrativeRequest(BaseModel):
+    mode: str = "community_beta"
+    product_limit: int = Field(default=5, ge=1, le=10)
+    use_llm: bool = True
+
+
+class RecommendationNarrativeOverview(BaseModel):
+    headline: str
+    summary: str
+    key_points: list[str]
+
+
+class RecommendationNarrativeCard(BaseModel):
+    headline: str
+    reason: str
+    chips: list[str]
+
+
+class RecommendationNarrativeDetailSection(BaseModel):
+    title: str
+    body: str
+
+
+class RecommendationNarrativeProduct(BaseModel):
+    product_id: str
+    rank: int
+    role: str
+    card: RecommendationNarrativeCard
+    detail_sections: list[RecommendationNarrativeDetailSection]
+    caution: str | None = None
+
+
+class RecommendationNarrative(BaseModel):
+    generation_source: str
+    fallback_reason: str | None = None
+    overview: RecommendationNarrativeOverview
+    product_explanations: list[RecommendationNarrativeProduct]
+    selection_guide: str | None = None
+
+
+class RecommendationNarrativeResponse(BaseModel):
+    recommendation_id: str
+    narrative: RecommendationNarrative
