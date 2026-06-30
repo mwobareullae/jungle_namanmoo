@@ -35,7 +35,7 @@ function SearchPage() {
       <HomeOverlays />
       <HomeHeader />
       <SearchBarPanel initialProfile={profile} initialQuery={keyword} />
-      <HomeMatchResult />
+      <HomeMatchResult compact />
       <HomeMainContent
         initialProfile={profile}
         initialQuery={keyword}

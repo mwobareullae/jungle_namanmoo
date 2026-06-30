@@ -37,7 +37,11 @@ type RecommendationStateEvent = CustomEvent<{
   recommendation: RecommendationResponse | null;
 }>;
 
-function HomeMatchResult() {
+type HomeMatchResultProps = {
+  compact?: boolean;
+};
+
+function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
@@ -64,7 +68,10 @@ function HomeMatchResult() {
   const isLoading = status === "loading";
 
   return (
-    <div className={`ai-result-section${isActive ? " active" : ""}`} id="aiResultSection">
+    <div
+      className={`ai-result-section${isActive ? " active" : ""}${compact ? " compact" : ""}`}
+      id="aiResultSection"
+    >
       <div className="ai-result-inner">
         <div className="ai-thinking" id="aiThinking" style={{ display: isLoading ? "flex" : "none" }}>
           <div className="thinking-icon">

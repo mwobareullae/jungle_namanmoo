@@ -69,3 +69,27 @@ body {
 .search-main-content .search-results-panel {
   min-width: 0;
 }
+
+.search-page-shell .ai-result-section.compact {
+  margin: 0;
+  padding: 0 20px;
+  background: #ffffff;
+}
+
+.search-page-shell .ai-result-section.compact.active {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.search-page-shell .ai-result-section.compact .ai-result-inner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.search-page-shell .ai-result-section.compact .analysis-flow {
+  gap: 10px;
+}
+
+.search-page-shell .ai-result-section.compact .flow-card {
+  min-height: 116px;
+}
