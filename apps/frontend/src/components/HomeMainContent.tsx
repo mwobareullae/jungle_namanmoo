@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import type { RecommendationResponse, Sensitivity, SkinType } from "../types/recommendation";
@@ -23,54 +23,80 @@ type HomeSearchEvent = CustomEvent<{
   };
 }>;
 
-function HomeMainContent() {
+type HomeMainContentProps = {
+  initialQuery?: string;
+  initialProfile?: {
+    skin: SkinType;
+    sensitivity: Sensitivity;
+  };
+  showDefaultSection?: boolean;
+};
+
+function HomeMainContent({
+  initialQuery = "",
+  initialProfile = {
+    skin: "수부지",
+    sensitivity: "보통",
+  },
+  showDefaultSection = true,
+}: HomeMainContentProps) {
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const runSearch = useCallback(async (nextQuery: string, profile: { skin: SkinType; sensitivity: Sensitivity }) => {
+    const trimmedQuery = nextQuery.trim();
+    if (!trimmedQuery) return;
+
+    setQuery(trimmedQuery);
+    setIsLoading(true);
+    setErrorMessage("");
+    setRecommendation(null);
+    window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+      detail: { status: "loading", query: trimmedQuery, recommendation: null },
+    }));
+    window.requestAnimationFrame(() => {
+      document.getElementById("searchResultsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    try {
+      const response = await api.createRecommendation({
+        concern_text: trimmedQuery,
+        skin_type: profile.skin,
+        sensitivity: profile.sensitivity,
+        avoid_ingredients: [],
+      });
+      setRecommendation(response);
+      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+        detail: { status: "success", query: trimmedQuery, recommendation: response },
+      }));
+    } catch {
+      setErrorMessage("분석에 실패했어요. 잠시 후 다시 시도해주세요");
+      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+        detail: { status: "error", query: trimmedQuery, recommendation: null },
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
       const { query: nextQuery, profile } = (event as HomeSearchEvent).detail;
-      const trimmedQuery = nextQuery.trim();
-      if (!trimmedQuery) return;
-
-      setQuery(trimmedQuery);
-      setIsLoading(true);
-      setErrorMessage("");
-      setRecommendation(null);
-      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-        detail: { status: "loading", query: trimmedQuery, recommendation: null },
-      }));
-      window.requestAnimationFrame(() => {
-        document.getElementById("searchResultsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-
-      try {
-        const response = await api.createRecommendation({
-          concern_text: trimmedQuery,
-          skin_type: profile.skin,
-          sensitivity: profile.sensitivity,
-          avoid_ingredients: [],
-        });
-        setRecommendation(response);
-        window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-          detail: { status: "success", query: trimmedQuery, recommendation: response },
-        }));
-      } catch {
-        setErrorMessage("분석에 실패했어요. 잠시 후 다시 시도해주세요");
-        window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-          detail: { status: "error", query: trimmedQuery, recommendation: null },
-        }));
-      } finally {
-        setIsLoading(false);
-      }
+      runSearch(nextQuery, profile);
     };
 
     window.addEventListener("home-search-request", handleSearchRequest);
     return () => window.removeEventListener("home-search-request", handleSearchRequest);
-  }, []);
+  }, [runSearch]);
+
+  useEffect(() => {
+    if (initialQuery) {
+      runSearch(initialQuery, initialProfile);
+    }
+  }, [initialProfile, initialQuery, runSearch]);
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -211,7 +237,7 @@ function HomeMainContent() {
         </div>
       </div>
 
-      <div id="defaultSection">
+      <div id="defaultSection" style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}>
         <div className="section-header">
           <div>
             <div className="sec-eyebrow">Best Sellers</div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import HomePage from "./pages/HomePage";
+import SearchPage from "./pages/SearchPage";
 
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
@@ -61,7 +62,7 @@ function App() {
     document.head.appendChild(backgroundReset);
     injectedNodes.push(backgroundReset);
 
-    if (pageKey !== "home") {
+    if (pageKey !== "home" && pageKey !== "search") {
       window.setTimeout(() => {
         page.scripts.forEach((scriptText) => {
           const script = document.createElement("script");
@@ -82,6 +83,8 @@ function App() {
     <main className="spa-origin-shell">
       {pageKey === "home" ? (
         <HomePage bodyHtml={page.bodyHtml} />
+      ) : pageKey === "search" ? (
+        <SearchPage />
       ) : (
         <div
           className="spa-origin-section"
