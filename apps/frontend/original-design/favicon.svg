@@ -1,14 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#FBFAF6" />
-  <rect x="6.5" y="6.5" width="51" height="51" rx="9" fill="none" stroke="#D7CDBD" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="뭐바를래">
+  <rect width="64" height="64" rx="14" fill="#94E0F8" />
   <text
     x="32"
-    y="42"
-    fill="#171310"
-    font-family="Cormorant Garamond, Times New Roman, serif"
-    font-size="36"
-    font-weight="600"
-    letter-spacing="-1"
+    y="46"
+    fill="#FFFFFF"
+    font-family="GmarketSans, 'Pretendard Variable', Pretendard, Arial, sans-serif"
+    font-size="40"
+    font-weight="900"
+    letter-spacing="-2"
     text-anchor="middle"
-  >m</text>
+  >M</text>
 </svg>

@@ -291,7 +291,7 @@ function ProductDetailSpaPage() {
               <a className={tabClassName("#summary")} href="#summary">요약</a>
               <a className={tabClassName("#reviews")} href="#reviews">성분</a>
               <a className={tabClassName("#ingredients")} href="#ingredients">성분 근거</a>
-              <a className={tabClassName("#related")} href="#related">구매처</a>
+              <a data-commerce-only className={tabClassName("#related")} href="#related">구매처</a>
             </nav>
 
             <section className="detail-sections">
@@ -309,7 +309,7 @@ function ProductDetailSpaPage() {
                   </article>
                   <article className="evidence-card">
                     <strong>{formatPrice(product.lowest_price)}</strong>
-                    <p>현재 확인 가능한 구매처 기준 최저가 정보를 표시합니다.</p>
+                    <p>현재 확인 가능한 가격 정보를 함께 표시합니다.</p>
                   </article>
                 </div>
               </section>
@@ -459,7 +459,7 @@ function ProductDetailSpaPage() {
                 </div>
               </section>
 
-              <section className="detail-section" id="related">
+              <section data-commerce-only className="detail-section" id="related">
                 <div className="section-kicker">Purchase Options</div>
                 <h2>구매처 가격 비교</h2>
                 <div className="related-grid" id="relatedGrid">
