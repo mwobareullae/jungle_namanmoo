@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.recommendation import RecommendationRun
+from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -273,6 +273,75 @@ def test_recommendation_response_supports_pagination(client: TestClient) -> None
     assert second_page["pagination"]["page_size"] == 1
     assert second_page["pagination"]["total_items"] == first_page["pagination"]["total_items"]
     assert second_page["pagination"]["has_prev"] is True
+
+
+def test_create_recommendation_narrative_returns_fallback_payload(client: TestClient) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative smoke test"},
+    ).json()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "use_llm": False,
+            "product_limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    narrative = data["narrative"]
+    assert data["recommendation_id"] == created["recommendation_id"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["overview"]["headline"]
+    assert narrative["overview"]["summary"]
+    assert narrative["overview"]["key_points"]
+    assert len(narrative["product_explanations"]) == 2
+    product = narrative["product_explanations"][0]
+    assert product["product_id"] == created["products"][0]["product_id"]
+    assert product["role"]
+    assert product["card"]["headline"]
+    assert product["card"]["reason"]
+    assert product["card"]["chips"]
+    assert product["detail_sections"]
+
+
+def test_create_recommendation_narrative_handles_empty_results(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative empty result smoke test"},
+    ).json()
+
+    with Session(db_engine) as session:
+        run = session.execute(
+            select(RecommendationRun).where(
+                RecommendationRun.recommendation_code == created["recommendation_id"],
+            )
+        ).scalar_one()
+        session.query(RecommendationResult).filter(
+            RecommendationResult.recommendation_run_id == run.id,
+        ).delete()
+        session.commit()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "use_llm": True,
+            "product_limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    narrative = response.json()["narrative"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["overview"]["headline"]
+    assert narrative["product_explanations"] == []
 
 
 def test_get_recommendation_returns_404_for_missing_id(client: TestClient) -> None:
