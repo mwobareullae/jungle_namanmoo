@@ -57,6 +57,11 @@ const scrollHomeRail = (railId: string, direction: "prev" | "next") => {
   });
 };
 
+const isPersonalRecommendationSection = (section: HomeSection) => {
+  const text = `${section.section_id} ${section.title} ${section.subtitle} ${section.section_type} ${section.algorithm}`;
+  return /너에게|당신에게|추천하는 제품|personal|recommend/i.test(text);
+};
+
 function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
   return (
     <div className="search-loading-state" aria-live="polite">
@@ -243,6 +248,38 @@ function HomeDealSection({
         {section.title} 전체보기
         <span aria-hidden="true">→</span>
       </a>
+    </section>
+  );
+}
+
+function HomeOriginalGridSection({
+  products,
+  section,
+}: {
+  products: ProductCardItem[];
+  section: HomeSection;
+}) {
+  return (
+    <section className="home-api-section home-original-section">
+      <div className="section-header">
+        <div>
+          <div className="sec-eyebrow">Personal Picks</div>
+          <div className="section-title">{section.title}</div>
+          <div className="section-subtitle">{section.subtitle}</div>
+        </div>
+        <a className="see-all" href="/#defaultSection">
+          전체보기
+        </a>
+      </div>
+      <div className="product-grid">
+        {products.length ? (
+          products.map((product) => (
+            <HomeProductCard key={product.product_id} product={product} />
+          ))
+        ) : (
+          <div className="empty-state">표시할 상품이 없습니다.</div>
+        )}
+      </div>
     </section>
   );
 }
@@ -606,6 +643,16 @@ function HomeMainContent({
           <div className="home-section-stack">
             {homeSections.map((section, sectionIndex) => {
               const sectionProducts = section.products.map(mapHomeProductToCard);
+              if (isPersonalRecommendationSection(section)) {
+                return (
+                  <HomeOriginalGridSection
+                    key={section.section_id || sectionIndex}
+                    products={sectionProducts}
+                    section={section}
+                  />
+                );
+              }
+
               if (sectionIndex === 0) {
                 return (
                   <HomeRankingSection

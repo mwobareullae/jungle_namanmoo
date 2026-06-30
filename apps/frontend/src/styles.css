@@ -132,6 +132,10 @@ body {
   gap: 24px;
 }
 
+.home-original-section {
+  padding: 4px 0;
+}
+
 .home-section-head {
   display: flex;
   align-items: flex-end;
