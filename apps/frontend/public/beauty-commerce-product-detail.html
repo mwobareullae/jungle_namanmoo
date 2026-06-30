@@ -44,6 +44,7 @@
           <div class="detail-image-box">
             <img id="productImage" src="" alt="">
           </div>
+          <div class="detail-image-gallery" id="productImageGallery"></div>
         </div>
 
         <div class="detail-summary">
@@ -81,6 +82,7 @@
               <p id="matchReason">수부지와 속건조 고민에 필요한 보습, 진정, 장벽 케어 성분을 함께 확인했습니다.</p>
             </div>
           </div>
+          <div class="detail-score-breakdown" id="detailScoreBreakdown"></div>
 
           <div class="detail-selectors" id="profileSelectors">
             <div class="detail-select-row" id="skinTypeRow">
@@ -136,6 +138,7 @@
         <div class="section-kicker">Evidence</div>
         <h2>성분 효능 근거</h2>
         <div class="review-list" id="evidenceList"></div>
+        <div class="source-list" id="sourceList"></div>
       </section>
 
       <section class="detail-section" id="risks">
@@ -365,6 +368,7 @@
       const tags = getUniqueValues([...effects, ...effectiveIngredientNames]).slice(0, 6);
       const riskItems = getRiskItems(ingredients);
       const summary = recommendation?.summary || {};
+      const constraints = summary.purchase_constraints || {};
 
       return {
         id: product.product_id,
@@ -381,6 +385,9 @@
         ingredients: ingredientNames.length > 0 ? ingredientNames.join(', ') : '성분 정보 준비 중입니다.',
         reason: cleanRecommendationReason(product.reason_summary || response.evidence?.recommendation_reason),
         purchaseUrl: lowestPrice?.product_url || '',
+        images: Array.isArray(response.images) ? response.images : [],
+        imageAlt: response.images?.[0]?.alt || product.name || '',
+        scoreBreakdown: product.score_breakdown || null,
         prices,
         ingredientsData: ingredients,
         effectiveIngredientNames,
@@ -393,9 +400,30 @@
           skinType: summary.skin_type || '',
           sensitivity: summary.sensitivity || '',
           matchedConcerns: Array.isArray(summary.matched_concerns) ? summary.matched_concerns : [],
-          expectedEffects: Array.isArray(summary.expected_effects) ? summary.expected_effects : []
+          expectedEffects: Array.isArray(summary.expected_effects) ? summary.expected_effects : [],
+          avoidIngredients: Array.isArray(summary.avoid_ingredients) ? summary.avoid_ingredients : [],
+          unmatchedTerms: Array.isArray(recommendation?.unmatched_terms) ? recommendation.unmatched_terms : [],
+          purchaseConstraints: constraints
         }
       };
+    }
+
+    function formatDetailPurchaseConstraints(constraints = {}) {
+      const parts = [];
+      if (Array.isArray(constraints.categories) && constraints.categories.length > 0) {
+        parts.push('카테고리 ' + constraints.categories.map((item) => item.name || item.matched_text).filter(Boolean).join(', '));
+      }
+      if (Array.isArray(constraints.brands) && constraints.brands.length > 0) {
+        parts.push('브랜드 ' + constraints.brands.map((item) => item.name || item.matched_text).filter(Boolean).join(', '));
+      }
+      if (constraints.price_text || constraints.price_max_text || constraints.price_min || constraints.price_max) {
+        const priceText = constraints.price_text || constraints.price_max_text || [
+          constraints.price_min ? formatPrice(constraints.price_min) + ' 이상' : '',
+          constraints.price_max ? formatPrice(constraints.price_max) + ' 이하' : ''
+        ].filter(Boolean).join(' · ');
+        if (priceText) parts.push('가격 ' + priceText);
+      }
+      return parts.join(' / ');
     }
 
     function renderSummaryCards(product) {
@@ -406,6 +434,9 @@
         ? getUniqueValues(product.evidenceItems.map((item) => item.ingredient)).join(', ')
         : product.tags.slice(0, 3).join(', ');
       const matchedConcerns = profile.matchedConcerns?.length ? profile.matchedConcerns.join(', ') : '매칭 고민 정보 없음';
+      const avoidIngredients = profile.avoidIngredients?.length ? profile.avoidIngredients.join(', ') : '';
+      const unmatchedTerms = profile.unmatchedTerms?.length ? profile.unmatchedTerms.join(', ') : '';
+      const purchaseConstraints = formatDetailPurchaseConstraints(profile.purchaseConstraints || {});
 
       document.getElementById('summaryGrid').innerHTML = [
         {
@@ -419,6 +450,18 @@
         {
           title: '핵심 근거 성분',
           body: keyIngredients || '성분 근거 정보 없음'
+        },
+        {
+          title: '회피 성분',
+          body: avoidIngredients || '입력된 회피 성분 없음'
+        },
+        {
+          title: '분석 제외 표현',
+          body: unmatchedTerms || '분석 제외 표현 없음'
+        },
+        {
+          title: '구매 조건',
+          body: purchaseConstraints || '구매 조건 없음'
         }
       ].map((item) => `
         <div class="evidence-card">
@@ -426,6 +469,68 @@
           <p>${escapeHtml(item.body)}</p>
         </div>
       `).join('');
+    }
+
+
+    function renderDetailScoreBreakdown(product) {
+      const breakdown = product.scoreBreakdown || null;
+      const target = document.getElementById('detailScoreBreakdown');
+      if (!target) return;
+      if (!breakdown) {
+        target.innerHTML = '';
+        return;
+      }
+
+      const items = [
+        ['성분 효능', breakdown.ingredient_effect_score, '점'],
+        ['성분 근거', breakdown.ingredient_evidence_score, '점'],
+        ['함량 적합', breakdown.concentration_fit_score, '점'],
+        ['피부 타입', breakdown.skin_type_score, '점'],
+        ['가격', breakdown.price_score, '점'],
+        ['검색 매칭', breakdown.search_match_score, '점'],
+        ['키워드', breakdown.keyword_score, '점'],
+        ['벡터', breakdown.vector_score, '점'],
+        ['위험 감점', breakdown.risk_penalty, '점'],
+        ['농도 구간', breakdown.concentration_bucket, '']
+      ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+
+      const chips = items.map(([label, value, suffix]) => '<span class="detail-score-chip"><b>' + escapeHtml(label) + '</b>' + escapeHtml(String(value)) + suffix + '</span>').join('');
+      const warning = breakdown.concentration_warning
+        ? '<span class="detail-score-chip warning">' + escapeHtml(breakdown.concentration_warning) + '</span>'
+        : '';
+      target.innerHTML = '<div class="detail-score-title">추천 점수 세부 기준</div><div class="detail-score-chip-list">' + chips + warning + '</div>';
+    }
+
+    function renderImageGallery(product) {
+      const gallery = document.getElementById('productImageGallery');
+      if (!gallery) return;
+      const images = Array.isArray(product.images) ? product.images.filter((image) => image && image.url) : [];
+      gallery.innerHTML = images.length > 1
+        ? images.slice(0, 6).map((image, index) => {
+          const activeClass = index === 0 ? ' active' : '';
+          return '<button class="detail-thumb' + activeClass + '" type="button" onclick="selectProductImage(' + index + ')"><img src="' + escapeHtml(image.url) + '" alt="' + escapeHtml(image.alt || product.name || '상품 이미지') + '" loading="lazy"></button>';
+        }).join('')
+        : '';
+      window.currentProductImages = images;
+    }
+
+    function selectProductImage(index) {
+      const image = window.currentProductImages && window.currentProductImages[index];
+      if (!image) return;
+      document.getElementById('productImage').src = image.url;
+      document.getElementById('productImage').alt = image.alt || document.getElementById('productName').textContent || '상품 이미지';
+      document.querySelectorAll('.detail-thumb').forEach((button, buttonIndex) => {
+        button.classList.toggle('active', buttonIndex === index);
+      });
+    }
+
+    function renderSourceList(product) {
+      const target = document.getElementById('sourceList');
+      if (!target) return;
+      const sources = Array.isArray(product.sources) ? product.sources : [];
+      target.innerHTML = sources.length > 0
+        ? '<div class="source-list-title">근거 출처</div><div class="source-chip-list">' + sources.map((source) => '<a class="source-chip" href="' + escapeHtml(source.url || '#') + '" target="_blank" rel="noopener noreferrer"><span>' + escapeHtml(source.source_type || 'source') + '</span><strong>' + escapeHtml(source.title || '출처') + '</strong></a>').join('') + '</div>'
+        : '';
     }
 
     function renderEvidenceList(product) {
@@ -544,7 +649,7 @@
     function renderProductDetail(product) {
       document.getElementById('breadcrumbProduct').textContent = product.brand;
       document.getElementById('productImage').src = product.image;
-      document.getElementById('productImage').alt = `${product.brand} ${product.name}`;
+      document.getElementById('productImage').alt = product.imageAlt || `${product.brand} ${product.name}`;
       document.getElementById('productBrand').textContent = product.brand;
       document.getElementById('productName').textContent = product.name;
       document.getElementById('reviewSummary').textContent = product.review;
@@ -603,9 +708,12 @@
       document.getElementById('profileSelectors').style.display = skinType || sensitivity ? '' : 'none';
       window.currentEffectGroups = product.effectGroups || [];
 
+      renderImageGallery(product);
+      renderDetailScoreBreakdown(product);
       renderSummaryCards(product);
       renderEffectToggles(product);
       renderEvidenceList(product);
+      renderSourceList(product);
       renderRiskList(product);
       renderPurchaseOptions(product);
 
