@@ -93,6 +93,8 @@ body {
 
 .search-page-shell .ai-result-section.compact .flow-card {
   min-height: 116px;
+  background: #ffffff;
+  backdrop-filter: none;
 }
 
 .product-card-hit {
