@@ -14,7 +14,6 @@ pha,effect_moisture_barrier,보조,2,확정,48,60,"폴리하이드록시 humecta
 pha,effect_wrinkle,보조,3,확정,42,54,"글루코노락톤 광보호(Bernstein Dermatol Surg 2004, 독립) + PHA 항노화 PMID15002656(NeoStrata)·항당화",항산화·표면 항노화
 pha,effect_calming,보조,3,확정,35,48,락토비오닉 킬레이트(수동항염)+민감성·로사시아 임상호환 PMID15002656 — 민감성 적합성이지 능동 진정 아님,수동항염·민감성 적합(능동 진정 아님)
 zinc_pca,effect_acne_sebum,주,2,초안,48,50,"5a-환원효소 억제는 아연염 일반(Stamatiadis 1988, azelaic 병용 PMID3207614)에서 외삽 + 항균(C.acnes). ★징크PCA 단독 sebum 임상은 제한적(조합제 중심)",피지(5a-R 외삽+항균) — 단독 임상 제한
-zinc_pca,effect_calming,보조,3,초안,42,44,아연 일반 항염(체계적리뷰 PMID23652948)에서 외삽 — 징크PCA 단독 진정 임상 근거 약(T3 하향),아연 항염 외삽(보조)
 zinc_pca,effect_moisture_barrier,보조,3,확정,32,42,해리 L-PCA가 NMF humectant(PCA는 NMF 약12%) — 단 아연PCA는 피지용 저농도라 기여 작음,비건조성 피지조절(약한 humectant)
 glycerin,effect_moisture_barrier,주,1,확정,72,85,벤치마크 humectant — AQP3 매개+장벽회복 in vivo PMID10598752+Cochrane 보습제+기전리뷰 PMID18510666 (보습은 고시 카테고리 없어 메타급 근거로 Tier1),SC 수분보유·장벽회복·corneocyte 성숙
 glycerin,effect_calming,보조,2,확정,40,58,"자극 보호·SLS 자극 완화(Fluhr review PMID18510666) — barrier·수분 개선 경유, 능동 항염 아님",자극 보호·민감 완화(간접)
@@ -37,7 +36,7 @@ urea,effect_moisture_barrier,주,2,확정,66,76,"NMF 핵심 humectant — 수분
 urea,effect_exfoliation,보조,2,확정,52,70,"keratolytic(keratin 수소결합 변성으로 각질 연화·탈락) — ≥10%부터 발현, 중농도 15-30%(어린선·건선·AD), 고농도 30-50%(과각질·티눈·조갑). ★저농도(<10%)는 각질효과 없음·보습만 — 농도 의존 이중성",각질용해(고농도일수록 강함)·과각질/어린선
 urea,effect_calming,보조,3,확정,37,56,건조·AD에서 가려움·홍반 완화(보습/장벽 경유 + AMP 유도) — 10% 임상 가려움·홍반 유의감소. 단 고농도는 자극/따가움 가능,건조·AD 가려움 완화(저농도)
 centella_asiatica,effect_calming,주,2,확정,60,72,항염 — madecassoside·asiatic acid가 NF-kB·JAK/STAT3 억제로 TNF-a·IL-6·COX-2·iNOS 감소. post-laser 홍반 유의감소 임상(ECa233)·PIH/흉터 색소 완화(항염 경유). 창상치유 강력. 진정군 대장,항염·홍반/PIH 완화·창상치유·진정
-centella_asiatica,effect_wrinkle,보조,2,초안,44,56,"콜라겐 합성 — asiaticoside·madecassoside의 TGF-b/Smad ECM 활성. vitC 병용 RCT(PMID18503551: 5% vitC+0.1% madecassoside 6개월 photoaged 주름·탄력 개선). ★단독 아닌 병용 근거, retinoid보다 supporting",TGF-b 콜라겐 + vitC 병용 RCT(supporting)
+centella_asiatica,effect_wrinkle,보조,2,확정,44,56,"콜라겐 합성 — asiaticoside·madecassoside의 TGF-b/Smad ECM 활성. vitC 병용 RCT(PMID18503551: 5% vitC+0.1% madecassoside 6개월 photoaged 주름·탄력 개선). ★단독 아닌 병용 근거, retinoid보다 supporting",TGF-b 콜라겐 + vitC 병용 RCT(supporting)
 centella_asiatica,effect_moisture_barrier,보조,2,초안,44,54,장벽·수분 개선 — 소규모/이질적 인체 연구서 TEWL 감소·hydration 증가(2.5~5% 추출물) + HA 생성 증가. madecassoside 기전 포함,장벽·수분(소규모 인체 연구·HA↑)
 madecassoside,effect_calming,주,2,확정,58,72,NF-kB·COX-2 억제로 TNF-a·IL-1b·IL-6 감소 + C.acnes 유발 염증 억제(IL-1b/TNF-a/TLR2). post-laser 회복 split-face RCT. 센텔라 4대 활성 중 항염 핵심 — 단일 화합물이라 전체추출물(60)보다 약간 아래,항염(NF-kB)·홍반/자극 완화·진정
 madecassoside,effect_wrinkle,보조,2,확정,44,62,"type I 콜라겐 합성 +28%(fibroblast)·TGF-b/Smad·광노화 RCT(+vit C Haftek). ★단일 정제도 콜라겐 자극 — asiatic acid 빠져 약화 예상은 오류, 마데카소사이드 자체가 collagen 유도",콜라겐 합성·광노화 개선(보조)
@@ -47,7 +46,6 @@ allantoin,effect_calming,주,2,확정,50,62,"진정·항자극(자극원/감작�
 allantoin,effect_moisture_barrier,보조,3,확정,40,55,보습(ECM 수분 증가·TEWL 감소)·피부 컨디셔닝·skin protectant — 강한 humectant은 아님,보습·컨디셔닝·보호
 colloidal_oatmeal,effect_calming,주,2,확정,58,74,"FDA OTC 피부보호제(2003) — 가려움/자극/건조 완화. avenanthramide 항염(NF-kB 억제·IL-6/8/MCP1 하향·항히스타민, ★항가려움 hydrocortisone에 필적) + 신경원성 염증 감소. AD RCT 다수(소아 1% 크림 등 IGA/EASI/itch/QoL 개선)",FDA 피부보호제·avenanthramide 항염·AD itch RCT
 colloidal_oatmeal,effect_moisture_barrier,보조,2,확정,46,62,beta-glucan·전분/단백이 수분결합 + occlusive 보호막 -> 보습·TEWL 감소. AD에서 수분·장벽 개선 RCT(Capone 2020 1% 크림),beta-glucan/전분 보습·보호막·AD 장벽 RCT
-bisabolol,effect_calming,보조,3,초안,46,46,항염(TNF-a·IL-6 억제)으로 홍반·자극 완화(캐모마일)이나 ★근거가 animal/in-vitro/조합 중심(PMID35807237·38433250) — 단독 인체 진정 RCT 부족해 주효능→보조 T3 강등. + Asteraceae 교차 알레르기(risk_flag),항염(전임상·조합) 보조·Asteraceae
 bisabolol,effect_brightening,주,1,확정,58,85,★식약처 미백 기능성 고시 성분 — 알파-비사보롤 0.5%(고시 별표). 직접 항멜라닌 기전(a-MSH/cAMP/CREB·MITF·tyrosinase) + 소규모 vehicle-대조 임상(PMID20642768). 고시 지위 반영 T1 상향(기존 고시없음/T3 오류 정정),식약처 미백 고시 0.5% + 직접기전·임상
 green_tea,effect_acne_sebum,주,2,확정,52,66,"EGCG가 여드름 4대 기전 중 3개 동시 타격 — 피지생성(lipogenesis 억제, SREBP-1 경로)·염증·P.acnes 과증식. 국소 GTE 메타분석(5 RCT: 염증성 병변 유의 감소 -11.4) + EGCG 임상(Yoon, 염증성·비염증성 모두 개선). ★티트리(항균·항염만)와 달리 피지 분비 자체를 직접 억제하는 차별점 — 단 나이아신아마이드·징크PCA도 피지 조절 기전 보유(유일 아님)",피지감소+항염+항균 여드름 — 메타분석
 green_tea,effect_calming,주,2,확정,46,60,"EGCG 항염·항산화 — NF-kB/AP-1 억제, UV 유도 염증반응·백혈구 침윤·프로스타글란딘 감소(Katiyar). 홍반·자극 완화","항염·항산화(EGCG, UV 염증 완화)"
