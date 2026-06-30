@@ -176,6 +176,18 @@ excessive     -> 0.4 + 주의 문구
 | `skin_type_tags` | 권장 피부 타입 태그 |
 | `thumbnail_url` | 대표 이미지 URL |
 | `image_urls` | 상세 이미지 URL 목록 |
+| `functional_review_text` | 선택. 올리브영 상품정보 제공고시의 기능성 화장품 심사필/보고 문구 원문 |
+| `functional_cosmetic_status` | 선택. 기능성 화장품 여부 분류. `FUNCTIONAL_CONFIRMED`, `FUNCTIONAL_REVIEWED`, `FUNCTIONAL_REPORTED`, `FUNCTIONAL_CLAIMED`, `NOT_FUNCTIONAL`, `UNKNOWN` |
+| `functional_cosmetic_claims` | 선택. 기능성 종류. 예: `미백;주름개선` |
+| `functional_claim_confidence` | 선택. 기능성 종류 분류 신뢰도. `high`, `medium`, `low`, `unknown`, `not_applicable` |
+| `functional_claim_basis` | 선택. 기능성 종류를 그렇게 분류한 근거. 예: 제공고시 직접 확인, 상품명/성분 기반 추정 |
+
+기능성 종류 분류 원칙:
+
+- 제공고시에 기능 종류가 직접 적힌 경우만 `high`로 봅니다.
+- 제공고시에는 기능성 심사/보고 문구만 있고, 상품명/상세 키워드와 기능성 후보 성분이 함께 맞는 경우는 `medium`으로 봅니다.
+- 일부 근거만 있는 경우는 `low`로 두며, 추천 로직에서 강한 가산점으로 쓰지 않습니다.
+- 여드름성 피부 완화는 세정/사용 조건이 함께 필요한 축이므로 자동 확정하지 않고 보수적으로 분류합니다.
 
 ### `data/product_skin_profiles.csv`
 
@@ -245,6 +257,13 @@ skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
 | `product_url` | 구매 URL |
 | `is_lowest` | 최저가 여부: `true`, `false` |
 | `currency` | 통화, 기본 `KRW` |
+
+가격 수집 정책:
+
+- 올리브영은 기준 수집처이므로 모든 추천 상품은 최소 1개의 올리브영 가격 row를 가집니다.
+- 네이버 API에서 동일 상품으로 안전하게 확정한 경우에만 외부 판매처 가격 row를 추가합니다.
+- 외부 후보가 없거나, 후보는 있어도 용량/구성/가격 조건상 동일 상품으로 확정하기 어려우면 올리브영 기준가만 제공합니다.
+- 이 상태는 수집 실패가 아니라 오매칭 방지를 위한 정상 상태입니다.
 
 ### `data/vector_docs.csv`
 

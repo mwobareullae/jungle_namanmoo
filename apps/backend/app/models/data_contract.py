@@ -10,6 +10,11 @@ class Product:
     skin_type_tags: tuple[str, ...]
     thumbnail_url: str | None
     image_urls: tuple[str, ...]
+    functional_review_text: str | None
+    functional_cosmetic_status: str | None
+    functional_cosmetic_claims: tuple[str, ...]
+    functional_claim_confidence: str | None
+    functional_claim_basis: str | None
 
 
 @dataclass(frozen=True)
