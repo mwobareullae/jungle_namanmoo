@@ -432,15 +432,23 @@ body {
 }
 
 .home-deal-section {
-  width: 100%;
-  margin-left: 0;
-  padding: 42px 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  padding: 42px max(40px, calc((100vw - 1280px) / 2));
 }
 
 .home-deal-section .home-section-head {
   max-width: 1280px;
   margin-right: auto;
   margin-left: auto;
+  text-align: left;
+}
+
+.home-deal-section .home-section-head > div,
+.home-deal-section .home-section-kicker,
+.home-deal-section .section-title,
+.home-deal-section .section-subtitle {
+  text-align: left;
 }
 
 .home-deal-section.tone-mint {
@@ -1518,8 +1526,8 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .home-deal-section {
-    width: 100%;
-    margin-left: 0;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
     padding: 32px 20px;
   }
 
