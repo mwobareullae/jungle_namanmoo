@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { originalPages, type OriginalPageKey } from "./originalPages";
+import HomePage from "./pages/HomePage";
 
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
@@ -76,10 +77,16 @@ function App() {
   }, [page, pageKey]);
 
   return (
-    <main
-      className="spa-origin-shell"
-      dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
-    />
+    <main className="spa-origin-shell">
+      {pageKey === "home" ? (
+        <HomePage bodyHtml={page.bodyHtml} />
+      ) : (
+        <div
+          className="spa-origin-section"
+          dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
+        />
+      )}
+    </main>
   );
 }
 
