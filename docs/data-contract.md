@@ -34,6 +34,7 @@
 | 파일 | 형식 | 설명 |
 | --- | --- | --- |
 | `data/ingredients.csv` | CSV | 성분 기본 정보 |
+| `data/ingredient_aliases.csv` | CSV | raw 성분 표기와 canonical 성분 ID의 매핑 |
 | `data/ingredient_effect.csv` | CSV | 성분과 효능의 매핑 |
 | `data/ingredient_evidence.csv` | CSV | 성분 효능 근거와 근거 등급 |
 | `data/ingredient_effect_ranges.csv` | CSV | 성분-효능별 유효/적정/과다 함량 범위 |
@@ -89,6 +90,21 @@
 | `name_en` | 성분 영문명 |
 | `description` | 성분 설명 |
 | `source_url` | 성분 정보 출처 URL (선택, 비어 있을 수 있음) |
+
+### `data/ingredient_aliases.csv`
+
+상품 라벨의 raw 성분명을 `ingredients.csv`의 canonical 성분 ID로 연결하는 선택 입력 파일입니다. 파일이 없으면 seed는 alias 없이 진행합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `alias` | 실제 상품 라벨에 등장 가능한 성분 표기 |
+| `canonical_id` | 매핑 대상 성분 ID. `ingredients.csv`의 `ingredient_id`를 참조 |
+| `alias_type` | 표기 유형: `ko`, `en`, `inci`, `abbrev`, `typo`, `synonym` |
+| `confidence` | 매핑 신뢰도: `high`, `medium`, `low`. 기존 산출물 호환을 위해 입력값 `med`는 seed 시 `medium`으로 정규화 |
+| `source` | 매핑 근거. 예: `INCI`, `식약처 성분사전`, `KCIA` |
+
+동일한 정규화 alias가 둘 이상의 `canonical_id`에 매핑되면 충돌로 보고 seed 전에 수정합니다.
+Seed는 입력 CSV에 있는 alias를 insert/update하지만, CSV에서 삭제된 기존 DB alias를 자동 삭제하지 않습니다. 삭제가 필요한 경우 별도 정리 작업으로 처리합니다.
 
 ### `data/ingredient_effect.csv`
 

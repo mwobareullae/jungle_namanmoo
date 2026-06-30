@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
@@ -8,6 +9,7 @@ from app.models.data_contract import (
     ConcernTag,
     DataCatalog,
     Ingredient,
+    IngredientAlias,
     IngredientEffect,
     IngredientEffectRange,
     IngredientEvidence,
@@ -18,6 +20,9 @@ from app.models.data_contract import (
     RiskFlag,
     SearchDocument,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataLoadError(ValueError):
@@ -68,6 +73,7 @@ CSV_HEADERS = {
         "reason",
     },
     "ingredients.csv": {"ingredient_id", "name_ko", "name_en", "description"},
+    "ingredient_aliases.csv": {"alias", "canonical_id", "alias_type", "confidence", "source"},
     "ingredient_effect.csv": {"ingredient_id", "effect_id", "effect_name", "effect_score"},
     "ingredient_effect_ranges.csv": {
         "ingredient_id",
@@ -100,6 +106,9 @@ CONCENTRATION_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 PROFILE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 RANGE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
+ALIAS_TYPE_VALUES = {"ko", "en", "inci", "abbrev", "typo", "synonym"}
+ALIAS_CONFIDENCE_VALUES = {"high", "medium", "low"}
+ALIAS_CONFIDENCE_ALIASES = {"med": "medium"}
 
 T = TypeVar("T")
 
@@ -120,6 +129,11 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         _parse_product_skin_profile,
     )
     ingredients = _load_csv(base_path, "ingredients.csv", _parse_ingredient)
+    ingredient_aliases = _load_optional_csv(
+        base_path,
+        "ingredient_aliases.csv",
+        _parse_ingredient_alias,
+    )
     ingredient_effects = _load_csv(
         base_path,
         "ingredient_effect.csv",
@@ -146,6 +160,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         product_ingredients=product_ingredients,
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
+        ingredient_aliases=ingredient_aliases,
         ingredient_effects=ingredient_effects,
         ingredient_effect_ranges=ingredient_effect_ranges,
         ingredient_evidence=ingredient_evidence,
@@ -184,6 +199,19 @@ def _load_csv(
             raise DataLoadError(f"{file_name} 필수 컬럼이 없습니다: {missing}")
 
         return tuple(parser(row, file_name, line_number) for line_number, row in enumerate(reader, 2))
+
+
+def _load_optional_csv(
+    base_path: Path,
+    file_name: str,
+    parser: Callable[[dict[str, str], str, int], T],
+) -> tuple[T, ...]:
+    file_path = base_path / file_name
+    if not file_path.exists():
+        logger.warning("선택 데이터 파일이 없습니다: %s", file_name)
+        return ()
+
+    return _load_csv(base_path, file_name, parser)
 
 
 def _load_tags(base_path: Path) -> tuple[ConcernTag, ...]:
@@ -341,6 +369,26 @@ def _parse_ingredient(row: dict[str, str], file_name: str, line_number: int) -> 
     )
 
 
+def _parse_ingredient_alias(row: dict[str, str], file_name: str, line_number: int) -> IngredientAlias:
+    alias_type = _required_text(row, "alias_type", file_name, line_number)
+    if alias_type not in ALIAS_TYPE_VALUES:
+        allowed = ", ".join(sorted(ALIAS_TYPE_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} alias_type은 {allowed} 중 하나여야 합니다.")
+
+    confidence = _canonical_alias_confidence(_required_text(row, "confidence", file_name, line_number))
+    if confidence not in ALIAS_CONFIDENCE_VALUES:
+        allowed = ", ".join(sorted((*ALIAS_CONFIDENCE_VALUES, *ALIAS_CONFIDENCE_ALIASES)))
+        raise DataLoadError(f"{file_name}:{line_number} confidence는 {allowed} 중 하나여야 합니다.")
+
+    return IngredientAlias(
+        ingredient_id=_required_text(row, "canonical_id", file_name, line_number),
+        alias=_required_text(row, "alias", file_name, line_number),
+        alias_type=alias_type,
+        confidence=confidence,
+        source=_optional_text(row.get("source")) or "",
+    )
+
+
 def _parse_ingredient_effect(
     row: dict[str, str],
     file_name: str,
@@ -463,6 +511,13 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         ingredient_ids,
     )
     _validate_references(
+        "ingredient_aliases.csv",
+        "canonical_id",
+        (alias.ingredient_id for alias in catalog.ingredient_aliases),
+        ingredient_ids,
+    )
+    _validate_alias_conflicts(catalog.ingredient_aliases)
+    _validate_references(
         "ingredient_effect.csv",
         "ingredient_id",
         (effect.ingredient_id for effect in catalog.ingredient_effects),
@@ -516,6 +571,28 @@ def _validate_references(
     if missing_values:
         missing = ", ".join(missing_values)
         raise DataLoadError(f"{file_name}의 {field_name} 참조를 찾을 수 없습니다: {missing}")
+
+
+def _validate_alias_conflicts(ingredient_aliases: tuple[IngredientAlias, ...]) -> None:
+    owners_by_alias: dict[str, str] = {}
+    for alias in ingredient_aliases:
+        normalized_alias = _normalize_alias(alias.alias)
+        owner = owners_by_alias.get(normalized_alias)
+        if owner is not None and owner != alias.ingredient_id:
+            raise DataLoadError(
+                "ingredient_aliases.csv의 alias가 둘 이상의 canonical_id에 매핑됩니다: "
+                f"{alias.alias}"
+            )
+        owners_by_alias[normalized_alias] = alias.ingredient_id
+
+
+def _normalize_alias(value: str) -> str:
+    return "".join(value.casefold().split())
+
+
+def _canonical_alias_confidence(value: str) -> str:
+    normalized_value = value.casefold().strip()
+    return ALIAS_CONFIDENCE_ALIASES.get(normalized_value, normalized_value)
 
 
 def _required_text(row: dict, key: str, file_name: str, line_number: int) -> str:
