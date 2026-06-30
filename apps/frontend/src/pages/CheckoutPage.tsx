@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import type { ProductDetail } from "../types/recommendation";
 
@@ -65,33 +66,6 @@ const mapDetailToOrderProduct = (product: ProductDetail): OrderProduct => ({
   chips: product.evidence_tags.length > 0 ? product.evidence_tags.slice(0, 3) : product.key_ingredients.slice(0, 3),
 });
 
-function CheckoutHeader() {
-  return (
-    <header>
-      <div className="header-inner">
-        <a href="/" className="logo">뭐바를래</a>
-        <nav>
-          <a href="/#defaultSection">신상품</a>
-          <a href="/#defaultSection">베스트</a>
-          <a href="/#defaultSection">스킨케어</a>
-          <a href="/#defaultSection">메이크업</a>
-          <a href="/#defaultSection">브랜드</a>
-          <a href="/" className="nav-ai">맞춤 추천</a>
-        </nav>
-        <div className="header-actions">
-          <button className="icon-btn" type="button" aria-label="검색" onClick={() => { window.location.href = "/"; }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
-          <button className="btn-login" type="button">로그인</button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function CheckoutPage() {
   const [{ selectedId, mode, recommendationId }] = useState(getCheckoutParams);
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
@@ -134,7 +108,7 @@ function CheckoutPage() {
 
   return (
     <>
-      <CheckoutHeader />
+      <HomeHeader />
       <main className="checkout-page">
         <section className="checkout-shell">
           <div className="checkout-title-row">

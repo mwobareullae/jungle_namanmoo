@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import type { ProductDetail } from "../types/recommendation";
 
@@ -51,23 +52,6 @@ const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => 
   image: product.thumbnail_url ?? product.image_urls[0] ?? "",
 });
 
-function CompleteHeader() {
-  return (
-    <header>
-      <div className="header-inner">
-        <a href="/" className="logo">뭐바를래</a>
-        <nav>
-          <a href="/#defaultSection">신상품</a>
-          <a href="/#defaultSection">베스트</a>
-          <a href="/#defaultSection">스킨케어</a>
-          <a href="/#defaultSection">브랜드</a>
-          <a href="/" className="nav-ai">맞춤 추천</a>
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 function PaymentCompletePage() {
   const [{ id, total, count }] = useState(getCompleteParams);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
@@ -95,7 +79,7 @@ function PaymentCompletePage() {
 
   return (
     <>
-      <CompleteHeader />
+      <HomeHeader />
       <main className="complete-page">
         <section className="complete-shell">
           <div className="complete-hero">
