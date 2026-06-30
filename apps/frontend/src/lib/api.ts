@@ -14,6 +14,10 @@ type RecommendationApi = {
     request: RecommendationRequest,
     params?: { page?: number; pageSize?: number }
   ) => Promise<RecommendationResponse>;
+  getRecommendation: (
+    recommendationId: string,
+    params?: { page?: number; pageSize?: number }
+  ) => Promise<RecommendationResponse>;
   getHomeSections: (params?: {
     skinType?: string;
     sensitivity?: string;
@@ -303,6 +307,18 @@ export const api: RecommendationApi = {
       },
       body: JSON.stringify(request)
     });
+    return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+  },
+
+  async getRecommendation(recommendationId, params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
+    );
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
   },
 

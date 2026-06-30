@@ -28,11 +28,12 @@ const getSearchParams = () => {
       : "보통",
     page: normalizePositiveNumber(params.get("page"), 1),
     pageSize: normalizePositiveNumber(params.get("page_size"), 10),
+    recommendationId: params.get("recommendation_id") ?? undefined,
   };
 };
 
 function SearchPage() {
-  const { keyword, skin, sensitivity, page, pageSize } = getSearchParams();
+  const { keyword, skin, sensitivity, page, pageSize, recommendationId } = getSearchParams();
   const profile = { skin, sensitivity };
 
   useEffect(() => installHomeRuntime(profile), [skin, sensitivity]);
@@ -47,6 +48,7 @@ function SearchPage() {
         initialProfile={profile}
         initialQuery={keyword}
         initialPage={page}
+        initialRecommendationId={recommendationId}
         pageSize={pageSize}
         mode="search"
         showDefaultSection={false}

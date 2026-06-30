@@ -296,6 +296,7 @@ type HomeSearchEvent = CustomEvent<{
 type HomeMainContentProps = {
   initialQuery?: string;
   initialPage?: number;
+  initialRecommendationId?: string;
   initialProfile?: {
     skin: SkinType;
     sensitivity: Sensitivity;
@@ -308,6 +309,7 @@ type HomeMainContentProps = {
 function HomeMainContent({
   initialQuery = "",
   initialPage = 1,
+  initialRecommendationId,
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
@@ -329,6 +331,7 @@ function HomeMainContent({
     nextQuery: string,
     profile: { skin: SkinType; sensitivity: Sensitivity },
     page: number,
+    recommendationId?: string,
   ) => {
     if (mode !== "search") return;
 
@@ -339,6 +342,7 @@ function HomeMainContent({
       page_size: String(pageSize),
     });
     if (page > 1) params.set("page", String(page));
+    if (recommendationId) params.set("recommendation_id", recommendationId);
     window.history.replaceState(null, "", `/search?${params.toString()}`);
   }, [mode, pageSize]);
 
@@ -346,6 +350,7 @@ function HomeMainContent({
     nextQuery: string,
     profile: { skin: SkinType; sensitivity: Sensitivity },
     page = 1,
+    recommendationId?: string,
   ) => {
     const trimmedQuery = nextQuery.trim();
     if (!trimmedQuery) return;
@@ -362,18 +367,27 @@ function HomeMainContent({
     });
 
     try {
-      const response = await api.createRecommendation({
-        concern_text: trimmedQuery,
-        skin_type: profile.skin,
-        sensitivity: profile.sensitivity,
-        avoid_ingredients: [],
-      }, {
-        page,
-        pageSize,
-      });
+      const response = recommendationId
+        ? await api.getRecommendation(recommendationId, {
+          page,
+          pageSize,
+        })
+        : await api.createRecommendation({
+          concern_text: trimmedQuery,
+          skin_type: profile.skin,
+          sensitivity: profile.sensitivity,
+          avoid_ingredients: [],
+        }, {
+          page,
+          pageSize,
+        });
       const displayResponse =
         response.products.length > 0 ? response : createFallbackRecommendation(trimmedQuery, profile);
-      updateSearchUrl(trimmedQuery, profile, displayResponse.pagination.page);
+      const nextRecommendationId =
+        displayResponse.recommendation_id === "fallback-original-design"
+          ? undefined
+          : displayResponse.recommendation_id;
+      updateSearchUrl(trimmedQuery, profile, displayResponse.pagination.page, nextRecommendationId);
       setRecommendation(displayResponse);
       window.dispatchEvent(new CustomEvent("home-recommendation-state", {
         detail: { status: "success", query: trimmedQuery, recommendation: displayResponse },
@@ -403,9 +417,9 @@ function HomeMainContent({
 
   useEffect(() => {
     if (initialQuery) {
-      runSearch(initialQuery, initialProfile, initialPage);
+      runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId);
     }
-  }, [initialPage, initialProfile, initialQuery, runSearch]);
+  }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
 
   useEffect(() => {
     if (!showDefaultSection) return;
@@ -454,7 +468,11 @@ function HomeMainContent({
   const goToPage = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
     if (nextPage === pagination.page) return;
-    runSearch(query || initialQuery, initialProfile, nextPage);
+    const currentRecommendationId =
+      recommendation?.recommendation_id && recommendation.recommendation_id !== "fallback-original-design"
+        ? recommendation.recommendation_id
+        : initialRecommendationId;
+    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId);
   };
 
   return (
