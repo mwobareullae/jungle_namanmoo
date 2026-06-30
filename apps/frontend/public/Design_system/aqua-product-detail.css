@@ -126,6 +126,33 @@ nav a {
   object-fit: contain;
 }
 
+.detail-image-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.detail-thumb {
+  aspect-ratio: 1 / 1;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: #fff;
+  cursor: pointer;
+}
+
+.detail-thumb.active {
+  border-color: var(--aqua-primary);
+  box-shadow: 0 0 0 2px rgba(148, 224, 248, 0.25);
+}
+
+.detail-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .detail-summary {
   min-width: 0;
 }
@@ -279,6 +306,50 @@ nav a {
   font-size: var(--fs-14);
   font-weight: 400;
   line-height: var(--lh-140);
+}
+
+.detail-score-breakdown {
+  margin: -8px 0 20px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: #fff;
+}
+
+.detail-score-title {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+
+.detail-score-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef8fb;
+  color: var(--aqua-primary-text);
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+
+.detail-score-chip b {
+  color: var(--ink2);
+  font-weight: 500;
+}
+
+.detail-score-chip.warning {
+  background: rgba(238, 105, 85, 0.1);
+  color: #9b4636;
 }
 
 .detail-selectors {
@@ -860,6 +931,51 @@ nav a {
   font-size: var(--fs-12);
   font-weight: 600;
   text-decoration: none;
+}
+
+.source-list {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.source-list-title {
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+.source-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink2);
+  font-size: var(--fs-12);
+  text-decoration: none;
+}
+
+.source-chip span {
+  color: var(--aqua-primary-text);
+  font-weight: 600;
+}
+
+.source-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 .score-breakdown-item .bar-track {

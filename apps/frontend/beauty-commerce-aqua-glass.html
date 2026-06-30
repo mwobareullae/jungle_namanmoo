@@ -234,6 +234,11 @@ body.search-results-page #searchResultsSection {
   font-weight: 700;
 }
 
+.score-mini-chip.warning {
+  background: rgba(238, 105, 85, 0.1);
+  color: #9b4636;
+}
+
 body.search-results-page #searchResultsSection .results-header {
   padding: 18px 22px;
   margin-bottom: 0;
@@ -3532,12 +3537,25 @@ function renderProducts(products, containerId, showScore = false) {
       ? ingredients.slice(0,3).map(i=>`<span class="ingr-tag">${escapeHtml(i)}</span>`).join('')
       : '<span class="ingr-tag missing">대표 성분 정보 없음</span>';
     const breakdown = p.scoreBreakdown || {};
+    const breakdownChips = [
+      ['효능', breakdown.ingredient_effect_score, '점'],
+      ['근거', breakdown.ingredient_evidence_score, '점'],
+      ['함량', breakdown.concentration_fit_score, '점'],
+      ['피부', breakdown.skin_type_score, '점'],
+      ['가격', breakdown.price_score, '점'],
+      ['검색', breakdown.search_match_score, '점'],
+      ['키워드', breakdown.keyword_score, '점'],
+      ['벡터', breakdown.vector_score, '점'],
+      ['위험', breakdown.risk_penalty, '점'],
+      ['농도', breakdown.concentration_bucket, '']
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+    const concentrationWarning = breakdown.concentration_warning
+      ? `<span class="score-mini-chip warning">${escapeHtml(breakdown.concentration_warning)}</span>`
+      : '';
     const breakdownMarkup = showScore && p.scoreBreakdown ? `
       <div class="score-breakdown-mini">
-        <span class="score-mini-chip">효능 ${breakdown.ingredient_effect_score ?? '-'}점</span>
-        <span class="score-mini-chip">근거 ${breakdown.ingredient_evidence_score ?? '-'}점</span>
-        <span class="score-mini-chip">피부 ${breakdown.skin_type_score ?? '-'}점</span>
-        <span class="score-mini-chip">가격 ${breakdown.price_score ?? '-'}점</span>
+        ${breakdownChips.map(([label, value, suffix]) => `<span class="score-mini-chip">${label} ${escapeHtml(String(value))}${suffix}</span>`).join('')}
+        ${concentrationWarning}
       </div>
     ` : '';
     const priceMissing = p.priceDisplay === '가격 정보 없음';
