@@ -1,3 +1,4 @@
+import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 
 type HomeSection = {
@@ -49,6 +50,8 @@ function HomePage({ bodyHtml }: HomePageProps) {
       {sections.map((section) => (
         section.id === "header" ? (
           <HomeHeader key={section.id} />
+        ) : section.id === "hero" ? (
+          <HomeHero key={section.id} />
         ) : (
           <div
             className="spa-origin-section"

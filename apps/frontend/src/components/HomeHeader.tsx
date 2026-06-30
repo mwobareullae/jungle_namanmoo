@@ -1,7 +1,4 @@
-const callOriginal = (name: string, ...args: unknown[]) => {
-  const handler = (window as unknown as Record<string, (...args: unknown[]) => void>)[name];
-  handler?.(...args);
-};
+import { callOriginal } from "../lib/originalRuntime";
 
 function HomeHeader() {
   return (
