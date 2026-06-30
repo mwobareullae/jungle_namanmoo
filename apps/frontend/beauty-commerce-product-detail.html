@@ -10,10 +10,16 @@
 <script>
 (function () {
   const params = new URLSearchParams(window.location.search);
-  const rawMode = window.MWBR_APP_MODE || params.get('app_mode') || params.get('mode') || localStorage.getItem('mwbr_app_mode') || 'commerce';
-  const mode = String(rawMode).toLowerCase() === 'community' ? 'community' : 'commerce';
+  const envAppMode = "%VITE_APP_MODE%";
+  const envApiBaseUrl = "%VITE_API_BASE_URL%";
+  const runtimeMode = window.MWBR_APP_MODE && !String(window.MWBR_APP_MODE).startsWith("%") ? window.MWBR_APP_MODE : "";
+  const viteMode = envAppMode && !envAppMode.startsWith("%") ? envAppMode : "";
+  const viteApiBaseUrl = envApiBaseUrl && !envApiBaseUrl.startsWith("%") ? envApiBaseUrl : "";
+  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || localStorage.getItem("mwbr_app_mode") || viteMode || "commerce";
+  const mode = String(rawMode).toLowerCase() === "community" ? "community" : "commerce";
   document.documentElement.dataset.appMode = mode;
   window.MWBR_APP_MODE = mode;
+  window.MW_API_BASE_URL = window.MW_API_BASE_URL || viteApiBaseUrl;
 })();
 </script>
 </head>
