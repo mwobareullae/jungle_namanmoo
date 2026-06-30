@@ -352,9 +352,6 @@ function ProductDetailSpaPage() {
                   </div>
                 </div>
                 <h1 className="detail-title" id="productName">{product.name}</h1>
-                <div className="detail-rating">
-                  <span id="reviewSummary">{formatPrice(product.lowest_price)}</span>
-                </div>
                 <div className="detail-price-panel">
                   <div className="detail-price-row">
                     <span className="detail-price" id="productPrice">{formatPrice(product.lowest_price)}</span>
@@ -410,50 +407,6 @@ function ProductDetailSpaPage() {
                       <div className="ai-narrative-guide">{narrativeSelectionGuide}</div>
                     ) : null}
                   </div>
-                </div>
-                <div className="detail-score-breakdown" id="detailScoreBreakdown">
-                  {product.score_breakdown ? (
-                    <>
-                      <div className="detail-score-title">추천 점수 세부 기준</div>
-                      <div className="detail-score-chip-list">
-                        <span className="detail-score-chip">
-                          <b>성분 효능</b>
-                          {product.score_breakdown.ingredient_effect_score}점
-                        </span>
-                        <span className="detail-score-chip">
-                          <b>성분 근거</b>
-                          {product.score_breakdown.ingredient_evidence_score}점
-                        </span>
-                        <span className="detail-score-chip">
-                          <b>함량 적합</b>
-                          {product.score_breakdown.concentration_fit_score}점
-                        </span>
-                        {product.score_breakdown.concentration_bucket ? (
-                          <span className="detail-score-chip">
-                            <b>농도 구간</b>
-                            {product.score_breakdown.concentration_bucket}
-                          </span>
-                        ) : null}
-                        <span className="detail-score-chip">
-                          <b>피부 타입</b>
-                          {product.score_breakdown.skin_type_match_score}점
-                        </span>
-                        <span className="detail-score-chip">
-                          <b>가격</b>
-                          {product.score_breakdown.price_value_score}점
-                        </span>
-                        <span className="detail-score-chip">
-                          <b>검색 매칭</b>
-                          {product.score_breakdown.search_match_score}점
-                        </span>
-                        {product.score_breakdown.concentration_warning ? (
-                          <span className="detail-score-chip warning">
-                            {product.score_breakdown.concentration_warning}
-                          </span>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
                 </div>
                 <div
                   className="detail-selectors"

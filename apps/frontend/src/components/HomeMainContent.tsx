@@ -134,7 +134,9 @@ function HomeRankingSection({
                 tabIndex={0}
               >
                 <div className="home-ranking-visual">
-                  <span className="home-rank-badge">{product.rank || index + 1}</span>
+                  {(product.rank || index + 1) <= 10 ? (
+                    <span className="home-rank-badge">{product.rank || index + 1}</span>
+                  ) : null}
                   <div className="home-ranking-media">
                     {hasImage ? (
                       <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
@@ -200,7 +202,6 @@ function HomeDealSection({
                   ) : (
                     <div className="home-deal-empty">이미지 준비중</div>
                   )}
-                  <span className="home-deal-score">{product.total_score}점</span>
                 </div>
                 <div className="home-deal-body">
                   <div className="home-ranking-brand">{product.brand}</div>
@@ -235,7 +236,7 @@ function HomeOriginalGridSection({
   section: HomeSection;
 }) {
   return (
-    <section className="home-api-section home-original-section">
+    <section className="home-api-section home-original-section home-personal-section">
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">피부 조건 기준 추천</div>
@@ -494,7 +495,6 @@ function HomeMainContent({
           <section className="search-results-panel">
             <div className="results-header">
               <div>
-                <div className="sec-eyebrow">맞춤 매칭 결과</div>
                 <div className="results-query">
                   &quot;<strong id="queryDisplay">{query}</strong>
                   &quot; 검색 결과 · <span id="sortDisplay">{sortType === "price-low" ? "가격 낮은순" : sortType === "price-high" ? "가격 높은순" : "매칭 점수순"}</span>

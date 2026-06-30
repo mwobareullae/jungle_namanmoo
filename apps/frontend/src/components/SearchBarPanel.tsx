@@ -37,10 +37,6 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
   return (
     <section className="search-page-top">
       <div className="search-page-top-inner">
-        <div>
-          <div className="sec-eyebrow">Search Results</div>
-          <h1 className="search-page-title">맞춤 추천 결과</h1>
-        </div>
         <div className="search-container">
           <div className="search-combo">
             <div className="search-box" id="searchBox">

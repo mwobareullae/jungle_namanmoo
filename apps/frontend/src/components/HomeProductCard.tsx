@@ -50,7 +50,9 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
           </div>
         )}
         <div className="product-labels">
-          {showScore ? <span className="label label-ai">{product.rank ? `${product.rank}위` : "추천"}</span> : null}
+          {showScore && product.rank && product.rank <= 10 ? (
+            <span className="label label-ai">{product.rank}위</span>
+          ) : null}
         </div>
         {showScore ? (
           <div className="match-score">
