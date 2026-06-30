@@ -66,3 +66,6 @@ tranexamic_acid,effect_brightening,%,2,2,5,,medium,unknown,,source_confidence=me
 kojic_acid,effect_brightening,%,1,1,2,,medium,unknown,,source_confidence=med; 1~2%
 licorice_extract,effect_brightening,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
 licorice_extract,effect_calming,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
+phytosphingosine,effect_moisture_barrier,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
+phytosphingosine,effect_acne_sebum,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
+glutathione,effect_brightening,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
