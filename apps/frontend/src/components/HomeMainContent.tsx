@@ -261,14 +261,15 @@ function HomeOriginalGridSection({
 }) {
   return (
     <section className="home-api-section home-original-section">
-      <div className="section-header">
+      <div className="home-section-head">
         <div>
-          <div className="sec-eyebrow">Personal Picks</div>
+          <div className="home-section-kicker">피부 조건 기준 추천</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="see-all" href="/#defaultSection">
+        <a className="home-see-all" href="/#defaultSection">
           전체보기
+          <span aria-hidden="true">→</span>
         </a>
       </div>
       <div className="product-grid">
