@@ -157,12 +157,6 @@ body.search-results-page #searchResultsSection {
   overflow: hidden;
 }
 
-body.search-results-page #searchResultsSection .results-header {
-  padding: 18px 22px;
-  margin-bottom: 0;
-  border-bottom: 1px solid #e8eef1;
-}
-
 .search-result-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -187,6 +181,63 @@ body.search-results-page #searchResultsSection .results-header {
 .search-result-tab.active {
   background: #1687f8;
   color: #ffffff;
+}
+
+.api-result-summary {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #e8eef1;
+  background: #f8fbfb;
+}
+
+.api-result-summary.active {
+  display: flex;
+}
+
+.api-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 224, 248, 0.7);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.api-summary-chip.warning {
+  border-color: rgba(238, 105, 85, 0.36);
+  background: rgba(238, 105, 85, 0.08);
+  color: #9b4636;
+}
+
+.score-breakdown-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.score-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef8fb;
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+body.search-results-page #searchResultsSection .results-header {
+  padding: 18px 22px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #e8eef1;
 }
 
 .search-result-guide {
@@ -1854,6 +1905,13 @@ body.search-results-page .flow-tags {
 
 .cart-items { flex: 1; overflow-y: auto; padding: 20px; }
 
+.cart-empty {
+  padding: 48px 12px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
 .cart-item {
   display: flex;
   gap: 14px;
@@ -2729,72 +2787,28 @@ nav a.nav-ai {
 <!-- CART SIDEBAR -->
 <div class="cart-sidebar" id="cartSidebar">
   <div class="cart-header">
-    <h3>장바구니 <span style="color:var(--accent-text)" id="cartCount">(3)</span></h3>
+    <h3>장바구니 <span style="color:var(--accent-text)" id="cartCount">(0)</span></h3>
     <button class="close-btn" onclick="toggleCart()">✕</button>
   </div>
   <div class="cart-items">
-    <div class="cart-item">
-      <div class="cart-item-img">
-        <img class="cart-product-photo" src="outputs/oliveyoung_ranking_10_20/images/rank10_A000000206904.jpg" alt="라로슈포제 라로슈포제 시카플라스트 밤 B5+ 100ml 기획 (+3ml 추가증정)">
-      </div>
-      <div class="cart-item-info">
-        <div class="cart-item-brand">라로슈포제</div>
-        <div class="cart-item-name">라로슈포제 시카플라스트 밤 B5+ 100ml 기획 (+3ml 추가증정)</div>
-        <div class="cart-item-qty">
-          <button class="qty-btn">−</button>
-          <span class="qty-num">1</span>
-          <button class="qty-btn">+</button>
-        </div>
-      </div>
-      <div class="cart-item-price">34,850원</div>
-    </div>
-    <div class="cart-item">
-      <div class="cart-item-img">
-        <img class="cart-product-photo" src="outputs/oliveyoung_ranking_10_20/images/rank11_A000000248811.jpg" alt="마미케어 [디바이스골라담기] 마미케어 브이쎄라 / 펜타프라임 택 1">
-      </div>
-      <div class="cart-item-info">
-        <div class="cart-item-brand">마미케어</div>
-        <div class="cart-item-name">[디바이스골라담기] 마미케어 브이쎄라 / 펜타프라임 택 1</div>
-        <div class="cart-item-qty">
-          <button class="qty-btn">−</button>
-          <span class="qty-num">1</span>
-          <button class="qty-btn">+</button>
-        </div>
-      </div>
-      <div class="cart-item-price">89,000원 ~</div>
-    </div>
-    <div class="cart-item">
-      <div class="cart-item-img">
-        <img class="cart-product-photo" src="outputs/oliveyoung_ranking_10_20/images/rank12_A000000231885.jpg" alt="웰라쥬 [속건조필수템] 웰라쥬 리얼 히알루로닉 블루 100 앰플 75ml 2입 기획">
-      </div>
-      <div class="cart-item-info">
-        <div class="cart-item-brand">웰라쥬</div>
-        <div class="cart-item-name">[속건조필수템] 웰라쥬 리얼 히알루로닉 블루 100 앰플 75ml 2입 기획</div>
-        <div class="cart-item-qty">
-          <button class="qty-btn">−</button>
-          <span class="qty-num">1</span>
-          <button class="qty-btn">+</button>
-        </div>
-      </div>
-      <div class="cart-item-price">29,800원</div>
-    </div>
+    <div class="cart-empty">담긴 상품이 없습니다.</div>
   </div>
   <div class="cart-footer">
     <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--faint);margin-bottom:10px;">
-      <span>상품 3개</span><span style="color:var(--accent-text);font-weight:500;">배송비 무료</span>
+      <span>상품 0개</span><span style="color:var(--accent-text);font-weight:500;">배송비 없음</span>
     </div>
     <div class="cart-total-row">
       <span class="cart-total-label">총 결제금액</span>
-      <span class="cart-total-price">153,650원</span>
+      <span class="cart-total-price">0원</span>
     </div>
-    <button class="checkout-btn" onclick="location.href='./beauty-commerce-checkout.html'">구매하기</button>
+    <button class="checkout-btn" type="button" disabled>구매하기</button>
   </div>
 </div>
 
 <!-- TOAST -->
 <div class="toast" id="toast">
   <span class="toast-dot"></span>
-  <span id="toastMsg">장바구니에 추가되었습니다</span>
+  <span id="toastMsg">알림</span>
 </div>
 
 <!-- CATEGORY PANEL -->
@@ -2832,14 +2846,14 @@ nav a.nav-ai {
       <button class="icon-btn" onclick="focusSearch()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
-      <button class="icon-btn">
+      <button class="icon-btn" onclick="showToast('찜 기능은 준비 중입니다')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </button>
       <button class="icon-btn" onclick="toggleCart()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        <span class="badge" id="headerCartBadge">3</span>
+        <span class="badge" id="headerCartBadge">0</span>
       </button>
-      <a href="#" class="btn-login">로그인</a>
+      <a href="#" class="btn-login" onclick="event.preventDefault();showToast('로그인 기능은 준비 중입니다')">로그인</a>
     </div>
   </div>
 </header>
@@ -2983,7 +2997,7 @@ nav a.nav-ai {
             <div class="filter-option"><span class="filter-check"></span><span>성분 효능 근거</span></div>
             <div class="filter-option"><span class="filter-check"></span><span>피부 타입 적합도</span></div>
             <div class="filter-option"><span class="filter-check"></span><span>가격 정보</span></div>
-            <div class="filter-note">실제 후기는 아직 연결하지 않았고, 없는 데이터는 화면에 표시하지 않습니다.</div>
+            <div class="filter-note">표시되는 값은 추천 API 응답 기준입니다.</div>
           </div>
         </div>
       </aside>
@@ -2992,23 +3006,22 @@ nav a.nav-ai {
         <div class="results-header">
           <div>
             <div class="sec-eyebrow">맞춤 매칭 결과</div>
-            <div class="results-query">"<strong id="queryDisplay"></strong>" 검색 결과 · 매칭 점수순</div>
+            <div class="results-query">"<strong id="queryDisplay"></strong>" 검색 결과 · <span id="sortDisplay">매칭 점수순</span></div>
             <div class="section-subtitle" style="margin-top:4px">4개 제품이 피부 고민에 매칭되었습니다</div>
           </div>
-          <select class="sort-select">
-            <option>매칭 점수순</option>
-            <option>가격 낮은순</option>
-            <option>가격 높은순</option>
-            <option>근거 성분순</option>
+          <select class="sort-select" aria-label="검색 결과 정렬">
+            <option value="score">매칭 점수순</option>
+            <option value="price-low">가격 낮은순</option>
+            <option value="price-high">가격 높은순</option>
           </select>
         </div>
+        <div class="api-result-summary" id="apiResultSummary"></div>
         <div class="search-result-tabs" aria-label="결과 유형">
           <button class="search-result-tab active" type="button">전체</button>
-          <button class="search-result-tab" type="button">성분 근거</button>
-          <button class="search-result-tab" type="button">피부 타입</button>
-          <button class="search-result-tab" type="button">가격</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">성분 근거</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">피부 타입</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">가격</button>
         </div>
-        <div class="search-result-guide">먼저 둘러보세요</div>
         <div class="product-grid" id="searchResultsGrid"></div>
         <div class="search-pagination" id="searchPagination"></div>
         <div class="search-related-placeholder" style="margin-top:40px;padding-top:40px;border-top:1.5px solid var(--border)">
@@ -3017,7 +3030,7 @@ nav a.nav-ai {
               <div class="sec-eyebrow">함께 구매</div>
               <div class="section-title">비슷한 고민의 고객이 함께 구매한 제품</div>
             </div>
-            <a href="#" class="see-all">전체보기</a>
+            <a href="#" class="see-all" onclick="event.preventDefault();showToast('함께 구매 데이터는 준비 중입니다')">전체보기</a>
           </div>
         </div>
       </section>
@@ -3213,672 +3226,11 @@ const icons = {
 };
 
 // ===== DATA =====
-const allProducts = [
-  {
-    "id": 10,
-    "rank": 10,
-    "goodsNo": "A000000206904",
-    "brand": "라로슈포제",
-    "name": "라로슈포제 시카플라스트 밤 B5+ 100ml 기획 (+3ml 추가증정)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank10_A000000206904.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0020/A00000020690409ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000206904&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=10",
-    "price": 34850,
-    "priceDisplay": "34,850원",
-    "original": 41000,
-    "originalDisplay": "41,000원",
-    "discount": 15,
-    "ingredients": [
-      "판테놀",
-      "마데카소사이드",
-      "글리세린"
-    ],
-    "concerns": [
-      "보습",
-      "진정",
-      "모공"
-    ],
-    "category": "cream",
-    "label": "best",
-    "score": 98,
-    "reason": null
-  },
-  {
-    "id": 11,
-    "rank": 11,
-    "goodsNo": "A000000248811",
-    "brand": "마미케어",
-    "name": "[디바이스골라담기] 마미케어 브이쎄라 / 펜타프라임 택 1",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank11_A000000248811.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0024/A00000024881129ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000248811&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=11",
-    "price": 89000,
-    "priceDisplay": "89,000원 ~",
-    "original": 109000,
-    "originalDisplay": "109,000원 ~",
-    "discount": 18,
-    "ingredients": [
-      "뷰티디바이스",
-      "탄력케어",
-      "기획상품"
-    ],
-    "concerns": [
-      "탄력"
-    ],
-    "category": "device",
-    "label": "best",
-    "score": 96,
-    "reason": null
-  },
-  {
-    "id": 12,
-    "rank": 12,
-    "goodsNo": "A000000231885",
-    "brand": "웰라쥬",
-    "name": "[속건조필수템] 웰라쥬 리얼 히알루로닉 블루 100 앰플 75ml 2입 기획",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank12_A000000231885.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0023/A00000023188527ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231885&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=12",
-    "price": 29800,
-    "priceDisplay": "29,800원",
-    "original": 50000,
-    "originalDisplay": "50,000원",
-    "discount": 40,
-    "ingredients": [
-      "판테놀",
-      "히알루론산",
-      "글리세린"
-    ],
-    "concerns": [
-      "보습",
-      "진정"
-    ],
-    "category": "serum",
-    "label": "best",
-    "score": 94,
-    "reason": null
-  },
-  {
-    "id": 13,
-    "rank": 13,
-    "goodsNo": "A000000219609",
-    "brand": "파티온",
-    "name": "[6월 올영픽/대용량] 파티온 노스카나인 트러블 세럼 50ml 리필 기획(+리필40ml+크림10ml)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank13_A000000219609.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0021/A00000021960917ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000219609&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=13",
-    "price": 32000,
-    "priceDisplay": "32,000원",
-    "original": 54000,
-    "originalDisplay": "54,000원",
-    "discount": 41,
-    "ingredients": [
-      "판테놀",
-      "병풀추출물",
-      "세라마이드엔피"
-    ],
-    "concerns": [
-      "보습",
-      "진정"
-    ],
-    "category": "serum",
-    "label": "sale",
-    "score": 92,
-    "reason": null
-  },
-  {
-    "id": 14,
-    "rank": 14,
-    "goodsNo": "A000000255290",
-    "brand": "블랑네이처",
-    "name": "[촉촉진정/대용량] 블랑네이처 9배 고농축 어성초 토너 300ml",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank14_A000000255290.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0025/A00000025529007ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000255290&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=14",
-    "price": 21900,
-    "priceDisplay": "21,900원",
-    "original": 38000,
-    "originalDisplay": "38,000원",
-    "discount": 42,
-    "ingredients": [
-      "나이아신아마이드",
-      "판테놀",
-      "마데카소사이드"
-    ],
-    "concerns": [
-      "보습",
-      "진정",
-      "톤케어"
-    ],
-    "category": "toner",
-    "label": "sale",
-    "score": 90,
-    "reason": null
-  },
-  {
-    "id": 15,
-    "rank": 15,
-    "goodsNo": "A000000255244",
-    "brand": "라운드랩",
-    "name": "[6월올영픽/총200ml] 라운드랩 자작나무 수분 크림 80ml+80ml 더블 기획 (+40ml)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank15_A000000255244.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0025/A00000025524415ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000255244&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=15",
-    "price": 24600,
-    "priceDisplay": "24,600원",
-    "original": 44000,
-    "originalDisplay": "44,000원",
-    "discount": 44,
-    "ingredients": [
-      "판테놀",
-      "히알루론산",
-      "글리세린"
-    ],
-    "concerns": [
-      "보습",
-      "진정"
-    ],
-    "category": "cream",
-    "label": "sale",
-    "score": 88,
-    "reason": null
-  },
-  {
-    "id": 16,
-    "rank": 16,
-    "goodsNo": "A000000248797",
-    "brand": "마미케어",
-    "name": "[토이스토리5콜라보/ 이중턱개선] 마미케어 EMS 브이쎄라 (6 COLOR)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank16_A000000248797.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0024/A00000024879734ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000248797&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=16",
-    "price": 89000,
-    "priceDisplay": "89,000원 ~",
-    "original": 109000,
-    "originalDisplay": "109,000원 ~",
-    "discount": 18,
-    "ingredients": [
-      "뷰티디바이스",
-      "탄력케어",
-      "기획상품"
-    ],
-    "concerns": [
-      "탄력"
-    ],
-    "category": "device",
-    "label": "sale",
-    "score": 86,
-    "reason": null
-  },
-  {
-    "id": 17,
-    "rank": 17,
-    "goodsNo": "A000000255390",
-    "brand": "메디힐",
-    "name": "[6월 올영픽/한정기획] 메디힐 마데카소사이드 흔적 리페어 세럼 40+40mL (+랩핑 세럼 마스크 2매)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank17_A000000255390.png",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0025/A00000025539095ko.png?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000255390&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=17",
-    "price": 22400,
-    "priceDisplay": "22,400원",
-    "original": 36900,
-    "originalDisplay": "36,900원",
-    "discount": 39,
-    "ingredients": [
-      "나이아신아마이드",
-      "판테놀",
-      "마데카소사이드"
-    ],
-    "concerns": [
-      "보습",
-      "진정",
-      "톤케어"
-    ],
-    "category": "serum",
-    "label": "sale",
-    "score": 84,
-    "reason": null
-  },
-  {
-    "id": 18,
-    "rank": 18,
-    "goodsNo": "A000000231589",
-    "brand": "제로이드",
-    "name": "[대용량] 제로이드 수딩 크림 80ml 기획 (+50ml)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank18_A000000231589.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0023/A00000023158922ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231589&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=18",
-    "price": 29900,
-    "priceDisplay": "29,900원",
-    "original": 38000,
-    "originalDisplay": "38,000원",
-    "discount": 21,
-    "ingredients": [
-      "히알루론산",
-      "글리세린"
-    ],
-    "concerns": [
-      "보습",
-      "진정"
-    ],
-    "category": "cream",
-    "label": "sale",
-    "score": 82,
-    "reason": null
-  },
-  {
-    "id": 19,
-    "rank": 19,
-    "goodsNo": "A000000254747",
-    "brand": "에스트라",
-    "name": "[업그레이드/단독] 에스트라 아토베리어365 하이드로 수딩크림 80ml 기획(토너25ml+클렌징폼30g)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank19_A000000254747.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0025/A00000025474709ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000254747&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=19",
-    "price": 25400,
-    "priceDisplay": "25,400원",
-    "original": 33000,
-    "originalDisplay": "33,000원",
-    "discount": 23,
-    "ingredients": [
-      "세라마이드엔피",
-      "히알루론산",
-      "글리세린"
-    ],
-    "concerns": [
-      "보습",
-      "진정",
-      "모공"
-    ],
-    "category": "toner",
-    "label": "sale",
-    "score": 80,
-    "reason": null
-  },
-  {
-    "id": 20,
-    "rank": 20,
-    "goodsNo": "A000000231822",
-    "brand": "넘버즈인",
-    "name": "넘버즈인 1번 판토텐산 스킨케어100 블러파우더 기획 (+퍼프 1개)",
-    "image": "outputs/oliveyoung_ranking_10_20/images/rank20_A000000231822.jpg",
-    "imageUrl": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/400/10/0000/0023/A00000023182213ko.jpg?l=ko",
-    "productUrl": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822&dispCatNo=90000010009&trackingCd=Best_Sellingbest&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4_%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_number=20",
-    "price": 13900,
-    "priceDisplay": "13,900원",
-    "original": 22000,
-    "originalDisplay": "22,000원",
-    "discount": 37,
-    "ingredients": [
-      "나이아신아마이드",
-      "마데카소사이드",
-      "병풀추출물"
-    ],
-    "concerns": [
-      "보습",
-      "진정",
-      "톤케어"
-    ],
-    "category": "powder",
-    "label": "sale",
-    "score": 80,
-    "reason": null
-  }
-];
+const allProducts = [];
 
-const searchRecs = {
-  "모공": [
-    {
-      "id": 20,
-      "score": 96,
-      "reason": "판토텐산·징크·칼라민 조합으로 번들거림과 모공 커버 니즈에 잘 맞습니다"
-    },
-    {
-      "id": 14,
-      "score": 93,
-      "reason": "어성초 토너에 나이아신아마이드와 살리실릭애씨드가 포함되어 피지·각질 케어에 적합합니다"
-    },
-    {
-      "id": 13,
-      "score": 90,
-      "reason": "트러블 세럼 구성으로 진정과 모공 주변 흔적 케어를 함께 노릴 수 있습니다"
-    },
-    {
-      "id": 17,
-      "score": 88,
-      "reason": "마데카소사이드와 나이아신아마이드가 흔적·피부결 케어에 도움을 줍니다"
-    }
-  ],
-  "건조": [
-    {
-      "id": 12,
-      "score": 98,
-      "reason": "히알루론산 앰플 대용량 기획으로 속건조와 수분 지속 니즈에 가장 직접적입니다"
-    },
-    {
-      "id": 15,
-      "score": 95,
-      "reason": "자작나무 수액과 히알루론산 조합의 수분 크림 기획입니다"
-    },
-    {
-      "id": 18,
-      "score": 92,
-      "reason": "수딩 크림 대용량 구성으로 민감한 건조 피부의 보습 장벽 케어에 적합합니다"
-    },
-    {
-      "id": 19,
-      "score": 90,
-      "reason": "아토베리어 라인의 수딩크림으로 세라마이드·스쿠알란 기반 보습을 제공합니다"
-    }
-  ],
-  "주름": [
-    {
-      "id": 11,
-      "score": 93,
-      "reason": "브이쎄라/펜타프라임 디바이스 선택형으로 탄력 케어 니즈에 맞습니다"
-    },
-    {
-      "id": 16,
-      "score": 91,
-      "reason": "EMS 브이쎄라 제품으로 이중턱·탄력 관리 목적에 적합합니다"
-    },
-    {
-      "id": 17,
-      "score": 86,
-      "reason": "나이아신아마이드와 마데카소사이드가 피부 흔적과 컨디션 케어를 돕습니다"
-    },
-    {
-      "id": 15,
-      "score": 84,
-      "reason": "수분 크림으로 건조로 인한 탄력 저하 보완에 적합합니다"
-    }
-  ],
-  "민감": [
-    {
-      "id": 10,
-      "score": 97,
-      "reason": "시카플라스트 밤 B5+로 판테놀·마데카소사이드 기반 진정 케어에 적합합니다"
-    },
-    {
-      "id": 18,
-      "score": 94,
-      "reason": "제로이드 수딩 크림은 민감 피부 보습과 장벽 케어 니즈에 잘 맞습니다"
-    },
-    {
-      "id": 19,
-      "score": 91,
-      "reason": "아토베리어365 수딩크림으로 장벽 케어 성분을 포함합니다"
-    },
-    {
-      "id": 17,
-      "score": 88,
-      "reason": "마데카소사이드 흔적 리페어 세럼으로 민감해진 피부 흔적 케어에 적합합니다"
-    }
-  ],
-  "여드름": [
-    {
-      "id": 13,
-      "score": 96,
-      "reason": "트러블 세럼 리필 기획으로 판테놀·알란토인·병풀 기반 진정 케어를 제공합니다"
-    },
-    {
-      "id": 14,
-      "score": 92,
-      "reason": "어성초·티트리·살리실릭애씨드 조합으로 트러블성 피부 케어에 적합합니다"
-    },
-    {
-      "id": 17,
-      "score": 89,
-      "reason": "마데카소사이드와 병풀 성분이 트러블 흔적 케어에 도움을 줍니다"
-    },
-    {
-      "id": 20,
-      "score": 85,
-      "reason": "판토텐산과 징크 성분으로 피지·블러 파우더 니즈에 맞습니다"
-    }
-  ],
-  "미백": [
-    {
-      "id": 17,
-      "score": 94,
-      "reason": "나이아신아마이드와 흔적 리페어 콘셉트로 잡티·흔적 고민에 적합합니다"
-    },
-    {
-      "id": 14,
-      "score": 89,
-      "reason": "나이아신아마이드가 포함된 어성초 토너로 피부 톤 케어를 함께 고려할 수 있습니다"
-    },
-    {
-      "id": 20,
-      "score": 86,
-      "reason": "나이아신아마이드와 블러 파우더 콘셉트로 톤 보정 니즈에 맞습니다"
-    },
-    {
-      "id": 12,
-      "score": 82,
-      "reason": "수분 공급 중심 제품으로 칙칙함을 만드는 건조감을 보완합니다"
-    }
-  ],
-  "default": [
-    {
-      "id": 10,
-      "score": 95,
-      "reason": "판테놀·마데카소사이드 기반으로 진정·장벽 케어에 잘 맞는 대표 상품입니다"
-    },
-    {
-      "id": 12,
-      "score": 93,
-      "reason": "속건조와 수분 앰플 니즈에 잘 맞는 고보습 앰플 상품입니다"
-    },
-    {
-      "id": 13,
-      "score": 91,
-      "reason": "트러블 세럼 대용량 리필 기획으로 진정 케어 니즈에 적합합니다"
-    },
-    {
-      "id": 15,
-      "score": 89,
-      "reason": "자작나무 수분 크림 더블 기획으로 데일리 보습 추천 상품입니다"
-    }
-  ]
-};
+const searchRecs = {};
 
-const concernFlowData = {
-  "모공": {
-    "tags": [
-      "넓은 모공",
-      "피지·번들거림",
-      "피부결"
-    ],
-    "effects": [
-      "피지 조절",
-      "블러·보송",
-      "각질 케어",
-      "진정"
-    ],
-    "ingredients": [
-      "판토텐산",
-      "징크피씨에이",
-      "살리실릭애씨드",
-      "나이아신아마이드"
-    ],
-    "scores": [
-      {
-        "name": "넘버즈인 블러파우더",
-        "score": 96
-      },
-      {
-        "name": "블랑네이처 어성초 토너",
-        "score": 93
-      },
-      {
-        "name": "파티온 트러블 세럼",
-        "score": 90
-      }
-    ]
-  },
-  "건조": {
-    "tags": [
-      "속건조",
-      "수분 부족",
-      "장벽 약화"
-    ],
-    "effects": [
-      "집중 보습",
-      "수분 지속",
-      "장벽 케어"
-    ],
-    "ingredients": [
-      "히알루론산",
-      "자작나무수액",
-      "세라마이드엔피",
-      "글리세린"
-    ],
-    "scores": [
-      {
-        "name": "웰라쥬 블루 앰플",
-        "score": 98
-      },
-      {
-        "name": "라운드랩 수분 크림",
-        "score": 95
-      },
-      {
-        "name": "제로이드 수딩 크림",
-        "score": 92
-      }
-    ]
-  },
-  "주름": {
-    "tags": [
-      "탄력 저하",
-      "페이스라인",
-      "건조 탄력"
-    ],
-    "effects": [
-      "탄력 관리",
-      "보습 보완",
-      "피부 컨디션"
-    ],
-    "ingredients": [
-      "EMS 디바이스",
-      "나이아신아마이드",
-      "마데카소사이드",
-      "판테놀"
-    ],
-    "scores": [
-      {
-        "name": "마미케어 브이쎄라",
-        "score": 93
-      },
-      {
-        "name": "EMS 브이쎄라",
-        "score": 91
-      },
-      {
-        "name": "메디힐 리페어 세럼",
-        "score": 86
-      }
-    ]
-  },
-  "민감": {
-    "tags": [
-      "민감 피부",
-      "홍조·자극",
-      "장벽 약화"
-    ],
-    "effects": [
-      "진정",
-      "장벽 강화",
-      "수딩 보습"
-    ],
-    "ingredients": [
-      "판테놀",
-      "마데카소사이드",
-      "세라마이드엔피",
-      "병풀추출물"
-    ],
-    "scores": [
-      {
-        "name": "라로슈포제 시카밤",
-        "score": 97
-      },
-      {
-        "name": "제로이드 수딩 크림",
-        "score": 94
-      },
-      {
-        "name": "에스트라 수딩크림",
-        "score": 91
-      }
-    ]
-  },
-  "여드름": {
-    "tags": [
-      "트러블",
-      "흔적",
-      "피지"
-    ],
-    "effects": [
-      "진정",
-      "흔적 케어",
-      "각질 케어",
-      "피지 보완"
-    ],
-    "ingredients": [
-      "판테놀",
-      "병풀추출물",
-      "살리실릭애씨드",
-      "티트리잎추출물"
-    ],
-    "scores": [
-      {
-        "name": "파티온 트러블 세럼",
-        "score": 96
-      },
-      {
-        "name": "블랑네이처 어성초 토너",
-        "score": 92
-      },
-      {
-        "name": "메디힐 리페어 세럼",
-        "score": 89
-      }
-    ]
-  },
-  "미백": {
-    "tags": [
-      "잡티",
-      "흔적",
-      "칙칙함"
-    ],
-    "effects": [
-      "톤 케어",
-      "흔적 완화",
-      "수분 보완"
-    ],
-    "ingredients": [
-      "나이아신아마이드",
-      "마데카소사이드",
-      "히알루론산",
-      "판테놀"
-    ],
-    "scores": [
-      {
-        "name": "메디힐 리페어 세럼",
-        "score": 94
-      },
-      {
-        "name": "블랑네이처 어성초 토너",
-        "score": 89
-      },
-      {
-        "name": "넘버즈인 블러파우더",
-        "score": 86
-      }
-    ]
-  }
-};
+const concernFlowData = {};
 
 const RECENT_CONCERNS_KEY = 'mwobareullae_recent_concerns';
 const MAX_RECENT_CONCERNS = 3;
@@ -4034,6 +3386,7 @@ function mapApiProduct(product, recommendationId) {
 
   return {
     id: product.product_id,
+    rank: product.rank,
     recommendationId,
     brand: product.brand || '브랜드 정보 없음',
     name: product.name || '상품명 정보 없음',
@@ -4048,6 +3401,7 @@ function mapApiProduct(product, recommendationId) {
     label: 'ai',
     score: product.total_score || 0,
     matchScore: product.total_score || 0,
+    scoreBreakdown: product.score_breakdown || null,
     matchReason: product.reason_summary || '추천 근거를 준비 중입니다'
   };
 }
@@ -4156,6 +3510,10 @@ function applySuggestedSearch() {
 function renderProducts(products, containerId, showScore = false) {
   const c = document.getElementById(containerId);
   if (!c) return;
+  if (!products.length && containerId === 'defaultProductGrid') {
+    c.innerHTML = '<div class="empty-state">추천 검색을 시작하면 상품이 표시됩니다.</div>';
+    return;
+  }
   c.innerHTML = products.map(p => {
     const productId = encodeURIComponent(p.id);
     const detailUrl = p.recommendationId
@@ -4173,12 +3531,17 @@ function renderProducts(products, containerId, showScore = false) {
     const ingredientMarkup = ingredients.length > 0
       ? ingredients.slice(0,3).map(i=>`<span class="ingr-tag">${escapeHtml(i)}</span>`).join('')
       : '<span class="ingr-tag missing">대표 성분 정보 없음</span>';
+    const breakdown = p.scoreBreakdown || {};
+    const breakdownMarkup = showScore && p.scoreBreakdown ? `
+      <div class="score-breakdown-mini">
+        <span class="score-mini-chip">효능 ${breakdown.ingredient_effect_score ?? '-'}점</span>
+        <span class="score-mini-chip">근거 ${breakdown.ingredient_evidence_score ?? '-'}점</span>
+        <span class="score-mini-chip">피부 ${breakdown.skin_type_score ?? '-'}점</span>
+        <span class="score-mini-chip">가격 ${breakdown.price_score ?? '-'}점</span>
+      </div>
+    ` : '';
     const priceMissing = p.priceDisplay === '가격 정보 없음';
-	    const cartButtonMarkup = showScore ? '' : `
-	        <button class="cart-add-btn" onclick="event.stopPropagation();addToCart()" aria-label="장바구니 담기">
-	          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-	        </button>
-	    `;
+    const cartButtonMarkup = '';
 	    const priceMarkup = `
 	      <div class="product-price-row">
 	        <div>
@@ -4193,20 +3556,18 @@ function renderProducts(products, containerId, showScore = false) {
       <div class="product-img">
         ${imageMarkup}
         <div class="product-labels">
-          ${p.label==='ai' ? '<span class="label label-ai">추천</span>' : ''}
+          ${p.label==='ai' ? `<span class="label label-ai">${p.rank ? `${p.rank}위` : '추천'}</span>` : ''}
           ${p.label==='new' ? '<span class="label label-new">NEW</span>' : ''}
           ${p.label==='best' ? '<span class="label label-best">BEST</span>' : ''}
           ${p.discount ? '<span class="label label-sale">SALE</span>' : ''}
         </div>
-        <button class="wish-btn" onclick="event.stopPropagation();toggleWish(this)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
         ${showScore && p.matchScore ? `<div class="match-score"><span class="score-val">${p.matchScore}</span><span class="score-label">점</span></div>` : ''}
       </div>
       <div class="product-info">
         <div class="product-brand">${productBrand}</div>
         <div class="product-name">${productName}</div>
         <div class="key-ingredients ${ingredients.length ? '' : 'empty'}">${ingredientMarkup}</div>
+        ${breakdownMarkup}
         ${showScore ? '' : priceMarkup}
       </div>
       ${showScore ? `
@@ -4242,6 +3603,53 @@ function normalizeSearchPagination(rawPagination, productCount) {
     has_next: rawPagination?.has_next ?? false,
     has_prev: rawPagination?.has_prev ?? false
   };
+}
+
+function getCurrentSearchSort() {
+  return document.querySelector('.sort-select')?.value || 'score';
+}
+
+
+function getSortablePrice(product) {
+  return typeof product.price === 'number' && !Number.isNaN(product.price) ? product.price : null;
+}
+
+function getSortedSearchProducts(products) {
+  const sortType = getCurrentSearchSort();
+  return [...products].sort((a, b) => {
+    const aPrice = getSortablePrice(a);
+    const bPrice = getSortablePrice(b);
+
+    if (sortType === 'price-low') {
+      if (aPrice === null && bPrice === null) return (b.matchScore || 0) - (a.matchScore || 0);
+      if (aPrice === null) return 1;
+      if (bPrice === null) return -1;
+      return aPrice - bPrice;
+    }
+
+    if (sortType === 'price-high') {
+      if (aPrice === null && bPrice === null) return (b.matchScore || 0) - (a.matchScore || 0);
+      if (aPrice === null) return 1;
+      if (bPrice === null) return -1;
+      return bPrice - aPrice;
+    }
+
+    return (b.matchScore || 0) - (a.matchScore || 0);
+  });
+}
+
+function updateSearchSortLabel() {
+  const select = document.querySelector('.sort-select');
+  const sortDisplay = document.getElementById('sortDisplay');
+  if (sortDisplay && select) {
+    sortDisplay.textContent = select.options[select.selectedIndex]?.textContent || '매칭 점수순';
+  }
+}
+
+function renderSortedSearchProducts() {
+  if (!searchResultProducts.length) return;
+  updateSearchSortLabel();
+  renderProducts(getSortedSearchProducts(searchResultProducts), 'searchResultsGrid', true);
 }
 
 function renderSearchPagination(paginationState) {
@@ -4335,6 +3743,47 @@ function scrollToSearchResults(behavior = 'smooth') {
   document.getElementById('searchResultsSection')?.scrollIntoView({ behavior, block: 'start' });
 }
 
+function renderApiResultSummary(recommendation) {
+  const container = document.getElementById('apiResultSummary');
+  if (!container) return;
+
+  const summary = recommendation?.summary || {};
+  const constraints = summary.purchase_constraints || {};
+  const chips = [];
+
+  if (Array.isArray(recommendation?.unmatched_terms) && recommendation.unmatched_terms.length > 0) {
+    chips.push(...recommendation.unmatched_terms.map((term) => ({
+      text: `추가 확인 필요: ${term}`,
+      warning: true
+    })));
+  }
+
+  if (Array.isArray(summary.avoid_ingredients) && summary.avoid_ingredients.length > 0) {
+    chips.push({ text: `회피 성분: ${summary.avoid_ingredients.join(', ')}`, warning: true });
+  }
+
+  if (Array.isArray(constraints.categories) && constraints.categories.length > 0) {
+    chips.push({ text: `카테고리: ${constraints.categories.map((item) => item.name).join(', ')}` });
+  }
+
+  if (Array.isArray(constraints.brands) && constraints.brands.length > 0) {
+    chips.push({ text: `브랜드: ${constraints.brands.map((item) => item.name).join(', ')}` });
+  }
+
+  if (constraints.price_text || constraints.price_max_text || constraints.price_min || constraints.price_max) {
+    const priceText = constraints.price_text || constraints.price_max_text || [
+      constraints.price_min ? `${formatPrice(constraints.price_min)} 이상` : '',
+      constraints.price_max ? `${formatPrice(constraints.price_max)} 이하` : ''
+    ].filter(Boolean).join(' ');
+    chips.push({ text: `가격 조건: ${priceText}` });
+  }
+
+  container.classList.toggle('active', chips.length > 0);
+  container.innerHTML = chips.map((chip) => `
+    <span class="api-summary-chip ${chip.warning ? 'warning' : ''}">${escapeHtml(chip.text)}</span>
+  `).join('');
+}
+
 function renderSearchResults(recommendation) {
   const grid = document.getElementById('searchResultsGrid');
   const pagination = document.getElementById('searchPagination');
@@ -4349,6 +3798,7 @@ function renderSearchResults(recommendation) {
   searchResultProducts = products;
   searchPagination = paginationState;
   searchCurrentPage = paginationState.page;
+  renderApiResultSummary(recommendation);
 
   if (searchResultProducts.length === 0) {
     grid.innerHTML = '<div class="search-empty">검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.</div>';
@@ -4356,7 +3806,7 @@ function renderSearchResults(recommendation) {
     return { products, pagination: paginationState };
   }
 
-  renderProducts(searchResultProducts, 'searchResultsGrid', true);
+  renderSortedSearchProducts();
   renderSearchPagination(paginationState);
   return { products, pagination: paginationState };
 }
@@ -4438,6 +3888,11 @@ document.addEventListener('keydown', (e) => {
 document.querySelectorAll('.category-panel a').forEach((link) => {
   link.addEventListener('click', closeCategoryMenu);
 });
+
+function toggleCart() {
+  document.getElementById('cartSidebar')?.classList.toggle('active');
+  document.getElementById('cartOverlay')?.classList.toggle('active');
+}
 
 function detectConcern(q) {
   if (q.includes('모공')||q.includes('피지')||q.includes('번들')) return '모공';
@@ -4555,34 +4010,6 @@ async function doSearch(page = 1) {
   }
 }
 
-// ===== CART =====
-function toggleCart() {
-  document.getElementById('cartSidebar').classList.toggle('active');
-  document.getElementById('cartOverlay').classList.toggle('active');
-}
-
-function addToCart() {
-  const b = document.getElementById('headerCartBadge');
-  b.textContent = parseInt(b.textContent) + 1;
-  document.getElementById('cartCount').textContent = `(${b.textContent})`;
-  showToast('장바구니에 추가되었습니다');
-}
-
-// ===== WISHLIST =====
-function toggleWish(btn) {
-  btn.classList.toggle('active');
-  const svg = btn.querySelector('svg');
-  if (btn.classList.contains('active')) {
-    svg.setAttribute('fill', '#FF6B52');
-    svg.setAttribute('stroke', '#FF6B52');
-    showToast('찜 목록에 추가되었습니다');
-  } else {
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    showToast('찜 목록에서 제거되었습니다');
-  }
-}
-
 // ===== CATEGORY =====
 function filterCat(el, cat) {
   document.querySelectorAll('.cat-tab').forEach(t=>t.classList.remove('active'));
@@ -4590,6 +4017,11 @@ function filterCat(el, cat) {
   const filtered = cat==='all' ? allProducts : allProducts.filter(p=>p.category===cat);
   renderProducts(filtered, 'defaultProductGrid');
 }
+
+document.querySelectorAll('.sort-select').forEach((select) => {
+  select.addEventListener('change', renderSortedSearchProducts);
+});
+updateSearchSortLabel();
 
 // ===== TOAST =====
 let toastT;
