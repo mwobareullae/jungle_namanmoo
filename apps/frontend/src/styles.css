@@ -122,6 +122,45 @@ body {
   overflow-wrap: anywhere;
 }
 
+.detail-loading {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: var(--fs-16);
+}
+
+.detail-page .detail-image-gallery:empty {
+  display: none;
+}
+
+.detail-page .detail-title,
+.detail-page .review-item p,
+.detail-page .evidence-card p {
+  overflow-wrap: anywhere;
+}
+
+.detail-page .review-item-head strong {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.detail-page .effect-toggle-row {
+  cursor: default;
+}
+
+.detail-page .source-chip strong {
+  min-width: 0;
+}
+
+.detail-page .related-grid > .review-item {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 760px) {
   .search-product-card .product-card-hit {
     grid-template-columns: 96px minmax(0, 1fr);
@@ -129,5 +168,9 @@ body {
 
   .search-product-card .search-result-side {
     grid-column: 1 / -1;
+  }
+
+  .detail-loading {
+    min-height: 260px;
   }
 }

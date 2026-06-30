@@ -168,7 +168,9 @@ function ProductDetailSpaPage() {
                   </div>
                 </div>
                 <div className="detail-tags" id="productTags">
-                  {product.evidence_tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  {product.evidence_tags.map((tag) => (
+                    <span className="detail-tag" key={tag}>{tag}</span>
+                  ))}
                 </div>
                 <div className="detail-match">
                   <div className="detail-match-score" id="matchScore">{product.total_score}</div>
