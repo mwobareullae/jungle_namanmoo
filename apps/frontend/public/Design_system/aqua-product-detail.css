@@ -1200,3 +1200,7 @@ nav a {
     font-size: var(--fs-20);
   }
 }
+
+html[data-app-mode="community"] [data-commerce-only] {
+  display: none !important;
+}
