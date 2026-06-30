@@ -13,15 +13,6 @@ import type {
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 
-const categoryTabs = [
-  ["전체", "all"],
-  ["토너", "toner"],
-  ["세럼/앰플", "serum"],
-  ["크림/밤", "cream"],
-  ["디바이스", "device"],
-  ["파우더", "powder"],
-] as const;
-
 const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
 
 const createFallbackPagination = (productCount: number): RecommendationPagination => ({
@@ -125,6 +116,7 @@ function HomeRankingSection({
     <section className="home-api-section home-ranking-section">
       <div className="home-section-head">
         <div>
+          <div className="home-section-kicker">피부 조건 기준 큐레이션</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
@@ -200,6 +192,7 @@ function HomeDealSection({
     <section className={`home-api-section home-deal-section ${toneClass}`}>
       <div className="home-section-head">
         <div>
+          <div className="home-section-kicker">맞춤 추천 섹션</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
@@ -291,7 +284,6 @@ function HomeMainContent({
   const [homeSections, setHomeSections] = useState<HomeSection[]>([]);
   const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
   const [homeSectionError, setHomeSectionError] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -387,7 +379,6 @@ function HomeMainContent({
     api.getHomeSections({
       skinType: initialProfile.skin,
       sensitivity: initialProfile.sensitivity,
-      categoryCode: activeCategory === "all" ? null : activeCategory,
       limitPerSection: 10,
     })
       .then((response) => {
@@ -406,7 +397,7 @@ function HomeMainContent({
     return () => {
       isMounted = false;
     };
-  }, [activeCategory, initialProfile.sensitivity, initialProfile.skin, showDefaultSection]);
+  }, [initialProfile.sensitivity, initialProfile.skin, showDefaultSection]);
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -596,19 +587,6 @@ function HomeMainContent({
       </div>
 
       <div id="defaultSection" style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}>
-        <div className="cat-tabs">
-          {categoryTabs.map(([label, category]) => (
-            <button
-              className={`cat-tab${category === activeCategory ? " active" : ""}`}
-              key={category}
-              onClick={() => setActiveCategory(category)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         {isHomeSectionLoading ? (
           <section className="home-api-section">
             <div className="section-header">

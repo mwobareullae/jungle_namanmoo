@@ -124,7 +124,7 @@ body {
 
 .home-section-stack {
   display: grid;
-  gap: 56px;
+  gap: 50px;
 }
 
 .home-api-section {
@@ -134,22 +134,40 @@ body {
 
 .home-section-head {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
+  gap: 18px;
+}
+
+.home-section-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 10px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 224, 248, 0.7);
+  border-radius: 999px;
+  background: rgba(148, 224, 248, 0.14);
+  color: #0d6077;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .home-section-head .section-title {
-  font-size: clamp(25px, 3vw, 34px);
-  font-weight: 900;
-  line-height: 1.15;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(21px, 2.2vw, 27px);
+  font-weight: 500;
+  line-height: 1.32;
+  letter-spacing: 0;
 }
 
 .home-section-head .section-subtitle {
-  margin-top: 8px;
+  margin-top: 7px;
   color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.55;
 }
 
 .home-see-all {
@@ -158,8 +176,8 @@ body {
   gap: 8px;
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -171,7 +189,9 @@ body {
   height: 22px;
   border-radius: 50%;
   background: var(--mint);
-  color: #ffffff;
+  color: #063445;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .home-ranking-section {
@@ -180,6 +200,7 @@ body {
 
 .home-ranking-wrap {
   position: relative;
+  overflow: visible;
 }
 
 .home-ranking-rail {
@@ -190,7 +211,7 @@ body {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  padding: 8px 4px 2px;
+  padding: 24px 4px 4px;
 }
 
 .home-ranking-rail::-webkit-scrollbar {
@@ -209,8 +230,8 @@ body {
   place-items: center;
   width: min(220px, 100%);
   aspect-ratio: 1;
-  margin: 0 auto 18px;
-  overflow: hidden;
+  margin: 0 auto 15px;
+  overflow: visible;
   border: 1px solid #e8eef1;
   border-radius: 50%;
   background: #f7fbfc;
@@ -219,13 +240,14 @@ body {
 .home-ranking-media img {
   width: 100%;
   height: 100%;
+  border-radius: 50%;
   object-fit: cover;
 }
 
 .home-rank-badge {
   position: absolute;
-  top: 12px;
-  left: 8px;
+  top: -14px;
+  left: -4px;
   z-index: 1;
   display: inline-grid;
   place-items: center;
@@ -235,8 +257,9 @@ body {
   border-radius: 999px;
   background: var(--mint);
   color: #063445;
-  font-size: 19px;
-  font-weight: 900;
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(34, 154, 194, 0.18);
 }
 
 .home-rank-empty,
@@ -252,8 +275,8 @@ body {
 
 .home-ranking-brand {
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -263,9 +286,9 @@ body {
   margin-top: 8px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.5;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.55;
   text-align: center;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -273,9 +296,9 @@ body {
 
 .home-ranking-price {
   margin-top: 12px;
-  color: #e02020;
-  font-size: 20px;
-  font-weight: 900;
+  color: #063445;
+  font-size: 17px;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -283,9 +306,9 @@ body {
   display: -webkit-box;
   margin-top: 8px;
   overflow: hidden;
-  color: var(--accent-text);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
   line-height: 1.45;
   text-align: center;
   -webkit-box-orient: vertical;
@@ -304,7 +327,7 @@ body {
   border-radius: 50%;
   background: #ffffff;
   color: var(--ink2);
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1;
   box-shadow: 0 8px 22px rgba(12, 17, 23, 0.08);
   cursor: pointer;
@@ -321,15 +344,15 @@ body {
 .home-deal-section {
   width: calc(100% + 80px);
   margin-left: -40px;
-  padding: 44px 40px;
+  padding: 42px 40px;
 }
 
 .home-deal-section.tone-mint {
-  background: #eefdff;
+  background: #f0fbfe;
 }
 
 .home-deal-section.tone-soft {
-  background: #f7f9fb;
+  background: #f8fafb;
 }
 
 .home-deal-grid {
@@ -373,7 +396,7 @@ body {
   background: var(--mint);
   color: #063445;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .home-deal-body {
@@ -387,9 +410,9 @@ body {
   min-height: 44px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.45;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -409,14 +432,14 @@ body {
   border: 1px solid rgba(148, 224, 248, 0.75);
   border-radius: 999px;
   color: var(--accent-text);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
 .home-deal-price {
-  color: #e02020;
-  font-size: 19px;
-  font-weight: 900;
+  color: #063445;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .home-section-more {
@@ -432,8 +455,8 @@ body {
   border-radius: 999px;
   background: #ffffff;
   color: var(--ink2);
-  font-size: 16px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
 }
 
