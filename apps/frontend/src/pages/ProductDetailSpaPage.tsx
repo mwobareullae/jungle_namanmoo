@@ -60,12 +60,16 @@ const getPurchaseOptions = (product: ProductDetail) => {
   }];
 };
 
+const isCommunityMode = import.meta.env.VITE_APP_MODE === "community";
+const normalizeDetailHash = (hash: string) =>
+  isCommunityMode && hash === "#related" ? "#summary" : hash || "#summary";
+
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
-  const [activeTab, setActiveTab] = useState(window.location.hash || "#summary");
+  const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [selectedEffect, setSelectedEffect] = useState<{
     icon: string;
     label: string;
@@ -75,7 +79,14 @@ function ProductDetailSpaPage() {
   useEffect(() => installHomeRuntime(), []);
 
   useEffect(() => {
-    const handleHashChange = () => setActiveTab(window.location.hash || "#summary");
+    const handleHashChange = () => {
+      const normalizedHash = normalizeDetailHash(window.location.hash);
+      setActiveTab(normalizedHash);
+      if (normalizedHash !== window.location.hash) {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${normalizedHash}`);
+      }
+    };
+    handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);

@@ -112,6 +112,9 @@ function CheckoutPage() {
   const total = items.reduce((sum, item) => sum + item.price, 0);
   const discount = subtotal - total;
   const title = mode === "buy" ? "바로 구매 주문서" : "장바구니 주문서";
+  const subtotalLabel = isResolvingProduct ? "확인 중" : formatWon(subtotal);
+  const discountLabel = isResolvingProduct ? "확인 중" : `-${formatWon(discount)}`;
+  const totalLabel = isResolvingProduct ? "확인 중" : formatWon(total);
 
   const handlePayment = () => {
     const representative = items[0] ?? fallbackProducts[0];
@@ -239,11 +242,11 @@ function CheckoutPage() {
               <h2>결제 금액</h2>
               <div className="summary-row">
                 <span>상품 금액</span>
-                <strong id="summarySubtotal">{formatWon(subtotal)}</strong>
+                <strong id="summarySubtotal">{subtotalLabel}</strong>
               </div>
               <div className="summary-row">
                 <span>상품 할인</span>
-                <strong id="summaryDiscount">-{formatWon(discount)}</strong>
+                <strong id="summaryDiscount">{discountLabel}</strong>
               </div>
               <div className="summary-row">
                 <span>배송비</span>
@@ -252,7 +255,7 @@ function CheckoutPage() {
               <div className="summary-divider" />
               <div className="summary-total">
                 <span>총 결제금액</span>
-                <strong id="summaryTotal">{formatWon(total)}</strong>
+                <strong id="summaryTotal">{totalLabel}</strong>
               </div>
               <button className="checkout-btn-main" type="button" onClick={handlePayment} disabled={isResolvingProduct || items.length === 0}>결제하기</button>
               <p className="summary-note">결제하기를 누르면 주문 내용을 확인한 것으로 간주됩니다. 실제 결제는 연결되지 않은 시안 화면입니다.</p>
@@ -264,7 +267,7 @@ function CheckoutPage() {
       <div className="mobile-pay-bar">
         <div className="mobile-pay-total">
           <span>총 결제금액</span>
-          <strong id="mobileTotal">{formatWon(total)}</strong>
+          <strong id="mobileTotal">{totalLabel}</strong>
         </div>
         <button className="checkout-btn-main" type="button" onClick={handlePayment} disabled={isResolvingProduct || items.length === 0}>결제하기</button>
       </div>
