@@ -126,6 +126,18 @@ nav a {
   object-fit: contain;
 }
 
+.detail-image-empty {
+  width: 100%;
+  height: 100%;
+  display: none;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: #f1f5f6;
+  color: var(--muted);
+  font-size: var(--fs-18);
+  font-weight: 600;
+}
+
 .detail-image-gallery {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

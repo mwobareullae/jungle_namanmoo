@@ -52,6 +52,7 @@
         <div class="detail-media">
           <div class="detail-image-box">
             <img id="productImage" src="" alt="">
+            <div class="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
           </div>
           <div class="detail-image-gallery" id="productImageGallery"></div>
         </div>
@@ -192,7 +193,7 @@
         id: 10,
         brand: '라로슈포제',
         name: '라로슈포제 시카플라스트 밤 B5+ 100ml 기획 (+3ml 추가증정)',
-        image: 'outputs/oliveyoung_ranking_10_20/images/rank10_A000000206904.jpg',
+        image: '',
         price: '34,850원',
         original: '41,000원',
         discount: 15,
@@ -206,7 +207,7 @@
         id: 12,
         brand: '웰라쥬',
         name: '[속건조필수템] 웰라쥬 리얼 히알루로닉 블루 100 앰플 75ml 2입 기획',
-        image: 'outputs/oliveyoung_ranking_10_20/images/rank12_A000000231885.jpg',
+        image: '',
         price: '29,800원',
         original: '50,000원',
         discount: 40,
@@ -220,7 +221,7 @@
         id: 15,
         brand: '라운드랩',
         name: '[6월올영픽/총200ml] 라운드랩 자작나무 수분 크림 80ml+80ml 더블 기획 (+40ml)',
-        image: 'outputs/oliveyoung_ranking_10_20/images/rank15_A000000255244.jpg',
+        image: '',
         price: '24,600원',
         original: '44,000원',
         discount: 44,
@@ -234,7 +235,7 @@
         id: 17,
         brand: '메디힐',
         name: '[6월 올영픽/한정기획] 메디힐 마데카소사이드 흔적 리페어 세럼 40+40mL',
-        image: 'outputs/oliveyoung_ranking_10_20/images/rank17_A000000255390.png',
+        image: '',
         price: '22,400원',
         original: '36,900원',
         discount: 39,
@@ -248,7 +249,7 @@
         id: 18,
         brand: '제로이드',
         name: '[대용량] 제로이드 수딩 크림 80ml 기획 (+50ml)',
-        image: 'outputs/oliveyoung_ranking_10_20/images/rank18_A000000231589.jpg',
+        image: '',
         price: '29,900원',
         original: '38,000원',
         discount: 21,
@@ -383,7 +384,7 @@
         id: product.product_id,
         brand: product.brand || '브랜드 정보 없음',
         name: product.name || '상품명 정보 없음',
-        image: product.thumbnail_url || response.images?.[0]?.url || 'https://static.oliveyoung.co.kr/pc-static-root/image//comm/noimg_550.gif',
+        image: product.thumbnail_url || response.images?.[0]?.url || '',
         price: formatPrice(product.lowest_price ?? lowestPrice?.price),
         original: '',
         discount: 0,
@@ -644,21 +645,24 @@
         return;
       }
 
-      const related = products.filter(item => String(item.id) !== String(product.id)).slice(0, 4);
-      document.getElementById('relatedGrid').innerHTML = related.map(item => `
-        <a class="related-card" href="./beauty-commerce-product-detail.html?id=${encodeURIComponent(item.id)}">
-          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(`${item.brand} ${item.name}`)}" loading="lazy">
-          <div class="related-brand">${escapeHtml(item.brand)}</div>
-          <div class="related-name">${escapeHtml(item.name)}</div>
-          <div class="related-price">${escapeHtml(item.price)}</div>
-        </a>
-      `).join('');
+      document.getElementById('relatedGrid').innerHTML = '<div class="review-item"><p>구매처 가격 정보가 준비 중입니다.</p></div>';
     }
 
     function renderProductDetail(product) {
       document.getElementById('breadcrumbProduct').textContent = product.brand;
-      document.getElementById('productImage').src = product.image;
-      document.getElementById('productImage').alt = product.imageAlt || `${product.brand} ${product.name}`;
+      const productImageEl = document.getElementById('productImage');
+      const productImageEmpty = document.getElementById('productImageEmpty');
+      if (product.image) {
+        productImageEl.src = product.image;
+        productImageEl.alt = product.imageAlt || `${product.brand} ${product.name}`;
+        productImageEl.style.display = '';
+        productImageEmpty.style.display = 'none';
+      } else {
+        productImageEl.removeAttribute('src');
+        productImageEl.alt = '';
+        productImageEl.style.display = 'none';
+        productImageEmpty.style.display = 'grid';
+      }
       document.getElementById('productBrand').textContent = product.brand;
       document.getElementById('productName').textContent = product.name;
       document.getElementById('reviewSummary').textContent = product.review;
