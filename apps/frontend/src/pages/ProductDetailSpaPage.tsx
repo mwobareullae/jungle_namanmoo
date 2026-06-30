@@ -142,7 +142,9 @@ function ProductDetailSpaPage() {
     let isMounted = true;
     setIsNarrativeLoading(true);
     api.createRecommendationNarrative(recommendationId, {
+      mode: "community_beta",
       product_limit: 5,
+      use_llm: true,
     })
       .then((response) => {
         if (!isMounted) return;
@@ -217,6 +219,22 @@ function ProductDetailSpaPage() {
         ...(product?.key_ingredients ?? []),
       ]),
     ].slice(0, 5);
+  const narrativeDetailSections = narrativeProduct?.detail_sections?.length
+    ? narrativeProduct.detail_sections.slice(0, 4)
+    : [
+      {
+        title: "내 피부 고민 기준 추천 근거",
+        body: product?.reason_summary || "피부 고민과 성분 근거를 함께 확인했습니다.",
+      },
+      {
+        title: "핵심 성분",
+        body: product?.key_ingredients?.slice(0, 3).join(", ") || "핵심 성분 정보를 확인 중입니다.",
+      },
+      {
+        title: "피부 타입",
+        body: skinType || sensitivity ? `${skinType || "피부 타입"} · 민감도 ${sensitivity || "확인 중"}` : "피부 타입 조건을 함께 반영했습니다.",
+      },
+    ];
 
   return (
     <>
@@ -308,6 +326,14 @@ function ProductDetailSpaPage() {
                         <span key={chip}>{chip}</span>
                       ))}
                       <span className="score-chip" id="matchScore">추천 점수 {product.total_score}</span>
+                    </div>
+                    <div className="ai-narrative-detail-list">
+                      {narrativeDetailSections.map((section) => (
+                        <div className="ai-narrative-detail-item" key={section.title}>
+                          <strong>{section.title}</strong>
+                          <p>{section.body}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
