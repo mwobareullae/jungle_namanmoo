@@ -166,6 +166,11 @@ header nav {
   min-width: 0;
 }
 
+header nav a.nav-ai {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
 header .header-actions {
   display: flex;
   align-items: center;
