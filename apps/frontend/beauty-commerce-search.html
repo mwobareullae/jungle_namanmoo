@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>뭐바를래 - Aqua Glass 쇼핑</title>
+<title>뭐바를래</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
 @font-face {
   font-family: 'Pretendard Variable';
@@ -1211,6 +1212,31 @@ body.search-results-page .flow-tags {
   color: var(--accent-text);
   text-decoration: none;
   font-weight: 400;
+}
+
+.home-section-status {
+  grid-column: 1 / -1;
+  padding: 36px 20px;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--white);
+}
+
+.home-section-status.error {
+  color: #c45d4e;
+}
+
+.home-api-sections {
+  display: grid;
+  gap: 56px;
+  margin-top: 56px;
+}
+
+.home-api-section {
+  display: grid;
+  gap: 0;
 }
 
 /* ===== CATEGORY TABS ===== */
@@ -2799,7 +2825,7 @@ nav a.nav-ai {
   const runtimeMode = window.MWBR_APP_MODE && !String(window.MWBR_APP_MODE).startsWith("%") ? window.MWBR_APP_MODE : "";
   const viteMode = envAppMode && !envAppMode.startsWith("%") ? envAppMode : "";
   const viteApiBaseUrl = envApiBaseUrl && !envApiBaseUrl.startsWith("%") ? envApiBaseUrl : "";
-  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || localStorage.getItem("mwbr_app_mode") || viteMode || "commerce";
+  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || viteMode || localStorage.getItem("mwbr_app_mode") || "commerce";
   const mode = String(rawMode).toLowerCase() === "community" ? "community" : "commerce";
   document.documentElement.dataset.appMode = mode;
   window.MWBR_APP_MODE = mode;
@@ -3087,6 +3113,7 @@ nav a.nav-ai {
     </div>
 
     <div class="product-grid" id="defaultProductGrid"></div>
+    <div class="home-api-sections" id="homeApiSections"></div>
   </div>
 </main>
 
@@ -3254,7 +3281,7 @@ const icons = {
 };
 
 // ===== DATA =====
-const allProducts = [];
+let allProducts = [];
 
 const searchRecs = {};
 
@@ -3432,6 +3459,142 @@ function mapApiProduct(product, recommendationId) {
     scoreBreakdown: product.score_breakdown || null,
     matchReason: product.reason_summary || '추천 근거를 준비 중입니다'
   };
+}
+
+
+function inferHomeProductCategory(product) {
+  const code = String(product.category_code || '').toLowerCase();
+  const name = `${product.category_name || ''} ${product.name || ''}`;
+  if (code.includes('toner') || name.includes('토너')) return 'toner';
+  if (code.includes('cream') || code.includes('balm') || name.includes('크림') || name.includes('밤')) return 'cream';
+  if (code.includes('device') || name.includes('디바이스') || name.includes('기기')) return 'device';
+  if (code.includes('powder') || name.includes('파우더')) return 'powder';
+  return 'serum';
+}
+
+function getHomeSectionLabel(section) {
+  if (section?.section_id === 'best_sellers') return 'best';
+  return 'ai';
+}
+
+function mapHomeSectionProduct(product, section, index) {
+  const rawImage = product.thumbnail_url || '';
+  const tags = Array.isArray(product.tags) ? product.tags.filter(Boolean) : [];
+  const badges = Array.isArray(product.badges) ? product.badges.filter(Boolean) : [];
+
+  return {
+    id: product.product_id,
+    rank: index + 1,
+    recommendationId: '',
+    brand: product.brand || '브랜드 정보 없음',
+    name: product.name || '상품명 정보 없음',
+    image: hasUsableImageUrl(rawImage) ? rawImage : '',
+    price: product.lowest_price,
+    priceDisplay: formatPrice(product.lowest_price),
+    originalDisplay: typeof product.original_price === 'number' ? formatPrice(product.original_price) : '',
+    discount: product.discount_rate || 0,
+    ingredients: tags.length ? tags.slice(0, 3) : badges.slice(0, 3),
+    concerns: getUniqueValues([...badges, ...tags]).slice(0, 4),
+    category: inferHomeProductCategory(product),
+    label: getHomeSectionLabel(section),
+    score: product.display_score || 0,
+    matchScore: product.display_score || 0,
+    scoreBreakdown: null,
+    matchReason: product.reason_summary || section?.subtitle || '성분 근거를 확인한 추천 상품입니다'
+  };
+}
+
+function renderHomeSectionStatus(message, type = '') {
+  const grid = document.getElementById('defaultProductGrid');
+  const extra = document.getElementById('homeApiSections');
+  if (grid) grid.innerHTML = `<div class="home-section-status ${type}">${escapeHtml(message)}</div>`;
+  if (extra) extra.innerHTML = '';
+}
+
+function updateDefaultSectionHeader(section) {
+  const defaultSection = document.getElementById('defaultSection');
+  if (!defaultSection || !section) return;
+  const eyebrow = defaultSection.querySelector('.sec-eyebrow');
+  const title = defaultSection.querySelector('.section-title');
+  const subtitle = defaultSection.querySelector('.section-subtitle');
+
+  if (eyebrow) eyebrow.textContent = section.section_type || section.algorithm || '추천';
+  if (title) title.textContent = section.title || '지금 인기있는 제품';
+  if (subtitle) subtitle.textContent = section.subtitle || '성분 근거를 기준으로 추천한 제품입니다';
+}
+
+function renderHomeSections(homeResponse) {
+  const sections = Array.isArray(homeResponse?.sections)
+    ? homeResponse.sections.filter((section) => Array.isArray(section.products) && section.products.length > 0)
+    : [];
+  const grid = document.getElementById('defaultProductGrid');
+  const extra = document.getElementById('homeApiSections');
+
+  if (!grid) return;
+  if (!sections.length) {
+    allProducts = [];
+    renderHomeSectionStatus('표시할 추천 상품이 아직 없습니다.');
+    return;
+  }
+
+  const [primarySection, ...otherSections] = sections;
+  const seenProductIds = new Set();
+  allProducts = sections.flatMap((section) => section.products.map((product, index) => mapHomeSectionProduct(product, section, index)))
+    .filter((product) => {
+      if (!product.id || seenProductIds.has(product.id)) return false;
+      seenProductIds.add(product.id);
+      return true;
+    });
+
+  updateDefaultSectionHeader(primarySection);
+  renderProducts(primarySection.products.map((product, index) => mapHomeSectionProduct(product, primarySection, index)), 'defaultProductGrid');
+
+  if (!extra) return;
+  extra.innerHTML = otherSections.map((section, index) => `
+    <section class="home-api-section">
+      <div class="section-header">
+        <div>
+          <div class="sec-eyebrow">${escapeHtml(section.section_type || section.algorithm || '추천')}</div>
+          <div class="section-title">${escapeHtml(section.title || '추천 상품')}</div>
+          <div class="section-subtitle">${escapeHtml(section.subtitle || '성분 근거를 기준으로 추천한 제품입니다')}</div>
+        </div>
+      </div>
+      <div class="product-grid" id="homeApiSectionGrid${index}"></div>
+    </section>
+  `).join('');
+
+  otherSections.forEach((section, index) => {
+    renderProducts(section.products.map((product, productIndex) => mapHomeSectionProduct(product, section, productIndex)), `homeApiSectionGrid${index}`);
+  });
+}
+
+async function requestHomeSections() {
+  const params = new URLSearchParams({
+    skin_type: searchProfile.skin,
+    sensitivity: searchProfile.sensitivity,
+    limit_per_section: '8'
+  });
+  const response = await fetchWithTimeout(`${API_BASE_URL}/home/sections?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error(`home sections api failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function loadHomeSections() {
+  if (IS_SEARCH_RESULTS_PAGE) return;
+  renderHomeSectionStatus('추천 상품을 불러오는 중입니다.');
+
+  try {
+    const homeSections = await requestHomeSections();
+    renderHomeSections(homeSections);
+  } catch (error) {
+    console.error(error);
+    allProducts = [];
+    renderHomeSectionStatus('추천 상품을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'error');
+  }
 }
 
 function buildSearchResultsUrl(query, page = 1) {
@@ -3883,7 +4046,11 @@ async function goToSearchPage(page) {
   }
 }
 
-renderProducts(allProducts, 'defaultProductGrid');
+if (IS_SEARCH_RESULTS_PAGE) {
+  renderProducts([], 'defaultProductGrid');
+} else {
+  loadHomeSections();
+}
 
 // ===== SEARCH =====
 function handleSearch(e) { if (e.key==='Enter') doSearch(); }
@@ -4055,6 +4222,8 @@ async function doSearch(page = 1) {
 function filterCat(el, cat) {
   document.querySelectorAll('.cat-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
+  const extra = document.getElementById('homeApiSections');
+  if (extra) extra.innerHTML = '';
   const filtered = cat==='all' ? allProducts : allProducts.filter(p=>p.category===cat);
   renderProducts(filtered, 'defaultProductGrid');
 }
