@@ -1200,9 +1200,14 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
+.detail-page .ingredient-panel {
+  display: grid;
+  gap: 18px;
+}
+
 .detail-page .effect-toggle-list {
   display: grid;
-  margin-top: 0;
+  margin: 0;
   padding: 18px;
   border: 1px solid #eef3f5;
   border-radius: 14px;
@@ -1275,7 +1280,7 @@ html[data-app-mode="community"] .search-results-shell {
 .detail-page .ingredient-tags {
   display: grid;
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 0;
   padding-top: 0;
   border-top: 0;
 }
@@ -1291,7 +1296,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .detail-page .ingredient-tag-label,
 .detail-page .ingredient-copy-label {
-  color: var(--muted);
+  color: var(--ink2);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
@@ -1305,7 +1310,7 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .ingredient-copy {
-  margin-top: 18px;
+  margin-top: 0;
   padding: 20px 22px;
   border: 1px solid #eef2f4;
   border-radius: 14px;

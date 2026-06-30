@@ -66,7 +66,7 @@ const getPurchaseOptions = (product: ProductDetail) => {
 };
 
 const normalizeNarrativeTitle = (title: string) => {
-  if (/내 피부 고민 기준 추천 근거|추천\s*근거/.test(title)) return "추천 근거";
+  if (/내 피부 고민 기준 추천 근거|추천\s*근거|왜\s*추천/.test(title)) return "왜 추천했나요";
   if (/핵심\s*성분/.test(title)) return "핵심 성분";
   if (/피부\s*타입/.test(title)) return "피부 타입";
   return title;
@@ -286,6 +286,7 @@ function ProductDetailSpaPage() {
       const body = section.body.trim();
       if (!body) return false;
       if (body === narrativeReason.trim()) return false;
+      if (section.title === narrativeHeadline.trim()) return false;
       return sections.findIndex((item) => item.title === section.title && item.body.trim() === body) === index;
     })
     .slice(0, 4);
