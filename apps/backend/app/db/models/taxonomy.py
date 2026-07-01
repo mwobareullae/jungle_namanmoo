@@ -143,6 +143,10 @@ class IngredientEvidence(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     published_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    pmid: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    doi: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_authority_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
 
 
 class RiskFlag(Base):
@@ -153,4 +157,8 @@ class RiskFlag(Base):
     risk_type: Mapped[str] = mapped_column(String(80), nullable=False)
     display_text: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    applies_to: Mapped[str | None] = mapped_column(Text, nullable=True)
+    condition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
