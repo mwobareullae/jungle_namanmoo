@@ -130,6 +130,7 @@ class RecommendationNarrativeProduct(BaseModel):
     product_id: str
     rank: int
     role: str
+    cart_handoff: CartHandoff
     card: RecommendationNarrativeCard
     detail_sections: list[RecommendationNarrativeDetailSection]
     caution: str | None = None

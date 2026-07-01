@@ -147,7 +147,7 @@ FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `rea
 | `detail` | 상품 상세 | 선택한 `product_id` 1개에 대한 깊은 설명 |
 | `full` | 호환/발표용 | 전체 설명을 한 번에 생성하는 호환 모드 |
 
-프론트는 목록 카드에서는 `cards`, 상품 상세에서는 `detail`을 사용한다. Spring Commerce는 설명을 재생성하지 않고 FastAPI 응답을 표시/로그에 활용한다.
+프론트는 목록 카드에서는 `cards`, 상품 상세에서는 `detail`을 사용한다. 각 `product_explanations[]`도 추천 상품과 같은 `cart_handoff`를 포함하므로, AI 설명 카드에서 바로 장바구니 버튼을 노출해도 같은 payload를 Spring에 전달할 수 있다. Spring Commerce는 설명을 재생성하지 않고 FastAPI 응답을 표시/로그에 활용한다.
 
 ## 장바구니 handoff 계약
 

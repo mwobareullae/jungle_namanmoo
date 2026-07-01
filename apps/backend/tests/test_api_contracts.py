@@ -361,6 +361,7 @@ def test_create_recommendation_narrative_returns_card_payload_by_default(client:
     assert product["card"]["chips"]
     assert product["detail_sections"] == []
     assert product["caution"] is None
+    assert product["cart_handoff"] == created["products"][0]["cart_handoff"]
 
 
 def test_create_recommendation_narrative_full_view_returns_detail_sections(client: TestClient) -> None:
@@ -387,6 +388,7 @@ def test_create_recommendation_narrative_full_view_returns_detail_sections(clien
     product = narrative["product_explanations"][0]
     assert product["detail_sections"]
     assert product["caution"]
+    assert product["cart_handoff"] == created["products"][0]["cart_handoff"]
 
 
 def test_create_recommendation_narrative_detail_view_returns_one_product(
@@ -416,6 +418,7 @@ def test_create_recommendation_narrative_detail_view_returns_one_product(
     product = narrative["product_explanations"][0]
     assert product["product_id"] == target_product["product_id"]
     assert product["detail_sections"]
+    assert product["cart_handoff"] == target_product["cart_handoff"]
 
 
 def test_create_recommendation_narrative_detail_view_requires_product_id(
