@@ -304,3 +304,13 @@ PHS,phytosphingosine,abbrev,medium,literature abbreviation
 글루타티온,glutathione,ko,high,KCIA/common Korean label
 글루타치온,glutathione,synonym,medium,common Korean transliteration
 Glutathione,glutathione,inci,high,INCI
+베타-글루칸,beta_glucan,ko,high,KCIA/common Korean label
+베타글루칸,beta_glucan,ko,high,common Korean label variant
+효모베타-글루칸,beta_glucan,ko,medium,common Korean label; yeast beta-glucan family
+Beta-Glucan,beta_glucan,inci,high,INCI/common English label
+Beta Glucan,beta_glucan,synonym,high,common English label variant
+Yeast Beta-Glucan,beta_glucan,synonym,medium,common English label; yeast beta-glucan family
+다이포타슘글리시리제이트,dipotassium_glycyrrhizate,ko,high,KCIA/common Korean label
+디포타슘글리시리제이트,dipotassium_glycyrrhizate,typo,medium,common Korean transliteration variant
+Dipotassium Glycyrrhizate,dipotassium_glycyrrhizate,inci,high,INCI
+Dipotassium Glycyrrhizinate,dipotassium_glycyrrhizate,synonym,medium,literature spelling variant
