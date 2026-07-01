@@ -492,15 +492,21 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
     return ScoreBreakdown(
         ingredient_effect_score=_component_to_percent(raw.get("ingredient_effect_score")),
         ingredient_evidence_score=_component_to_percent(raw.get("ingredient_evidence_score")),
+        functional_claim_score=_component_to_percent(raw.get("functional_claim_score")),
         concentration_fit_score=_component_to_percent(raw.get("concentration_fit_score", 0.5)),
         concentration_bucket=_optional_str(raw.get("concentration_bucket")),
         concentration_warning=_optional_str(raw.get("concentration_warning")),
+        skin_profile_score=_component_to_percent(raw.get("skin_profile_score")),
         skin_type_score=_component_to_percent(skin_score),
+        sensitivity_score=_component_to_percent(raw.get("sensitivity_score")),
         price_score=_component_to_percent(raw.get("price_score")),
         keyword_score=_component_to_percent(raw.get("keyword_score")),
         vector_score=_component_to_percent(raw.get("vector_score")),
         search_match_score=_component_to_percent(raw.get("search_match_score")),
         risk_penalty=_score_to_int(raw.get("risk_penalty", 0)),
+        risk_flag_count=_optional_int(raw.get("risk_flag_count")) or 0,
+        risk_warnings=_string_list(raw.get("risk_warnings")),
+        risk_policy=_optional_str(raw.get("risk_policy")),
     )
 
 
@@ -513,6 +519,12 @@ def _component_to_percent(value: object) -> int:
 
 def _score_to_int(value: object) -> int:
     return int(round(max(0.0, min(100.0, _to_float(value)))))
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
 
 
 def _to_float(value: object) -> float:

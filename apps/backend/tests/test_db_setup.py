@@ -67,8 +67,17 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     search_documents = Base.metadata.tables["search_documents"]
     recommendation_results = Base.metadata.tables["recommendation_results"]
     ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
+    ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
+    risk_flags = Base.metadata.tables["risk_flags"]
 
     assert {"brand_id", "category_id"}.issubset(products.columns.keys())
+    assert {
+        "functional_review_text",
+        "functional_cosmetic_status",
+        "functional_cosmetic_claims",
+        "functional_claim_confidence",
+        "functional_claim_basis",
+    }.issubset(products.columns.keys())
     assert {"brand_id", "category_id", "numeric_value", "is_hard"}.issubset(
         recommendation_run_constraints.columns.keys()
     )
@@ -86,6 +95,10 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     assert {"ingredient_id", "alias", "normalized_alias", "alias_type", "confidence", "source"}.issubset(
         ingredient_aliases.columns.keys()
     )
+    assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
+        ingredient_evidence.columns.keys()
+    )
+    assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
 
 
 def test_mvp_schema_can_create_all_with_sqlite() -> None:

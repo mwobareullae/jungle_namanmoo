@@ -38,6 +38,11 @@ CSV_HEADERS = {
         "skin_type_tags",
         "thumbnail_url",
         "image_urls",
+        "functional_review_text",
+        "functional_cosmetic_status",
+        "functional_cosmetic_claims",
+        "functional_claim_confidence",
+        "functional_claim_basis",
     },
     "product_prices.csv": {
         "product_id",
@@ -96,8 +101,22 @@ CSV_HEADERS = {
         "source_title",
         "source_url",
         "summary",
+        "source_type",
+        "pmid",
+        "doi",
+        "source_authority_score",
     },
-    "risk_flags.csv": {"ingredient_id", "risk_type", "display_text", "severity"},
+    "risk_flags.csv": {
+        "ingredient_id",
+        "risk_type",
+        "display_text",
+        "severity",
+        "severity_score",
+        "applies_to",
+        "condition",
+        "source_type",
+        "source_url",
+    },
     "vector_docs.csv": {"doc_id", "source_type", "source_id", "text"},
 }
 
@@ -460,6 +479,15 @@ def _parse_ingredient_evidence(
         source_title=_required_text(row, "source_title", file_name, line_number),
         source_url=_optional_text(row.get("source_url")),
         summary=_required_text(row, "summary", file_name, line_number),
+        source_type=_optional_text(row.get("source_type")),
+        pmid=_optional_text(row.get("pmid")),
+        doi=_optional_text(row.get("doi")),
+        source_authority_score=_optional_float(
+            row.get("source_authority_score"),
+            "source_authority_score",
+            file_name,
+            line_number,
+        ),
     )
 
 
@@ -469,6 +497,11 @@ def _parse_risk_flag(row: dict[str, str], file_name: str, line_number: int) -> R
         risk_type=_required_text(row, "risk_type", file_name, line_number),
         display_text=_required_text(row, "display_text", file_name, line_number),
         severity=_required_text(row, "severity", file_name, line_number),
+        severity_score=_optional_float(row.get("severity_score"), "severity_score", file_name, line_number),
+        applies_to=_split_values(row.get("applies_to", "")),
+        condition=_optional_text(row.get("condition")),
+        source_type=_optional_text(row.get("source_type")),
+        source_url=_optional_text(row.get("source_url")),
     )
 
 
