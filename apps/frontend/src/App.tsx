@@ -62,6 +62,17 @@ function App() {
     const headContainer = document.createElement("div");
     headContainer.innerHTML = page.headHtml;
     Array.from(headContainer.children).forEach((node) => {
+      if (node instanceof HTMLLinkElement && node.rel === "stylesheet") {
+        const href = new URL(node.getAttribute("href") ?? "", window.location.origin).href;
+        const existingLink = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).find(
+          (link) => link.href === href && link.sheet,
+        );
+
+        if (existingLink) {
+          return;
+        }
+      }
+
       document.head.appendChild(node);
       injectedNodes.push(node as HTMLElement);
     });
