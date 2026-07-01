@@ -818,6 +818,38 @@ body.search-results-page #searchResultsGrid .product-info {
   border-radius: var(--rm);
 }
 
+#defaultProductGrid {
+  min-width: 0;
+  overflow: hidden;
+}
+
+#defaultProductGrid .product-skeleton.home {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  grid-template-columns: minmax(112px, 34%) minmax(0, 1fr);
+}
+
+#defaultProductGrid .product-skeleton.home .product-skeleton-media {
+  width: 100%;
+  max-width: 168px;
+  justify-self: start;
+  background: #edf3f5;
+  animation: none;
+  transform: none;
+}
+
+#defaultProductGrid .product-skeleton.home .product-skeleton-media::before,
+#defaultProductGrid .product-skeleton.home .product-skeleton-media::after {
+  content: none;
+  display: none;
+}
+
+#defaultProductGrid .product-skeleton.home .product-skeleton-body {
+  min-width: 0;
+}
+
 .product-skeleton.search {
   grid-template-columns: 168px minmax(320px, 1fr) 168px;
   min-height: 214px;
