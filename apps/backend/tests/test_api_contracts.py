@@ -509,6 +509,7 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
     assert data["ingredients"]
     assert data["evidence"]["ingredient_evidence"]
     assert data["sources"]
+    assert data["product"]["cart_handoff"] is None
 
 
 def test_get_product_detail_includes_recommendation_context(client: TestClient) -> None:
@@ -528,6 +529,7 @@ def test_get_product_detail_includes_recommendation_context(client: TestClient) 
     data = response.json()
     assert data["product"]["total_score"] == recommended_product["total_score"]
     assert data["product"]["score_breakdown"] == recommended_product["score_breakdown"]
+    assert data["product"]["cart_handoff"] == recommended_product["cart_handoff"]
     assert data["evidence"]["recommendation_reason"] == recommended_product["reason_summary"]
 
 
