@@ -148,7 +148,15 @@ def test_create_recommendation_applies_request_defaults(client: TestClient) -> N
         "evidence_tags",
         "key_ingredients",
         "score_breakdown",
+        "cart_handoff",
     }.issubset(product)
+    assert product["cart_handoff"] == {
+        "product_id": product["product_id"],
+        "quantity": 1,
+        "source": "ai_recommendation",
+        "recommendation_id": data["recommendation_id"],
+        "recommendation_rank": product["rank"],
+    }
 
 
 def test_create_recommendation_uses_concern_parser(client: TestClient) -> None:

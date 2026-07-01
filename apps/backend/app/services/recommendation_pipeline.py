@@ -15,6 +15,7 @@ from app.db.models.recommendation import (
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEvidence
 from app.schemas.common import ApiError
 from app.schemas.recommendation import (
+    CartHandoff,
     MatchedBrandConstraint,
     MatchedCategoryConstraint,
     Pagination,
@@ -179,6 +180,7 @@ def get_recommendation_response(
             _result_row_to_recommended_product(
                 row,
                 evidence_by_result_id.get(row.result.id, ()),
+                recommendation_id=run.recommendation_code,
             )
             for row in result_rows
         ],
@@ -356,10 +358,14 @@ def _load_result_evidence(
 def _result_row_to_recommended_product(
     row: _ResultRow,
     evidence: tuple[_ResultEvidence, ...],
+    *,
+    recommendation_id: str,
 ) -> RecommendedProduct:
+    product_id = row.product.product_code
+    rank = row.result.rank_order
     return RecommendedProduct(
-        product_id=row.product.product_code,
-        rank=row.result.rank_order,
+        product_id=product_id,
+        rank=rank,
         total_score=_score_to_int(row.result.total_score),
         reason_summary=row.result.reason_summary or "조건에 맞는 상품을 추천 후보로 선정했습니다.",
         brand=row.brand.name,
@@ -369,6 +375,11 @@ def _result_row_to_recommended_product(
         evidence_tags=_evidence_tags(evidence),
         key_ingredients=_key_ingredients(evidence),
         score_breakdown=score_breakdown_to_api(row.result.score_breakdown),
+        cart_handoff=CartHandoff(
+            product_id=product_id,
+            recommendation_id=recommendation_id,
+            recommendation_rank=rank,
+        ),
     )
 
 
