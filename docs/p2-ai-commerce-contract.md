@@ -120,7 +120,7 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
 GET /api/products/{product_id}?recommendation_id={recommendation_id}
 ```
 
-FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `score_breakdown`, `recommendation_reason`을 포함한다.
+FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `score_breakdown`, `cart_handoff`, `recommendation_reason`을 포함한다. 추천 맥락이 없는 일반 상품 상세에서는 `cart_handoff`를 `null`로 둔다.
 
 ## AI 설명 연결
 
