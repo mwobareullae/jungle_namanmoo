@@ -490,8 +490,6 @@ function App() {
           setStyleReadyKey(visiblePageKey);
         }
       });
-    } else {
-      setStyleReadyKey(visiblePageKey);
     }
 
     return () => {
