@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.schemas.recommendation import ScoreBreakdown
+from app.schemas.recommendation import CartHandoff, ScoreBreakdown
 
 
 class ProductInfo(BaseModel):
@@ -12,6 +12,7 @@ class ProductInfo(BaseModel):
     total_score: int | None = None
     reason_summary: str | None = None
     score_breakdown: ScoreBreakdown | None = None
+    cart_handoff: CartHandoff | None = None
 
 
 class ProductImage(BaseModel):
