@@ -50,8 +50,12 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.ingredient_effect_ranges[0].optimal_min == pytest.approx(4.0)
     assert catalog.ingredient_effect_ranges[0].excessive_min == pytest.approx(10.0)
     assert catalog.ingredient_evidence[0].evidence_level == "high"
+    assert catalog.ingredient_evidence[0].source_type == "paper"
+    assert catalog.ingredient_evidence[0].source_authority_score == pytest.approx(0.9)
     assert catalog.ingredient_evidence[0].summary
     assert catalog.risk_flags[0].severity == "medium"
+    assert catalog.risk_flags[0].severity_score == pytest.approx(0.6)
+    assert catalog.risk_flags[0].applies_to == ("sensitive",)
     assert catalog.concern_tags[0].synonyms
     assert catalog.concern_effects[0].weight == 1.0
     assert catalog.search_documents[0].text
@@ -127,8 +131,10 @@ def test_loader_reports_missing_csv_header(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(DataLoadError, match="products.csv 필수 컬럼이 없습니다: skin_type_tags"):
+    with pytest.raises(DataLoadError) as exc_info:
         load_data_catalog(data_dir)
+    assert "products.csv 필수 컬럼이 없습니다" in str(exc_info.value)
+    assert "skin_type_tags" in str(exc_info.value)
 
 
 def test_loader_reports_invalid_product_skin_profile_reference(tmp_path: Path) -> None:

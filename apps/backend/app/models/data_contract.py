@@ -106,6 +106,10 @@ class IngredientEvidence:
     source_title: str
     source_url: str | None
     summary: str
+    source_type: str | None
+    pmid: str | None
+    doi: str | None
+    source_authority_score: float | None
 
 
 @dataclass(frozen=True)
@@ -114,6 +118,11 @@ class RiskFlag:
     risk_type: str
     display_text: str
     severity: str
+    severity_score: float | None
+    applies_to: tuple[str, ...]
+    condition: str | None
+    source_type: str | None
+    source_url: str | None
 
 
 @dataclass(frozen=True)

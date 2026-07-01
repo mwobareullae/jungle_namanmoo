@@ -24,15 +24,34 @@ EFFECT_CAP = 1.2
 TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
+FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
+FUNCTIONAL_BASE_SCORE = 0.2
+FUNCTIONAL_MATCH_SCORE = 0.75
+FUNCTIONAL_PRIORITY_MATCH_SCORE = 1.0
+FUNCTIONAL_CLAIM_EFFECT_CODES = {
+    "미백": "effect_brightening",
+    "주름개선": "effect_wrinkle",
+}
+CONFIDENCE_MULTIPLIERS = {
+    "high": 1.0,
+    "medium": 0.8,
+    "med": 0.8,
+    "low": 0.5,
+    "unknown": 0.0,
+    "not_applicable": 0.0,
+    None: 0.0,
+}
+SENSITIVE_RISK_PENALTY_CAP = 8.0
 
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    ingredient_effect: float = 0.45
-    ingredient_evidence: float = 0.35
-    concentration_fit: float = 0.05
-    skin_profile: float = 0.10
-    search_match: float = 0.05
+    ingredient_effect: float = 0.35
+    ingredient_evidence: float = 0.25
+    skin_profile: float = 0.15
+    concentration_fit: float = 0.08
+    functional_claim: float = 0.05
+    search_match: float = 0.07
     price: float = 0.05
 
 
@@ -90,6 +109,10 @@ class _EvidenceInfo:
     evidence_score: float
     evidence_level: str | None
     summary: str | None
+    source_type: str | None
+    pmid: str | None
+    doi: str | None
+    source_authority_score: float | None
 
 
 @dataclass(frozen=True)
@@ -152,6 +175,14 @@ class _SkinProfileInfo:
 
 
 @dataclass(frozen=True)
+class _FunctionalInfo:
+    status: str | None
+    claims: tuple[str, ...]
+    claim_confidence: str | None
+    basis: str | None
+
+
+@dataclass(frozen=True)
 class _EffectContribution:
     ingredient: _IngredientEffectInfo
     decay: float
@@ -175,8 +206,10 @@ def score_candidates(
         return []
 
     desired_effects = _build_desired_effects(intent)
+    priority_effect_codes = tuple(effect.effect_id for effect in intent.priority_effects)
     product_ids = [candidate.db_product_id for candidate in candidates]
     ingredients_by_product = _load_ingredient_effects(session, product_ids, desired_effects)
+    functional_info_by_product = _load_functional_info(session, product_ids)
     skin_tags_by_product = _load_skin_tags(session, product_ids)
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
@@ -186,7 +219,9 @@ def score_candidates(
         _score_candidate(
             candidate,
             desired_effects,
+            priority_effect_codes,
             ingredients_by_product.get(candidate.db_product_id, ()),
+            functional_info_by_product.get(candidate.db_product_id),
             skin_tags_by_product.get(candidate.db_product_id, ()),
             skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
@@ -225,7 +260,9 @@ def score_candidates(
 def _score_candidate(
     candidate: ProductCandidate,
     desired_effects: tuple[_DesiredEffect, ...],
+    priority_effect_codes: tuple[str, ...],
     ingredients: tuple[_IngredientEffectInfo, ...],
+    functional_info: _FunctionalInfo | None,
     skin_tags: tuple[str, ...],
     skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
@@ -241,6 +278,11 @@ def _score_candidate(
     contributions_by_effect = _build_contributions_by_effect(ingredients)
     ingredient_effect_score = _score_ingredient_effects(desired_effects, contributions_by_effect)
     ingredient_evidence_score = _score_ingredient_evidence(desired_effects, contributions_by_effect)
+    functional_claim_score, functional_claim_context = _score_functional_claim(
+        functional_info,
+        desired_effects,
+        priority_effect_codes,
+    )
     concentration_result = _score_concentration_fit(
         desired_effects,
         contributions_by_effect,
@@ -258,13 +300,14 @@ def _score_candidate(
     keyword_score = match.keyword_score if match else 0.0
     vector_score = match.vector_score if match else 0.0
     price_score = _score_price(candidate.lowest_price, purchase_conditions)
-    risk_penalty = 0.0
+    risk_penalty = _score_risk_penalty(sensitivity, risk_flags)
 
     raw_score = (
         ingredient_effect_score * weights.ingredient_effect
         + ingredient_evidence_score * weights.ingredient_evidence
-        + (concentration_result.score - concentration_policy.unknown) * weights.concentration_fit
         + skin_profile_score * weights.skin_profile
+        + concentration_result.score * weights.concentration_fit
+        + functional_claim_score * weights.functional_claim
         + search_match_score * weights.search_match
         + price_score * weights.price
     )
@@ -274,6 +317,11 @@ def _score_candidate(
         "scoring_version": SCORING_VERSION,
         "ingredient_effect_score": _round_component(ingredient_effect_score),
         "ingredient_evidence_score": _round_component(ingredient_evidence_score),
+        "functional_claim_score": _round_component(functional_claim_score),
+        "functional_status": functional_claim_context["status"],
+        "functional_claims": functional_claim_context["claims"],
+        "functional_matched_claims": functional_claim_context["matched_claims"],
+        "functional_claim_confidence": functional_claim_context["claim_confidence"],
         "concentration_fit_score": _round_component(concentration_result.score),
         "concentration_bucket": concentration_result.bucket,
         "concentration_warning": concentration_result.warning,
@@ -285,13 +333,16 @@ def _score_candidate(
         "search_match_score": _round_component(search_match_score),
         "price_score": _round_component(price_score),
         "risk_penalty": risk_penalty,
-        "risk_policy": "display_only",
+        "risk_policy": "display_all_penalize_sensitive",
         "risk_flag_count": len(risk_flags),
+        "risk_warnings": _risk_warning_texts(risk_flags),
+        "sensitive_risk_penalty_cap": SENSITIVE_RISK_PENALTY_CAP,
         "weights": {
             "ingredient_effect": weights.ingredient_effect,
             "ingredient_evidence": weights.ingredient_evidence,
-            "concentration_fit": weights.concentration_fit,
             "skin_profile": weights.skin_profile,
+            "concentration_fit": weights.concentration_fit,
+            "functional_claim": weights.functional_claim,
             "search_match": weights.search_match,
             "price": weights.price,
         },
@@ -307,7 +358,13 @@ def _score_candidate(
             "above_optimal": concentration_policy.above_optimal,
             "excessive": concentration_policy.excessive,
         },
-        "concentration_weight_mode": "neutral_delta",
+        "confidence_multipliers": {
+            "high": CONFIDENCE_MULTIPLIERS["high"],
+            "medium": CONFIDENCE_MULTIPLIERS["medium"],
+            "low": CONFIDENCE_MULTIPLIERS["low"],
+            "unknown": CONFIDENCE_MULTIPLIERS["unknown"],
+        },
+        "concentration_weight_mode": "direct_axis",
         "effect_cap": EFFECT_CAP,
         "top_ingredient_decays": list(TOP_INGREDIENT_DECAYS),
         "total_score": total_score,
@@ -381,6 +438,10 @@ def _load_ingredient_effects(
             IngredientEvidence.evidence_score,
             IngredientEvidence.evidence_level,
             IngredientEvidence.summary,
+            IngredientEvidence.source_type,
+            IngredientEvidence.pmid,
+            IngredientEvidence.doi,
+            IngredientEvidence.source_authority_score,
             IngredientEffectRange.meaningful_min,
             IngredientEffectRange.optimal_min,
             IngredientEffectRange.optimal_max,
@@ -460,6 +521,31 @@ def _load_ingredient_effects(
     }
 
 
+def _load_functional_info(session: Session, product_ids: list[int]) -> dict[int, _FunctionalInfo]:
+    if not product_ids:
+        return {}
+
+    rows = session.execute(
+        select(
+            Product.id,
+            Product.functional_cosmetic_status,
+            Product.functional_cosmetic_claims,
+            Product.functional_claim_confidence,
+            Product.functional_claim_basis,
+        ).where(Product.id.in_(product_ids))
+    ).all()
+
+    return {
+        int(row.id): _FunctionalInfo(
+            status=row.functional_cosmetic_status,
+            claims=_split_tags(row.functional_cosmetic_claims),
+            claim_confidence=row.functional_claim_confidence,
+            basis=row.functional_claim_basis,
+        )
+        for row in rows
+    }
+
+
 def _row_to_evidence(row) -> _EvidenceInfo | None:
     if row.evidence_id is None:
         return None
@@ -468,12 +554,16 @@ def _row_to_evidence(row) -> _EvidenceInfo | None:
         evidence_score=_decimal_to_float(row.evidence_score),
         evidence_level=row.evidence_level,
         summary=row.summary,
+        source_type=row.source_type,
+        pmid=row.pmid,
+        doi=row.doi,
+        source_authority_score=_optional_decimal_to_float(row.source_authority_score),
     )
 
 
 def _row_to_concentration(row) -> _ConcentrationInfo:
     concentration_range = None
-    if row.meaningful_min is not None:
+    if row.meaningful_min is not None and row.optimal_min is not None and row.optimal_max is not None:
         concentration_range = _ConcentrationRangeInfo(
             meaningful_min=_decimal_to_float(row.meaningful_min),
             optimal_min=_decimal_to_float(row.optimal_min),
@@ -499,7 +589,7 @@ def _is_better_evidence(candidate: _EvidenceInfo | None, existing: _EvidenceInfo
         return False
     if existing is None:
         return True
-    return candidate.evidence_score > existing.evidence_score
+    return _effective_evidence_score(candidate) > _effective_evidence_score(existing)
 
 
 def _load_skin_tags(session: Session, product_ids: list[int]) -> dict[int, tuple[str, ...]]:
@@ -580,7 +670,13 @@ def _build_contributions_by_effect(
 def _evidence_component(evidence: _EvidenceInfo | None, decay: float) -> float:
     if evidence is None:
         return 0.0
-    return (evidence.evidence_score / 100) * decay
+    return (_effective_evidence_score(evidence) / 100) * decay
+
+
+def _effective_evidence_score(evidence: _EvidenceInfo) -> float:
+    authority_score = evidence.source_authority_score
+    authority_multiplier = _clamp(authority_score) if authority_score is not None else 1.0
+    return evidence.evidence_score * authority_multiplier
 
 
 def _score_ingredient_effects(
@@ -603,6 +699,73 @@ def _score_ingredient_evidence(
         contributions_by_effect,
         component_name="evidence_component",
     )
+
+
+def _score_functional_claim(
+    functional_info: _FunctionalInfo | None,
+    desired_effects: tuple[_DesiredEffect, ...],
+    priority_effect_codes: tuple[str, ...],
+) -> tuple[float, dict]:
+    if functional_info is None:
+        return 0.0, _functional_context(None, (), (), None)
+
+    claims = functional_info.claims
+    if functional_info.status != FUNCTIONAL_CONFIRMED_STATUS:
+        return 0.0, _functional_context(functional_info.status, claims, (), functional_info.claim_confidence)
+
+    desired_effect_codes = {effect.effect_code for effect in desired_effects}
+    priority_codes = set(priority_effect_codes)
+    claim_effect_codes = {
+        effect_code
+        for claim in claims
+        for effect_code in (FUNCTIONAL_CLAIM_EFFECT_CODES.get(claim),)
+        if effect_code
+    }
+    matched_effect_codes = claim_effect_codes & desired_effect_codes
+    matched_claims = tuple(
+        claim
+        for claim in claims
+        if FUNCTIONAL_CLAIM_EFFECT_CODES.get(claim) in matched_effect_codes
+    )
+
+    if not matched_effect_codes:
+        return FUNCTIONAL_BASE_SCORE, _functional_context(
+            functional_info.status,
+            claims,
+            matched_claims,
+            functional_info.claim_confidence,
+        )
+
+    raw_score = (
+        FUNCTIONAL_PRIORITY_MATCH_SCORE
+        if matched_effect_codes & priority_codes
+        else FUNCTIONAL_MATCH_SCORE
+    )
+    adjusted_score = _adjust_score_by_confidence(
+        raw_score,
+        functional_info.claim_confidence,
+        baseline=FUNCTIONAL_BASE_SCORE,
+    )
+    return adjusted_score, _functional_context(
+        functional_info.status,
+        claims,
+        matched_claims,
+        functional_info.claim_confidence,
+    )
+
+
+def _functional_context(
+    status: str | None,
+    claims: tuple[str, ...],
+    matched_claims: tuple[str, ...],
+    claim_confidence: str | None,
+) -> dict:
+    return {
+        "status": status,
+        "claims": list(claims),
+        "matched_claims": list(matched_claims),
+        "claim_confidence": claim_confidence,
+    }
 
 
 def _score_concentration_fit(
@@ -657,14 +820,43 @@ def _score_single_concentration(
             f"{ingredient.ingredient_name} 함량이 과다 기준 이상으로 표시되어 "
             "민감 피부는 주의가 필요합니다."
         )
-        return _build_concentration_result("excessive", policy.excessive, ingredient, warning=warning)
+        return _build_concentration_result(
+            "excessive",
+            _adjust_concentration_score(policy.excessive, concentration),
+            ingredient,
+            warning=warning,
+        )
     if value < concentration_range.meaningful_min:
-        return _build_concentration_result("below_meaningful", policy.below_meaningful, ingredient)
+        return _build_concentration_result(
+            "below_meaningful",
+            _adjust_concentration_score(policy.below_meaningful, concentration),
+            ingredient,
+        )
     if value < concentration_range.optimal_min:
-        return _build_concentration_result("meaningful", policy.meaningful, ingredient)
+        return _build_concentration_result(
+            "meaningful",
+            _adjust_concentration_score(policy.meaningful, concentration),
+            ingredient,
+        )
     if value <= concentration_range.optimal_max:
-        return _build_concentration_result("optimal", policy.optimal, ingredient)
-    return _build_concentration_result("above_optimal", policy.above_optimal, ingredient)
+        return _build_concentration_result(
+            "optimal",
+            _adjust_concentration_score(policy.optimal, concentration),
+            ingredient,
+        )
+    return _build_concentration_result(
+        "above_optimal",
+        _adjust_concentration_score(policy.above_optimal, concentration),
+        ingredient,
+    )
+
+
+def _adjust_concentration_score(score: float, concentration: _ConcentrationInfo) -> float:
+    confidence_multiplier = min(
+        _confidence_multiplier(concentration.confidence),
+        _confidence_multiplier(concentration.range.range_confidence if concentration.range else None),
+    )
+    return _adjust_score_by_multiplier(score, confidence_multiplier)
 
 
 def _build_concentration_result(
@@ -719,7 +911,7 @@ def _score_skin_type(
     if skin_profile is not None:
         profile_score = _skin_type_profile_score(normalized_skin_type, skin_profile)
         if profile_score is not None:
-            return profile_score
+            return _adjust_score_by_confidence(profile_score, skin_profile.confidence)
 
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
@@ -754,7 +946,10 @@ def _score_sensitivity(
 ) -> float:
     normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
     if skin_profile is not None:
-        return _sensitivity_profile_score(normalized_sensitivity, skin_profile)
+        return _adjust_score_by_confidence(
+            _sensitivity_profile_score(normalized_sensitivity, skin_profile),
+            skin_profile.confidence,
+        )
 
     normalized_tags = {_normalize_profile_value(tag) for tag in skin_tags}
     normalized_tags.discard("")
@@ -779,6 +974,59 @@ def _score_sensitivity(
     if most_severe == "medium":
         return 0.8
     return 0.9
+
+
+def _score_risk_penalty(sensitivity: str | None, risk_flags: tuple[RiskFlag, ...]) -> float:
+    if not _is_sensitive_user(sensitivity):
+        return 0.0
+
+    penalties_by_type: dict[str, float] = {}
+    for flag in risk_flags:
+        if not _risk_applies_to_sensitive(flag):
+            continue
+        penalty = _risk_penalty_value(flag)
+        current = penalties_by_type.get(flag.risk_type, 0.0)
+        if penalty > current:
+            penalties_by_type[flag.risk_type] = penalty
+
+    return round(min(SENSITIVE_RISK_PENALTY_CAP, sum(penalties_by_type.values())), 2)
+
+
+def _risk_warning_texts(risk_flags: tuple[RiskFlag, ...], *, limit: int = 3) -> list[str]:
+    warnings: list[str] = []
+    seen: set[str] = set()
+    for flag in risk_flags:
+        text = (flag.display_text or "").strip()
+        if not text or text in seen:
+            continue
+        warnings.append(text)
+        seen.add(text)
+        if len(warnings) >= limit:
+            break
+    return warnings
+
+
+def _is_sensitive_user(sensitivity: str | None) -> bool:
+    normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
+    return normalized_sensitivity in {"높음", "민감", "예민"}
+
+
+def _risk_applies_to_sensitive(flag: RiskFlag) -> bool:
+    applies_to = {value.casefold() for value in _split_tags(flag.applies_to)}
+    return "sensitive" in applies_to
+
+
+def _risk_penalty_value(flag: RiskFlag) -> float:
+    severity_penalty = {
+        "high": 6.0,
+        "medium": 3.0,
+        "low": 1.0,
+    }
+    severity = (flag.severity or "").casefold()
+    if severity in severity_penalty:
+        return severity_penalty[severity]
+    severity_score = _optional_decimal_to_float(flag.severity_score)
+    return _clamp(severity_score or 0.0) * 6.0
 
 
 def _skin_type_profile_score(skin_type: str, skin_profile: _SkinProfileInfo) -> float | None:
@@ -880,6 +1128,19 @@ def _weighted_average(values: tuple[tuple[float, float], ...]) -> float:
     if total_weight <= 0:
         return 0.0
     return sum(score * weight for score, weight in values if weight > 0) / total_weight
+
+
+def _adjust_score_by_confidence(score: float, confidence: str | None, *, baseline: float = DEFAULT_PROFILE_SCORE) -> float:
+    return _adjust_score_by_multiplier(score, _confidence_multiplier(confidence), baseline=baseline)
+
+
+def _adjust_score_by_multiplier(score: float, multiplier: float, *, baseline: float = DEFAULT_PROFILE_SCORE) -> float:
+    return _clamp(baseline + (_clamp(score) - baseline) * _clamp(multiplier))
+
+
+def _confidence_multiplier(confidence: str | None) -> float:
+    normalized = confidence.strip().casefold() if confidence else None
+    return CONFIDENCE_MULTIPLIERS.get(normalized, 0.0)
 
 
 def _split_tags(raw_tags: str | None) -> tuple[str, ...]:
