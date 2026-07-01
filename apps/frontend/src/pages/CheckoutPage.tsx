@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
+import { navigateWithinApp } from "../lib/navigation";
 import type { ProductDetail } from "../types/recommendation";
 
 type OrderProduct = {
@@ -130,7 +131,7 @@ function CheckoutPage() {
     if (recommendationId) params.set("recommendation_id", recommendationId);
     if (skinType) params.set("skin_type", skinType);
     if (sensitivity) params.set("sensitivity", sensitivity);
-    window.location.href = `/payment-complete?${params.toString()}`;
+    navigateWithinApp(`/payment-complete?${params.toString()}`);
   };
 
   return (
