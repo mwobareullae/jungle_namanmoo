@@ -628,6 +628,9 @@ body.search-results-page #searchResultsGrid .product-info {
   display: grid;
   gap: 0;
   width: 100%;
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .search-loading-banner {
@@ -679,6 +682,112 @@ body.search-results-page #searchResultsGrid .product-info {
   100% { transform: translateX(250%); }
 }
 
+.search-skeleton {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.search-skeleton .skeleton-card {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 168px;
+  gap: 24px;
+  align-items: center;
+  min-width: 0;
+  min-height: 214px;
+  padding: 22px;
+  border-bottom: 1px solid #e8eef1;
+  background: #ffffff;
+}
+
+.search-skeleton .skeleton-card:last-child {
+  border-bottom: 0;
+}
+
+.search-skeleton .skeleton-media {
+  width: 168px;
+  aspect-ratio: 1;
+  border-radius: var(--rs);
+}
+
+.search-skeleton .skeleton-body,
+.search-skeleton .skeleton-side {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.search-skeleton .skeleton-side {
+  min-height: 150px;
+  justify-items: end;
+  border-left: 1px solid #eef2f4;
+  padding-left: 20px;
+}
+
+.search-skeleton .skeleton-line,
+.search-skeleton .skeleton-pill,
+.search-skeleton .skeleton-price,
+.search-skeleton .skeleton-media {
+  background: linear-gradient(90deg, #f3f7f8 0%, #edf8fb 44%, #f3f7f8 88%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.search-skeleton .skeleton-media {
+  background: #edf3f5;
+  animation: none;
+  transform: none;
+}
+
+.search-skeleton .skeleton-media::after {
+  content: none;
+  display: none;
+  animation: none;
+  transform: none;
+}
+
+#searchResultsGrid .skeleton-media::before,
+#searchResultsGrid .skeleton-media::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.search-skeleton .skeleton-line.brand {
+  width: 72px;
+  height: 12px;
+}
+
+.search-skeleton .skeleton-line.title {
+  width: min(420px, 82%);
+  height: 18px;
+}
+
+.search-skeleton .skeleton-line.reason {
+  width: min(560px, 96%);
+  height: 14px;
+}
+
+.search-skeleton .skeleton-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-skeleton .skeleton-pill {
+  width: 74px;
+  height: 28px;
+}
+
+.search-skeleton .skeleton-price {
+  width: 96px;
+  height: 22px;
+}
+
 .product-skeleton {
   display: grid;
   gap: 18px;
@@ -701,6 +810,32 @@ body.search-results-page #searchResultsGrid .product-info {
   border-bottom: 1px solid #e8eef1;
   border-radius: 0;
   align-items: center;
+}
+
+#searchResultsGrid > .search-loading-state {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+#searchResultsGrid .search-loading-state .product-skeleton.search {
+  grid-template-columns: 168px minmax(0, 1fr) 168px;
+  gap: 24px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#searchResultsGrid .search-loading-state .product-skeleton-media {
+  width: 168px;
+  background: #edf3f5;
+  animation: none;
+  transform: none;
+}
+
+#searchResultsGrid .search-loading-state .product-skeleton-body,
+#searchResultsGrid .search-loading-state .product-skeleton-side {
+  min-width: 0;
 }
 
 .product-skeleton-media {
@@ -1643,6 +1778,27 @@ html[data-app-mode="community"] .search-results-shell {
   .product-skeleton.search {
     grid-template-columns: 96px minmax(0, 1fr);
     min-height: 180px;
+  }
+
+  .search-skeleton .skeleton-card {
+    grid-template-columns: 96px minmax(0, 1fr);
+    min-height: 180px;
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .search-skeleton .skeleton-media {
+    width: 96px;
+  }
+
+  .search-skeleton .skeleton-side {
+    grid-column: 1 / -1;
+    min-height: auto;
+    justify-items: start;
+    border-left: 0;
+    border-top: 1px solid #eef2f4;
+    padding-top: 14px;
+    padding-left: 0;
   }
 
   .product-skeleton.home {
