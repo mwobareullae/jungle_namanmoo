@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -42,15 +44,21 @@ class RecommendationSummary(BaseModel):
 class ScoreBreakdown(BaseModel):
     ingredient_effect_score: int
     ingredient_evidence_score: int
+    functional_claim_score: int = 0
     concentration_fit_score: int = 50
     concentration_bucket: str | None = None
     concentration_warning: str | None = None
+    skin_profile_score: int = 0
     skin_type_score: int
+    sensitivity_score: int = 0
     price_score: int
     keyword_score: int = 0
     vector_score: int = 0
     search_match_score: int
     risk_penalty: int
+    risk_flag_count: int = 0
+    risk_warnings: list[str] = Field(default_factory=list)
+    risk_policy: str | None = None
 
 
 class RecommendedProduct(BaseModel):
@@ -86,6 +94,8 @@ class RecommendationResponse(BaseModel):
 
 class RecommendationNarrativeRequest(BaseModel):
     mode: str = "community_beta"
+    view: Literal["cards", "detail", "full"] = "cards"
+    product_id: str | None = None
     product_limit: int = Field(default=5, ge=1, le=10)
     use_llm: bool = True
 

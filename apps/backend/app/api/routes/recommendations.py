@@ -62,6 +62,7 @@ def get_recommendation_by_id(
     "/recommendations/{recommendation_id}/narrative",
     response_model=RecommendationNarrativeResponse,
     responses={
+        400: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         410: {"model": ErrorResponse},
     },

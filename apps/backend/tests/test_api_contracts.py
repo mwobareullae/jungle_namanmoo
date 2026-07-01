@@ -320,7 +320,7 @@ def test_recommendation_response_supports_pagination(client: TestClient) -> None
     assert second_page["pagination"]["has_prev"] is True
 
 
-def test_create_recommendation_narrative_returns_fallback_payload(client: TestClient) -> None:
+def test_create_recommendation_narrative_returns_card_payload_by_default(client: TestClient) -> None:
     created = client.post(
         "/api/recommendations",
         json={"concern_text": "ttl narrative smoke test"},
@@ -343,6 +343,7 @@ def test_create_recommendation_narrative_returns_fallback_payload(client: TestCl
     assert narrative["overview"]["headline"]
     assert narrative["overview"]["summary"]
     assert narrative["overview"]["key_points"]
+    assert narrative["selection_guide"] is None
     assert len(narrative["product_explanations"]) == 2
     product = narrative["product_explanations"][0]
     assert product["product_id"] == created["products"][0]["product_id"]
@@ -350,7 +351,83 @@ def test_create_recommendation_narrative_returns_fallback_payload(client: TestCl
     assert product["card"]["headline"]
     assert product["card"]["reason"]
     assert product["card"]["chips"]
+    assert product["detail_sections"] == []
+    assert product["caution"] is None
+
+
+def test_create_recommendation_narrative_full_view_returns_detail_sections(client: TestClient) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative full view smoke test"},
+    ).json()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "view": "full",
+            "use_llm": False,
+            "product_limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    narrative = response.json()["narrative"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["selection_guide"]
+    assert len(narrative["product_explanations"]) == 2
+    product = narrative["product_explanations"][0]
     assert product["detail_sections"]
+    assert product["caution"]
+
+
+def test_create_recommendation_narrative_detail_view_returns_one_product(
+    client: TestClient,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative detail view smoke test"},
+    ).json()
+    target_product = created["products"][1]
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "view": "detail",
+            "product_id": target_product["product_id"],
+            "use_llm": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    narrative = response.json()["narrative"]
+    assert narrative["generation_source"] == "rule_based"
+    assert narrative["selection_guide"] is None
+    assert len(narrative["product_explanations"]) == 1
+    product = narrative["product_explanations"][0]
+    assert product["product_id"] == target_product["product_id"]
+    assert product["detail_sections"]
+
+
+def test_create_recommendation_narrative_detail_view_requires_product_id(
+    client: TestClient,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl narrative missing product id smoke test"},
+    ).json()
+
+    response = client.post(
+        f"/api/recommendations/{created['recommendation_id']}/narrative",
+        json={
+            "view": "detail",
+            "use_llm": False,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
 
 
 def test_create_recommendation_narrative_handles_empty_results(

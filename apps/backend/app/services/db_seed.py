@@ -234,9 +234,13 @@ def _seed_ingredient_aliases(
         missing = ", ".join(missing_ingredient_ids)
         raise ValueError(f"ingredient_aliases.csv의 canonical_id 참조를 찾을 수 없습니다: {missing}")
 
+    seen_normalized_aliases: set[str] = set()
     for record in catalog.ingredient_aliases:
         ingredient = ingredients_by_code[record.ingredient_id]
         normalized_alias = _normalize_text(record.alias)
+        if normalized_alias in seen_normalized_aliases:
+            continue
+        seen_normalized_aliases.add(normalized_alias)
         row = _one_or_none(
             session,
             IngredientAliasRow,
@@ -359,6 +363,10 @@ def _seed_ingredient_evidence(
                 source_title=record.source_title,
                 source_url=record.source_url,
                 summary=record.summary,
+                source_type=record.source_type,
+                pmid=record.pmid,
+                doi=record.doi,
+                source_authority_score=_decimal_or_none(record.source_authority_score),
             )
             session.add(row)
         else:
@@ -366,6 +374,10 @@ def _seed_ingredient_evidence(
             row.evidence_score = Decimal(str(record.evidence_score))
             row.source_url = record.source_url
             row.summary = record.summary
+            row.source_type = record.source_type
+            row.pmid = record.pmid
+            row.doi = record.doi
+            row.source_authority_score = _decimal_or_none(record.source_authority_score)
         evidence_rows[(record.ingredient_id, record.effect_id)] = row
 
     session.flush()
@@ -377,26 +389,56 @@ def _seed_risk_flags(
     catalog: DataCatalog,
     ingredients_by_code: dict[str, IngredientRow],
 ) -> None:
+    alias_to_canonical = _ingredient_alias_canonical_map(catalog)
+    ingredient_names_by_code = {
+        ingredient.ingredient_id: (ingredient.name_ko, ingredient.name_en)
+        for ingredient in catalog.ingredients
+    }
+    seen_keys: set[tuple[int, str, str]] = set()
     for record in catalog.risk_flags:
-        ingredient = ingredients_by_code[record.ingredient_id]
-        row = _one_or_none(
-            session,
-            RiskFlagRow,
-            RiskFlagRow.ingredient_id == ingredient.id,
-            RiskFlagRow.risk_type == record.risk_type,
-            RiskFlagRow.display_text == record.display_text,
-        )
-        if row is None:
-            session.add(
-                RiskFlagRow(
-                    ingredient_id=ingredient.id,
-                    risk_type=record.risk_type,
-                    display_text=record.display_text,
-                    severity=record.severity,
+        for ingredient_code in _risk_flag_ingredient_codes(
+            record.ingredient_id,
+            ingredient_names_by_code,
+            alias_to_canonical,
+        ):
+            ingredient = ingredients_by_code[ingredient_code]
+            key = (ingredient.id, record.risk_type, record.display_text)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            rows = session.execute(
+                select(RiskFlagRow).where(
+                    RiskFlagRow.ingredient_id == ingredient.id,
+                    RiskFlagRow.risk_type == record.risk_type,
+                    RiskFlagRow.display_text == record.display_text,
                 )
-            )
-        else:
-            row.severity = record.severity
+            ).scalars().all()
+
+            if not rows:
+                session.add(
+                    RiskFlagRow(
+                        ingredient_id=ingredient.id,
+                        risk_type=record.risk_type,
+                        display_text=record.display_text,
+                        severity=record.severity,
+                        severity_score=_decimal_or_none(record.severity_score),
+                        applies_to=_join_values(record.applies_to),
+                        condition=record.condition,
+                        source_type=record.source_type,
+                        source_url=record.source_url,
+                    )
+                )
+            else:
+                row = rows[0]
+                for duplicate in rows[1:]:
+                    session.delete(duplicate)
+                row.severity = record.severity
+                row.severity_score = _decimal_or_none(record.severity_score)
+                row.applies_to = _join_values(record.applies_to)
+                row.condition = record.condition
+                row.source_type = record.source_type
+                row.source_url = record.source_url
     session.flush()
 
 
@@ -500,6 +542,7 @@ def _seed_products(
         category = categories_by_code[product.category]
         row = _one_or_none(session, ProductRow, ProductRow.product_code == product.product_id)
         skin_type_tags = _join_values(product.skin_type_tags)
+        functional_claims = _join_values(product.functional_cosmetic_claims)
         if row is None:
             row = ProductRow(
                 product_code=product.product_id,
@@ -508,6 +551,11 @@ def _seed_products(
                 product_name=product.name,
                 skin_type_tags=skin_type_tags,
                 thumbnail_url=product.thumbnail_url,
+                functional_review_text=product.functional_review_text,
+                functional_cosmetic_status=product.functional_cosmetic_status,
+                functional_cosmetic_claims=functional_claims,
+                functional_claim_confidence=product.functional_claim_confidence,
+                functional_claim_basis=product.functional_claim_basis,
             )
             session.add(row)
         else:
@@ -516,6 +564,11 @@ def _seed_products(
             row.product_name = product.name
             row.skin_type_tags = skin_type_tags
             row.thumbnail_url = product.thumbnail_url
+            row.functional_review_text = product.functional_review_text
+            row.functional_cosmetic_status = product.functional_cosmetic_status
+            row.functional_cosmetic_claims = functional_claims
+            row.functional_claim_confidence = product.functional_claim_confidence
+            row.functional_claim_basis = product.functional_claim_basis
             row.is_active = True
         products_by_code[product.product_id] = row
 
@@ -758,6 +811,36 @@ def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
             aliases.append(value)
             seen.add(normalized)
     return tuple(aliases)
+
+
+def _ingredient_alias_canonical_map(catalog: DataCatalog) -> dict[str, str]:
+    alias_to_canonical: dict[str, str] = {}
+    for alias in catalog.ingredient_aliases:
+        normalized_alias = _normalize_text(alias.alias)
+        if normalized_alias:
+            alias_to_canonical[normalized_alias] = alias.ingredient_id
+    return alias_to_canonical
+
+
+def _risk_flag_ingredient_codes(
+    ingredient_code: str,
+    ingredient_names_by_code: dict[str, tuple[str, str]],
+    alias_to_canonical: dict[str, str],
+) -> tuple[str, ...]:
+    candidate_codes = [ingredient_code]
+    names = ingredient_names_by_code.get(ingredient_code, ("", ""))
+    for name in names:
+        canonical_code = alias_to_canonical.get(_normalize_text(name))
+        if canonical_code:
+            candidate_codes.append(canonical_code)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate_code in candidate_codes:
+        if candidate_code and candidate_code not in seen:
+            deduped.append(candidate_code)
+            seen.add(candidate_code)
+    return tuple(deduped)
 
 
 def _decimal_or_none(value: float | None) -> Decimal | None:

@@ -15,6 +15,7 @@ from app.db.models.taxonomy import (
     IngredientAlias,
     IngredientEffectRange,
     IngredientEvidence,
+    RiskFlag,
 )
 from app.db.session import make_engine
 from app.models.data_contract import IngredientAlias as IngredientAliasRecord
@@ -43,12 +44,20 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, IngredientAlias) == 0
     assert _count(session, IngredientEffectRange) == 2
     assert _count(session, IngredientEvidence) == 6
+    assert _count(session, RiskFlag) == 1
     assert _count(session, SearchDocument) == 4
     niacinamide_row = session.execute(
         select(ProductIngredient).where(ProductIngredient.ingredient_name == "나이아신아마이드")
     ).scalar_one()
     assert niacinamide_row.concentration_text == "나이아신아마이드 5%"
     assert niacinamide_row.normalized_concentration_unit == "%"
+    evidence_row = session.execute(select(IngredientEvidence)).scalars().first()
+    assert evidence_row is not None
+    assert evidence_row.source_type == "paper"
+    assert evidence_row.source_authority_score is not None
+    risk_row = session.execute(select(RiskFlag)).scalar_one()
+    assert risk_row.applies_to == "sensitive"
+    assert risk_row.severity_score is not None
 
 
 def test_seed_database_is_idempotent_for_example_catalog() -> None:
@@ -64,6 +73,32 @@ def test_seed_database_is_idempotent_for_example_catalog() -> None:
     assert _count(session, IngredientAlias) == 0
     assert _count(session, ConcernAlias) == 19
     assert _count(session, SearchDocument) == 4
+
+
+def test_seed_database_deduplicates_existing_risk_flags() -> None:
+    session = _make_session()
+    seed_database(session, EXAMPLES_DIR)
+    risk_row = session.execute(select(RiskFlag)).scalar_one()
+    session.add(
+        RiskFlag(
+            ingredient_id=risk_row.ingredient_id,
+            risk_type=risk_row.risk_type,
+            display_text=risk_row.display_text,
+            severity=risk_row.severity,
+            severity_score=risk_row.severity_score,
+            applies_to=risk_row.applies_to,
+            condition=risk_row.condition,
+            source_type=risk_row.source_type,
+            source_url=risk_row.source_url,
+        )
+    )
+    session.flush()
+
+    assert _count(session, RiskFlag) == 2
+
+    seed_database(session, EXAMPLES_DIR)
+
+    assert _count(session, RiskFlag) == 1
 
 
 def test_seed_database_loads_optional_ingredient_aliases(tmp_path: Path) -> None:

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.schemas.common import dump_model
+from app.schemas.common import ApiError
 from app.schemas.recommendation import (
     RecommendationNarrative,
     RecommendationNarrativeCard,
@@ -21,7 +21,7 @@ from app.schemas.recommendation import (
     RecommendationResponse,
     RecommendedProduct,
 )
-from app.services.recommendation_pipeline import get_recommendation_response
+from app.services.recommendation_pipeline import MAX_PAGE_SIZE, get_recommendation_response
 
 
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
@@ -38,6 +38,8 @@ class RecommendationNarrativeGenerator(Protocol):
         recommendation: RecommendationResponse,
         *,
         mode: str,
+        view: str,
+        product_id: str | None,
     ) -> RecommendationNarrative:
         ...
 
@@ -49,19 +51,27 @@ class RuleBasedRecommendationNarrativeGenerator:
         recommendation: RecommendationResponse,
         *,
         mode: str,
+        view: str,
+        product_id: str | None,
     ) -> RecommendationNarrative:
         if not recommendation.products:
             return _build_no_result_narrative(recommendation)
 
-        products = recommendation.products
+        products = _select_products_for_view(recommendation, view=view, product_id=product_id)
+        include_detail = view in {"detail", "full"}
         return RecommendationNarrative(
             generation_source="rule_based",
             overview=_build_fallback_overview(recommendation),
             product_explanations=[
-                _build_fallback_product_explanation(product, recommendation, mode=mode)
+                _build_fallback_product_explanation(
+                    product,
+                    recommendation,
+                    mode=mode,
+                    include_detail=include_detail,
+                )
                 for product in products
             ],
-            selection_guide=_build_fallback_selection_guide(products),
+            selection_guide=_build_fallback_selection_guide(products) if view == "full" else None,
         )
 
 
@@ -76,6 +86,8 @@ class OpenAIRecommendationNarrativeGenerator:
         recommendation: RecommendationResponse,
         *,
         mode: str,
+        view: str,
+        product_id: str | None,
     ) -> RecommendationNarrative:
         if not recommendation.products:
             return _build_no_result_narrative(recommendation)
@@ -87,9 +99,16 @@ class OpenAIRecommendationNarrativeGenerator:
         payload = self._request_structured_output(
             recommendation=recommendation,
             mode=mode,
+            view=view,
+            product_id=product_id,
         )
+        if view == "cards":
+            return _build_cards_narrative_from_payload(payload, recommendation)
+        if view == "detail":
+            return _build_detail_narrative_from_payload(payload, recommendation)
+
         narrative = _NarrativePayload.model_validate(payload)
-        _validate_product_ids(narrative, recommendation)
+        _validate_product_ids([product.product_id for product in narrative.product_explanations], recommendation)
         return RecommendationNarrative(
             generation_source="llm",
             overview=RecommendationNarrativeOverview(
@@ -98,24 +117,7 @@ class OpenAIRecommendationNarrativeGenerator:
                 key_points=[_soften_claim(item) for item in narrative.overview.key_points],
             ),
             product_explanations=[
-                RecommendationNarrativeProduct(
-                    product_id=product.product_id,
-                    rank=product.rank,
-                    role=_soften_claim(product.role),
-                    card=RecommendationNarrativeCard(
-                        headline=_polish_card_headline(product.card.headline, product.role),
-                        reason=_soften_claim(product.card.reason),
-                        chips=_clean_chips(product.card.chips),
-                    ),
-                    detail_sections=[
-                        RecommendationNarrativeDetailSection(
-                            title=_soften_claim(section.title),
-                            body=_soften_claim(section.body),
-                        )
-                        for section in product.detail_sections
-                    ],
-                    caution=_soften_claim(product.caution) if product.caution else None,
-                )
+                _build_llm_product_narrative(product)
                 for product in narrative.product_explanations
             ],
             selection_guide=_soften_claim(narrative.selection_guide) if narrative.selection_guide else None,
@@ -126,28 +128,33 @@ class OpenAIRecommendationNarrativeGenerator:
         *,
         recommendation: RecommendationResponse,
         mode: str,
+        view: str,
+        product_id: str | None,
     ) -> object:
         payload = json.dumps(
             {
                 "model": self.model,
                 "messages": [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "system", "content": _system_prompt_for_view(view)},
                     {
                         "role": "user",
                         "content": json.dumps(
-                            {
-                                "mode": mode,
-                                "recommendation": dump_model(recommendation),
-                            },
+                            _build_llm_input(
+                                recommendation,
+                                mode=mode,
+                                view=view,
+                                product_id=product_id,
+                            ),
                             ensure_ascii=False,
                         ),
                     },
                 ],
                 "temperature": 0.45,
                 "seed": 42,
+                "max_completion_tokens": _max_completion_tokens_for_view(view),
                 "response_format": {
                     "type": "json_schema",
-                    "json_schema": _OPENAI_NARRATIVE_SCHEMA,
+                    "json_schema": _schema_for_view(view),
                 },
             },
             ensure_ascii=False,
@@ -189,19 +196,36 @@ class FallbackAwareRecommendationNarrativeGenerator:
         *,
         mode: str,
         use_llm: bool,
+        view: str,
+        product_id: str | None,
     ) -> RecommendationNarrative:
         if not recommendation.products:
             return _build_no_result_narrative(recommendation)
         if use_llm:
             try:
-                return self.llm_generator.generate(recommendation, mode=mode)
+                return self.llm_generator.generate(
+                    recommendation,
+                    mode=mode,
+                    view=view,
+                    product_id=product_id,
+                )
             except Exception as exc:
-                fallback = self.fallback_generator.generate(recommendation, mode=mode)
+                fallback = self.fallback_generator.generate(
+                    recommendation,
+                    mode=mode,
+                    view=view,
+                    product_id=product_id,
+                )
                 return _copy_narrative(
                     fallback,
                     fallback_reason=_shorten(str(exc), limit=240),
                 )
-        return self.fallback_generator.generate(recommendation, mode=mode)
+        return self.fallback_generator.generate(
+            recommendation,
+            mode=mode,
+            view=view,
+            product_id=product_id,
+        )
 
 
 def create_recommendation_narrative_response(
@@ -210,16 +234,19 @@ def create_recommendation_narrative_response(
     request: RecommendationNarrativeRequest | None = None,
 ) -> RecommendationNarrativeResponse:
     normalized_request = request or RecommendationNarrativeRequest()
+    page_size = MAX_PAGE_SIZE if normalized_request.view == "detail" else normalized_request.product_limit
     recommendation = get_recommendation_response(
         session,
         recommendation_id,
         page=1,
-        page_size=normalized_request.product_limit,
+        page_size=page_size,
     )
     narrative = get_default_recommendation_narrative_generator().generate(
         recommendation,
         mode=normalized_request.mode,
         use_llm=normalized_request.use_llm,
+        view=normalized_request.view,
+        product_id=normalized_request.product_id,
     )
     return RecommendationNarrativeResponse(
         recommendation_id=recommendation.recommendation_id,
@@ -232,6 +259,113 @@ def get_default_recommendation_narrative_generator() -> FallbackAwareRecommendat
     return FallbackAwareRecommendationNarrativeGenerator(
         llm_generator=OpenAIRecommendationNarrativeGenerator(),
         fallback_generator=RuleBasedRecommendationNarrativeGenerator(),
+    )
+
+
+def _select_products_for_view(
+    recommendation: RecommendationResponse,
+    *,
+    view: str,
+    product_id: str | None,
+) -> list[RecommendedProduct]:
+    if view != "detail":
+        return recommendation.products
+
+    if not product_id:
+        raise ApiError(400, "INVALID_INPUT", "상세 설명을 만들 상품 id가 필요합니다.")
+
+    for product in recommendation.products:
+        if product.product_id == product_id:
+            return [product]
+
+    raise ApiError(404, "NOT_FOUND", "추천 결과에서 상품을 찾을 수 없습니다.")
+
+
+def _build_cards_narrative_from_payload(
+    payload: object,
+    recommendation: RecommendationResponse,
+) -> RecommendationNarrative:
+    narrative = _NarrativeCardsPayload.model_validate(payload)
+    _validate_product_ids([product.product_id for product in narrative.product_explanations], recommendation)
+    actual_products = {product.product_id: product for product in recommendation.products}
+
+    return RecommendationNarrative(
+        generation_source="llm",
+        overview=RecommendationNarrativeOverview(
+            headline=_polish_overview_headline(narrative.overview.headline, recommendation),
+            summary=_polish_overview_summary(narrative.overview.summary, recommendation),
+            key_points=[_soften_claim(item) for item in narrative.overview.key_points],
+        ),
+        product_explanations=[
+            _build_llm_card_narrative_product(product, actual_products[product.product_id])
+            for product in narrative.product_explanations
+        ],
+        selection_guide=None,
+    )
+
+
+def _build_detail_narrative_from_payload(
+    payload: object,
+    recommendation: RecommendationResponse,
+) -> RecommendationNarrative:
+    narrative = _NarrativeDetailPayload.model_validate(payload)
+    product = narrative.product_explanation
+    _validate_product_ids([product.product_id], recommendation)
+    actual_product = {item.product_id: item for item in recommendation.products}[product.product_id]
+
+    return RecommendationNarrative(
+        generation_source="llm",
+        overview=_build_fallback_overview(recommendation),
+        product_explanations=[
+            _build_llm_product_narrative(
+                product,
+                actual_rank=actual_product.rank,
+                actual_product=actual_product,
+            )
+        ],
+        selection_guide=None,
+    )
+
+
+def _build_llm_card_narrative_product(
+    product: "_NarrativeCardProductPayload",
+    actual_product: RecommendedProduct,
+) -> RecommendationNarrativeProduct:
+    role = _polish_role(product.role)
+    return RecommendationNarrativeProduct(
+        product_id=product.product_id,
+        rank=actual_product.rank,
+        role=role,
+        card=RecommendationNarrativeCard(
+            headline=_polish_card_headline(product.card.headline, role),
+            reason=_soften_claim(product.card.reason),
+            chips=_clean_chips(product.card.chips, product=actual_product)
+            or _fallback_chips_from_product(actual_product),
+        ),
+        detail_sections=[],
+        caution=None,
+    )
+
+
+def _build_llm_product_narrative(
+    product: "_NarrativeProductPayload",
+    *,
+    actual_rank: int | None = None,
+    actual_product: RecommendedProduct | None = None,
+) -> RecommendationNarrativeProduct:
+    role = _polish_role(product.role)
+    return RecommendationNarrativeProduct(
+        product_id=product.product_id,
+        rank=actual_rank or product.rank,
+        role=role,
+        card=RecommendationNarrativeCard(
+            headline=_polish_card_headline(product.card.headline, role),
+            reason=_soften_claim(product.card.reason),
+            chips=_clean_chips(product.card.chips, product=actual_product)
+            or _fallback_chips_from_product(actual_product),
+        ),
+        detail_sections=_clean_detail_sections(product.detail_sections),
+        caution=_soften_claim(product.caution) if product.caution else None,
     )
 
 
@@ -299,13 +433,18 @@ def _build_fallback_product_explanation(
     recommendation: RecommendationResponse,
     *,
     mode: str,
+    include_detail: bool = True,
 ) -> RecommendationNarrativeProduct:
     effects = _effect_names_from_tags(product.evidence_tags)
     ingredients = product.key_ingredients[:3]
     role = _fallback_role(product, effects)
     chips = _build_fallback_chips(product, recommendation, effects)
     card_reason = _build_card_reason(product, effects, ingredients)
-    detail_sections = _build_detail_sections(product, recommendation, effects, ingredients)
+    detail_sections = (
+        _build_detail_sections(product, recommendation, effects, ingredients)
+        if include_detail
+        else []
+    )
 
     return RecommendationNarrativeProduct(
         product_id=product.product_id,
@@ -317,7 +456,7 @@ def _build_fallback_product_explanation(
             chips=chips,
         ),
         detail_sections=detail_sections,
-        caution=_fallback_caution(product, recommendation, mode=mode),
+        caution=_fallback_caution(product, recommendation, mode=mode) if include_detail else None,
     )
 
 
@@ -431,6 +570,19 @@ def _build_fallback_chips(
     return _dedupe(chips)[:5]
 
 
+def _fallback_chips_from_product(product: RecommendedProduct | None) -> list[str]:
+    if product is None:
+        return []
+    chips = _effect_names_from_tags(product.evidence_tags)[:2]
+    if product.score_breakdown.concentration_bucket in {"optimal", "meaningful"}:
+        chips.append("함량 확인")
+    if product.score_breakdown.skin_type_score >= 70:
+        chips.append("피부타입")
+    if product.score_breakdown.vector_score > 0:
+        chips.append("의미 매칭")
+    return _dedupe(chips)[:3]
+
+
 def _concentration_reason(product: RecommendedProduct) -> str | None:
     bucket = product.score_breakdown.concentration_bucket
     if bucket == "optimal":
@@ -470,6 +622,71 @@ def _fallback_caution(
     if mode == "community_beta":
         return "개인 피부 상태에 따라 사용감은 다를 수 있어요. 구매 전 전성분을 한 번 더 확인해주세요."
     return None
+
+
+def _build_llm_input(
+    recommendation: RecommendationResponse,
+    *,
+    mode: str,
+    view: str,
+    product_id: str | None,
+) -> dict:
+    products = _select_products_for_view(recommendation, view=view, product_id=product_id)
+    summary = recommendation.summary
+    constraints = summary.purchase_constraints
+
+    return {
+        "mode": mode,
+        "view": view,
+        "user_context": {
+            "concern_text": summary.concern_text,
+            "skin_type": summary.skin_type,
+            "sensitivity": summary.sensitivity,
+            "matched_concerns": summary.matched_concerns[:4],
+            "expected_effects": summary.expected_effects[:5],
+            "avoid_ingredients": summary.avoid_ingredients[:5],
+            "purchase_constraints": {
+                "categories": [category.name for category in constraints.categories[:3]],
+                "brands": [brand.name for brand in constraints.brands[:3]],
+                "price_min": constraints.price_min,
+                "price_max": constraints.price_max,
+            },
+        },
+        "result_context": {
+            "total_items": recommendation.pagination.total_items,
+            "visible_items": len(products),
+            "ranking_basis": ["성분 근거", "피부 타입", "구매 조건", "검색 매칭"],
+        },
+        "products": [_build_llm_product_fact(product) for product in products],
+    }
+
+
+def _build_llm_product_fact(product: RecommendedProduct) -> dict:
+    score = product.score_breakdown
+    return {
+        "product_id": product.product_id,
+        "rank": product.rank,
+        "brand": product.brand,
+        "name": product.name,
+        "total_score": product.total_score,
+        "lowest_price": product.lowest_price,
+        "matched_effects": _effect_names_from_tags(product.evidence_tags)[:4],
+        "key_ingredients": product.key_ingredients[:4],
+        "reason_summary": _shorten(product.reason_summary, limit=120),
+        "score_facts": {
+            "ingredient_effect_score": score.ingredient_effect_score,
+            "ingredient_evidence_score": score.ingredient_evidence_score,
+            "functional_claim_score": score.functional_claim_score,
+            "concentration_fit_score": score.concentration_fit_score,
+            "concentration_bucket": score.concentration_bucket,
+            "concentration_warning": score.concentration_warning,
+            "skin_type_score": score.skin_type_score,
+            "sensitivity_score": score.sensitivity_score,
+            "price_score": score.price_score,
+            "search_match_score": score.search_match_score,
+            "risk_warnings": score.risk_warnings[:3],
+        },
+    }
 
 
 def _has_purchase_constraints(constraints) -> bool:
@@ -528,9 +745,41 @@ def _polish_overview_summary(summary: str, recommendation: RecommendationRespons
     return normalized
 
 
+def _polish_role(role: str) -> str:
+    normalized = _soften_claim(role.strip())
+    product_name_markers = (
+        "크림",
+        "세럼",
+        "앰플",
+        "토너",
+        "스킨",
+        "로션",
+        "에센스",
+        "밀크",
+        "젤",
+        "밤",
+        "팩",
+        "마스크",
+    )
+    generic_fragments = (
+        "추천 제품",
+        "추천 상품",
+        "주요 추천",
+        "좋은 제품",
+        "좋은 상품",
+        "먼저 볼 제품",
+        "먼저 볼 상품",
+    )
+    looks_like_product_type = any(marker in normalized for marker in product_name_markers)
+    looks_generic = any(fragment in normalized for fragment in generic_fragments)
+    if not normalized or looks_like_product_type or looks_generic:
+        return "근거 확인형"
+    return normalized
+
+
 def _polish_card_headline(headline: str, role: str) -> str:
     normalized = _soften_claim(headline.strip())
-    polished_role = _soften_claim(role.strip()) or "균형형 후보"
+    polished_role = _polish_role(role) or "균형형 후보"
     product_name_markers = (
         "크림",
         "세럼",
@@ -546,21 +795,73 @@ def _polish_card_headline(headline: str, role: str) -> str:
         "마스크",
     )
     generic_keywords = ("추천", "제품", "상품")
+    generic_fragments = ("추천 제품", "추천 상품", "주요 추천", "제품 추천", "상품 추천")
     looks_like_product_name = len(normalized) > 22 or any(marker in normalized for marker in product_name_markers)
-    looks_generic = normalized in generic_keywords or normalized.endswith("추천")
+    looks_generic = (
+        normalized in generic_keywords
+        or normalized.endswith("추천")
+        or normalized.endswith("제품")
+        or normalized.endswith("상품")
+        or any(fragment in normalized for fragment in generic_fragments)
+    )
     if not normalized or looks_like_product_name or looks_generic:
         return f"{polished_role}, 먼저 볼 만해요"
     return normalized
 
 
-def _clean_chips(chips: list[str]) -> list[str]:
+def _clean_chips(chips: list[str], *, product: RecommendedProduct | None = None) -> list[str]:
     cleaned: list[str] = []
+    product_markers = (
+        "크림",
+        "세럼",
+        "앰플",
+        "토너",
+        "스킨",
+        "로션",
+        "에센스",
+        "밀크",
+        "젤",
+        "밤",
+        "팩",
+        "마스크",
+    )
     for chip in chips:
         normalized = chip.split(":", 1)[0].strip()
         normalized = normalized.replace(" 효과", "").replace("효과", "").strip()
-        if normalized and normalized not in {"배지", "badge", "tag"}:
+        has_unit_or_number = any(char.isdigit() for char in normalized) or any(
+            unit in normalized.lower()
+            for unit in ("ml", "g", "%", "호", "매", "개입")
+        )
+        looks_like_product = len(normalized) > 12 or any(marker in normalized for marker in product_markers)
+        if product is not None:
+            looks_like_product = (
+                looks_like_product
+                or normalized == product.brand
+                or normalized in product.name
+                or product.brand in normalized
+            )
+        if (
+            normalized
+            and normalized not in {"배지", "badge", "tag"}
+            and not has_unit_or_number
+            and not looks_like_product
+        ):
             cleaned.append(normalized)
     return _dedupe(cleaned)[:5]
+
+
+def _clean_detail_sections(
+    sections: list["_NarrativeDetailSectionPayload"],
+) -> list[RecommendationNarrativeDetailSection]:
+    cleaned: list[RecommendationNarrativeDetailSection] = []
+    skip_title_keywords = ("사용 방법", "사용법", "바르는 법", "루틴")
+    for section in sections:
+        title = _soften_claim(section.title)
+        body = _soften_claim(section.body)
+        if any(keyword in title for keyword in skip_title_keywords):
+            continue
+        cleaned.append(RecommendationNarrativeDetailSection(title=title, body=body))
+    return cleaned
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -581,9 +882,15 @@ def _soften_claim(value: str) -> str:
         "강력한": "주요",
         "해결해줄": "덜어내는 데 도움을 줄 수 있는",
         "해결할 수 있는": "덜어내는 데 도움을 줄 수 있는",
+        "해결할": "신경 써볼 만한",
         "해결하고 싶다면": "신경 쓰인다면",
         "해결하는": "덜어내는 데 도움을 줄 수 있는",
         "해결하기 위해": "덜어내는 데 도움을 줄 수 있도록",
+        "해결": "케어",
+        "완화하는": "덜어내는 데 도움을 줄 수 있는",
+        "완화할": "덜어내는 데 도움을 줄 수 있는",
+        "완화에": "케어에",
+        "완화": "케어",
         "효능이 뛰어난": "효능 근거가 보이는",
         "뛰어난": "근거가 보이는",
         "높은 점수를 기록": "상위 점수 후보로 확인",
@@ -595,6 +902,7 @@ def _soften_claim(value: str) -> str:
         "개선할": "케어할",
         "개선하고": "케어하고",
         "개선하는": "케어하는",
+        "개선": "케어",
         "효과적입니다": "도움을 줄 수 있는 근거로 봤어요",
         "효과적인": "도움을 줄 수 있는",
         "효과가 뛰어납니다": "도움을 줄 수 있는 근거로 봤어요",
@@ -612,6 +920,8 @@ def _soften_claim(value: str) -> str:
         "성분과 효과": "성분 근거",
         "강화합니다": "강화에 도움을 줄 수 있는 근거로 봤어요",
         "피부 장벽을 강화하고 싶은": "피부 장벽 케어가 필요한",
+        "강화에": "케어에",
+        "강화": "케어",
         "강화하고": "케어하고",
         "진정시킵니다": "진정 쪽 근거로 봤어요",
         "진정시키는": "진정에 도움을 줄 수 있는",
@@ -635,10 +945,20 @@ def _soften_claim(value: str) -> str:
         "작용합니다": "관련 근거로 반영했어요",
         "제공하는": "도움을 줄 수 있는",
         "제공합니다": "도움을 줄 수 있어요",
+        "제공하여": "도움을 줄 수 있어",
+        "깊은 보습을 제공하여": "보습에 도움을 줄 수 있어",
         "공급합니다": "공급 쪽 근거도 반영했어요",
         "수분을 공급 쪽 근거도 반영했어요": "수분 공급 근거도 함께 반영됐어요",
         "개선합니다": "개선 쪽 후보로 봤어요",
+        "속건조를 케어합니다": "속건조 케어에 도움을 줄 수 있어요",
+        "케어합니다": "케어에 도움을 줄 수 있어요",
         "도움을 줍니다": "도움을 줄 수 있어요",
+        "도움을 줄 수 있습니다": "도움을 줄 수 있어요",
+        "도움을 줄 수 있는 데 도움을 줄 수 있습니다": "도움이 될 수 있어요",
+        "도움을 줄 수 있는 데 도움을 줄 수 있어요": "도움이 될 수 있어요",
+        "도와줍니다": "도움을 줄 수 있어요",
+        "줄여줍니다": "줄이는 데 도움을 줄 수 있어요",
+        "강화하여": "케어하는 데 도움을 줄 수 있어",
         "보호합니다": "보호에 도움을 줄 수 있어요",
         "소개합니다": "정리했어요",
         "동시에 도움을": "함께 도움을",
@@ -655,6 +975,9 @@ def _soften_claim(value: str) -> str:
         "자극이 적은 편입니다": "자극 가능성은 개인차가 있어요",
         "자극이 적은 편": "자극 가능성은 개인차가 있음",
         "함량은 확인되지 않았습니다": "공개 함량 정보는 제한적이에요",
+        "속건조를 효과적으로 케어하는": "속건조 케어에 도움을 줄 수 있는",
+        "효과적으로": "도움이 되도록",
+        "권장합니다": "권장해요",
     }
     softened = value
     for source, target in replacements.items():
@@ -662,12 +985,12 @@ def _soften_claim(value: str) -> str:
     return softened.replace("!", "")
 
 
-def _validate_product_ids(payload: "_NarrativePayload", recommendation: RecommendationResponse) -> None:
+def _validate_product_ids(product_ids: list[str], recommendation: RecommendationResponse) -> None:
     allowed_product_ids = {product.product_id for product in recommendation.products}
     unknown_product_ids = [
-        product.product_id
-        for product in payload.product_explanations
-        if product.product_id not in allowed_product_ids
+        product_id
+        for product_id in product_ids
+        if product_id not in allowed_product_ids
     ]
     if unknown_product_ids:
         raise RecommendationNarrativeError(
@@ -733,6 +1056,15 @@ class _NarrativeCardPayload(BaseModel):
     chips: list[str] = Field(max_length=5)
 
 
+class _NarrativeCardProductPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str
+    rank: int
+    role: str
+    card: _NarrativeCardPayload
+
+
 class _NarrativeDetailSectionPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -751,12 +1083,76 @@ class _NarrativeProductPayload(BaseModel):
     caution: str
 
 
+class _NarrativeCardsPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    overview: _NarrativeOverviewPayload
+    product_explanations: list[_NarrativeCardProductPayload] = Field(min_length=1, max_length=10)
+
+
+class _NarrativeDetailPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_explanation: _NarrativeProductPayload
+
+
 class _NarrativePayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     overview: _NarrativeOverviewPayload
     product_explanations: list[_NarrativeProductPayload] = Field(min_length=1, max_length=10)
     selection_guide: str
+
+
+def _system_prompt_for_view(view: str) -> str:
+    if view == "cards":
+        return _CARDS_SYSTEM_PROMPT
+    if view == "detail":
+        return _DETAIL_SYSTEM_PROMPT
+    return _SYSTEM_PROMPT
+
+
+def _schema_for_view(view: str) -> dict:
+    if view == "cards":
+        return _OPENAI_CARDS_SCHEMA
+    if view == "detail":
+        return _OPENAI_DETAIL_SCHEMA
+    return _OPENAI_NARRATIVE_SCHEMA
+
+
+def _max_completion_tokens_for_view(view: str) -> int:
+    if view == "cards":
+        return 900
+    if view == "detail":
+        return 700
+    return 1800
+
+
+_CARDS_SYSTEM_PROMPT = """
+너는 화장품 추천 결과를 짧게 다듬는 UX 카피라이터다.
+입력 facts에 없는 성분, 함량, 효능, 논문은 만들지 않는다.
+치료/완치/보장/반드시/최적/강력한/효과적 같은 단정·과장 표현은 쓰지 않는다.
+각 상품은 카드에 바로 보일 문구만 쓴다.
+headline은 18자 이하, reason은 60자 이하, chips는 3개 이하로 쓴다.
+role은 "추천 제품", "좋은 크림"처럼 쓰지 말고 "보습·장벽 집중형"처럼 선택 역할로 쓴다.
+chips에는 용량(ml/g), 가격, 제품명 조각, "효과", "배지", "태그"를 쓰지 않는다.
+상세 설명과 선택 가이드는 만들지 않는다.
+한국어로 선명하고 자연스럽게 쓴다.
+""".strip()
+
+
+_DETAIL_SYSTEM_PROMPT = """
+너는 화장품 추천 상세 화면의 설명을 쓰는 UX 카피라이터다.
+입력 facts에 없는 성분, 함량, 효능, 논문은 만들지 않는다.
+치료/완치/보장/반드시/최적/강력한/효과적 같은 단정·과장 표현은 쓰지 않는다.
+상품 1개에 대해서만 상세 설명을 만든다.
+detail_sections는 2~3개만 만들고, 각 body는 90자 이하로 쓴다.
+role은 "추천 제품", "좋은 크림"처럼 쓰지 말고 "보습·장벽 집중형"처럼 선택 역할로 쓴다.
+chips에는 용량(ml/g), 가격, 제품명 조각, "효과", "배지", "태그"를 쓰지 않는다.
+입력 facts에 없는 사용 방법, 바르는 법, 루틴 설명은 만들지 않는다.
+사용자 고민 연결, 성분 근거, 함량/피부타입/주의 중 입력 facts에 있는 내용만 쓴다.
+한국어로 믿음직하지만 과장 없이 쓴다.
+""".strip()
 
 
 _SYSTEM_PROMPT = """
@@ -790,6 +1186,115 @@ overview 규칙:
 - role은 상품의 선택 역할이다. 예: "보습·장벽 집중형", "함량 근거형", "민감 피부 고려형".
 - 한국어로 짧고 선명하게 쓴다.
 """.strip()
+
+
+_OPENAI_CARDS_SCHEMA = {
+    "name": "recommendation_card_narrative",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "overview": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "headline": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "key_points": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": 3,
+                    },
+                },
+                "required": ["headline", "summary", "key_points"],
+            },
+            "product_explanations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "product_id": {"type": "string"},
+                        "rank": {"type": "integer"},
+                        "role": {"type": "string"},
+                        "card": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "headline": {"type": "string"},
+                                "reason": {"type": "string"},
+                                "chips": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "maxItems": 3,
+                                },
+                            },
+                            "required": ["headline", "reason", "chips"],
+                        },
+                    },
+                    "required": ["product_id", "rank", "role", "card"],
+                },
+            },
+        },
+        "required": ["overview", "product_explanations"],
+    },
+}
+
+
+_OPENAI_DETAIL_SCHEMA = {
+    "name": "recommendation_detail_narrative",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "product_explanation": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "product_id": {"type": "string"},
+                    "rank": {"type": "integer"},
+                    "role": {"type": "string"},
+                    "card": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "headline": {"type": "string"},
+                            "reason": {"type": "string"},
+                            "chips": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "maxItems": 3,
+                            },
+                        },
+                        "required": ["headline", "reason", "chips"],
+                    },
+                    "detail_sections": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 3,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "title": {"type": "string"},
+                                "body": {"type": "string"},
+                            },
+                            "required": ["title", "body"],
+                        },
+                    },
+                    "caution": {"type": "string"},
+                },
+                "required": ["product_id", "rank", "role", "card", "detail_sections", "caution"],
+            },
+        },
+        "required": ["product_explanation"],
+    },
+}
 
 
 _OPENAI_NARRATIVE_SCHEMA = {
