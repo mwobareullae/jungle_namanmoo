@@ -11,6 +11,10 @@ const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
 document.documentElement.dataset.appMode = appMode;
 
+const gatedStylePageKeys: OriginalPageKey[] = ["checkout", "paymentComplete"];
+
+const needsStyleGate = (pageKey: OriginalPageKey) => gatedStylePageKeys.includes(pageKey);
+
 const getCurrentPageKey = (): OriginalPageKey => {
   const { pathname } = window.location;
 
@@ -38,7 +42,15 @@ function App() {
   const visiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey)
     ? "home"
     : pageKey;
+  const [styleReadyKey, setStyleReadyKey] = useState<OriginalPageKey | null>(() => {
+    const initialPageKey = getCurrentPageKey();
+    const initialVisiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(initialPageKey)
+      ? "home"
+      : initialPageKey;
+    return needsStyleGate(initialVisiblePageKey) ? null : initialVisiblePageKey;
+  });
   const page = useMemo(() => originalPages[visiblePageKey], [visiblePageKey]);
+  const isPageStyleReady = !needsStyleGate(visiblePageKey) || styleReadyKey === visiblePageKey;
 
   useEffect(() => {
     if (appMode === "community" && visiblePageKey !== pageKey) {
@@ -55,6 +67,8 @@ function App() {
 
   useLayoutEffect(() => {
     const injectedNodes: HTMLElement[] = [];
+    const styleLoadPromises: Promise<void>[] = [];
+    let isActive = true;
     document.documentElement.dataset.appMode = appMode;
 
     document.body.classList.toggle("search-results-page", visiblePageKey === "search");
@@ -62,6 +76,22 @@ function App() {
     const headContainer = document.createElement("div");
     headContainer.innerHTML = page.headHtml;
     Array.from(headContainer.children).forEach((node) => {
+      if (node instanceof HTMLLinkElement && node.rel === "stylesheet") {
+        const href = new URL(node.getAttribute("href") ?? "", window.location.origin).href;
+        const existingLink = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).find(
+          (link) => link.href === href && link.sheet,
+        );
+
+        if (existingLink) {
+          return;
+        }
+
+        styleLoadPromises.push(new Promise((resolve) => {
+          node.addEventListener("load", () => resolve(), { once: true });
+          node.addEventListener("error", () => resolve(), { once: true });
+        }));
+      }
+
       document.head.appendChild(node);
       injectedNodes.push(node as HTMLElement);
     });
@@ -454,7 +484,16 @@ function App() {
       }, 0);
     }
 
+    if (needsStyleGate(visiblePageKey)) {
+      Promise.all(styleLoadPromises).then(() => {
+        if (isActive) {
+          setStyleReadyKey(visiblePageKey);
+        }
+      });
+    }
+
     return () => {
+      isActive = false;
       injectedNodes.forEach((node) => node.remove());
       document.body.classList.remove("search-results-page");
     };
@@ -462,7 +501,7 @@ function App() {
 
   return (
     <main className="spa-origin-shell">
-      {visiblePageKey === "home" ? (
+      {!isPageStyleReady ? null : visiblePageKey === "home" ? (
         <HomePage bodyHtml={page.bodyHtml} />
       ) : visiblePageKey === "search" ? (
         <SearchPage />
