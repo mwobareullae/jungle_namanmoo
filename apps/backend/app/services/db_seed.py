@@ -394,6 +394,7 @@ def _seed_risk_flags(
         ingredient.ingredient_id: (ingredient.name_ko, ingredient.name_en)
         for ingredient in catalog.ingredients
     }
+    seen_keys: set[tuple[int, str, str]] = set()
     for record in catalog.risk_flags:
         for ingredient_code in _risk_flag_ingredient_codes(
             record.ingredient_id,
@@ -401,14 +402,20 @@ def _seed_risk_flags(
             alias_to_canonical,
         ):
             ingredient = ingredients_by_code[ingredient_code]
-            row = _one_or_none(
-                session,
-                RiskFlagRow,
-                RiskFlagRow.ingredient_id == ingredient.id,
-                RiskFlagRow.risk_type == record.risk_type,
-                RiskFlagRow.display_text == record.display_text,
-            )
-            if row is None:
+            key = (ingredient.id, record.risk_type, record.display_text)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            rows = session.execute(
+                select(RiskFlagRow).where(
+                    RiskFlagRow.ingredient_id == ingredient.id,
+                    RiskFlagRow.risk_type == record.risk_type,
+                    RiskFlagRow.display_text == record.display_text,
+                )
+            ).scalars().all()
+
+            if not rows:
                 session.add(
                     RiskFlagRow(
                         ingredient_id=ingredient.id,
@@ -423,6 +430,9 @@ def _seed_risk_flags(
                     )
                 )
             else:
+                row = rows[0]
+                for duplicate in rows[1:]:
+                    session.delete(duplicate)
                 row.severity = record.severity
                 row.severity_score = _decimal_or_none(record.severity_score)
                 row.applies_to = _join_values(record.applies_to)
