@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -92,6 +94,8 @@ class RecommendationResponse(BaseModel):
 
 class RecommendationNarrativeRequest(BaseModel):
     mode: str = "community_beta"
+    view: Literal["cards", "detail", "full"] = "cards"
+    product_id: str | None = None
     product_limit: int = Field(default=5, ge=1, le=10)
     use_llm: bool = True
 
