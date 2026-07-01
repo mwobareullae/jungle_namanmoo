@@ -3,6 +3,7 @@ import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
+import { navigateWithinApp } from "../lib/navigation";
 import type {
   IngredientEvidence,
   ProductDetail,
@@ -243,7 +244,7 @@ function ProductDetailSpaPage() {
   const goToCheckout = (mode: "cart" | "buy") => {
     const params = new URLSearchParams(checkoutQuery);
     params.set("mode", mode);
-    window.location.href = `/checkout?${params.toString()}`;
+    navigateWithinApp(`/checkout?${params.toString()}`);
   };
 
   const narrativeCard = narrativeProduct?.card;
