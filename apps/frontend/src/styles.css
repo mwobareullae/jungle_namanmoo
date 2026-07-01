@@ -59,6 +59,17 @@ body {
   z-index: 20 !important;
 }
 
+.profile-option.active {
+  background: #d8f1f8 !important;
+  color: #063445 !important;
+  font-weight: 700 !important;
+  box-shadow: inset 0 0 0 1px rgba(35, 144, 181, 0.32);
+}
+
+.profile-option.active:hover {
+  background: #c9ebf5 !important;
+}
+
 .ingredient-stat-grid,
 .ingredient-stat,
 .ingredient-summary-line {
@@ -955,13 +966,15 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .ai-narrative-card {
+  position: relative;
   display: grid;
   gap: 10px;
   align-items: start;
-  padding: 16px 18px;
-  border: 0;
+  padding: 17px 18px 17px 20px;
+  border: 1.5px solid #d8deef;
   border-radius: 6px;
-  background: #f7f8ff;
+  background: #f4f6ff;
+  box-shadow: 0 8px 22px rgba(22, 32, 52, 0.07);
   letter-spacing: 0;
 }
 
@@ -1063,10 +1076,10 @@ html[data-app-mode="community"] .search-results-shell {
   align-items: center;
   min-height: 22px;
   padding: 0 7px;
-  border: 1px solid #edf0f5;
+  border: 1px solid #dfe4ee;
   border-radius: 4px;
   background: #ffffff;
-  color: #8a929c;
+  color: #626b76;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -1074,9 +1087,9 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .ai-narrative-chip-list .score-chip {
-  border-color: #e2f6fb;
-  background: #eefbff;
-  color: #2daed0;
+  border-color: #bfeef8;
+  background: #def8fd;
+  color: #15839b;
   font-weight: 700;
 }
 
