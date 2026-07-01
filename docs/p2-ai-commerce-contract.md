@@ -53,7 +53,7 @@ FastAPI는 P2에서 회원 DB를 직접 보지 않고, Spring 또는 프론트�
 
 ## 추천 결과 응답
 
-Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_id`, `rank`만으로 상품 상세, 찜, 장바구니 유입을 이어갈 수 있어야 한다.
+Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_id`, `rank`만으로 상품 상세와 찜을 이어간다. 장바구니 추가는 각 상품의 `cart_handoff` 객체를 그대로 Spring에 전달한다.
 
 ```json
 {
@@ -88,6 +88,13 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
         "risk_flag_count": 0,
         "risk_warnings": [],
         "risk_policy": null
+      },
+      "cart_handoff": {
+        "product_id": "prod_oy_a000000144918",
+        "quantity": 1,
+        "source": "ai_recommendation",
+        "recommendation_id": "rec_000001",
+        "recommendation_rank": 1
       }
     }
   ]
@@ -103,6 +110,7 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
 | `total_score` | 표시/분석 | 구매 가격 계산에는 사용하지 않음 |
 | `reason_summary` | 표시 | 추천 카드/상세 설명 |
 | `score_breakdown` | 표시/디버그 | 관리자/발표용 근거 |
+| `cart_handoff` | 사용 | 장바구니 추가 API로 넘길 추천 유입 payload |
 
 ## 상품 상세 연결
 
@@ -144,7 +152,7 @@ FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `rea
 
 ## 장바구니 handoff 계약
 
-장바구니 추가는 Spring Commerce가 처리한다. FastAPI는 장바구니를 직접 변경하지 않는다.
+장바구니 추가는 Spring Commerce가 처리한다. FastAPI는 장바구니를 직접 변경하지 않고, 추천 응답에 `cart_handoff` 객체만 내려준다.
 
 ```json
 {
@@ -155,6 +163,8 @@ FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `rea
   "recommendation_rank": 1
 }
 ```
+
+프론트는 추천 결과 카드 또는 추천 맥락이 있는 상품 상세의 장바구니 버튼에서 `cart_handoff`를 그대로 Spring 장바구니 API에 전달한다.
 
 | 필드 | 필수 | 소유 | 설명 |
 | --- | --- | --- | --- |
