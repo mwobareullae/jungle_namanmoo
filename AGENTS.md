@@ -71,15 +71,18 @@
 
 ### 팀원5 세민
 
-- 담당: 상품 10개, 이미지, 가격, 구매 URL, 상품-성분 매핑, seed 데이터
+- 담당: P2 자사몰 상품 seed, 10만 상품 feed 계약, 이미지 작업 큐, 가격/재고 seed, 상품-성분 매핑, 대량 데이터 QA 기준
 - 주 작업 폴더:
   - `docs/data-contract.md`
   - `data/`
   - `data/examples/`
 - 주 산출물:
   - `data/products.csv`
+  - `data/product_skin_profiles.csv`
   - `data/product_ingredients.csv`
   - `data/product_prices.csv`
+  - `data/product_inventory.csv`
+  - `data/product_image_assets.csv`
   - `data/vector_docs.csv`
 
 ## AI 에이전트 작업 원칙
