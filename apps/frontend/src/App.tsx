@@ -7,6 +7,8 @@ import LoginPage from "./pages/LoginPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
+import SignupInfoPage from "./pages/SignupInfoPage";
+import SignupTermsPage from "./pages/SignupTermsPage";
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -525,11 +527,13 @@ function LegacyApp() {
   );
 }
 
-// 새 화면(/login)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
+// 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
     <Routes>
       {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+      {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
+      {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
       <Route path="*" element={<LegacyApp />} />
     </Routes>
   );
