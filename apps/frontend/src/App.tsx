@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
@@ -15,7 +17,7 @@ const gatedStylePageKeys: OriginalPageKey[] = ["checkout", "paymentComplete"];
 
 const needsStyleGate = (pageKey: OriginalPageKey) => gatedStylePageKeys.includes(pageKey);
 
-const getCurrentPageKey = (): OriginalPageKey => {
+const getCurrentPageKey = (): OriginalPageKey => { // 주소 보고 이름표 붙이기
   const { pathname } = window.location;
 
   if (pathname.startsWith("/search")) {
@@ -37,7 +39,9 @@ const getCurrentPageKey = (): OriginalPageKey => {
   return "home";
 };
 
-function App() {
+// /login이 아닌 모든 경로를 처리하는 기존 로직. 별도 컴포넌트로 분리해서
+// 아래 훅들이 /login에서는 아예 실행되지 않게 함(불필요한 스타일/스크립트 주입 방지).
+function LegacyApp() {
   const [pageKey, setPageKey] = useState<OriginalPageKey>(() => getCurrentPageKey());
   const visiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey)
     ? "home"
@@ -518,6 +522,16 @@ function App() {
         />
       )}
     </main>
+  );
+}
+
+// 새 화면(/login)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
+function App() {
+  return (
+    <Routes>
+      {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+      <Route path="*" element={<LegacyApp />} />
+    </Routes>
   );
 }
 
