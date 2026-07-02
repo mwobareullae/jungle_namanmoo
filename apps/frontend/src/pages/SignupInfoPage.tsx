@@ -2,11 +2,40 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 
+type SignupResponse = {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    id: number;
+    email: string;
+    created_at?: string;
+  };
+};
+
+type SignupErrorResponse = {
+  code?: string;
+  message?: string;
+};
+
+const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
+
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 // API 스펙 조건: 8자 이상, 영문+숫자 포함
 const isValidPassword = (password: string) =>
   password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+
+const getSignupErrorMessage = (status: number, code?: string) => {
+  if (code === "EMAIL_ALREADY_EXISTS" || status === 409) {
+    return "이미 가입된 이메일입니다.";
+  }
+
+  if (status >= 500) {
+    return "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+
+  return "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+};
 
 function SignupInfoPage() {
   const navigate = useNavigate();
@@ -15,6 +44,7 @@ function SignupInfoPage() {
 
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
+  const [emailApiErrorMessage, setEmailApiErrorMessage] = useState("");
   const [password, setPassword] = useState("");
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -22,7 +52,9 @@ function SignupInfoPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const emailErrorMessage =
-    emailTouched && !isValidEmail(email) ? "이메일 형식이 올바르지 않습니다." : "";
+    emailTouched && !isValidEmail(email)
+      ? "이메일 형식이 올바르지 않습니다."
+      : emailApiErrorMessage;
   const passwordErrorMessage =
     passwordTouched && !isValidPassword(password)
       ? "비밀번호는 8자 이상, 영문 + 숫자를 포함해야 합니다."
@@ -52,6 +84,7 @@ function SignupInfoPage() {
 
     if (!isValidEmail(email)) {
       setEmailTouched(true);
+      setEmailApiErrorMessage("");
       setErrorMessage("");
       return;
     }
@@ -68,15 +101,46 @@ function SignupInfoPage() {
       return;
     }
 
-    const response = await fetch("http://localhost:8000/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, consents: agreements })
-    });
+    let response: Response;
 
-    if (response.ok) {
-      setErrorMessage("가입 완료!");
+    try {
+      response = await fetch("http://localhost:8000/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, consents: agreements })
+      });
+    } catch {
+      setErrorMessage("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
     }
+
+    if (!response.ok) {
+      let error: SignupErrorResponse;
+
+      try {
+        error = (await response.json()) as SignupErrorResponse;
+      } catch {
+        error = {};
+      }
+
+      if (error.code === "EMAIL_ALREADY_EXISTS" || response.status === 409) {
+        setEmailTouched(true);
+        setEmailApiErrorMessage("이미 가입된 이메일입니다.");
+        setErrorMessage("");
+        return;
+      }
+
+      setErrorMessage(getSignupErrorMessage(response.status, error.code));
+      return;
+    }
+
+    const data = (await response.json()) as SignupResponse;
+    localStorage.setItem("accessToken", data.access_token);
+    localStorage.setItem("refreshToken", data.refresh_token);
+    localStorage.setItem("authUser", JSON.stringify(data.user));
+    localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
+    setErrorMessage("가입 완료!");
+    navigate("/", { replace: true });
   };
 
   return (
@@ -106,6 +170,7 @@ function SignupInfoPage() {
               }}
               onChange={(e) => {
                 setEmail(e.target.value);
+                setEmailApiErrorMessage("");
                 setErrorMessage("");
               }}
               placeholder="이메일"

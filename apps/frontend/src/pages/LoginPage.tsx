@@ -1,18 +1,64 @@
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
+
+type LoginResponse = {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    id: number;
+    email: string;
+  };
+};
+
+type LoginLocationState = {
+  from?: string;
+};
+
+const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
+
+const getRedirectPath = (from?: string) => {
+  if (!from || !from.startsWith("/") || from.startsWith("//") || from === "/login") {
+    return "/";
+  }
+
+  return from;
+};
 
 function LoginPage() {
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as LoginLocationState | null;
+  const redirectPath = getRedirectPath(locationState?.from);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setMessage("");
     const response = await fetch("http://localhost:8000/api/auth/login", {
-      method: "POST"
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
     });
-    if (response.ok) {
-      setMessage("로그인 성공!");
+    if (!response.ok) {
+      setMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
+      return;
     }
+    const data = (await response.json()) as LoginResponse;
+    localStorage.setItem("accessToken", data.access_token);
+    localStorage.setItem("refreshToken", data.refresh_token);
+    localStorage.setItem("authUser", JSON.stringify(data.user));
+    localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
+    setMessage("로그인 성공!");
+    navigate(redirectPath, { replace: true });
   };
 
   return (
@@ -41,8 +87,10 @@ function LoginPage() {
               </svg>
               <input
                 className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-4 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="이메일"
                 type="email"
+                value={email}
               />
             </div>
             <div className="relative">
@@ -62,8 +110,10 @@ function LoginPage() {
               </svg>
               <input
                 className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-14 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="비밀번호"
                 type={showPassword ? "text" : "password"}
+                value={password}
               />
               <button
                 className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
