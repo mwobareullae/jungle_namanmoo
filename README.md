@@ -55,6 +55,29 @@ docker compose config
 
 이 명령이 통과하면 `.env`와 `docker-compose.yml` 문법이 유효한 상태입니다.
 
+Compose는 컨테이너 재시작 후에도 원인 추적이 가능하도록 `json-file` 로그 보존 설정을 사용합니다. 기본 권장값은 컨테이너별 최대 `10m` 로그 파일 5개입니다. 서비스 1개당 최대 약 50MB를 남겨 최근 장애와 배치 실패 로그를 확인하면서도 디스크 증가를 제한하기 위한 값입니다.
+
+```env
+DOCKER_LOG_MAX_SIZE=10m
+DOCKER_LOG_MAX_FILE=5
+```
+
+장시간 부하테스트나 10만 배치 실행 중 로그가 더 필요하면 `DOCKER_LOG_MAX_SIZE=20m` 또는 `DOCKER_LOG_MAX_FILE=10`처럼 늘립니다. 디스크 여유가 적은 서버에서는 기본값을 유지하거나 줄입니다.
+
+개발 서버에서 10만 데이터 배치나 통합 테스트 중 한 컨테이너가 메모리를 과점유하지 않도록 서비스별 메모리 제한도 `.env`에서 조정할 수 있습니다. 기본 권장값은 dev 서버 목표 스펙인 RAM 8GB 이상, vCPU 2개 이상을 기준으로 잡았습니다. 세 컨테이너 합계 5GB로 제한해 OS, Docker, 빌드/배치 여유 메모리를 남깁니다.
+
+```env
+FRONTEND_MEMORY_LIMIT=1g
+BACKEND_MEMORY_LIMIT=2g
+POSTGRES_MEMORY_LIMIT=2g
+```
+
+- `FRONTEND_MEMORY_LIMIT=1g`: Vite dev server와 `npm install` 실행 여유를 둔 값입니다.
+- `BACKEND_MEMORY_LIMIT=2g`: FastAPI 테스트, 추천 API, 배치성 작업의 일시적 메모리 사용을 고려한 값입니다.
+- `POSTGRES_MEMORY_LIMIT=2g`: seed/import, 검색/추천 검증 중 DB가 서버 전체 메모리를 과점유하지 않도록 잡은 값입니다.
+
+100k import/search 테스트에서 OOM으로 종료되면 backend 또는 postgres 값을 먼저 올리고, 로컬 노트북에서 메모리가 부족하면 값을 낮춰서 실행합니다.
+
 ### 3. 전체 개발환경 실행
 
 ```bash
