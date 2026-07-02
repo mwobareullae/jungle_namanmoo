@@ -1,4 +1,5 @@
 import { useState } from "react";
+import AuthHeader from "../components/AuthHeader";
 
 function LoginPage() {
   const [message, setMessage] = useState("");
@@ -7,7 +8,7 @@ function LoginPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const response = await fetch("http://localhost:8000/api/auth/login", {
-      method: "POST",
+      method: "POST"
     });
     if (response.ok) {
       setMessage("로그인 성공!");
@@ -15,19 +16,17 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#fafafa]">
-      <header className="px-6 py-5">
-        <a className="text-xl font-bold text-[#1a1a1a] no-underline" href="/">
-          뭐바를래
-        </a>
-      </header>
-      <div className="flex flex-1 items-center justify-center p-6">
-        <div className="w-full max-w-[400px] rounded-[20px] bg-white px-8 py-10 shadow-[0_2px_24px_rgba(0,0,0,0.06)]">
-          <h1 className="mb-6 text-center text-2xl font-bold text-[#1a1a1a]">로그인</h1>
-          <form onSubmit={handleSubmit}>
-            <div className="relative mb-3">
+    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',system-ui,sans-serif] text-[#1A1A1A]">
+      <AuthHeader />
+      <main className="flex flex-1 items-center justify-center px-5 py-10">
+        <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
+          <div className="mb-7">
+            <h1 className="text-[28px] font-semibold leading-[1.25] text-[#1A1A1A]">로그인</h1>
+          </div>
+          <form className="grid gap-3" onSubmit={handleSubmit}>
+            <div className="relative">
               <svg
-                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-gray-500"
+                className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#9CA3AF]"
                 fill="none"
                 height="18"
                 stroke="currentColor"
@@ -41,14 +40,14 @@ function LoginPage() {
                 <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
               </svg>
               <input
-                className="w-full rounded-lg border border-black/[0.07] py-3 pr-4 pl-10 text-[15px] text-[#1a1a1a] focus:border-[#3d3d3d] focus:outline-none"
-                placeholder="아이디"
-                type="text"
+                className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-4 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
+                placeholder="이메일"
+                type="email"
               />
             </div>
-            <div className="relative mb-3">
+            <div className="relative">
               <svg
-                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-gray-500"
+                className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#9CA3AF]"
                 fill="none"
                 height="18"
                 stroke="currentColor"
@@ -62,36 +61,34 @@ function LoginPage() {
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
               <input
-                className="w-full rounded-lg border border-black/[0.07] py-3 pr-14 pl-10 text-[15px] text-[#1a1a1a] focus:border-[#3d3d3d] focus:outline-none"
+                className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-14 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
                 placeholder="비밀번호"
                 type={showPassword ? "text" : "password"}
               />
               <button
-                className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer border-0 bg-transparent text-[13px] text-[#3d3d3d]"
+                className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
                 onClick={() => setShowPassword((prev) => !prev)}
                 type="button"
               >
-                {showPassword ? "숨김" : "표시"}
+                {showPassword ? "숨김" : "비밀번호 표시"}
               </button>
             </div>
             <button
-              className="w-full cursor-pointer rounded-lg bg-[#1a1a1a] py-3.5 text-[15px] font-bold text-white hover:bg-[#3d3d3d]"
+              className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
               type="submit"
             >
               로그인
             </button>
           </form>
-          {message && <p className="mt-4 text-center text-sm text-[#3d3d3d]">{message}</p>}
-          <div className="mt-5 text-center text-[13px]">
-            <a className="text-[#3d3d3d] no-underline hover:underline" href="#">
-              아이디 찾기
-            </a>
-            <span className="mx-2.5 text-black/[0.15]">|</span>
-            <a className="text-[#3d3d3d] no-underline hover:underline" href="#">
+          {message && (
+            <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{message}</p>
+          )}
+          <div className="mt-5 text-center text-[13px] font-medium">
+            <a className="text-[#3D3D3D] no-underline hover:underline" href="#">
               비밀번호 재설정
             </a>
             <span className="mx-2.5 text-black/[0.15]">|</span>
-            <a className="text-[#3d3d3d] no-underline hover:underline" href="/signup">
+            <a className="text-[#3D3D3D] no-underline hover:underline" href="/signup">
               회원가입
             </a>
           </div>
@@ -153,7 +150,7 @@ function LoginPage() {
             </button>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
