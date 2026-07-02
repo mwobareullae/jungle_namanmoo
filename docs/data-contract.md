@@ -17,6 +17,8 @@
 - 위험성분은 점수 감점이 아니라 별도 주의 표기로 제공합니다.
 - 확장 컬럼은 파일에 포함하되 값은 비워둘 수 있습니다. 값이 들어오면 v1 스코어링에서 반영합니다.
 - 함량 컬럼은 `product_ingredients.csv`에 포함하되, 함량이 공개되지 않은 행은 빈 값과 `unknown`으로 둡니다.
+- P2/MVP에서 레포에 들어가는 정규화 CSV는 10만 상품 import 전 검증용 dry-run seed로 취급합니다.
+- 10만 상품 원본 feed는 바로 운영 테이블에 넣지 않고 staging 검증, bulk upsert, QA 리포트 단계를 거친 뒤 정규화 CSV/DB에 반영합니다.
 
 ## 담당자별 산출물
 
@@ -49,10 +51,94 @@
 | `data/products.csv` | CSV | 상품 기본 정보 |
 | `data/product_skin_profiles.csv` | CSV | 상품별 피부타입/민감도 적합 점수 |
 | `data/product_ingredients.csv` | CSV | 상품과 성분의 매핑 |
-| `data/product_prices.csv` | CSV | 상품 가격과 구매 URL |
+| `data/product_prices.csv` | CSV | P2 자사몰 판매가와 상품 상세 URL |
+| `data/product_inventory.csv` | CSV | P2 자사몰 재고와 판매 상태 |
+| `data/product_image_assets.csv` | CSV | P2 자사몰 대표/상세 이미지 자산 |
 | `data/vector_docs.csv` | CSV | 추후 검색/임베딩 인덱싱용 문서 |
 
-팀원5는 MVP 기준 상품 10개 이상을 제공합니다.
+팀원5는 P2 자사몰 seed 기준 상품, 가격, 재고, 이미지, 성분, 검색 문서를 함께 제공합니다.
+
+현재 레포의 `data/*.csv`는 P2 1P 자사몰과 10만 상품 import를 검증하기 위한 정규화 결과물입니다. 최종 10만 feed 원본 자체가 아니라, 백엔드 seed/import와 추천/검색 dry-run에 바로 사용할 수 있는 검증된 subset으로 봅니다.
+
+## P2/MVP 대량 카탈로그 계약
+
+새 명세서 기준 P2/MVP는 작은 수동 상품 목록이 아니라, 1P 자사몰 구매 흐름과 대량 상품 검색/추천 기반을 함께 검증합니다. 따라서 데이터 계약은 아래 두 층으로 나눕니다.
+
+| 층 | 목적 | 소유 |
+| --- | --- | --- |
+| 정규화 seed | `data/products.csv` 등 레포 CSV. P2 데모, seed, 추천/검색 dry-run에 사용 | R5 세민 |
+| 대량 feed/import | 10만 상품 원본 feed를 staging으로 적재, 검증, upsert, rollback하는 운영 경로 | R5 세민, R3 원우, R6 지운 |
+
+대량 feed/import 원칙:
+
+- R5는 feed 입력 컬럼, 정규화 규칙, QA 기준, 실패 row 포맷을 정의합니다.
+- R3는 DB 모델, staging table, bulk upsert, transaction/rollback, API 실행을 소유합니다.
+- R6는 import job 모니터링, worker, storage, 실패 리포트, 알림을 소유합니다.
+- R4는 검색/추천 index source와 후보 생성 품질을 소유합니다.
+- 대량 feed는 `Product`, `Offer`, `Inventory`, `ProductImage`, `ProductIngredient`, `VectorDoc`로 나뉘어 들어가야 합니다.
+- 10만 상품에서 추천/검색을 할 때 매 요청마다 전체 상품 full scan을 하지 않는 구조를 전제로 합니다.
+
+### Product / Offer / Inventory / Image 관계
+
+| 객체 | 의미 | P2 기준 |
+| --- | --- | --- |
+| `Product` | canonical 상품 master. 브랜드, 상품명, 카테고리, 성분/이미지의 기준 | `data/products.csv` |
+| `Offer` | 실제 판매 단위. `seller_id + product_id + price + status` | P2는 단일 셀러 `mwobareullae`의 기본 offer로 해석 |
+| `Inventory` | 판매 가능 수량과 품절/숨김 상태 | P2는 기본 offer 기준 재고 |
+| `ProductImage` | 대표/상세 이미지 자산 | `product_image_assets.csv` 작업 큐를 서버가 storage로 이관 |
+| `ProductIngredient` | 상품과 성분의 연결, 표시 순서, 함량 | 추천 근거와 함량 분석의 원천 |
+| `VectorDoc` | 검색/임베딩 대상 문서 | 상품명, 브랜드, 카테고리, 핵심 성분, 효능 설명 기반 |
+
+P2의 `product_prices.csv` 한 행은 외부몰 가격비교가 아니라 단일 셀러 자사몰의 기본 offer seed로 해석합니다. 별도 `offer_id`가 필요한 경우 R3 백엔드가 `product_id` 기준 기본 offer를 생성하거나 매핑합니다.
+
+### 10만 feed 최소 입력 컬럼
+
+대량 feed 원본은 사이트별로 다를 수 있으므로, staging 전 최소 입력 기준을 아래처럼 둡니다.
+
+| 컬럼 | 필수 | 설명 |
+| --- | --- | --- |
+| `source_name` | Y | 원본 출처. 예: `oliveyoung`, `manual_feed` |
+| `source_product_key` | Y | 원본 상품 식별자 |
+| `brand` | Y | 브랜드명 |
+| `name` | Y | 상품명 |
+| `category` | Y | 지원 카테고리. `toner`, `serum`, `cream`, `lotion` 등 |
+| `price` | Y | P2 자사몰 판매가 seed로 사용할 가격 |
+| `thumbnail_source_url` | Y | 대표 이미지 원본 URL |
+| `detail_image_source_urls` | N | 상세 이미지 원본 URL 목록 |
+| `ingredients_raw` | N | 전성분 원문. 없으면 상품은 보존하되 기본 추천 제외 |
+| `volume_text` | N | 용량 원문 |
+| `sales_status_raw` | N | 원본 판매 상태 |
+
+### staging validation 결과
+
+staging 검증은 row 단위로 성공/실패를 남겨야 합니다. 실패 row는 아래 포맷으로 다운로드하거나 관리자 화면에서 확인할 수 있어야 합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `import_job_id` | import 실행 ID |
+| `batch_id` | chunk/batch ID |
+| `row_no` | 원본 feed row 번호 |
+| `source_ref` | `source_name:source_product_key` 형태의 원본 참조 |
+| `field` | 오류가 발생한 필드 |
+| `code` | 오류 코드. 예: `MISSING_REQUIRED`, `INVALID_CATEGORY`, `IMAGE_PLACEHOLDER`, `PRICE_INVALID`, `DUPLICATE_CANDIDATE` |
+| `message` | 사람이 읽을 수 있는 오류 설명 |
+| `raw_ref` | 원본 값 또는 원본 파일 위치 |
+| `severity` | `critical`, `warning`, `info` |
+
+### QA acceptance criteria
+
+10만 import를 완료로 보기 위한 최소 기준입니다.
+
+| 항목 | 기준 |
+| --- | --- |
+| 필수 컬럼 누락 | release seed 기준 `critical=0` |
+| 상품 ID 참조 무결성 | `products.csv` 기준 참조 파일 누락 `0건` |
+| 가격 이상 | 음수/0원/비정상 문자열 `0건`, 의심 가격은 warning으로 분리 |
+| 대표 이미지 | placeholder/깨진 URL은 기본 release seed에서 제외 또는 `FAILED` 처리 |
+| 전성분 누락 | 상품은 보존 가능하나 `is_recommendable=false`, `missing_ingredients`로 분리 |
+| 중복 상품 | canonical 후보를 남기고 대표 노출 상품 외에는 `duplicate_variant_hidden` 처리 |
+| 추천 후보 | 기본 추천은 `is_recommendable=true`만 사용 |
+| 실패 row | 실패 사유와 재처리 가능 여부가 남아야 함 |
 
 ## 파일별 필드
 
@@ -189,6 +275,8 @@ excessive     -> 0.4 + 주의 문구
 | `brand` | 브랜드명 |
 | `name` | 상품명 |
 | `category` | 상품 카테고리. 예: `toner`, `serum`, `cream`, `lotion` |
+| `is_recommendable` | 기본 AI 추천 후보 포함 여부. `true`면 일반 추천 후보, `false`면 카탈로그에는 남기되 기본 추천에서는 제외 |
+| `recommend_exclude_reason` | `is_recommendable=false`인 이유. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`. 여러 값은 `;`로 구분 |
 | `skin_type_tags` | 권장 피부 타입 태그 |
 | `thumbnail_url` | 대표 이미지 URL |
 | `image_urls` | 상세 이미지 URL 목록 |
@@ -204,6 +292,17 @@ excessive     -> 0.4 + 주의 문구
 - 제공고시에는 기능성 심사/보고 문구만 있고, 상품명/상세 키워드와 기능성 후보 성분이 함께 맞는 경우는 `medium`으로 봅니다.
 - 일부 근거만 있는 경우는 `low`로 두며, 추천 로직에서 강한 가산점으로 쓰지 않습니다.
 - 여드름성 피부 완화는 세정/사용 조건이 함께 필요한 축이므로 자동 확정하지 않고 보수적으로 분류합니다.
+
+추천 후보 분류 원칙:
+
+- `products.csv`는 자사몰 카탈로그이므로 상품을 가능한 한 보존합니다.
+- DB 등록 최소 조건은 상품명, 브랜드명, 지원 카테고리(`toner`, `serum`, `cream`, `lotion`), 판매가, 대표 이미지입니다.
+- 전성분은 DB 등록 필수 조건이 아닙니다. 전성분이 없으면 상품은 카탈로그에 남기되 `is_recommendable=false`, `recommend_exclude_reason=missing_ingredients`로 둡니다.
+- 다만 기본 AI 추천은 사용자가 일반적인 기초 제품을 기대한다는 전제로 동작하므로, 남성 전용, 올인원, 눈가/목 전용, 국소 스팟 제품은 `is_recommendable=false`로 둡니다.
+- 스팟 제품은 보수적으로 분류합니다. `스팟 크림/젤/패치/밤/트리트먼트` 또는 20ml/g 이하 국소 사용 제품은 제외하되, `다크 스팟 세럼`, `잡티 스팟 앰플`처럼 일반 세럼/앰플로 볼 수 있는 상품은 추천 후보에 남깁니다.
+- 같은 전성분/브랜드/카테고리로 묶이는 중복 옵션 중 대표가 아닌 상품은 `duplicate_variant_hidden`으로 기본 추천에서 제외할 수 있습니다. 상품 상세와 관리자 카탈로그에는 남깁니다.
+- 제외 상품도 상품 상세, 관리자 확인, 향후 조건부 추천 확장에는 사용할 수 있도록 삭제하지 않습니다.
+- 기본 추천 API/스코어링은 우선 `is_recommendable=true`인 상품만 후보로 사용합니다.
 
 ### `data/product_skin_profiles.csv`
 
@@ -265,21 +364,61 @@ skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
 
 ### `data/product_prices.csv`
 
+P2 기준에서는 외부 가격비교가 아니라 `뭐바를래` 1P 자사몰 판매가를 저장합니다.
+
 | 컬럼 | 설명 |
 | --- | --- |
 | `product_id` | 상품 고유 ID |
-| `mall_name` | 판매처명 |
-| `price` | 판매가 |
-| `product_url` | 구매 URL |
-| `is_lowest` | 최저가 여부: `true`, `false` |
+| `mall_name` | 판매 주체. P2에서는 `뭐바를래` |
+| `price` | 자사몰 판매가. 초기 seed는 올리브영 수집가를 기준으로 사용 가능 |
+| `product_url` | 자사몰 상품 상세 경로. 예: `/products/prod_xxx` |
+| `is_lowest` | P2에서는 가격비교가 아니므로 기본 `true` |
 | `currency` | 통화, 기본 `KRW` |
 
 가격 수집 정책:
 
-- 올리브영은 기준 수집처이므로 모든 추천 상품은 최소 1개의 올리브영 가격 row를 가집니다.
-- 네이버 API에서 동일 상품으로 안전하게 확정한 경우에만 외부 판매처 가격 row를 추가합니다.
-- 외부 후보가 없거나, 후보는 있어도 용량/구성/가격 조건상 동일 상품으로 확정하기 어려우면 올리브영 기준가만 제공합니다.
-- 이 상태는 수집 실패가 아니라 오매칭 방지를 위한 정상 상태입니다.
+- 올리브영은 초기 기준 수집처이며, 수집 가격은 P2 자사몰 판매가 seed로 사용합니다.
+- P2에서는 네이버/외부몰 가격을 `product_prices.csv`에 넣지 않습니다.
+- 외부 판매처 비교는 P5 마켓플레이스 또는 가격비교 확장 단계에서 별도 offer 구조로 다룹니다.
+
+### `data/product_inventory.csv`
+
+P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파일입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 고유 ID |
+| `stock_quantity` | 현재 판매 가능 재고 수량 |
+| `sales_status` | 자사몰 판매 상태. `ON_SALE`, `SOLD_OUT`, `HIDDEN` |
+| `safety_stock` | 안전 재고 수량 |
+| `inventory_source` | 재고 생성 방식. 예: `AUTO_SEED`, `AUTO_SEED_NO_PRICE`, `ADMIN` |
+| `updated_at` | 재고 기준 시각. 수집 시각 또는 관리자 수정 시각 |
+
+### `data/product_image_assets.csv`
+
+P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광고 이미지를 서버가 저장하기 위한 작업 큐입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 고유 ID |
+| `image_type` | 이미지 종류. `thumbnail` 또는 `detail` |
+| `display_order` | 같은 상품, 같은 이미지 종류 안에서의 노출 순서 |
+| `source_image_url` | 서버가 다운로드할 원본 이미지 URL |
+| `storage_key` | 자사몰 저장소 기준 파일 경로. S3 key 또는 서버 정적 파일 경로로 사용 |
+| `public_url` | 프론트/백엔드가 실제 노출에 사용할 이미지 URL 또는 예정 경로 |
+| `upload_status` | 이미지 처리 상태. `PENDING_UPLOAD`, `UPLOADED`, `FAILED` |
+
+서버 처리 규칙:
+
+- 팀원5는 이미지 파일을 직접 저장하지 않고 `product_image_assets.csv`를 작업 큐로 제공합니다.
+- 백엔드/인프라 배치는 `source_image_url`을 다운로드해 `storage_key` 위치에 저장합니다.
+- 상품 이미지 노출은 `products.csv`의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
+- `products.csv`의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
+- P2 초기 데이터의 `public_url`은 `storage_key`와 같은 예정 경로입니다.
+- 실제 노출 URL은 서버에서 `CDN_BASE_URL + storage_key`로 조합하거나, 업로드 후 `public_url`을 실제 공개 URL로 갱신합니다.
+- `upload_status`는 초기값 `PENDING_UPLOAD`로 둡니다.
+- 저장 성공 시 `UPLOADED`, 실패 시 `FAILED`로 갱신하고 실패 행만 재시도할 수 있어야 합니다.
+- 상세 이미지는 `image_type=detail`이고 `display_order` 오름차순으로 노출합니다.
 
 ### `data/vector_docs.csv`
 
