@@ -1,5 +1,11 @@
 name: mwobareullae
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
 services:
   frontend:
     build:
@@ -17,6 +23,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${FRONTEND_MEMORY_LIMIT:-1g}"
     networks:
       - app_network
 
@@ -57,6 +68,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${BACKEND_MEMORY_LIMIT:-2g}"
     networks:
       - app_network
 
@@ -78,6 +94,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${POSTGRES_MEMORY_LIMIT:-2g}"
     networks:
       - app_network
 
