@@ -1,18 +1,64 @@
 import { http, HttpResponse } from "msw";
 
+type LoginRequestBody = {
+  email?: string;
+  password?: string;
+};
+
+type SignupRequestBody = LoginRequestBody;
+
+const MOCK_LOGIN_EMAIL = "test@example.com";
+const MOCK_LOGIN_PASSWORD = "password123";
+const MOCK_DUPLICATE_SIGNUP_EMAIL = "duplicate@example.com";
+const MOCK_SERVER_ERROR_SIGNUP_EMAIL = "server-error@example.com";
+
 export const handlers = [
-  http.post("http://localhost:8000/api/auth/login", () => {
+  http.post("http://localhost:8000/api/auth/login", async ({ request }) => {
+    const body = (await request.json()) as LoginRequestBody;
+
+    if (body.email !== MOCK_LOGIN_EMAIL || body.password !== MOCK_LOGIN_PASSWORD) {
+      return HttpResponse.json(
+        {
+          code: "INVALID_CREDENTIALS",
+          message: "이메일 또는 비밀번호가 일치하지 않습니다.",
+        },
+        { status: 401 },
+      );
+    }
+
     return HttpResponse.json({
       access_token: "mock-access-token",
       refresh_token: "mock-refresh-token",
-      user: { id: 1, email: "test@example.com" },
+      user: { id: 1, email: body.email },
     });
   }),
-  http.post("http://localhost:8000/api/auth/signup", () => {
+  http.post("http://localhost:8000/api/auth/signup", async ({ request }) => {
+    const body = (await request.json()) as SignupRequestBody;
+
+    if (body.email === MOCK_DUPLICATE_SIGNUP_EMAIL) {
+      return HttpResponse.json(
+        {
+          code: "EMAIL_ALREADY_EXISTS",
+          message: "이미 가입된 이메일입니다.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (body.email === MOCK_SERVER_ERROR_SIGNUP_EMAIL) {
+      return HttpResponse.json(
+        {
+          code: "INTERNAL_SERVER_ERROR",
+          message: "서버 오류가 발생했습니다.",
+        },
+        { status: 500 },
+      );
+    }
+
     return HttpResponse.json({
       access_token: "mock-access-token",
       refresh_token: "mock-refresh-token",
-      user: { id: 1, email: "test@example.com", created_at: new Date().toISOString() },
+      user: { id: 1, email: body.email, created_at: new Date().toISOString() },
     });
   }),
 ];
