@@ -16,7 +16,9 @@ class ProductInfo(BaseModel):
 
 
 class ProductImage(BaseModel):
-    url: str
+    image_type: str
+    storage_key: str
+    display_order: int
     alt: str
 
 

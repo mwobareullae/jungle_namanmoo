@@ -80,6 +80,40 @@ def test_load_data_catalog_reads_optional_ingredient_aliases(tmp_path: Path) -> 
     assert catalog.ingredient_aliases[2].confidence == "medium"
 
 
+def test_load_data_catalog_reads_optional_product_image_assets(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_image_assets.csv").write_text(
+        "product_id,image_type,display_order,source_image_url,storage_key,public_url,upload_status\n"
+        "prod_001,thumbnail,0,https://example.com/source.jpg,products/prod_001/thumb.jpg,,PENDING_UPLOAD\n"
+        "prod_001,detail,1,https://example.com/detail.jpg,products/prod_001/detail_001.jpg,,PENDING_UPLOAD\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.product_image_assets) == 2
+    assert catalog.product_image_assets[0].image_type == "thumbnail"
+    assert catalog.product_image_assets[0].storage_key == "products/prod_001/thumb.jpg"
+
+
+def test_load_data_catalog_reads_optional_product_inventory(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_inventory.csv").write_text(
+        "product_id,stock_quantity,sales_status,safety_stock,inventory_source,updated_at\n"
+        "prod_001,12,ON_SALE,2,AUTO_SEED,2026-07-03T00:00:00Z\n"
+        "prod_002,0,SOLD_OUT,1,AUTO_SEED,2026-07-03T00:00:00Z\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.product_inventories) == 2
+    assert catalog.product_inventories[0].stock_quantity == 12
+    assert catalog.product_inventories[0].sales_status == "ON_SALE"
+
+
 def test_load_data_catalog_reports_missing_ingredient_alias_reference(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)

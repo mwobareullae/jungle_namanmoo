@@ -39,3 +39,8 @@ tmp/
 temp/
 data/batch_runs/
 apps/frontend/public/image-assets/
+
+# Local-only personal agent instructions
+AGENTS.local.md
+AGENTS.*.md
+AGENTS.md

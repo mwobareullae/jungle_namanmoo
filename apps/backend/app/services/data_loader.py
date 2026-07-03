@@ -14,6 +14,8 @@ from app.models.data_contract import (
     IngredientEffectRange,
     IngredientEvidence,
     Product,
+    ProductImageAsset,
+    ProductInventory,
     ProductIngredient,
     ProductPrice,
     ProductSkinProfile,
@@ -51,6 +53,19 @@ CSV_HEADERS = {
         "product_url",
         "is_lowest",
         "currency",
+    },
+    "product_image_assets.csv": {
+        "product_id",
+        "image_type",
+        "display_order",
+        "storage_key",
+    },
+    "product_inventory.csv": {
+        "product_id",
+        "stock_quantity",
+        "sales_status",
+        "safety_stock",
+        "inventory_source",
     },
     "product_ingredients.csv": {
         "product_id",
@@ -128,6 +143,7 @@ EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
 ALIAS_TYPE_VALUES = {"ko", "en", "inci", "abbrev", "typo", "synonym"}
 ALIAS_CONFIDENCE_VALUES = {"high", "medium", "low"}
 ALIAS_CONFIDENCE_ALIASES = {"med": "medium"}
+SALES_STATUS_VALUES = {"ON_SALE", "SOLD_OUT", "HIDDEN"}
 
 T = TypeVar("T")
 
@@ -137,6 +153,16 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
 
     products = _load_csv(base_path, "products.csv", _parse_product)
     product_prices = _load_csv(base_path, "product_prices.csv", _parse_product_price)
+    product_image_assets = _load_optional_csv(
+        base_path,
+        "product_image_assets.csv",
+        _parse_product_image_asset,
+    )
+    product_inventories = _load_optional_csv(
+        base_path,
+        "product_inventory.csv",
+        _parse_product_inventory,
+    )
     product_ingredients = _load_csv(
         base_path,
         "product_ingredients.csv",
@@ -176,6 +202,8 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
     catalog = DataCatalog(
         products=products,
         product_prices=product_prices,
+        product_image_assets=product_image_assets,
+        product_inventories=product_inventories,
         product_ingredients=product_ingredients,
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
@@ -315,6 +343,32 @@ def _parse_product_price(row: dict[str, str], file_name: str, line_number: int) 
         product_url=_required_text(row, "product_url", file_name, line_number),
         is_lowest=_required_bool(row, "is_lowest", file_name, line_number),
         currency=_optional_text(row.get("currency")) or "KRW",
+    )
+
+
+def _parse_product_image_asset(row: dict[str, str], file_name: str, line_number: int) -> ProductImageAsset:
+    image_type = _required_text(row, "image_type", file_name, line_number)
+    if image_type not in {"thumbnail", "detail"}:
+        raise DataLoadError(f"{file_name}:{line_number} image_type은 thumbnail 또는 detail이어야 합니다.")
+    return ProductImageAsset(
+        product_id=_required_text(row, "product_id", file_name, line_number),
+        image_type=image_type,
+        display_order=_required_int(row, "display_order", file_name, line_number),
+        storage_key=_required_text(row, "storage_key", file_name, line_number),
+    )
+
+
+def _parse_product_inventory(row: dict[str, str], file_name: str, line_number: int) -> ProductInventory:
+    sales_status = _required_text(row, "sales_status", file_name, line_number)
+    if sales_status not in SALES_STATUS_VALUES:
+        allowed = ", ".join(sorted(SALES_STATUS_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} sales_status는 {allowed} 중 하나여야 합니다.")
+    return ProductInventory(
+        product_id=_required_text(row, "product_id", file_name, line_number),
+        stock_quantity=_required_non_negative_int(row, "stock_quantity", file_name, line_number),
+        sales_status=sales_status,
+        safety_stock=_required_non_negative_int(row, "safety_stock", file_name, line_number),
+        inventory_source=_required_text(row, "inventory_source", file_name, line_number),
     )
 
 
@@ -531,6 +585,18 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         product_ids,
     )
     _validate_references(
+        "product_image_assets.csv",
+        "product_id",
+        (image.product_id for image in catalog.product_image_assets),
+        product_ids,
+    )
+    _validate_references(
+        "product_inventory.csv",
+        "product_id",
+        (inventory.product_id for inventory in catalog.product_inventories),
+        product_ids,
+    )
+    _validate_references(
         "product_ingredients.csv",
         "product_id",
         (ingredient.product_id for ingredient in catalog.product_ingredients),
@@ -651,6 +717,13 @@ def _required_int(row: dict[str, str], key: str, file_name: str, line_number: in
     value = _optional_int(row.get(key), key, file_name, line_number)
     if value is None:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값이 비어 있습니다.")
+    return value
+
+
+def _required_non_negative_int(row: dict[str, str], key: str, file_name: str, line_number: int) -> int:
+    value = _required_int(row, key, file_name, line_number)
+    if value < 0:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값은 0 이상이어야 합니다.")
     return value
 
 
