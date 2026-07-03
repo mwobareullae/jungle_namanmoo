@@ -149,10 +149,107 @@ vector_docs.csv
 - `products.csv`의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
 - 서버는 `source_image_url`을 읽어 이미지를 다운로드하고 `storage_key` 경로에 저장합니다.
 - `storage_key`는 S3 key 또는 서버 정적 파일 경로로 사용할 수 있는 자사몰 내부 저장 경로입니다.
-- `public_url`은 현재 `storage_key`와 같은 예정 경로이며, 실제 서비스에서는 `CDN_BASE_URL + storage_key` 형태로 노출합니다.
-- `upload_status`의 초기값은 `PENDING_UPLOAD`입니다.
-- 서버 이미지 적재 성공 시 `upload_status=UPLOADED`, 실패 시 `upload_status=FAILED`로 갱신합니다.
-- `source_image_url`은 서버가 이미지를 처음 저장할 때 필요한 원본 URL이므로 P2 데이터에는 보존합니다. 운영 안정화 후 제거 여부는 별도 결정합니다.
+- DB의 `product_images`에는 최종 CDN URL을 저장하지 않고 `product_id`, `image_type`, `display_order`, `storage_key`를 저장합니다.
+- 프론트는 `VITE_IMAGE_CDN_BASE_URL`과 `image_type`, `storage_key`를 조합해 이미지 URL을 생성합니다.
+- `source_image_url`, `public_url`, `upload_status`는 배치 큐/운영 확인용 CSV 메타데이터이며 MVP `product_images` 필수 컬럼이 아닙니다.
+- `source_image_url`은 이미지 파일을 처음 S3에 적재할 때만 사용합니다.
+
+### 이미지 S3 적재 배치
+
+이미지 적재 스크립트 코드는 재실행과 리뷰가 필요하므로 레포의 `data/scripts/download_product_images.py`에 둡니다. 실행 결과인 `data/batch_runs/`의 성공/실패/스킵 CSV와 로그는 운영 산출물이므로 git에 커밋하지 않습니다.
+
+1단계 MVP 배치는 아래 범위만 처리합니다.
+
+- `source_image_url` 원본을 다운로드합니다.
+- 원본은 `original/{storage_key}`에 저장합니다.
+- `image_type=thumbnail`은 `resized/w400/{storage_key}`의 `.jpg` 공개용 이미지를 생성합니다.
+- `image_type=detail`은 `resized/w1200/{storage_key}`의 `.jpg` 공개용 이미지를 생성합니다.
+- 원본 너비가 목표 너비 이하이면 확대하지 않고, 공개용 파일은 항상 `quality=85`, `optimize`, `progressive` JPEG로 다시 저장합니다.
+- 이미 원본과 리사이징본이 모두 있으면 재실행 시 `skipped.csv`로 남기고 건너뜁니다.
+- 실패 row는 `failed_image_urls.csv`에 남깁니다.
+
+실전 배치 안전장치는 기본으로 켜져 있습니다.
+
+- 일시적인 HTTP 408/429/5xx, 타임아웃, 네트워크 오류는 기본 3회 추가 재시도합니다.
+- `source_image_url`은 `http`/`https`만 허용하고, 127.0.0.1, 10.x, 172.16~31.x, 192.168.x, 169.254.x 같은 내부/사설 IP로 해석되는 URL은 차단합니다.
+- EC2에서 실행할 때는 `--allow-private-source-urls`를 사용하지 않습니다.
+- `--sync-db`는 기본 500건 단위로 커밋합니다. 필요하면 `--db-batch-size`로 조정합니다.
+
+현재 dev 이미지 인프라 기준:
+
+- S3 bucket: `mubarelle-images`
+- Region: `ap-northeast-2`
+- S3 public access: blocked
+- CloudFront distribution: `jungle-namanmoo`
+- CloudFront domain: `https://d3hg0esuwey1za.cloudfront.net`
+- S3 origin access: OAC 사용
+- EC2 upload role: dev EC2에 S3 업로드 전용 IAM role 연결
+- EC2 upload permission: 이미지 버킷에 대한 `PutObject`, `GetObject`, `DeleteObject` 권한
+- EC2는 S3 업로드를 담당하고, 브라우저 공개 접근은 CloudFront만 사용합니다.
+- `original/` prefix는 원본 보관용 비공개 경로입니다.
+- `resized/w400/`, `resized/w1200/` prefix만 프론트 노출 대상으로 사용합니다.
+
+의존성은 배치 실행 환경에서만 설치합니다.
+
+```bash
+python -m pip install -r data/scripts/requirements-image-batch.txt
+```
+
+S3 업로드 전 계획만 확인할 때:
+
+```bash
+python data/scripts/download_product_images.py --dry-run --limit 10
+```
+
+로컬 파일로 소규모 테스트할 때:
+
+```bash
+python data/scripts/download_product_images.py \
+  --storage local \
+  --local-output-root /tmp/mwobareullae-image-assets \
+  --limit 10
+```
+
+로컬 파일 다운로드와 현재 로컬 DB 반영을 함께 테스트할 때:
+
+```bash
+python data/scripts/download_product_images.py \
+  --storage local \
+  --local-output-root apps/frontend/public/image-assets \
+  --limit 5 \
+  --workers 2 \
+  --sync-db \
+  --database-url postgresql+psycopg://mwobareullae:change-me@localhost:5432/mwobareullae
+```
+
+- 로컬 이미지는 `apps/frontend/public/image-assets/` 아래에 저장되며 git에는 커밋하지 않습니다.
+- 현재 DB 스키마가 `product_images.image_url`인 경우 `/image-assets/resized/...` 경로를 저장합니다.
+- 향후 DB 스키마가 `product_images.storage_key`, `image_type`을 갖게 되면 스크립트가 해당 컬럼을 감지해 `storage_key` 기준으로 저장합니다.
+- 실패 row는 DB에 넣지 않고 `failed_image_urls.csv`와 `db_sync.json`에서 확인합니다.
+
+EC2에서 S3에 1,000건 먼저 적재할 때:
+
+```bash
+python data/scripts/download_product_images.py \
+  --bucket mubarelle-images \
+  --aws-region ap-northeast-2 \
+  --limit 1000 \
+  --workers 4
+```
+
+비어 있는 S3 버킷에 처음 전체 적재할 때는 S3 HEAD 요청 비용과 시간을 줄이기 위해 존재 확인을 생략할 수 있습니다.
+
+```bash
+python data/scripts/download_product_images.py \
+  --bucket mubarelle-images \
+  --aws-region ap-northeast-2 \
+  --workers 4 \
+  --no-head-check
+```
+
+중단 후 재실행하거나 이미 일부 파일이 올라간 버킷에서는 `--no-head-check`를 빼고 실행합니다. 이 경우 `original/{storage_key}`와 `resized/.../{storage_key}`가 모두 있으면 `skipped.csv`에 남기고 건너뜁니다.
+
+실제 전체 실행은 1,000건 실행의 `summary.json`, `failed_image_urls.csv`, 샘플 이미지 확인 후 진행합니다.
 
 ## 상품 성분 함량 규칙
 
