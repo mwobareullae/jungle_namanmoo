@@ -1,0 +1,4 @@
+boto3>=1.34,<2
+Pillow>=10.4,<12
+psycopg[binary]>=3.2.4,<3.3
+SQLAlchemy==2.0.36
