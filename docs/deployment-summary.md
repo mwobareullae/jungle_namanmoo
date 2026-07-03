@@ -22,6 +22,25 @@ main branch push -> no production deployment yet
 - OpenAI 관련 환경변수는 placeholder만 있으며 현재 Hello World 환경에서는 사용하지 않음
 - EC2에 git 또는 repository clone은 필수 아님
 
+## 이미지 자산 인프라
+
+P2 상품 이미지 적재와 공개 서빙은 EC2 로컬 디스크가 아니라 S3 + CloudFront 기준으로 운영합니다.
+
+- 비용 모니터링: CloudWatch/Budgets 기반 비용 알림 운영 중
+- S3 bucket: `mubarelle-images`, 서울 리전 `ap-northeast-2`
+- S3 공개 설정: private bucket, public access block 활성화
+- 원본 이미지: `original/{storage_key}`에 보관하고 외부 공개하지 않음
+- 공개 이미지: `resized/w400/{storage_key}`, `resized/w1200/{storage_key}`
+- CloudFront distribution: `jungle-namanmoo`
+- CloudFront domain: `https://d3hg0esuwey1za.cloudfront.net`
+- CloudFront 접근: OAC로 S3 private origin 연결
+- 브라우저 공개 URL: `.env`의 `VITE_IMAGE_CDN_BASE_URL`로 관리
+- EC2 upload role: dev EC2에 S3 업로드 전용 IAM role 연결
+- EC2 upload permission: 이미지 버킷에 대한 `PutObject`, `GetObject`, `DeleteObject` 권한
+- EC2 역할 검증: boto3 업로드 테스트 완료
+
+서비스 DB에는 CloudFront 절대 URL을 저장하지 않고 `product_images.storage_key`를 저장합니다. 프론트는 `VITE_IMAGE_CDN_BASE_URL`과 `storage_key`를 조합해 실제 이미지 URL을 만듭니다.
+
 ## 권장 EC2 사양
 
 - Instance type: `t3.small`

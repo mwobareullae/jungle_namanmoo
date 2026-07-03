@@ -406,8 +406,8 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 | `display_order` | 같은 상품, 같은 이미지 종류 안에서의 노출 순서 |
 | `source_image_url` | 서버가 다운로드할 원본 이미지 URL |
 | `storage_key` | 자사몰 저장소 기준 파일 경로. S3 key 또는 서버 정적 파일 경로로 사용 |
-| `public_url` | 프론트/백엔드가 실제 노출에 사용할 이미지 URL 또는 예정 경로 |
-| `upload_status` | 이미지 처리 상태. `PENDING_UPLOAD`, `UPLOADED`, `FAILED` |
+| `public_url` | 배치 큐 확인용 예정 경로. MVP 서비스 DB에는 저장하지 않음 |
+| `upload_status` | 배치 큐 확인용 이미지 처리 상태. `PENDING_UPLOAD`, `UPLOADED`, `FAILED` |
 
 서버 처리 규칙:
 
@@ -415,8 +415,13 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 - 백엔드/인프라 배치는 `source_image_url`을 다운로드해 `storage_key` 위치에 저장합니다.
 - 상품 이미지 노출은 `products.csv`의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
 - `products.csv`의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
-- P2 초기 데이터의 `public_url`은 `storage_key`와 같은 예정 경로입니다.
-- 실제 노출 URL은 서버에서 `CDN_BASE_URL + storage_key`로 조합하거나, 업로드 후 `public_url`을 실제 공개 URL로 갱신합니다.
+- P2 초기 데이터의 `public_url`은 `storage_key`와 같은 예정 경로이며, 배치/QA 확인용 메타데이터입니다.
+- MVP `product_images` DB 테이블에는 `product_id`, `image_type`, `display_order`, `storage_key`를 저장합니다.
+- DB에는 CloudFront 절대 URL을 저장하지 않습니다.
+- 프론트는 공개 환경변수 `VITE_IMAGE_CDN_BASE_URL`과 `storage_key`를 조합해 실제 이미지 URL을 만듭니다.
+- 대표 이미지는 `VITE_IMAGE_CDN_BASE_URL + "/resized/w400/" + storage_key`로 노출합니다.
+- 상세 이미지는 `VITE_IMAGE_CDN_BASE_URL + "/resized/w1200/" + storage_key`로 노출합니다.
+- 원본 이미지는 `original/{storage_key}`에 보관하되 외부 공개 URL로 노출하지 않습니다.
 - `upload_status`는 초기값 `PENDING_UPLOAD`로 둡니다.
 - 저장 성공 시 `UPLOADED`, 실패 시 `FAILED`로 갱신하고 실패 행만 재시도할 수 있어야 합니다.
 - 상세 이미지는 `image_type=detail`이고 `display_order` 오름차순으로 노출합니다.
