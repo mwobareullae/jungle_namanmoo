@@ -9,6 +9,7 @@ import home_market_popularity as market
 
 
 OUT = cold.RECON_DIR / "home_personalized_profile_candidates.csv"
+HOME_SECTION_LIMIT = 15
 P2_PRODUCT_ID_PREFIXES = ("prod_oy_",)
 
 SKIN_TYPE_COLUMNS = {
@@ -303,7 +304,8 @@ def score_scenario_market_section(
         )
     )
 
-    rows: list[dict[str, str]] = []
+    selected: list[dict[str, object]] = []
+    selected_ids: set[str] = set()
     brand_count: Counter[str] = Counter()
     category_count: Counter[str] = Counter()
     for item in scored:
@@ -311,6 +313,25 @@ def score_scenario_market_section(
             continue
         if category_count[str(item["category"])] >= 2:
             continue
+        selected.append(item)
+        selected_ids.add(str(item["product_id"]))
+        brand_count[str(item["brand"])] += 1
+        category_count[str(item["category"])] += 1
+        if len(selected) >= limit:
+            break
+
+    if len(selected) < limit:
+        for item in scored:
+            product_id = str(item["product_id"])
+            if product_id in selected_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(product_id)
+            if len(selected) >= limit:
+                break
+
+    rows: list[dict[str, str]] = []
+    for item in selected:
         rank = len(rows) + 1
         rows.append(
             {
@@ -347,8 +368,6 @@ def score_scenario_market_section(
                 "thumbnail_url": str(item["thumbnail_url"]),
             }
         )
-        brand_count[str(item["brand"])] += 1
-        category_count[str(item["category"])] += 1
         used_product_ids.add(str(item["product_id"]))
         if len(rows) >= limit:
             break
@@ -528,7 +547,7 @@ def build() -> list[dict[str, str]]:
                         skin_profiles,
                         market_context,
                         used_product_ids,
-                        limit=5,
+                        limit=HOME_SECTION_LIMIT,
                     )
                 )
                 continue
@@ -547,7 +566,7 @@ def build() -> list[dict[str, str]]:
                     prices,
                     skin_profiles,
                     used_product_ids,
-                    limit=5,
+                    limit=HOME_SECTION_LIMIT,
                 )
             )
     return rows
