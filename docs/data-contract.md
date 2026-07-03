@@ -395,6 +395,36 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 | `inventory_source` | 재고 생성 방식. 예: `AUTO_SEED`, `AUTO_SEED_NO_PRICE`, `ADMIN` |
 | `updated_at` | 재고 기준 시각. 수집 시각 또는 관리자 수정 시각 |
 
+주의:
+
+- 현재 `AUTO_SEED` 재고는 P2 장바구니, checkout, 관리자 흐름 검증용 mock 데이터입니다.
+- 홈 추천의 `market_popular` 인기 점수에는 사용하지 않습니다.
+
+### `data/product_market_signals.csv` (선택)
+
+홈의 `지금 인기 있는 제품` 섹션을 계산하기 위한 시장 인기 신호 파일입니다. 현재 필수 seed 파일은 아니며, mock 또는 크롤링 지표가 들어온 뒤 사용합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 고유 ID |
+| `review_count` | 리뷰 수 |
+| `average_rating` | 평균 평점. 0~5 스케일 |
+| `sales_count` | 판매량. 있으면 가장 직접적인 인기 신호 |
+| `sales_rank` | 판매 랭킹. `sales_count`가 없을 때 사용하며 낮을수록 좋음 |
+| `recent_view_count` | 최근 14일 조회 수 |
+| `wishlist_count` | 최근 14일 찜 수 |
+| `cart_add_count` | 최근 14일 장바구니 담기 수 |
+| `source` | 데이터 출처. 예: `mock`, `crawler`, `event_log` |
+| `updated_at` | 지표 스냅샷 기준 시각 |
+
+인기 점수 원칙:
+
+- 인기 섹션은 이 파일 또는 동일한 DB 필드가 있을 때만 산출합니다.
+- 가격, 이미지 존재, 성분 점수, `AUTO_SEED` 재고를 인기 신호처럼 쓰지 않습니다.
+- 리뷰수, 판매량, 최근 행동 수치는 `log1p` 정규화합니다.
+- 평점은 리뷰 수 50개를 신뢰 기준으로 둔 Bayesian 보정을 사용합니다.
+- 판매량이 없고 판매 랭킹만 있으면 log 기반 역순 랭킹 점수를 사용합니다.
+
 ### `data/product_image_assets.csv`
 
 P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광고 이미지를 서버가 저장하기 위한 작업 큐입니다.
@@ -434,6 +464,60 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 | `source_type` | `product`, `ingredient`, `evidence` 등 |
 | `source_id` | 원본 데이터 ID |
 | `text` | 임베딩 또는 검색에 사용할 텍스트 |
+
+## 홈 추천 산출물
+
+홈 추천 산출물은 seed 원천 데이터가 아니라 R4 추천 로직 검수와 프론트/백엔드 계약 확인을 위한 reconciliation snapshot입니다.
+
+### `data/reconciliation/home_cold_start_p2_candidates.csv`
+
+비로그인 또는 피부 프로필이 없는 사용자의 P2 홈 후보입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `section_id` | 홈 섹션 ID. 예: `market_popular`, `moisture_barrier`, `calming`, `brightening` |
+| `section_label` | 사용자에게 보여줄 섹션명 |
+| `effect_id` | 성분 효능축 ID. `market_popular`는 빈 값 가능 |
+| `effect_name` | 효능축 이름. `market_popular`는 `시장 인기` |
+| `rank` | 섹션 내부 노출 순서 |
+| `product_id` | 상품 고유 ID |
+| `brand` | 브랜드명 |
+| `name` | 상품명 |
+| `category` | 상품 카테고리 |
+| `price` | 표시 가격 |
+| `home_example_score` | 비회원 홈 후보 점수. 시장 인기 섹션은 `market_popularity_score`와 동일 |
+| `axis_score` | 효능축 성분 근거 점수. 시장 인기 섹션은 빈 값 가능 |
+| `coverage_score` | 함량 coverage 점수. 시장 인기 섹션은 빈 값 가능 |
+| `market_popularity_score` | 인기 점수. 인기 데이터가 없거나 예시 섹션이면 빈 값 가능 |
+| `review_count_score` | 리뷰 수 정규화 점수 |
+| `rating_score` | Bayesian 평점 점수 |
+| `sales_score` | 판매량 또는 판매랭킹 점수 |
+| `recent_signal_score` | 최근 14일 조회/찜/장바구니 점수 |
+| `coverage_types` | 매칭 성분별 함량 coverage 타입 |
+| `risk_penalty` | 홈 노출용 위험성분 감점 |
+| `matched_ingredients` | 섹션 점수에 기여한 대표 성분 |
+| `coverage_basis` | 내부 검수용 함량 근거. 사용자에게 직접 노출하지 않음 |
+| `reason_summary` | 프론트 표시용 짧은 추천 사유 |
+| `thumbnail_url` | 상품 대표 이미지 URL |
+
+### `data/reconciliation/home_personalized_profile_candidates.csv`
+
+로그인 사용자의 대표 피부 프로필 시나리오별 홈 후보 fixture입니다. 실제 사용자 데이터가 아니라 로직 검수용입니다.
+
+`home_cold_start_p2_candidates.csv` 컬럼에 더해 아래 컬럼을 포함합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `scenario_id` | 대표 프로필 시나리오 ID |
+| `scenario_label` | 대표 프로필 시나리오 설명 |
+| `skin_type` | 피부 타입 |
+| `sensitivity` | 민감도 |
+| `source_effect_id` | 해당 섹션 산출에 사용한 효능축 ID |
+| `source_effect_name` | 해당 섹션 산출에 사용한 효능축 이름 |
+| `personalized_home_score` | 회원 홈 후보 점수 |
+| `profile_fit_score` | 피부 타입 적합도 점수 |
+| `sensitivity_fit_score` | 민감도 적합도 점수 |
+| `price_score` | 가격 접근성 점수 |
 
 ## MVP 점수 정책
 

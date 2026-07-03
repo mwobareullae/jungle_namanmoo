@@ -107,6 +107,59 @@ Recommended columns for UI:
 
 Do not expose `coverage_basis` directly to users. It contains internal/legal/heuristic notes.
 
+## Equal Section Layout Rule
+
+The 3 P2 cold-start example sections have equal editorial weight. If market popularity data is available later, `지금 인기 있는 제품` can be added as a separate market section before the examples.
+
+Do not insert only one example section into the existing `지금 인기있는 제품`/ranking-style block. That makes one axis look more important than the others and turns `추천 예시` into a pseudo-best-seller area.
+
+Use a repeated, equal component for all 3 sections:
+
+| Rule | Required behavior |
+|---|---|
+| Same hierarchy | `보습·장벽 예시`, `진정 예시`, `미백·톤 예시` use the same title size, subtitle style, spacing, and product card component |
+| Same item count | Keep 5 products per section unless the data file has fewer rows |
+| Same card design | Do not make the first section larger, circular, carousel-only, or hero-like while the others are smaller |
+| Same badge language | Use `추천 예시` on all products, not `BEST`, `맞춤`, or `인기` |
+| Same explanation level | Each section may show matched ingredient badges, but no section should expose deeper internal scoring than the others |
+| Same action pattern | Product click goes to product detail; `recommendation_id` is absent because this is pre-personalization home |
+| Same visible count | On desktop, show 4 readable cards at once and keep the 5th product in the same horizontal rail via scroll. Do not compress 5 cards into one row if readability drops |
+
+Suggested visual structure:
+
+```text
+Hero / concern input
+
+지금 인기 있는 제품
+시장 인기 지표가 들어온 경우에만 노출합니다.
+[지금 인기 있는 제품] 5 equal product cards, 4 visible + 1 horizontal scroll
+
+추천 예시 상품
+아직 개인화 전이지만, 성분 근거와 가격 정보를 함께 볼 수 있는 예시 상품입니다.
+
+[보습·장벽 예시]  5 equal product cards, 4 visible + 1 horizontal scroll
+[진정 예시]       5 equal product cards, 4 visible + 1 horizontal scroll
+[미백·톤 예시]    5 equal product cards, 4 visible + 1 horizontal scroll
+```
+
+Avoid this structure:
+
+```text
+지금 인기있는 제품
+  only one 5-product ranking block
+
+맞춤 추천 섹션
+  another visually different block
+```
+
+If the existing homepage component has a single ranking section, create a neutral wrapper such as `HomeExampleSections` that maps the 3 CSV sections with the same layout. The cold-start data should not be forced into the old single-section ranking UI.
+
+Popularity rule:
+
+- `지금 인기 있는 제품` must come from `product_market_signals.csv` or equivalent review/rating/sales fields.
+- Do not treat price, image availability, ingredient score, or `AUTO_SEED` inventory as popularity.
+- If market signal data is absent, omit `market_popular` and render only the 3 example sections.
+
 ## Suggested User-facing Copy
 
 Section helper copy:
