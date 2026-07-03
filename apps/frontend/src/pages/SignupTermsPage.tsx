@@ -2,99 +2,43 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
-import { termsOfService } from "../content/terms";
 
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 
-type TermType = "tos" | "privacy" | "overseasTransfer";
+type TermType = "tos" | "privacy";
 
 const termContent: Record<TermType, { title: string; body: string }> = {
   tos: {
     title: "이용약관",
-    body: termsOfService
+    body: "이용약관 상세 내용은 준비 중입니다."
   },
   privacy: {
     title: "개인정보처리방침",
     body: "개인정보처리방침 상세 내용은 준비 중입니다."
-  },
-  overseasTransfer: {
-    title: "개인정보 국외이전 동의",
-    body: "AI 추천/채팅 이용 시 피부 고민 텍스트가 OpenAI(미국)로 전송됩니다.\n\n미동의 시 사이트 가입은 가능하지만 AI 추천·채팅 기능 이용이 제한될 수 있습니다."
   }
 };
 
-const renderTermBody = (body: string) =>
-  body.split("\n").map((line, index) => {
-    const trimmedLine = line.trim();
-    const cleanedLine = line.replace(/^#{1,6}\s+/, "").replace(/\*\*/g, "");
-
-    if (trimmedLine === "---") {
-      return <hr className="my-5 border-black/[0.08]" key={`separator-${index}`} />;
-    }
-
-    if (trimmedLine.length === 0) {
-      return <div className="h-3" key={`space-${index}`} />;
-    }
-
-    if (line.startsWith("# ")) {
-      return (
-        <p className="text-[18px] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
-          {cleanedLine}
-        </p>
-      );
-    }
-
-    if (line.startsWith("## ")) {
-      return (
-        <p className="mt-5 text-[16px] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
-          {cleanedLine}
-        </p>
-      );
-    }
-
-    if (line.startsWith("### ")) {
-      return (
-        <p className="mt-4 text-[15px] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
-          {cleanedLine}
-        </p>
-      );
-    }
-
-    return (
-      <p className="text-[14px] leading-[1.75] text-[#3D3D3D]" key={`line-${index}`}>
-        {cleanedLine}
-      </p>
-    );
-  });
-
 function SignupTermsPage() {
   const navigate = useNavigate();
-  // 체크박스 5개(필수3+선택2)를 각각 true/false로 따로 기억함
+  // 체크박스 4개(필수3+선택1)를 각각 true/false로 따로 기억함
   const [agreements, setAgreements] = useState({
     tos: false,
     privacy: false,
     age14: false,
-    marketing: false,
-    overseasTransfer: false
+    marketing: false
   });
   // 필수 약관을 체크하지 않았을 때 보여줄 하단 안내 문구
   const [noticeMessage, setNoticeMessage] = useState("");
   const [selectedTerm, setSelectedTerm] = useState<TermType | null>(null);
 
-  // 5개가 전부 true일 때만 true -> "전체 동의" 체크박스 표시에 씀
+  // 4개가 전부 true일 때만 true -> "전체 동의" 체크박스 표시에 씀
   const allChecked = Object.values(agreements).every(Boolean);
   const requiredChecked = agreements.tos && agreements.privacy && agreements.age14;
 
   // "전체 동의" 누르면: 지금 전부 체크돼 있으면 다 해제, 아니면 다 체크
   const handleToggleAll = () => {
     const next = !allChecked;
-    setAgreements({
-      tos: next,
-      privacy: next,
-      age14: next,
-      marketing: next,
-      overseasTransfer: next
-    });
+    setAgreements({ tos: next, privacy: next, age14: next, marketing: next });
   };
 
   // 체크박스 하나만 콕 집어서 켜고/끄기 (나머지는 안 건드림)
@@ -194,7 +138,7 @@ function SignupTermsPage() {
                   [필수] 만 14세 이상입니다
                 </span>
               </label>
-              <div className="border-b border-[rgba(0,0,0,0.07)] px-4 py-4">
+              <div className="px-4 py-4">
                 <label className="flex cursor-pointer items-center gap-3">
                   <input
                     checked={agreements.marketing}
@@ -206,32 +150,6 @@ function SignupTermsPage() {
                     [선택] 마케팅 정보 수신 동의
                   </span>
                 </label>
-              </div>
-              <div className="px-4 py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <label className="flex min-w-0 cursor-pointer items-center gap-3">
-                    <input
-                      checked={agreements.overseasTransfer}
-                      className="h-4 w-4 shrink-0 cursor-pointer accent-[#94e0f8]"
-                      onChange={() => handleChange("overseasTransfer")}
-                      type="checkbox"
-                    />
-                    <span className="text-[14px] font-medium text-[#1A1A1A]">
-                      [선택] 개인정보 국외이전에 동의합니다
-                    </span>
-                  </label>
-                  <button
-                    className="shrink-0 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
-                    onClick={() => handleViewTerm("overseasTransfer")}
-                    type="button"
-                  >
-                    보기 &gt;
-                  </button>
-                </div>
-                <p className="mt-2 pl-7 text-[12px] leading-[1.6] font-medium text-[#9CA3AF]">
-                  AI 추천/채팅 이용 시 피부 고민 텍스트가 OpenAI(미국)로 전송됩니다. 미동의 시
-                  AI 추천·채팅 기능이 제한됩니다.
-                </p>
               </div>
             </div>
             <p className="px-1 text-[12px] leading-[1.6] font-medium text-[#9CA3AF]">
@@ -252,22 +170,18 @@ function SignupTermsPage() {
       </div>
       {selectedTerm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5 py-8"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5"
           onClick={() => setSelectedTerm(null)}
           role="presentation"
         >
           <div
             aria-modal="true"
-            aria-labelledby="terms-modal-title"
-            className="flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-black/[0.07] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.24)]"
+            className="w-full max-w-[480px] rounded-[20px] border border-black/[0.07] bg-white px-6 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:px-8 sm:py-8"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 sm:px-8 sm:pt-8">
-              <h2
-                className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]"
-                id="terms-modal-title"
-              >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <h2 className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]">
                 {termContent[selectedTerm].title}
               </h2>
               <button
@@ -279,18 +193,16 @@ function SignupTermsPage() {
                 ×
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto border-y border-black/[0.07] px-6 py-5 font-medium sm:px-8">
-              {renderTermBody(termContent[selectedTerm].body)}
-            </div>
-            <div className="px-6 py-4 sm:px-8">
-              <button
-                className="w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
-                onClick={() => setSelectedTerm(null)}
-                type="button"
-              >
-                확인
-              </button>
-            </div>
+            <p className="text-[16px] leading-[1.7] font-medium text-[#3D3D3D]">
+              {termContent[selectedTerm].body}
+            </p>
+            <button
+              className="mt-8 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
+              onClick={() => setSelectedTerm(null)}
+              type="button"
+            >
+              확인
+            </button>
           </div>
         </div>
       )}
