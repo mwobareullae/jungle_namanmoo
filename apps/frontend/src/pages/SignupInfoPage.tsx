@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
+import SignupProgress from "../components/SignupProgress";
 
 type SignupResponse = {
   access_token: string;
@@ -17,7 +18,15 @@ type SignupErrorResponse = {
   message?: string;
 };
 
+type SignupAgreements = {
+  tos: boolean;
+  privacy: boolean;
+  age14: boolean;
+  marketing: boolean;
+};
+
 const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
+const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -37,10 +46,40 @@ const getSignupErrorMessage = (status: number, code?: string) => {
   return "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.";
 };
 
+const getStoredSignupAgreements = (): SignupAgreements | null => {
+  const rawAgreements = sessionStorage.getItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
+
+  if (!rawAgreements) {
+    return null;
+  }
+
+  try {
+    const parsedAgreements = JSON.parse(rawAgreements) as Partial<SignupAgreements>;
+
+    if (
+      parsedAgreements.tos &&
+      parsedAgreements.privacy &&
+      parsedAgreements.age14 &&
+      typeof parsedAgreements.marketing === "boolean"
+    ) {
+      return {
+        tos: parsedAgreements.tos,
+        privacy: parsedAgreements.privacy,
+        age14: parsedAgreements.age14,
+        marketing: parsedAgreements.marketing
+      };
+    }
+  } catch {
+    sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
+  }
+
+  return null;
+};
+
 function SignupInfoPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const agreements = location.state?.agreements;
+  const agreements = (location.state?.agreements as SignupAgreements | undefined) ?? getStoredSignupAgreements();
 
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
@@ -50,6 +89,7 @@ function SignupInfoPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordConfirmTouched, setPasswordConfirmTouched] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const emailErrorMessage =
     emailTouched && !isValidEmail(email)
@@ -82,6 +122,10 @@ function SignupInfoPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     if (!isValidEmail(email)) {
       setEmailTouched(true);
       setEmailApiErrorMessage("");
@@ -101,46 +145,53 @@ function SignupInfoPage() {
       return;
     }
 
-    let response: Response;
+    setIsSubmitting(true);
 
     try {
-      response = await fetch("http://localhost:8000/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, consents: agreements })
-      });
-    } catch {
-      setErrorMessage("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-
-    if (!response.ok) {
-      let error: SignupErrorResponse;
+      let response: Response;
 
       try {
-        error = (await response.json()) as SignupErrorResponse;
+        response = await fetch("http://localhost:8000/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, consents: agreements })
+        });
       } catch {
-        error = {};
-      }
-
-      if (error.code === "EMAIL_ALREADY_EXISTS" || response.status === 409) {
-        setEmailTouched(true);
-        setEmailApiErrorMessage("이미 가입된 이메일입니다.");
-        setErrorMessage("");
+        setErrorMessage("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         return;
       }
 
-      setErrorMessage(getSignupErrorMessage(response.status, error.code));
-      return;
-    }
+      if (!response.ok) {
+        let error: SignupErrorResponse;
 
-    const data = (await response.json()) as SignupResponse;
-    localStorage.setItem("accessToken", data.access_token);
-    localStorage.setItem("refreshToken", data.refresh_token);
-    localStorage.setItem("authUser", JSON.stringify(data.user));
-    localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
-    setErrorMessage("가입 완료!");
-    navigate("/", { replace: true });
+        try {
+          error = (await response.json()) as SignupErrorResponse;
+        } catch {
+          error = {};
+        }
+
+        if (error.code === "EMAIL_ALREADY_EXISTS" || response.status === 409) {
+          setEmailTouched(true);
+          setEmailApiErrorMessage("이미 가입된 이메일입니다.");
+          setErrorMessage("");
+          return;
+        }
+
+        setErrorMessage(getSignupErrorMessage(response.status, error.code));
+        return;
+      }
+
+      const data = (await response.json()) as SignupResponse;
+      localStorage.setItem("accessToken", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+      localStorage.setItem("authUser", JSON.stringify(data.user));
+      localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
+      sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
+      setErrorMessage("가입 완료!");
+      navigate("/", { replace: true });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,7 +200,7 @@ function SignupInfoPage() {
       <main className="flex flex-1 items-center justify-center px-5 py-10">
         <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
           <div className="mb-7">
-            <p className="mb-3 text-[12px] font-semibold text-[#002387]">SIGN UP 2 / 2</p>
+            <SignupProgress currentStep={2} />
             <h1 className="text-[28px] font-semibold leading-[1.25] text-[#1A1A1A]">정보 입력</h1>
             <p className="mt-3 text-[14px] leading-[1.6] font-medium text-[#6B7280]">
               로그인에 사용할 이메일과 비밀번호를 입력해주세요.
@@ -238,14 +289,16 @@ function SignupInfoPage() {
             )}
             <div className="mt-3 grid grid-cols-2 gap-3">
               <button
-                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white py-3.5 text-[15px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA]"
+                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white py-3.5 text-[15px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSubmitting}
                 onClick={() => navigate("/signup")}
                 type="button"
               >
                 이전으로
               </button>
               <button
-                className="cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
+                className="cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
                 type="submit"
               >
                 가입 완료
