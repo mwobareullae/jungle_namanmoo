@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductIngredient, ProductSkinProfile
+from app.db.models.commerce import Inventory, InventoryMovement, Seller
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import (
     Concern,
@@ -30,6 +31,8 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     result = seed_database(session, EXAMPLES_DIR)
 
     assert result.products == 2
+    assert result.sellers == 1
+    assert result.inventories == 0
     assert result.product_skin_profiles == 2
     assert result.ingredient_aliases == 0
     assert result.ingredient_effect_ranges == 2
@@ -38,7 +41,9 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, Effect) == 5
     assert _count(session, Brand) == 2
     assert _count(session, ProductCategory) == 2
+    assert _count(session, Seller) == 1
     assert _count(session, Product) == 2
+    assert _count(session, Inventory) == 0
     assert _count(session, ProductImage) == 4
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
@@ -63,6 +68,8 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert image_row is not None
     assert image_row.image_type == "detail"
     assert image_row.storage_key
+    product_row = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
+    assert product_row.seller_id is not None
 
 
 def test_seed_database_is_idempotent_for_example_catalog() -> None:
@@ -72,12 +79,37 @@ def test_seed_database_is_idempotent_for_example_catalog() -> None:
     seed_database(session, EXAMPLES_DIR)
 
     assert _count(session, Product) == 2
+    assert _count(session, Seller) == 1
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
     assert _count(session, IngredientEffectRange) == 2
     assert _count(session, IngredientAlias) == 0
     assert _count(session, ConcernAlias) == 19
     assert _count(session, SearchDocument) == 4
+
+
+def test_seed_database_loads_optional_product_inventory(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_inventory.csv").write_text(
+        "product_id,stock_quantity,sales_status,safety_stock,inventory_source,updated_at\n"
+        "prod_001,12,ON_SALE,2,AUTO_SEED,2026-07-03T00:00:00Z\n"
+        "prod_002,0,SOLD_OUT,1,AUTO_SEED,2026-07-03T00:00:00Z\n",
+        encoding="utf-8",
+    )
+    session = _make_session()
+
+    result = seed_database(session, data_dir)
+    seed_database(session, data_dir)
+
+    assert result.inventories == 2
+    assert _count(session, Inventory) == 2
+    assert _count(session, InventoryMovement) == 2
+    inventory = session.execute(
+        select(Inventory).join(Product, Inventory.product_id == Product.id).where(Product.product_code == "prod_001")
+    ).scalar_one()
+    assert inventory.stock_quantity == 12
+    assert inventory.sales_status == "ON_SALE"
 
 
 def test_seed_database_deduplicates_existing_risk_flags() -> None:

@@ -73,6 +73,7 @@ class Product(Base):
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     product_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), nullable=False, index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("product_categories.id"), nullable=False, index=True)
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)

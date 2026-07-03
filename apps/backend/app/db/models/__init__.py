@@ -9,6 +9,7 @@ from app.db.models.catalog import (
     ProductPrice,
     ProductSkinProfile,
 )
+from app.db.models.commerce import Inventory, InventoryMovement, Seller
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -45,6 +46,8 @@ __all__ = [
     "IngredientEffect",
     "IngredientEffectRange",
     "IngredientEvidence",
+    "Inventory",
+    "InventoryMovement",
     "Product",
     "ProductCategory",
     "ProductCategoryAlias",
@@ -60,4 +63,5 @@ __all__ = [
     "RiskFlag",
     "SearchCandidate",
     "SearchDocument",
+    "Seller",
 ]

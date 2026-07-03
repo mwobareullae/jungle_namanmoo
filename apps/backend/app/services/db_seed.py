@@ -17,6 +17,9 @@ from app.db.models.catalog import (
     ProductPrice as ProductPriceRow,
     ProductSkinProfile as ProductSkinProfileRow,
 )
+from app.db.models.commerce import Inventory as InventoryRow
+from app.db.models.commerce import InventoryMovement as InventoryMovementRow
+from app.db.models.commerce import Seller as SellerRow
 from app.db.models.search import SearchDocument as SearchDocumentRow
 from app.db.models.taxonomy import (
     Concern as ConcernRow,
@@ -42,7 +45,9 @@ class SeedResult:
     ingredient_aliases: int
     brands: int
     categories: int
+    sellers: int
     products: int
+    inventories: int
     product_ingredients: int
     product_skin_profiles: int
     ingredient_effect_ranges: int
@@ -72,9 +77,11 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
 
     brands_by_name = _seed_brands(session, catalog)
     categories_by_code = _seed_categories(session, catalog)
-    products_by_code = _seed_products(session, catalog, brands_by_name, categories_by_code)
+    default_seller = _seed_default_seller(session)
+    products_by_code = _seed_products(session, catalog, brands_by_name, categories_by_code, default_seller)
     _seed_product_images(session, catalog, products_by_code)
     _seed_product_prices(session, catalog, products_by_code)
+    inventory_count = _seed_product_inventories(session, catalog, products_by_code)
     product_ingredient_count = _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
     _seed_product_skin_profiles(session, catalog, products_by_code)
     _seed_search_documents(session, catalog, products_by_code, ingredients_by_code, evidence_rows)
@@ -86,7 +93,9 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         ingredient_aliases=ingredient_alias_count,
         brands=len(brands_by_name),
         categories=len(categories_by_code),
+        sellers=1,
         products=len(catalog.products),
+        inventories=inventory_count,
         product_ingredients=product_ingredient_count,
         product_skin_profiles=len(catalog.product_skin_profiles),
         ingredient_effect_ranges=len(catalog.ingredient_effect_ranges),
@@ -530,11 +539,30 @@ def _seed_categories(session: Session, catalog: DataCatalog) -> dict[str, Produc
     return categories_by_code
 
 
+def _seed_default_seller(session: Session) -> SellerRow:
+    seller = _one_or_none(session, SellerRow, SellerRow.seller_code == "mwobareullae")
+    if seller is None:
+        seller = SellerRow(
+            seller_code="mwobareullae",
+            display_name="뭐바를래",
+            seller_type="FIRST_PARTY",
+            status="ACTIVE",
+        )
+        session.add(seller)
+    else:
+        seller.display_name = "뭐바를래"
+        seller.seller_type = "FIRST_PARTY"
+        seller.status = "ACTIVE"
+    session.flush()
+    return seller
+
+
 def _seed_products(
     session: Session,
     catalog: DataCatalog,
     brands_by_name: dict[str, BrandRow],
     categories_by_code: dict[str, ProductCategoryRow],
+    default_seller: SellerRow,
 ) -> dict[str, ProductRow]:
     products_by_code: dict[str, ProductRow] = {}
     for product in catalog.products:
@@ -546,6 +574,7 @@ def _seed_products(
         if row is None:
             row = ProductRow(
                 product_code=product.product_id,
+                seller_id=default_seller.id,
                 brand_id=brand.id,
                 category_id=category.id,
                 product_name=product.name,
@@ -559,6 +588,7 @@ def _seed_products(
             )
             session.add(row)
         else:
+            row.seller_id = default_seller.id
             row.brand_id = brand.id
             row.category_id = category.id
             row.product_name = product.name
@@ -662,6 +692,61 @@ def _seed_product_prices(
             row.currency = price.currency
             row.is_lowest = price.is_lowest
     session.flush()
+
+
+def _seed_product_inventories(
+    session: Session,
+    catalog: DataCatalog,
+    products_by_code: dict[str, ProductRow],
+) -> int:
+    for inventory in catalog.product_inventories:
+        product = products_by_code[inventory.product_id]
+        row = _one_or_none(session, InventoryRow, InventoryRow.product_id == product.id)
+        if row is None:
+            row = InventoryRow(
+                product_id=product.id,
+                stock_quantity=inventory.stock_quantity,
+                reserved_quantity=0,
+                safety_stock=inventory.safety_stock,
+                sales_status=inventory.sales_status,
+                inventory_source=inventory.inventory_source,
+            )
+            session.add(row)
+            session.flush()
+            session.add(
+                InventoryMovementRow(
+                    inventory_id=row.id,
+                    product_id=product.id,
+                    movement_type="SEED",
+                    quantity_delta=inventory.stock_quantity,
+                    stock_after=inventory.stock_quantity,
+                    reason="product_inventory.csv seed",
+                    reference_type="product_inventory",
+                    reference_id=product.product_code,
+                )
+            )
+            continue
+
+        quantity_delta = inventory.stock_quantity - row.stock_quantity
+        row.stock_quantity = inventory.stock_quantity
+        row.safety_stock = inventory.safety_stock
+        row.sales_status = inventory.sales_status
+        row.inventory_source = inventory.inventory_source
+        if quantity_delta:
+            session.add(
+                InventoryMovementRow(
+                    inventory_id=row.id,
+                    product_id=product.id,
+                    movement_type="SEED_ADJUST",
+                    quantity_delta=quantity_delta,
+                    stock_after=inventory.stock_quantity,
+                    reason="product_inventory.csv seed update",
+                    reference_type="product_inventory",
+                    reference_id=product.product_code,
+                )
+            )
+    session.flush()
+    return len(catalog.product_inventories)
 
 
 def _seed_product_ingredients(
