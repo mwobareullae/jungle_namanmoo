@@ -7,6 +7,10 @@ type LoginRequestBody = {
 
 type SignupRequestBody = LoginRequestBody;
 
+type PasswordResetRequestBody = {
+  email?: string;
+};
+
 const MOCK_LOGIN_EMAIL = "test@example.com";
 const MOCK_LOGIN_PASSWORD = "password123";
 const MOCK_DUPLICATE_SIGNUP_EMAIL = "duplicate@example.com";
@@ -59,6 +63,14 @@ export const handlers = [
       access_token: "mock-access-token",
       refresh_token: "mock-refresh-token",
       user: { id: 1, email: body.email, created_at: new Date().toISOString() },
+    });
+  }),
+  http.post("http://localhost:8000/api/auth/password-reset", async ({ request }) => {
+    const body = (await request.json()) as PasswordResetRequestBody;
+
+    return HttpResponse.json({
+      message: "비밀번호 재설정 안내를 이메일로 보냈습니다.",
+      email: body.email,
     });
   }),
 ];
