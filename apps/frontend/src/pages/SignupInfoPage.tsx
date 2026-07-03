@@ -9,6 +9,7 @@ type SignupResponse = {
   user: {
     id: number;
     email: string;
+    nickname?: string;
     created_at?: string;
   };
 };
@@ -18,17 +19,39 @@ type SignupErrorResponse = {
   message?: string;
 };
 
+type EmailCheckResponse = {
+  available?: boolean;
+  code?: string;
+  message?: string;
+};
+
 type SignupAgreements = {
   tos: boolean;
   privacy: boolean;
   age14: boolean;
   marketing: boolean;
+  overseasTransfer: boolean;
+};
+
+type EmailCheckState = {
+  isChecked: boolean;
+  isChecking: boolean;
+  status: "idle" | "available" | "unavailable";
+  message: string;
 };
 
 const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 
+const initialEmailCheckState: EmailCheckState = {
+  isChecked: false,
+  isChecking: false,
+  status: "idle",
+  message: ""
+};
+
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const isValidNickname = (value: string) => value.trim().length > 0;
 
 // API 스펙 조건: 8자 이상, 영문+숫자 포함
 const isValidPassword = (password: string) =>
@@ -60,13 +83,15 @@ const getStoredSignupAgreements = (): SignupAgreements | null => {
       parsedAgreements.tos &&
       parsedAgreements.privacy &&
       parsedAgreements.age14 &&
-      typeof parsedAgreements.marketing === "boolean"
+      typeof parsedAgreements.marketing === "boolean" &&
+      typeof parsedAgreements.overseasTransfer === "boolean"
     ) {
       return {
         tos: parsedAgreements.tos,
         privacy: parsedAgreements.privacy,
         age14: parsedAgreements.age14,
-        marketing: parsedAgreements.marketing
+        marketing: parsedAgreements.marketing,
+        overseasTransfer: parsedAgreements.overseasTransfer
       };
     }
   } catch {
@@ -84,17 +109,26 @@ function SignupInfoPage() {
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [emailApiErrorMessage, setEmailApiErrorMessage] = useState("");
+  const [emailCheckState, setEmailCheckState] = useState<EmailCheckState>(initialEmailCheckState);
   const [password, setPassword] = useState("");
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordConfirmTouched, setPasswordConfirmTouched] = useState(false);
+  const [nickname, setNickname] = useState("");
+  const [nicknameTouched, setNicknameTouched] = useState(false);
+  const [nicknameApiErrorMessage, setNicknameApiErrorMessage] = useState("");
+  const [nicknameCheckState, setNicknameCheckState] = useState<EmailCheckState>(initialEmailCheckState);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const emailErrorMessage =
     emailTouched && !isValidEmail(email)
       ? "이메일 형식이 올바르지 않습니다."
-      : emailApiErrorMessage;
+      : emailCheckState.status === "unavailable"
+        ? emailCheckState.message
+        : emailApiErrorMessage;
+  const emailCheckSuccessMessage =
+    !emailErrorMessage && emailCheckState.status === "available" ? emailCheckState.message : "";
   const passwordErrorMessage =
     passwordTouched && !isValidPassword(password)
       ? "비밀번호는 8자 이상, 영문 + 숫자를 포함해야 합니다."
@@ -106,6 +140,14 @@ function SignupInfoPage() {
     password !== passwordConfirm
       ? "비밀번호가 일치하지 않습니다."
       : "";
+  const nicknameErrorMessage =
+    nicknameTouched && !isValidNickname(nickname)
+      ? "닉네임을 입력해 주세요."
+      : nicknameCheckState.status === "unavailable"
+        ? nicknameCheckState.message
+        : nicknameApiErrorMessage;
+  const nicknameCheckSuccessMessage =
+    !nicknameErrorMessage && nicknameCheckState.status === "available" ? nicknameCheckState.message : "";
 
   // 약관 동의 없이 바로 들어왔으면 약관 동의 화면으로 돌려보냄
   useEffect(() => {
@@ -119,6 +161,144 @@ function SignupInfoPage() {
     return null;
   }
 
+  const handleCheckEmail = async () => {
+    if (isSubmitting || emailCheckState.isChecking) {
+      return;
+    }
+
+    setEmailTouched(true);
+    setEmailApiErrorMessage("");
+    setErrorMessage("");
+
+    if (!isValidEmail(email)) {
+      setEmailCheckState(initialEmailCheckState);
+      return;
+    }
+
+    setEmailCheckState({
+      ...initialEmailCheckState,
+      isChecking: true
+    });
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/auth/check-email?email=${encodeURIComponent(email)}`
+      );
+
+      if (!response.ok) {
+        let error: EmailCheckResponse;
+
+        try {
+          error = (await response.json()) as EmailCheckResponse;
+        } catch {
+          error = {};
+        }
+
+        setEmailCheckState({
+          isChecked: false,
+          isChecking: false,
+          status: "unavailable",
+          message:
+            error.code === "EMAIL_ALREADY_EXISTS" || response.status === 409
+              ? "이미 가입된 이메일입니다."
+              : "이메일 중복 확인에 실패했습니다."
+        });
+        return;
+      }
+
+      const data = (await response.json()) as EmailCheckResponse;
+
+      if (data.available === false) {
+        setEmailCheckState({
+          isChecked: false,
+          isChecking: false,
+          status: "unavailable",
+          message: data.message ?? "이미 가입된 이메일입니다."
+        });
+        return;
+      }
+
+      setEmailCheckState({
+        isChecked: true,
+        isChecking: false,
+        status: "available",
+        message: "사용 가능한 이메일입니다."
+      });
+    } catch {
+      setEmailCheckState(initialEmailCheckState);
+      setEmailApiErrorMessage("이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+  };
+
+  const handleCheckNickname = async () => {
+    if (isSubmitting || nicknameCheckState.isChecking) {
+      return;
+    }
+
+    setNicknameTouched(true);
+    setNicknameApiErrorMessage("");
+    setErrorMessage("");
+
+    if (!isValidNickname(nickname)) {
+      setNicknameCheckState(initialEmailCheckState);
+      return;
+    }
+
+    setNicknameCheckState({
+      ...initialEmailCheckState,
+      isChecking: true
+    });
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/auth/check-nickname?nickname=${encodeURIComponent(nickname.trim())}`
+      );
+
+      if (!response.ok) {
+        let error: EmailCheckResponse;
+
+        try {
+          error = (await response.json()) as EmailCheckResponse;
+        } catch {
+          error = {};
+        }
+
+        setNicknameCheckState({
+          isChecked: false,
+          isChecking: false,
+          status: "unavailable",
+          message:
+            error.code === "NICKNAME_ALREADY_EXISTS" || response.status === 409
+              ? "이미 사용 중인 닉네임입니다."
+              : "닉네임 중복 확인에 실패했습니다."
+        });
+        return;
+      }
+
+      const data = (await response.json()) as EmailCheckResponse;
+
+      if (data.available === false) {
+        setNicknameCheckState({
+          isChecked: false,
+          isChecking: false,
+          status: "unavailable",
+          message: data.message ?? "이미 사용 중인 닉네임입니다."
+        });
+        return;
+      }
+
+      setNicknameCheckState({
+        isChecked: true,
+        isChecking: false,
+        status: "available",
+        message: "사용 가능한 닉네임입니다."
+      });
+    } catch {
+      setNicknameCheckState(initialEmailCheckState);
+      setNicknameApiErrorMessage("닉네임 중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -129,6 +309,13 @@ function SignupInfoPage() {
     if (!isValidEmail(email)) {
       setEmailTouched(true);
       setEmailApiErrorMessage("");
+      setErrorMessage("");
+      return;
+    }
+
+    if (!emailCheckState.isChecked) {
+      setEmailTouched(true);
+      setEmailApiErrorMessage("이메일 중복 확인을 해주세요.");
       setErrorMessage("");
       return;
     }
@@ -145,6 +332,20 @@ function SignupInfoPage() {
       return;
     }
 
+    if (!isValidNickname(nickname)) {
+      setNicknameTouched(true);
+      setNicknameApiErrorMessage("");
+      setErrorMessage("");
+      return;
+    }
+
+    if (!nicknameCheckState.isChecked) {
+      setNicknameTouched(true);
+      setNicknameApiErrorMessage("닉네임 중복 확인을 해주세요.");
+      setErrorMessage("");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -154,7 +355,7 @@ function SignupInfoPage() {
         response = await fetch("http://localhost:8000/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, consents: agreements })
+          body: JSON.stringify({ email, password, nickname: nickname.trim(), consents: agreements })
         });
       } catch {
         setErrorMessage("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -171,6 +372,13 @@ function SignupInfoPage() {
         }
 
         if (error.code === "EMAIL_ALREADY_EXISTS" || response.status === 409) {
+          if (error.code === "NICKNAME_ALREADY_EXISTS") {
+            setNicknameTouched(true);
+            setNicknameApiErrorMessage("이미 사용 중인 닉네임입니다.");
+            setErrorMessage("");
+            return;
+          }
+
           setEmailTouched(true);
           setEmailApiErrorMessage("이미 가입된 이메일입니다.");
           setErrorMessage("");
@@ -187,7 +395,6 @@ function SignupInfoPage() {
       localStorage.setItem("authUser", JSON.stringify(data.user));
       localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
       sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
-      setErrorMessage("가입 완료!");
       navigate("/", { replace: true });
     } finally {
       setIsSubmitting(false);
@@ -207,30 +414,46 @@ function SignupInfoPage() {
             </p>
           </div>
           <form className="grid gap-3" noValidate onSubmit={handleSubmit}>
-            <input
-              className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                emailErrorMessage
-                  ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                  : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-              }`}
-              onBlur={() => {
-                setEmailTouched(true);
-                if (!isValidEmail(email)) {
+            <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
+              <input
+                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
+                  emailErrorMessage
+                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
+                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
+                }`}
+                onBlur={() => {
+                  setEmailTouched(true);
+                  if (!isValidEmail(email)) {
+                    setErrorMessage("");
+                  }
+                }}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailApiErrorMessage("");
+                  setEmailCheckState(initialEmailCheckState);
                   setErrorMessage("");
-                }
-              }}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setEmailApiErrorMessage("");
-                setErrorMessage("");
-              }}
-              placeholder="이메일"
-              type="email"
-              value={email}
-            />
+                }}
+                placeholder="이메일"
+                type="email"
+                value={email}
+              />
+              <button
+                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white px-3 py-3 text-[14px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSubmitting || emailCheckState.isChecking}
+                onClick={handleCheckEmail}
+                type="button"
+              >
+                중복 확인
+              </button>
+            </div>
             {emailErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
                 {emailErrorMessage}
+              </p>
+            )}
+            {emailCheckSuccessMessage && (
+              <p className="-mt-1 px-4 text-[13px] font-medium text-[#3D6B4F]">
+                {emailCheckSuccessMessage}
               </p>
             )}
             <input
@@ -285,6 +508,48 @@ function SignupInfoPage() {
             {passwordConfirmErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
                 {passwordConfirmErrorMessage}
+              </p>
+            )}
+            <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
+              <input
+                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
+                  nicknameErrorMessage
+                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
+                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
+                }`}
+                onBlur={() => {
+                  setNicknameTouched(true);
+                  if (!isValidNickname(nickname)) {
+                    setErrorMessage("");
+                  }
+                }}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  setNicknameApiErrorMessage("");
+                  setNicknameCheckState(initialEmailCheckState);
+                  setErrorMessage("");
+                }}
+                placeholder="닉네임"
+                type="text"
+                value={nickname}
+              />
+              <button
+                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white px-3 py-3 text-[14px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSubmitting || nicknameCheckState.isChecking}
+                onClick={handleCheckNickname}
+                type="button"
+              >
+                중복 확인
+              </button>
+            </div>
+            {nicknameErrorMessage && (
+              <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
+                {nicknameErrorMessage}
+              </p>
+            )}
+            {nicknameCheckSuccessMessage && (
+              <p className="-mt-1 px-4 text-[13px] font-medium text-[#3D6B4F]">
+                {nicknameCheckSuccessMessage}
               </p>
             )}
             <div className="mt-3 grid grid-cols-2 gap-3">
