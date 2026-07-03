@@ -36,6 +36,15 @@ class ProductImageAsset:
 
 
 @dataclass(frozen=True)
+class ProductInventory:
+    product_id: str
+    stock_quantity: int
+    sales_status: str
+    safety_stock: int
+    inventory_source: str
+
+
+@dataclass(frozen=True)
 class ProductIngredient:
     product_id: str
     ingredient_id: str
@@ -161,6 +170,7 @@ class DataCatalog:
     products: tuple[Product, ...]
     product_prices: tuple[ProductPrice, ...]
     product_image_assets: tuple[ProductImageAsset, ...]
+    product_inventories: tuple[ProductInventory, ...]
     product_ingredients: tuple[ProductIngredient, ...]
     product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]

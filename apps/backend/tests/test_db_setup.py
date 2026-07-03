@@ -41,6 +41,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "ingredient_effect_ranges",
         "ingredient_evidence",
         "ingredients",
+        "inventories",
+        "inventory_movements",
         "product_categories",
         "product_category_aliases",
         "product_images",
@@ -56,6 +58,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "risk_flags",
         "search_candidates",
         "search_documents",
+        "sellers",
     }
 
     assert set(Base.metadata.tables) == expected_tables
@@ -70,8 +73,9 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
     product_images = Base.metadata.tables["product_images"]
     risk_flags = Base.metadata.tables["risk_flags"]
+    inventories = Base.metadata.tables["inventories"]
 
-    assert {"brand_id", "category_id"}.issubset(products.columns.keys())
+    assert {"seller_id", "brand_id", "category_id"}.issubset(products.columns.keys())
     assert {
         "functional_review_text",
         "functional_cosmetic_status",
@@ -102,6 +106,9 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         ingredient_evidence.columns.keys()
     )
     assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
+    assert {"product_id", "stock_quantity", "reserved_quantity", "safety_stock", "sales_status"}.issubset(
+        inventories.columns.keys()
+    )
 
 
 def test_mvp_schema_can_create_all_with_sqlite() -> None:
