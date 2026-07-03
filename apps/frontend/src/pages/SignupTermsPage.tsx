@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
+import { privacyPolicy, termsOfService } from "../content/terms";
 
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 
@@ -10,12 +11,224 @@ type TermType = "tos" | "privacy";
 const termContent: Record<TermType, { title: string; body: string }> = {
   tos: {
     title: "이용약관",
-    body: "이용약관 상세 내용은 준비 중입니다."
+    body: termsOfService
   },
   privacy: {
     title: "개인정보처리방침",
-    body: "개인정보처리방침 상세 내용은 준비 중입니다."
+    body: privacyPolicy
   }
+};
+
+const renderInlineContent = (text: string) => {
+  const parts = text.split(/(<br>|\*\*[^*]+\*\*|`[^`]+`)/g);
+
+  return parts.map((part, index) => {
+    if (part === "<br>") {
+      return <br key={`br-${index}`} />;
+    }
+
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong className="font-semibold text-[#1A1A1A]" key={`strong-${index}`}>
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <span key={`code-${index}`}>{part.slice(1, -1)}</span>;
+    }
+
+    return part;
+  });
+};
+
+const isTableLine = (line: string) => {
+  const trimmedLine = line.trim();
+
+  return trimmedLine.startsWith("|") && trimmedLine.endsWith("|");
+};
+
+const isTableDividerLine = (line: string) =>
+  /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line.trim());
+
+const parseTableRow = (line: string) =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+
+const renderTermBody = (body: string) => {
+  let listContext: "none" | "numbered" | "nestedBullet" | "topBullet" = "none";
+  const lines = body.split("\n");
+  const renderedNodes: ReactNode[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    const cleanedLine = line.replace(/^#{1,6}\s+/, "");
+
+    if (trimmedLine === "") {
+      listContext = "none";
+      renderedNodes.push(<div className="h-3" key={`space-${index}`} />);
+      continue;
+    }
+
+    if (trimmedLine === "---") {
+      listContext = "none";
+      renderedNodes.push(<hr className="my-5 border-black/[0.08]" key={`separator-${index}`} />);
+      continue;
+    }
+
+    if (isTableLine(line)) {
+      const tableLines: string[] = [];
+
+      while (index < lines.length && isTableLine(lines[index])) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+
+      index -= 1;
+      listContext = "none";
+
+      const [headerLine, maybeDividerLine, ...bodyLines] = tableLines;
+      const headers = parseTableRow(headerLine);
+      const rows = (isTableDividerLine(maybeDividerLine) ? bodyLines : [maybeDividerLine, ...bodyLines])
+        .filter(Boolean)
+        .map(parseTableRow);
+
+      renderedNodes.push(
+        <div
+          className="my-4 overflow-x-auto border border-[#E5E7EB] bg-white"
+          key={`table-${index}`}
+        >
+          <table className="min-w-full border-collapse text-left text-[13px] leading-[1.65] text-[#1A1A1A]">
+            <thead>
+              <tr className="bg-[#CFCFCF]">
+                {headers.map((header, headerIndex) => (
+                  <th
+                    className="border border-[#BDBDBD] px-3 py-2 align-middle font-semibold"
+                    key={`table-${index}-header-${headerIndex}`}
+                    scope="col"
+                  >
+                    {renderInlineContent(header)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`table-${index}-row-${rowIndex}`}>
+                  {headers.map((_, cellIndex) => (
+                    <td
+                      className="border border-[#E5E7EB] px-3 py-2 align-middle"
+                      key={`table-${index}-row-${rowIndex}-cell-${cellIndex}`}
+                    >
+                      {renderInlineContent(row[cellIndex] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
+    if (line.startsWith("# ")) {
+      listContext = "none";
+      renderedNodes.push(
+        <p className="text-[18px] leading-[1.5] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
+          {renderInlineContent(cleanedLine)}
+        </p>
+      );
+      continue;
+    }
+
+    if (line.startsWith("## ")) {
+      listContext = "none";
+      renderedNodes.push(
+        <p className="mt-5 text-[16px] leading-[1.5] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
+          {renderInlineContent(cleanedLine)}
+        </p>
+      );
+      continue;
+    }
+
+    if (line.startsWith("### ")) {
+      listContext = "none";
+      renderedNodes.push(
+        <p className="mt-4 text-[15px] leading-[1.5] font-semibold text-[#1A1A1A]" key={`line-${index}`}>
+          {renderInlineContent(cleanedLine)}
+        </p>
+      );
+      continue;
+    }
+
+    if (trimmedLine.startsWith(">")) {
+      listContext = "none";
+      renderedNodes.push(
+        <blockquote
+          className="my-4 border-l-4 border-[#D1D5DB] py-1 pl-4 text-[14px] leading-[1.75] font-medium text-[#3D3D3D]"
+          key={`quote-${index}`}
+        >
+          {renderInlineContent(trimmedLine.replace(/^>\s?/, ""))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    const numberedListMatch = trimmedLine.match(/^(\d+)\.\s+(.*)$/);
+
+    if (numberedListMatch) {
+      const [, number, listText] = numberedListMatch;
+      listContext = "numbered";
+
+      renderedNodes.push(
+        <div
+          className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-1 text-[14px] leading-[1.75] font-medium text-[#3D3D3D]"
+          key={`line-${index}`}
+        >
+          <span className="text-right tabular-nums">{number}.</span>
+          <p className="min-w-0 flex-1">{renderInlineContent(listText)}</p>
+        </div>
+      );
+      continue;
+    }
+
+    const bulletMatch = line.match(/^(\s*)-\s+(.*)$/);
+
+    if (bulletMatch) {
+      const [, , bulletText] = bulletMatch;
+      const isNestedBullet: boolean = listContext === "numbered" || listContext === "nestedBullet";
+      const indentClassName = isNestedBullet ? "ml-7" : "ml-0";
+      listContext = isNestedBullet ? "nestedBullet" : "topBullet";
+
+      renderedNodes.push(
+        <div
+          className={`${indentClassName} grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-1 text-[14px] leading-[1.75] font-medium text-[#3D3D3D]`}
+          key={`line-${index}`}
+        >
+          <span className="mt-[0.6em] h-1.5 w-1.5 justify-self-center rounded-full bg-[#1A1A1A]" />
+          <p className="min-w-0">{renderInlineContent(bulletText)}</p>
+        </div>
+      );
+      continue;
+    }
+
+    listContext = "none";
+
+    renderedNodes.push(
+      <p className="text-[14px] leading-[1.75] font-medium text-[#3D3D3D]" key={`line-${index}`}>
+        {renderInlineContent(cleanedLine)}
+      </p>
+    );
+  }
+
+  return renderedNodes;
 };
 
 function SignupTermsPage() {
@@ -170,18 +383,22 @@ function SignupTermsPage() {
       </div>
       {selectedTerm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5 py-8"
           onClick={() => setSelectedTerm(null)}
           role="presentation"
         >
           <div
             aria-modal="true"
-            className="w-full max-w-[480px] rounded-[20px] border border-black/[0.07] bg-white px-6 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:px-8 sm:py-8"
+            aria-labelledby="terms-modal-title"
+            className="flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-black/[0.07] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.24)]"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <h2 className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]">
+            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 sm:px-8 sm:pt-8">
+              <h2
+                className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]"
+                id="terms-modal-title"
+              >
                 {termContent[selectedTerm].title}
               </h2>
               <button
@@ -193,16 +410,18 @@ function SignupTermsPage() {
                 ×
               </button>
             </div>
-            <p className="text-[16px] leading-[1.7] font-medium text-[#3D3D3D]">
-              {termContent[selectedTerm].body}
-            </p>
-            <button
-              className="mt-8 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
-              onClick={() => setSelectedTerm(null)}
-              type="button"
-            >
-              확인
-            </button>
+            <div className="min-h-0 flex-1 overflow-y-auto border-y border-black/[0.07] px-6 py-5 sm:px-8">
+              {renderTermBody(termContent[selectedTerm].body)}
+            </div>
+            <div className="px-6 py-4 sm:px-8">
+              <button
+                className="w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
+                onClick={() => setSelectedTerm(null)}
+                type="button"
+              >
+                확인
+              </button>
+            </div>
           </div>
         </div>
       )}
