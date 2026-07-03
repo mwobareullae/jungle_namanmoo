@@ -14,6 +14,7 @@ from app.models.data_contract import (
     IngredientEffectRange,
     IngredientEvidence,
     Product,
+    ProductImageAsset,
     ProductIngredient,
     ProductPrice,
     ProductSkinProfile,
@@ -51,6 +52,12 @@ CSV_HEADERS = {
         "product_url",
         "is_lowest",
         "currency",
+    },
+    "product_image_assets.csv": {
+        "product_id",
+        "image_type",
+        "display_order",
+        "storage_key",
     },
     "product_ingredients.csv": {
         "product_id",
@@ -137,6 +144,11 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
 
     products = _load_csv(base_path, "products.csv", _parse_product)
     product_prices = _load_csv(base_path, "product_prices.csv", _parse_product_price)
+    product_image_assets = _load_optional_csv(
+        base_path,
+        "product_image_assets.csv",
+        _parse_product_image_asset,
+    )
     product_ingredients = _load_csv(
         base_path,
         "product_ingredients.csv",
@@ -176,6 +188,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
     catalog = DataCatalog(
         products=products,
         product_prices=product_prices,
+        product_image_assets=product_image_assets,
         product_ingredients=product_ingredients,
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
@@ -315,6 +328,18 @@ def _parse_product_price(row: dict[str, str], file_name: str, line_number: int) 
         product_url=_required_text(row, "product_url", file_name, line_number),
         is_lowest=_required_bool(row, "is_lowest", file_name, line_number),
         currency=_optional_text(row.get("currency")) or "KRW",
+    )
+
+
+def _parse_product_image_asset(row: dict[str, str], file_name: str, line_number: int) -> ProductImageAsset:
+    image_type = _required_text(row, "image_type", file_name, line_number)
+    if image_type not in {"thumbnail", "detail"}:
+        raise DataLoadError(f"{file_name}:{line_number} image_type은 thumbnail 또는 detail이어야 합니다.")
+    return ProductImageAsset(
+        product_id=_required_text(row, "product_id", file_name, line_number),
+        image_type=image_type,
+        display_order=_required_int(row, "display_order", file_name, line_number),
+        storage_key=_required_text(row, "storage_key", file_name, line_number),
     )
 
 
@@ -528,6 +553,12 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         "product_prices.csv",
         "product_id",
         (price.product_id for price in catalog.product_prices),
+        product_ids,
+    )
+    _validate_references(
+        "product_image_assets.csv",
+        "product_id",
+        (image.product_id for image in catalog.product_image_assets),
         product_ids,
     )
     _validate_references(

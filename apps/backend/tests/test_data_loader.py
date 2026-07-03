@@ -80,6 +80,23 @@ def test_load_data_catalog_reads_optional_ingredient_aliases(tmp_path: Path) -> 
     assert catalog.ingredient_aliases[2].confidence == "medium"
 
 
+def test_load_data_catalog_reads_optional_product_image_assets(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_image_assets.csv").write_text(
+        "product_id,image_type,display_order,source_image_url,storage_key,public_url,upload_status\n"
+        "prod_001,thumbnail,0,https://example.com/source.jpg,products/prod_001/thumb.jpg,,PENDING_UPLOAD\n"
+        "prod_001,detail,1,https://example.com/detail.jpg,products/prod_001/detail_001.jpg,,PENDING_UPLOAD\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.product_image_assets) == 2
+    assert catalog.product_image_assets[0].image_type == "thumbnail"
+    assert catalog.product_image_assets[0].storage_key == "products/prod_001/thumb.jpg"
+
+
 def test_load_data_catalog_reports_missing_ingredient_alias_reference(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)

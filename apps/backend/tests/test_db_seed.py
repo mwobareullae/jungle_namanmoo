@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductSkinProfile
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductIngredient, ProductSkinProfile
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import (
     Concern,
@@ -39,6 +39,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, Brand) == 2
     assert _count(session, ProductCategory) == 2
     assert _count(session, Product) == 2
+    assert _count(session, ProductImage) == 4
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
     assert _count(session, IngredientAlias) == 0
@@ -58,6 +59,10 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     risk_row = session.execute(select(RiskFlag)).scalar_one()
     assert risk_row.applies_to == "sensitive"
     assert risk_row.severity_score is not None
+    image_row = session.execute(select(ProductImage).order_by(ProductImage.id.asc())).scalars().first()
+    assert image_row is not None
+    assert image_row.image_type == "detail"
+    assert image_row.storage_key
 
 
 def test_seed_database_is_idempotent_for_example_catalog() -> None:

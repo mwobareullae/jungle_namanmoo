@@ -68,6 +68,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     recommendation_results = Base.metadata.tables["recommendation_results"]
     ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
+    product_images = Base.metadata.tables["product_images"]
     risk_flags = Base.metadata.tables["risk_flags"]
 
     assert {"brand_id", "category_id"}.issubset(products.columns.keys())
@@ -95,6 +96,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     assert {"ingredient_id", "alias", "normalized_alias", "alias_type", "confidence", "source"}.issubset(
         ingredient_aliases.columns.keys()
     )
+    assert {"image_type", "storage_key", "display_order"}.issubset(product_images.columns.keys())
+    assert "image_url" not in product_images.columns.keys()
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )

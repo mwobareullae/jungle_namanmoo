@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import (
@@ -130,10 +130,13 @@ def _load_product_row(session: Session, product_code: str) -> _ProductRow:
 
 
 def _thumbnail_url(product: Product, images: list[ProductImage]) -> str:
+    for image in images:
+        if image.image_type == "thumbnail":
+            return image.storage_key
+    if images:
+        return images[0].storage_key
     if product.thumbnail_url:
         return product.thumbnail_url
-    if images:
-        return images[0].url
     return ""
 
 
@@ -158,11 +161,17 @@ def _load_product_images(session: Session, product_db_id: Product) -> list[Produ
     rows = session.execute(
         select(ProductImageRow)
         .where(ProductImageRow.product_id == product_db_id.id)
-        .order_by(ProductImageRow.display_order.asc(), ProductImageRow.id.asc())
+        .order_by(
+            case((ProductImageRow.image_type == "thumbnail", 0), else_=1),
+            ProductImageRow.display_order.asc(),
+            ProductImageRow.id.asc(),
+        )
     ).scalars()
     return [
         ProductImage(
-            url=row.image_url,
+            image_type=row.image_type,
+            storage_key=row.storage_key,
+            display_order=row.display_order,
             alt=f"{product_db_id.product_name} 이미지",
         )
         for row in rows

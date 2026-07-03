@@ -581,6 +581,33 @@ def _seed_product_images(
     catalog: DataCatalog,
     products_by_code: dict[str, ProductRow],
 ) -> None:
+    if catalog.product_image_assets:
+        for image in catalog.product_image_assets:
+            product_row = products_by_code[image.product_id]
+            row = _one_or_none(
+                session,
+                ProductImageRow,
+                ProductImageRow.product_id == product_row.id,
+                ProductImageRow.storage_key == image.storage_key,
+            )
+            values = {
+                "image_type": image.image_type,
+                "display_order": image.display_order,
+            }
+            if row is None:
+                session.add(
+                    ProductImageRow(
+                        product_id=product_row.id,
+                        storage_key=image.storage_key,
+                        **values,
+                    )
+                )
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+        session.flush()
+        return
+
     for product in catalog.products:
         product_row = products_by_code[product.product_id]
         for display_order, image_url in enumerate(product.image_urls, 1):
@@ -588,17 +615,19 @@ def _seed_product_images(
                 session,
                 ProductImageRow,
                 ProductImageRow.product_id == product_row.id,
-                ProductImageRow.image_url == image_url,
+                ProductImageRow.storage_key == image_url,
             )
             if row is None:
                 session.add(
                     ProductImageRow(
                         product_id=product_row.id,
-                        image_url=image_url,
+                        image_type="detail",
+                        storage_key=image_url,
                         display_order=display_order,
                     )
                 )
             else:
+                row.image_type = "detail"
                 row.display_order = display_order
     session.flush()
 
