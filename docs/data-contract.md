@@ -276,7 +276,7 @@ excessive     -> 0.4 + 주의 문구
 | `name` | 상품명 |
 | `category` | 상품 카테고리. 예: `toner`, `serum`, `cream`, `lotion` |
 | `is_recommendable` | 기본 AI 추천 후보 포함 여부. `true`면 일반 추천 후보, `false`면 카탈로그에는 남기되 기본 추천에서는 제외 |
-| `recommend_exclude_reason` | `is_recommendable=false`인 이유. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`. 여러 값은 `;`로 구분 |
+| `recommend_exclude_reason` | `is_recommendable=false`인 이유. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`, `mixed_set_composition`. 여러 값은 `;`로 구분 |
 | `skin_type_tags` | 권장 피부 타입 태그 |
 | `thumbnail_url` | 대표 이미지 URL |
 | `image_urls` | 상세 이미지 URL 목록 |
@@ -300,6 +300,7 @@ excessive     -> 0.4 + 주의 문구
 - 전성분은 DB 등록 필수 조건이 아닙니다. 전성분이 없으면 상품은 카탈로그에 남기되 `is_recommendable=false`, `recommend_exclude_reason=missing_ingredients`로 둡니다.
 - 다만 기본 AI 추천은 사용자가 일반적인 기초 제품을 기대한다는 전제로 동작하므로, 남성 전용, 올인원, 눈가/목 전용, 국소 스팟 제품은 `is_recommendable=false`로 둡니다.
 - 스팟 제품은 보수적으로 분류합니다. `스팟 크림/젤/패치/밤/트리트먼트` 또는 20ml/g 이하 국소 사용 제품은 제외하되, `다크 스팟 세럼`, `잡티 스팟 앰플`처럼 일반 세럼/앰플로 볼 수 있는 상품은 추천 후보에 남깁니다.
+- 본품 외 다른 화장품 성분이 섞일 수 있는 세트/키트/캘린더/증정 기획 상품은 `mixed_set_composition`으로 기본 추천에서 제외합니다. 예: 본품 토너에 증정 크림/세럼/폼 성분이 함께 들어올 수 있는 구성입니다.
 - 같은 전성분/브랜드/카테고리로 묶이는 중복 옵션 중 대표가 아닌 상품은 `duplicate_variant_hidden`으로 기본 추천에서 제외할 수 있습니다. 상품 상세와 관리자 카탈로그에는 남깁니다.
 - 제외 상품도 상품 상세, 관리자 확인, 향후 조건부 추천 확장에는 사용할 수 있도록 삭제하지 않습니다.
 - 기본 추천 API/스코어링은 우선 `is_recommendable=true`인 상품만 후보로 사용합니다.
