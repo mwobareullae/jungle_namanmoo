@@ -13,7 +13,7 @@ function SignupProgress({ currentStep }: SignupProgressProps) {
           const isActive = stepNumber <= currentStep;
 
           return (
-            <span className={isActive ? "text-[#002387]" : "text-[#9CA3AF]"} key={step}>
+            <span className={isActive ? "text-[#0096C6]" : "text-[#9CA3AF]"} key={step}>
               {step}
             </span>
           );
@@ -31,14 +31,14 @@ function SignupProgress({ currentStep }: SignupProgressProps) {
                 <span
                   aria-hidden="true"
                   className={`absolute top-1/2 left-[calc(50%+8px)] right-[calc(-50%+8px)] h-px -translate-y-1/2 ${
-                    isConnectorActive ? "bg-[#002387]" : "bg-[#D1D5DB]"
+                    isConnectorActive ? "bg-[#0096C6]" : "bg-[#D1D5DB]"
                   }`}
                 />
               )}
               <span
                 aria-hidden="true"
                 className={`relative z-10 h-4 w-4 rounded-full border-2 ${
-                  isActive ? "border-[#002387] bg-[#002387]" : "border-[#D1D5DB] bg-white"
+                  isActive ? "border-[#0096C6] bg-[#0096C6]" : "border-[#D1D5DB] bg-white"
                 }`}
               />
             </div>
