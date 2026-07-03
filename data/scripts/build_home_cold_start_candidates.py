@@ -8,6 +8,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import home_market_popularity as market
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
@@ -70,6 +72,12 @@ SECTION_CONFIGS = [
 
 
 P2_SECTION_IDS = {"moisture_barrier", "calming", "brightening"}
+MARKET_POPULAR_SECTION = {
+    "section_id": "market_popular",
+    "section_label": "지금 인기 있는 제품",
+    "effect_id": "",
+    "effect_name": "시장 인기",
+}
 
 BRIGHTENING_ANCHORS = {"tranexamic_acid", "arbutin", "glutathione", "bisabolol", "ascorbic_acid", "licorice_extract", "kojic_acid"}
 ACNE_ANCHORS = {"salicylic_acid_bha", "zinc_pca", "tea_tree", "phytosphingosine"}
@@ -111,6 +119,11 @@ OUTPUT_FIELDS = [
     "home_example_score",
     "axis_score",
     "coverage_score",
+    "market_popularity_score",
+    "review_count_score",
+    "rating_score",
+    "sales_score",
+    "recent_signal_score",
     "coverage_types",
     "risk_penalty",
     "matched_ingredients",
@@ -128,7 +141,7 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=OUTPUT_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=OUTPUT_FIELDS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -478,6 +491,95 @@ def select_section_rows(
     return rows
 
 
+def select_market_popular_rows(
+    products: list[dict[str, str]],
+    prices: dict[str, int],
+    market_context: market.MarketPopularityContext,
+    *,
+    used_product_ids: set[str] | None = None,
+    limit: int = 5,
+) -> list[dict[str, str]]:
+    if not market_context.available:
+        return []
+
+    scored: list[dict[str, object]] = []
+    for product in products:
+        product_id = product["product_id"]
+        if used_product_ids is not None and product_id in used_product_ids:
+            continue
+        popularity = market.score_market_popularity(product_id, market_context)
+        if popularity is None or popularity.total <= 0:
+            continue
+        scored.append(
+            {
+                **product,
+                "market_popularity_score": popularity.total,
+                "review_count_score": popularity.review_count_score,
+                "rating_score": popularity.rating_score,
+                "sales_score": popularity.sales_score,
+                "recent_signal_score": popularity.recent_signal_score,
+            }
+        )
+
+    scored.sort(
+        key=lambda item: (
+            -float(item["market_popularity_score"]),
+            -float(item["sales_score"]),
+            -float(item["review_count_score"]),
+            -float(item["rating_score"]),
+            prices[str(item["product_id"])],
+            str(item["category"]),
+            str(item["brand"]),
+            str(item["product_id"]),
+        )
+    )
+
+    rows: list[dict[str, str]] = []
+    brand_count: Counter[str] = Counter()
+    category_count: Counter[str] = Counter()
+    for item in scored:
+        if brand_count[str(item["brand"])] >= 1:
+            continue
+        if category_count[str(item["category"])] >= 2:
+            continue
+        rank = len(rows) + 1
+        rows.append(
+            {
+                "section_id": str(MARKET_POPULAR_SECTION["section_id"]),
+                "section_label": str(MARKET_POPULAR_SECTION["section_label"]),
+                "effect_id": "",
+                "effect_name": str(MARKET_POPULAR_SECTION["effect_name"]),
+                "rank": str(rank),
+                "product_id": str(item["product_id"]),
+                "brand": str(item["brand"]),
+                "name": str(item["name"]),
+                "category": str(item["category"]),
+                "price": str(prices[str(item["product_id"])]),
+                "home_example_score": str(item["market_popularity_score"]),
+                "axis_score": "",
+                "coverage_score": "",
+                "market_popularity_score": str(item["market_popularity_score"]),
+                "review_count_score": str(item["review_count_score"]),
+                "rating_score": str(item["rating_score"]),
+                "sales_score": str(item["sales_score"]),
+                "recent_signal_score": str(item["recent_signal_score"]),
+                "coverage_types": "",
+                "risk_penalty": "",
+                "matched_ingredients": "",
+                "coverage_basis": "",
+                "reason_summary": "리뷰, 평점, 판매 신호를 함께 본 인기 후보예요.",
+                "thumbnail_url": str(item["thumbnail_url"]),
+            }
+        )
+        brand_count[str(item["brand"])] += 1
+        category_count[str(item["category"])] += 1
+        if used_product_ids is not None:
+            used_product_ids.add(str(item["product_id"]))
+        if len(rows) >= limit:
+            break
+    return rows
+
+
 def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     products = read_csv(DATA_DIR / "products.csv")
     prices = load_lowest_prices()
@@ -486,6 +588,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     ranges = load_ranges()
     coverage = load_coverage()
     risk_scores = load_risk_scores()
+    market_context = market.load_market_popularity_context(DATA_DIR)
 
     eligible = [
         product
@@ -494,6 +597,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     ]
 
     all_rows: list[dict[str, str]] = []
+    all_rows.extend(select_market_popular_rows(eligible, prices, market_context, limit=5))
     for section in SECTION_CONFIGS:
         all_rows.extend(
             select_section_rows(
@@ -511,6 +615,15 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
 
     p2_rows: list[dict[str, str]] = []
     used_product_ids: set[str] = set()
+    p2_rows.extend(
+        select_market_popular_rows(
+            eligible,
+            prices,
+            market_context,
+            used_product_ids=used_product_ids,
+            limit=5,
+        )
+    )
     for section in SECTION_CONFIGS:
         if section["section_id"] not in P2_SECTION_IDS:
             continue
@@ -537,6 +650,8 @@ def main() -> None:
     write_csv(P2_OUT, p2_rows)
     print(f"wrote {ALL_OUT} ({len(all_rows)} rows)")
     print(f"wrote {P2_OUT} ({len(p2_rows)} rows)")
+    if any(row["section_id"] == MARKET_POPULAR_SECTION["section_id"] for row in p2_rows):
+        print(MARKET_POPULAR_SECTION["section_id"], sum(1 for row in p2_rows if row["section_id"] == MARKET_POPULAR_SECTION["section_id"]))
     for section_id in P2_SECTION_IDS:
         print(section_id, sum(1 for row in p2_rows if row["section_id"] == section_id))
 
