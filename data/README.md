@@ -92,8 +92,9 @@ vector_docs.csv
 - `is_recommendable=false`인 상품은 카탈로그에는 남기되 기본 추천 후보에서는 제외합니다.
 - DB 등록 최소 조건은 상품명, 브랜드명, 지원 카테고리, 판매가, 대표 이미지입니다.
 - 전성분이 없는 상품도 DB에는 등록할 수 있습니다. 이 경우 기본 추천에서는 제외하고 `recommend_exclude_reason=missing_ingredients`로 저장합니다.
-- 제외 사유는 `recommend_exclude_reason`에 저장합니다. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`.
+- 제외 사유는 `recommend_exclude_reason`에 저장합니다. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`, `mixed_set_composition`.
 - `spot_treatment`는 국소 스팟 제품에만 사용합니다. 잡티/다크스팟 세럼·앰플처럼 일반 얼굴 전체 사용 상품으로 볼 수 있는 제품은 기본 추천 후보에 남깁니다.
+- `mixed_set_composition`은 본품 외 다른 화장품 성분이 함께 섞일 수 있는 세트/키트/캘린더/증정 기획 상품에 사용합니다. 상품은 카탈로그에 남기되 기본 추천 후보에서는 제외합니다.
 - 피부타입 적합도는 상품명, 상세페이지의 제품 주요 사양/사용방법 문구, 성분 효능, 성분 리스크를 함께 보고 자동 생성합니다.
 - 상세페이지 문구는 마케팅 표현일 수 있으므로 최종 점수를 덮어쓰지 않고 보정 근거로만 사용합니다.
 - 피부타입 판단 근거가 애매한 상품은 `skin_type_tags`를 비워둡니다.
