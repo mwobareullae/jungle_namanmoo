@@ -72,7 +72,7 @@ BACKEND_MEMORY_LIMIT=2g
 POSTGRES_MEMORY_LIMIT=2g
 ```
 
-- `FRONTEND_MEMORY_LIMIT=1g`: Vite dev server와 `npm install` 실행 여유를 둔 값입니다.
+- `FRONTEND_MEMORY_LIMIT=1g`: Vite dev server와 `npm ci` 실행 여유를 둔 값입니다.
 - `BACKEND_MEMORY_LIMIT=2g`: FastAPI 테스트, 추천 API, 배치성 작업의 일시적 메모리 사용을 고려한 값입니다.
 - `POSTGRES_MEMORY_LIMIT=2g`: seed/import, 검색/추천 검증 중 DB가 서버 전체 메모리를 과점유하지 않도록 잡은 값입니다.
 
