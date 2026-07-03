@@ -181,9 +181,11 @@ DEV_HOST      EC2 public IP 또는 DNS
 DEV_USER      예: ubuntu
 DEV_SSH_KEY   EC2 접속 private key
 DEV_APP_DIR   예: /home/ubuntu/mwobareullae
+SLACK_WEBHOOK_URL   선택: PR/댓글/dev 배포 완료 Slack 알림용 incoming webhook
 ```
 
 `DEV_SSH_KEY`는 공개키가 아니라 private key입니다. 레포 파일에 넣지 않습니다.
+`SLACK_WEBHOOK_URL`이 없으면 알림 workflow와 배포 완료 알림 step은 건너뛰며, 배포 자체에는 영향을 주지 않습니다.
 
 EC2에 repository를 미리 clone할 필요는 없습니다. GitHub Actions가 현재 checkout된 소스를 `rsync`로 `DEV_APP_DIR`에 동기화합니다.
 
