@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -80,10 +92,16 @@ class Product(Base):
 
 class ProductImage(Base):
     __tablename__ = "product_images"
+    __table_args__ = (
+        CheckConstraint("image_type in ('thumbnail', 'detail')", name="ck_product_images_image_type"),
+        UniqueConstraint("product_id", "image_type", "display_order", name="uq_product_images_product_type_order"),
+        UniqueConstraint("product_id", "storage_key", name="uq_product_images_product_storage_key"),
+    )
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
-    image_url: Mapped[str] = mapped_column(Text, nullable=False)
+    image_type: Mapped[str] = mapped_column(String(20), nullable=False, default="detail", server_default="detail")
+    storage_key: Mapped[str] = mapped_column(Text, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
