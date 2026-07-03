@@ -75,21 +75,22 @@
 - R3는 DB 모델, staging table, bulk upsert, transaction/rollback, API 실행을 소유합니다.
 - R6는 import job 모니터링, worker, storage, 실패 리포트, 알림을 소유합니다.
 - R4는 검색/추천 index source와 후보 생성 품질을 소유합니다.
-- 대량 feed는 `Product`, `Offer`, `Inventory`, `ProductImage`, `ProductIngredient`, `VectorDoc`로 나뉘어 들어가야 합니다.
+- 대량 feed는 `Product`, `Seller`, `ProductPrice`, `Inventory`, `ProductImage`, `ProductIngredient`, `VectorDoc`로 나뉘어 들어가야 합니다.
 - 10만 상품에서 추천/검색을 할 때 매 요청마다 전체 상품 full scan을 하지 않는 구조를 전제로 합니다.
 
-### Product / Offer / Inventory / Image 관계
+### Product / Seller / Price / Inventory / Image 관계
 
 | 객체 | 의미 | P2 기준 |
 | --- | --- | --- |
 | `Product` | canonical 상품 master. 브랜드, 상품명, 카테고리, 성분/이미지의 기준 | `data/products.csv` |
-| `Offer` | 실제 판매 단위. `seller_id + product_id + price + status` | P2는 단일 셀러 `mwobareullae`의 기본 offer로 해석 |
-| `Inventory` | 판매 가능 수량과 품절/숨김 상태 | P2는 기본 offer 기준 재고 |
+| `Seller` | 상품 판매 주체 | P2는 기본 seller `mwobareullae`를 사용하고 `products.seller_id`로 연결 |
+| `ProductPrice` | 자사몰 판매가와 상품 상세 경로 | `product_prices.csv` |
+| `Inventory` | 판매 가능 수량과 품절/숨김 상태 | P2는 `product_id` 기준 재고 |
 | `ProductImage` | 대표/상세 이미지 자산 | `product_image_assets.csv` 작업 큐를 서버가 storage로 이관 |
 | `ProductIngredient` | 상품과 성분의 연결, 표시 순서, 함량 | 추천 근거와 함량 분석의 원천 |
 | `VectorDoc` | 검색/임베딩 대상 문서 | 상품명, 브랜드, 카테고리, 핵심 성분, 효능 설명 기반 |
 
-P2의 `product_prices.csv` 한 행은 외부몰 가격비교가 아니라 단일 셀러 자사몰의 기본 offer seed로 해석합니다. 별도 `offer_id`가 필요한 경우 R3 백엔드가 `product_id` 기준 기본 offer를 생성하거나 매핑합니다.
+P2의 `product_prices.csv` 한 행은 외부몰 가격비교가 아니라 단일 셀러 자사몰의 판매가 seed로 해석합니다. P2/MVP에서는 별도 `offer_id`를 만들지 않고 `product_id`와 기본 seller 기준으로 가격/재고/주문을 처리합니다. 다중 셀러가 같은 상품을 경쟁 판매하는 구조가 생기면 그때 `offers`를 재검토합니다.
 
 ### 10만 feed 최소 입력 컬럼
 
