@@ -1,6 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
+import SignupProgress from "../components/SignupProgress";
+
+const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
+
+type TermType = "tos" | "privacy";
+
+const termContent: Record<TermType, { title: string; body: string }> = {
+  tos: {
+    title: "이용약관",
+    body: "이용약관 상세 내용은 준비 중입니다."
+  },
+  privacy: {
+    title: "개인정보처리방침",
+    body: "개인정보처리방침 상세 내용은 준비 중입니다."
+  }
+};
 
 function SignupTermsPage() {
   const navigate = useNavigate();
@@ -11,8 +27,9 @@ function SignupTermsPage() {
     age14: false,
     marketing: false
   });
-  // "보기" 눌렀을 때 보여줄 임시 안내 문구
+  // 필수 약관을 체크하지 않았을 때 보여줄 하단 안내 문구
   const [noticeMessage, setNoticeMessage] = useState("");
+  const [selectedTerm, setSelectedTerm] = useState<TermType | null>(null);
 
   // 4개가 전부 true일 때만 true -> "전체 동의" 체크박스 표시에 씀
   const allChecked = Object.values(agreements).every(Boolean);
@@ -29,9 +46,9 @@ function SignupTermsPage() {
     setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // "보기" 버튼: 실제 약관 문서는 아직 없어서 임시 문구만 띄움
-  const handleViewTerm = () => {
-    setNoticeMessage("약관 준비 중입니다");
+  // "보기" 버튼: 실제 약관 문서는 아직 없어서 선택한 약관만 임시로 기억함
+  const handleViewTerm = (term: TermType) => {
+    setSelectedTerm(term);
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -41,6 +58,7 @@ function SignupTermsPage() {
       return;
     }
     // "다음" 화면(정보입력)으로 이동하면서 지금까지 체크한 동의 내용을 같이 들고 감(A방식)
+    sessionStorage.setItem(SIGNUP_AGREEMENTS_STORAGE_KEY, JSON.stringify(agreements));
     navigate("/signup/info", { state: { agreements } });
   };
 
@@ -50,7 +68,7 @@ function SignupTermsPage() {
       <div className="flex flex-1 items-center justify-center px-5 py-10">
         <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
           <div className="mb-7">
-            <p className="mb-3 text-[12px] font-semibold text-[#002387]">SIGN UP 1 / 2</p>
+            <SignupProgress currentStep={1} />
             <h1 className="text-[28px] font-semibold leading-[1.25] text-[#1A1A1A]">약관 동의</h1>
             <p className="mt-3 text-[14px] leading-[1.6] font-medium text-[#6B7280]">
               뭐바를래 이용을 위해 필수 약관을 확인해주세요.
@@ -82,7 +100,7 @@ function SignupTermsPage() {
                 {/* 실제 문서가 있는 항목이라 "보기" 링크 있음 */}
                 <button
                   className="shrink-0 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
-                  onClick={handleViewTerm}
+                  onClick={() => handleViewTerm("tos")}
                   type="button"
                 >
                   보기 &gt;
@@ -102,7 +120,7 @@ function SignupTermsPage() {
                 </label>
                 <button
                   className="shrink-0 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
-                  onClick={handleViewTerm}
+                  onClick={() => handleViewTerm("privacy")}
                   type="button"
                 >
                   보기 &gt;
@@ -150,6 +168,44 @@ function SignupTermsPage() {
           )}
         </div>
       </div>
+      {selectedTerm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5"
+          onClick={() => setSelectedTerm(null)}
+          role="presentation"
+        >
+          <div
+            aria-modal="true"
+            className="w-full max-w-[480px] rounded-[20px] border border-black/[0.07] bg-white px-6 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:px-8 sm:py-8"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <h2 className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]">
+                {termContent[selectedTerm].title}
+              </h2>
+              <button
+                aria-label="약관 모달 닫기"
+                className="cursor-pointer border-0 bg-transparent text-[28px] leading-none text-[#6B7280] hover:text-[#1A1A1A]"
+                onClick={() => setSelectedTerm(null)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-[16px] leading-[1.7] font-medium text-[#3D3D3D]">
+              {termContent[selectedTerm].body}
+            </p>
+            <button
+              className="mt-8 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
+              onClick={() => setSelectedTerm(null)}
+              type="button"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

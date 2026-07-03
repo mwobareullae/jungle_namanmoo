@@ -5,6 +5,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
+import PasswordResetPage from "./pages/PasswordResetPage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 import SignupInfoPage from "./pages/SignupInfoPage";
@@ -532,6 +533,7 @@ function App() {
   return (
     <Routes>
       {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+      {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
       {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
       {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
       <Route path="*" element={<LegacyApp />} />

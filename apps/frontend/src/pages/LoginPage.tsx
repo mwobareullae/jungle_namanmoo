@@ -1,17 +1,109 @@
 import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
+
+type LoginResponse = {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    id: number;
+    email: string;
+  };
+};
+
+type LoginLocationState = {
+  from?: string;
+};
+
+type SocialProvider = "google" | "kakao" | "naver";
+
+const socialProviderLabels: Record<SocialProvider, string> = {
+  google: "구글",
+  kakao: "카카오",
+  naver: "네이버"
+};
+
+const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
+const LOGIN_EMAIL_FORMAT_ERROR_MESSAGE = "아이디는 이메일 형식으로 입력해주세요.";
+
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const getRedirectPath = (from?: string) => {
+  if (!from || !from.startsWith("/") || from.startsWith("//") || from === "/login") {
+    return "/";
+  }
+
+  return from;
+};
 
 function LoginPage() {
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as LoginLocationState | null;
+  const redirectPath = getRedirectPath(locationState?.from);
+  const emailErrorMessage =
+    emailTouched && !isValidEmail(email) ? LOGIN_EMAIL_FORMAT_ERROR_MESSAGE : "";
+  const passwordErrorMessage = passwordTouched && password.length === 0 ? "비밀번호를 입력해 주세요." : "";
+
+  const handleSocialLogin = (provider: SocialProvider) => {
+    setMessage(`${socialProviderLabels[provider]} 간편 로그인은 준비 중입니다.`);
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const response = await fetch("http://localhost:8000/api/auth/login", {
-      method: "POST"
-    });
-    if (response.ok) {
+
+    if (isSubmitting) {
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setEmailTouched(true);
+      setMessage("");
+      return;
+    }
+
+    if (password.length === 0) {
+      setPasswordTouched(true);
+      setMessage("");
+      return;
+    }
+
+    setMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email,
+          password
+        })
+      });
+      if (!response.ok) {
+        setMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      const data = (await response.json()) as LoginResponse;
+      localStorage.setItem("accessToken", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+      localStorage.setItem("authUser", JSON.stringify(data.user));
+      localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
       setMessage("로그인 성공!");
+      navigate(redirectPath, { replace: true });
+    } catch {
+      setMessage("로그인 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -23,7 +115,7 @@ function LoginPage() {
           <div className="mb-7">
             <h1 className="text-[28px] font-semibold leading-[1.25] text-[#1A1A1A]">로그인</h1>
           </div>
-          <form className="grid gap-3" onSubmit={handleSubmit}>
+          <form className="grid gap-3" noValidate onSubmit={handleSubmit}>
             <div className="relative">
               <svg
                 className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#9CA3AF]"
@@ -40,11 +132,31 @@ function LoginPage() {
                 <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
               </svg>
               <input
-                className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-4 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
+                className={`w-full rounded-[14px] border py-3 pr-4 pl-11 text-[15px] text-[#1A1A1A] focus:outline-none ${
+                  emailErrorMessage
+                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
+                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
+                }`}
+                onBlur={() => {
+                  setEmailTouched(true);
+                  if (!isValidEmail(email)) {
+                    setMessage("");
+                  }
+                }}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setMessage("");
+                }}
                 placeholder="이메일"
                 type="email"
+                value={email}
               />
             </div>
+            {emailErrorMessage && (
+              <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
+                {emailErrorMessage}
+              </p>
+            )}
             <div className="relative">
               <svg
                 className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#9CA3AF]"
@@ -61,9 +173,24 @@ function LoginPage() {
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
               <input
-                className="w-full rounded-[14px] border border-[rgba(0,0,0,0.07)] py-3 pr-14 pl-11 text-[15px] text-[#1A1A1A] focus:border-[rgba(148,224,248,0.44)] focus:outline-none"
+                className={`w-full rounded-[14px] border py-3 pr-14 pl-11 text-[15px] text-[#1A1A1A] focus:outline-none ${
+                  passwordErrorMessage
+                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
+                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
+                }`}
+                onBlur={() => {
+                  setPasswordTouched(true);
+                  if (password.length === 0) {
+                    setMessage("");
+                  }
+                }}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setMessage("");
+                }}
                 placeholder="비밀번호"
                 type={showPassword ? "text" : "password"}
+                value={password}
               />
               <button
                 className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
@@ -73,8 +200,14 @@ function LoginPage() {
                 {showPassword ? "숨김" : "비밀번호 표시"}
               </button>
             </div>
+            {passwordErrorMessage && (
+              <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
+                {passwordErrorMessage}
+              </p>
+            )}
             <button
-              className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
+              className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
               type="submit"
             >
               로그인
@@ -84,9 +217,9 @@ function LoginPage() {
             <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{message}</p>
           )}
           <div className="mt-5 text-center text-[13px] font-medium">
-            <a className="text-[#3D3D3D] no-underline hover:underline" href="#">
+            <Link className="text-[#3D3D3D] no-underline hover:underline" to="/password-reset">
               비밀번호 재설정
-            </a>
+            </Link>
             <span className="mx-2.5 text-black/[0.15]">|</span>
             <a className="text-[#3D3D3D] no-underline hover:underline" href="/signup">
               회원가입
@@ -101,6 +234,7 @@ function LoginPage() {
             <button
               aria-label="구글로 로그인"
               className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-black/[0.07] bg-white hover:bg-gray-100"
+              onClick={() => handleSocialLogin("google")}
               type="button"
             >
               <svg height="20" viewBox="0 0 48 48" width="20">
@@ -130,6 +264,7 @@ function LoginPage() {
             <button
               aria-label="카카오로 로그인"
               className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-[#fee500] bg-[#fee500] hover:bg-[#fada00]"
+              onClick={() => handleSocialLogin("kakao")}
               type="button"
             >
               <svg height="20" viewBox="0 0 24 24" width="20">
@@ -142,6 +277,7 @@ function LoginPage() {
             <button
               aria-label="네이버로 로그인"
               className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-[#03c75a] bg-[#03c75a] hover:bg-[#02b350]"
+              onClick={() => handleSocialLogin("naver")}
               type="button"
             >
               <svg height="16" viewBox="0 0 20 20" width="16">

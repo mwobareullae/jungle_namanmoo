@@ -1,7 +1,11 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import { callOriginal } from "../lib/originalRuntime";
 
 function HomeHeader() {
   const defaultSectionHref = "/#defaultSection";
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = `${location.pathname}${location.search}${location.hash}`;
 
   return (
     <header>
@@ -107,7 +111,11 @@ function HomeHeader() {
             href="#"
             onClick={(event) => {
               event.preventDefault();
-              callOriginal("showToast", "로그인 기능은 준비 중입니다");
+              navigate("/login", {
+                state: {
+                  from: currentPath,
+                },
+              });
             }}
           >
             로그인
