@@ -1,0 +1,89 @@
+name: pr-notify
+
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - dev
+
+jobs:
+  notify:
+    name: Slack PR 알림
+    runs-on: ubuntu-latest
+
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Build Slack payload
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const pr = context.payload.pull_request;
+            const fallback = "_설명 없음_";
+
+            const truncate = (value, max = 2800) => {
+              const text = value && String(value).trim() ? String(value).trim() : fallback;
+              return text.length > max ? `${text.slice(0, max)}\n...` : text;
+            };
+
+            const slackLinkText = (value) =>
+              String(value || "").replace(/[|<>]/g, " ").trim();
+
+            const payload = {
+              attachments: [
+                {
+                  color: "#2EB67D",
+                  blocks: [
+                    {
+                      type: "header",
+                      text: {
+                        type: "plain_text",
+                        text: "📬 PR 리뷰 요청",
+                        emoji: true,
+                      },
+                    },
+                    { type: "divider" },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: `*<${pr.html_url}|#${pr.number} ${slackLinkText(pr.title)}>*`,
+                      },
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: truncate(pr.body),
+                      },
+                    },
+                    {
+                      type: "context",
+                      elements: [
+                        {
+                          type: "mrkdwn",
+                          text: `작성자: ${pr.user.login}  |  ${pr.head.ref} → ${pr.base.ref}`,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            };
+
+            fs.writeFileSync("slack-pr-notify.json", JSON.stringify(payload));
+
+      - name: Slack 알림
+        if: env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: slack-pr-notify.json
