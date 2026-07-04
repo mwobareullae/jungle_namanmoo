@@ -1,0 +1,97 @@
+services:
+  frontend-only:
+    build:
+      context: ./apps/frontend
+    container_name: mwobareullae-frontend-only
+    restart: unless-stopped
+    profiles:
+      - frontend-only
+    environment:
+      VITE_APP_MODE: ${VITE_APP_MODE:-commerce}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+      VITE_ENABLE_MOCKS: ${VITE_ENABLE_MOCKS:-false}
+      VITE_GA_MEASUREMENT_ID: ${VITE_GA_MEASUREMENT_ID:-}
+      VITE_IMAGE_CDN_BASE_URL: ${VITE_IMAGE_CDN_BASE_URL:-https://d3hg0esuwey1za.cloudfront.net}
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./apps/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+    deploy:
+      resources:
+        limits:
+          memory: "${FRONTEND_MEMORY_LIMIT:-1g}"
+    networks:
+      - app_network
+
+  backend-dev-tunnel:
+    build:
+      context: ./apps/backend
+      args:
+        INSTALL_DEV: "true"
+    container_name: mwobareullae-backend-dev-tunnel
+    restart: unless-stopped
+    profiles:
+      - backend-dev-tunnel
+    environment:
+      APP_NAME: ${APP_NAME:-mwobareullae}
+      APP_ENV: ${APP_ENV:-local}
+      API_BASE_PATH: ${API_BASE_PATH:-/api}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      DATABASE_URL: ${DEV_TUNNEL_DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@host.docker.internal:5432/mwobareullae}
+      DATA_DIR: ${DATA_DIR:-/data}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      HYBRID_KEYWORD_WEIGHT: ${HYBRID_KEYWORD_WEIGHT:-0.5}
+      HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.5}
+      RECOMMENDATION_CANDIDATE_POOL_LIMIT: ${RECOMMENDATION_CANDIDATE_POOL_LIMIT:-500}
+      REDIS_URL: ${DEV_TUNNEL_REDIS_URL:-redis://host.docker.internal:6379/0}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-mubarelle:dev:}
+      ELASTICSEARCH_URL: ${DEV_TUNNEL_ELASTICSEARCH_URL:-http://host.docker.internal:9200}
+      ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-mubarelle_dev}
+      AUTH_JWT_SECRET_KEY: ${AUTH_JWT_SECRET_KEY:-change-me-local-secret}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@mubarelle.com}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./apps/backend:/app
+      - ./data:/data:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).read()\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+    deploy:
+      resources:
+        limits:
+          memory: "${BACKEND_MEMORY_LIMIT:-2g}"
+    networks:
+      - app_network

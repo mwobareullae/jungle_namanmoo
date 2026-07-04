@@ -205,7 +205,13 @@ VITE_API_BASE_URL=http://<dev-server-host>:8000/api
 
 이 프로젝트는 Vite 기반이므로 `NEXT_PUBLIC_API_URL`은 사용하지 않습니다.
 
-현재 기본 `docker-compose.yml`은 `frontend -> backend -> postgres` 의존성이 있습니다. 역할 분리 compose/profile이 추가되기 전까지는 `apps/frontend`에서 로컬 dev 서버를 직접 실행하거나, 기존 compose 의존성 동작을 인지하고 사용합니다.
+현재 기본 `docker-compose.yml`은 `frontend -> backend -> postgres` 의존성이 있습니다. 프론트만 실행할 때는 역할 분리용 `docker-compose.dev-modes.yml`의 `frontend-only` 서비스를 사용합니다.
+
+역할 분리 compose를 사용할 때:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile frontend-only up --build frontend-only
+```
 
 ### Backend 작업자 기본 모드
 
@@ -225,6 +231,12 @@ backend local
 
 PR 전에는 로컬에서 `alembic upgrade head`가 정상 적용되는지 확인합니다.
 
+실행:
+
+```bash
+docker compose up --build backend
+```
+
 ### Backend 통합 확인 모드
 
 검색/추천/캐시 통합 확인이 필요할 때는 Dev 서버의 Postgres/ES/Redis를 한 세트로 SSH 터널링해서 사용합니다.
@@ -238,6 +250,20 @@ backend local
 ```
 
 `local Postgres + dev ES/Redis` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 ES index, Redis cache가 서로 달라져 디버깅이 어려워질 수 있습니다.
+
+실행:
+
+```bash
+ssh dev-tunnel
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile backend-dev-tunnel up --build backend-dev-tunnel
+```
+
+`backend-dev-tunnel` 컨테이너는 호스트의 SSH tunnel을 `host.docker.internal`로 접근합니다. Docker 밖에서 백엔드를 직접 실행하는 경우에는 `localhost` 기준 URL을 사용합니다.
+
+기본 `frontend`/`backend` 서비스와 `frontend-only`/`backend-dev-tunnel` 서비스는 각각 같은 host port를 사용합니다. 동시에 띄우지 말고, 동시에 필요하면 `FRONTEND_PORT` 또는 `BACKEND_PORT`를 바꿉니다.
 
 ## SSH tunnel 기준
 
