@@ -15,6 +15,11 @@ from app.db.models.auth import (
     UserConsent,
 )
 from app.schemas.auth import AuthUser, SignupConsents, SignupRequest, TokenResponse
+from app.services.google_oauth import (
+    GoogleAccountInfo,
+    GoogleTokenVerificationError,
+    verify_google_id_token,
+)
 from app.services.auth_security import (
     PASSWORD_RESET_CODE_TTL,
     PASSWORD_RESET_MAX_ATTEMPTS,
@@ -119,6 +124,83 @@ def login(session: Session, email: str, password: str) -> TokenResponse:
     now = datetime.now(UTC)
     user.last_login_at = now
     return _issue_token_response(session, user, now=now)
+
+
+def login_with_google(
+    session: Session,
+    *,
+    credential: str,
+    consents: SignupConsents | None = None,
+    csrf_token: str | None = None,
+    csrf_cookie: str | None = None,
+) -> TokenResponse:
+    _validate_google_csrf(csrf_token, csrf_cookie)
+    try:
+        google_account = verify_google_id_token(credential)
+    except GoogleTokenVerificationError as exc:
+        code = str(exc)
+        status_code = 500 if code in {"GOOGLE_LOGIN_NOT_CONFIGURED", "GOOGLE_AUTH_LIBRARY_NOT_INSTALLED"} else 401
+        message = "Google login is not configured." if status_code == 500 else "Google login token is invalid."
+        raise AuthServiceError(status_code, code, message) from exc
+
+    if not google_account.email_verified or not _is_google_authoritative_email(google_account):
+        raise AuthServiceError(400, "GOOGLE_EMAIL_NOT_VERIFIED", "Google email is not verified.")
+
+    now = datetime.now(UTC)
+    account = session.execute(
+        select(AuthAccount).where(
+            AuthAccount.provider == "google",
+            AuthAccount.provider_account_id == google_account.sub,
+        )
+    ).scalar_one_or_none()
+    if account is not None:
+        user = _load_active_user(session, account.user_id)
+        account.provider_email = google_account.email
+        account.is_verified = google_account.email_verified
+        user.last_login_at = now
+        return _issue_token_response(session, user, now=now)
+
+    user = _find_user_by_email(session, google_account.email)
+    if user is not None:
+        user = _load_active_user(session, user.id)
+        session.add(
+            AuthAccount(
+                user_id=user.id,
+                provider="google",
+                provider_account_id=google_account.sub,
+                provider_email=google_account.email,
+                is_verified=google_account.email_verified,
+            )
+        )
+        user.last_login_at = now
+        session.flush()
+        return _issue_token_response(session, user, now=now)
+
+    if consents is None or not (consents.tos and consents.privacy and consents.age14):
+        raise AuthServiceError(400, "REQUIRED_CONSENT_MISSING", "Required terms consent is missing.")
+
+    user = User(
+        email=google_account.email,
+        display_name=_build_unique_social_nickname(session, google_account),
+        status="ACTIVE",
+        role="USER",
+        last_login_at=now,
+    )
+    session.add(user)
+    session.flush()
+    session.add(
+        AuthAccount(
+            user_id=user.id,
+            provider="google",
+            provider_account_id=google_account.sub,
+            provider_email=google_account.email,
+            is_verified=google_account.email_verified,
+        )
+    )
+    _save_user_consents(session, user.id, consents)
+    token_response = _issue_token_response(session, user, now=now)
+    session.flush()
+    return token_response
 
 
 def refresh(session: Session, refresh_token: str) -> TokenResponse:
@@ -260,6 +342,43 @@ def _validate_signup_input(
         raise AuthServiceError(409, "EMAIL_ALREADY_EXISTS", "이미 가입된 이메일입니다.")
     if _find_user_by_nickname(session, nickname) is not None:
         raise AuthServiceError(409, "NICKNAME_ALREADY_EXISTS", "이미 사용 중인 닉네임입니다.")
+
+
+def _validate_google_csrf(csrf_token: str | None, csrf_cookie: str | None) -> None:
+    if csrf_token is None and csrf_cookie is None:
+        return
+    if not csrf_token or not csrf_cookie or csrf_token != csrf_cookie:
+        raise AuthServiceError(400, "INVALID_CSRF_TOKEN", "Google login CSRF token is invalid.")
+
+
+def _is_google_authoritative_email(google_account: GoogleAccountInfo) -> bool:
+    if not google_account.email_verified:
+        return False
+    _, _, domain = google_account.email.rpartition("@")
+    return domain.lower() == "gmail.com" or bool(google_account.hosted_domain)
+
+
+def _load_active_user(session: Session, user_id: int) -> User:
+    user = session.get(User, user_id)
+    if user is None or user.status != "ACTIVE":
+        raise AuthServiceError(403, "USER_NOT_ACTIVE", "User is not active.")
+    return user
+
+
+def _build_unique_social_nickname(session: Session, google_account: GoogleAccountInfo) -> str:
+    raw_base = normalize_nickname(google_account.name or google_account.email.split("@", 1)[0])
+    base = raw_base or "google_user"
+    base = base[:90]
+    if _find_user_by_nickname(session, base) is None:
+        return base
+
+    for suffix in range(2, 1000):
+        suffix_text = str(suffix)
+        candidate = f"{base[:100 - len(suffix_text)]}{suffix_text}"
+        if _find_user_by_nickname(session, candidate) is None:
+            return candidate
+
+    return f"google_user_{google_account.sub[-12:]}"
 
 
 def _save_user_consents(session: Session, user_id: int, consents: SignupConsents) -> None:
