@@ -1,0 +1,277 @@
+from collections.abc import Generator
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+
+from app.db.base import Base
+from app.db.models.auth import AuthAccount, PasswordResetToken, RefreshToken, TermsVersion, User, UserConsent
+from app.db.session import get_db
+from app.main import app
+
+
+@pytest.fixture()
+def db_engine() -> Generator[Engine, None, None]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture()
+def client(db_engine: Engine) -> Generator[TestClient, None, None]:
+    def override_get_db():
+        with Session(db_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+def test_signup_creates_user_auth_account_consents_and_tokens(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "USER@example.com",
+            "password": "password123",
+            "nickname": "원우",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["access_token"]
+    assert data["refresh_token"]
+    assert data["user"]["email"] == "user@example.com"
+    assert data["user"]["nickname"] == "원우"
+
+    with Session(db_engine) as session:
+        user = session.execute(select(User).where(User.email == "user@example.com")).scalar_one()
+        account = session.execute(select(AuthAccount).where(AuthAccount.user_id == user.id)).scalar_one()
+        refresh_token = session.execute(select(RefreshToken).where(RefreshToken.user_id == user.id)).scalar_one()
+        consents = session.execute(select(UserConsent).where(UserConsent.user_id == user.id)).scalars().all()
+        terms_versions = session.execute(select(TermsVersion)).scalars().all()
+
+    assert account.provider == "email"
+    assert account.provider_account_id == "user@example.com"
+    assert account.password_hash
+    assert refresh_token.token_hash != data["refresh_token"]
+    assert len(consents) == 4
+    assert {consent.consent_key: consent.agreed for consent in consents} == {
+        "tos": True,
+        "privacy": True,
+        "age14": True,
+        "marketing": False,
+    }
+    assert {terms.terms_key for terms in terms_versions} == {"tos", "privacy", "age14", "marketing"}
+
+
+def test_check_email_and_nickname_return_409_for_duplicates(client: TestClient) -> None:
+    _signup(client, email="duplicate@example.com", nickname="중복")
+
+    email_response = client.get("/api/auth/check-email", params={"email": "duplicate@example.com"})
+    nickname_response = client.get("/api/auth/check-nickname", params={"nickname": "중복"})
+
+    assert email_response.status_code == 409
+    assert email_response.json()["code"] == "EMAIL_ALREADY_EXISTS"
+    assert email_response.json()["available"] is False
+    assert nickname_response.status_code == 409
+    assert nickname_response.json()["code"] == "NICKNAME_ALREADY_EXISTS"
+    assert nickname_response.json()["available"] is False
+
+
+def test_signup_rejects_missing_required_consents(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "consent@example.com",
+            "password": "password123",
+            "nickname": "동의부족",
+            "consents": {
+                "tos": True,
+                "privacy": False,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "REQUIRED_CONSENT_MISSING"
+
+
+def test_login_refresh_me_and_logout_flow(client: TestClient) -> None:
+    _signup(client, email="login@example.com", nickname="로그인")
+
+    login_response = client.post(
+        "/api/auth/login",
+        json={"email": "login@example.com", "password": "password123"},
+    )
+    assert login_response.status_code == 200
+    login_data = login_response.json()
+
+    me_response = client.get(
+        "/api/me",
+        headers={"Authorization": f"Bearer {login_data['access_token']}"},
+    )
+    assert me_response.status_code == 200
+    assert me_response.json()["email"] == "login@example.com"
+
+    refresh_response = client.post(
+        "/api/auth/refresh",
+        json={"refresh_token": login_data["refresh_token"]},
+    )
+    assert refresh_response.status_code == 200
+    refreshed = refresh_response.json()
+    assert refreshed["refresh_token"] != login_data["refresh_token"]
+
+    logout_response = client.post(
+        "/api/auth/logout",
+        json={"refresh_token": refreshed["refresh_token"]},
+    )
+    assert logout_response.status_code == 200
+
+    reuse_response = client.post(
+        "/api/auth/refresh",
+        json={"refresh_token": refreshed["refresh_token"]},
+    )
+    assert reuse_response.status_code == 401
+    assert reuse_response.json()["code"] == "INVALID_REFRESH_TOKEN"
+
+
+def test_login_rejects_invalid_credentials(client: TestClient) -> None:
+    _signup(client, email="wrong@example.com", nickname="비번틀림")
+
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "wrong@example.com", "password": "wrong1234"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+
+def test_password_reset_request_hides_email_existence(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_codes: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.auth_service.send_password_reset_code",
+        lambda email, code: sent_codes.append((email, code)),
+    )
+    _signup(client, email="reset@example.com", nickname="재설정")
+
+    existing_response = client.post("/api/auth/password-reset", json={"email": "reset@example.com"})
+    missing_response = client.post("/api/auth/password-reset", json={"email": "missing@example.com"})
+
+    assert existing_response.status_code == 200
+    assert missing_response.status_code == 200
+    assert existing_response.json() == missing_response.json()
+    assert sent_codes and sent_codes[0][0] == "reset@example.com"
+
+
+def test_password_reset_confirm_changes_password_and_revokes_refresh_tokens(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_codes: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.auth_service.send_password_reset_code",
+        lambda email, code: sent_codes.append((email, code)),
+    )
+    signup_data = _signup(client, email="confirm@example.com", nickname="확정")
+    client.post("/api/auth/password-reset", json={"email": "confirm@example.com"})
+
+    response = client.post(
+        "/api/auth/password-reset/confirm",
+        json={
+            "email": "confirm@example.com",
+            "code": sent_codes[0][1],
+            "new_password": "newpass123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert client.post(
+        "/api/auth/login",
+        json={"email": "confirm@example.com", "password": "password123"},
+    ).status_code == 401
+    assert client.post(
+        "/api/auth/login",
+        json={"email": "confirm@example.com", "password": "newpass123"},
+    ).status_code == 200
+    assert client.post(
+        "/api/auth/refresh",
+        json={"refresh_token": signup_data["refresh_token"]},
+    ).status_code == 401
+
+
+def test_password_reset_confirm_locks_after_too_many_failures(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_codes: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.auth_service.send_password_reset_code",
+        lambda email, code: sent_codes.append((email, code)),
+    )
+    _signup(client, email="lock@example.com", nickname="잠김")
+    client.post("/api/auth/password-reset", json={"email": "lock@example.com"})
+
+    for _ in range(5):
+        response = client.post(
+            "/api/auth/password-reset/confirm",
+            json={"email": "lock@example.com", "code": "000000", "new_password": "newpass123"},
+        )
+        assert response.status_code == 400
+
+    locked_response = client.post(
+        "/api/auth/password-reset/confirm",
+        json={"email": "lock@example.com", "code": sent_codes[0][1], "new_password": "newpass123"},
+    )
+
+    assert locked_response.status_code == 429
+    with Session(db_engine) as session:
+        token = session.execute(select(PasswordResetToken)).scalar_one()
+        assert token.failed_attempt_count == 5
+
+
+def _signup(client: TestClient, *, email: str, nickname: str) -> dict:
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": email,
+            "password": "password123",
+            "nickname": nickname,
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert response.status_code == 200
+    return response.json()
