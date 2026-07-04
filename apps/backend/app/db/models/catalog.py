@@ -144,7 +144,7 @@ class ProductIngredient(Base):
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
     ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
-    ingredient_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    ingredient_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content_confidence: Mapped[str | None] = mapped_column(String(40), nullable=True)
     display_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     concentration_text: Mapped[str | None] = mapped_column(String(160), nullable=True)
