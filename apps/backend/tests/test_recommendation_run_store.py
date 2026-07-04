@@ -133,6 +133,35 @@ def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:
     assert _count_rows(session, RecommendationRun) == 0
 
 
+def test_create_recommendation_response_persists_candidate_pool_diagnostics() -> None:
+    session = _seed_example_session()
+
+    response = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="속건조 보습 추천"),
+        result_limit=10,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+
+    run = _load_run(session, response.recommendation_id)
+    diagnostics = run.request_context["candidate_pool_diagnostics"]
+
+    assert diagnostics["candidate_generation_version"] == "legacy_id_order_v0"
+    assert diagnostics["strategy"] == "legacy_id_order"
+    assert diagnostics["requested_candidate_pool_limit"] == 20
+    assert diagnostics["result_limit"] == 10
+    assert diagnostics["loaded_candidate_count"] == 2
+    assert diagnostics["avoid_filtered_count"] == 0
+    assert diagnostics["after_avoid_filter_count"] == 2
+    assert diagnostics["search_match_count"] == 2
+    assert diagnostics["scored_candidate_count"] == 2
+    assert diagnostics["final_result_count"] == 2
+    assert diagnostics["source_counts"] == {"legacy_id_order": 2}
+    assert diagnostics["fallback_used"] is False
+    assert diagnostics["hard_filter_total_count"] is None
+
+
 def _seed_example_session() -> Session:
     engine = make_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
