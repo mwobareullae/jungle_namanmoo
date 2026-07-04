@@ -30,6 +30,7 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
         "auth_accounts",
+        "baumann_type_profiles",
         "brand_aliases",
         "brands",
         "concern_aliases",
@@ -62,6 +63,12 @@ def test_declarative_base_metadata_is_available() -> None:
         "search_candidates",
         "search_documents",
         "sellers",
+        "skin_profiles",
+        "skin_test_answers",
+        "skin_test_options",
+        "skin_test_questions",
+        "skin_test_results",
+        "skin_test_versions",
         "terms_versions",
         "user_consents",
         "users",
@@ -86,6 +93,10 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     password_reset_tokens = Base.metadata.tables["password_reset_tokens"]
     terms_versions = Base.metadata.tables["terms_versions"]
     user_consents = Base.metadata.tables["user_consents"]
+    skin_profiles = Base.metadata.tables["skin_profiles"]
+    skin_test_results = Base.metadata.tables["skin_test_results"]
+    skin_test_answers = Base.metadata.tables["skin_test_answers"]
+    baumann_type_profiles = Base.metadata.tables["baumann_type_profiles"]
 
     assert {"seller_id", "brand_id", "category_id"}.issubset(products.columns.keys())
     assert {
@@ -147,6 +158,33 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     )
     assert {"user_id", "terms_version_id", "consent_key", "agreed", "consented_at"}.issubset(
         user_consents.columns.keys()
+    )
+    assert {"type_code", "title", "subtitle", "image_storage_key", "keywords"}.issubset(
+        baumann_type_profiles.columns.keys()
+    )
+    assert {
+        "user_id",
+        "skin_type",
+        "sensitivity",
+        "explicit_skin_type",
+        "explicit_sensitivity",
+        "baumann_type_code",
+        "baumann_signal_weight",
+        "latest_skin_test_result_id",
+    }.issubset(skin_profiles.columns.keys())
+    assert {
+        "result_code",
+        "user_id",
+        "version_id",
+        "type_code",
+        "mapped_skin_type",
+        "mapped_sensitivity",
+        "axis_scores",
+        "commerce_profile",
+        "applied_profile_id",
+    }.issubset(skin_test_results.columns.keys())
+    assert {"result_id", "version_id", "question_id", "option_id", "answer_order"}.issubset(
+        skin_test_answers.columns.keys()
     )
 
 
