@@ -13,6 +13,13 @@ type PasswordResetRequestBody = {
   email?: string;
 };
 
+type SkinProfileRequestBody = {
+  skinType?: string;
+  sensitivity?: string;
+  concerns?: string[];
+  avoidIngredients?: string[];
+};
+
 const MOCK_LOGIN_EMAIL = "test@example.com";
 const MOCK_LOGIN_PASSWORD = "password123";
 const MOCK_DUPLICATE_SIGNUP_EMAIL = "duplicate@example.com";
@@ -20,7 +27,7 @@ const MOCK_DUPLICATE_SIGNUP_NICKNAME = "duplicate";
 const MOCK_SERVER_ERROR_SIGNUP_EMAIL = "server-error@example.com";
 
 export const handlers = [
-  http.post("http://localhost:8000/api/auth/login", async ({ request }) => {
+  http.post("*/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as LoginRequestBody;
 
     if (body.email !== MOCK_LOGIN_EMAIL || body.password !== MOCK_LOGIN_PASSWORD) {
@@ -39,7 +46,7 @@ export const handlers = [
       user: { id: 1, email: body.email },
     });
   }),
-  http.get("http://localhost:8000/api/auth/check-email", ({ request }) => {
+  http.get("*/api/auth/check-email", ({ request }) => {
     const url = new URL(request.url);
     const email = url.searchParams.get("email");
 
@@ -59,7 +66,7 @@ export const handlers = [
       message: "사용 가능한 이메일입니다.",
     });
   }),
-  http.get("http://localhost:8000/api/auth/check-nickname", ({ request }) => {
+  http.get("*/api/auth/check-nickname", ({ request }) => {
     const url = new URL(request.url);
     const nickname = url.searchParams.get("nickname");
 
@@ -79,7 +86,7 @@ export const handlers = [
       message: "사용 가능한 닉네임입니다.",
     });
   }),
-  http.post("http://localhost:8000/api/auth/signup", async ({ request }) => {
+  http.post("*/api/auth/signup", async ({ request }) => {
     const body = (await request.json()) as SignupRequestBody;
 
     if (body.email === MOCK_DUPLICATE_SIGNUP_EMAIL) {
@@ -118,7 +125,30 @@ export const handlers = [
       user: { id: 1, email: body.email, nickname: body.nickname, created_at: new Date().toISOString() },
     });
   }),
-  http.post("http://localhost:8000/api/auth/password-reset", async ({ request }) => {
+  http.post("*/api/skin-profile", async ({ request }) => {
+    const body = (await request.json()) as SkinProfileRequestBody;
+
+    if (body.skinType === "dry") {
+      return HttpResponse.json(
+        {
+          code: "SKIN_PROFILE_SAVE_FAILED",
+          message: "피부 타입 저장에 실패했습니다.",
+        },
+        { status: 500 },
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        skinProfile: {
+          id: "mock-skin-profile-id",
+          ...body,
+        },
+      },
+      { status: 201 },
+    );
+  }),
+  http.post("*/api/auth/password-reset", async ({ request }) => {
     const body = (await request.json()) as PasswordResetRequestBody;
 
     return HttpResponse.json({

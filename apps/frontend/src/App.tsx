@@ -9,6 +9,7 @@ import PasswordResetPage from "./pages/PasswordResetPage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
 import SignupInfoPage from "./pages/SignupInfoPage";
+import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
 import SignupTermsPage from "./pages/SignupTermsPage";
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
@@ -536,6 +537,7 @@ function App() {
       {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
       {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
       {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
+      {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
       <Route path="*" element={<LegacyApp />} />
     </Routes>
   );
