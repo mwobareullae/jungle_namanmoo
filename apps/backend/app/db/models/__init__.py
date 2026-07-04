@@ -9,6 +9,15 @@ from app.db.models.catalog import (
     ProductPrice,
     ProductSkinProfile,
 )
+from app.db.models.auth import (
+    AuthAccount,
+    PasswordResetToken,
+    RefreshToken,
+    TermsVersion,
+    User,
+    UserConsent,
+)
+from app.db.models.commerce import Inventory, InventoryMovement, Seller
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -35,6 +44,7 @@ from app.db.models.taxonomy import (
 __all__ = [
     "Brand",
     "BrandAlias",
+    "AuthAccount",
     "Concern",
     "ConcernAlias",
     "ConcernEffect",
@@ -45,6 +55,8 @@ __all__ = [
     "IngredientEffect",
     "IngredientEffectRange",
     "IngredientEvidence",
+    "Inventory",
+    "InventoryMovement",
     "Product",
     "ProductCategory",
     "ProductCategoryAlias",
@@ -52,12 +64,18 @@ __all__ = [
     "ProductIngredient",
     "ProductPrice",
     "ProductSkinProfile",
+    "PasswordResetToken",
     "RecommendationResult",
     "RecommendationRun",
     "RecommendationRunConcern",
     "RecommendationRunConstraint",
     "RecommendationScoreEvidence",
+    "RefreshToken",
     "RiskFlag",
     "SearchCandidate",
     "SearchDocument",
+    "Seller",
+    "TermsVersion",
+    "User",
+    "UserConsent",
 ]
