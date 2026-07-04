@@ -49,6 +49,21 @@ class Settings(BaseModel):
     recommendation_candidate_pool_limit: int = int(
         os.getenv("RECOMMENDATION_CANDIDATE_POOL_LIMIT", "500")
     )
+    auth_jwt_secret_key: str = os.getenv("AUTH_JWT_SECRET_KEY", "change-me-local-secret")
+    smtp_host: str = os.getenv("SMTP_HOST", "")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_username: str = os.getenv("SMTP_USERNAME", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_from_email: str = os.getenv("SMTP_FROM_EMAIL", "no-reply@mubarelle.com")
+    smtp_use_tls: bool = os.getenv("SMTP_USE_TLS", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+    google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    kakao_client_id: str = os.getenv("KAKAO_CLIENT_ID", "")
+    kakao_client_secret: str = os.getenv("KAKAO_CLIENT_SECRET", "")
 
 
 settings = Settings()
