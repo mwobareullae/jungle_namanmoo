@@ -44,6 +44,7 @@ DEFAULT_CANDIDATE_POOL_LIMIT = settings.recommendation_candidate_pool_limit
 DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
+CANDIDATE_GENERATION_VERSION = "legacy_id_order_v0"
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
 ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
 DEFAULT_SKIN_TYPE = "중성"
@@ -110,20 +111,21 @@ def create_recommendation_response(
             avoid_ingredients=normalized_request.avoid_ingredients,
             scoring_version=SCORING_VERSION,
         )
-        candidates = list_product_candidates(
+        requested_candidate_pool_limit = max(candidate_pool_limit, result_limit)
+        loaded_candidates = list_product_candidates(
             session,
             intent.purchase_conditions,
-            limit=max(candidate_pool_limit, result_limit),
+            limit=requested_candidate_pool_limit,
         )
         candidates = _filter_avoided_ingredients(
             session,
-            candidates,
+            loaded_candidates,
             normalized_request.avoid_ingredients,
         )
         matches = match_product_search_documents(session, intent, candidates)
         save_search_candidates(session, saved_run.run.id, candidates, matches)
 
-        scored_products = score_candidates(
+        scored_candidates = score_candidates(
             session,
             intent,
             candidates,
@@ -131,7 +133,17 @@ def create_recommendation_response(
             skin_type=normalized_request.skin_type,
             sensitivity=normalized_request.sensitivity,
         )
-        scored_products = scored_products[:result_limit]
+        scored_products = scored_candidates[:result_limit]
+        _attach_candidate_pool_diagnostics(
+            saved_run.run,
+            requested_candidate_pool_limit=requested_candidate_pool_limit,
+            result_limit=result_limit,
+            loaded_candidate_count=len(loaded_candidates),
+            after_avoid_filter_count=len(candidates),
+            search_match_count=len(matches),
+            scored_candidate_count=len(scored_candidates),
+            final_result_count=len(scored_products),
+        )
         save_recommendation_results(
             session,
             saved_run.run.id,
@@ -486,6 +498,42 @@ def _filter_avoided_ingredients(
         for candidate in candidates
         if candidate.db_product_id not in blocked_product_ids
     ]
+
+
+def _attach_candidate_pool_diagnostics(
+    run: RecommendationRun,
+    *,
+    requested_candidate_pool_limit: int,
+    result_limit: int,
+    loaded_candidate_count: int,
+    after_avoid_filter_count: int,
+    search_match_count: int,
+    scored_candidate_count: int,
+    final_result_count: int,
+) -> None:
+    request_context = dict(run.request_context or {})
+    request_context["candidate_pool_diagnostics"] = {
+        "candidate_generation_version": CANDIDATE_GENERATION_VERSION,
+        "strategy": "legacy_id_order",
+        "requested_candidate_pool_limit": requested_candidate_pool_limit,
+        "result_limit": result_limit,
+        "loaded_candidate_count": loaded_candidate_count,
+        "avoid_filtered_count": loaded_candidate_count - after_avoid_filter_count,
+        "after_avoid_filter_count": after_avoid_filter_count,
+        "search_match_count": search_match_count,
+        "scored_candidate_count": scored_candidate_count,
+        "final_result_count": final_result_count,
+        "source_counts": {
+            "legacy_id_order": loaded_candidate_count,
+        },
+        "fallback_used": False,
+        "hard_filter_total_count": None,
+        "notes": [
+            "legacy diagnostics only",
+            "hard filter total count is not measured in F-180 v0",
+        ],
+    }
+    run.request_context = request_context
 
 
 def _has_avoided_match(avoid_terms: set[str], values: set[str]) -> bool:
