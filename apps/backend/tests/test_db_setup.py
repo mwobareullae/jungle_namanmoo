@@ -34,6 +34,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "baumann_type_profiles",
         "brand_aliases",
         "brands",
+        "cart_items",
+        "carts",
         "concern_aliases",
         "concern_effects",
         "concerns",
@@ -92,6 +94,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
     wishlists = Base.metadata.tables["wishlists"]
     recent_views = Base.metadata.tables["recent_views"]
+    carts = Base.metadata.tables["carts"]
+    cart_items = Base.metadata.tables["cart_items"]
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
     users = Base.metadata.tables["users"]
@@ -149,6 +153,20 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     }.issubset(product_popularity_metrics.columns.keys())
     assert {"user_id", "product_id", "added_at"}.issubset(wishlists.columns.keys())
     assert {"user_id", "product_id", "viewed_at", "updated_at"}.issubset(recent_views.columns.keys())
+    assert {"user_id", "anonymous_cart_id", "status", "expires_at", "merged_into_cart_id"}.issubset(
+        carts.columns.keys()
+    )
+    assert {
+        "cart_id",
+        "product_id",
+        "seller_id",
+        "quantity",
+        "unit_price_snapshot",
+        "currency",
+        "source",
+        "recommendation_id",
+        "recommendation_rank",
+    }.issubset(cart_items.columns.keys())
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )
