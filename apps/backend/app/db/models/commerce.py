@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -16,6 +28,28 @@ class Seller(Base):
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     seller_type: Mapped[str] = mapped_column(String(40), nullable=False, default="FIRST_PARTY", server_default="FIRST_PARTY")
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="ACTIVE", server_default="ACTIVE")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SellerShippingPolicy(Base):
+    __tablename__ = "seller_shipping_policies"
+    __table_args__ = (
+        CheckConstraint("base_shipping_fee >= 0", name="ck_seller_shipping_policies_base_fee_non_negative"),
+        CheckConstraint(
+            "free_shipping_threshold is null or free_shipping_threshold >= 0",
+            name="ck_seller_shipping_policies_free_threshold_non_negative",
+        ),
+        UniqueConstraint("seller_id", "policy_name", name="uq_seller_shipping_policies_seller_policy_name"),
+        Index("ix_seller_shipping_policies_seller_active", "seller_id", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
+    policy_name: Mapped[str] = mapped_column(String(80), nullable=False, default="default", server_default="default")
+    base_shipping_fee: Mapped[int] = mapped_column(Integer, nullable=False, default=3000, server_default="3000")
+    free_shipping_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -53,6 +87,55 @@ class InventoryMovement(Base):
     reference_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reference_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class Cart(Base):
+    __tablename__ = "carts"
+    __table_args__ = (
+        CheckConstraint("status in ('ACTIVE', 'MERGED', 'ORDERED', 'EXPIRED')", name="ck_carts_status"),
+        CheckConstraint(
+            "user_id is not null or anonymous_cart_id is not null",
+            name="ck_carts_has_owner",
+        ),
+        Index("ix_carts_user_status_updated_at", "user_id", "status", "updated_at"),
+        Index("ix_carts_anonymous_status_updated_at", "anonymous_cart_id", "status", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    anonymous_cart_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE", server_default="ACTIVE")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    merged_into_cart_id: Mapped[int | None] = mapped_column(ForeignKey("carts.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1 and quantity <= 99", name="ck_cart_items_quantity_range"),
+        CheckConstraint("unit_price_snapshot >= 0", name="ck_cart_items_unit_price_snapshot_non_negative"),
+        CheckConstraint(
+            "recommendation_rank is null or recommendation_rank > 0",
+            name="ck_cart_items_recommendation_rank_positive",
+        ),
+        UniqueConstraint("cart_id", "product_id", name="uq_cart_items_cart_product"),
+        Index("ix_cart_items_cart_created_at", "cart_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    cart_id: Mapped[int] = mapped_column(ForeignKey("carts.id"), nullable=False, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    recommendation_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    recommendation_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class Wishlist(Base):
