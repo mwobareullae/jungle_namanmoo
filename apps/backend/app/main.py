@@ -3,11 +3,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, home, products, recommendations
+from app.api.routes import auth, health, home, products, recommendations, skin
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.middleware.request_logging import request_logging_middleware
 from app.schemas.common import ApiError, build_error_response, dump_model
+from app.services.auth_service import AuthServiceError
 
 
 configure_logging(settings.log_level)
@@ -27,6 +28,7 @@ if settings.enable_request_logging:
 
 app.include_router(health.router, prefix=settings.api_base_path)
 app.include_router(auth.router, prefix=settings.api_base_path)
+app.include_router(skin.router, prefix=settings.api_base_path)
 app.include_router(home.router, prefix=settings.api_base_path)
 app.include_router(recommendations.router, prefix=settings.api_base_path)
 app.include_router(products.router, prefix=settings.api_base_path)
@@ -37,6 +39,18 @@ async def api_error_handler(_, exc: ApiError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content=dump_model(build_error_response(exc)),
+    )
+
+
+@app.exception_handler(AuthServiceError)
+async def auth_service_error_handler(_, exc: AuthServiceError) -> JSONResponse:
+    error = ApiError(exc.status_code, exc.code, exc.message)
+    content = dump_model(build_error_response(error))
+    content["code"] = exc.code
+    content["message"] = exc.message
+    return JSONResponse(
+        status_code=error.status_code,
+        content=content,
     )
 
 
