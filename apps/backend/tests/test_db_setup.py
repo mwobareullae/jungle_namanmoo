@@ -173,3 +173,10 @@ def test_alembic_config_points_to_migrations() -> None:
 
 def test_settings_exposes_database_url() -> None:
     assert settings.database_url
+
+
+def test_settings_exposes_dev_infra_urls() -> None:
+    assert settings.redis_url
+    assert settings.redis_key_prefix
+    assert settings.elasticsearch_url
+    assert settings.elasticsearch_index_prefix

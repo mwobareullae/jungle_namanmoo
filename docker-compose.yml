@@ -56,6 +56,10 @@ services:
       HYBRID_KEYWORD_WEIGHT: ${HYBRID_KEYWORD_WEIGHT:-0.5}
       HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.5}
       RECOMMENDATION_CANDIDATE_POOL_LIMIT: ${RECOMMENDATION_CANDIDATE_POOL_LIMIT:-500}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-mubarelle:dev:}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-mubarelle_dev}
       AUTH_JWT_SECRET_KEY: ${AUTH_JWT_SECRET_KEY:-change-me-local-secret}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -118,11 +122,78 @@ services:
     networks:
       - app_network
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: mwobareullae-redis
+    restart: unless-stopped
+    profiles:
+      - dev-infra
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "${REDIS_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru"
+      ]
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${REDIS_MEMORY_LIMIT:-512m}"
+    networks:
+      - app_network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: mwobareullae-elasticsearch
+    restart: unless-stopped
+    profiles:
+      - dev-infra
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      bootstrap.memory_lock: "false"
+      ES_JAVA_OPTS: "-Xms${ELASTICSEARCH_HEAP_SIZE:-1g} -Xmx${ELASTICSEARCH_HEAP_SIZE:-1g}"
+    ports:
+      - "${ELASTICSEARCH_BIND_HOST:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${ELASTICSEARCH_MEMORY_LIMIT:-2g}"
+    networks:
+      - app_network
+
 volumes:
   frontend_node_modules:
     name: mwobareullae_frontend_node_modules
   postgres_data:
     name: mwobareullae_postgres_data
+  redis_data:
+    name: mwobareullae_redis_data
+  elasticsearch_data:
+    name: mwobareullae_elasticsearch_data
 
 networks:
   app_network:
