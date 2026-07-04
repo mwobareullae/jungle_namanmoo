@@ -341,7 +341,7 @@ def _build_llm_card_narrative_product(
         product_id=product.product_id,
         rank=actual_product.rank,
         role=role,
-        cart_handoff=actual_product.cart_handoff,
+        commerce_handoff=actual_product.commerce_handoff,
         card=RecommendationNarrativeCard(
             headline=_polish_card_headline(product.card.headline, role),
             reason=_soften_claim(product.card.reason),
@@ -367,7 +367,7 @@ def _build_llm_product_narrative(
         product_id=product.product_id,
         rank=actual_rank or product.rank,
         role=role,
-        cart_handoff=actual_product.cart_handoff,
+        commerce_handoff=actual_product.commerce_handoff,
         card=RecommendationNarrativeCard(
             headline=_polish_card_headline(product.card.headline, role),
             reason=_soften_claim(product.card.reason),
@@ -460,7 +460,7 @@ def _build_fallback_product_explanation(
         product_id=product.product_id,
         rank=product.rank,
         role=role,
-        cart_handoff=product.cart_handoff,
+        commerce_handoff=product.commerce_handoff,
         card=RecommendationNarrativeCard(
             headline=_build_card_headline(product, role),
             reason=card_reason,

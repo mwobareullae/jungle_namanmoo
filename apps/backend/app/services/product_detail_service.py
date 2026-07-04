@@ -24,7 +24,7 @@ from app.schemas.product import (
     ProductPrice,
     SourceInfo,
 )
-from app.schemas.recommendation import CartHandoff
+from app.schemas.recommendation import CommerceHandoff
 from app.services.recommendation_pipeline import (
     load_recommendation_run,
     score_breakdown_to_api,
@@ -70,8 +70,8 @@ def get_product_detail_response(
                 if recommendation_result
                 else None
             ),
-            cart_handoff=(
-                CartHandoff(
+            commerce_handoff=(
+                CommerceHandoff(
                     product_id=product_row.product.product_code,
                     recommendation_id=recommendation_id,
                     recommendation_rank=recommendation_result.rank_order,

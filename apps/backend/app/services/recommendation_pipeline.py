@@ -15,7 +15,7 @@ from app.db.models.recommendation import (
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEvidence
 from app.schemas.common import ApiError
 from app.schemas.recommendation import (
-    CartHandoff,
+    CommerceHandoff,
     MatchedBrandConstraint,
     MatchedCategoryConstraint,
     Pagination,
@@ -387,7 +387,7 @@ def _result_row_to_recommended_product(
         evidence_tags=_evidence_tags(evidence),
         key_ingredients=_key_ingredients(evidence),
         score_breakdown=score_breakdown_to_api(row.result.score_breakdown),
-        cart_handoff=CartHandoff(
+        commerce_handoff=CommerceHandoff(
             product_id=product_id,
             recommendation_id=recommendation_id,
             recommendation_rank=rank,

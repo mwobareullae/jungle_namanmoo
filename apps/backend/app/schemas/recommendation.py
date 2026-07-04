@@ -61,7 +61,7 @@ class ScoreBreakdown(BaseModel):
     risk_policy: str | None = None
 
 
-class CartHandoff(BaseModel):
+class CommerceHandoff(BaseModel):
     product_id: str
     quantity: int = 1
     source: Literal["ai_recommendation"] = "ai_recommendation"
@@ -81,7 +81,7 @@ class RecommendedProduct(BaseModel):
     evidence_tags: list[str]
     key_ingredients: list[str]
     score_breakdown: ScoreBreakdown
-    cart_handoff: CartHandoff
+    commerce_handoff: CommerceHandoff
 
 
 class Pagination(BaseModel):
@@ -130,7 +130,7 @@ class RecommendationNarrativeProduct(BaseModel):
     product_id: str
     rank: int
     role: str
-    cart_handoff: CartHandoff
+    commerce_handoff: CommerceHandoff
     card: RecommendationNarrativeCard
     detail_sections: list[RecommendationNarrativeDetailSection]
     caution: str | None = None

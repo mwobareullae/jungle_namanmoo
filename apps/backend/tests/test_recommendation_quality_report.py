@@ -5,7 +5,7 @@ from app.cli.recommendation_quality_report import (
     format_markdown_report,
 )
 from app.schemas.recommendation import (
-    CartHandoff,
+    CommerceHandoff,
     Pagination,
     PurchaseConstraints,
     RecommendedProduct,
@@ -111,7 +111,7 @@ def _product(product_id: str, rank: int, name: str) -> RecommendedProduct:
             search_match_score=50,
             risk_penalty=0,
         ),
-        cart_handoff=CartHandoff(
+        commerce_handoff=CommerceHandoff(
             product_id=product_id,
             recommendation_id="rec_test",
             recommendation_rank=rank,

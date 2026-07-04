@@ -5,6 +5,7 @@ from typing import Any
 from app.schemas.common import ApiError, dump_model
 from app.schemas.product import ProductDetailResponse
 from app.schemas.recommendation import (
+    CommerceHandoff,
     MatchedBrandConstraint,
     MatchedCategoryConstraint,
     Pagination,
@@ -277,9 +278,12 @@ def create_recommendation(request: RecommendationRequest) -> RecommendationRespo
     avoid_ingredients = _normalize_avoid_ingredients(request.avoid_ingredients)
 
     intent = build_recommendation_intent(concern_text)
-    products = _build_recommended_products(avoid_ingredients, intent.purchase_conditions)
-
     recommendation_id = f"rec_{next(_id_sequence):06d}"
+    products = _build_recommended_products(
+        avoid_ingredients,
+        intent.purchase_conditions,
+        recommendation_id,
+    )
     response = RecommendationResponse(
         recommendation_id=recommendation_id,
         summary=RecommendationSummary(
@@ -334,6 +338,7 @@ def get_product_detail(
                     "total_score": recommended_product.total_score,
                     "reason_summary": recommended_product.reason_summary,
                     "score_breakdown": dump_model(recommended_product.score_breakdown),
+                    "commerce_handoff": dump_model(recommended_product.commerce_handoff),
                 }
             )
             payload["evidence"]["recommendation_reason"] = recommended_product.reason_summary
@@ -395,6 +400,7 @@ def _analyze_concern(concern_text: str) -> tuple[list[str], list[str], list[str]
 def _build_recommended_products(
     avoid_ingredients: list[str],
     purchase_conditions: ParsedPurchaseConditions,
+    recommendation_id: str,
 ) -> list[RecommendedProduct]:
     normalized_avoid = {ingredient.lower() for ingredient in avoid_ingredients}
     products = []
@@ -404,10 +410,19 @@ def _build_recommended_products(
             continue
         if not _matches_purchase_conditions(product, purchase_conditions):
             continue
-        products.append(RecommendedProduct(**product))
+        payload = {
+            **product,
+            "commerce_handoff": CommerceHandoff(
+                product_id=product["product_id"],
+                recommendation_id=recommendation_id,
+                recommendation_rank=product["rank"],
+            ),
+        }
+        products.append(RecommendedProduct(**payload))
 
     for rank, product in enumerate(products, start=1):
         product.rank = rank
+        product.commerce_handoff.recommendation_rank = rank
     return products
 
 

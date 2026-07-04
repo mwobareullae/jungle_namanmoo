@@ -148,9 +148,9 @@ def test_create_recommendation_applies_request_defaults(client: TestClient) -> N
         "evidence_tags",
         "key_ingredients",
         "score_breakdown",
-        "cart_handoff",
+        "commerce_handoff",
     }.issubset(product)
-    assert product["cart_handoff"] == {
+    assert product["commerce_handoff"] == {
         "product_id": product["product_id"],
         "quantity": 1,
         "source": "ai_recommendation",
@@ -361,7 +361,7 @@ def test_create_recommendation_narrative_returns_card_payload_by_default(client:
     assert product["card"]["chips"]
     assert product["detail_sections"] == []
     assert product["caution"] is None
-    assert product["cart_handoff"] == created["products"][0]["cart_handoff"]
+    assert product["commerce_handoff"] == created["products"][0]["commerce_handoff"]
 
 
 def test_create_recommendation_narrative_full_view_returns_detail_sections(client: TestClient) -> None:
@@ -388,7 +388,7 @@ def test_create_recommendation_narrative_full_view_returns_detail_sections(clien
     product = narrative["product_explanations"][0]
     assert product["detail_sections"]
     assert product["caution"]
-    assert product["cart_handoff"] == created["products"][0]["cart_handoff"]
+    assert product["commerce_handoff"] == created["products"][0]["commerce_handoff"]
 
 
 def test_create_recommendation_narrative_detail_view_returns_one_product(
@@ -418,7 +418,7 @@ def test_create_recommendation_narrative_detail_view_returns_one_product(
     product = narrative["product_explanations"][0]
     assert product["product_id"] == target_product["product_id"]
     assert product["detail_sections"]
-    assert product["cart_handoff"] == target_product["cart_handoff"]
+    assert product["commerce_handoff"] == target_product["commerce_handoff"]
 
 
 def test_create_recommendation_narrative_detail_view_requires_product_id(
@@ -512,7 +512,7 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
     assert data["ingredients"]
     assert data["evidence"]["ingredient_evidence"]
     assert data["sources"]
-    assert data["product"]["cart_handoff"] is None
+    assert data["product"]["commerce_handoff"] is None
 
 
 def test_get_product_detail_includes_recommendation_context(client: TestClient) -> None:
@@ -532,7 +532,7 @@ def test_get_product_detail_includes_recommendation_context(client: TestClient) 
     data = response.json()
     assert data["product"]["total_score"] == recommended_product["total_score"]
     assert data["product"]["score_breakdown"] == recommended_product["score_breakdown"]
-    assert data["product"]["cart_handoff"] == recommended_product["cart_handoff"]
+    assert data["product"]["commerce_handoff"] == recommended_product["commerce_handoff"]
     assert data["evidence"]["recommendation_reason"] == recommended_product["reason_summary"]
 
 
