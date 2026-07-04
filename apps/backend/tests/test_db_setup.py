@@ -60,6 +60,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "recommendation_run_constraints",
         "recommendation_runs",
         "recommendation_score_evidence",
+        "recent_views",
         "refresh_tokens",
         "risk_flags",
         "search_candidates",
@@ -74,6 +75,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "terms_versions",
         "user_consents",
         "users",
+        "wishlists",
     }
 
     assert set(Base.metadata.tables) == expected_tables
@@ -88,6 +90,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
     product_images = Base.metadata.tables["product_images"]
     product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
+    wishlists = Base.metadata.tables["wishlists"]
+    recent_views = Base.metadata.tables["recent_views"]
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
     users = Base.metadata.tables["users"]
@@ -143,6 +147,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "score_version",
         "computed_at",
     }.issubset(product_popularity_metrics.columns.keys())
+    assert {"user_id", "product_id", "added_at"}.issubset(wishlists.columns.keys())
+    assert {"user_id", "product_id", "viewed_at", "updated_at"}.issubset(recent_views.columns.keys())
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )

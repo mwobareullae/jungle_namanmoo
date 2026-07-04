@@ -18,7 +18,7 @@ from app.db.models.auth import (
     User,
     UserConsent,
 )
-from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
+from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, RecentView, Seller, Wishlist
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -83,6 +83,7 @@ __all__ = [
     "RecommendationRunConcern",
     "RecommendationRunConstraint",
     "RecommendationScoreEvidence",
+    "RecentView",
     "RefreshToken",
     "RiskFlag",
     "SearchCandidate",
@@ -97,4 +98,5 @@ __all__ = [
     "TermsVersion",
     "User",
     "UserConsent",
+    "Wishlist",
 ]
