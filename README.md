@@ -16,6 +16,7 @@
 - Database: PostgreSQL + pgvector image
 - Data: CSV/JSON seed, 상품/성분/이미지/검색 문서 데이터
 - Infra: Docker Compose, GitHub Actions CI/CD, EC2 dev 배포
+- Dev infra profile: Redis, Elasticsearch 컨테이너를 `dev-infra` profile로 추가
 - Image assets: S3 + CloudFront 기준 운영 설계
 
 현재 백엔드는 `health`, `auth`, `home`, `recommendations`, `products` API를 포함합니다. 프론트는 홈, 추천/검색, 상품 상세, 로그인/회원가입, checkout/payment mock 화면을 포함하며, 커뮤니티 모드에서는 커머스 행동을 제한합니다.
@@ -47,6 +48,8 @@ cp .env.example .env
 - `VITE_*`: 브라우저에 노출되는 프론트 공개값입니다. secret을 넣지 않습니다.
 - `DATABASE_URL`: 백엔드가 실제로 사용하는 DB 연결 문자열입니다.
 - `POSTGRES_*`: Docker Compose의 postgres 컨테이너 초기화/포트 설정값입니다.
+- `REDIS_*`, `ELASTICSEARCH_*`: Dev 통합 확인용 Redis/Elasticsearch 연결과 prefix 기준입니다.
+- `COMPOSE_PROFILES=dev-infra`: Redis/Elasticsearch 서비스를 함께 띄우는 Dev 서버용 profile입니다.
 - `DEV_HOST`, `DEV_SSH_KEY` 같은 배포 secret은 `.env.example`에 넣지 않고 GitHub Secrets에만 둡니다.
 - EC2 서버의 `.env`는 배포 workflow가 덮어쓰지 않습니다. 서버에서 직접 관리합니다.
 
@@ -68,10 +71,14 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml config
 docker compose up --build
 ```
 
+루트 `.env`에 `COMPOSE_PROFILES=dev-infra`가 있으면 Redis와 Elasticsearch도 함께 실행됩니다. t3.xlarge Dev 서버는 이 profile을 켜고, 메모리가 부족한 로컬에서는 `COMPOSE_PROFILES=`로 비워서 app/postgres만 실행할 수 있습니다.
+
 - Frontend: <http://localhost:5173>
 - Backend: <http://localhost:8000>
 - Backend health: <http://localhost:8000/api/health>
 - Postgres: `localhost:5432`
+- Redis: `127.0.0.1:6379`
+- Elasticsearch: <http://127.0.0.1:9200>
 
 DB만 실행할 때:
 
@@ -122,6 +129,18 @@ DOCKER_LOG_MAX_FILE=5
 FRONTEND_MEMORY_LIMIT=1g
 BACKEND_MEMORY_LIMIT=2g
 POSTGRES_MEMORY_LIMIT=2g
+REDIS_MEMORY_LIMIT=512m
+ELASTICSEARCH_MEMORY_LIMIT=2g
+ELASTICSEARCH_HEAP_SIZE=1g
+```
+
+Redis와 Elasticsearch는 첫 단계에서 Dev 인프라만 제공합니다. 실제 cache/rate limit, ES 검색 ranking 연결은 담당 기능 PR에서 별도로 진행합니다.
+
+```env
+REDIS_URL=redis://redis:6379/0
+REDIS_KEY_PREFIX=mubarelle:dev:
+ELASTICSEARCH_URL=http://elasticsearch:9200
+ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
 ```
 
 ## CI
@@ -165,6 +184,7 @@ dev push -> GitHub Actions checkout -> rsync to EC2 -> docker compose up --build
 - AWS EC2 1대
 - Docker + Docker Compose
 - `frontend`, `backend`, `postgres` 컨테이너를 같은 EC2에서 실행
+- `COMPOSE_PROFILES=dev-infra`일 때 `redis`, `elasticsearch` 컨테이너를 같은 EC2에서 실행
 - DB는 RDS가 아니라 EC2 내부 Postgres container로 시작
 - EC2에 repository clone은 필수 아님
 - 서버 `.env`는 EC2에서 직접 관리
@@ -208,6 +228,8 @@ SLACK_WEBHOOK_URL   선택: PR/댓글/dev 배포 완료 Slack 알림용 incoming
 5173  frontend, 팀원 IP 또는 임시 공개
 8000  backend, 팀원 IP 또는 임시 공개
 5432  postgres, 외부 공개 금지
+6379  redis, 외부 공개 금지
+9200  elasticsearch, 외부 공개 금지
 ```
 
 Caddy/Nginx를 붙인 뒤:
@@ -219,6 +241,8 @@ Caddy/Nginx를 붙인 뒤:
 5173  외부 차단
 8000  외부 차단
 5432  외부 차단
+6379  외부 차단
+9200  외부 차단
 ```
 
 ## 이미지 자산 인프라
@@ -259,8 +283,10 @@ docs(data): 자사몰 판매 구조 기준 정리
 - ALB
 - ECR
 - 자동 DB 백업
-- Elasticsearch 운영 클러스터
-- Redis/cache/rate limit 운영 구성
+- production Elasticsearch 운영 클러스터
+- production Redis 운영 구성
+- Redis cache/rate limit 기능 연결
+- Elasticsearch 검색 ranking 기능 연결
 - event log 저장 API와 GA4 전체 매핑
 
 이 항목들은 P2/P3 일정과 발표 전 안정화 기준에 맞춰 별도 이슈와 PR로 결정합니다.

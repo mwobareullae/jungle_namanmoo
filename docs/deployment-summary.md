@@ -18,6 +18,7 @@ main branch push -> no production deployment yet
 - Docker + Docker Compose
 - curl + rsync
 - `frontend`, `backend`, `postgres` 컨테이너를 같은 EC2에서 실행
+- `COMPOSE_PROFILES=dev-infra`일 때 `redis`, `elasticsearch` 컨테이너를 같은 EC2에서 실행
 - DB는 RDS가 아니라 EC2 내부 Postgres container로 시작
 - OpenAI 관련 환경변수는 placeholder만 있으며 현재 Hello World 환경에서는 사용하지 않음
 - EC2에 git 또는 repository clone은 필수 아님
@@ -57,6 +58,8 @@ P2 상품 이미지 적재와 공개 서빙은 EC2 로컬 디스크가 아니라
 5173  frontend, 팀원 IP 또는 임시 공개
 8000  backend, 팀원 IP 또는 임시 공개
 5432  postgres, 외부 공개 금지
+6379  redis, 외부 공개 금지
+9200  elasticsearch, 외부 공개 금지
 ```
 
 추후 Caddy/Nginx를 붙인 뒤:
@@ -68,6 +71,8 @@ P2 상품 이미지 적재와 공개 서빙은 EC2 로컬 디스크가 아니라
 5173  외부 차단
 8000  외부 차단
 5432  외부 차단
+6379  외부 차단
+9200  외부 차단
 ```
 
 ## GitHub Actions SSH 배포 주의
@@ -93,5 +98,9 @@ EC2에 repository를 미리 clone할 필요는 없습니다. GitHub Actions가 �
 - ECR
 - 도메인/HTTPS 자동화
 - 자동 DB 백업
+- production Elasticsearch 운영 클러스터
+- production Redis 운영 구성
+- Redis cache/rate limit 기능 연결
+- Elasticsearch 검색 ranking 기능 연결
 
 이 항목들은 발표 전 안정화 또는 운영 전환 단계에서 별도로 결정합니다.
