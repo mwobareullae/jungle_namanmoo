@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Cookie, Depends, Header, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AvailabilityResponse,
     AuthUser,
+    GoogleLoginRequest,
     LoginRequest,
     LogoutRequest,
     MessageResponse,
@@ -23,6 +24,7 @@ from app.services.auth_service import (
     is_email_available,
     is_nickname_available,
     login,
+    login_with_google,
     logout,
     refresh,
     request_password_reset,
@@ -88,6 +90,27 @@ def post_login(
 ) -> TokenResponse | JSONResponse:
     try:
         response = login(session, request.email, request.password)
+        session.commit()
+        return response
+    except AuthServiceError as exc:
+        session.rollback()
+        return _auth_error(exc)
+
+
+@router.post("/auth/google", response_model=TokenResponse)
+def post_google_login(
+    request: GoogleLoginRequest,
+    g_csrf_token: str | None = Cookie(default=None),
+    session: Session = Depends(get_db),
+) -> TokenResponse | JSONResponse:
+    try:
+        response = login_with_google(
+            session,
+            credential=request.credential,
+            consents=request.consents,
+            csrf_token=request.g_csrf_token,
+            csrf_cookie=g_csrf_token,
+        )
         session.commit()
         return response
     except AuthServiceError as exc:

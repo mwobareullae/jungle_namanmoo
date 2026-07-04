@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.db.models.auth import AuthAccount, PasswordResetToken, RefreshToken, TermsVersion, User, UserConsent
 from app.db.session import get_db
 from app.main import app
+from app.services.google_oauth import GoogleAccountInfo, GoogleTokenVerificationError
 
 
 @pytest.fixture()
@@ -169,6 +170,197 @@ def test_login_rejects_invalid_credentials(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+
+def test_google_login_creates_user_auth_account_consents_and_tokens(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-1",
+            email="social-user@gmail.com",
+            email_verified=True,
+            name="Social User",
+        ),
+    )
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "credential": "valid-google-token",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["access_token"]
+    assert data["refresh_token"]
+    assert data["user"]["email"] == "social-user@gmail.com"
+    assert data["user"]["nickname"] == "Social User"
+
+    with Session(db_engine) as session:
+        user = session.execute(select(User).where(User.email == "social-user@gmail.com")).scalar_one()
+        account = session.execute(select(AuthAccount).where(AuthAccount.user_id == user.id)).scalar_one()
+        consents = session.execute(select(UserConsent).where(UserConsent.user_id == user.id)).scalars().all()
+
+    assert account.provider == "google"
+    assert account.provider_account_id == "google-sub-1"
+    assert account.provider_email == "social-user@gmail.com"
+    assert account.password_hash is None
+    assert account.is_verified is True
+    assert {consent.consent_key: consent.agreed for consent in consents} == {
+        "tos": True,
+        "privacy": True,
+        "age14": True,
+        "marketing": False,
+    }
+
+
+def test_google_login_links_existing_email_user(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signup_data = _signup(client, email="link-user@gmail.com", nickname="link-user")
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-link",
+            email="link-user@gmail.com",
+            email_verified=True,
+            name="Linked User",
+        ),
+    )
+
+    response = client.post("/api/auth/google", json={"credential": "valid-google-token"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user"]["id"] == signup_data["user"]["id"]
+    with Session(db_engine) as session:
+        accounts = session.execute(
+            select(AuthAccount).where(AuthAccount.user_id == signup_data["user"]["id"])
+        ).scalars().all()
+    assert {account.provider for account in accounts} == {"email", "google"}
+
+
+def test_google_login_reuses_existing_google_account(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-repeat",
+            email="repeat-user@gmail.com",
+            email_verified=True,
+            name="Repeat User",
+        ),
+    )
+    body = {
+        "credential": "valid-google-token",
+        "consents": {
+            "tos": True,
+            "privacy": True,
+            "age14": True,
+            "marketing": False,
+        },
+    }
+
+    first_response = client.post("/api/auth/google", json=body)
+    second_response = client.post("/api/auth/google", json={"credential": "valid-google-token"})
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert second_response.json()["user"]["id"] == first_response.json()["user"]["id"]
+    with Session(db_engine) as session:
+        user_count = len(session.execute(select(User).where(User.email == "repeat-user@gmail.com")).scalars().all())
+        account_count = len(
+            session.execute(
+                select(AuthAccount).where(
+                    AuthAccount.provider == "google",
+                    AuthAccount.provider_account_id == "google-sub-repeat",
+                )
+            ).scalars().all()
+        )
+    assert user_count == 1
+    assert account_count == 1
+
+
+def test_google_login_rejects_new_user_without_required_consents(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-no-consent",
+            email="no-consent@gmail.com",
+            email_verified=True,
+            name="No Consent",
+        ),
+    )
+
+    response = client.post("/api/auth/google", json={"credential": "valid-google-token"})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "REQUIRED_CONSENT_MISSING"
+
+
+def test_google_login_rejects_non_authoritative_email(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-example",
+            email="external@example.com",
+            email_verified=True,
+            name="External User",
+        ),
+    )
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "credential": "valid-google-token",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "GOOGLE_EMAIL_NOT_VERIFIED"
+
+
+def test_google_login_rejects_invalid_google_token(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_invalid_token(credential: str) -> GoogleAccountInfo:
+        raise GoogleTokenVerificationError("INVALID_GOOGLE_TOKEN")
+
+    monkeypatch.setattr("app.services.auth_service.verify_google_id_token", raise_invalid_token)
+
+    response = client.post("/api/auth/google", json={"credential": "invalid-google-token"})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "INVALID_GOOGLE_TOKEN"
 
 
 def test_password_reset_request_hides_email_existence(

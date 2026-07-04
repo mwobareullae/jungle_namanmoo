@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AvailabilityResponse(BaseModel):
@@ -26,6 +26,14 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class GoogleLoginRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    credential: str
+    consents: SignupConsents | None = None
+    g_csrf_token: str | None = Field(default=None, alias="g_csrf_token")
 
 
 class RefreshRequest(BaseModel):
