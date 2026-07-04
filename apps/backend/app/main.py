@@ -3,7 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, home, products, recommendations, skin, user_activity
+from app.api.routes import auth, cart, health, home, products, recommendations, skin, user_activity
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.middleware.request_logging import request_logging_middleware
@@ -33,6 +33,7 @@ app.include_router(home.router, prefix=settings.api_base_path)
 app.include_router(recommendations.router, prefix=settings.api_base_path)
 app.include_router(products.router, prefix=settings.api_base_path)
 app.include_router(user_activity.router, prefix=settings.api_base_path)
+app.include_router(cart.router, prefix=settings.api_base_path)
 
 
 @app.exception_handler(ApiError)
