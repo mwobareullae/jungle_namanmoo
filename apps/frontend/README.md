@@ -21,7 +21,6 @@ Vite, React, TypeScript 기반 프론트엔드입니다.
 VITE_APP_MODE=commerce
 VITE_API_BASE_URL=http://localhost:8000/api
 VITE_GA_MEASUREMENT_ID=
-VITE_ENABLE_MSW=false
 ```
 
 커뮤니티 프리뷰 배포 예시:
