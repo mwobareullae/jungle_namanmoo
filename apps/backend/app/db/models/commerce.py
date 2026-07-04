@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -16,6 +28,28 @@ class Seller(Base):
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     seller_type: Mapped[str] = mapped_column(String(40), nullable=False, default="FIRST_PARTY", server_default="FIRST_PARTY")
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="ACTIVE", server_default="ACTIVE")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SellerShippingPolicy(Base):
+    __tablename__ = "seller_shipping_policies"
+    __table_args__ = (
+        CheckConstraint("base_shipping_fee >= 0", name="ck_seller_shipping_policies_base_fee_non_negative"),
+        CheckConstraint(
+            "free_shipping_threshold is null or free_shipping_threshold >= 0",
+            name="ck_seller_shipping_policies_free_threshold_non_negative",
+        ),
+        UniqueConstraint("seller_id", "policy_name", name="uq_seller_shipping_policies_seller_policy_name"),
+        Index("ix_seller_shipping_policies_seller_active", "seller_id", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
+    policy_name: Mapped[str] = mapped_column(String(80), nullable=False, default="default", server_default="default")
+    base_shipping_fee: Mapped[int] = mapped_column(Integer, nullable=False, default=3000, server_default="3000")
+    free_shipping_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

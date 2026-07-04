@@ -75,11 +75,21 @@ class CartMergeResponse(BaseModel):
     cart: CartResponse
 
 
+class CheckoutShippingGroup(BaseModel):
+    seller_code: str
+    seller_name: str
+    item_subtotal: int
+    base_shipping_fee: int
+    free_shipping_threshold: int | None = None
+    shipping_fee: int
+
+
 class CheckoutPreviewResponse(BaseModel):
     cart_id: int
     items: list[CartItem]
     subtotal: int
     shipping_fee: int
+    shipping_groups: list[CheckoutShippingGroup]
     total: int
     currency: str
     can_checkout: bool

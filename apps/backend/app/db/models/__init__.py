@@ -26,6 +26,7 @@ from app.db.models.commerce import (
     ProductPopularityMetric,
     RecentView,
     Seller,
+    SellerShippingPolicy,
     Wishlist,
 )
 from app.db.models.recommendation import (
@@ -100,6 +101,7 @@ __all__ = [
     "SearchCandidate",
     "SearchDocument",
     "Seller",
+    "SellerShippingPolicy",
     "SkinProfile",
     "SkinTestAnswer",
     "SkinTestOption",

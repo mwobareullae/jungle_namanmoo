@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.catalog import Product, ProductPrice
-from app.db.models.commerce import Cart, CartItem, Inventory
+from app.db.models.commerce import Cart, CartItem, Inventory, SellerShippingPolicy
 from app.db.session import get_db
 from app.main import app
 from app.services.cart_service import ANONYMOUS_CART_COOKIE_NAME
@@ -151,11 +151,41 @@ def test_checkout_preview_revalidates_price_and_stock(
     assert preview_response.status_code == 200
     data = preview_response.json()
     assert data["subtotal"] == 62700
-    assert data["shipping_fee"] == 0
-    assert data["total"] == 62700
+    assert data["shipping_fee"] == 3000
+    assert data["shipping_groups"][0]["base_shipping_fee"] == 3000
+    assert data["shipping_groups"][0]["shipping_fee"] == 3000
+    assert data["total"] == 65700
     assert data["can_checkout"] is False
     warning_codes = {warning["code"] for warning in data["warnings"]}
     assert {"PRICE_CHANGED", "INSUFFICIENT_STOCK"}.issubset(warning_codes)
+
+
+def test_checkout_preview_uses_seller_shipping_policy(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_shipping_policy(db_engine, "prod_001", base_shipping_fee=4500, free_shipping_threshold=30000)
+    add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
+    assert add_response.status_code == 200
+
+    preview_response = client.post("/api/checkout/preview")
+
+    assert preview_response.status_code == 200
+    data = preview_response.json()
+    assert data["subtotal"] == 19900
+    assert data["shipping_fee"] == 4500
+    assert data["total"] == 24400
+    assert data["shipping_groups"] == [
+        {
+            "seller_code": "mwobareullae",
+            "seller_name": "뭐바를래",
+            "item_subtotal": 19900,
+            "base_shipping_fee": 4500,
+            "free_shipping_threshold": 30000,
+            "shipping_fee": 4500,
+        }
+    ]
 
 
 def test_cart_merge_moves_anonymous_items_into_user_cart(
@@ -257,4 +287,37 @@ def _set_primary_price(db_engine: Engine, product_code: str, price: int) -> None
         assert price_row is not None
         price_row.price = price
         price_row.is_lowest = True
+        session.commit()
+
+
+def _set_shipping_policy(
+    db_engine: Engine,
+    product_code: str,
+    *,
+    base_shipping_fee: int,
+    free_shipping_threshold: int | None,
+) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == product_code)
+        ).scalar_one()
+        policy = session.execute(
+            select(SellerShippingPolicy).where(
+                SellerShippingPolicy.seller_id == product.seller_id,
+                SellerShippingPolicy.policy_name == "default",
+            )
+        ).scalar_one_or_none()
+        if policy is None:
+            policy = SellerShippingPolicy(
+                seller_id=product.seller_id,
+                policy_name="default",
+                base_shipping_fee=base_shipping_fee,
+                free_shipping_threshold=free_shipping_threshold,
+                is_active=True,
+            )
+            session.add(policy)
+        else:
+            policy.base_shipping_fee = base_shipping_fee
+            policy.free_shipping_threshold = free_shipping_threshold
+            policy.is_active = True
         session.commit()
