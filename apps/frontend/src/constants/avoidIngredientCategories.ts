@@ -1,7 +1,7 @@
 export const avoidIngredientCategories = [
   {
     id: "preservatives",
-    label: "보존제/방부제",
+    label: "보존제",
     mappedIngredients: [
       "페녹시에탄올",
       "파라벤",
@@ -12,18 +12,13 @@ export const avoidIngredientCategories = [
     ]
   },
   {
-    id: "humectant_solvent_helpers",
-    label: "무거운 사용감",
-    mappedIngredients: ["프로필렌글라이콜", "프로필렌글리콜", "폴리에틸렌글리콜", "PEG 계열"]
-  },
-  {
     id: "fragrance",
-    label: "향료/인공향",
+    label: "향료",
     mappedIngredients: ["향료", "인공 향료", "합성착향료"]
   },
   {
     id: "colorant",
-    label: "색소/착색제",
+    label: "착색제",
     mappedIngredients: ["합성착색료"]
   },
   {
