@@ -11,6 +11,7 @@ from app.db.models.catalog import (
 )
 from app.db.models.auth import (
     AuthAccount,
+    AuthSession,
     PasswordResetToken,
     RefreshToken,
     TermsVersion,
@@ -54,6 +55,7 @@ __all__ = [
     "Brand",
     "BrandAlias",
     "AuthAccount",
+    "AuthSession",
     "BaumannTypeProfile",
     "Concern",
     "ConcernAlias",

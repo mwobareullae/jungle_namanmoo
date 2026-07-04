@@ -124,11 +124,19 @@ def generate_refresh_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def generate_session_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
 def generate_token_family_id() -> str:
     return secrets.token_urlsafe(24)
 
 
 def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 

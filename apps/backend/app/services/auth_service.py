@@ -1,38 +1,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models.auth import (
     AuthAccount,
+    AuthSession,
     PasswordResetToken,
-    RefreshToken,
     TermsVersion,
     User,
     UserConsent,
 )
-from app.schemas.auth import AuthUser, SignupConsents, SignupRequest, TokenResponse
-from app.services.google_oauth import (
-    GoogleAccountInfo,
-    GoogleTokenVerificationError,
-    verify_google_id_token,
-)
+from app.schemas.auth import AuthSessionResponse, AuthUser, SignupConsents, SignupRequest
 from app.services.auth_security import (
     PASSWORD_RESET_CODE_TTL,
     PASSWORD_RESET_MAX_ATTEMPTS,
-    REFRESH_TOKEN_TTL,
-    TokenDecodeError,
-    create_access_token,
-    decode_access_token,
     generate_password_reset_code,
-    generate_refresh_token,
-    generate_token_family_id,
+    generate_session_token,
     hash_password,
     hash_password_reset_code,
-    hash_refresh_token,
+    hash_session_token,
     is_valid_email,
     is_valid_password,
     normalize_email,
@@ -40,6 +31,11 @@ from app.services.auth_security import (
     verify_password,
 )
 from app.services.email_service import send_password_reset_code
+from app.services.google_oauth import (
+    GoogleAccountInfo,
+    GoogleTokenVerificationError,
+    verify_google_id_token,
+)
 
 
 DEFAULT_TERMS_VERSION = "2026-07-09"
@@ -53,11 +49,18 @@ _TERMS_DEFINITIONS = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass
 class AuthServiceError(Exception):
     status_code: int
     code: str
     message: str
+
+
+@dataclass(frozen=True)
+class IssuedAuthSession:
+    session_token: str
+    expires_at: datetime
+    response: AuthSessionResponse
 
 
 def is_email_available(session: Session, email: str) -> bool:
@@ -74,7 +77,7 @@ def is_nickname_available(session: Session, nickname: str) -> bool:
     return _find_user_by_nickname(session, normalized) is None
 
 
-def signup(session: Session, request: SignupRequest) -> TokenResponse:
+def signup(session: Session, request: SignupRequest) -> IssuedAuthSession:
     email = normalize_email(request.email)
     nickname = normalize_nickname(request.nickname)
     _validate_signup_input(session, email, nickname, request.password, request.consents)
@@ -101,12 +104,12 @@ def signup(session: Session, request: SignupRequest) -> TokenResponse:
     session.add(account)
     _save_user_consents(session, user.id, request.consents)
 
-    token_response = _issue_token_response(session, user, now=now)
+    issued = _issue_auth_session(session, user, now=now)
     session.flush()
-    return token_response
+    return issued
 
 
-def login(session: Session, email: str, password: str) -> TokenResponse:
+def login(session: Session, email: str, password: str) -> IssuedAuthSession:
     normalized = normalize_email(email)
     account = session.execute(
         select(AuthAccount).where(
@@ -119,11 +122,11 @@ def login(session: Session, email: str, password: str) -> TokenResponse:
 
     user = session.get(User, account.user_id)
     if user is None or user.status != "ACTIVE":
-        raise AuthServiceError(403, "USER_NOT_ACTIVE", "이용할 수 없는 계정입니다.")
+        raise AuthServiceError(403, "USER_NOT_ACTIVE", "사용할 수 없는 계정입니다.")
 
     now = datetime.now(UTC)
     user.last_login_at = now
-    return _issue_token_response(session, user, now=now)
+    return _issue_auth_session(session, user, now=now)
 
 
 def login_with_google(
@@ -133,7 +136,7 @@ def login_with_google(
     consents: SignupConsents | None = None,
     csrf_token: str | None = None,
     csrf_cookie: str | None = None,
-) -> TokenResponse:
+) -> IssuedAuthSession:
     _validate_google_csrf(csrf_token, csrf_cookie)
     try:
         google_account = verify_google_id_token(credential)
@@ -158,7 +161,7 @@ def login_with_google(
         account.provider_email = google_account.email
         account.is_verified = google_account.email_verified
         user.last_login_at = now
-        return _issue_token_response(session, user, now=now)
+        return _issue_auth_session(session, user, now=now)
 
     user = _find_user_by_email(session, google_account.email)
     if user is not None:
@@ -174,7 +177,7 @@ def login_with_google(
         )
         user.last_login_at = now
         session.flush()
-        return _issue_token_response(session, user, now=now)
+        return _issue_auth_session(session, user, now=now)
 
     if consents is None or not (consents.tos and consents.privacy and consents.age14):
         raise AuthServiceError(400, "REQUIRED_CONSENT_MISSING", "Required terms consent is missing.")
@@ -198,57 +201,32 @@ def login_with_google(
         )
     )
     _save_user_consents(session, user.id, consents)
-    token_response = _issue_token_response(session, user, now=now)
+    issued = _issue_auth_session(session, user, now=now)
     session.flush()
-    return token_response
+    return issued
 
 
-def refresh(session: Session, refresh_token: str) -> TokenResponse:
-    token_row = _load_valid_refresh_token(session, refresh_token)
-    user = session.get(User, token_row.user_id)
-    if user is None or user.status != "ACTIVE":
-        raise AuthServiceError(403, "USER_NOT_ACTIVE", "이용할 수 없는 계정입니다.")
-
+def refresh(session: Session, session_token: str | None) -> IssuedAuthSession:
+    auth_session = _load_valid_auth_session(session, session_token)
+    user = _load_active_user(session, auth_session.user_id)
     now = datetime.now(UTC)
-    token_row.revoked_at = now
-    next_refresh_token = generate_refresh_token()
-    next_token_row = RefreshToken(
-        user_id=user.id,
-        token_hash=hash_refresh_token(next_refresh_token),
-        family_id=token_row.family_id or generate_token_family_id(),
-        expires_at=now + REFRESH_TOKEN_TTL,
-    )
-    session.add(next_token_row)
-    session.flush()
-    token_row.replaced_by_token_id = next_token_row.id
-
-    return TokenResponse(
-        access_token=create_access_token(user_id=user.id, email=user.email, role=user.role, now=now),
-        refresh_token=next_refresh_token,
-        user=_to_auth_user(user),
-    )
+    auth_session.revoked_at = now
+    return _issue_auth_session(session, user, now=now)
 
 
-def logout(session: Session, refresh_token: str) -> None:
-    token_hash = hash_refresh_token(refresh_token)
-    token_row = session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+def logout(session: Session, session_token: str | None) -> None:
+    if not session_token:
+        return
+    auth_session = session.execute(
+        select(AuthSession).where(AuthSession.token_hash == hash_session_token(session_token))
     ).scalar_one_or_none()
-    if token_row is not None and token_row.revoked_at is None:
-        token_row.revoked_at = datetime.now(UTC)
+    if auth_session is not None and auth_session.revoked_at is None:
+        auth_session.revoked_at = datetime.now(UTC)
 
 
-def get_user_from_access_token(session: Session, access_token: str) -> User:
-    try:
-        payload = decode_access_token(access_token)
-        user_id = int(payload["sub"])
-    except (TokenDecodeError, KeyError, ValueError) as exc:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.") from exc
-
-    user = session.get(User, user_id)
-    if user is None or user.status != "ACTIVE":
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    return user
+def get_user_from_session_token(session: Session, session_token: str | None) -> User:
+    auth_session = _load_valid_auth_session(session, session_token)
+    return _load_active_user(session, auth_session.user_id)
 
 
 def request_password_reset(session: Session, email: str) -> None:
@@ -257,7 +235,7 @@ def request_password_reset(session: Session, email: str) -> None:
         return
 
     user = _find_user_by_email(session, normalized)
-    if user is None:
+    if user is None or _find_email_auth_account(session, user.id) is None:
         return
 
     now = datetime.now(UTC)
@@ -307,12 +285,7 @@ def confirm_password_reset(
         token.last_attempt_at = now
         raise AuthServiceError(400, "INVALID_RESET_CODE", "인증 코드가 올바르지 않습니다.")
 
-    account = session.execute(
-        select(AuthAccount).where(
-            AuthAccount.user_id == user.id,
-            AuthAccount.provider == "email",
-        )
-    ).scalar_one_or_none()
+    account = _find_email_auth_account(session, user.id)
     if account is None:
         raise AuthServiceError(400, "EMAIL_LOGIN_NOT_AVAILABLE", "이메일 로그인 계정이 없습니다.")
 
@@ -320,7 +293,7 @@ def confirm_password_reset(
     account.password_updated_at = now
     token.used_at = now
     token.last_attempt_at = now
-    _revoke_user_refresh_tokens(session, user.id, now)
+    _revoke_user_auth_sessions(session, user.id, now)
 
 
 def _validate_signup_input(
@@ -421,30 +394,37 @@ def _ensure_active_terms_versions(session: Session) -> dict[str, TermsVersion]:
     return versions_by_key
 
 
-def _issue_token_response(session: Session, user: User, *, now: datetime) -> TokenResponse:
-    refresh_token = generate_refresh_token()
-    token_row = RefreshToken(
+def _issue_auth_session(session: Session, user: User, *, now: datetime) -> IssuedAuthSession:
+    session_token = generate_session_token()
+    expires_at = now + _session_ttl()
+    auth_session = AuthSession(
         user_id=user.id,
-        token_hash=hash_refresh_token(refresh_token),
-        family_id=generate_token_family_id(),
-        expires_at=now + REFRESH_TOKEN_TTL,
+        token_hash=hash_session_token(session_token),
+        expires_at=expires_at,
+        last_used_at=now,
     )
-    session.add(token_row)
-    return TokenResponse(
-        access_token=create_access_token(user_id=user.id, email=user.email, role=user.role, now=now),
-        refresh_token=refresh_token,
-        user=_to_auth_user(user),
+    session.add(auth_session)
+    return IssuedAuthSession(
+        session_token=session_token,
+        expires_at=expires_at,
+        response=AuthSessionResponse(user=_to_auth_user(user)),
     )
 
 
-def _load_valid_refresh_token(session: Session, refresh_token: str) -> RefreshToken:
-    token_row = session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(refresh_token))
+def _load_valid_auth_session(session: Session, session_token: str | None) -> AuthSession:
+    if not session_token:
+        raise AuthServiceError(401, "INVALID_SESSION", "로그인이 필요합니다.")
+    auth_session = session.execute(
+        select(AuthSession).where(AuthSession.token_hash == hash_session_token(session_token))
     ).scalar_one_or_none()
     now = datetime.now(UTC)
-    if token_row is None or token_row.revoked_at is not None or _as_utc(token_row.expires_at) <= now:
-        raise AuthServiceError(401, "INVALID_REFRESH_TOKEN", "refresh token이 올바르지 않습니다.")
-    return token_row
+    if (
+        auth_session is None
+        or auth_session.revoked_at is not None
+        or _as_utc(auth_session.expires_at) <= now
+    ):
+        raise AuthServiceError(401, "INVALID_SESSION", "로그인이 필요합니다.")
+    return auth_session
 
 
 def _find_user_by_email(session: Session, email: str) -> User | None:
@@ -453,6 +433,15 @@ def _find_user_by_email(session: Session, email: str) -> User | None:
 
 def _find_user_by_nickname(session: Session, nickname: str) -> User | None:
     return session.execute(select(User).where(User.display_name == nickname)).scalar_one_or_none()
+
+
+def _find_email_auth_account(session: Session, user_id: int) -> AuthAccount | None:
+    return session.execute(
+        select(AuthAccount).where(
+            AuthAccount.user_id == user_id,
+            AuthAccount.provider == "email",
+        )
+    ).scalar_one_or_none()
 
 
 def _expire_existing_password_reset_tokens(
@@ -488,11 +477,11 @@ def _load_latest_password_reset_token(
     ).scalar_one_or_none()
 
 
-def _revoke_user_refresh_tokens(session: Session, user_id: int, now: datetime) -> None:
+def _revoke_user_auth_sessions(session: Session, user_id: int, now: datetime) -> None:
     rows = session.execute(
-        select(RefreshToken).where(
-            RefreshToken.user_id == user_id,
-            RefreshToken.revoked_at.is_(None),
+        select(AuthSession).where(
+            AuthSession.user_id == user_id,
+            AuthSession.revoked_at.is_(None),
         )
     ).scalars()
     for row in rows:
@@ -508,6 +497,10 @@ def _to_auth_user(user: User) -> AuthUser:
         status=user.status,
         created_at=user.created_at,
     )
+
+
+def _session_ttl() -> timedelta:
+    return timedelta(days=settings.auth_session_ttl_days)
 
 
 def _as_utc(value: datetime) -> datetime:
