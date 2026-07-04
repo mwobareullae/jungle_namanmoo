@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Cookie, Depends, Header, Query
+from fastapi import APIRouter, Cookie, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user
+from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.auth import (
     AvailabilityResponse,
@@ -20,7 +22,6 @@ from app.services.auth_service import (
     AuthServiceError,
     PASSWORD_RESET_RESPONSE_MESSAGE,
     confirm_password_reset,
-    get_user_from_access_token,
     is_email_available,
     is_nickname_available,
     login,
@@ -176,31 +177,19 @@ def post_password_reset_confirm(
 
 @router.get("/me", response_model=AuthUser)
 def get_me(
-    authorization: str | None = Header(default=None),
-    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> AuthUser | JSONResponse:
     try:
-        token = _extract_bearer_token(authorization)
-        user = get_user_from_access_token(session, token)
         return AuthUser(
-            id=user.id,
-            email=user.email,
-            nickname=user.display_name,
-            role=user.role,
-            status=user.status,
-            created_at=user.created_at,
+            id=current_user.id,
+            email=current_user.email,
+            nickname=current_user.display_name,
+            role=current_user.role,
+            status=current_user.status,
+            created_at=current_user.created_at,
         )
     except AuthServiceError as exc:
         return _auth_error(exc)
-
-
-def _extract_bearer_token(authorization: str | None) -> str:
-    if not authorization:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    return token
 
 
 def _auth_error(error: AuthServiceError, *, available: bool | None = None) -> JSONResponse:

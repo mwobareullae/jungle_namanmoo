@@ -27,6 +27,15 @@ from app.db.models.recommendation import (
     SearchCandidate,
 )
 from app.db.models.search import SearchDocument
+from app.db.models.skin import (
+    BaumannTypeProfile,
+    SkinProfile,
+    SkinTestAnswer,
+    SkinTestOption,
+    SkinTestQuestion,
+    SkinTestResult,
+    SkinTestVersion,
+)
 from app.db.models.taxonomy import (
     Concern,
     ConcernAlias,
@@ -45,6 +54,7 @@ __all__ = [
     "Brand",
     "BrandAlias",
     "AuthAccount",
+    "BaumannTypeProfile",
     "Concern",
     "ConcernAlias",
     "ConcernEffect",
@@ -75,6 +85,12 @@ __all__ = [
     "SearchCandidate",
     "SearchDocument",
     "Seller",
+    "SkinProfile",
+    "SkinTestAnswer",
+    "SkinTestOption",
+    "SkinTestQuestion",
+    "SkinTestResult",
+    "SkinTestVersion",
     "TermsVersion",
     "User",
     "UserConsent",
