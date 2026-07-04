@@ -1,6 +1,7 @@
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,3 +53,44 @@ class InventoryMovement(Base):
     reference_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reference_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ProductPopularityMetric(Base):
+    __tablename__ = "product_popularity_metrics"
+    __table_args__ = (
+        CheckConstraint("window_days >= 0", name="ck_product_popularity_metrics_window_days_non_negative"),
+        CheckConstraint("view_count >= 0", name="ck_product_popularity_metrics_view_count_non_negative"),
+        CheckConstraint("click_count >= 0", name="ck_product_popularity_metrics_click_count_non_negative"),
+        CheckConstraint("cart_add_count >= 0", name="ck_product_popularity_metrics_cart_add_count_non_negative"),
+        CheckConstraint("order_count >= 0", name="ck_product_popularity_metrics_order_count_non_negative"),
+        CheckConstraint("units_sold >= 0", name="ck_product_popularity_metrics_units_sold_non_negative"),
+        CheckConstraint("review_count >= 0", name="ck_product_popularity_metrics_review_count_non_negative"),
+        CheckConstraint(
+            "average_rating is null or (average_rating >= 0 and average_rating <= 5)",
+            name="ck_product_popularity_metrics_average_rating_range",
+        ),
+        CheckConstraint("popularity_score >= 0", name="ck_product_popularity_metrics_popularity_score_non_negative"),
+        UniqueConstraint("product_id", "window_days", name="uq_product_popularity_metrics_product_window"),
+        Index(
+            "ix_product_popularity_metrics_window_score",
+            "window_days",
+            "popularity_score",
+            "computed_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    window_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7, server_default="7")
+    view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    click_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cart_add_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    order_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    units_sold: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    review_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    average_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
+    popularity_score: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False, default=0, server_default="0")
+    score_version: Mapped[str] = mapped_column(String(40), nullable=False, default="popular_v1", server_default="popular_v1")
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

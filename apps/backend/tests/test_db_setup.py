@@ -51,6 +51,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_category_aliases",
         "product_images",
         "product_ingredients",
+        "product_popularity_metrics",
         "product_prices",
         "product_skin_profiles",
         "products",
@@ -86,6 +87,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
     product_images = Base.metadata.tables["product_images"]
+    product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
     users = Base.metadata.tables["users"]
@@ -127,6 +129,20 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     )
     assert {"image_type", "storage_key", "display_order"}.issubset(product_images.columns.keys())
     assert "image_url" not in product_images.columns.keys()
+    assert {
+        "product_id",
+        "window_days",
+        "view_count",
+        "click_count",
+        "cart_add_count",
+        "order_count",
+        "units_sold",
+        "review_count",
+        "average_rating",
+        "popularity_score",
+        "score_version",
+        "computed_at",
+    }.issubset(product_popularity_metrics.columns.keys())
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )

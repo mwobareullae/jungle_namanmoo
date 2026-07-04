@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence
 from app.schemas.home import HomeSection, HomeSectionProduct, HomeSectionsResponse
+from app.schemas.product import PopularProductItem
+from app.services.popular_products_service import DEFAULT_POPULAR_WINDOW_DAYS, get_popular_product_items
 from app.services.product_image_service import load_thumbnail_storage_keys
 
 
@@ -61,57 +63,85 @@ def get_home_sections_response(
     signals_by_product_id = _load_product_signals(session, product_ids)
     skin_profiles_by_product_id = _load_skin_profiles(session, product_ids)
     purchase_urls_by_product_id = _load_purchase_urls(session, product_ids)
+    popular_products = get_popular_product_items(
+        session,
+        window_days=DEFAULT_POPULAR_WINDOW_DAYS,
+        limit=normalized_limit,
+        category_code=category_code,
+    )
 
-    sections = [
-        _build_section(
-            "best_sellers",
-            "지금 인기있는 제품",
-            "가격, 성분 근거, 데이터 완성도를 함께 본 메인 후보",
-            "commerce_rank",
-            "home_v0_quality_price_evidence",
-            products,
-            signals_by_product_id,
-            skin_profiles_by_product_id,
-            purchase_urls_by_product_id,
-            normalized_skin_type,
-            normalized_sensitivity,
-            normalized_limit,
-        ),
-        _build_section(
-            "evidence_picks",
-            "성분 근거가 좋은 제품",
-            "효능 성분과 근거 점수가 잘 잡힌 제품",
-            "evidence_rank",
-            "home_v0_ingredient_evidence",
-            products,
-            signals_by_product_id,
-            skin_profiles_by_product_id,
-            purchase_urls_by_product_id,
-            normalized_skin_type,
-            normalized_sensitivity,
-            normalized_limit,
-        ),
-        _build_section(
-            "recommended_for_you",
-            "너에게 추천하는 제품",
-            "피부 타입과 민감도 기준을 함께 본 맞춤 후보",
-            "personalized_rank",
-            "home_v0_skin_profile_evidence",
-            products,
-            signals_by_product_id,
-            skin_profiles_by_product_id,
-            purchase_urls_by_product_id,
-            normalized_skin_type,
-            normalized_sensitivity,
-            normalized_limit,
-        ),
-    ]
+    sections = []
+    if popular_products:
+        sections.append(_build_popular_section(popular_products))
+
+    sections.extend(
+        [
+            _build_section(
+                "evidence_picks",
+                "성분 근거가 좋은 제품",
+                "효능 성분과 근거 점수가 잘 잡힌 제품",
+                "evidence_rank",
+                "home_v0_ingredient_evidence",
+                products,
+                signals_by_product_id,
+                skin_profiles_by_product_id,
+                purchase_urls_by_product_id,
+                normalized_skin_type,
+                normalized_sensitivity,
+                normalized_limit,
+            ),
+            _build_section(
+                "recommended_for_you",
+                "너에게 추천하는 제품",
+                "피부 타입과 민감도 기준을 함께 본 맞춤 후보",
+                "personalized_rank",
+                "home_v0_skin_profile_evidence",
+                products,
+                signals_by_product_id,
+                skin_profiles_by_product_id,
+                purchase_urls_by_product_id,
+                normalized_skin_type,
+                normalized_sensitivity,
+                normalized_limit,
+            ),
+        ]
+    )
 
     return HomeSectionsResponse(
         skin_type=normalized_skin_type,
         sensitivity=normalized_sensitivity,
         category_code=category_code,
         sections=sections,
+    )
+
+
+def _build_popular_section(products: list[PopularProductItem]) -> HomeSection:
+    return HomeSection(
+        section_id="market_popular",
+        title="지금 인기있는 제품",
+        subtitle="최근 행동, 구매, 리뷰 신호를 함께 본 인기 상품",
+        section_type="market_popular",
+        algorithm="product_popularity_metrics_v1",
+        products=[_build_popular_section_product(product) for product in products],
+    )
+
+
+def _build_popular_section_product(product: PopularProductItem) -> HomeSectionProduct:
+    return HomeSectionProduct(
+        product_id=product.product_id,
+        brand=product.brand,
+        name=product.name,
+        category_code=product.category_code,
+        category_name=product.category_name,
+        thumbnail_url=product.thumbnail_url,
+        lowest_price=product.lowest_price,
+        original_price=None,
+        discount_rate=None,
+        purchase_url=product.purchase_url,
+        badges=["인기"],
+        tags=[],
+        reason_summary="최근 조회, 장바구니, 구매, 리뷰 신호를 기준으로 선정한 인기 상품입니다.",
+        display_score=int(round(product.popularity_score)),
     )
 
 
