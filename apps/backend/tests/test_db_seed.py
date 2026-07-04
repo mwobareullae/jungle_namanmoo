@@ -67,8 +67,8 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert risk_row.severity_score is not None
     image_row = session.execute(select(ProductImage).order_by(ProductImage.id.asc())).scalars().first()
     assert image_row is not None
-    assert image_row.image_type == "detail"
-    assert image_row.storage_key
+    assert image_row.image_type == "thumbnail"
+    assert image_row.storage_key == "products/prod_001/thumbnail.jpg"
     product_row = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
     assert product_row.seller_id is not None
 
