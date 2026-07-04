@@ -18,6 +18,7 @@ class ProductSearchIndexBuildResult:
     scanned: int
     upserted: int
     unchanged: int
+    pending_ingredients_skipped: int
     dry_run: bool
     document_code_prefix: str = DOCUMENT_CODE_PREFIX
 
@@ -27,6 +28,7 @@ class ProductSearchIndexBuildResult:
             f"scanned={self.scanned}, "
             f"upserted={self.upserted}, "
             f"unchanged={self.unchanged}, "
+            f"pending_ingredients_skipped={self.pending_ingredients_skipped}, "
             f"dry_run={self.dry_run}, "
             f"document_code_prefix='{self.document_code_prefix}'"
             ")"
@@ -80,6 +82,7 @@ def build_product_search_index_documents(
     scanned = 0
     upserted = 0
     unchanged = 0
+    pending_ingredients_skipped = 0
     last_product_id = 0
     remaining = limit
 
@@ -101,12 +104,14 @@ def build_product_search_index_documents(
             remaining -= len(product_rows)
         last_product_id = product_rows[-1].product.id
 
+        ingredient_features_result = _load_ingredient_features_by_product_id(
+            session,
+            [product_row.product.id for product_row in product_rows],
+        )
+        pending_ingredients_skipped += ingredient_features_result.pending_ingredients_skipped
         built_documents = _build_documents(
             product_rows,
-            ingredient_features_by_product_id=_load_ingredient_features_by_product_id(
-                session,
-                [product_row.product.id for product_row in product_rows],
-            ),
+            ingredient_features_by_product_id=ingredient_features_result.features_by_product_id,
         )
         existing_documents = _load_existing_documents(session, [document.document_code for document in built_documents])
 
@@ -127,6 +132,7 @@ def build_product_search_index_documents(
         scanned=scanned,
         upserted=upserted,
         unchanged=unchanged,
+        pending_ingredients_skipped=pending_ingredients_skipped,
         dry_run=dry_run,
     )
 
@@ -157,12 +163,18 @@ def _load_product_batch(
     ]
 
 
+@dataclass(frozen=True)
+class _IngredientFeaturesResult:
+    features_by_product_id: dict[int, list[_IngredientFeature]]
+    pending_ingredients_skipped: int
+
+
 def _load_ingredient_features_by_product_id(
     session: Session,
     product_db_ids: list[int],
-) -> dict[int, list[_IngredientFeature]]:
+) -> _IngredientFeaturesResult:
     if not product_db_ids:
-        return {}
+        return _IngredientFeaturesResult(features_by_product_id={}, pending_ingredients_skipped=0)
 
     rows = session.execute(
         select(ProductIngredient, Ingredient, IngredientEffect, Effect)
@@ -175,7 +187,11 @@ def _load_ingredient_features_by_product_id(
 
     features_by_product_id: dict[int, dict[int, _IngredientFeature]] = {}
     ingredient_db_ids: set[int] = set()
+    pending_ingredients_skipped = 0
     for product_ingredient, ingredient, ingredient_effect, effect in rows:
+        if _is_pending_ingredient_code(ingredient.ingredient_code):
+            pending_ingredients_skipped += 1
+            continue
         ingredient_db_ids.add(ingredient.id)
         product_features = features_by_product_id.setdefault(product_ingredient.product_id, {})
         feature = product_features.get(ingredient.id)
@@ -208,17 +224,24 @@ def _load_ingredient_features_by_product_id(
                 feature.risk_texts.add(risk_flag.display_text)
                 feature.risk_types.add(risk_flag.risk_type)
 
-    return {
-        product_id: sorted(
-            product_features.values(),
-            key=lambda feature: (
-                feature.display_order is None,
-                feature.display_order or 0,
-                feature.ingredient_code,
-            ),
-        )
-        for product_id, product_features in features_by_product_id.items()
-    }
+    return _IngredientFeaturesResult(
+        features_by_product_id={
+            product_id: sorted(
+                product_features.values(),
+                key=lambda feature: (
+                    feature.display_order is None,
+                    feature.display_order or 0,
+                    feature.ingredient_code,
+                ),
+            )
+            for product_id, product_features in features_by_product_id.items()
+        },
+        pending_ingredients_skipped=pending_ingredients_skipped,
+    )
+
+
+def _is_pending_ingredient_code(ingredient_code: str) -> bool:
+    return ingredient_code.startswith("ing_pending_")
 
 
 def _load_risk_flags_by_ingredient_id(
