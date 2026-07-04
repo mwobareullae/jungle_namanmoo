@@ -38,6 +38,9 @@ docker-data/
 tmp/
 temp/
 data/batch_runs/
+data/dev-small/
+data/dev-recommendable/
+data/generated-subsets/
 apps/frontend/public/image-assets/
 
 # Local-only personal agent instructions
