@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import { api } from "../lib/api";
 import {
@@ -208,6 +208,10 @@ function SkinTestResultPage() {
                   테스트 다시 하기
                 </button>
               </div>
+
+              <Link className="skin-test-result__home-link" to="/">
+                홈으로 이동
+              </Link>
 
               {shareMessage && <p className="skin-test-result__share">{shareMessage}</p>}
               {errorMessage && <p className="skin-test-result__error">{errorMessage}</p>}
