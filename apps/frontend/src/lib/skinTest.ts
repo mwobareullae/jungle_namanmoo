@@ -1,16 +1,9 @@
 import type { SkinTestResult } from "../types/skinTest";
+import { getStaticAssetUrl } from "./imageUrls";
 
 export const SKIN_TEST_LATEST_RESULT_STORAGE_KEY = "skinTestLatestResult";
 
-const imageCdnBaseUrl = (import.meta.env.VITE_IMAGE_CDN_BASE_URL ?? "").replace(/\/$/, "");
-
-export const getSkinTestImageUrl = (storageKey?: string | null, size: "w400" | "w1200" = "w400") => {
-  if (!imageCdnBaseUrl || !storageKey) {
-    return "";
-  }
-
-  return `${imageCdnBaseUrl}/resized/${size}/${storageKey.replace(/^\//, "")}`;
-};
+export const getSkinTestImageUrl = (storageKey?: string | null) => getStaticAssetUrl(storageKey);
 
 export const saveLatestSkinTestResult = (result: SkinTestResult) => {
   sessionStorage.setItem(SKIN_TEST_LATEST_RESULT_STORAGE_KEY, JSON.stringify(result));
