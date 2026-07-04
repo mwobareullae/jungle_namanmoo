@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
-
-type LoginResponse = {
-  access_token: string;
-  refresh_token: string;
-  user: {
-    id: number;
-    email: string;
-  };
-};
+import { API_BASE_URL } from "../lib/api";
 
 type LoginLocationState = {
   from?: string;
@@ -23,7 +15,6 @@ const socialProviderLabels: Record<SocialProvider, string> = {
   naver: "네이버"
 };
 
-const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
 const LOGIN_EMAIL_FORMAT_ERROR_MESSAGE = "아이디는 이메일 형식으로 입력해주세요.";
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -79,8 +70,9 @@ function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/auth/login", {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json"
         },
@@ -93,11 +85,6 @@ function LoginPage() {
         setMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
         return;
       }
-      const data = (await response.json()) as LoginResponse;
-      localStorage.setItem("accessToken", data.access_token);
-      localStorage.setItem("refreshToken", data.refresh_token);
-      localStorage.setItem("authUser", JSON.stringify(data.user));
-      localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
       setMessage("로그인 성공!");
       navigate(redirectPath, { replace: true });
     } catch {
