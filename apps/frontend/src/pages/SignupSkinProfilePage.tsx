@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
+import { API_BASE_URL } from "../lib/api";
 
 type SkinProfileForm = {
   skinType: string;
@@ -97,8 +98,9 @@ function SignupSkinProfilePage() {
     setErrorMessage("");
 
     try {
-      const response = await fetch("http://localhost:8000/api/skin-profile", {
+      const response = await fetch(`${API_BASE_URL}/skin-profile`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
