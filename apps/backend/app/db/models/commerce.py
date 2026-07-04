@@ -55,6 +55,35 @@ class InventoryMovement(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class Wishlist(Base):
+    __tablename__ = "wishlists"
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_wishlists_user_product"),
+        Index("ix_wishlists_user_added_at", "user_id", "added_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class RecentView(Base):
+    __tablename__ = "recent_views"
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_recent_views_user_product"),
+        Index("ix_recent_views_user_viewed_at", "user_id", "viewed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    viewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class ProductPopularityMetric(Base):
     __tablename__ = "product_popularity_metrics"
     __table_args__ = (
