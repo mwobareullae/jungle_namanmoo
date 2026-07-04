@@ -68,22 +68,24 @@ const clearStoredAuthUser = () => {
   window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
 };
 
+const requestAuthenticatedUser = async (): Promise<AuthUser | null> => {
+  const response = await fetch(`${API_BASE_URL}/me`, {
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    return readStoredAuthUser();
+  }
+
+  return parseUserResponse(response);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => readStoredAuthUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const refreshAuthenticatedUser = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/me`, {
-      credentials: "include"
-    });
-
-    if (!response.ok) {
-      const storedUser = readStoredAuthUser();
-      setUser(storedUser);
-      return storedUser;
-    }
-
-    const nextUser = await parseUserResponse(response);
+    const nextUser = await requestAuthenticatedUser();
     setUser(nextUser);
     if (nextUser) {
       storeAuthUser(nextUser);
@@ -96,12 +98,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    refreshAuthenticatedUser()
+    requestAuthenticatedUser()
+      .then((nextUser) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setUser(nextUser);
+        if (nextUser) {
+          storeAuthUser(nextUser);
+        } else {
+          clearStoredAuthUser();
+        }
+      })
       .catch(() => {
         if (!isMounted) {
           return;
         }
         setUser(null);
+        clearStoredAuthUser();
       })
       .finally(() => {
         if (isMounted) {
@@ -112,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [refreshAuthenticatedUser]);
+  }, []);
 
   const setAuthenticatedUser = useCallback((nextUser: AuthUser) => {
     storeAuthUser(nextUser);
