@@ -114,6 +114,8 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
         "reason_summary",
         "display_score",
     }.issubset(product)
+    assert product["thumbnail_url"].startswith("products/")
+    assert not product["thumbnail_url"].startswith("http")
     assert product["badges"]
     assert 0 <= product["display_score"] <= 100
 
@@ -152,6 +154,8 @@ def test_create_recommendation_applies_request_defaults(client: TestClient) -> N
         "score_breakdown",
         "cart_handoff",
     }.issubset(product)
+    assert product["thumbnail_url"].startswith("products/")
+    assert not product["thumbnail_url"].startswith("http")
     assert product["cart_handoff"] == {
         "product_id": product["product_id"],
         "quantity": 1,
@@ -506,7 +510,9 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
 
     data = response.json()
     assert data["product"]["product_id"] == "prod_001"
+    assert data["product"]["thumbnail_url"] == "products/prod_001/thumbnail.jpg"
     assert data["images"]
+    assert all(not image["storage_key"].startswith("http") for image in data["images"])
     assert data["prices"]
     assert data["purchase_info"]["seller_code"] == "mwobareullae"
     assert data["purchase_info"]["price"] == 19900

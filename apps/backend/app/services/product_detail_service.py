@@ -66,7 +66,7 @@ def get_product_detail_response(
             product_id=product_row.product.product_code,
             brand=product_row.brand.name,
             name=product_row.product.product_name,
-            thumbnail_url=_thumbnail_url(product_row.product, images),
+            thumbnail_url=_thumbnail_url(images),
             lowest_price=product_row.lowest_price,
             total_score=_result_total_score(recommendation_result),
             reason_summary=recommendation_result.reason_summary if recommendation_result else None,
@@ -137,14 +137,12 @@ def _load_product_row(session: Session, product_code: str) -> _ProductRow:
     )
 
 
-def _thumbnail_url(product: Product, images: list[ProductImage]) -> str:
+def _thumbnail_url(images: list[ProductImage]) -> str:
     for image in images:
         if image.image_type == "thumbnail":
             return image.storage_key
     if images:
         return images[0].storage_key
-    if product.thumbnail_url:
-        return product.thumbnail_url
     return ""
 
 

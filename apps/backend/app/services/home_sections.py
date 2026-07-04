@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence
 from app.schemas.home import HomeSection, HomeSectionProduct, HomeSectionsResponse
+from app.services.product_image_service import load_thumbnail_storage_keys
 
 
 DEFAULT_HOME_LIMIT_PER_SECTION = 8
@@ -124,7 +125,6 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             ProductCategory.category_code,
             ProductCategory.name.label("category_name"),
             Product.product_name,
-            Product.thumbnail_url,
             lowest_price.label("lowest_price"),
         )
         .join(Brand, Product.brand_id == Brand.id)
@@ -142,13 +142,13 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             ProductCategory.category_code,
             ProductCategory.name,
             Product.product_name,
-            Product.thumbnail_url,
         )
     )
     if category_code:
         statement = statement.where(ProductCategory.category_code == category_code)
 
     rows = session.execute(statement).all()
+    thumbnail_storage_keys = load_thumbnail_storage_keys(session, [int(row.id) for row in rows])
     return [
         _ProductBase(
             db_product_id=int(row.id),
@@ -157,7 +157,7 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             category_code=row.category_code,
             category_name=row.category_name,
             name=row.product_name,
-            thumbnail_url=row.thumbnail_url or "",
+            thumbnail_url=thumbnail_storage_keys.get(int(row.id), ""),
             lowest_price=int(row.lowest_price or 0),
         )
         for row in rows
