@@ -385,6 +385,8 @@ def submit_skin_test(
             )
         )
     session.flush()
+    if current_user is not None:
+        apply_skin_test_result_to_profile(session, current_user, result.id)
     return to_skin_test_result_data(session, result)
 
 

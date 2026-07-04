@@ -124,6 +124,43 @@ def test_skin_test_submit_stores_result_and_returns_frontend_result(
     assert type_profile.object_name == "딸기"
 
 
+def test_skin_test_submit_with_auth_applies_result_to_profile(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    signup_data = _signup(client, email="auto-apply-skin-test@example.com", nickname="auto-apply")
+    headers = _auth_headers(signup_data)
+    question_set = _question_set(client)
+
+    response = client.post(
+        "/api/skin-test/submit",
+        headers=headers,
+        json={
+            "version": question_set["version"],
+            "answers": _answers_for_type(question_set["questions"], od="O", sr="S", pn="N", wt="T"),
+        },
+    )
+
+    assert response.status_code == 200
+    result_data = response.json()
+
+    profile_response = client.get("/api/me/skin-profile", headers=headers)
+    assert profile_response.status_code == 200
+    profile = profile_response.json()["profile"]
+    assert profile["latest_skin_test_result_id"] == result_data["result_id"]
+    assert profile["baumann_type_code"] == result_data["type_code"]
+    assert profile["baumann_signal_weight"] == 0.25
+    assert profile["source"] == "skin_test"
+
+    with Session(db_engine) as session:
+        stored_profile = session.execute(select(SkinProfile)).scalar_one()
+        result = session.execute(select(SkinTestResult)).scalar_one()
+
+    assert result.user_id == signup_data["user"]["id"]
+    assert result.applied_profile_id == stored_profile.id
+    assert stored_profile.latest_skin_test_result_id == result.id
+
+
 def test_skin_test_result_can_be_loaded_by_result_id(client: TestClient) -> None:
     question_set = _question_set(client)
     submit_response = client.post(
