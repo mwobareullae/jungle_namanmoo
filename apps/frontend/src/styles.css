@@ -1,5 +1,40 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-primary: #0c1117;
+  --color-brand-espresso: #0c1117;
+  --color-brand-ink: #1a1a1a;
+  --color-brand-ink-2: #3d3d3d;
+  --color-brand-accent: #94e0f8;
+  --color-brand-accent-text: #2aa6d1;
+  --color-brand-on-accent: #063445;
+  --color-brand-surface: #fafafa;
+  --color-brand-raised-surface: #ffffff;
+  --color-brand-muted: #6b7280;
+  --color-brand-faint: #9ca3af;
+  --color-brand-warning: #f59e0b;
+  --color-brand-danger: #ff6b52;
+  --color-brand-info: #6b7280;
+}
+
+:root {
+  --color-primary: #0c1117;
+  --color-espresso: #0c1117;
+  --color-ink: #1a1a1a;
+  --color-ink-2: #3d3d3d;
+  --color-accent: #94e0f8;
+  --color-accent-text: #2aa6d1;
+  --color-on-accent: #063445;
+  --color-surface: #fafafa;
+  --color-raised-surface: #ffffff;
+  --color-edge: rgba(0, 0, 0, 0.07);
+  --color-muted-text: #6b7280;
+  --color-faint-text: #9ca3af;
+  --color-warning: #f59e0b;
+  --color-danger: #ff6b52;
+  --color-info: #6b7280;
+}
+
 @font-face {
   font-family: "GmarketSans";
   src: url("/fonts/gmarket/GmarketSansTTFMedium.ttf") format("truetype");
@@ -32,6 +67,11 @@ body {
 
 .spa-origin-section {
   display: contents;
+}
+
+[data-step="confirm"] .password-reset-request-copy,
+[data-step="complete"] .password-reset-request-copy {
+  display: none;
 }
 
 .hero {
@@ -743,6 +783,25 @@ body {
 
 .skin-test-result__actions .skin-test-primary-button {
   grid-column: 1 / -1;
+}
+
+.skin-test-result__home-link {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 18px;
+  color: var(--skin-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}
+
+.skin-test-result__home-link:hover,
+.skin-test-result__home-link:focus-visible {
+  color: var(--skin-ink);
+  text-decoration: none;
+  outline: none;
 }
 
 .skin-test-result__share,
