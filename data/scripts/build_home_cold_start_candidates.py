@@ -72,6 +72,8 @@ SECTION_CONFIGS = [
 
 
 P2_SECTION_IDS = {"moisture_barrier", "calming", "brightening"}
+HOME_SECTION_LIMIT = 15
+ALL_SECTION_LIMIT = 15
 MARKET_POPULAR_SECTION = {
     "section_id": "market_popular",
     "section_label": "지금 인기 있는 제품",
@@ -450,7 +452,8 @@ def select_section_rows(
             str(item["product_id"]),
         )
     )
-    rows: list[dict[str, str]] = []
+    selected: list[dict[str, object]] = []
+    selected_ids: set[str] = set()
     brand_count: Counter[str] = Counter()
     category_count: Counter[str] = Counter()
     for item in scored:
@@ -458,6 +461,25 @@ def select_section_rows(
             continue
         if category_count[item["category"]] >= 2:
             continue
+        selected.append(item)
+        selected_ids.add(str(item["product_id"]))
+        brand_count[item["brand"]] += 1
+        category_count[item["category"]] += 1
+        if len(selected) >= limit:
+            break
+
+    if len(selected) < limit:
+        for item in scored:
+            product_id = str(item["product_id"])
+            if product_id in selected_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(product_id)
+            if len(selected) >= limit:
+                break
+
+    rows: list[dict[str, str]] = []
+    for item in selected:
         rank = len(rows) + 1
         rows.append(
             {
@@ -482,8 +504,6 @@ def select_section_rows(
                 "thumbnail_url": str(item["thumbnail_url"]),
             }
         )
-        brand_count[item["brand"]] += 1
-        category_count[item["category"]] += 1
         if used_product_ids is not None:
             used_product_ids.add(str(item["product_id"]))
         if len(rows) >= limit:
@@ -534,7 +554,8 @@ def select_market_popular_rows(
         )
     )
 
-    rows: list[dict[str, str]] = []
+    selected: list[dict[str, object]] = []
+    selected_ids: set[str] = set()
     brand_count: Counter[str] = Counter()
     category_count: Counter[str] = Counter()
     for item in scored:
@@ -542,6 +563,25 @@ def select_market_popular_rows(
             continue
         if category_count[str(item["category"])] >= 2:
             continue
+        selected.append(item)
+        selected_ids.add(str(item["product_id"]))
+        brand_count[str(item["brand"])] += 1
+        category_count[str(item["category"])] += 1
+        if len(selected) >= limit:
+            break
+
+    if len(selected) < limit:
+        for item in scored:
+            product_id = str(item["product_id"])
+            if product_id in selected_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(product_id)
+            if len(selected) >= limit:
+                break
+
+    rows: list[dict[str, str]] = []
+    for item in selected:
         rank = len(rows) + 1
         rows.append(
             {
@@ -571,8 +611,6 @@ def select_market_popular_rows(
                 "thumbnail_url": str(item["thumbnail_url"]),
             }
         )
-        brand_count[str(item["brand"])] += 1
-        category_count[str(item["category"])] += 1
         if used_product_ids is not None:
             used_product_ids.add(str(item["product_id"]))
         if len(rows) >= limit:
@@ -597,7 +635,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     ]
 
     all_rows: list[dict[str, str]] = []
-    all_rows.extend(select_market_popular_rows(eligible, prices, market_context, limit=5))
+    all_rows.extend(select_market_popular_rows(eligible, prices, market_context, limit=ALL_SECTION_LIMIT))
     for section in SECTION_CONFIGS:
         all_rows.extend(
             select_section_rows(
@@ -609,7 +647,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
                 coverage,
                 risk_scores,
                 prices,
-                limit=5,
+                limit=ALL_SECTION_LIMIT,
             )
         )
 
@@ -621,7 +659,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
             prices,
             market_context,
             used_product_ids=used_product_ids,
-            limit=5,
+            limit=HOME_SECTION_LIMIT,
         )
     )
     for section in SECTION_CONFIGS:
@@ -638,7 +676,7 @@ def build() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
                 risk_scores,
                 prices,
                 used_product_ids=used_product_ids,
-                limit=5,
+                limit=HOME_SECTION_LIMIT,
             )
         )
     return all_rows, p2_rows
