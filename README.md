@@ -111,11 +111,13 @@ VITE_API_BASE_URL=http://<dev-server-host>:8000/api
 docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile frontend-only up --build frontend-only
 ```
 
-백엔드 일반 개발은 로컬 Postgres와 함께 실행합니다. 기존 기본 compose 동작을 사용합니다.
+백엔드 일반 개발은 로컬 Docker Compose의 `postgres` 컨테이너와 함께 실행합니다. 기존 기본 compose 동작을 사용합니다.
 
 ```bash
 docker compose up --build backend
 ```
+
+이 명령은 `backend`의 `depends_on` 때문에 `postgres`도 함께 실행하고, backend는 compose 내부 주소 `postgres:5432`로 DB에 연결합니다.
 
 검색/추천/캐시 통합 확인이 필요할 때는 먼저 SSH tunnel을 열고, 백엔드는 Dev Postgres/Redis/Elasticsearch를 한 세트로 바라보는 모드로 실행합니다.
 
@@ -135,7 +137,7 @@ REDIS_URL=redis://localhost:6379/0
 ELASTICSEARCH_URL=http://localhost:9200
 ```
 
-`local Postgres + dev Redis/Elasticsearch` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 index/cache 기준이 달라져 디버깅이 어려워질 수 있습니다.
+`local Docker Compose Postgres + dev Redis/Elasticsearch` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 index/cache 기준이 달라져 디버깅이 어려워질 수 있습니다.
 
 기본 `frontend`/`backend` 서비스와 `frontend-only`/`backend-dev-tunnel` 서비스는 각각 같은 host port를 사용합니다. 동시에 띄우지 말고, 동시에 필요하면 `FRONTEND_PORT` 또는 `BACKEND_PORT`를 바꿉니다.
 

@@ -215,11 +215,11 @@ docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile f
 
 ### Backend 작업자 기본 모드
 
-일반 백엔드 개발은 로컬 Postgres를 사용합니다.
+일반 백엔드 개발은 로컬 Docker Compose의 `postgres` 컨테이너를 사용합니다.
 
 ```text
-backend local
-+ postgres local
+backend container
++ local Docker Compose postgres container
 ```
 
 용도:
@@ -237,6 +237,8 @@ PR 전에는 로컬에서 `alembic upgrade head`가 정상 적용되는지 확�
 docker compose up --build backend
 ```
 
+이 명령은 `backend`의 `depends_on` 때문에 `postgres`도 함께 실행하고, backend는 compose 내부 주소 `postgres:5432`로 DB에 연결합니다.
+
 ### Backend 통합 확인 모드
 
 검색/추천/캐시 통합 확인이 필요할 때는 Dev 서버의 Postgres/ES/Redis를 한 세트로 SSH 터널링해서 사용합니다.
@@ -249,7 +251,7 @@ backend local
 + dev Redis
 ```
 
-`local Postgres + dev ES/Redis` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 ES index, Redis cache가 서로 달라져 디버깅이 어려워질 수 있습니다.
+`local Docker Compose Postgres + dev ES/Redis` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 ES index, Redis cache가 서로 달라져 디버깅이 어려워질 수 있습니다.
 
 실행:
 
