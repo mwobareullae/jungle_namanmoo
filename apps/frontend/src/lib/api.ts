@@ -163,7 +163,7 @@ type BackendProductDetailResponse = {
 
 type BackendHomeSectionsResponse = HomeSectionsResponse;
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
   ""
 );
@@ -283,6 +283,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) =>
 
   try {
     return await fetch(input, {
+      credentials: "include",
       ...init,
       signal: controller.signal
     });
@@ -316,16 +317,6 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return body as T;
 };
 
-const getAuthHeaders = (): Record<string, string> => {
-  const accessToken = localStorage.getItem("accessToken");
-
-  return accessToken
-    ? {
-        Authorization: `Bearer ${accessToken}`
-      }
-    : {};
-};
-
 export const api: RecommendationApi = {
   async createRecommendation(request, params = {}) {
     const searchParams = new URLSearchParams();
@@ -333,7 +324,7 @@ export const api: RecommendationApi = {
     if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
     const query = searchParams.toString();
 
-    const response = await fetchWithTimeout(`${apiBaseUrl}/recommendations${query ? `?${query}` : ""}`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/recommendations${query ? `?${query}` : ""}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -350,14 +341,14 @@ export const api: RecommendationApi = {
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
     );
     return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
   },
 
   async createRecommendationNarrative(recommendationId, request = {}) {
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
+      `${API_BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
       {
         method: "POST",
         headers: {
@@ -378,7 +369,7 @@ export const api: RecommendationApi = {
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/home/sections${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/home/sections${query ? `?${query}` : ""}`
     );
     return parseJson<BackendHomeSectionsResponse>(response);
   },
@@ -391,18 +382,18 @@ export const api: RecommendationApi = {
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/products/${productId}${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/products/${productId}${query ? `?${query}` : ""}`
     );
     return mapProductDetail(await parseJson<BackendProductDetailResponse>(response));
   },
 
   async getSkinTestQuestions() {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/questions`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/skin-test/questions`);
     return parseJson<SkinTestQuestionsResponse>(response);
   },
 
   async submitSkinTest(request) {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/submit`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/skin-test/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -414,17 +405,16 @@ export const api: RecommendationApi = {
 
   async getSkinTestResult(resultId) {
     const response = await fetchWithTimeout(
-      `${apiBaseUrl}/skin-test/results/${encodeURIComponent(String(resultId))}`
+      `${API_BASE_URL}/skin-test/results/${encodeURIComponent(String(resultId))}`
     );
     return parseJson<SkinTestResultResponse>(response);
   },
 
   async applySkinTestResult(resultId) {
-    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/apply-to-profile`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/skin-test/apply-to-profile`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders()
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ result_id: resultId })
     });
