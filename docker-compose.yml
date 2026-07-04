@@ -49,6 +49,13 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      AUTH_JWT_SECRET_KEY: ${AUTH_JWT_SECRET_KEY:-change-me-local-secret}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@mubarelle.com}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
     ports:
