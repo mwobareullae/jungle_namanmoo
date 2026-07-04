@@ -62,6 +62,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "search_candidates",
         "search_documents",
         "sellers",
+        "terms_versions",
+        "user_consents",
         "users",
     }
 
@@ -82,6 +84,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     auth_accounts = Base.metadata.tables["auth_accounts"]
     refresh_tokens = Base.metadata.tables["refresh_tokens"]
     password_reset_tokens = Base.metadata.tables["password_reset_tokens"]
+    terms_versions = Base.metadata.tables["terms_versions"]
+    user_consents = Base.metadata.tables["user_consents"]
 
     assert {"seller_id", "brand_id", "category_id"}.issubset(products.columns.keys())
     assert {
@@ -129,8 +133,20 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     assert {"user_id", "token_hash", "family_id", "expires_at", "revoked_at"}.issubset(
         refresh_tokens.columns.keys()
     )
-    assert {"user_id", "token_hash", "requested_email", "expires_at", "used_at"}.issubset(
-        password_reset_tokens.columns.keys()
+    assert {
+        "user_id",
+        "token_hash",
+        "requested_email",
+        "expires_at",
+        "used_at",
+        "failed_attempt_count",
+        "last_attempt_at",
+    }.issubset(password_reset_tokens.columns.keys())
+    assert {"terms_key", "version", "title", "is_required", "is_active"}.issubset(
+        terms_versions.columns.keys()
+    )
+    assert {"user_id", "terms_version_id", "consent_key", "agreed", "consented_at"}.issubset(
+        user_consents.columns.keys()
     )
 
 
