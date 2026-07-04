@@ -20,7 +20,7 @@ R4 owns the ranking policy and candidate generation logic. Backend owns DB/API i
 | Login, no skin profile | `cold_start` + profile CTA | `추천 예시` | Same as non-login |
 | Login, skin profile exists | `member` | `내 피부 기준 추천` | user profile + product/effect/concentration data |
 
-`market_popular` is available only when market signal data exists. Do not fabricate popularity from price, image availability, ingredient score, or inventory mock data.
+`market_popular` is available only when `product_popularity_metrics` rows exist for the requested window. Do not fabricate popularity from price, image availability, ingredient score, or inventory mock data.
 
 ## Request
 
@@ -119,47 +119,40 @@ Do not create a separate `민감도 고려` section for P2. Sensitivity is alrea
 
 ## Market Popularity Inputs
 
-Future mock or crawled data can provide market signals in `data/product_market_signals.csv` or equivalent DB columns.
+Runtime home API reads `product_popularity_metrics` through the same service used by `GET /api/products/popular`.
 
-Minimum optional schema:
+`data/product_market_signals.csv` is mock/sample input unless the team explicitly decides to import it. It must not be treated as real service behavior data by default.
+
+Source metric schema:
 
 | Column | Meaning |
 |---|---|
 | `product_id` | FK to products |
+| `window_days` | Popularity window, for example 7 or 14 |
+| `view_count` | Product view count |
+| `click_count` | Product click count |
+| `cart_add_count` | Cart-add count |
+| `order_count` | Order count |
+| `units_sold` | Sold quantity |
 | `review_count` | Review volume |
 | `average_rating` | Average rating, expected 0-5 scale |
-| `sales_count` | Sales volume if available |
-| `sales_rank` | Lower is better. Used when `sales_count` is absent |
-| `recent_view_count` | Recent product views, expected 14-day rolling count |
-| `wishlist_count` | Recent wishlist count, expected 14-day rolling count |
-| `cart_add_count` | Recent cart-add count, expected 14-day rolling count |
-| `source` | Data source or mock source |
-| `updated_at` | Snapshot timestamp |
+| `popularity_score` | Precomputed final popularity score |
+| `score_version` | Popularity score formula version |
+| `computed_at` | Metric snapshot timestamp |
 
-Popularity score:
+Runtime rule:
 
 ```text
-market_popularity_score =
-  review_count_score * 0.30
-  + bayesian_rating_score * 0.25
-  + sales_score * 0.30
-  + recent_signal_score * 0.15
+home API orders by product_popularity_metrics.popularity_score desc
 ```
 
 Rules:
 
-- Count-like values use log normalization so one viral product does not dominate the whole section.
-- Rating uses Bayesian adjustment so a product with very few reviews and 5.0 rating does not outrank established products too easily.
-- Bayesian rating uses `confidence_reviews = 50`; this means a product needs roughly 50 reviews before its own rating is trusted about as much as the global average.
-- `sales_count` is preferred over `sales_rank`; if only rank exists, lower rank receives a higher score through log-scaled inverse rank.
-- Recent behavior means a 14-day rolling window. Without a window, the signal becomes lifetime popularity rather than current interest.
-- Missing components are excluded and the remaining weights are re-normalized.
+- `popularity_score` is precomputed before API reads it.
+- Count-like values should use log normalization when the batch calculation is implemented so one viral product does not dominate the whole section.
+- Rating should use Bayesian adjustment so a product with very few reviews and 5.0 rating does not outrank established products too easily.
+- Recent behavior should use the metric row's `window_days`.
 - `product_inventory.csv` is not a market signal because current inventory is `AUTO_SEED` mock data.
-
-Version note:
-
-- v1 draft used review `0.35` and recent behavior `0.10`.
-- v2 uses review `0.30` and recent behavior `0.15` to give slightly more room to internal shopping intent signals while keeping sales/reviews dominant.
 
 ## Member Score Weights
 

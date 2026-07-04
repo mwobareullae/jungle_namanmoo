@@ -18,7 +18,7 @@ from app.db.models.auth import (
     User,
     UserConsent,
 )
-from app.db.models.commerce import Inventory, InventoryMovement, Seller
+from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -74,6 +74,7 @@ __all__ = [
     "ProductCategoryAlias",
     "ProductImage",
     "ProductIngredient",
+    "ProductPopularityMetric",
     "ProductPrice",
     "ProductSkinProfile",
     "PasswordResetToken",
