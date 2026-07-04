@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
@@ -89,13 +89,11 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
     assert data["skin_type"] == "건성"
     assert data["sensitivity"] == "보통"
     assert [section["section_id"] for section in data["sections"]] == [
-        "best_sellers",
         "evidence_picks",
         "recommended_for_you",
     ]
 
     first_section = data["sections"][0]
-    assert first_section["title"] == "지금 인기있는 제품"
     assert first_section["algorithm"]
     assert 0 < len(first_section["products"]) <= 2
 
@@ -118,6 +116,106 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
     assert not product["thumbnail_url"].startswith("http")
     assert product["badges"]
     assert 0 <= product["display_score"] <= 100
+
+
+def test_get_popular_products_returns_metric_ranked_products(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        first_product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        second_product = session.execute(
+            select(Product).where(Product.product_code == "prod_002")
+        ).scalar_one()
+        session.add_all(
+            [
+                ProductPopularityMetric(
+                    product_id=first_product.id,
+                    window_days=7,
+                    view_count=100,
+                    click_count=30,
+                    cart_add_count=10,
+                    order_count=5,
+                    units_sold=6,
+                    review_count=20,
+                    average_rating=4.5,
+                    popularity_score=70,
+                ),
+                ProductPopularityMetric(
+                    product_id=second_product.id,
+                    window_days=7,
+                    view_count=200,
+                    click_count=60,
+                    cart_add_count=20,
+                    order_count=9,
+                    units_sold=12,
+                    review_count=40,
+                    average_rating=4.7,
+                    popularity_score=92,
+                ),
+            ]
+        )
+        session.commit()
+
+    response = client.get("/api/products/popular", params={"window_days": 7, "limit": 2})
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["window_days"] == 7
+    assert [item["product_id"] for item in data["items"]] == ["prod_002", "prod_001"]
+
+    first_item = data["items"][0]
+    assert first_item["thumbnail_url"].startswith("products/")
+    assert not first_item["thumbnail_url"].startswith("http")
+    assert first_item["popularity_score"] == 92.0
+    assert first_item["score_version"] == "popular_v1"
+    assert first_item["metrics"] == {
+        "view_count": 200,
+        "click_count": 60,
+        "cart_add_count": 20,
+        "order_count": 9,
+        "units_sold": 12,
+        "review_count": 40,
+        "average_rating": 4.7,
+    }
+
+
+def test_get_home_sections_includes_market_popular_when_metrics_exist(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        session.add(
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                view_count=100,
+                click_count=30,
+                cart_add_count=10,
+                order_count=5,
+                units_sold=6,
+                review_count=20,
+                average_rating=4.5,
+                popularity_score=88,
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/home/sections", params={"limit_per_section": 2})
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["sections"][0]["section_id"] == "market_popular"
+    assert data["sections"][0]["algorithm"] == "product_popularity_metrics_v1"
+    assert data["sections"][0]["products"][0]["product_id"] == "prod_001"
+    assert data["sections"][0]["products"][0]["display_score"] == 88
 
 
 def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:
