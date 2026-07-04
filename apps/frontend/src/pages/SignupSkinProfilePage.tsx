@@ -205,7 +205,7 @@ function SignupSkinProfilePage() {
 
             <section>
               <h2 className="text-[15px] font-semibold text-[#1A1A1A]">
-                피하고 싶은 성분/사용감
+                피하고 싶은 성분
               </h2>
               <div className="mt-3 flex flex-wrap gap-2">
                 {avoidIngredientOptions.map((option) => {
