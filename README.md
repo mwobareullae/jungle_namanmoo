@@ -48,6 +48,7 @@ cp .env.example .env
 - `VITE_*`: 브라우저에 노출되는 프론트 공개값입니다. secret을 넣지 않습니다.
 - `DATABASE_URL`: 백엔드가 실제로 사용하는 DB 연결 문자열입니다.
 - `POSTGRES_*`: Docker Compose의 postgres 컨테이너 초기화/포트 설정값입니다.
+- `BACKEND_CORS_ORIGINS`: 브라우저에서 API 호출을 허용할 프론트 origin 목록입니다.
 - `REDIS_*`, `ELASTICSEARCH_*`: Dev 통합 확인용 Redis/Elasticsearch 연결과 prefix 기준입니다.
 - `COMPOSE_PROFILES=dev-infra`: Redis/Elasticsearch 서비스를 함께 띄우는 Dev 서버용 profile입니다.
 - `DEV_HOST`, `DEV_SSH_KEY` 같은 배포 secret은 `.env.example`에 넣지 않고 GitHub Secrets에만 둡니다.
@@ -120,6 +121,20 @@ EMBEDDING_DIMENSIONS=1536
 ```
 
 `EMBEDDING_DIMENSIONS`는 vector DB/index 생성 후 마음대로 바꾸면 안 됩니다. 변경이 필요하면 migration 또는 index rebuild 계획을 같이 잡아야 합니다.
+
+### Auth / CORS
+
+프론트 Auth 요청은 `fetch(..., { credentials: "include" })` 기준으로 이동 중입니다. 백엔드는 CORS `allow_credentials=True`로 동작하므로, 배포 환경의 `BACKEND_CORS_ORIGINS`에는 실제 프론트 origin을 정확히 넣어야 합니다.
+
+```env
+# Local/dev default
+BACKEND_CORS_ORIGINS=http://localhost:5173
+
+# Release server .env
+BACKEND_CORS_ORIGINS=https://mubarelle.com,https://www.mubarelle.com
+```
+
+credentials 요청에는 wildcard origin `*`를 쓰지 않습니다. HTTPOnly cookie 인증의 `Set-Cookie`, 만료, `SameSite`, `Secure`, `/me` cookie 처리 전환은 백엔드 Auth 작업에서 별도로 추적합니다.
 
 Docker 로그와 메모리 제한은 `.env`에서 조절합니다.
 
