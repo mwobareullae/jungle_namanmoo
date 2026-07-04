@@ -785,6 +785,25 @@ body {
   grid-column: 1 / -1;
 }
 
+.skin-test-result__home-link {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 18px;
+  color: var(--skin-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}
+
+.skin-test-result__home-link:hover,
+.skin-test-result__home-link:focus-visible {
+  color: var(--skin-ink);
+  text-decoration: none;
+  outline: none;
+}
+
 .skin-test-result__share,
 .skin-test-result__error {
   margin: 18px 0 0;
