@@ -135,6 +135,7 @@ Redis/Elasticsearch는 Dev 인프라만 먼저 제공합니다. 실제 cache/rat
 Dev 서버 backend container는 아래 env를 받습니다.
 
 ```env
+BACKEND_CORS_ORIGINS=http://localhost:5173
 REDIS_URL=redis://redis:6379/0
 REDIS_KEY_PREFIX=mubarelle:dev:
 ELASTICSEARCH_URL=http://elasticsearch:9200
@@ -148,6 +149,20 @@ DATABASE_URL=postgresql+psycopg://mwobareullae:<password>@localhost:5432/mwobare
 REDIS_URL=redis://localhost:6379/0
 ELASTICSEARCH_URL=http://localhost:9200
 ```
+
+### Auth / CORS 기준
+
+프론트 Auth 요청은 `credentials: "include"` 기준으로 전환 중입니다. 백엔드는 CORS `allow_credentials=True`로 동작하므로, 각 서버 `.env`의 `BACKEND_CORS_ORIGINS`에는 실제 프론트 origin만 넣습니다.
+
+```env
+# Dev/local
+BACKEND_CORS_ORIGINS=http://localhost:5173
+
+# Release
+BACKEND_CORS_ORIGINS=https://mubarelle.com,https://www.mubarelle.com
+```
+
+credentials 요청에는 wildcard origin `*`를 사용하지 않습니다. HTTPOnly cookie 인증을 완성하려면 백엔드에서 login/signup/refresh `Set-Cookie`, logout cookie 삭제, `/me` cookie token 처리, cookie 만료, `SameSite`, `Secure` 기준을 별도 작업으로 맞춰야 합니다.
 
 ## Migration / Seed 운영
 
@@ -324,6 +339,8 @@ Smoke test:
 
 - Frontend 접속 가능
 - Backend `/api/health` 정상
+- `VITE_API_BASE_URL`이 대상 API origin을 가리킴
+- `BACKEND_CORS_ORIGINS`가 대상 frontend origin을 허용함
 - 회원가입/로그인 흐름 정상
 - 홈/상품/추천/검색 주요 화면 정상
 - 이미지 CDN URL 정상
