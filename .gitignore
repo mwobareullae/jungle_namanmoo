@@ -44,3 +44,7 @@ apps/frontend/public/image-assets/
 AGENTS.local.md
 AGENTS.*.md
 AGENTS.md
+
+# Local implementation planning notes
+docs/skin-test-ui-milestones.local.md
+docs/skin-test-backend-handoff.local.md
