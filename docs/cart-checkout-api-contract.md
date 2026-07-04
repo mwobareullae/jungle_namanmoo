@@ -33,7 +33,9 @@ Excluded from this branch:
 - Anonymous cart identity is stored in the `mwbl_cart` HttpOnly cookie.
 - Cart data is stored in DB, not in browser localStorage.
 - Checkout preview is read-only and does not create order/payment rows.
-- MVP checkout preview uses `shipping_fee = 0` until the final shipping policy is decided.
+- MVP checkout preview uses seller shipping policy.
+- Default seller shipping fee is `3000`.
+- Shipping policy belongs to seller, not product.
 
 ## Image Rule
 
@@ -179,7 +181,10 @@ Behavior:
 - Recalculates current price and stock.
 - Returns blocking warnings for sold-out, hidden, stock unknown, or insufficient stock.
 - Returns info warning for price changes.
-- Uses `shipping_fee = 0` in MVP until shipping policy is decided.
+- Calculates shipping fee by seller group.
+- Default seller shipping fee is `3000`.
+- Seller shipping policy can later be managed by admin.
+- Product-level shipping fee is not part of the MVP default policy.
 
 Response:
 
@@ -188,8 +193,18 @@ Response:
   "cart_id": 1,
   "items": [],
   "subtotal": 19900,
-  "shipping_fee": 0,
-  "total": 19900,
+  "shipping_fee": 3000,
+  "shipping_groups": [
+    {
+      "seller_code": "mwobareullae",
+      "seller_name": "뭐바를래",
+      "item_subtotal": 19900,
+      "base_shipping_fee": 3000,
+      "free_shipping_threshold": null,
+      "shipping_fee": 3000
+    }
+  ],
+  "total": 22900,
   "currency": "KRW",
   "can_checkout": true,
   "warnings": []

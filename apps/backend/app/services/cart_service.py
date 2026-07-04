@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
-from app.db.models.commerce import Cart, CartItem, Inventory, Seller
+from app.db.models.commerce import Cart, CartItem, Inventory, Seller, SellerShippingPolicy
 from app.schemas.cart import (
     CartItem as CartItemSchema,
     CartMergeResponse,
     CartProduct,
     CartResponse,
     CartWarning,
+    CheckoutShippingGroup,
     CheckoutPreviewResponse,
 )
 from app.schemas.common import ApiError
@@ -26,6 +27,7 @@ CART_STATUS_ACTIVE = "ACTIVE"
 CART_STATUS_MERGED = "MERGED"
 MAX_CART_ITEM_QUANTITY = 99
 DEFAULT_CART_CURRENCY = "KRW"
+DEFAULT_BASE_SHIPPING_FEE = 3000
 
 
 @dataclass(frozen=True)
@@ -261,13 +263,15 @@ def get_checkout_preview(
     if not cart_response.items:
         raise ApiError(400, "EMPTY_CART", "Cart is empty.")
 
-    shipping_fee = 0
+    shipping_groups = _build_shipping_groups(session, cart, cart_response.items)
+    shipping_fee = sum(group.shipping_fee for group in shipping_groups)
     can_checkout = not any(warning.severity == "BLOCKING" for warning in cart_response.warnings)
     return CheckoutPreviewResponse(
         cart_id=cart.id,
         items=cart_response.items,
         subtotal=cart_response.subtotal,
         shipping_fee=shipping_fee,
+        shipping_groups=shipping_groups,
         total=cart_response.subtotal + shipping_fee,
         currency=cart_response.currency,
         can_checkout=can_checkout,
@@ -438,6 +442,77 @@ def _build_cart_response(session: Session, cart: Cart, user: User | None) -> Car
         currency=_resolve_cart_currency(items),
         warnings=warnings,
     )
+
+
+def _build_shipping_groups(
+    session: Session,
+    cart: Cart,
+    items: list[CartItemSchema],
+) -> list[CheckoutShippingGroup]:
+    if not items:
+        return []
+
+    item_subtotals = {item.id: item.line_subtotal for item in items}
+    rows = session.execute(
+        select(CartItem.id, Seller.id, Seller.seller_code, Seller.display_name)
+        .join(Seller, CartItem.seller_id == Seller.id)
+        .where(CartItem.cart_id == cart.id)
+        .order_by(Seller.id.asc(), CartItem.id.asc())
+    ).all()
+
+    subtotals_by_seller_id: dict[int, int] = {}
+    seller_payloads: dict[int, tuple[str, str]] = {}
+    for item_id, seller_id, seller_code, seller_name in rows:
+        seller_id = int(seller_id)
+        subtotals_by_seller_id[seller_id] = subtotals_by_seller_id.get(seller_id, 0) + item_subtotals.get(
+            int(item_id),
+            0,
+        )
+        seller_payloads[seller_id] = (seller_code, seller_name)
+
+    policies = _load_shipping_policies(session, list(subtotals_by_seller_id))
+    groups: list[CheckoutShippingGroup] = []
+    for seller_id, item_subtotal in subtotals_by_seller_id.items():
+        seller_code, seller_name = seller_payloads[seller_id]
+        policy = policies.get(seller_id)
+        base_shipping_fee = policy.base_shipping_fee if policy else DEFAULT_BASE_SHIPPING_FEE
+        free_shipping_threshold = policy.free_shipping_threshold if policy else None
+        shipping_fee = (
+            0
+            if free_shipping_threshold is not None and item_subtotal >= free_shipping_threshold
+            else base_shipping_fee
+        )
+        groups.append(
+            CheckoutShippingGroup(
+                seller_code=seller_code,
+                seller_name=seller_name,
+                item_subtotal=item_subtotal,
+                base_shipping_fee=base_shipping_fee,
+                free_shipping_threshold=free_shipping_threshold,
+                shipping_fee=shipping_fee,
+            )
+        )
+    return groups
+
+
+def _load_shipping_policies(
+    session: Session,
+    seller_ids: list[int],
+) -> dict[int, SellerShippingPolicy]:
+    if not seller_ids:
+        return {}
+    rows = session.execute(
+        select(SellerShippingPolicy)
+        .where(
+            SellerShippingPolicy.seller_id.in_(seller_ids),
+            SellerShippingPolicy.is_active.is_(True),
+        )
+        .order_by(SellerShippingPolicy.seller_id.asc(), SellerShippingPolicy.id.asc())
+    ).scalars()
+    policies: dict[int, SellerShippingPolicy] = {}
+    for row in rows:
+        policies.setdefault(int(row.seller_id), row)
+    return policies
 
 
 def _empty_cart_response(user: User | None) -> CartResponse:
