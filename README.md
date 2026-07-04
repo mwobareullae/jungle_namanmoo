@@ -99,6 +99,46 @@ DB volume까지 초기화해야 할 때만 아래 명령을 사용합니다.
 docker compose down -v
 ```
 
+### 4. 역할별 실행 모드
+
+프론트 작업자는 프론트만 로컬에서 띄우고 Dev API를 바라봅니다.
+
+```env
+VITE_API_BASE_URL=http://<dev-server-host>:8000/api
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile frontend-only up --build frontend-only
+```
+
+백엔드 일반 개발은 로컬 Postgres와 함께 실행합니다. 기존 기본 compose 동작을 사용합니다.
+
+```bash
+docker compose up --build backend
+```
+
+검색/추천/캐시 통합 확인이 필요할 때는 먼저 SSH tunnel을 열고, 백엔드는 Dev Postgres/Redis/Elasticsearch를 한 세트로 바라보는 모드로 실행합니다.
+
+```bash
+ssh dev-tunnel
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile backend-dev-tunnel up --build backend-dev-tunnel
+```
+
+`backend-dev-tunnel` 컨테이너는 호스트의 SSH tunnel을 `host.docker.internal`로 접근합니다. Docker 밖에서 백엔드를 직접 실행하는 경우에는 `localhost` 기준 URL을 사용합니다.
+
+```env
+DATABASE_URL=postgresql+psycopg://mwobareullae:<password>@localhost:5432/mwobareullae
+REDIS_URL=redis://localhost:6379/0
+ELASTICSEARCH_URL=http://localhost:9200
+```
+
+`local Postgres + dev Redis/Elasticsearch` 혼합 사용은 기본 규칙으로 두지 않습니다. DB 데이터와 index/cache 기준이 달라져 디버깅이 어려워질 수 있습니다.
+
+기본 `frontend`/`backend` 서비스와 `frontend-only`/`backend-dev-tunnel` 서비스는 각각 같은 host port를 사용합니다. 동시에 띄우지 말고, 동시에 필요하면 `FRONTEND_PORT` 또는 `BACKEND_PORT`를 바꿉니다.
+
 ## 환경변수 운영 기준
 
 서버 `.env`에서 FastAPI 추천/검색 튜닝값을 조절하려면 `.env.example`과 `docker-compose.yml`의 `backend.environment`가 함께 맞아야 합니다.
