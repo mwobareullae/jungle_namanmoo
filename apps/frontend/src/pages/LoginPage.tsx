@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
+import { useAuth, type AuthUser } from "../contexts/AuthContext";
 import { API_BASE_URL } from "../lib/api";
 
 type LoginLocationState = {
@@ -8,6 +10,10 @@ type LoginLocationState = {
 };
 
 type SocialProvider = "google" | "kakao" | "naver";
+
+type LoginResponse = {
+  user?: AuthUser;
+};
 
 const socialProviderLabels: Record<SocialProvider, string> = {
   google: "구글",
@@ -36,6 +42,7 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { refreshAuthenticatedUser, setAuthenticatedUser } = useAuth();
   const location = useLocation();
   const locationState = location.state as LoginLocationState | null;
   const redirectPath = getRedirectPath(locationState?.from);
@@ -84,6 +91,13 @@ function LoginPage() {
       if (!response.ok) {
         setMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
         return;
+      }
+      flushSync(() => setAuthenticatedUser({ id: 0, email }));
+      const data = (await response.json().catch(() => null)) as LoginResponse | null;
+      if (data?.user) {
+        flushSync(() => setAuthenticatedUser(data.user!));
+      } else {
+        await refreshAuthenticatedUser().catch(() => null);
       }
       setMessage("로그인 성공!");
       navigate(redirectPath, { replace: true });
