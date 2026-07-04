@@ -2,17 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
-
-type SignupResponse = {
-  access_token: string;
-  refresh_token: string;
-  user: {
-    id: number;
-    email: string;
-    nickname?: string;
-    created_at?: string;
-  };
-};
+import { API_BASE_URL } from "../lib/api";
 
 type SignupErrorResponse = {
   code?: string;
@@ -40,7 +30,6 @@ type EmailCheckState = {
   message: string;
 };
 
-const ACCESS_TOKEN_EXPIRES_IN_MS = 15 * 60 * 1000;
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 
 const initialEmailCheckState: EmailCheckState = {
@@ -182,7 +171,8 @@ function SignupInfoPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/auth/check-email?email=${encodeURIComponent(email)}`
+        `${API_BASE_URL}/auth/check-email?email=${encodeURIComponent(email)}`,
+        { credentials: "include" }
       );
 
       if (!response.ok) {
@@ -251,7 +241,8 @@ function SignupInfoPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/auth/check-nickname?nickname=${encodeURIComponent(nickname.trim())}`
+        `${API_BASE_URL}/auth/check-nickname?nickname=${encodeURIComponent(nickname.trim())}`,
+        { credentials: "include" }
       );
 
       if (!response.ok) {
@@ -352,8 +343,9 @@ function SignupInfoPage() {
       let response: Response;
 
       try {
-        response = await fetch("http://localhost:8000/api/auth/signup", {
+        response = await fetch(`${API_BASE_URL}/auth/signup`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, nickname: nickname.trim(), consents: agreements })
         });
@@ -389,11 +381,6 @@ function SignupInfoPage() {
         return;
       }
 
-      const data = (await response.json()) as SignupResponse;
-      localStorage.setItem("accessToken", data.access_token);
-      localStorage.setItem("refreshToken", data.refresh_token);
-      localStorage.setItem("authUser", JSON.stringify(data.user));
-      localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
       sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
       navigate("/signup/skin-profile", { replace: true });
     } finally {
