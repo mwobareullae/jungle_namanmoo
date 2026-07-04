@@ -241,7 +241,7 @@ def _load_ingredient_features_by_product_id(
 
 
 def _is_pending_ingredient_code(ingredient_code: str) -> bool:
-    return ingredient_code.startswith("ing_pending_")
+    return ingredient_code.startswith(("ing_pending_", "foreign_pending_"))
 
 
 def _load_risk_flags_by_ingredient_id(
