@@ -291,7 +291,7 @@ def _signup(client: TestClient, *, email: str, nickname: str) -> dict:
 
 
 def _auth_headers(signup_data: dict) -> dict[str, str]:
-    return {"Authorization": f"Bearer {signup_data['access_token']}"}
+    return {}
 
 
 def _question_set(client: TestClient) -> dict:

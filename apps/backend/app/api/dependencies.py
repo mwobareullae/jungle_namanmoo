@@ -1,33 +1,26 @@
-from fastapi import Depends, Header
+from fastapi import Cookie, Depends
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models.auth import User
 from app.db.session import get_db
-from app.services.auth_service import AuthServiceError, get_user_from_access_token
+from app.services.auth_service import AuthServiceError, get_user_from_session_token
 
 
 def get_current_user(
-    authorization: str | None = Header(default=None),
+    session_token: str | None = Cookie(default=None, alias=settings.auth_session_cookie_name),
     session: Session = Depends(get_db),
 ) -> User:
-    token = extract_bearer_token(authorization)
-    return get_user_from_access_token(session, token)
+    return get_user_from_session_token(session, session_token)
 
 
 def get_optional_current_user(
-    authorization: str | None = Header(default=None),
+    session_token: str | None = Cookie(default=None, alias=settings.auth_session_cookie_name),
     session: Session = Depends(get_db),
 ) -> User | None:
-    if not authorization:
+    if not session_token:
         return None
-    token = extract_bearer_token(authorization)
-    return get_user_from_access_token(session, token)
-
-
-def extract_bearer_token(authorization: str | None) -> str:
-    if not authorization:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    return token
+    try:
+        return get_user_from_session_token(session, session_token)
+    except AuthServiceError:
+        return None

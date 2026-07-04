@@ -30,6 +30,7 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
         "auth_accounts",
+        "auth_sessions",
         "baumann_type_profiles",
         "brand_aliases",
         "brands",
@@ -89,6 +90,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     inventories = Base.metadata.tables["inventories"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
+    auth_sessions = Base.metadata.tables["auth_sessions"]
     refresh_tokens = Base.metadata.tables["refresh_tokens"]
     password_reset_tokens = Base.metadata.tables["password_reset_tokens"]
     terms_versions = Base.metadata.tables["terms_versions"]
@@ -141,6 +143,9 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "password_hash",
         "is_verified",
     }.issubset(auth_accounts.columns.keys())
+    assert {"user_id", "token_hash", "expires_at", "revoked_at", "last_used_at"}.issubset(
+        auth_sessions.columns.keys()
+    )
     assert {"user_id", "token_hash", "family_id", "expires_at", "revoked_at"}.issubset(
         refresh_tokens.columns.keys()
     )

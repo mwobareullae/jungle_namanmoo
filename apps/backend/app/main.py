@@ -45,9 +45,12 @@ async def api_error_handler(_, exc: ApiError) -> JSONResponse:
 @app.exception_handler(AuthServiceError)
 async def auth_service_error_handler(_, exc: AuthServiceError) -> JSONResponse:
     error = ApiError(exc.status_code, exc.code, exc.message)
+    content = dump_model(build_error_response(error))
+    content["code"] = exc.code
+    content["message"] = exc.message
     return JSONResponse(
         status_code=error.status_code,
-        content=dump_model(build_error_response(error)),
+        content=content,
     )
 
 
