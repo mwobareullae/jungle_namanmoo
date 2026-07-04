@@ -17,6 +17,7 @@ import type {
   SkinTestSubmitRequest,
   SkinTestSubmitResponse
 } from "../types/skinTest";
+import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
   createRecommendation: (
@@ -131,7 +132,8 @@ type BackendProductDetailResponse = {
     score_breakdown?: BackendScoreBreakdown | null;
   };
   images: {
-    url: string;
+    image_type: string;
+    storage_key: string;
     alt: string;
   }[];
   prices: {
@@ -206,12 +208,23 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
   reason_summary: product.reason_summary,
   brand: product.brand,
   name: product.name,
-  thumbnail_url: product.thumbnail_url || null,
+  thumbnail_url: getProductImageUrl(product.thumbnail_url, "w400") || null,
   lowest_price: product.lowest_price ?? null,
   evidence_tags: product.evidence_tags,
   key_ingredients: product.key_ingredients,
   risk_flags: [],
   score_breakdown: mapScoreBreakdown(product.score_breakdown)
+});
+
+const mapHomeSections = (response: BackendHomeSectionsResponse): HomeSectionsResponse => ({
+  ...response,
+  sections: response.sections.map((section) => ({
+    ...section,
+    products: section.products.map((product) => ({
+      ...product,
+      thumbnail_url: getProductImageUrl(product.thumbnail_url, "w400") || null
+    }))
+  }))
 });
 
 const mapRecommendation = (response: BackendRecommendationResponse): RecommendationResponse => ({
@@ -239,6 +252,15 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
   const riskFlags = response.ingredients
     .filter((ingredient) => ingredient.risk_note)
     .map((ingredient) => `${ingredient.name}: ${ingredient.risk_note}`);
+  const thumbnailUrl = getProductImageUrl(
+    response.product.thumbnail_url || response.images[0]?.storage_key,
+    "w400"
+  );
+  const imageUrls = response.images
+    .map((image) =>
+      getProductImageUrl(image.storage_key, image.image_type === "thumbnail" ? "w400" : "w1200")
+    )
+    .filter(Boolean);
 
   return {
     product_id: response.product.product_id,
@@ -250,13 +272,13 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
       "추천 근거를 준비 중입니다.",
     brand: response.product.brand,
     name: response.product.name,
-    thumbnail_url: response.product.thumbnail_url || response.images[0]?.url || null,
+    thumbnail_url: thumbnailUrl || imageUrls[0] || null,
     lowest_price: response.product.lowest_price ?? lowestPrice?.price ?? null,
     evidence_tags: evidenceTags.length > 0 ? evidenceTags : ["근거 없음"],
     key_ingredients: keyIngredients,
     risk_flags: riskFlags,
     score_breakdown: mapScoreBreakdown(response.product.score_breakdown),
-    image_urls: response.images.map((image) => image.url),
+    image_urls: imageUrls,
     content_confidence:
       response.evidence.ingredient_evidence.length >= 2
         ? "medium"
@@ -371,7 +393,7 @@ export const api: RecommendationApi = {
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/home/sections${query ? `?${query}` : ""}`
     );
-    return parseJson<BackendHomeSectionsResponse>(response);
+    return mapHomeSections(await parseJson<BackendHomeSectionsResponse>(response));
   },
 
   async getProduct(productId, recommendationId) {
