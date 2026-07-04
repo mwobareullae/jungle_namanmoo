@@ -42,7 +42,7 @@ function HomeHeader() {
           <a href={defaultSectionHref}>메이크업</a>
           <a href={defaultSectionHref}>헤어/바디</a>
           <a href={defaultSectionHref}>브랜드</a>
-          <a className="nav-ai" href="/">
+          <a className="nav-ai" href="/skin-test">
             맞춤 추천
           </a>
         </nav>

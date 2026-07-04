@@ -10,6 +10,13 @@ import type {
   RecommendationResponse,
   ScoreBreakdown
 } from "../types/recommendation";
+import type {
+  ApplySkinTestResultResponse,
+  SkinTestQuestionsResponse,
+  SkinTestResultResponse,
+  SkinTestSubmitRequest,
+  SkinTestSubmitResponse
+} from "../types/skinTest";
 
 type RecommendationApi = {
   createRecommendation: (
@@ -31,6 +38,10 @@ type RecommendationApi = {
     limitPerSection?: number;
   }) => Promise<HomeSectionsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
+  getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
+  submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
+  getSkinTestResult: (resultId: number) => Promise<SkinTestResultResponse>;
+  applySkinTestResult: (resultId: number) => Promise<ApplySkinTestResultResponse>;
 };
 
 type BackendErrorResponse = {
@@ -305,6 +316,16 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return body as T;
 };
 
+const getAuthHeaders = (): Record<string, string> => {
+  const accessToken = localStorage.getItem("accessToken");
+
+  return accessToken
+    ? {
+        Authorization: `Bearer ${accessToken}`
+      }
+    : {};
+};
+
 export const api: RecommendationApi = {
   async createRecommendation(request, params = {}) {
     const searchParams = new URLSearchParams();
@@ -373,5 +394,40 @@ export const api: RecommendationApi = {
       `${apiBaseUrl}/products/${productId}${query ? `?${query}` : ""}`
     );
     return mapProductDetail(await parseJson<BackendProductDetailResponse>(response));
+  },
+
+  async getSkinTestQuestions() {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/questions`);
+    return parseJson<SkinTestQuestionsResponse>(response);
+  },
+
+  async submitSkinTest(request) {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(request)
+    });
+    return parseJson<SkinTestSubmitResponse>(response);
+  },
+
+  async getSkinTestResult(resultId) {
+    const response = await fetchWithTimeout(
+      `${apiBaseUrl}/skin-test/results/${encodeURIComponent(String(resultId))}`
+    );
+    return parseJson<SkinTestResultResponse>(response);
+  },
+
+  async applySkinTestResult(resultId) {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/skin-test/apply-to-profile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ result_id: resultId })
+    });
+    return parseJson<ApplySkinTestResultResponse>(response);
   }
 };
