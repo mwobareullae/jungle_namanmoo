@@ -8,6 +8,8 @@ import PaymentCompletePage from "./pages/PaymentCompletePage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import SearchPage from "./pages/SearchPage";
+import SkinTestPage from "./pages/SkinTestPage";
+import SkinTestResultPage from "./pages/SkinTestResultPage";
 import SignupInfoPage from "./pages/SignupInfoPage";
 import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
 import SignupTermsPage from "./pages/SignupTermsPage";
@@ -538,6 +540,8 @@ function App() {
       {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
       {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
       {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
+      {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
+      {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
       <Route path="*" element={<LegacyApp />} />
     </Routes>
   );

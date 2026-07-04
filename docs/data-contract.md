@@ -405,6 +405,8 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 
 홈의 `지금 인기 있는 제품` 섹션을 계산하기 위한 시장 인기 신호 파일입니다. 현재 필수 seed 파일은 아니며, mock 또는 크롤링 지표가 들어온 뒤 사용합니다.
 
+현재 repo에 포함된 행은 P2 홈 추천 파이프라인 검증용 mock 데이터입니다. `source=mock_p2_home`인 값은 실제 리뷰·판매·행동 로그가 아니며, 화면/추천 로직 연결 확인에만 사용합니다.
+
 | 컬럼 | 설명 |
 | --- | --- |
 | `product_id` | 상품 고유 ID |
@@ -415,7 +417,7 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 | `recent_view_count` | 최근 14일 조회 수 |
 | `wishlist_count` | 최근 14일 찜 수 |
 | `cart_add_count` | 최근 14일 장바구니 담기 수 |
-| `source` | 데이터 출처. 예: `mock`, `crawler`, `event_log` |
+| `source` | 데이터 출처. 예: `mock_p2_home`, `crawler`, `event_log` |
 | `updated_at` | 지표 스냅샷 기준 시각 |
 
 인기 점수 원칙:
