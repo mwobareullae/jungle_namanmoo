@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.db.models.catalog import Product
+from app.db.models.commerce import Inventory
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
@@ -506,10 +508,46 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
     assert data["product"]["product_id"] == "prod_001"
     assert data["images"]
     assert data["prices"]
+    assert data["purchase_info"]["seller_code"] == "mwobareullae"
+    assert data["purchase_info"]["price"] == 19900
+    assert data["purchase_info"]["currency"] == "KRW"
+    assert data["purchase_info"]["stock_status"] == "UNKNOWN"
+    assert data["purchase_info"]["can_purchase"] is False
     assert data["ingredients"]
     assert data["evidence"]["ingredient_evidence"]
     assert data["sources"]
     assert data["product"]["cart_handoff"] is None
+
+
+def test_get_product_detail_includes_purchase_stock_info(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product_id = session.execute(
+            select(Product.id).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        session.add(
+            Inventory(
+                product_id=product_id,
+                stock_quantity=8,
+                reserved_quantity=2,
+                safety_stock=1,
+                sales_status="ON_SALE",
+                inventory_source="TEST",
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/products/prod_001")
+
+    assert response.status_code == 200
+
+    purchase_info = response.json()["purchase_info"]
+    assert purchase_info["can_purchase"] is True
+    assert purchase_info["sales_status"] == "ON_SALE"
+    assert purchase_info["stock_status"] == "LOW_STOCK"
+    assert purchase_info["available_quantity"] == 5
 
 
 def test_get_product_detail_includes_recommendation_context(client: TestClient) -> None:
