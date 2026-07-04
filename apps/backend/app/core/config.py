@@ -49,6 +49,10 @@ class Settings(BaseModel):
     recommendation_candidate_pool_limit: int = int(
         os.getenv("RECOMMENDATION_CANDIDATE_POOL_LIMIT", "500")
     )
+    redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    redis_key_prefix: str = os.getenv("REDIS_KEY_PREFIX", "mubarelle:dev:")
+    elasticsearch_url: str = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
+    elasticsearch_index_prefix: str = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
     auth_jwt_secret_key: str = os.getenv("AUTH_JWT_SECRET_KEY", "change-me-local-secret")
     smtp_host: str = os.getenv("SMTP_HOST", "")
     smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
