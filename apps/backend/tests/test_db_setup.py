@@ -34,6 +34,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "baumann_type_profiles",
         "brand_aliases",
         "brands",
+        "cart_items",
+        "carts",
         "concern_aliases",
         "concern_effects",
         "concerns",
@@ -63,10 +65,11 @@ def test_declarative_base_metadata_is_available() -> None:
         "recent_views",
         "refresh_tokens",
         "risk_flags",
-        "search_candidates",
-        "search_documents",
-        "sellers",
-        "skin_profiles",
+            "search_candidates",
+            "search_documents",
+            "sellers",
+            "seller_shipping_policies",
+            "skin_profiles",
         "skin_test_answers",
         "skin_test_options",
         "skin_test_questions",
@@ -92,8 +95,11 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
     wishlists = Base.metadata.tables["wishlists"]
     recent_views = Base.metadata.tables["recent_views"]
+    carts = Base.metadata.tables["carts"]
+    cart_items = Base.metadata.tables["cart_items"]
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
+    seller_shipping_policies = Base.metadata.tables["seller_shipping_policies"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
     auth_sessions = Base.metadata.tables["auth_sessions"]
@@ -149,12 +155,29 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     }.issubset(product_popularity_metrics.columns.keys())
     assert {"user_id", "product_id", "added_at"}.issubset(wishlists.columns.keys())
     assert {"user_id", "product_id", "viewed_at", "updated_at"}.issubset(recent_views.columns.keys())
+    assert {"user_id", "anonymous_cart_id", "status", "expires_at", "merged_into_cart_id"}.issubset(
+        carts.columns.keys()
+    )
+    assert {
+        "cart_id",
+        "product_id",
+        "seller_id",
+        "quantity",
+        "unit_price_snapshot",
+        "currency",
+        "source",
+        "recommendation_id",
+        "recommendation_rank",
+    }.issubset(cart_items.columns.keys())
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )
     assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
     assert {"product_id", "stock_quantity", "reserved_quantity", "safety_stock", "sales_status"}.issubset(
         inventories.columns.keys()
+    )
+    assert {"seller_id", "policy_name", "base_shipping_fee", "free_shipping_threshold", "is_active"}.issubset(
+        seller_shipping_policies.columns.keys()
     )
     assert {"email", "display_name", "phone", "status", "role", "last_login_at"}.issubset(users.columns.keys())
     assert {

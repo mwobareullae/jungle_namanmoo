@@ -18,7 +18,17 @@ from app.db.models.auth import (
     User,
     UserConsent,
 )
-from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, RecentView, Seller, Wishlist
+from app.db.models.commerce import (
+    Cart,
+    CartItem,
+    Inventory,
+    InventoryMovement,
+    ProductPopularityMetric,
+    RecentView,
+    Seller,
+    SellerShippingPolicy,
+    Wishlist,
+)
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -57,6 +67,8 @@ __all__ = [
     "AuthAccount",
     "AuthSession",
     "BaumannTypeProfile",
+    "Cart",
+    "CartItem",
     "Concern",
     "ConcernAlias",
     "ConcernEffect",
@@ -89,6 +101,7 @@ __all__ = [
     "SearchCandidate",
     "SearchDocument",
     "Seller",
+    "SellerShippingPolicy",
     "SkinProfile",
     "SkinTestAnswer",
     "SkinTestOption",
