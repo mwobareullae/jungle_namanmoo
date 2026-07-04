@@ -32,7 +32,10 @@ function AuthHeader() {
           <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
             브랜드
           </a>
-          <a className="font-bold text-[#2aa6d1] no-underline" href="/">
+          <a
+            className="relative font-bold text-[#0B2A3A] no-underline after:absolute after:right-0 after:-bottom-[25px] after:left-0 after:h-[3px] after:rounded-[3px] after:bg-[#94E0F8]"
+            href="/skin-test"
+          >
             맞춤 추천
           </a>
         </nav>
