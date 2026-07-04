@@ -395,7 +395,7 @@ function SignupInfoPage() {
       localStorage.setItem("authUser", JSON.stringify(data.user));
       localStorage.setItem("accessTokenExpiresAt", String(Date.now() + ACCESS_TOKEN_EXPIRES_IN_MS));
       sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
-      navigate("/", { replace: true });
+      navigate("/signup/skin-profile", { replace: true });
     } finally {
       setIsSubmitting(false);
     }
