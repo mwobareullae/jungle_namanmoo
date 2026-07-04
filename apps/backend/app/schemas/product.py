@@ -29,6 +29,19 @@ class ProductPrice(BaseModel):
     is_lowest: bool
 
 
+class ProductPurchaseInfo(BaseModel):
+    seller_code: str
+    seller_name: str
+    seller_type: str
+    price: int | None
+    currency: str | None
+    purchase_url: str | None
+    can_purchase: bool
+    sales_status: str
+    stock_status: str
+    available_quantity: int | None
+
+
 class ProductIngredient(BaseModel):
     name: str
     purpose: str
@@ -57,6 +70,7 @@ class ProductDetailResponse(BaseModel):
     product: ProductInfo
     images: list[ProductImage]
     prices: list[ProductPrice]
+    purchase_info: ProductPurchaseInfo
     ingredients: list[ProductIngredient]
     evidence: ProductEvidence
     sources: list[SourceInfo]
