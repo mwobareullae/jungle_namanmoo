@@ -28,7 +28,6 @@
 | `product_id` | 공통 데이터 | `data/products.csv`의 상품 고유 ID를 그대로 사용한다. | 추천 결과, 상품 상세, 찜, 장바구니 |
 | `recommendation_id` | FastAPI | 추천 실행 1회당 생성되는 추적 ID다. | 추천 조회, 상품 상세 맥락, 장바구니 유입 출처 |
 | `rank` | FastAPI | 추천 결과 내 순위다. | 카드 노출, 전환 추적 |
-| `offer_id` | Spring | 실제 판매 단위다. P2에서는 Spring이 `product_id`에서 기본 판매 offer를 해석한다. | 장바구니, checkout, 주문 |
 | `member_id` | Spring | 인증 사용자 ID다. FastAPI는 P2에서 직접 회원 상태를 소유하지 않는다. | 프로필 저장, 찜, 주문 |
 
 ## 추천 생성 요청
@@ -174,7 +173,7 @@ FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `rea
 | `recommendation_id` | N | FastAPI | AI 추천 유입이면 포함 |
 | `recommendation_rank` | N | FastAPI | AI 추천 유입이면 포함 |
 
-Spring은 이 payload를 받은 뒤 현재 판매 가능한 `offer_id`, 가격, 재고를 다시 확인한다. 추천 시점 가격과 checkout 가격이 다르면 Spring 기준이 최종값이다.
+Spring은 이 payload를 받은 뒤 `product_id` 기준으로 현재 판매 가능한 기본 offer, 가격, 재고를 다시 확인한다. 추천 시점 가격과 checkout 가격이 다르면 Spring 기준이 최종값이다.
 
 ## 상태와 이벤트 계약
 
@@ -186,7 +185,7 @@ Spring은 이 payload를 받은 뒤 현재 판매 가능한 `offer_id`, 가격, 
 | `recommendation_product_click` | Frontend/Spring | `member_id`, `recommendation_id`, `product_id`, `rank` |
 | `product_detail_view` | Frontend/Spring | `member_id`, `product_id`, `recommendation_id` |
 | `wishlist_added` | Spring | `member_id`, `product_id`, `source`, `recommendation_id` |
-| `cart_item_added` | Spring | `member_id`, `product_id`, `offer_id`, `quantity`, `source`, `recommendation_id` |
+| `cart_item_added` | Spring | `member_id`, `product_id`, `quantity`, `source`, `recommendation_id` |
 | `checkout_started` | Spring | `member_id`, `cart_id`, `order_draft_id` |
 | `payment_mock_completed` | Spring | `member_id`, `order_id`, `payment_status` |
 | `order_completed` | Spring | `member_id`, `order_id`, `order_status` |
@@ -216,7 +215,7 @@ Spring은 이 payload를 받은 뒤 현재 판매 가능한 `offer_id`, 가격, 
 | 항목 | 결정 필요자 | 결정 |
 | --- | --- | --- |
 | `product_id`를 Spring 상품 key로 그대로 쓸지 | 원우, 세민, 규태 | P2 기본값: 그대로 사용 |
-| `offer_id`가 필요한 시점 | 원우, 지현 | P2 기본값: Spring 내부에서 기본 offer 해석 |
+| Spring 기본 offer 해석 기준 | 원우, 지현 | P2 기본값: Spring 내부에서 `product_id` 기준으로 처리 |
 | 피부 프로필 전달 방식 | 원우, 지현, 규태 | Spring 저장 후 FastAPI 요청에는 snapshot 전달 |
 | 추천 유입 장바구니 payload | 원우, 지현, 규태 | 이 문서의 handoff payload 사용 |
 | 추천 결과 만료 정책 | 원우, 규태 | P2 기본값: 조회 가능하되 checkout 가격은 Spring 기준 |

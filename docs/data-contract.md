@@ -89,7 +89,7 @@
 | `ProductIngredient` | 상품과 성분의 연결, 표시 순서, 함량 | 추천 근거와 함량 분석의 원천 |
 | `VectorDoc` | 검색/임베딩 대상 문서 | 상품명, 브랜드, 카테고리, 핵심 성분, 효능 설명 기반 |
 
-P2의 `product_prices.csv` 한 행은 외부몰 가격비교가 아니라 단일 셀러 자사몰의 기본 offer seed로 해석합니다. 별도 `offer_id`가 필요한 경우 R3 백엔드가 `product_id` 기준 기본 offer를 생성하거나 매핑합니다.
+P2의 `product_prices.csv` 한 행은 외부몰 가격비교가 아니라 단일 셀러 자사몰의 기본 offer seed로 해석합니다. 외부 API와 프론트 handoff는 `product_id`를 기준으로 전달하고, R3 백엔드는 내부에서 `product_id` 기준 기본 offer를 생성하거나 매핑합니다.
 
 ### 10만 feed 최소 입력 컬럼
 
