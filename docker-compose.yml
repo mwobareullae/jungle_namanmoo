@@ -14,6 +14,7 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+      VITE_ENABLE_MOCKS: ${VITE_ENABLE_MOCKS:-false}
     command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
@@ -48,6 +49,14 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      AUTH_JWT_SECRET_KEY: ${AUTH_JWT_SECRET_KEY:-change-me-local-secret}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@mubarelle.com}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
     ports:
