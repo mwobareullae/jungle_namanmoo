@@ -9,7 +9,14 @@ from app.db.models.catalog import (
     ProductPrice,
     ProductSkinProfile,
 )
-from app.db.models.auth import AuthAccount, PasswordResetToken, RefreshToken, User
+from app.db.models.auth import (
+    AuthAccount,
+    PasswordResetToken,
+    RefreshToken,
+    TermsVersion,
+    User,
+    UserConsent,
+)
 from app.db.models.commerce import Inventory, InventoryMovement, Seller
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -68,5 +75,7 @@ __all__ = [
     "SearchCandidate",
     "SearchDocument",
     "Seller",
+    "TermsVersion",
     "User",
+    "UserConsent",
 ]

@@ -7,7 +7,7 @@ import "./styles.css";
 const queryClient = new QueryClient();
 
 async function enableMocking() {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCKS === "true") {
     const { worker } = await import("./mocks/browser");
     return worker.start();
   }
