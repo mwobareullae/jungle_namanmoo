@@ -123,6 +123,12 @@ Hard filter 결과에서 여러 source로 후보를 뽑는다. 하나의 source�
 
 Source별 cap은 초기값이며 10만 데이터 성능 측정 후 조정한다.
 
+P2 적용 기준:
+
+- `effect_ingredient`, `keyword_search`, `functional_claim`, `skin_profile_fit`, `market_popular`, `fallback_quality`는 P2에서 바로 적용 가능한 source로 본다.
+- `vector_search`는 search document embedding과 pgvector/Elasticsearch 인덱스 준비 상태에 따라 켠다.
+- vector 인프라가 P2 일정 안에 안정화되지 않으면 `vector_search`는 P3 확장 source로 남기고, P2에서는 `keyword_search`와 `effect_ingredient` 중심으로 후보를 만든다.
+
 초기 cap 근거:
 
 - `effect_ingredient`는 현재 서비스의 핵심 차별점인 성분·효능 근거와 직접 연결되므로 가장 큰 cap을 둔다.
@@ -131,6 +137,12 @@ Source별 cap은 초기값이며 10만 데이터 성능 측정 후 조정한다.
 - `fallback_quality`는 후보 부족 시 안전망이므로 낮은 cap을 둔다.
 
 이 숫자는 정책값이 아니라 10만 seeded DB 성능 측정 전의 1차 시작값이다. 실제 분포를 본 뒤 source별 recall, latency, 최종 클릭/장바구니 전환을 기준으로 조정한다.
+
+`effect_ingredient` cap 800은 성분 근거 후보의 recall을 확보하기 위한 시작값이다. 다만 특정 범용 성분이 후보 pool을 지배하면 cold-start에서 겪은 성분 쏠림이 재발할 수 있으므로, source 내부에서는 아래 보정을 둔다.
+
+- 효능축별 후보 cap을 둔다.
+- 같은 canonical ingredient만으로 과다 노출되는 상품은 source rank에서 낮춘다.
+- 최종 merge에서는 `multi_source_bonus`가 있는 상품을 우선해 단일 범용 성분 후보가 pool을 독점하지 않게 한다.
 
 ### 3. Candidate merge/dedupe
 
@@ -168,6 +180,14 @@ candidate_pre_score =
 
 `candidate_pre_score`는 최종 추천 점수가 아니다. 비싼 feature join을 하기 전에 후보를 줄이는 데만 쓴다.
 
+초기 `source_rank_score`는 source 안 순위를 0~1 범위로 정규화한 값으로 둔다.
+
+```text
+source_rank_score = 1 - ((source_rank - 1) / max(source_count - 1, 1))
+```
+
+즉 source 안 1위는 1.0, 마지막 후보는 0.0에 가까워진다. 이 값은 candidate pool truncation에만 쓰며, `scoring.py`의 `raw_score`에는 직접 더하지 않는다. 최종 순위는 기존 `score_candidates()` 결과가 결정한다.
+
 결정론적 tie-breaker:
 
 ```text
@@ -204,6 +224,14 @@ product_id asc
 
 이 단계부터 기존 `score_candidates()`를 그대로 재사용한다.
 
+함량 coverage 레이어와의 관계:
+
+- `concentration_fit_score`는 F-180 후보 생성 source가 아니라 rerank feature다.
+- `concentration_coverage_estimates.csv`의 `exact`, `range`, `regulatory_anchor`, `legal_upper_bound`처럼 공개/점수화에 쓸 수 있는 근거는 `score_candidates()`의 함량 적합도 계산에 반영한다.
+- `marker_upper_bound`, `prior_estimate`처럼 약한 추정은 후보 생성 hard filter나 강한 가산에 쓰지 않는다.
+- `functional_claim` source는 기능성 claim 후보를 빠르게 끌어오기 위한 retrieval source이고, 함량 coverage는 해당 후보가 rerank 단계에서 얼마나 신뢰 가능한지 보정하는 별도 feature다.
+- 따라서 F-180은 함량 전략을 대체하지 않고, 함량 전략이 적용될 후보 pool을 줄이는 앞단 역할을 한다.
+
 ### 5. Rerank
 
 기존 `apps/backend/app/services/scoring.py`의 점수식을 사용한다.
@@ -222,6 +250,8 @@ risk_penalty
 ```
 
 F-180은 이 점수식을 대체하지 않는다. F-180은 점수식을 먹일 후보를 빠르고 품질 좋게 만드는 작업이다.
+
+`candidate_pre_score`는 `raw_score` 공식에 섞지 않는다. 필요한 경우 API 응답이 아니라 diagnostics/debug metadata에만 남긴다. 만약 나중에 pre-score를 최종 점수에 반영하려면 추천 scoring 기준 변경에 해당하므로 원우/R4/PM 합의를 먼저 거친다.
 
 ### 6. 저장/cache
 
