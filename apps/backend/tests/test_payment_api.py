@@ -11,6 +11,7 @@ from app.api.routes.payments import get_toss_payments_client
 from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, InventoryMovement, Order, Payment, PaymentEvent
+from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -73,6 +74,9 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
             select(InventoryMovement).where(InventoryMovement.reference_id == order.order_code)
         ).scalars().all()
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        event_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "order_completed", EventLog.order_id == order.id)
+        ).scalars().all()
 
     assert order.status == "PAID"
     assert order.paid_at is not None
@@ -87,6 +91,12 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert events[0].event_type == "MOCK_PAYMENT_APPROVED"
     assert events[0].status_before == "READY"
     assert events[0].status_after == "APPROVED"
+    assert len(event_logs) == 1
+    assert event_logs[0].source == "mock_payment_confirm"
+    assert event_logs[0].user_id == order.user_id
+    assert event_logs[0].request_id == response.headers["x-request-id"]
+    assert event_logs[0].metadata_json["payment_status"] == "APPROVED"
+    assert event_logs[0].metadata_json["amount"] == payment.amount
 
 
 def test_mock_confirm_is_idempotent_and_does_not_deduct_stock_twice(
@@ -113,11 +123,13 @@ def test_mock_confirm_is_idempotent_and_does_not_deduct_stock_twice(
             select(InventoryMovement).where(InventoryMovement.reference_id == pending["order_code"])
         ).scalars().all()
         events = session.execute(select(PaymentEvent)).scalars().all()
+        event_logs = session.execute(select(EventLog).where(EventLog.event_name == "order_completed")).scalars().all()
 
     assert inventory.stock_quantity == 9
     assert inventory.reserved_quantity == 0
     assert [movement.movement_type for movement in movements] == ["RESERVE", "SALE_CONFIRM"]
     assert len(events) == 1
+    assert len(event_logs) == 1
 
 
 def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
@@ -145,6 +157,9 @@ def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
             select(InventoryMovement).where(InventoryMovement.reference_id == pending["order_code"])
         ).scalars().all()
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        event_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "payment_failed", EventLog.order_id == order.id)
+        ).scalars().all()
 
     assert order.status == "PAYMENT_FAILED"
     assert payment.status == "FAILED"
@@ -155,6 +170,11 @@ def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
     assert movements[1].quantity_delta == -1
     assert len(events) == 1
     assert events[0].event_type == "MOCK_PAYMENT_FAILED"
+    assert len(event_logs) == 1
+    assert event_logs[0].source == "mock_payment_fail"
+    assert event_logs[0].user_id == order.user_id
+    assert event_logs[0].request_id == response.headers["x-request-id"]
+    assert event_logs[0].metadata_json["payment_status"] == "FAILED"
 
 
 def test_mock_payment_ownership_is_enforced(
@@ -221,8 +241,12 @@ def test_toss_confirm_approves_payment_and_records_provider_key(
     ]
     with Session(db_engine) as session:
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         inventory = _load_inventory(session, "prod_001")
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        event_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "order_completed", EventLog.order_id == order.id)
+        ).scalars().all()
 
     assert payment.provider == "TOSS"
     assert payment.provider_payment_key == "toss_payment_key_confirm"
@@ -233,6 +257,9 @@ def test_toss_confirm_approves_payment_and_records_provider_key(
     assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert events[0].provider_payment_key == "toss_payment_key_confirm"
     assert events[0].raw_payload_json["status"] == "DONE"
+    assert len(event_logs) == 1
+    assert event_logs[0].source == "toss_payment_confirm"
+    assert event_logs[0].metadata_json["payment_provider"] == "TOSS"
 
 
 def test_toss_confirm_rejects_amount_mismatch_before_provider_call(
@@ -303,10 +330,12 @@ def test_toss_confirm_is_idempotent_for_same_payment_key(
     with Session(db_engine) as session:
         inventory = _load_inventory(session, "prod_001")
         events = session.execute(select(PaymentEvent)).scalars().all()
+        event_logs = session.execute(select(EventLog).where(EventLog.event_name == "order_completed")).scalars().all()
 
     assert inventory.stock_quantity == 9
     assert inventory.reserved_quantity == 0
     assert len(events) == 1
+    assert len(event_logs) == 1
 
 
 def _create_pending_order(

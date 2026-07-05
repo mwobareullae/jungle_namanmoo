@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
+import logging
 
-from fastapi import APIRouter, Cookie, Depends, Response
+from fastapi import APIRouter, Cookie, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_optional_current_user
@@ -17,6 +18,7 @@ from app.schemas.cart import (
     DeleteCartItemResponse,
 )
 from app.schemas.common import ErrorResponse
+from app.schemas.event import EventLogCreateRequest
 from app.services.cart_service import (
     ANONYMOUS_CART_COOKIE_NAME,
     ANONYMOUS_CART_TTL_DAYS,
@@ -27,9 +29,12 @@ from app.services.cart_service import (
     remove_cart_item,
     update_cart_item_quantity,
 )
+from app.services.event_service import create_event_log
+from app.services.event_tracking import request_id_from_request
 
 
 router = APIRouter(tags=["cart"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/cart", response_model=CartResponse)
@@ -49,6 +54,7 @@ def get_cart(
 def post_cart_item(
     request: CartItemAddRequest,
     response: Response,
+    http_request: Request,
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
@@ -64,6 +70,14 @@ def post_cart_item(
         recommendation_rank=request.recommendation_rank,
     )
     session.commit()
+    _record_cart_added_event(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=result.anonymous_cart_id or anonymous_cart_id,
+        cart_id=result.cart.cart_id,
+        request=request,
+        fallback_request_id=request_id_from_request(http_request),
+    )
     if result.anonymous_cart_id:
         _set_anonymous_cart_cookie(response, result.anonymous_cart_id)
     return result.cart
@@ -130,17 +144,27 @@ def post_cart_merge(
 )
 def post_checkout_preview(
     request: CheckoutPreviewRequest,
+    http_request: Request,
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> CheckoutPreviewResponse:
-    return get_checkout_preview(
+    preview = get_checkout_preview(
         session,
         current_user,
         anonymous_cart_id,
         cart_item_ids=request.cart_item_ids,
         address_id=request.address_id,
     )
+    _record_checkout_started_event(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=anonymous_cart_id,
+        request=request,
+        preview=preview,
+        fallback_request_id=request_id_from_request(http_request),
+    )
+    return preview
 
 
 def _set_anonymous_cart_cookie(response: Response, anonymous_cart_id: str) -> None:
@@ -165,3 +189,74 @@ def _delete_anonymous_cart_cookie(response: Response) -> None:
         samesite=settings.auth_cookie_samesite,
         path="/",
     )
+
+
+def _record_cart_added_event(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    cart_id: int | None,
+    request: CartItemAddRequest,
+    fallback_request_id: str | None,
+) -> None:
+    try:
+        create_event_log(
+            session,
+            EventLogCreateRequest(
+                event_name="cart_added",
+                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                cart_id=cart_id,
+                product_id=request.product_id,
+                rank=request.recommendation_rank,
+                source=request.source,
+                recommendation_id=request.recommendation_id,
+                metadata={
+                    "quantity": request.quantity,
+                },
+            ),
+            current_user=current_user,
+            fallback_request_id=fallback_request_id,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("failed_to_record_cart_added_event")
+
+
+def _record_checkout_started_event(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    request: CheckoutPreviewRequest,
+    preview: CheckoutPreviewResponse,
+    fallback_request_id: str | None,
+) -> None:
+    try:
+        create_event_log(
+            session,
+            EventLogCreateRequest(
+                event_name="checkout_started",
+                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                cart_id=preview.cart_id,
+                source="checkout_preview",
+                page="checkout",
+                metadata={
+                    "item_count": len(preview.items),
+                    "total_quantity": sum(item.quantity for item in preview.items),
+                    "subtotal": preview.subtotal,
+                    "shipping_fee": preview.shipping_fee,
+                    "total": preview.total,
+                    "can_checkout": preview.can_checkout,
+                    "warning_codes": [warning.code for warning in preview.warnings],
+                    "address_id_provided": request.address_id is not None,
+                },
+            ),
+            current_user=current_user,
+            fallback_request_id=fallback_request_id,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("failed_to_record_checkout_started_event")
