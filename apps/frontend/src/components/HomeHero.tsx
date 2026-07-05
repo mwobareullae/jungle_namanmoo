@@ -223,7 +223,7 @@ function HomeHero({
             </div>
           </div>
 
-          <div className="search-examples">
+          <div className="search-examples search-examples--with-guide">
             <span className="example-chip" onClick={() => handleExampleClick("모공이 넓고 피지가 많아요")}>
               모공이 넓고 피지가 많아요
             </span>
@@ -233,9 +233,9 @@ function HomeHero({
             <span className="example-chip" onClick={() => handleExampleClick("색소침착과 잡티가 있어요")}>
               색소침착과 잡티가 있어요
             </span>
-            <span className="example-chip" onClick={() => handleExampleClick("민감하고 자주 붉어져요")}>
-              민감하고 자주 붉어져요
-            </span>
+            <a className="recommendation-guide-link" href="/recommendation-guide">
+              추천 기준 알아보기 ›
+            </a>
           </div>
         </div>
       </div>
