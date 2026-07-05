@@ -1,4 +1,5 @@
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from shutil import copytree
 
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductIngredient, ProductSkinProfile
-from app.db.models.commerce import Inventory, InventoryMovement, Seller
+from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import (
     Concern,
@@ -34,6 +35,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert result.products == 2
     assert result.sellers == 1
     assert result.inventories == 0
+    assert result.popularity_metrics == 0
     assert result.product_skin_profiles == 2
     assert result.ingredient_aliases == 0
     assert result.ingredient_effect_ranges == 2
@@ -45,6 +47,7 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert _count(session, Seller) == 1
     assert _count(session, Product) == 2
     assert _count(session, Inventory) == 0
+    assert _count(session, ProductPopularityMetric) == 0
     assert _count(session, ProductImage) == 4
     assert _count(session, ProductIngredient) == 5
     assert _count(session, ProductSkinProfile) == 2
@@ -111,6 +114,40 @@ def test_seed_database_loads_optional_product_inventory(tmp_path: Path) -> None:
     ).scalar_one()
     assert inventory.stock_quantity == 12
     assert inventory.sales_status == "ON_SALE"
+
+
+def test_seed_database_loads_optional_product_market_signals(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_market_signals.csv").write_text(
+        "product_id,review_count,average_rating,sales_count,sales_rank,recent_view_count,"
+        "wishlist_count,cart_add_count,source,updated_at\n"
+        "prod_001,20,4.5,12,,100,8,7,mock_p2_home,2026-07-04T00:00:00+09:00\n"
+        "prod_002,5,,0,3,20,2,1,mock_p2_home,2026-07-04T00:00:00+09:00\n",
+        encoding="utf-8",
+    )
+    session = _make_session()
+
+    result = seed_database(session, data_dir)
+    seed_database(session, data_dir)
+
+    assert result.popularity_metrics == 2
+    assert _count(session, ProductPopularityMetric) == 2
+    metric = session.execute(
+        select(ProductPopularityMetric)
+        .join(Product, ProductPopularityMetric.product_id == Product.id)
+        .where(Product.product_code == "prod_001")
+    ).scalar_one()
+    assert metric.window_days == 7
+    assert metric.view_count == 100
+    assert metric.click_count == 0
+    assert metric.cart_add_count == 7
+    assert metric.order_count == 12
+    assert metric.units_sold == 12
+    assert metric.review_count == 20
+    assert metric.average_rating == Decimal("4.50")
+    assert metric.popularity_score > 0
+    assert metric.score_version == "mock_market_signals_v1"
 
 
 def test_seed_database_upserts_product_images_by_display_slot(tmp_path: Path) -> None:

@@ -17,7 +17,25 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.types import big_integer_pk_type
+from app.db.types import big_integer_pk_type, jsonb_type
+
+
+ORDER_STATUS_VALUES = (
+    "'PENDING_PAYMENT', 'PAID', 'PAYMENT_FAILED', 'EXPIRED', 'CANCELED', "
+    "'PREPARING_SHIPMENT', 'SHIPPED', 'DELIVERED', 'CANCEL_REQUESTED', "
+    "'REFUND_REQUESTED', 'REFUNDED', 'RETURN_REQUESTED', 'RETURNED', "
+    "'EXCHANGE_REQUESTED', 'EXCHANGED'"
+)
+ORDER_ITEM_STATUS_VALUES = (
+    "'ORDERED', 'CANCELED', 'PREPARING_SHIPMENT', 'SHIPPED', 'DELIVERED', "
+    "'RETURN_REQUESTED', 'RETURNED', 'EXCHANGE_REQUESTED', 'EXCHANGED', "
+    "'REFUND_REQUESTED', 'REFUNDED'"
+)
+PAYMENT_PROVIDER_VALUES = "'MOCK', 'TOSS', 'KAKAO_PAY', 'NAVER_PAY'"
+PAYMENT_STATUS_VALUES = (
+    "'READY', 'APPROVED', 'FAILED', 'CANCELED', 'EXPIRED', "
+    "'REFUND_REQUESTED', 'REFUNDED', 'PARTIALLY_REFUNDED'"
+)
 
 
 class Seller(Base):
@@ -206,3 +224,204 @@ class ProductPopularityMetric(Base):
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class UserAddress(Base):
+    __tablename__ = "user_addresses"
+    __table_args__ = (
+        CheckConstraint("length(trim(recipient_name)) > 0", name="ck_user_addresses_recipient_not_blank"),
+        CheckConstraint("length(trim(phone)) > 0", name="ck_user_addresses_phone_not_blank"),
+        CheckConstraint("length(trim(postal_code)) > 0", name="ck_user_addresses_postal_code_not_blank"),
+        CheckConstraint("length(trim(address1)) > 0", name="ck_user_addresses_address1_not_blank"),
+        Index("ix_user_addresses_user_default", "user_id", "is_default"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    recipient_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    postal_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    address1: Mapped[str] = mapped_column(String(255), nullable=False)
+    address2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delivery_memo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class Order(Base):
+    __tablename__ = "orders"
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_orders_user_idempotency_key"),
+        CheckConstraint(f"status in ({ORDER_STATUS_VALUES})", name="ck_orders_status"),
+        CheckConstraint("subtotal_amount >= 0", name="ck_orders_subtotal_non_negative"),
+        CheckConstraint("shipping_fee >= 0", name="ck_orders_shipping_fee_non_negative"),
+        CheckConstraint("discount_amount >= 0", name="ck_orders_discount_amount_non_negative"),
+        CheckConstraint("total_amount >= 0", name="ck_orders_total_amount_non_negative"),
+        CheckConstraint("item_count > 0", name="ck_orders_item_count_positive"),
+        CheckConstraint("total_quantity > 0", name="ck_orders_total_quantity_positive"),
+        Index("ix_orders_user_status_created_at", "user_id", "status", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    order_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    cart_id: Mapped[int | None] = mapped_column(ForeignKey("carts.id"), nullable=True, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+        default="PENDING_PAYMENT",
+        server_default="PENDING_PAYMENT",
+    )
+    subtotal_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    shipping_fee: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    discount_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    total_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    payment_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    ordered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    __table_args__ = (
+        CheckConstraint(f"status in ({ORDER_ITEM_STATUS_VALUES})", name="ck_order_items_status"),
+        CheckConstraint("quantity >= 1 and quantity <= 99", name="ck_order_items_quantity_range"),
+        CheckConstraint("unit_price >= 0", name="ck_order_items_unit_price_non_negative"),
+        CheckConstraint("line_subtotal >= 0", name="ck_order_items_line_subtotal_non_negative"),
+        CheckConstraint("line_discount_amount >= 0", name="ck_order_items_line_discount_non_negative"),
+        CheckConstraint("line_total >= 0", name="ck_order_items_line_total_non_negative"),
+        CheckConstraint(
+            "recommendation_rank is null or recommendation_rank > 0",
+            name="ck_order_items_recommendation_rank_positive",
+        ),
+        Index("ix_order_items_order_status", "order_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    cart_item_id: Mapped[int | None] = mapped_column(ForeignKey("cart_items.id"), nullable=True, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
+    product_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    brand_name_snapshot: Mapped[str] = mapped_column(String(120), nullable=False)
+    seller_name_snapshot: Mapped[str] = mapped_column(String(120), nullable=False)
+    thumbnail_storage_key_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unit_price: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_subtotal: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_discount_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    line_total: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="ORDERED", server_default="ORDERED")
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    recommendation_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    recommendation_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderShippingAddress(Base):
+    __tablename__ = "order_shipping_addresses"
+    __table_args__ = (
+        CheckConstraint("length(trim(recipient_name)) > 0", name="ck_order_shipping_addresses_recipient_not_blank"),
+        CheckConstraint("length(trim(phone)) > 0", name="ck_order_shipping_addresses_phone_not_blank"),
+        CheckConstraint("length(trim(postal_code)) > 0", name="ck_order_shipping_addresses_postal_code_not_blank"),
+        CheckConstraint("length(trim(address1)) > 0", name="ck_order_shipping_addresses_address1_not_blank"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, nullable=False, index=True)
+    user_address_id: Mapped[int | None] = mapped_column(ForeignKey("user_addresses.id"), nullable=True, index=True)
+    recipient_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    postal_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    address1: Mapped[str] = mapped_column(String(255), nullable=False)
+    address2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delivery_memo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderShippingGroup(Base):
+    __tablename__ = "order_shipping_groups"
+    __table_args__ = (
+        UniqueConstraint("order_id", "seller_id", name="uq_order_shipping_groups_order_seller"),
+        CheckConstraint("item_subtotal >= 0", name="ck_order_shipping_groups_item_subtotal_non_negative"),
+        CheckConstraint("shipping_fee >= 0", name="ck_order_shipping_groups_shipping_fee_non_negative"),
+        CheckConstraint(
+            "free_shipping_threshold_snapshot is null or free_shipping_threshold_snapshot >= 0",
+            name="ck_order_shipping_groups_free_threshold_non_negative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
+    seller_name_snapshot: Mapped[str] = mapped_column(String(120), nullable=False)
+    item_subtotal: Mapped[int] = mapped_column(Integer, nullable=False)
+    shipping_fee: Mapped[int] = mapped_column(Integer, nullable=False)
+    free_shipping_threshold_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shipping_policy_snapshot_json: Mapped[dict | None] = mapped_column(jsonb_type(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint(f"provider in ({PAYMENT_PROVIDER_VALUES})", name="ck_payments_provider"),
+        CheckConstraint(f"status in ({PAYMENT_STATUS_VALUES})", name="ck_payments_status"),
+        CheckConstraint("amount >= 0", name="ck_payments_amount_non_negative"),
+        UniqueConstraint("provider", "provider_payment_key", name="uq_payments_provider_payment_key"),
+        Index("ix_payments_provider_order_id", "provider", "provider_order_id"),
+        Index("ix_payments_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    payment_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="MOCK", server_default="MOCK")
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="READY", server_default="READY")
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    provider_payment_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_order_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PaymentEvent(Base):
+    __tablename__ = "payment_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "event_id", name="uq_payment_events_provider_event_id"),
+        CheckConstraint("amount is null or amount >= 0", name="ck_payment_events_amount_non_negative"),
+        Index("ix_payment_events_payment_created_at", "payment_id", "created_at"),
+        Index("ix_payment_events_order_created_at", "order_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_payment_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_order_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    status_before: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status_after: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    raw_payload_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

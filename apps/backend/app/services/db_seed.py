@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
+import math
 from pathlib import Path
 from typing import TypeVar
 
@@ -19,6 +21,7 @@ from app.db.models.catalog import (
 )
 from app.db.models.commerce import Inventory as InventoryRow
 from app.db.models.commerce import InventoryMovement as InventoryMovementRow
+from app.db.models.commerce import ProductPopularityMetric as ProductPopularityMetricRow
 from app.db.models.commerce import Seller as SellerRow
 from app.db.models.search import SearchDocument as SearchDocumentRow
 from app.db.models.taxonomy import (
@@ -48,6 +51,7 @@ class SeedResult:
     sellers: int
     products: int
     inventories: int
+    popularity_metrics: int
     product_ingredients: int
     product_skin_profiles: int
     ingredient_effect_ranges: int
@@ -56,6 +60,9 @@ class SeedResult:
 
 
 ModelT = TypeVar("ModelT")
+POPULARITY_WINDOW_DAYS = 7
+MOCK_POPULARITY_SCORE_VERSION = "mock_market_signals_v1"
+BAYESIAN_RATING_CONFIDENCE_REVIEWS = 50.0
 
 
 def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
@@ -82,6 +89,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
     _seed_product_images(session, catalog, products_by_code)
     _seed_product_prices(session, catalog, products_by_code)
     inventory_count = _seed_product_inventories(session, catalog, products_by_code)
+    popularity_metric_count = _seed_product_popularity_metrics(session, catalog, products_by_code)
     product_ingredient_count = _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
     _seed_product_skin_profiles(session, catalog, products_by_code)
     _seed_search_documents(session, catalog, products_by_code, ingredients_by_code, evidence_rows)
@@ -96,6 +104,7 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         sellers=1,
         products=len(catalog.products),
         inventories=inventory_count,
+        popularity_metrics=popularity_metric_count,
         product_ingredients=product_ingredient_count,
         product_skin_profiles=len(catalog.product_skin_profiles),
         ingredient_effect_ranges=len(catalog.ingredient_effect_ranges),
@@ -764,6 +773,52 @@ def _seed_product_inventories(
     return len(catalog.product_inventories)
 
 
+def _seed_product_popularity_metrics(
+    session: Session,
+    catalog: DataCatalog,
+    products_by_code: dict[str, ProductRow],
+) -> int:
+    signals = [signal for signal in catalog.product_market_signals if _has_market_signal(signal)]
+    if not signals:
+        return 0
+
+    context = _build_market_popularity_context(signals)
+    existing_rows = session.execute(
+        select(ProductPopularityMetricRow).where(
+            ProductPopularityMetricRow.window_days == POPULARITY_WINDOW_DAYS,
+            ProductPopularityMetricRow.product_id.in_([products_by_code[signal.product_id].id for signal in signals]),
+        )
+    ).scalars()
+    existing_by_product_id = {row.product_id: row for row in existing_rows}
+    computed_at = datetime.now(timezone.utc)
+
+    for signal in signals:
+        product = products_by_code[signal.product_id]
+        popularity_score = _market_popularity_score(signal, context)
+        row = existing_by_product_id.get(product.id)
+        values = {
+            "window_days": POPULARITY_WINDOW_DAYS,
+            "view_count": signal.recent_view_count,
+            "click_count": 0,
+            "cart_add_count": signal.cart_add_count,
+            "order_count": signal.sales_count,
+            "units_sold": signal.sales_count,
+            "review_count": signal.review_count,
+            "average_rating": _decimal_or_none(signal.average_rating),
+            "popularity_score": Decimal(str(popularity_score)),
+            "score_version": MOCK_POPULARITY_SCORE_VERSION,
+            "computed_at": _parse_datetime_or_default(signal.updated_at, computed_at),
+        }
+        if row is None:
+            session.add(ProductPopularityMetricRow(product_id=product.id, **values))
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+
+    session.flush()
+    return len(signals)
+
+
 def _seed_product_ingredients(
     session: Session,
     catalog: DataCatalog,
@@ -978,6 +1033,128 @@ def _decimal_or_none(value: float | None) -> Decimal | None:
     if value is None:
         return None
     return Decimal(str(value))
+
+
+@dataclass(frozen=True)
+class _MarketPopularityContext:
+    max_review_count: float
+    max_sales_count: float
+    max_recent_signal: float
+    max_sales_rank: float
+    global_rating: float
+
+
+def _build_market_popularity_context(signals) -> _MarketPopularityContext:
+    weighted_ratings = [
+        (signal.average_rating, signal.review_count)
+        for signal in signals
+        if signal.average_rating is not None and signal.average_rating > 0 and signal.review_count > 0
+    ]
+    rating_weight = sum(weight for _, weight in weighted_ratings)
+    global_rating = (
+        sum(rating * weight for rating, weight in weighted_ratings) / rating_weight
+        if rating_weight
+        else 4.0
+    )
+    return _MarketPopularityContext(
+        max_review_count=max((signal.review_count for signal in signals), default=0),
+        max_sales_count=max((signal.sales_count for signal in signals), default=0),
+        max_recent_signal=max((_recent_signal_value(signal) for signal in signals), default=0),
+        max_sales_rank=max((signal.sales_rank or 0 for signal in signals), default=0),
+        global_rating=global_rating,
+    )
+
+
+def _has_market_signal(signal) -> bool:
+    return (
+        signal.review_count > 0
+        or (signal.average_rating is not None and signal.average_rating > 0)
+        or signal.sales_count > 0
+        or signal.sales_rank is not None
+        or signal.recent_view_count > 0
+        or signal.wishlist_count > 0
+        or signal.cart_add_count > 0
+    )
+
+
+def _market_popularity_score(signal, context: _MarketPopularityContext) -> float:
+    review_count_score = _log_normalized_score(signal.review_count, context.max_review_count)
+    rating_score = _bayesian_rating_score(
+        rating=signal.average_rating or 0.0,
+        review_count=signal.review_count,
+        global_rating=context.global_rating,
+    )
+    sales_score = _sales_signal_score(signal, context)
+    recent_signal_score = _log_normalized_score(_recent_signal_value(signal), context.max_recent_signal)
+    return round(
+        _weighted_available_score(
+            [
+                (review_count_score, 0.30, signal.review_count > 0),
+                (rating_score, 0.25, signal.average_rating is not None and signal.average_rating > 0),
+                (sales_score, 0.30, signal.sales_count > 0 or signal.sales_rank is not None),
+                (recent_signal_score, 0.15, _recent_signal_value(signal) > 0),
+            ]
+        ),
+        2,
+    )
+
+
+def _log_normalized_score(value: float, max_value: float) -> float:
+    if value <= 0 or max_value <= 0:
+        return 0.0
+    return 100.0 * math.log1p(value) / math.log1p(max_value)
+
+
+def _bayesian_rating_score(
+    *,
+    rating: float,
+    review_count: float,
+    global_rating: float,
+) -> float:
+    if rating <= 0:
+        return 0.0
+    clipped_rating = min(5.0, max(0.0, rating))
+    adjusted = (
+        review_count / (review_count + BAYESIAN_RATING_CONFIDENCE_REVIEWS) * clipped_rating
+        + BAYESIAN_RATING_CONFIDENCE_REVIEWS
+        / (review_count + BAYESIAN_RATING_CONFIDENCE_REVIEWS)
+        * global_rating
+    )
+    return adjusted / 5.0 * 100.0
+
+
+def _sales_signal_score(signal, context: _MarketPopularityContext) -> float:
+    if signal.sales_count > 0:
+        return _log_normalized_score(signal.sales_count, context.max_sales_count)
+    if signal.sales_rank is None:
+        return 0.0
+    if context.max_sales_rank <= 1:
+        return 100.0
+    rank_score = 100.0 * (
+        1.0 - (math.log1p(signal.sales_rank - 1.0) / math.log1p(context.max_sales_rank - 1.0))
+    )
+    return min(100.0, max(0.0, rank_score))
+
+
+def _recent_signal_value(signal) -> float:
+    return signal.recent_view_count + signal.wishlist_count * 3.0 + signal.cart_add_count * 5.0
+
+
+def _weighted_available_score(scores: list[tuple[float, float, bool]]) -> float:
+    available = [(score, weight) for score, weight, is_available in scores if is_available]
+    weight_sum = sum(weight for _, weight in available)
+    if weight_sum <= 0:
+        return 0.0
+    return sum(score * weight for score, weight in available) / weight_sum
+
+
+def _parse_datetime_or_default(value: str | None, default: datetime) -> datetime:
+    if not value:
+        return default
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return default
 
 
 def _join_values(values: tuple[str, ...]) -> str | None:
