@@ -148,6 +148,7 @@ scroll_depth:
 
 ```json
 {
+  "event_id": "evt_xxx",
   "event_name": "recommendation_product_click",
   "anonymous_user_id": "anon_xxx",
   "session_id": "sess_xxx",
@@ -155,10 +156,10 @@ scroll_depth:
   "product_id": "prod_xxx",
   "rank": 3,
   "page": "recommendation_result",
-  "section_id": "result_list",
-  "algorithm_version": "recommendation_v1",
   "occurred_at": "2026-06-30T12:00:00+09:00",
   "metadata": {
+    "section_id": "result_list",
+    "algorithm_version": "recommendation_v1",
     "skin_type": "dry",
     "sensitivity": "normal",
     "concern_tags": ["속건조", "장벽"],
@@ -212,14 +213,18 @@ score_breakdown 전체 원본
 
 ```text
 event_name
+event_id
+user_id
 anonymous_user_id
 session_id
+request_id
 recommendation_id
 product_id
 rank
+source
 page
-section_id
-algorithm_version
+cart_id
+order_id
 metadata_json
 occurred_at
 created_at
@@ -230,6 +235,8 @@ created_at
 ```text
 skin_type
 sensitivity
+section_id
+algorithm_version
 concern_tags
 effect_tags
 category_code
@@ -261,28 +268,36 @@ event_logs
 
 ```text
 id BIGINT PK
+event_id VARCHAR(128) UNIQUE NOT NULL
 event_name VARCHAR(80) NOT NULL
-anonymous_user_id VARCHAR(120) NOT NULL
-session_id VARCHAR(120) NOT NULL
-recommendation_id VARCHAR(40) NULL
-product_id BIGINT NULL
-rank INT NULL
-page VARCHAR(80) NULL
-section_id VARCHAR(80) NULL
-algorithm_version VARCHAR(80) NULL
-metadata_json JSONB NOT NULL DEFAULT '{}'
 occurred_at TIMESTAMP NOT NULL
+user_id BIGINT NULL
+anonymous_user_id VARCHAR(128) NULL
+session_id VARCHAR(128) NULL
+request_id VARCHAR(128) NULL
+recommendation_id VARCHAR(128) NULL
+product_id VARCHAR(128) NULL
+rank INT NULL
+source VARCHAR(64) NULL
+page VARCHAR(255) NULL
+cart_id BIGINT NULL
+order_id BIGINT NULL
+metadata_json JSONB NOT NULL DEFAULT '{}'
 created_at TIMESTAMP NOT NULL
 ```
 
 인덱스 후보:
 
 ```text
-idx_event_logs_created_at
-idx_event_logs_event_name_created_at
-idx_event_logs_anonymous_user_id_created_at
-idx_event_logs_recommendation_id
-idx_event_logs_product_id_created_at
+ux_event_logs_event_id
+ix_event_logs_event_name_occurred_at
+ix_event_logs_user_id_occurred_at
+ix_event_logs_anonymous_session_occurred_at
+ix_event_logs_recommendation_id_occurred_at
+ix_event_logs_product_event_occurred_at
+ix_event_logs_request_id
+ix_event_logs_cart_id
+ix_event_logs_order_id
 ```
 
 ### 10.2 API
@@ -299,13 +314,14 @@ POST /api/events/batch
 ### 10.3 검증 규칙
 
 - `event_name` 필수
-- `anonymous_user_id` 필수
-- `session_id` 필수
+- `event_id`는 선택값이며 없으면 서버가 생성
+- `anonymous_user_id`, `session_id`는 비회원 추적용 선택값
+- 로그인 사용자의 `user_id`는 프론트가 보내지 않고 서버가 session cookie 기준으로 저장
 - `occurred_at` 없으면 서버 수신 시간 사용
-- batch 최대 개수 제한
-- `metadata_json` 최대 크기 제한
+- batch 최대 50개
+- `metadata_json` 최대 16KB
 - 알 수 없는 이벤트 이름은 우선 허용하되, 로그/모니터링 대상
-- 개인정보로 보이는 필드는 서버에서 거부하거나 제거하는 방안 검토
+- `email`, `phone`, `address`, `raw_prompt`, `raw_response`, `token`, `password` 등 민감 metadata key는 서버에서 거부
 
 ## 11. 프론트 구현 계획
 
