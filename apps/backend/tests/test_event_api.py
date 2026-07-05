@@ -177,6 +177,65 @@ def test_event_batch_api_stores_multiple_events(client: TestClient, db_engine: E
     assert [event.product_id for event in events] == ["prod_001", "prod_002"]
 
 
+def test_product_detail_records_product_viewed_event(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    response = client.get("/api/products/prod_001", headers={"x-request-id": "product-view-request"})
+
+    assert response.status_code == 200
+    with Session(db_engine) as session:
+        event = session.execute(select(EventLog)).scalar_one()
+
+    assert event.event_name == "product_viewed"
+    assert event.product_id == "prod_001"
+    assert event.request_id == "product-view-request"
+    assert event.source == "product_detail"
+    assert event.page == "product_detail"
+    assert event.metadata_json["has_recommendation_context"] is False
+    assert event.metadata_json["stock_status"] == "UNKNOWN"
+
+
+def test_recommendation_create_and_get_record_events(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    create_response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "ttl event recommendation smoke test"},
+        headers={"x-request-id": "recommendation-create-request"},
+    )
+    recommendation_id = create_response.json()["recommendation_id"]
+
+    get_response = client.get(
+        f"/api/recommendations/{recommendation_id}",
+        headers={"x-request-id": "recommendation-get-request"},
+    )
+
+    assert create_response.status_code == 200
+    assert get_response.status_code == 200
+    with Session(db_engine) as session:
+        events = session.execute(
+            select(EventLog)
+            .where(EventLog.recommendation_id == recommendation_id)
+            .order_by(EventLog.id.asc())
+        ).scalars().all()
+
+    assert [event.event_name for event in events] == [
+        "recommendation_requested",
+        "recommendation_analyzed",
+        "recommendation_viewed",
+    ]
+    assert [event.request_id for event in events] == [
+        "recommendation-create-request",
+        "recommendation-create-request",
+        "recommendation-get-request",
+    ]
+    assert events[0].metadata_json["product_count"] == len(create_response.json()["products"])
+    assert events[0].metadata_json["total_items"] == create_response.json()["pagination"]["total_items"]
+    assert "concern_text" not in events[0].metadata_json
+
+
 def _signup(client: TestClient) -> None:
     response = client.post(
         "/api/auth/signup",
