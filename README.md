@@ -200,6 +200,42 @@ ELASTICSEARCH_URL=http://elasticsearch:9200
 ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
 ```
 
+### Redis / Elasticsearch smoke 기준
+
+Dev 서버에서 Redis/Elasticsearch까지 확인할 때는 서버에 SSH 접속한 뒤 `DEV_APP_DIR`에서 아래 순서로 확인합니다.
+
+```bash
+docker compose --profile dev-infra config
+docker compose --profile dev-infra up -d redis elasticsearch
+docker compose ps redis elasticsearch
+docker compose exec -T redis redis-cli ping
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+```
+
+통과 기준:
+
+- Redis/Elasticsearch container status가 `healthy`
+- Redis 응답이 `PONG`
+- Elasticsearch cluster status가 `green` 또는 `yellow`
+- compose config에서 Redis `6379`, Elasticsearch `9200` host bind가 `127.0.0.1`
+- EC2 security group에서 `6379`, `9200` 외부 공개 금지
+
+서버 역할별 prefix는 아래 기준으로 분리합니다. 같은 Redis/Elasticsearch를 임시 공유하더라도 prefix는 공유하지 않습니다.
+
+```env
+# Dev
+REDIS_KEY_PREFIX=mubarelle:dev:
+ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
+
+# 실유저 테스트
+REDIS_KEY_PREFIX=mubarelle:user-test:
+ELASTICSEARCH_INDEX_PREFIX=mubarelle_user_test
+
+# 발표 서버를 별도 prefix로 동결할 때
+REDIS_KEY_PREFIX=mubarelle:demo:
+ELASTICSEARCH_INDEX_PREFIX=mubarelle_demo
+```
+
 ## CI
 
 현재 GitHub Actions CI는 `main`, `dev` push와 PR에서 실행됩니다.
