@@ -48,3 +48,79 @@ class OrderCreateResponse(BaseModel):
 class OrderCancelResponse(BaseModel):
     order_code: str
     status: str
+
+
+class OrderListItem(BaseModel):
+    order_code: str
+    status: str
+    total: int
+    currency: str
+    item_count: int
+    ordered_at: datetime
+    paid_at: datetime | None
+    thumbnail_storage_key: str | None
+    title: str
+
+
+class OrderListResponse(BaseModel):
+    items: list[OrderListItem]
+    next_cursor: str | None
+
+
+class OrderDetailPayment(BaseModel):
+    payment_code: str
+    provider: PaymentProvider
+    status: str
+    approved_at: datetime | None
+
+
+class OrderDetailItem(BaseModel):
+    id: int
+    product_id: str
+    product_name: str
+    brand_name: str
+    seller_name: str
+    thumbnail_storage_key: str | None
+    unit_price: int
+    quantity: int
+    line_subtotal: int
+    line_discount_amount: int
+    line_total: int
+    currency: str
+    status: str
+    source: str | None
+    recommendation_id: str | None
+    recommendation_rank: int | None
+
+
+class OrderDetailShippingAddress(BaseModel):
+    recipient_name: str
+    phone: str
+    postal_code: str
+    address1: str
+    address2: str | None
+    delivery_memo: str | None
+
+
+class OrderDetailShippingGroup(BaseModel):
+    seller_name: str
+    item_subtotal: int
+    shipping_fee: int
+    free_shipping_threshold: int | None
+
+
+class OrderDetailResponse(BaseModel):
+    order_code: str
+    status: str
+    subtotal: int
+    shipping_fee: int
+    discount_total: int
+    total: int
+    currency: str
+    ordered_at: datetime
+    paid_at: datetime | None
+    payment_expires_at: datetime | None
+    payment: OrderDetailPayment
+    items: list[OrderDetailItem]
+    shipping_address: OrderDetailShippingAddress | None
+    shipping_groups: list[OrderDetailShippingGroup]
