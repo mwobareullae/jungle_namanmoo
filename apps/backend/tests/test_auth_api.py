@@ -7,8 +7,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
-from app.db.models.auth import AuthAccount, PasswordResetToken, RefreshToken, TermsVersion, User, UserConsent
+from app.db.models.auth import AuthAccount, AuthSession, PasswordResetToken, TermsVersion, User, UserConsent
 from app.db.session import get_db
 from app.main import app
 from app.services.google_oauth import GoogleAccountInfo, GoogleTokenVerificationError
@@ -40,7 +41,7 @@ def client(db_engine: Engine) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-def test_signup_creates_user_auth_account_consents_and_tokens(
+def test_signup_creates_user_auth_account_consents_and_session(
     client: TestClient,
     db_engine: Engine,
 ) -> None:
@@ -61,22 +62,24 @@ def test_signup_creates_user_auth_account_consents_and_tokens(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["access_token"]
-    assert data["refresh_token"]
+    assert "access_token" not in data
+    assert "refresh_token" not in data
+    assert response.cookies.get(settings.auth_session_cookie_name)
     assert data["user"]["email"] == "user@example.com"
     assert data["user"]["nickname"] == "원우"
 
     with Session(db_engine) as session:
         user = session.execute(select(User).where(User.email == "user@example.com")).scalar_one()
         account = session.execute(select(AuthAccount).where(AuthAccount.user_id == user.id)).scalar_one()
-        refresh_token = session.execute(select(RefreshToken).where(RefreshToken.user_id == user.id)).scalar_one()
+        auth_session = session.execute(select(AuthSession).where(AuthSession.user_id == user.id)).scalar_one()
         consents = session.execute(select(UserConsent).where(UserConsent.user_id == user.id)).scalars().all()
         terms_versions = session.execute(select(TermsVersion)).scalars().all()
 
     assert account.provider == "email"
     assert account.provider_account_id == "user@example.com"
     assert account.password_hash
-    assert refresh_token.token_hash != data["refresh_token"]
+    assert auth_session.token_hash != response.cookies.get(settings.auth_session_cookie_name)
+    assert auth_session.revoked_at is None
     assert len(consents) == 4
     assert {consent.consent_key: consent.agreed for consent in consents} == {
         "tos": True,
@@ -130,34 +133,31 @@ def test_login_refresh_me_and_logout_flow(client: TestClient) -> None:
     )
     assert login_response.status_code == 200
     login_data = login_response.json()
+    first_session_cookie = login_response.cookies.get(settings.auth_session_cookie_name)
 
-    me_response = client.get(
-        "/api/me",
-        headers={"Authorization": f"Bearer {login_data['access_token']}"},
-    )
+    assert "access_token" not in login_data
+    assert "refresh_token" not in login_data
+    assert first_session_cookie
+
+    me_response = client.get("/api/me")
     assert me_response.status_code == 200
     assert me_response.json()["email"] == "login@example.com"
 
-    refresh_response = client.post(
-        "/api/auth/refresh",
-        json={"refresh_token": login_data["refresh_token"]},
-    )
+    refresh_response = client.post("/api/auth/refresh")
     assert refresh_response.status_code == 200
     refreshed = refresh_response.json()
-    assert refreshed["refresh_token"] != login_data["refresh_token"]
+    refreshed_session_cookie = refresh_response.cookies.get(settings.auth_session_cookie_name)
+    assert "access_token" not in refreshed
+    assert "refresh_token" not in refreshed
+    assert refreshed_session_cookie
+    assert refreshed_session_cookie != first_session_cookie
 
-    logout_response = client.post(
-        "/api/auth/logout",
-        json={"refresh_token": refreshed["refresh_token"]},
-    )
+    logout_response = client.post("/api/auth/logout")
     assert logout_response.status_code == 200
 
-    reuse_response = client.post(
-        "/api/auth/refresh",
-        json={"refresh_token": refreshed["refresh_token"]},
-    )
-    assert reuse_response.status_code == 401
-    assert reuse_response.json()["code"] == "INVALID_REFRESH_TOKEN"
+    me_after_logout_response = client.get("/api/me")
+    assert me_after_logout_response.status_code == 401
+    assert me_after_logout_response.json()["code"] == "INVALID_SESSION"
 
 
 def test_login_rejects_invalid_credentials(client: TestClient) -> None:
@@ -202,8 +202,9 @@ def test_google_login_creates_user_auth_account_consents_and_tokens(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["access_token"]
-    assert data["refresh_token"]
+    assert "access_token" not in data
+    assert "refresh_token" not in data
+    assert response.cookies.get(settings.auth_session_cookie_name)
     assert data["user"]["email"] == "social-user@gmail.com"
     assert data["user"]["nickname"] == "Social User"
 
@@ -383,7 +384,46 @@ def test_password_reset_request_hides_email_existence(
     assert sent_codes and sent_codes[0][0] == "reset@example.com"
 
 
-def test_password_reset_confirm_changes_password_and_revokes_refresh_tokens(
+def test_password_reset_request_skips_google_only_account(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-sub-reset-only",
+            email="google-only@gmail.com",
+            email_verified=True,
+            name="Google Only",
+        ),
+    )
+    google_response = client.post(
+        "/api/auth/google",
+        json={
+            "credential": "valid-google-token",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert google_response.status_code == 200
+
+    sent_codes: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.auth_service.send_password_reset_code",
+        lambda email, code: sent_codes.append((email, code)),
+    )
+
+    response = client.post("/api/auth/password-reset", json={"email": "google-only@gmail.com"})
+
+    assert response.status_code == 200
+    assert sent_codes == []
+
+
+def test_password_reset_confirm_changes_password_and_revokes_sessions(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -405,6 +445,7 @@ def test_password_reset_confirm_changes_password_and_revokes_refresh_tokens(
     )
 
     assert response.status_code == 200
+    assert client.get("/api/me").status_code == 401
     assert client.post(
         "/api/auth/login",
         json={"email": "confirm@example.com", "password": "password123"},
@@ -413,10 +454,6 @@ def test_password_reset_confirm_changes_password_and_revokes_refresh_tokens(
         "/api/auth/login",
         json={"email": "confirm@example.com", "password": "newpass123"},
     ).status_code == 200
-    assert client.post(
-        "/api/auth/refresh",
-        json={"refresh_token": signup_data["refresh_token"]},
-    ).status_code == 401
 
 
 def test_password_reset_confirm_locks_after_too_many_failures(

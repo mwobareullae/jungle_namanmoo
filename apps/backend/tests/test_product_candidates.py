@@ -16,6 +16,8 @@ def test_list_product_candidates_returns_seed_products_without_constraints() -> 
 
     assert [candidate.product_id for candidate in candidates] == ["prod_001", "prod_002"]
     assert [candidate.lowest_price for candidate in candidates] == [19900, 22900]
+    assert candidates[0].thumbnail_url == "products/prod_001/thumbnail.jpg"
+    assert not candidates[0].thumbnail_url.startswith("http")
 
 
 def test_list_product_candidates_applies_brand_category_and_price_max_filters() -> None:

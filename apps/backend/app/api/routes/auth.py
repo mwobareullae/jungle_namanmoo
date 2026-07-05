@@ -1,26 +1,29 @@
-from fastapi import APIRouter, Cookie, Depends, Header, Query
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Cookie, Depends, Query, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user
+from app.core.config import settings
+from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.auth import (
-    AvailabilityResponse,
+    AuthSessionResponse,
     AuthUser,
+    AvailabilityResponse,
     GoogleLoginRequest,
     LoginRequest,
-    LogoutRequest,
     MessageResponse,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
-    RefreshRequest,
     SignupRequest,
-    TokenResponse,
 )
 from app.services.auth_service import (
     AuthServiceError,
+    IssuedAuthSession,
     PASSWORD_RESET_RESPONSE_MESSAGE,
     confirm_password_reset,
-    get_user_from_access_token,
     is_email_available,
     is_nickname_available,
     login,
@@ -69,42 +72,47 @@ def check_nickname(
     return AvailabilityResponse(available=True, message="사용 가능한 닉네임입니다.")
 
 
-@router.post("/auth/signup", response_model=TokenResponse)
+@router.post("/auth/signup", response_model=AuthSessionResponse)
 def post_signup(
     request: SignupRequest,
+    response: Response,
     session: Session = Depends(get_db),
-) -> TokenResponse | JSONResponse:
+) -> AuthSessionResponse | JSONResponse:
     try:
-        response = signup(session, request)
+        issued = signup(session, request)
         session.commit()
-        return response
+        _set_session_cookie(response, issued)
+        return issued.response
     except AuthServiceError as exc:
         session.rollback()
         return _auth_error(exc)
 
 
-@router.post("/auth/login", response_model=TokenResponse)
+@router.post("/auth/login", response_model=AuthSessionResponse)
 def post_login(
     request: LoginRequest,
+    response: Response,
     session: Session = Depends(get_db),
-) -> TokenResponse | JSONResponse:
+) -> AuthSessionResponse | JSONResponse:
     try:
-        response = login(session, request.email, request.password)
+        issued = login(session, request.email, request.password)
         session.commit()
-        return response
+        _set_session_cookie(response, issued)
+        return issued.response
     except AuthServiceError as exc:
         session.rollback()
         return _auth_error(exc)
 
 
-@router.post("/auth/google", response_model=TokenResponse)
+@router.post("/auth/google", response_model=AuthSessionResponse)
 def post_google_login(
     request: GoogleLoginRequest,
+    response: Response,
     g_csrf_token: str | None = Cookie(default=None),
     session: Session = Depends(get_db),
-) -> TokenResponse | JSONResponse:
+) -> AuthSessionResponse | JSONResponse:
     try:
-        response = login_with_google(
+        issued = login_with_google(
             session,
             credential=request.credential,
             consents=request.consents,
@@ -112,21 +120,24 @@ def post_google_login(
             csrf_cookie=g_csrf_token,
         )
         session.commit()
-        return response
+        _set_session_cookie(response, issued)
+        return issued.response
     except AuthServiceError as exc:
         session.rollback()
         return _auth_error(exc)
 
 
-@router.post("/auth/refresh", response_model=TokenResponse)
+@router.post("/auth/refresh", response_model=AuthSessionResponse)
 def post_refresh(
-    request: RefreshRequest,
+    response: Response,
+    session_token: str | None = Cookie(default=None, alias=settings.auth_session_cookie_name),
     session: Session = Depends(get_db),
-) -> TokenResponse | JSONResponse:
+) -> AuthSessionResponse | JSONResponse:
     try:
-        response = refresh(session, request.refresh_token)
+        issued = refresh(session, session_token)
         session.commit()
-        return response
+        _set_session_cookie(response, issued)
+        return issued.response
     except AuthServiceError as exc:
         session.rollback()
         return _auth_error(exc)
@@ -134,11 +145,13 @@ def post_refresh(
 
 @router.post("/auth/logout", response_model=MessageResponse)
 def post_logout(
-    request: LogoutRequest,
+    response: Response,
+    session_token: str | None = Cookie(default=None, alias=settings.auth_session_cookie_name),
     session: Session = Depends(get_db),
 ) -> MessageResponse:
-    logout(session, request.refresh_token)
+    logout(session, session_token)
     session.commit()
+    _delete_session_cookie(response)
     return MessageResponse(message="로그아웃되었습니다.")
 
 
@@ -176,31 +189,45 @@ def post_password_reset_confirm(
 
 @router.get("/me", response_model=AuthUser)
 def get_me(
-    authorization: str | None = Header(default=None),
-    session: Session = Depends(get_db),
-) -> AuthUser | JSONResponse:
-    try:
-        token = _extract_bearer_token(authorization)
-        user = get_user_from_access_token(session, token)
-        return AuthUser(
-            id=user.id,
-            email=user.email,
-            nickname=user.display_name,
-            role=user.role,
-            status=user.status,
-            created_at=user.created_at,
-        )
-    except AuthServiceError as exc:
-        return _auth_error(exc)
+    current_user: User = Depends(get_current_user),
+) -> AuthUser:
+    return AuthUser(
+        id=current_user.id,
+        email=current_user.email,
+        nickname=current_user.display_name,
+        role=current_user.role,
+        status=current_user.status,
+        created_at=current_user.created_at,
+    )
 
 
-def _extract_bearer_token(authorization: str | None) -> str:
-    if not authorization:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise AuthServiceError(401, "INVALID_TOKEN", "인증 정보가 올바르지 않습니다.")
-    return token
+def _set_session_cookie(response: Response, issued: IssuedAuthSession) -> None:
+    max_age = max(0, int((_as_utc(issued.expires_at) - datetime.now(UTC)).total_seconds()))
+    response.set_cookie(
+        key=settings.auth_session_cookie_name,
+        value=issued.session_token,
+        max_age=max_age,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+        path="/",
+    )
+
+
+def _delete_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.auth_session_cookie_name,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+        path="/",
+    )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _auth_error(error: AuthServiceError, *, available: bool | None = None) -> JSONResponse:

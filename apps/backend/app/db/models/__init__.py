@@ -11,13 +11,24 @@ from app.db.models.catalog import (
 )
 from app.db.models.auth import (
     AuthAccount,
+    AuthSession,
     PasswordResetToken,
     RefreshToken,
     TermsVersion,
     User,
     UserConsent,
 )
-from app.db.models.commerce import Inventory, InventoryMovement, Seller
+from app.db.models.commerce import (
+    Cart,
+    CartItem,
+    Inventory,
+    InventoryMovement,
+    ProductPopularityMetric,
+    RecentView,
+    Seller,
+    SellerShippingPolicy,
+    Wishlist,
+)
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -27,6 +38,15 @@ from app.db.models.recommendation import (
     SearchCandidate,
 )
 from app.db.models.search import SearchDocument
+from app.db.models.skin import (
+    BaumannTypeProfile,
+    SkinProfile,
+    SkinTestAnswer,
+    SkinTestOption,
+    SkinTestQuestion,
+    SkinTestResult,
+    SkinTestVersion,
+)
 from app.db.models.taxonomy import (
     Concern,
     ConcernAlias,
@@ -45,6 +65,10 @@ __all__ = [
     "Brand",
     "BrandAlias",
     "AuthAccount",
+    "AuthSession",
+    "BaumannTypeProfile",
+    "Cart",
+    "CartItem",
     "Concern",
     "ConcernAlias",
     "ConcernEffect",
@@ -62,6 +86,7 @@ __all__ = [
     "ProductCategoryAlias",
     "ProductImage",
     "ProductIngredient",
+    "ProductPopularityMetric",
     "ProductPrice",
     "ProductSkinProfile",
     "PasswordResetToken",
@@ -70,12 +95,21 @@ __all__ = [
     "RecommendationRunConcern",
     "RecommendationRunConstraint",
     "RecommendationScoreEvidence",
+    "RecentView",
     "RefreshToken",
     "RiskFlag",
     "SearchCandidate",
     "SearchDocument",
     "Seller",
+    "SellerShippingPolicy",
+    "SkinProfile",
+    "SkinTestAnswer",
+    "SkinTestOption",
+    "SkinTestQuestion",
+    "SkinTestResult",
+    "SkinTestVersion",
     "TermsVersion",
     "User",
     "UserConsent",
+    "Wishlist",
 ]
