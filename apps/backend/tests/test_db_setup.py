@@ -41,6 +41,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "concerns",
         "effect_aliases",
         "effects",
+        "event_logs",
         "ingredient_aliases",
         "ingredient_effects",
         "ingredient_effect_ranges",
@@ -114,6 +115,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     order_shipping_groups = Base.metadata.tables["order_shipping_groups"]
     payments = Base.metadata.tables["payments"]
     payment_events = Base.metadata.tables["payment_events"]
+    event_logs = Base.metadata.tables["event_logs"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
     auth_sessions = Base.metadata.tables["auth_sessions"]
@@ -279,6 +281,23 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "status_after",
         "raw_payload_json",
     }.issubset(payment_events.columns.keys())
+    assert {
+        "event_id",
+        "event_name",
+        "occurred_at",
+        "user_id",
+        "anonymous_user_id",
+        "session_id",
+        "request_id",
+        "recommendation_id",
+        "product_id",
+        "rank",
+        "source",
+        "page",
+        "cart_id",
+        "order_id",
+        "metadata_json",
+    }.issubset(event_logs.columns.keys())
     assert {"email", "display_name", "phone", "status", "role", "last_login_at"}.issubset(users.columns.keys())
     assert {
         "user_id",

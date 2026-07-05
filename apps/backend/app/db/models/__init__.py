@@ -36,6 +36,7 @@ from app.db.models.commerce import (
     UserAddress,
     Wishlist,
 )
+from app.db.models.events import EventLog
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -81,6 +82,7 @@ __all__ = [
     "ConcernEffect",
     "Effect",
     "EffectAlias",
+    "EventLog",
     "Ingredient",
     "IngredientAlias",
     "IngredientEffect",
