@@ -1,0 +1,137 @@
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
+from app.db.models.commerce import Inventory, ProductPopularityMetric
+from app.schemas.product import PopularProductItem, PopularProductsResponse, ProductPopularityMetrics
+from app.services.product_image_service import load_thumbnail_storage_keys
+
+
+DEFAULT_POPULAR_WINDOW_DAYS = 7
+DEFAULT_POPULAR_LIMIT = 10
+MAX_POPULAR_LIMIT = 50
+
+
+def get_popular_products_response(
+    session: Session,
+    *,
+    window_days: int = DEFAULT_POPULAR_WINDOW_DAYS,
+    limit: int = DEFAULT_POPULAR_LIMIT,
+    category_code: str | None = None,
+) -> PopularProductsResponse:
+    normalized_window_days = max(0, window_days)
+    normalized_limit = max(1, min(MAX_POPULAR_LIMIT, limit))
+    items = get_popular_product_items(
+        session,
+        window_days=normalized_window_days,
+        limit=normalized_limit,
+        category_code=category_code,
+    )
+    return PopularProductsResponse(window_days=normalized_window_days, items=items)
+
+
+def get_popular_product_items(
+    session: Session,
+    *,
+    window_days: int,
+    limit: int,
+    category_code: str | None = None,
+) -> list[PopularProductItem]:
+    price_subquery = (
+        select(
+            ProductPrice.product_id.label("product_id"),
+            func.min(ProductPrice.price).label("lowest_price"),
+        )
+        .group_by(ProductPrice.product_id)
+        .subquery()
+    )
+
+    statement = (
+        select(
+            Product.id.label("db_product_id"),
+            Product.product_code.label("product_id"),
+            Brand.name.label("brand"),
+            Product.product_name.label("name"),
+            ProductCategory.category_code.label("category_code"),
+            ProductCategory.name.label("category_name"),
+            price_subquery.c.lowest_price.label("lowest_price"),
+            ProductPopularityMetric.view_count,
+            ProductPopularityMetric.click_count,
+            ProductPopularityMetric.cart_add_count,
+            ProductPopularityMetric.order_count,
+            ProductPopularityMetric.units_sold,
+            ProductPopularityMetric.review_count,
+            ProductPopularityMetric.average_rating,
+            ProductPopularityMetric.popularity_score,
+            ProductPopularityMetric.score_version,
+            ProductPopularityMetric.computed_at,
+        )
+        .join(Product, ProductPopularityMetric.product_id == Product.id)
+        .join(Brand, Product.brand_id == Brand.id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .join(price_subquery, price_subquery.c.product_id == Product.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
+        .where(
+            ProductPopularityMetric.window_days == window_days,
+            Product.is_active.is_(True),
+            Brand.is_active.is_(True),
+            ProductCategory.is_active.is_(True),
+            or_(Inventory.id.is_(None), Inventory.sales_status == "ON_SALE"),
+        )
+        .order_by(
+            ProductPopularityMetric.popularity_score.desc(),
+            ProductPopularityMetric.order_count.desc(),
+            ProductPopularityMetric.units_sold.desc(),
+            ProductPopularityMetric.review_count.desc(),
+            Product.product_code.asc(),
+        )
+        .limit(limit)
+    )
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+
+    rows = session.execute(statement).all()
+    db_product_ids = [int(row.db_product_id) for row in rows]
+    thumbnail_storage_keys = load_thumbnail_storage_keys(session, db_product_ids)
+    purchase_urls = _load_purchase_urls(session, db_product_ids)
+
+    return [
+        PopularProductItem(
+            product_id=row.product_id,
+            brand=row.brand,
+            name=row.name,
+            category_code=row.category_code,
+            category_name=row.category_name,
+            thumbnail_url=thumbnail_storage_keys.get(int(row.db_product_id), ""),
+            lowest_price=int(row.lowest_price or 0),
+            purchase_url=purchase_urls.get(int(row.db_product_id)),
+            popularity_score=float(row.popularity_score),
+            score_version=row.score_version,
+            computed_at=row.computed_at,
+            metrics=ProductPopularityMetrics(
+                view_count=int(row.view_count),
+                click_count=int(row.click_count),
+                cart_add_count=int(row.cart_add_count),
+                order_count=int(row.order_count),
+                units_sold=int(row.units_sold),
+                review_count=int(row.review_count),
+                average_rating=float(row.average_rating) if row.average_rating is not None else None,
+            ),
+        )
+        for row in rows
+    ]
+
+
+def _load_purchase_urls(session: Session, product_ids: list[int]) -> dict[int, str]:
+    if not product_ids:
+        return {}
+
+    rows = session.execute(
+        select(ProductPrice.product_id, ProductPrice.product_url)
+        .where(ProductPrice.product_id.in_(product_ids))
+        .order_by(ProductPrice.product_id.asc(), ProductPrice.is_lowest.desc(), ProductPrice.price.asc())
+    ).all()
+    urls_by_product_id: dict[int, str] = {}
+    for product_id, product_url in rows:
+        urls_by_product_id.setdefault(int(product_id), product_url)
+    return urls_by_product_id

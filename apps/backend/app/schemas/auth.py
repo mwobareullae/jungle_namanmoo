@@ -70,5 +70,9 @@ class TokenResponse(BaseModel):
     user: AuthUser
 
 
+class AuthSessionResponse(BaseModel):
+    user: AuthUser
+
+
 class MessageResponse(BaseModel):
     message: str

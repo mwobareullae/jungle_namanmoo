@@ -30,8 +30,12 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
         "auth_accounts",
+        "auth_sessions",
+        "baumann_type_profiles",
         "brand_aliases",
         "brands",
+        "cart_items",
+        "carts",
         "concern_aliases",
         "concern_effects",
         "concerns",
@@ -49,6 +53,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_category_aliases",
         "product_images",
         "product_ingredients",
+        "product_popularity_metrics",
         "product_prices",
         "product_skin_profiles",
         "products",
@@ -57,14 +62,23 @@ def test_declarative_base_metadata_is_available() -> None:
         "recommendation_run_constraints",
         "recommendation_runs",
         "recommendation_score_evidence",
+        "recent_views",
         "refresh_tokens",
         "risk_flags",
-        "search_candidates",
-        "search_documents",
-        "sellers",
+            "search_candidates",
+            "search_documents",
+            "sellers",
+            "seller_shipping_policies",
+            "skin_profiles",
+        "skin_test_answers",
+        "skin_test_options",
+        "skin_test_questions",
+        "skin_test_results",
+        "skin_test_versions",
         "terms_versions",
         "user_consents",
         "users",
+        "wishlists",
     }
 
     assert set(Base.metadata.tables) == expected_tables
@@ -78,14 +92,25 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
     product_images = Base.metadata.tables["product_images"]
+    product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
+    wishlists = Base.metadata.tables["wishlists"]
+    recent_views = Base.metadata.tables["recent_views"]
+    carts = Base.metadata.tables["carts"]
+    cart_items = Base.metadata.tables["cart_items"]
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
+    seller_shipping_policies = Base.metadata.tables["seller_shipping_policies"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
+    auth_sessions = Base.metadata.tables["auth_sessions"]
     refresh_tokens = Base.metadata.tables["refresh_tokens"]
     password_reset_tokens = Base.metadata.tables["password_reset_tokens"]
     terms_versions = Base.metadata.tables["terms_versions"]
     user_consents = Base.metadata.tables["user_consents"]
+    skin_profiles = Base.metadata.tables["skin_profiles"]
+    skin_test_results = Base.metadata.tables["skin_test_results"]
+    skin_test_answers = Base.metadata.tables["skin_test_answers"]
+    baumann_type_profiles = Base.metadata.tables["baumann_type_profiles"]
 
     assert {"seller_id", "brand_id", "category_id"}.issubset(products.columns.keys())
     assert {
@@ -114,12 +139,45 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     )
     assert {"image_type", "storage_key", "display_order"}.issubset(product_images.columns.keys())
     assert "image_url" not in product_images.columns.keys()
+    assert {
+        "product_id",
+        "window_days",
+        "view_count",
+        "click_count",
+        "cart_add_count",
+        "order_count",
+        "units_sold",
+        "review_count",
+        "average_rating",
+        "popularity_score",
+        "score_version",
+        "computed_at",
+    }.issubset(product_popularity_metrics.columns.keys())
+    assert {"user_id", "product_id", "added_at"}.issubset(wishlists.columns.keys())
+    assert {"user_id", "product_id", "viewed_at", "updated_at"}.issubset(recent_views.columns.keys())
+    assert {"user_id", "anonymous_cart_id", "status", "expires_at", "merged_into_cart_id"}.issubset(
+        carts.columns.keys()
+    )
+    assert {
+        "cart_id",
+        "product_id",
+        "seller_id",
+        "quantity",
+        "unit_price_snapshot",
+        "currency",
+        "source",
+        "recommendation_id",
+        "recommendation_rank",
+    }.issubset(cart_items.columns.keys())
     assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
         ingredient_evidence.columns.keys()
     )
     assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
     assert {"product_id", "stock_quantity", "reserved_quantity", "safety_stock", "sales_status"}.issubset(
         inventories.columns.keys()
+    )
+    assert {"seller_id", "policy_name", "base_shipping_fee", "free_shipping_threshold", "is_active"}.issubset(
+        seller_shipping_policies.columns.keys()
     )
     assert {"email", "display_name", "phone", "status", "role", "last_login_at"}.issubset(users.columns.keys())
     assert {
@@ -130,6 +188,9 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "password_hash",
         "is_verified",
     }.issubset(auth_accounts.columns.keys())
+    assert {"user_id", "token_hash", "expires_at", "revoked_at", "last_used_at"}.issubset(
+        auth_sessions.columns.keys()
+    )
     assert {"user_id", "token_hash", "family_id", "expires_at", "revoked_at"}.issubset(
         refresh_tokens.columns.keys()
     )
@@ -147,6 +208,33 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     )
     assert {"user_id", "terms_version_id", "consent_key", "agreed", "consented_at"}.issubset(
         user_consents.columns.keys()
+    )
+    assert {"type_code", "title", "subtitle", "image_storage_key", "keywords"}.issubset(
+        baumann_type_profiles.columns.keys()
+    )
+    assert {
+        "user_id",
+        "skin_type",
+        "sensitivity",
+        "explicit_skin_type",
+        "explicit_sensitivity",
+        "baumann_type_code",
+        "baumann_signal_weight",
+        "latest_skin_test_result_id",
+    }.issubset(skin_profiles.columns.keys())
+    assert {
+        "result_code",
+        "user_id",
+        "version_id",
+        "type_code",
+        "mapped_skin_type",
+        "mapped_sensitivity",
+        "axis_scores",
+        "commerce_profile",
+        "applied_profile_id",
+    }.issubset(skin_test_results.columns.keys())
+    assert {"result_id", "version_id", "question_id", "option_id", "answer_order"}.issubset(
+        skin_test_answers.columns.keys()
     )
 
 

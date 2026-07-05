@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
+from app.services.product_image_service import load_thumbnail_storage_keys
 from app.services.purchase_conditions import ParsedPurchaseConditions
 
 
@@ -35,7 +36,6 @@ def list_product_candidates(
             Brand.name.label("brand_name"),
             ProductCategory.category_code,
             Product.product_name,
-            Product.thumbnail_url,
             lowest_price.label("lowest_price"),
         )
         .join(Brand, Product.brand_id == Brand.id)
@@ -53,7 +53,6 @@ def list_product_candidates(
             Brand.name,
             ProductCategory.category_code,
             Product.product_name,
-            Product.thumbnail_url,
         )
         .order_by(Product.id.asc())
         .limit(limit)
@@ -77,6 +76,7 @@ def list_product_candidates(
         statement = statement.having(lowest_price <= purchase_conditions.price_max)
 
     rows = session.execute(statement).all()
+    thumbnail_storage_keys = load_thumbnail_storage_keys(session, [int(row.id) for row in rows])
     return [
         ProductCandidate(
             db_product_id=int(row.id),
@@ -85,7 +85,7 @@ def list_product_candidates(
             brand=row.brand_name,
             category_code=row.category_code,
             name=row.product_name,
-            thumbnail_url=row.thumbnail_url,
+            thumbnail_url=thumbnail_storage_keys.get(int(row.id)),
             lowest_price=int(row.lowest_price),
         )
         for row in rows

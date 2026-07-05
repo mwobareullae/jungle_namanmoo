@@ -11,6 +11,7 @@ from app.db.models.catalog import (
     ProductIngredient as ProductIngredientRow,
     ProductPrice as ProductPriceRow,
 )
+from app.db.models.commerce import Inventory, Seller
 from app.db.models.recommendation import RecommendationResult
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEvidence, RiskFlag
 from app.schemas.common import ApiError
@@ -21,6 +22,7 @@ from app.schemas.product import (
     ProductImage,
     ProductInfo,
     ProductIngredient,
+    ProductPurchaseInfo,
     ProductPrice,
     SourceInfo,
 )
@@ -35,6 +37,7 @@ from app.services.recommendation_pipeline import (
 class _ProductRow:
     product: Product
     brand: Brand
+    seller: Seller
     lowest_price: int
 
 
@@ -51,7 +54,9 @@ def get_product_detail_response(
     )
 
     images = _load_product_images(session, product_row.product)
-    prices = _load_product_prices(session, product_row.product.id)
+    price_rows = _load_product_price_rows(session, product_row.product.id)
+    prices = [_to_product_price(row) for row in price_rows]
+    purchase_info = _build_purchase_info(session, product_row, price_rows)
     ingredients = _load_product_ingredients(session, product_row.product.id)
     ingredient_evidence = _load_ingredient_evidence(session, product_row.product.id)
     sources = _build_sources(ingredient_evidence)
@@ -61,7 +66,7 @@ def get_product_detail_response(
             product_id=product_row.product.product_code,
             brand=product_row.brand.name,
             name=product_row.product.product_name,
-            thumbnail_url=_thumbnail_url(product_row.product, images),
+            thumbnail_url=_thumbnail_url(images),
             lowest_price=product_row.lowest_price,
             total_score=_result_total_score(recommendation_result),
             reason_summary=recommendation_result.reason_summary if recommendation_result else None,
@@ -82,6 +87,7 @@ def get_product_detail_response(
         ),
         images=images,
         prices=prices,
+        purchase_info=purchase_info,
         ingredients=ingredients,
         evidence=ProductEvidence(
             ingredient_evidence=[
@@ -112,8 +118,9 @@ def _load_product_row(session: Session, product_code: str) -> _ProductRow:
     )
 
     row = session.execute(
-        select(Product, Brand, lowest_prices.c.lowest_price)
+        select(Product, Brand, Seller, lowest_prices.c.lowest_price)
         .join(Brand, Product.brand_id == Brand.id)
+        .join(Seller, Product.seller_id == Seller.id)
         .outerjoin(lowest_prices, lowest_prices.c.product_id == Product.id)
         .where(Product.product_code == product_code)
     ).one_or_none()
@@ -121,22 +128,21 @@ def _load_product_row(session: Session, product_code: str) -> _ProductRow:
     if row is None:
         raise ApiError(404, "NOT_FOUND", "상품을 찾을 수 없습니다.")
 
-    product, brand, lowest_price = row
+    product, brand, seller, lowest_price = row
     return _ProductRow(
         product=product,
         brand=brand,
+        seller=seller,
         lowest_price=int(lowest_price or 0),
     )
 
 
-def _thumbnail_url(product: Product, images: list[ProductImage]) -> str:
+def _thumbnail_url(images: list[ProductImage]) -> str:
     for image in images:
         if image.image_type == "thumbnail":
             return image.storage_key
     if images:
         return images[0].storage_key
-    if product.thumbnail_url:
-        return product.thumbnail_url
     return ""
 
 
@@ -178,21 +184,89 @@ def _load_product_images(session: Session, product_db_id: Product) -> list[Produ
     ]
 
 
-def _load_product_prices(session: Session, product_db_id: int) -> list[ProductPrice]:
-    rows = session.execute(
-        select(ProductPriceRow)
-        .where(ProductPriceRow.product_id == product_db_id)
-        .order_by(ProductPriceRow.is_lowest.desc(), ProductPriceRow.price.asc())
-    ).scalars()
-    return [
-        ProductPrice(
-            mall_name=row.mall_name,
-            price=row.price,
-            product_url=row.product_url,
-            is_lowest=row.is_lowest,
-        )
-        for row in rows
-    ]
+def _load_product_price_rows(session: Session, product_db_id: int) -> list[ProductPriceRow]:
+    return list(
+        session.execute(
+            select(ProductPriceRow)
+            .where(ProductPriceRow.product_id == product_db_id)
+            .order_by(ProductPriceRow.is_lowest.desc(), ProductPriceRow.price.asc())
+        ).scalars()
+    )
+
+
+def _to_product_price(row: ProductPriceRow) -> ProductPrice:
+    return ProductPrice(
+        mall_name=row.mall_name,
+        price=row.price,
+        product_url=row.product_url,
+        is_lowest=row.is_lowest,
+    )
+
+
+def _build_purchase_info(
+    session: Session,
+    product_row: _ProductRow,
+    price_rows: list[ProductPriceRow],
+) -> ProductPurchaseInfo:
+    inventory = _load_inventory(session, product_row.product.id)
+    primary_price = price_rows[0] if price_rows else None
+    available_quantity = _available_quantity(inventory)
+    stock_status = _stock_status(inventory, available_quantity)
+    sales_status = inventory.sales_status if inventory else "UNKNOWN"
+    can_purchase = (
+        product_row.product.is_active
+        and product_row.seller.status == "ACTIVE"
+        and primary_price is not None
+        and sales_status == "ON_SALE"
+        and available_quantity is not None
+        and available_quantity > 0
+    )
+
+    return ProductPurchaseInfo(
+        seller_code=product_row.seller.seller_code,
+        seller_name=product_row.seller.display_name,
+        seller_type=product_row.seller.seller_type,
+        price=primary_price.price if primary_price else None,
+        currency=primary_price.currency if primary_price else None,
+        purchase_url=(
+            primary_price.product_url if primary_price else product_row.product.product_url
+        ),
+        can_purchase=can_purchase,
+        sales_status=sales_status,
+        stock_status=stock_status,
+        available_quantity=available_quantity,
+    )
+
+
+def _load_inventory(session: Session, product_db_id: int) -> Inventory | None:
+    return session.execute(
+        select(Inventory).where(Inventory.product_id == product_db_id)
+    ).scalar_one_or_none()
+
+
+def _available_quantity(inventory: Inventory | None) -> int | None:
+    if inventory is None:
+        return None
+    return max(
+        inventory.stock_quantity - inventory.reserved_quantity - inventory.safety_stock,
+        0,
+    )
+
+
+def _stock_status(inventory: Inventory | None, available_quantity: int | None) -> str:
+    if inventory is None:
+        return "UNKNOWN"
+    if inventory.sales_status == "HIDDEN":
+        return "HIDDEN"
+    if (
+        inventory.sales_status == "SOLD_OUT"
+        or available_quantity is None
+        or available_quantity <= 0
+    ):
+        return "SOLD_OUT"
+    if available_quantity <= 5:
+        return "LOW_STOCK"
+    return "IN_STOCK"
 
 
 def _load_product_ingredients(session: Session, product_db_id: int) -> list[ProductIngredient]:

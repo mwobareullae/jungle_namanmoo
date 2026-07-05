@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.db.models.catalog import Product
+from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
@@ -87,13 +89,11 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
     assert data["skin_type"] == "건성"
     assert data["sensitivity"] == "보통"
     assert [section["section_id"] for section in data["sections"]] == [
-        "best_sellers",
         "evidence_picks",
         "recommended_for_you",
     ]
 
     first_section = data["sections"][0]
-    assert first_section["title"] == "지금 인기있는 제품"
     assert first_section["algorithm"]
     assert 0 < len(first_section["products"]) <= 2
 
@@ -112,8 +112,110 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
         "reason_summary",
         "display_score",
     }.issubset(product)
+    assert product["thumbnail_url"].startswith("products/")
+    assert not product["thumbnail_url"].startswith("http")
     assert product["badges"]
     assert 0 <= product["display_score"] <= 100
+
+
+def test_get_popular_products_returns_metric_ranked_products(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        first_product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        second_product = session.execute(
+            select(Product).where(Product.product_code == "prod_002")
+        ).scalar_one()
+        session.add_all(
+            [
+                ProductPopularityMetric(
+                    product_id=first_product.id,
+                    window_days=7,
+                    view_count=100,
+                    click_count=30,
+                    cart_add_count=10,
+                    order_count=5,
+                    units_sold=6,
+                    review_count=20,
+                    average_rating=4.5,
+                    popularity_score=70,
+                ),
+                ProductPopularityMetric(
+                    product_id=second_product.id,
+                    window_days=7,
+                    view_count=200,
+                    click_count=60,
+                    cart_add_count=20,
+                    order_count=9,
+                    units_sold=12,
+                    review_count=40,
+                    average_rating=4.7,
+                    popularity_score=92,
+                ),
+            ]
+        )
+        session.commit()
+
+    response = client.get("/api/products/popular", params={"window_days": 7, "limit": 2})
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["window_days"] == 7
+    assert [item["product_id"] for item in data["items"]] == ["prod_002", "prod_001"]
+
+    first_item = data["items"][0]
+    assert first_item["thumbnail_url"].startswith("products/")
+    assert not first_item["thumbnail_url"].startswith("http")
+    assert first_item["popularity_score"] == 92.0
+    assert first_item["score_version"] == "popular_v1"
+    assert first_item["metrics"] == {
+        "view_count": 200,
+        "click_count": 60,
+        "cart_add_count": 20,
+        "order_count": 9,
+        "units_sold": 12,
+        "review_count": 40,
+        "average_rating": 4.7,
+    }
+
+
+def test_get_home_sections_includes_market_popular_when_metrics_exist(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        session.add(
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                view_count=100,
+                click_count=30,
+                cart_add_count=10,
+                order_count=5,
+                units_sold=6,
+                review_count=20,
+                average_rating=4.5,
+                popularity_score=88,
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/home/sections", params={"limit_per_section": 2})
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["sections"][0]["section_id"] == "market_popular"
+    assert data["sections"][0]["algorithm"] == "product_popularity_metrics_v1"
+    assert data["sections"][0]["products"][0]["product_id"] == "prod_001"
+    assert data["sections"][0]["products"][0]["display_score"] == 88
 
 
 def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:
@@ -150,6 +252,8 @@ def test_create_recommendation_applies_request_defaults(client: TestClient) -> N
         "score_breakdown",
         "commerce_handoff",
     }.issubset(product)
+    assert product["thumbnail_url"].startswith("products/")
+    assert not product["thumbnail_url"].startswith("http")
     assert product["commerce_handoff"] == {
         "product_id": product["product_id"],
         "quantity": 1,
@@ -507,12 +611,50 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
 
     data = response.json()
     assert data["product"]["product_id"] == "prod_001"
+    assert data["product"]["thumbnail_url"] == "products/prod_001/thumbnail.jpg"
     assert data["images"]
+    assert all(not image["storage_key"].startswith("http") for image in data["images"])
     assert data["prices"]
+    assert data["purchase_info"]["seller_code"] == "mwobareullae"
+    assert data["purchase_info"]["price"] == 19900
+    assert data["purchase_info"]["currency"] == "KRW"
+    assert data["purchase_info"]["stock_status"] == "UNKNOWN"
+    assert data["purchase_info"]["can_purchase"] is False
     assert data["ingredients"]
     assert data["evidence"]["ingredient_evidence"]
     assert data["sources"]
     assert data["product"]["commerce_handoff"] is None
+
+
+def test_get_product_detail_includes_purchase_stock_info(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product_id = session.execute(
+            select(Product.id).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        session.add(
+            Inventory(
+                product_id=product_id,
+                stock_quantity=8,
+                reserved_quantity=2,
+                safety_stock=1,
+                sales_status="ON_SALE",
+                inventory_source="TEST",
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/products/prod_001")
+
+    assert response.status_code == 200
+
+    purchase_info = response.json()["purchase_info"]
+    assert purchase_info["can_purchase"] is True
+    assert purchase_info["sales_status"] == "ON_SALE"
+    assert purchase_info["stock_status"] == "LOW_STOCK"
+    assert purchase_info["available_quantity"] == 5
 
 
 def test_get_product_detail_includes_recommendation_context(client: TestClient) -> None:

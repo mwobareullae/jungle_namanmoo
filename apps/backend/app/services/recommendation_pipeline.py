@@ -27,6 +27,7 @@ from app.schemas.recommendation import (
     ScoreBreakdown,
 )
 from app.services.product_candidates import ProductCandidate, list_product_candidates
+from app.services.product_image_service import load_thumbnail_storage_keys
 from app.services.concern_llm_parser import get_default_concern_llm_parser
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_result_store import save_recommendation_results
@@ -75,6 +76,7 @@ class _ResultRow:
     product: Product
     brand: Brand
     lowest_price: int
+    thumbnail_storage_key: str
 
 
 @dataclass(frozen=True)
@@ -297,6 +299,10 @@ def _load_result_rows(
         .offset(offset)
         .limit(limit)
     ).all()
+    thumbnail_storage_keys = load_thumbnail_storage_keys(
+        session,
+        [int(product.id) for _, product, _, _ in rows],
+    )
 
     return [
         _ResultRow(
@@ -304,6 +310,7 @@ def _load_result_rows(
             product=product,
             brand=brand,
             lowest_price=int(lowest_price or 0),
+            thumbnail_storage_key=thumbnail_storage_keys.get(int(product.id), ""),
         )
         for result, product, brand, lowest_price in rows
     ]
@@ -382,7 +389,7 @@ def _result_row_to_recommended_product(
         reason_summary=row.result.reason_summary or "조건에 맞는 상품을 추천 후보로 선정했습니다.",
         brand=row.brand.name,
         name=row.product.product_name,
-        thumbnail_url=row.product.thumbnail_url or "",
+        thumbnail_url=row.thumbnail_storage_key,
         lowest_price=row.lowest_price,
         evidence_tags=_evidence_tags(evidence),
         key_ingredients=_key_ingredients(evidence),
