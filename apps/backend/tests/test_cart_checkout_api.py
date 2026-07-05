@@ -143,10 +143,11 @@ def test_checkout_preview_revalidates_price_and_stock(
     _set_inventory(db_engine, "prod_001", stock_quantity=10)
     add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 3})
     assert add_response.status_code == 200
+    item_id = add_response.json()["items"][0]["id"]
     _set_primary_price(db_engine, "prod_001", 20900)
     _set_inventory(db_engine, "prod_001", stock_quantity=1)
 
-    preview_response = client.post("/api/checkout/preview")
+    preview_response = client.post("/api/checkout/preview", json={"cart_item_ids": [item_id]})
 
     assert preview_response.status_code == 200
     data = preview_response.json()
@@ -160,6 +161,74 @@ def test_checkout_preview_revalidates_price_and_stock(
     assert {"PRICE_CHANGED", "INSUFFICIENT_STOCK"}.issubset(warning_codes)
 
 
+def test_checkout_preview_uses_selected_cart_items_only(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    first_add = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 2})
+    second_add = client.post("/api/cart/items", json={"product_id": "prod_002", "quantity": 1})
+    assert first_add.status_code == 200
+    assert second_add.status_code == 200
+    selected_item_id = next(item["id"] for item in second_add.json()["items"] if item["product_id"] == "prod_002")
+
+    preview_response = client.post("/api/checkout/preview", json={"cart_item_ids": [selected_item_id]})
+
+    assert preview_response.status_code == 200
+    data = preview_response.json()
+    assert [item["product_id"] for item in data["items"]] == ["prod_002"]
+    assert data["subtotal"] == 22900
+    assert data["shipping_fee"] == 3000
+    assert data["total"] == 25900
+    assert data["shipping_groups"][0]["item_subtotal"] == 22900
+
+
+def test_checkout_preview_rejects_missing_or_duplicate_selected_items(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
+    item_id = add_response.json()["items"][0]["id"]
+
+    empty_response = client.post("/api/checkout/preview", json={"cart_item_ids": []})
+    duplicate_response = client.post("/api/checkout/preview", json={"cart_item_ids": [item_id, item_id]})
+    missing_response = client.post("/api/checkout/preview", json={"cart_item_ids": [item_id + 999]})
+
+    assert empty_response.status_code == 400
+    assert empty_response.json()["error"]["code"] == "EMPTY_CHECKOUT_SELECTION"
+    assert duplicate_response.status_code == 400
+    assert duplicate_response.json()["error"]["code"] == "DUPLICATE_CART_ITEM_ID"
+    assert missing_response.status_code == 404
+    assert missing_response.json()["error"]["code"] == "CART_ITEM_NOT_FOUND"
+
+
+def test_checkout_preview_validates_saved_address_ownership(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="checkout-address@example.com", nickname="checkout-address")
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
+    item_id = add_response.json()["items"][0]["id"]
+    address_response = _create_address(client)
+    address_id = address_response["id"]
+
+    ok_response = client.post(
+        "/api/checkout/preview",
+        json={"cart_item_ids": [item_id], "address_id": address_id},
+    )
+    missing_response = client.post(
+        "/api/checkout/preview",
+        json={"cart_item_ids": [item_id], "address_id": address_id + 999},
+    )
+
+    assert ok_response.status_code == 200
+    assert missing_response.status_code == 404
+    assert missing_response.json()["error"]["code"] == "ADDRESS_NOT_FOUND"
+
+
 def test_checkout_preview_uses_seller_shipping_policy(
     client: TestClient,
     db_engine: Engine,
@@ -168,8 +237,9 @@ def test_checkout_preview_uses_seller_shipping_policy(
     _set_shipping_policy(db_engine, "prod_001", base_shipping_fee=4500, free_shipping_threshold=30000)
     add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
     assert add_response.status_code == 200
+    item_id = add_response.json()["items"][0]["id"]
 
-    preview_response = client.post("/api/checkout/preview")
+    preview_response = client.post("/api/checkout/preview", json={"cart_item_ids": [item_id]})
 
     assert preview_response.status_code == 200
     data = preview_response.json()
@@ -238,6 +308,23 @@ def _signup(client: TestClient, *, email: str, nickname: str) -> None:
         },
     )
     assert response.status_code == 200
+
+
+def _create_address(client: TestClient) -> dict:
+    response = client.post(
+        "/api/me/addresses",
+        json={
+            "recipient_name": "Kim Wonwoo",
+            "phone": "01012345678",
+            "postal_code": "12345",
+            "address1": "Seoul",
+            "address2": "101",
+            "delivery_memo": "Leave at door",
+            "is_default": True,
+        },
+    )
+    assert response.status_code == 200
+    return response.json()
 
 
 def _set_inventory(
