@@ -114,6 +114,26 @@ def test_load_data_catalog_reads_optional_product_inventory(tmp_path: Path) -> N
     assert catalog.product_inventories[0].sales_status == "ON_SALE"
 
 
+def test_load_data_catalog_reads_optional_product_market_signals(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_market_signals.csv").write_text(
+        "product_id,review_count,average_rating,sales_count,sales_rank,recent_view_count,"
+        "wishlist_count,cart_add_count,source,updated_at\n"
+        "prod_001,20,4.5,12,,100,8,7,mock_p2_home,2026-07-04T00:00:00+09:00\n"
+        "prod_002,5,,0,3,20,2,1,mock_p2_home,2026-07-04T00:00:00+09:00\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.product_market_signals) == 2
+    assert catalog.product_market_signals[0].product_id == "prod_001"
+    assert catalog.product_market_signals[0].average_rating == pytest.approx(4.5)
+    assert catalog.product_market_signals[0].sales_rank is None
+    assert catalog.product_market_signals[1].sales_rank == 3
+
+
 def test_load_data_catalog_reports_missing_ingredient_alias_reference(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)

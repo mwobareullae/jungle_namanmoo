@@ -17,6 +17,7 @@ from app.models.data_contract import (
     ProductImageAsset,
     ProductInventory,
     ProductIngredient,
+    ProductMarketSignal,
     ProductPrice,
     ProductSkinProfile,
     RiskFlag,
@@ -66,6 +67,18 @@ CSV_HEADERS = {
         "sales_status",
         "safety_stock",
         "inventory_source",
+    },
+    "product_market_signals.csv": {
+        "product_id",
+        "review_count",
+        "average_rating",
+        "sales_count",
+        "sales_rank",
+        "recent_view_count",
+        "wishlist_count",
+        "cart_add_count",
+        "source",
+        "updated_at",
     },
     "product_ingredients.csv": {
         "product_id",
@@ -163,6 +176,11 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         "product_inventory.csv",
         _parse_product_inventory,
     )
+    product_market_signals = _load_optional_csv(
+        base_path,
+        "product_market_signals.csv",
+        _parse_product_market_signal,
+    )
     product_ingredients = _load_csv(
         base_path,
         "product_ingredients.csv",
@@ -204,6 +222,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         product_prices=product_prices,
         product_image_assets=product_image_assets,
         product_inventories=product_inventories,
+        product_market_signals=product_market_signals,
         product_ingredients=product_ingredients,
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
@@ -369,6 +388,25 @@ def _parse_product_inventory(row: dict[str, str], file_name: str, line_number: i
         sales_status=sales_status,
         safety_stock=_required_non_negative_int(row, "safety_stock", file_name, line_number),
         inventory_source=_required_text(row, "inventory_source", file_name, line_number),
+    )
+
+
+def _parse_product_market_signal(row: dict[str, str], file_name: str, line_number: int) -> ProductMarketSignal:
+    average_rating = _optional_float(row.get("average_rating"), "average_rating", file_name, line_number)
+    if average_rating is not None and not 0.0 <= average_rating <= 5.0:
+        raise DataLoadError(f"{file_name}:{line_number} average_rating must be between 0 and 5.")
+
+    return ProductMarketSignal(
+        product_id=_required_text(row, "product_id", file_name, line_number),
+        review_count=_optional_non_negative_int(row, "review_count", file_name, line_number),
+        average_rating=average_rating,
+        sales_count=_optional_non_negative_int(row, "sales_count", file_name, line_number),
+        sales_rank=_optional_positive_int(row, "sales_rank", file_name, line_number),
+        recent_view_count=_optional_non_negative_int(row, "recent_view_count", file_name, line_number),
+        wishlist_count=_optional_non_negative_int(row, "wishlist_count", file_name, line_number),
+        cart_add_count=_optional_non_negative_int(row, "cart_add_count", file_name, line_number),
+        source=_optional_text(row.get("source")) or "unknown",
+        updated_at=_optional_text(row.get("updated_at")),
     )
 
 
@@ -597,6 +635,12 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         product_ids,
     )
     _validate_references(
+        "product_market_signals.csv",
+        "product_id",
+        (signal.product_id for signal in catalog.product_market_signals),
+        product_ids,
+    )
+    _validate_references(
         "product_ingredients.csv",
         "product_id",
         (ingredient.product_id for ingredient in catalog.product_ingredients),
@@ -724,6 +768,24 @@ def _required_non_negative_int(row: dict[str, str], key: str, file_name: str, li
     value = _required_int(row, key, file_name, line_number)
     if value < 0:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값은 0 이상이어야 합니다.")
+    return value
+
+
+def _optional_non_negative_int(row: dict[str, str], key: str, file_name: str, line_number: int) -> int:
+    value = _optional_int(row.get(key), key, file_name, line_number)
+    if value is None:
+        return 0
+    if value < 0:
+        raise DataLoadError(f"{file_name}:{line_number} {key} must be 0 or greater.")
+    return value
+
+
+def _optional_positive_int(row: dict[str, str], key: str, file_name: str, line_number: int) -> int | None:
+    value = _optional_int(row.get(key), key, file_name, line_number)
+    if value is None:
+        return None
+    if value <= 0:
+        raise DataLoadError(f"{file_name}:{line_number} {key} must be greater than 0.")
     return value
 
 

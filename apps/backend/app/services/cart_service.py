@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
-from app.db.models.commerce import Cart, CartItem, Inventory, Seller, SellerShippingPolicy
+from app.db.models.commerce import Cart, CartItem, Inventory, Seller, SellerShippingPolicy, UserAddress
 from app.schemas.cart import (
     CartItem as CartItemSchema,
     CartMergeResponse,
@@ -257,11 +257,19 @@ def get_checkout_preview(
     session: Session,
     user: User | None,
     anonymous_cart_id: str | None,
+    *,
+    cart_item_ids: list[int],
+    address_id: int | None = None,
 ) -> CheckoutPreviewResponse:
+    selected_item_ids = _validate_checkout_cart_item_ids(cart_item_ids)
+    _validate_checkout_address(session, user, address_id)
+
     cart = _require_active_cart(session, user, anonymous_cart_id)
-    cart_response = _build_cart_response(session, cart, user)
+    cart_response = _build_cart_response(session, cart, user, item_ids=selected_item_ids)
     if not cart_response.items:
-        raise ApiError(400, "EMPTY_CART", "Cart is empty.")
+        raise ApiError(404, "CART_ITEM_NOT_FOUND", "Selected cart item was not found.")
+    if len(cart_response.items) != len(selected_item_ids):
+        raise ApiError(404, "CART_ITEM_NOT_FOUND", "Selected cart item was not found.")
 
     shipping_groups = _build_shipping_groups(session, cart, cart_response.items)
     shipping_fee = sum(group.shipping_fee for group in shipping_groups)
@@ -322,6 +330,37 @@ def _require_active_cart(
     if cart is None:
         raise ApiError(400, "EMPTY_CART", "Cart is empty.")
     return cart
+
+
+def _validate_checkout_cart_item_ids(cart_item_ids: list[int]) -> list[int]:
+    if not cart_item_ids:
+        raise ApiError(400, "EMPTY_CHECKOUT_SELECTION", "cart_item_ids is required.")
+    if any(item_id <= 0 for item_id in cart_item_ids):
+        raise ApiError(400, "INVALID_CART_ITEM_ID", "cart_item_ids must contain positive integers.")
+    if len(set(cart_item_ids)) != len(cart_item_ids):
+        raise ApiError(400, "DUPLICATE_CART_ITEM_ID", "cart_item_ids must not contain duplicates.")
+    return cart_item_ids
+
+
+def _validate_checkout_address(
+    session: Session,
+    user: User | None,
+    address_id: int | None,
+) -> None:
+    if address_id is None:
+        return
+    if address_id <= 0:
+        raise ApiError(400, "INVALID_ADDRESS_ID", "address_id must be a positive integer.")
+    if user is None:
+        raise ApiError(401, "LOGIN_REQUIRED", "Login is required to use a saved address.")
+    exists = session.execute(
+        select(UserAddress.id).where(
+            UserAddress.id == address_id,
+            UserAddress.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise ApiError(404, "ADDRESS_NOT_FOUND", "Address was not found.")
 
 
 def _load_active_cart(
@@ -401,8 +440,14 @@ def _merge_cart_items(
         session.delete(source_item)
 
 
-def _build_cart_response(session: Session, cart: Cart, user: User | None) -> CartResponse:
-    rows = session.execute(
+def _build_cart_response(
+    session: Session,
+    cart: Cart,
+    user: User | None,
+    *,
+    item_ids: list[int] | None = None,
+) -> CartResponse:
+    query = (
         select(CartItem, Product, Brand, ProductCategory, Seller)
         .join(Product, CartItem.product_id == Product.id)
         .join(Brand, Product.brand_id == Brand.id)
@@ -410,7 +455,10 @@ def _build_cart_response(session: Session, cart: Cart, user: User | None) -> Car
         .join(Seller, CartItem.seller_id == Seller.id)
         .where(CartItem.cart_id == cart.id)
         .order_by(CartItem.created_at.asc(), CartItem.id.asc())
-    ).all()
+    )
+    if item_ids is not None:
+        query = query.where(CartItem.id.in_(item_ids))
+    rows = session.execute(query).all()
 
     product_ids = [int(product.id) for _, product, _, _, _ in rows]
     thumbnails = load_thumbnail_storage_keys(session, product_ids)
@@ -456,7 +504,10 @@ def _build_shipping_groups(
     rows = session.execute(
         select(CartItem.id, Seller.id, Seller.seller_code, Seller.display_name)
         .join(Seller, CartItem.seller_id == Seller.id)
-        .where(CartItem.cart_id == cart.id)
+        .where(
+            CartItem.cart_id == cart.id,
+            CartItem.id.in_(list(item_subtotals)),
+        )
         .order_by(Seller.id.asc(), CartItem.id.asc())
     ).all()
 
