@@ -1,25 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { API_BASE_URL } from "../lib/api";
+import { AuthContext, type AuthUser } from "./authContextValue";
 
-export type AuthUser = {
-  id: number;
-  email: string;
-  nickname?: string | null;
-  role?: string;
-  status?: string;
-  created_at?: string | null;
-};
-
-type AuthContextValue = {
-  user: AuthUser | null;
-  isAuthLoading: boolean;
-  setAuthenticatedUser: (user: AuthUser) => void;
-  refreshAuthenticatedUser: () => Promise<AuthUser | null>;
-  logout: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 const AUTH_USER_STORAGE_KEY = "mwobareullae.auth.user";
 
 const isAuthUser = (value: unknown): value is AuthUser => {
@@ -161,12 +144,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-
-  return context;
-};
