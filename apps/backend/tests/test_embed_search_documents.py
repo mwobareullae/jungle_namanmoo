@@ -6,6 +6,8 @@ from app.cli.embed_search_documents import (
     embed_search_documents,
 )
 from app.db.base import Base
+from app.db.models.catalog import Product
+from app.db.models.search import SearchDocument
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
 from app.services.embeddings import LocalHashEmbeddingProvider
@@ -24,6 +26,36 @@ def test_embed_search_documents_dry_run_reports_estimated_input_chars() -> None:
     assert result.dimensions == 64
     assert result.estimated_input_chars > 0
     assert result.dry_run is True
+
+
+def test_embed_search_documents_can_limit_to_join_documents() -> None:
+    session = _seed_example_session()
+    provider = LocalHashEmbeddingProvider(dimensions=64)
+    product = session.query(Product).order_by(Product.id.asc()).first()
+    assert product is not None
+    session.add(
+        SearchDocument(
+            document_code=f"idx_prod_join_{product.product_code}",
+            document_type="product",
+            product_id=product.id,
+            title="join document",
+            content="pending-free joined product document",
+            keywords="join document",
+        )
+    )
+    session.commit()
+
+    all_result = embed_search_documents(session, provider=provider, dry_run=True)
+    join_result = embed_search_documents(
+        session,
+        provider=provider,
+        join_docs_only=True,
+        dry_run=True,
+    )
+
+    assert all_result.scanned == 5
+    assert join_result.scanned == 1
+    assert join_result.estimated_input_chars > 0
 
 
 def test_validate_cli_provider_blocks_local_hash_for_server_batches() -> None:

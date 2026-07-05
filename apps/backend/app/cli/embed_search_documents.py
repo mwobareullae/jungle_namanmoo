@@ -13,6 +13,7 @@ from app.services.embeddings import (
     format_vector,
     get_default_embedding_provider,
 )
+from app.services.search_index_builder import DOCUMENT_CODE_PREFIX as JOIN_DOCUMENT_CODE_PREFIX
 
 
 DEFAULT_BATCH_SIZE = 32
@@ -52,6 +53,7 @@ def main() -> None:
             limit=args.limit,
             batch_size=args.batch_size,
             force=args.force,
+            join_docs_only=args.join_docs_only,
             dry_run=args.dry_run,
         )
         if args.dry_run:
@@ -69,6 +71,7 @@ def embed_search_documents(
     limit: int | None = None,
     batch_size: int = DEFAULT_BATCH_SIZE,
     force: bool = False,
+    join_docs_only: bool = False,
     dry_run: bool = False,
 ) -> EmbedSearchDocumentsResult:
     documents = _load_documents_to_embed(
@@ -76,6 +79,7 @@ def embed_search_documents(
         provider=provider,
         limit=limit,
         force=force,
+        join_docs_only=join_docs_only,
     )
     estimated_input_chars = _estimate_input_chars(documents)
     if dry_run:
@@ -124,8 +128,11 @@ def _load_documents_to_embed(
     provider: EmbeddingProvider,
     limit: int | None,
     force: bool,
+    join_docs_only: bool,
 ) -> list[SearchDocument]:
     statement = select(SearchDocument).order_by(SearchDocument.id.asc())
+    if join_docs_only:
+        statement = statement.where(SearchDocument.document_code.like(f"{JOIN_DOCUMENT_CODE_PREFIX}%"))
     if not force:
         statement = statement.where(
             or_(
@@ -204,6 +211,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=None, help="Maximum documents to embed.")
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--force", action="store_true", help="Re-embed documents even if embeddings exist.")
+    parser.add_argument(
+        "--join-docs-only",
+        action="store_true",
+        help="Only embed search index builder documents with the idx_prod_join_ prefix.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Only count target documents.")
     parser.add_argument(
         "--require-openai",
