@@ -109,11 +109,14 @@ function SkinTestResultPage() {
 
     try {
       await api.applySkinTestResult(result.result_id);
-      navigate("/", { replace: false });
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+    } catch {
+      // Recommendation page can still use result_id even if profile persistence is not ready.
     } finally {
       setIsApplying(false);
+      navigate(`/skin-test/recommendations?result_id=${result.result_id}`, {
+        replace: false,
+        state: { result },
+      });
     }
   };
 
@@ -199,7 +202,7 @@ function SkinTestResultPage() {
                   onClick={handleApplyAndRecommend}
                   type="button"
                 >
-                  {isApplying ? "프로필 반영 중" : "내 피부 맞춤 추천 보기"}
+                  {isApplying ? "추천 화면 준비 중" : "내 피부 맞춤 추천 보기"}
                 </button>
                 <button className="skin-test-secondary-button" onClick={handleShare} type="button">
                   결과 공유하기
