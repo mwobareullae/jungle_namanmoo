@@ -1,6 +1,9 @@
+import json
+import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
@@ -13,6 +16,7 @@ from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.session import get_db
 from app.main import app
+from app.middleware.request_logging import request_logging_middleware
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -58,19 +62,82 @@ def test_health_endpoint_returns_ok(client: TestClient) -> None:
 
 def test_health_endpoint_includes_request_observability_headers(
     client: TestClient,
-    caplog,
 ) -> None:
-    caplog.set_level("INFO", logger="mwobareullae.request")
+    logs = _capture_request_logs()
 
-    response = client.get("/api/health", headers={"X-Request-ID": "test-request-id"})
+    try:
+        response = client.get("/api/health", headers={"X-Request-ID": "test-request-id"})
+    finally:
+        logs.close()
 
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == "test-request-id"
     assert float(response.headers["X-Process-Time-Ms"]) >= 0
-    assert any(
-        "request_finished" in record.message and "test-request-id" in record.message
-        for record in caplog.records
+
+    payload = logs.json_lines[-1]
+    assert payload["service"] == "commerce-backend"
+    assert payload["request_id"] == "test-request-id"
+    assert payload["method"] == "GET"
+    assert payload["endpoint"] == "/api/health"
+    assert payload["status_code"] == 200
+    assert payload["response_time_ms"] >= 0
+    assert payload["user_id"] is None
+    assert payload["error"] is None
+    assert payload["timestamp"].endswith("Z")
+
+
+def test_request_log_includes_authenticated_user_id(client: TestClient) -> None:
+    signup_response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "request-log-user@example.com",
+            "password": "password123",
+            "nickname": "request-log-user",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
     )
+    logs = _capture_request_logs()
+
+    try:
+        response = client.get("/api/me", headers={"X-Request-ID": "auth-log-request"})
+    finally:
+        logs.close()
+
+    assert signup_response.status_code == 200
+    assert response.status_code == 200
+    assert logs.json_lines[-1]["request_id"] == "auth-log-request"
+    assert logs.json_lines[-1]["endpoint"] == "/api/me"
+    assert logs.json_lines[-1]["user_id"] == str(response.json()["id"])
+
+
+def test_request_log_records_unhandled_exception_as_json() -> None:
+    test_app = FastAPI()
+    test_app.middleware("http")(request_logging_middleware)
+
+    @test_app.get("/boom/{item_id}")
+    def boom(item_id: str):
+        raise RuntimeError(f"boom {item_id}")
+
+    logs = _capture_request_logs()
+    try:
+        response = TestClient(test_app, raise_server_exceptions=False).get(
+            "/boom/123",
+            headers={"X-Request-ID": "boom-request"},
+        )
+    finally:
+        logs.close()
+
+    assert response.status_code == 500
+    payload = logs.json_lines[-1]
+    assert payload["request_id"] == "boom-request"
+    assert payload["endpoint"] == "/boom/{item_id}"
+    assert payload["status_code"] == 500
+    assert payload["error"] == "RuntimeError"
 
 
 def test_get_home_sections_returns_main_page_products(client: TestClient) -> None:
@@ -718,6 +785,30 @@ def test_openapi_docs_are_available(client: TestClient) -> None:
     response = client.get("/docs")
 
     assert response.status_code == 200
+
+
+def _capture_request_logs():
+    logger = logging.getLogger("mwobareullae.request")
+    handler = _RequestLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler
+
+
+class _RequestLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.request").removeHandler(self)
+        super().close()
 
 
 def _expire_recommendation(db_engine: Engine, recommendation_id: str) -> None:
