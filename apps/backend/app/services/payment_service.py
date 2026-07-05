@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any, Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.models.auth import User
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
 from app.schemas.common import ApiError
-from app.schemas.payment import PaymentActionResponse
+from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
+from app.services.toss_payments_client import TossPaymentsClientError
 
 
 ORDER_STATUS_PENDING_PAYMENT = "PENDING_PAYMENT"
@@ -15,6 +17,12 @@ ORDER_STATUS_PAYMENT_FAILED = "PAYMENT_FAILED"
 PAYMENT_STATUS_READY = "READY"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_STATUS_FAILED = "FAILED"
+PAYMENT_PROVIDER_TOSS = "TOSS"
+
+
+class TossConfirmClient(Protocol):
+    def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict[str, Any]:
+        pass
 
 
 def confirm_mock_payment(
@@ -41,30 +49,64 @@ def confirm_mock_payment(
     if order.payment_expires_at is not None and _as_utc(order.payment_expires_at) <= now:
         raise ApiError(409, "PAYMENT_EXPIRED", "Payment window has expired.")
 
-    order_items = _load_order_items(session, order.id)
-    inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
-    _confirm_reserved_inventory(session, order, order_items, inventories, now)
-
-    old_payment_status = payment.status
-    payment.status = PAYMENT_STATUS_APPROVED
-    payment.approved_at = now
-    payment.updated_at = now
-    order.status = ORDER_STATUS_PAID
-    order.paid_at = now
-    order.updated_at = now
-    _record_payment_event(
+    return _approve_payment(
         session,
         payment=payment,
         order=order,
         event_type="MOCK_PAYMENT_APPROVED",
         event_id=f"mock_confirm:{payment.payment_code}",
-        status_before=old_payment_status,
-        status_after=payment.status,
         payload={"source": "mock_confirm"},
         now=now,
     )
-    session.flush()
-    return _to_response(order, payment)
+
+
+def confirm_toss_payment(
+    session: Session,
+    user: User,
+    request: TossPaymentConfirmRequest,
+    toss_client: TossConfirmClient,
+) -> PaymentActionResponse:
+    payment_key = request.payment_key.strip()
+    order_code = request.order_code.strip()
+    if not payment_key or not order_code:
+        raise ApiError(400, "INVALID_TOSS_CONFIRM_REQUEST", "payment_key and order_code are required.")
+
+    payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=False)
+    now = datetime.now(UTC)
+    if _is_approved_payment(payment, order):
+        _require_same_provider_payment_key(payment, payment_key)
+        return _to_response(order, payment)
+    _require_toss_confirmable(payment, order, request.amount, now)
+
+    try:
+        toss_response = toss_client.confirm_payment(
+            payment_key=payment_key,
+            order_code=order_code,
+            amount=request.amount,
+        )
+    except TossPaymentsClientError as exc:
+        raise ApiError(502, "TOSS_CONFIRM_FAILED", exc.message) from exc
+    _validate_toss_confirm_response(toss_response, payment_key, order_code, request.amount)
+
+    session.expire_all()
+    payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=True)
+    now = datetime.now(UTC)
+    if _is_approved_payment(payment, order):
+        _require_same_provider_payment_key(payment, payment_key)
+        return _to_response(order, payment)
+    _require_toss_confirmable(payment, order, request.amount, now)
+
+    payment.provider_payment_key = payment_key
+    payment.provider_order_id = order_code
+    return _approve_payment(
+        session,
+        payment=payment,
+        order=order,
+        event_type="TOSS_PAYMENT_APPROVED",
+        event_id=f"toss_confirm:{payment_key}",
+        payload=_build_toss_event_payload(toss_response),
+        now=now,
+    )
 
 
 def fail_mock_payment(
@@ -131,9 +173,140 @@ def _load_user_payment(session: Session, user_id: int, payment_code: str) -> tup
     return row
 
 
+def _load_user_payment_by_order_code(
+    session: Session,
+    user_id: int,
+    order_code: str,
+    *,
+    for_update: bool,
+) -> tuple[Payment, Order]:
+    normalized_code = order_code.strip()
+    if not normalized_code:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
+    statement = (
+        select(Payment, Order)
+        .join(Order, Payment.order_id == Order.id)
+        .where(
+            Order.order_code == normalized_code,
+            Order.user_id == user_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+    if for_update:
+        statement = statement.with_for_update()
+    row = session.execute(statement).one_or_none()
+    if row is None:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
+    return row
+
+
 def _require_status(condition: bool, code: str, message: str) -> None:
     if not condition:
         raise ApiError(409, code, message)
+
+
+def _is_approved_payment(payment: Payment, order: Order) -> bool:
+    return payment.status == PAYMENT_STATUS_APPROVED and order.status == ORDER_STATUS_PAID
+
+
+def _require_same_provider_payment_key(payment: Payment, payment_key: str) -> None:
+    if payment.provider_payment_key is not None and payment.provider_payment_key != payment_key:
+        raise ApiError(409, "PAYMENT_KEY_CONFLICT", "Payment was already approved with another payment key.")
+
+
+def _require_toss_confirmable(payment: Payment, order: Order, amount: int, now: datetime) -> None:
+    _require_status(
+        payment.provider == PAYMENT_PROVIDER_TOSS,
+        "PAYMENT_PROVIDER_MISMATCH",
+        "Payment provider is not TOSS.",
+    )
+    _require_status(
+        order.status == ORDER_STATUS_PENDING_PAYMENT,
+        "ORDER_NOT_PENDING_PAYMENT",
+        "Order is not pending payment.",
+    )
+    _require_status(
+        payment.status == PAYMENT_STATUS_READY,
+        "PAYMENT_NOT_READY",
+        "Payment is not ready.",
+    )
+    _require_status(
+        amount == order.total_amount and amount == payment.amount,
+        "PAYMENT_AMOUNT_MISMATCH",
+        "Payment amount does not match order total.",
+    )
+    if order.payment_expires_at is not None and _as_utc(order.payment_expires_at) <= now:
+        raise ApiError(409, "PAYMENT_EXPIRED", "Payment window has expired.")
+
+
+def _validate_toss_confirm_response(
+    payload: dict[str, Any],
+    payment_key: str,
+    order_code: str,
+    amount: int,
+) -> None:
+    if payload.get("paymentKey") not in (None, payment_key):
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss payment key mismatch.")
+    if payload.get("orderId") not in (None, order_code):
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss order id mismatch.")
+    if "totalAmount" in payload:
+        try:
+            provider_amount = int(payload["totalAmount"])
+        except (TypeError, ValueError) as exc:
+            raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount is invalid.") from exc
+        if provider_amount != amount:
+            raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount mismatch.")
+    if payload.get("status") not in (None, "DONE"):
+        raise ApiError(502, "TOSS_CONFIRM_NOT_DONE", "Toss payment was not completed.")
+
+
+def _build_toss_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": "toss_confirm",
+        "payment_key": payload.get("paymentKey"),
+        "order_id": payload.get("orderId"),
+        "status": payload.get("status"),
+        "total_amount": payload.get("totalAmount"),
+        "method": payload.get("method"),
+        "approved_at": payload.get("approvedAt"),
+        "requested_at": payload.get("requestedAt"),
+    }
+
+
+def _approve_payment(
+    session: Session,
+    *,
+    payment: Payment,
+    order: Order,
+    event_type: str,
+    event_id: str,
+    payload: dict[str, Any],
+    now: datetime,
+) -> PaymentActionResponse:
+    order_items = _load_order_items(session, order.id)
+    inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
+    _confirm_reserved_inventory(session, order, order_items, inventories, now)
+
+    old_payment_status = payment.status
+    payment.status = PAYMENT_STATUS_APPROVED
+    payment.approved_at = now
+    payment.updated_at = now
+    order.status = ORDER_STATUS_PAID
+    order.paid_at = now
+    order.updated_at = now
+    _record_payment_event(
+        session,
+        payment=payment,
+        order=order,
+        event_type=event_type,
+        event_id=event_id,
+        status_before=old_payment_status,
+        status_after=payment.status,
+        payload=payload,
+        now=now,
+    )
+    session.flush()
+    return _to_response(order, payment)
 
 
 def _load_order_items(session: Session, order_id: int) -> list[OrderItem]:

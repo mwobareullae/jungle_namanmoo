@@ -1,6 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class TossPaymentConfirmRequest(BaseModel):
+    payment_key: str = Field(..., min_length=1)
+    order_code: str = Field(..., min_length=1)
+    amount: int = Field(..., ge=0)
 
 
 class PaymentActionResponse(BaseModel):

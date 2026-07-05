@@ -604,6 +604,10 @@ Response:
 
 Toss sandbox confirm contract.
 
+Backend env:
+
+- `TOSS_SECRET_KEY`: TossPayments secret key. Keep the real sandbox/live key only in local `.env`, GitHub Secrets, or server env.
+
 Request:
 
 ```json
