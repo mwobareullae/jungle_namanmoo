@@ -5,7 +5,8 @@ from app.api.dependencies import get_current_user
 from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
-from app.schemas.order import OrderCreateRequest, OrderCreateResponse
+from app.schemas.order import OrderCancelResponse, OrderCreateRequest, OrderCreateResponse
+from app.services.order_cancel_service import cancel_order
 from app.services.order_service import create_order
 
 
@@ -29,5 +30,24 @@ def post_order(
     session: Session = Depends(get_db),
 ) -> OrderCreateResponse:
     response = create_order(session, current_user, request, idempotency_key)
+    session.commit()
+    return response
+
+
+@router.post(
+    "/orders/{order_code}/cancel",
+    response_model=OrderCancelResponse,
+    responses={
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
+def post_order_cancel(
+    order_code: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> OrderCancelResponse:
+    response = cancel_order(session, current_user, order_code)
     session.commit()
     return response
