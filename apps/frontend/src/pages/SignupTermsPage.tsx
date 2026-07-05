@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
 import { privacyPolicy, termsOfService } from "../content/terms";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
