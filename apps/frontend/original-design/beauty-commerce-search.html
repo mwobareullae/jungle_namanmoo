@@ -3345,6 +3345,7 @@ function fetchWithTimeout(url, options = {}) {
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   return fetch(url, {
+    credentials: 'include',
     ...options,
     signal: controller.signal
   }).finally(() => clearTimeout(timeoutId));
