@@ -6,7 +6,7 @@
 
 This API does not calculate popularity from raw event/order/review tables on every request. It reads `product_popularity_metrics`, a read model prepared for fast home and best-seller screens.
 
-`data/product_market_signals.csv` is not trusted as real service behavior data. It is only a mock/sample signal file unless a separate import decision is made.
+`data/product_market_signals.csv` is not trusted as real service behavior data. For local/dev P2 demos, seed imports it into `product_popularity_metrics` with `score_version=mock_market_signals_v1`; later event/order/review aggregation should replace it.
 
 ## Endpoint
 
