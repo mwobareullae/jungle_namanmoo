@@ -54,41 +54,53 @@ def test_build_product_search_index_documents_skips_pending_ingredients() -> Non
     session = _seed_example_session()
     product = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
     effect = session.execute(select(Effect).where(Effect.effect_code == "effect_moisturizing")).scalar_one()
-    pending_ingredient = Ingredient(
-        ingredient_code="ing_pending_example",
-        name_ko="검증전성분",
-        name_en="Pending Ingredient",
-        normalized_name="검증전성분",
-        is_active=True,
-    )
-    session.add(pending_ingredient)
+    pending_ingredients = [
+        Ingredient(
+            ingredient_code="ing_pending_example",
+            name_ko="검증전성분",
+            name_en="Pending Ingredient",
+            normalized_name="검증전성분",
+            is_active=True,
+        ),
+        Ingredient(
+            ingredient_code="foreign_pending_example",
+            name_ko="해외검증전성분",
+            name_en="Foreign Pending Ingredient",
+            normalized_name="해외검증전성분",
+            is_active=True,
+        ),
+    ]
+    session.add_all(pending_ingredients)
     session.flush()
-    session.add(
-        ProductIngredient(
-            product_id=product.id,
-            ingredient_id=pending_ingredient.id,
-            ingredient_name="검증전성분",
-            content_confidence="low",
-            display_order=99,
-            concentration_confidence="unknown",
+    for display_order, pending_ingredient in enumerate(pending_ingredients, start=99):
+        session.add(
+            ProductIngredient(
+                product_id=product.id,
+                ingredient_id=pending_ingredient.id,
+                ingredient_name=pending_ingredient.name_ko,
+                content_confidence="low",
+                display_order=display_order,
+                concentration_confidence="unknown",
+            )
         )
-    )
-    session.add(
-        IngredientEffect(
-            ingredient_id=pending_ingredient.id,
-            effect_id=effect.id,
-            effect_score=99,
+        session.add(
+            IngredientEffect(
+                ingredient_id=pending_ingredient.id,
+                effect_id=effect.id,
+                effect_score=99,
+            )
         )
-    )
 
     result = build_product_search_index_documents(session)
     document = session.execute(
         select(SearchDocument).where(SearchDocument.document_code == f"{DOCUMENT_CODE_PREFIX}prod_001")
     ).scalar_one()
 
-    assert result.pending_ingredients_skipped == 1
+    assert result.pending_ingredients_skipped == 2
     assert "검증전성분" not in document.content
     assert "검증전성분" not in document.keywords
+    assert "해외검증전성분" not in document.content
+    assert "해외검증전성분" not in document.keywords
 
 
 def test_build_product_search_index_documents_is_idempotent() -> None:

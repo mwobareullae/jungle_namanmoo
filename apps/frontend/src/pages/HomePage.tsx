@@ -4,12 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import { installHomeRuntime } from "../lib/homeRuntime";
-import {
-  HomeFooter,
-  HomeHowItWorks,
-  HomeIngredientGuide,
-  HomeMatchResult,
-} from "../components/HomeStaticSections";
+import { HomeFooter, HomeMatchResult } from "../components/HomeStaticSections";
 
 type HomeSection = {
   id: string;
@@ -70,10 +65,8 @@ function HomePage({ bodyHtml }: HomePageProps) {
           <HomeMatchResult key={section.id} />
         ) : section.id === "maincontent" ? (
           <HomeMainContent key={section.id} />
-        ) : section.id === "howitworks" ? (
-          <HomeHowItWorks key={section.id} />
-        ) : section.id === "ingredients" ? (
-          <HomeIngredientGuide key={section.id} />
+        ) : section.id === "howitworks" || section.id === "ingredients" ? (
+          null
         ) : section.id === "footer" ? (
           <HomeFooter key={section.id} />
         ) : (
