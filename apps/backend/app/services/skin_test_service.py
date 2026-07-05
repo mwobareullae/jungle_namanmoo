@@ -513,6 +513,7 @@ def _sync_default_questions(session: Session, version: SkinTestVersion) -> None:
                 question_text=question_seed.question_text,
             )
             session.add(question)
+            session.flush()
         question.sequence = question_seed.sequence
         question.axis = question_seed.axis
         question.question_text = question_seed.question_text
