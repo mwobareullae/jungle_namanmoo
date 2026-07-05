@@ -92,7 +92,7 @@ body {
 
 .hero {
   position: relative !important;
-  z-index: 120 !important;
+  z-index: 20 !important;
   isolation: isolate;
 }
 
@@ -109,11 +109,11 @@ body {
 .search-container,
 .search-container.suggestions-open {
   position: relative !important;
-  z-index: 600 !important;
+  z-index: 40 !important;
 }
 
 .search-container.suggestions-open {
-  z-index: 800 !important;
+  z-index: 90 !important;
 }
 
 .search-combo {
@@ -125,11 +125,28 @@ body {
   z-index: 20 !important;
 }
 
+.profile-picker-grid {
+  padding: 0 16px;
+}
+
+.profile-picker-label {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
 .profile-option.active {
   background: #d8f1f8 !important;
   color: #063445 !important;
   font-weight: 700 !important;
   box-shadow: inset 0 0 0 1px rgba(35, 144, 181, 0.32);
+}
+
+.profile-option.active:first-child {
+  border-radius: 10px 0 0 10px;
+}
+
+.profile-option.active:last-child {
+  border-radius: 0 10px 10px 0;
 }
 
 .profile-option.active:hover {
@@ -181,8 +198,12 @@ body {
 }
 
 .recommendation-guide-shell {
-  --font-display: "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-ui: "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display:
+    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --font-ui:
+    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    sans-serif;
   --ink: #1a1a1a;
   --ink2: #3d3d3d;
   --muted: #6b7280;

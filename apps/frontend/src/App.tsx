@@ -124,7 +124,7 @@ function LegacyApp() {
 
       .hero {
         position: relative !important;
-        z-index: 120 !important;
+        z-index: 20 !important;
       }
 
       .main-content {
@@ -135,11 +135,11 @@ function LegacyApp() {
       .search-container,
       .search-container.suggestions-open {
         position: relative !important;
-        z-index: 600 !important;
+        z-index: 40 !important;
       }
 
       .search-suggest-panel {
-        z-index: 620 !important;
+        z-index: 90 !important;
       }
 
       .search-results-panel .sort-select {

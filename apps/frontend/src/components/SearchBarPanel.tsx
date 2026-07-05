@@ -1,13 +1,10 @@
 import { useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
-import type { Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile } from "../types/recommendation";
 
 type SearchBarPanelProps = {
   initialQuery?: string;
-  initialProfile: {
-    skin: SkinType;
-    sensitivity: Sensitivity;
-  };
+  initialProfile: RecommendationProfile;
 };
 
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
@@ -25,7 +22,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile }: SearchBarPanelPro
       keyword: trimmedQuery,
       skin_type: profile.skin,
       sensitivity: profile.sensitivity,
-      page_size: "10",
+      page_size: "10"
     });
     window.location.href = `/search?${params.toString()}`;
   };
