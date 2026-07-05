@@ -57,7 +57,8 @@ const requestAuthenticatedUser = async (): Promise<AuthUser | null> => {
   });
 
   if (!response.ok) {
-    return readStoredAuthUser();
+    clearStoredAuthUser();
+    return null;
   }
 
   return parseUserResponse(response);
