@@ -37,8 +37,24 @@
 
 @font-face {
   font-family: "GmarketSans";
+  src: url("/fonts/gmarket/GmarketSansTTFLight.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GmarketSans";
   src: url("/fonts/gmarket/GmarketSansTTFMedium.ttf") format("truetype");
   font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/gmarket/GmarketSansTTFBold.ttf") format("truetype");
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -137,6 +153,288 @@ body {
 
 .search-page-shell #defaultSection {
   display: none;
+}
+
+.search-examples.search-examples--with-guide {
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+.recommendation-guide-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-left: auto;
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.recommendation-guide-link:hover,
+.recommendation-guide-link:focus-visible {
+  color: var(--accent-text, #2aa6d1);
+  text-decoration: none;
+  outline: none;
+}
+
+.recommendation-guide-shell {
+  --font-display: "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-ui: "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  --ink: #1a1a1a;
+  --ink2: #3d3d3d;
+  --muted: #6b7280;
+  --border: rgba(0, 0, 0, 0.07);
+  --mint: #94e0f8;
+  --accent-text: #2aa6d1;
+  --rm: 14px;
+
+  min-height: 100vh;
+  background: #ffffff;
+  font-family: var(--font-ui);
+}
+
+.recommendation-guide-shell > header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+}
+
+.recommendation-guide-shell header nav a {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+.recommendation-guide-shell header nav a:hover {
+  color: var(--ink);
+}
+
+.recommendation-guide-shell header .icon-btn {
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.recommendation-guide-shell header .icon-btn:hover {
+  background: rgba(148, 224, 248, 0.16);
+  color: var(--ink);
+}
+
+.recommendation-guide-page {
+  min-height: 100vh;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: var(--font-ui);
+}
+
+.recommendation-guide-page__inner {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 52px 0 72px;
+}
+
+.recommendation-guide-hero {
+  max-width: 760px;
+  margin-bottom: 54px;
+}
+
+.recommendation-guide-eyebrow {
+  margin: 0 0 10px;
+  color: #2aa6d1;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.recommendation-guide-hero h1 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: clamp(34px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+
+.recommendation-guide-hero p:not(.recommendation-guide-eyebrow) {
+  margin: 18px 0 0;
+  color: #6b7280;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.72;
+}
+
+.recommendation-guide-section {
+  padding: 46px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.recommendation-guide-section__head {
+  margin-bottom: 24px;
+}
+
+.recommendation-guide-section__head h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.recommendation-guide-section__head p:not(.recommendation-guide-eyebrow) {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.recommendation-guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.recommendation-guide-step {
+  display: grid;
+  justify-items: center;
+  min-height: 220px;
+  padding: 26px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.recommendation-guide-step__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 82px;
+  height: 82px;
+  margin-bottom: 24px;
+  border: 1.5px solid #94e0f8;
+  border-radius: 50%;
+  color: #94e0f8;
+}
+
+.recommendation-guide-step__icon svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.recommendation-guide-step__number {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #94e0f8;
+  color: #063445;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.recommendation-guide-step h3,
+.recommendation-guide-ingredient h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.recommendation-guide-step p,
+.recommendation-guide-ingredient p {
+  margin: 12px 0 0;
+  color: #55585d;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.72;
+}
+
+.recommendation-guide-ingredients {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.recommendation-guide-ingredient {
+  min-height: 188px;
+  padding: 26px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.recommendation-guide-ingredient__effect {
+  margin-top: 8px;
+  color: #2aa6d1;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+@media (max-width: 920px) {
+  .recommendation-guide-steps,
+  .recommendation-guide-ingredients {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-guide-page__inner {
+    width: min(100% - 32px, 1180px);
+    padding: 34px 0 56px;
+  }
+
+  .recommendation-guide-steps,
+  .recommendation-guide-ingredients {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-guide-step,
+  .recommendation-guide-ingredient {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .search-examples.search-examples--with-guide {
+    justify-content: center !important;
+  }
+
+  .recommendation-guide-link {
+    flex-basis: 100%;
+    justify-content: center;
+    min-height: 28px;
+    margin-left: 0;
+    margin-top: 2px;
+  }
 }
 
 .search-page-top {
