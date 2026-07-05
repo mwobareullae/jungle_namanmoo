@@ -145,13 +145,21 @@ def post_checkout_preview(
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> CheckoutPreviewResponse:
-    return get_checkout_preview(
+    preview = get_checkout_preview(
         session,
         current_user,
         anonymous_cart_id,
         cart_item_ids=request.cart_item_ids,
         address_id=request.address_id,
     )
+    _record_checkout_started_event(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=anonymous_cart_id,
+        request=request,
+        preview=preview,
+    )
+    return preview
 
 
 def _set_anonymous_cart_cookie(response: Response, anonymous_cart_id: str) -> None:
@@ -207,3 +215,39 @@ def _record_cart_added_event(
     except Exception:
         session.rollback()
         logger.exception("failed_to_record_cart_added_event")
+
+
+def _record_checkout_started_event(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    request: CheckoutPreviewRequest,
+    preview: CheckoutPreviewResponse,
+) -> None:
+    try:
+        create_event_log(
+            session,
+            EventLogCreateRequest(
+                event_name="checkout_started",
+                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                cart_id=preview.cart_id,
+                source="checkout_preview",
+                page="checkout",
+                metadata={
+                    "item_count": len(preview.items),
+                    "total_quantity": sum(item.quantity for item in preview.items),
+                    "subtotal": preview.subtotal,
+                    "shipping_fee": preview.shipping_fee,
+                    "total": preview.total,
+                    "can_checkout": preview.can_checkout,
+                    "warning_codes": [warning.code for warning in preview.warnings],
+                    "address_id_provided": request.address_id is not None,
+                },
+            ),
+            current_user=current_user,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("failed_to_record_checkout_started_event")
