@@ -43,3 +43,8 @@ class OrderCreateResponse(BaseModel):
     total: int
     currency: str
     payment_expires_at: datetime | None
+
+
+class OrderCancelResponse(BaseModel):
+    order_code: str
+    status: str
