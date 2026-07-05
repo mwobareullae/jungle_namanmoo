@@ -299,7 +299,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
   };
 };
 
-const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
+export const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
 
@@ -324,7 +324,7 @@ const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) =>
   }
 };
 
-const parseJson = async <T>(response: Response): Promise<T> => {
+export const parseJson = async <T>(response: Response): Promise<T> => {
   const body = (await response.json().catch(() => null)) as T | BackendErrorResponse | null;
 
   if (!response.ok) {
