@@ -8,8 +8,7 @@ import type {
   ProductCardItem,
   RecommendationResponse,
   RecommendationPagination,
-  Sensitivity,
-  SkinType,
+  RecommendationProfile
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 
@@ -21,7 +20,7 @@ const createFallbackPagination = (productCount: number): RecommendationPaginatio
   total_items: productCount,
   total_pages: productCount > 0 ? 1 : 0,
   has_next: false,
-  has_prev: false,
+  has_prev: false
 });
 
 const mapHomeProductToCard = (product: HomeSectionProduct, index: number): ProductCardItem => ({
@@ -35,14 +34,17 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   lowest_price: product.lowest_price,
   evidence_tags: product.tags,
   key_ingredients: product.tags,
-  risk_flags: [],
+  risk_flags: []
 });
 
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
 const hasUsableImageUrl = (url: string | null) =>
-  Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
+  Boolean(
+    url &&
+    !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url)
+  );
 
 const openProductDetail = (product: ProductCardItem) => {
   window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
@@ -59,7 +61,9 @@ function SearchLoadingState({ message = "피부 고민을 분석하고 있어요
       <div className="search-loading-banner">
         <div>
           <div className="search-loading-title">{message}</div>
-          <div className="search-loading-subtitle">필요 효능, 근거 성분, 상품 점수를 순서대로 계산하는 중입니다.</div>
+          <div className="search-loading-subtitle">
+            필요 효능, 근거 성분, 상품 점수를 순서대로 계산하는 중입니다.
+          </div>
         </div>
         <div className="search-loading-meter" aria-hidden="true" />
       </div>
@@ -68,7 +72,13 @@ function SearchLoadingState({ message = "피부 고민을 분석하고 있어요
   );
 }
 
-function ProductSkeletonList({ count, variant = "home" }: { count: number; variant?: "home" | "search" }) {
+function ProductSkeletonList({
+  count,
+  variant = "home"
+}: {
+  count: number;
+  variant?: "home" | "search";
+}) {
   return (
     <>
       {Array.from({ length: count }, (_, index) => (
@@ -98,7 +108,7 @@ function ProductSkeletonList({ count, variant = "home" }: { count: number; varia
 
 function HomeRankingSection({
   products,
-  section,
+  section
 }: {
   products: ProductCardItem[];
   section: HomeSection;
@@ -139,7 +149,11 @@ function HomeRankingSection({
                   ) : null}
                   <div className="home-ranking-media">
                     {hasImage ? (
-                      <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+                      <img
+                        src={product.thumbnail_url ?? ""}
+                        alt={`${product.brand} ${product.name}`}
+                        loading="lazy"
+                      />
                     ) : (
                       <div className="home-rank-empty">이미지 준비중</div>
                     )}
@@ -161,7 +175,7 @@ function HomeRankingSection({
 function HomeDealSection({
   products,
   section,
-  sectionIndex,
+  sectionIndex
 }: {
   products: ProductCardItem[];
   section: HomeSection;
@@ -198,7 +212,11 @@ function HomeDealSection({
               >
                 <div className="home-deal-media">
                   {hasImage ? (
-                    <img src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
+                    <img
+                      src={product.thumbnail_url ?? ""}
+                      alt={`${product.brand} ${product.name}`}
+                      loading="lazy"
+                    />
                   ) : (
                     <div className="home-deal-empty">이미지 준비중</div>
                   )}
@@ -230,7 +248,7 @@ function HomeDealSection({
 
 function HomeOriginalGridSection({
   products,
-  section,
+  section
 }: {
   products: ProductCardItem[];
   section: HomeSection;
@@ -250,9 +268,7 @@ function HomeOriginalGridSection({
       </div>
       <div className="product-grid">
         {products.length ? (
-          products.map((product) => (
-            <HomeProductCard key={product.product_id} product={product} />
-          ))
+          products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
         ) : (
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
@@ -263,20 +279,14 @@ function HomeOriginalGridSection({
 
 type HomeSearchEvent = CustomEvent<{
   query: string;
-  profile: {
-    skin: SkinType;
-    sensitivity: Sensitivity;
-  };
+  profile: RecommendationProfile;
 }>;
 
 type HomeMainContentProps = {
   initialQuery?: string;
   initialPage?: number;
   initialRecommendationId?: string;
-  initialProfile?: {
-    skin: SkinType;
-    sensitivity: Sensitivity;
-  };
+  initialProfile?: RecommendationProfile;
   mode?: "home" | "search";
   pageSize?: number;
   showDefaultSection?: boolean;
@@ -289,10 +299,11 @@ function HomeMainContent({
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
+    avoidIngredients: []
   },
   mode = "home",
   pageSize = 10,
-  showDefaultSection = true,
+  showDefaultSection = true
 }: HomeMainContentProps) {
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
@@ -303,83 +314,107 @@ function HomeMainContent({
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const updateSearchUrl = useCallback((
-    nextQuery: string,
-    profile: { skin: SkinType; sensitivity: Sensitivity },
-    page: number,
-    recommendationId?: string,
-  ) => {
-    if (mode !== "search") return;
+  const updateSearchUrl = useCallback(
+    (
+      nextQuery: string,
+      profile: RecommendationProfile,
+      page: number,
+      recommendationId?: string
+    ) => {
+      if (mode !== "search") return;
 
-    const params = new URLSearchParams({
-      keyword: nextQuery,
-      skin_type: profile.skin,
-      sensitivity: profile.sensitivity,
-      page_size: String(pageSize),
-    });
-    if (page > 1) params.set("page", String(page));
-    if (recommendationId) params.set("recommendation_id", recommendationId);
-    window.history.replaceState(null, "", `/search?${params.toString()}`);
-  }, [mode, pageSize]);
+      const params = new URLSearchParams({
+        keyword: nextQuery,
+        skin_type: profile.skin,
+        sensitivity: profile.sensitivity,
+        page_size: String(pageSize)
+      });
+      if (page > 1) params.set("page", String(page));
+      if (recommendationId) params.set("recommendation_id", recommendationId);
+      window.history.replaceState(null, "", `/search?${params.toString()}`);
+    },
+    [mode, pageSize]
+  );
 
-  const runSearch = useCallback(async (
-    nextQuery: string,
-    profile: { skin: SkinType; sensitivity: Sensitivity },
-    page = 1,
-    recommendationId?: string,
-  ) => {
-    const trimmedQuery = nextQuery.trim();
-    if (!trimmedQuery) return;
+  const runSearch = useCallback(
+    async (
+      nextQuery: string,
+      profile: RecommendationProfile,
+      page = 1,
+      recommendationId?: string
+    ) => {
+      const trimmedQuery = nextQuery.trim();
+      if (!trimmedQuery) return;
 
-    setQuery(trimmedQuery);
-    setIsLoading(true);
-    setErrorMessage("");
-    setRecommendation(null);
-    window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-      detail: { status: "loading", query: trimmedQuery, recommendation: null },
-    }));
-    window.requestAnimationFrame(() => {
-      document.getElementById("searchResultsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    try {
-      const response = recommendationId
-        ? await api.getRecommendation(recommendationId, {
-          page,
-          pageSize,
-        })
-        : await api.createRecommendation({
-          concern_text: trimmedQuery,
-          skin_type: profile.skin,
-          sensitivity: profile.sensitivity,
-          avoid_ingredients: [],
-        }, {
-          page,
-          pageSize,
-        });
-      const displayResponse =
-        response.products.length > 0 ? response : createFallbackRecommendation(trimmedQuery, profile);
-      const nextRecommendationId =
-        displayResponse.recommendation_id === "fallback-original-design"
-          ? undefined
-          : displayResponse.recommendation_id;
-      updateSearchUrl(trimmedQuery, profile, displayResponse.pagination.page, nextRecommendationId);
-      setRecommendation(displayResponse);
-      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-        detail: { status: "success", query: trimmedQuery, recommendation: displayResponse },
-      }));
-    } catch {
-      const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
-      updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
-      setRecommendation(fallbackResponse);
+      setQuery(trimmedQuery);
+      setIsLoading(true);
       setErrorMessage("");
-      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
-        detail: { status: "success", query: trimmedQuery, recommendation: fallbackResponse },
-      }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pageSize, updateSearchUrl]);
+      setRecommendation(null);
+      window.dispatchEvent(
+        new CustomEvent("home-recommendation-state", {
+          detail: { status: "loading", query: trimmedQuery, recommendation: null }
+        })
+      );
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("searchResultsSection")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      try {
+        const response = recommendationId
+          ? await api.getRecommendation(recommendationId, {
+              page,
+              pageSize
+            })
+          : await api.createRecommendation(
+              {
+                concern_text: trimmedQuery,
+                skin_type: profile.skin,
+                sensitivity: profile.sensitivity,
+                avoid_ingredients: profile.avoidIngredients
+              },
+              {
+                page,
+                pageSize
+              }
+            );
+        const displayResponse =
+          response.products.length > 0
+            ? response
+            : createFallbackRecommendation(trimmedQuery, profile);
+        const nextRecommendationId =
+          displayResponse.recommendation_id === "fallback-original-design"
+            ? undefined
+            : displayResponse.recommendation_id;
+        updateSearchUrl(
+          trimmedQuery,
+          profile,
+          displayResponse.pagination.page,
+          nextRecommendationId
+        );
+        setRecommendation(displayResponse);
+        window.dispatchEvent(
+          new CustomEvent("home-recommendation-state", {
+            detail: { status: "success", query: trimmedQuery, recommendation: displayResponse }
+          })
+        );
+      } catch {
+        const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
+        updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
+        setRecommendation(fallbackResponse);
+        setErrorMessage("");
+        window.dispatchEvent(
+          new CustomEvent("home-recommendation-state", {
+            detail: { status: "success", query: trimmedQuery, recommendation: fallbackResponse }
+          })
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [pageSize, updateSearchUrl]
+  );
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
@@ -412,7 +447,7 @@ function HomeMainContent({
         const response = await api.getHomeSections({
           skinType: initialProfile.skin,
           sensitivity: initialProfile.sensitivity,
-          limitPerSection: 10,
+          limitPerSection: 10
         });
         if (!isMounted) return;
         setHomeSections(response.sections);
@@ -435,7 +470,10 @@ function HomeMainContent({
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
     return [...products].sort((a, b) => {
-      if (sortType === "price-low") return (a.lowest_price ?? Number.MAX_SAFE_INTEGER) - (b.lowest_price ?? Number.MAX_SAFE_INTEGER);
+      if (sortType === "price-low")
+        return (
+          (a.lowest_price ?? Number.MAX_SAFE_INTEGER) - (b.lowest_price ?? Number.MAX_SAFE_INTEGER)
+        );
       if (sortType === "price-high") return (b.lowest_price ?? -1) - (a.lowest_price ?? -1);
       return b.total_score - a.total_score;
     });
@@ -450,14 +488,18 @@ function HomeMainContent({
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
     if (nextPage === pagination.page) return;
     const currentRecommendationId =
-      recommendation?.recommendation_id && recommendation.recommendation_id !== "fallback-original-design"
+      recommendation?.recommendation_id &&
+      recommendation.recommendation_id !== "fallback-original-design"
         ? recommendation.recommendation_id
         : initialRecommendationId;
     runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId);
   };
 
   return (
-    <main className={`main-content${mode === "search" ? " search-main-content" : ""}`} id="mainContent">
+    <main
+      className={`main-content${mode === "search" ? " search-main-content" : ""}`}
+      id="mainContent"
+    >
       <div id="searchResultsSection" style={{ display: hasSearchState ? "block" : "none" }}>
         <div className="search-results-shell">
           <aside aria-label="검색 조건" className="search-filter-sidebar" data-commerce-only>
@@ -470,7 +512,9 @@ function HomeMainContent({
                 </div>
                 <div className="filter-option">
                   <span className="filter-dot" />
-                  <span id="filterProfile">{initialProfile.skin} · 민감도 {initialProfile.sensitivity}</span>
+                  <span id="filterProfile">
+                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity}
+                  </span>
                 </div>
                 <div className="filter-note">
                   입력한 고민과 피부 조건을 기준으로 성분 효능 근거를 먼저 비교합니다.
@@ -502,19 +546,36 @@ function HomeMainContent({
               <div>
                 <div className="results-query">
                   &quot;<strong id="queryDisplay">{query}</strong>
-                  &quot; 검색 결과 · <span id="sortDisplay">{sortType === "price-low" ? "가격 낮은순" : sortType === "price-high" ? "가격 높은순" : "매칭 점수순"}</span>
+                  &quot; 검색 결과 ·{" "}
+                  <span id="sortDisplay">
+                    {sortType === "price-low"
+                      ? "가격 낮은순"
+                      : sortType === "price-high"
+                        ? "가격 높은순"
+                        : "매칭 점수순"}
+                  </span>
                 </div>
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
-                  {isLoading ? "추천 결과를 불러오는 중입니다" : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
+                  {isLoading
+                    ? "추천 결과를 불러오는 중입니다"
+                    : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
-              <select aria-label="검색 결과 정렬" className="sort-select" onChange={(event) => setSortType(event.target.value)} value={sortType}>
+              <select
+                aria-label="검색 결과 정렬"
+                className="sort-select"
+                onChange={(event) => setSortType(event.target.value)}
+                value={sortType}
+              >
                 <option value="score">매칭 점수순</option>
                 <option value="price-low">가격 낮은순</option>
                 <option value="price-high">가격 높은순</option>
               </select>
             </div>
-            <div className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`} id="apiResultSummary">
+            <div
+              className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`}
+              id="apiResultSummary"
+            >
               {isFallbackResult ? (
                 <span className="api-summary-chip warning">
                   API 응답 전 원본 샘플 결과를 표시 중입니다
@@ -531,7 +592,11 @@ function HomeMainContent({
                 <button
                   className={`search-result-tab${tab === "전체" ? " active" : ""}`}
                   key={tab}
-                  onClick={tab === "전체" ? undefined : () => callOriginal("showToast", "필터 기능은 준비 중입니다")}
+                  onClick={
+                    tab === "전체"
+                      ? undefined
+                      : () => callOriginal("showToast", "필터 기능은 준비 중입니다")
+                  }
                   type="button"
                 >
                   {tab}
@@ -553,7 +618,9 @@ function HomeMainContent({
                   />
                 ))
               ) : hasSearchState ? (
-                <div className="search-empty">검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.</div>
+                <div className="search-empty">
+                  검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.
+                </div>
               ) : null}
             </div>
             <div className="search-pagination" id="searchPagination">
@@ -567,16 +634,18 @@ function HomeMainContent({
                   >
                     이전
                   </button>
-                  {Array.from({ length: pagination.total_pages }, (_, index) => index + 1).map((page) => (
-                    <button
-                      className={`page-btn${page === pagination.page ? " active" : ""}`}
-                      key={page}
-                      onClick={() => goToPage(page)}
-                      type="button"
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  {Array.from({ length: pagination.total_pages }, (_, index) => index + 1).map(
+                    (page) => (
+                      <button
+                        className={`page-btn${page === pagination.page ? " active" : ""}`}
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        type="button"
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
                   <button
                     className="page-btn nav"
                     disabled={!pagination.has_next}
@@ -587,7 +656,8 @@ function HomeMainContent({
                   </button>
                   <span className="search-page-summary">
                     {(pagination.page - 1) * pagination.page_size + 1}-
-                    {Math.min(pagination.page * pagination.page_size, pagination.total_items)} / {pagination.total_items}개
+                    {Math.min(pagination.page * pagination.page_size, pagination.total_items)} /{" "}
+                    {pagination.total_items}개
                   </span>
                 </>
               ) : null}
@@ -598,7 +668,7 @@ function HomeMainContent({
               style={{
                 borderTop: "1.5px solid var(--border)",
                 marginTop: 40,
-                paddingTop: 40,
+                paddingTop: 40
               }}
             >
               <div className="section-header">
@@ -622,7 +692,10 @@ function HomeMainContent({
         </div>
       </div>
 
-      <div id="defaultSection" style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}>
+      <div
+        id="defaultSection"
+        style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}
+      >
         {isHomeSectionLoading ? (
           <section className="home-api-section">
             <div className="section-header">
