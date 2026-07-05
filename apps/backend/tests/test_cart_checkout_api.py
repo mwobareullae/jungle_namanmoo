@@ -170,6 +170,24 @@ def test_checkout_preview_revalidates_price_and_stock(
     warning_codes = {warning["code"] for warning in data["warnings"]}
     assert {"PRICE_CHANGED", "INSUFFICIENT_STOCK"}.issubset(warning_codes)
 
+    with Session(db_engine) as session:
+        events = session.execute(select(EventLog).order_by(EventLog.id)).scalars().all()
+
+    assert [event.event_name for event in events] == ["cart_added", "checkout_started"]
+    checkout_event = events[1]
+    assert checkout_event.cart_id == data["cart_id"]
+    assert checkout_event.source == "checkout_preview"
+    assert checkout_event.page == "checkout"
+    assert checkout_event.metadata_json["item_count"] == 1
+    assert checkout_event.metadata_json["total_quantity"] == 3
+    assert checkout_event.metadata_json["subtotal"] == 62700
+    assert checkout_event.metadata_json["shipping_fee"] == 3000
+    assert checkout_event.metadata_json["total"] == 65700
+    assert checkout_event.metadata_json["can_checkout"] is False
+    assert {"PRICE_CHANGED", "INSUFFICIENT_STOCK"}.issubset(
+        set(checkout_event.metadata_json["warning_codes"])
+    )
+
 
 def test_checkout_preview_uses_selected_cart_items_only(
     client: TestClient,
