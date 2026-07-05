@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.api.routes.payments import get_toss_payments_client
 from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, InventoryMovement, Order, Payment, PaymentEvent
@@ -184,6 +185,130 @@ def test_mock_payment_ownership_is_enforced(
     assert inventory.reserved_quantity == 1
 
 
+def test_toss_confirm_approves_payment_and_records_provider_key(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-confirm@example.com",
+        nickname="toss-confirm",
+        quantity=2,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_payment_key_confirm",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["order_status"] == "PAID"
+    assert response.json()["payment_status"] == "APPROVED"
+    assert fake_toss.calls == [
+        {
+            "payment_key": "toss_payment_key_confirm",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        }
+    ]
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+        events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+
+    assert payment.provider == "TOSS"
+    assert payment.provider_payment_key == "toss_payment_key_confirm"
+    assert payment.provider_order_id == pending["order_code"]
+    assert inventory.stock_quantity == 8
+    assert inventory.reserved_quantity == 0
+    assert len(events) == 1
+    assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
+    assert events[0].provider_payment_key == "toss_payment_key_confirm"
+    assert events[0].raw_payload_json["status"] == "DONE"
+
+
+def test_toss_confirm_rejects_amount_mismatch_before_provider_call(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-amount@example.com",
+        nickname="toss-amount",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_payment_key_amount",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"] + 1,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PAYMENT_AMOUNT_MISMATCH"
+    assert fake_toss.calls == []
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+
+    assert order.status == "PENDING_PAYMENT"
+    assert payment.status == "READY"
+    assert payment.provider_payment_key is None
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 1
+
+
+def test_toss_confirm_is_idempotent_for_same_payment_key(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-idempotent@example.com",
+        nickname="toss-idempotent",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    payload = {
+        "payment_key": "toss_payment_key_idempotent",
+        "order_code": pending["order_code"],
+        "amount": pending["amount"],
+    }
+
+    first_response = client.post("/api/payments/toss/confirm", json=payload)
+    second_response = client.post("/api/payments/toss/confirm", json=payload)
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert len(fake_toss.calls) == 1
+    with Session(db_engine) as session:
+        inventory = _load_inventory(session, "prod_001")
+        events = session.execute(select(PaymentEvent)).scalars().all()
+
+    assert inventory.stock_quantity == 9
+    assert inventory.reserved_quantity == 0
+    assert len(events) == 1
+
+
 def _create_pending_order(
     client: TestClient,
     db_engine: Engine,
@@ -191,6 +316,7 @@ def _create_pending_order(
     email: str,
     nickname: str,
     quantity: int,
+    payment_provider: str = "MOCK",
 ) -> dict:
     _signup(client, email=email, nickname=nickname)
     _set_inventory(db_engine, "prod_001", stock_quantity=10)
@@ -201,13 +327,14 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": f"order-{email}"},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": payment_provider},
     )
     assert order_response.status_code == 200
     data = order_response.json()
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],
+        "amount": data["payment"]["amount"],
     }
 
 
@@ -279,3 +406,25 @@ def _set_inventory(
 def _load_inventory(session: Session, product_code: str) -> Inventory:
     product = session.execute(select(Product).where(Product.product_code == product_code)).scalar_one()
     return session.execute(select(Inventory).where(Inventory.product_id == product.id)).scalar_one()
+
+
+class _FakeTossPaymentsClient:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
+        self.calls.append(
+            {
+                "payment_key": payment_key,
+                "order_code": order_code,
+                "amount": amount,
+            }
+        )
+        return {
+            "paymentKey": payment_key,
+            "orderId": order_code,
+            "totalAmount": amount,
+            "status": "DONE",
+            "method": "카드",
+            "approvedAt": "2026-07-05T12:00:00+09:00",
+        }

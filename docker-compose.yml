@@ -68,6 +68,7 @@ services:
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@mubarelle.com}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
     ports:
