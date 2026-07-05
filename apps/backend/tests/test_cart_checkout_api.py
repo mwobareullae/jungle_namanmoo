@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.catalog import Product, ProductPrice
 from app.db.models.commerce import Cart, CartItem, Inventory, SellerShippingPolicy
+from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.cart_service import ANONYMOUS_CART_COOKIE_NAME
@@ -83,10 +84,19 @@ def test_anonymous_cart_add_creates_cookie_and_storage_key_item(
     with Session(db_engine) as session:
         cart = session.execute(select(Cart)).scalar_one()
         cart_item = session.execute(select(CartItem)).scalar_one()
+        event = session.execute(select(EventLog)).scalar_one()
 
     assert cart.user_id is None
     assert cart.anonymous_cart_id == anonymous_cart_id
     assert cart_item.quantity == 2
+    assert event.event_name == "cart_added"
+    assert event.anonymous_user_id == anonymous_cart_id
+    assert event.cart_id == cart.id
+    assert event.product_id == "prod_001"
+    assert event.rank == 1
+    assert event.source == "ai_recommendation"
+    assert event.recommendation_id == "rec_test"
+    assert event.metadata_json["quantity"] == 2
 
 
 def test_cart_add_same_product_increases_quantity(
