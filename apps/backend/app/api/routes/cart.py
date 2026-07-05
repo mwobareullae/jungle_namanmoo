@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import logging
 
 from fastapi import APIRouter, Cookie, Depends, Response
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from app.schemas.cart import (
     DeleteCartItemResponse,
 )
 from app.schemas.common import ErrorResponse
+from app.schemas.event import EventLogCreateRequest
 from app.services.cart_service import (
     ANONYMOUS_CART_COOKIE_NAME,
     ANONYMOUS_CART_TTL_DAYS,
@@ -27,9 +29,11 @@ from app.services.cart_service import (
     remove_cart_item,
     update_cart_item_quantity,
 )
+from app.services.event_service import create_event_log
 
 
 router = APIRouter(tags=["cart"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/cart", response_model=CartResponse)
@@ -64,6 +68,13 @@ def post_cart_item(
         recommendation_rank=request.recommendation_rank,
     )
     session.commit()
+    _record_cart_added_event(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=result.anonymous_cart_id or anonymous_cart_id,
+        cart_id=result.cart.cart_id,
+        request=request,
+    )
     if result.anonymous_cart_id:
         _set_anonymous_cart_cookie(response, result.anonymous_cart_id)
     return result.cart
@@ -165,3 +176,34 @@ def _delete_anonymous_cart_cookie(response: Response) -> None:
         samesite=settings.auth_cookie_samesite,
         path="/",
     )
+
+
+def _record_cart_added_event(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    cart_id: int | None,
+    request: CartItemAddRequest,
+) -> None:
+    try:
+        create_event_log(
+            session,
+            EventLogCreateRequest(
+                event_name="cart_added",
+                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                cart_id=cart_id,
+                product_id=request.product_id,
+                rank=request.recommendation_rank,
+                source=request.source,
+                recommendation_id=request.recommendation_id,
+                metadata={
+                    "quantity": request.quantity,
+                },
+            ),
+            current_user=current_user,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("failed_to_record_cart_added_event")
