@@ -1,10 +1,13 @@
 import { type ReactNode, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
 import { privacyPolicy, termsOfService } from "../content/terms";
+import { useAuth } from "../contexts/AuthContext";
+import { API_BASE_URL } from "../lib/api";
 
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
+const PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY = "pending_google_credential";
 
 type TermType = "tos" | "privacy";
 
@@ -233,6 +236,9 @@ const renderTermBody = (body: string) => {
 
 function SignupTermsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { refreshAuthenticatedUser } = useAuth();
+  const isGoogleSignup = searchParams.get("provider") === "google";
   // 체크박스 4개(필수3+선택1)를 각각 true/false로 따로 기억함
   const [agreements, setAgreements] = useState({
     tos: false,
@@ -242,6 +248,8 @@ function SignupTermsPage() {
   });
   // 필수 약관을 체크하지 않았을 때 보여줄 하단 안내 문구
   const [noticeMessage, setNoticeMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleCredentialExpired, setIsGoogleCredentialExpired] = useState(false);
   const [selectedTerm, setSelectedTerm] = useState<TermType | null>(null);
 
   // 4개가 전부 true일 때만 true -> "전체 동의" 체크박스 표시에 씀
@@ -264,19 +272,93 @@ function SignupTermsPage() {
     setSelectedTerm(term);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleRetryGoogleLogin = () => {
+    sessionStorage.removeItem(PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY);
+    navigate("/login", { replace: true });
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault(); // 페이지 새로고침 막음
+    if (isSubmitting) {
+      return;
+    }
+
     if (!requiredChecked) {
       setNoticeMessage("필수 약관에 모두 동의해야 다음 단계로 이동할 수 있습니다");
       return;
     }
+
+    if (isGoogleSignup) {
+      const credential = sessionStorage.getItem(PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY);
+
+      if (!credential) {
+        setIsGoogleCredentialExpired(true);
+        setNoticeMessage("Google 가입 정보가 만료되었습니다. 다시 Google 로그인을 시도해주세요.");
+        return;
+      }
+
+      setNoticeMessage("");
+      setIsGoogleCredentialExpired(false);
+      setIsSubmitting(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/google`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            credential,
+            consents: agreements
+          })
+        });
+
+        if (!response.ok) {
+          const error = (await response.json().catch(() => null)) as {
+            code?: string;
+            error?: { code?: string };
+          } | null;
+          const errorCode = error?.code ?? error?.error?.code;
+
+          if (errorCode === "INVALID_GOOGLE_TOKEN") {
+            sessionStorage.removeItem(PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY);
+            setIsGoogleCredentialExpired(true);
+            setNoticeMessage("Google 가입 정보가 만료되었습니다. 다시 Google 로그인을 시도해주세요.");
+            return;
+          }
+
+          if (errorCode === "REQUIRED_CONSENT_MISSING") {
+            setNoticeMessage("필수 약관에 모두 동의해야 Google 가입을 완료할 수 있습니다.");
+            return;
+          }
+
+          setNoticeMessage(
+            errorCode
+              ? `Google 가입에 실패했습니다. (${errorCode})`
+              : "Google 가입에 실패했습니다. 잠시 후 다시 시도해주세요."
+          );
+          return;
+        }
+
+        sessionStorage.removeItem(PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY);
+        await refreshAuthenticatedUser().catch(() => null);
+        navigate("/signup/skin-profile", { replace: true });
+      } catch {
+        setNoticeMessage("Google 가입 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     // "다음" 화면(정보입력)으로 이동하면서 지금까지 체크한 동의 내용을 같이 들고 감(A방식)
     sessionStorage.setItem(SIGNUP_AGREEMENTS_STORAGE_KEY, JSON.stringify(agreements));
     navigate("/signup/info", { state: { agreements } });
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',system-ui,sans-serif] text-[#1A1A1A]">
+    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['GmarketSans',system-ui,sans-serif] text-[#1A1A1A]">
       <AuthHeader />
       <div className="flex flex-1 items-center justify-center px-5 py-10">
         <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
@@ -371,13 +453,23 @@ function SignupTermsPage() {
             </p>
             <button
               className="mt-2 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
+              disabled={isSubmitting}
               type="submit"
             >
-              다음
+              {isGoogleSignup ? "Google 가입 완료" : "다음"}
             </button>
           </form>
           {noticeMessage && (
             <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{noticeMessage}</p>
+          )}
+          {isGoogleCredentialExpired && (
+            <button
+              className="mt-3 w-full cursor-pointer rounded-[14px] border border-black/[0.07] bg-white py-3 text-[14px] font-semibold text-[#1A1A1A] hover:bg-[#FAFAFA]"
+              onClick={handleRetryGoogleLogin}
+              type="button"
+            >
+              Google 로그인 다시 하기
+            </button>
           )}
         </div>
       </div>
