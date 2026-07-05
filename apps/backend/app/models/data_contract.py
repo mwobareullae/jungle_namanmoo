@@ -45,6 +45,20 @@ class ProductInventory:
 
 
 @dataclass(frozen=True)
+class ProductMarketSignal:
+    product_id: str
+    review_count: int
+    average_rating: float | None
+    sales_count: int
+    sales_rank: int | None
+    recent_view_count: int
+    wishlist_count: int
+    cart_add_count: int
+    source: str
+    updated_at: str | None
+
+
+@dataclass(frozen=True)
 class ProductIngredient:
     product_id: str
     ingredient_id: str
@@ -171,6 +185,7 @@ class DataCatalog:
     product_prices: tuple[ProductPrice, ...]
     product_image_assets: tuple[ProductImageAsset, ...]
     product_inventories: tuple[ProductInventory, ...]
+    product_market_signals: tuple[ProductMarketSignal, ...]
     product_ingredients: tuple[ProductIngredient, ...]
     product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]
