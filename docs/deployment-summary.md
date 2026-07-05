@@ -142,6 +142,21 @@ ELASTICSEARCH_URL=http://elasticsearch:9200
 ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
 ```
 
+### 서버별 prefix 기준
+
+Redis key prefix와 Elasticsearch index prefix는 환경 경계입니다. 같은 Redis/Elasticsearch 인스턴스를 임시 공유하더라도 URL만 같고 prefix는 반드시 다르게 둡니다.
+
+| 서버/역할 | Redis URL | Redis key prefix | Elasticsearch URL | Elasticsearch index prefix |
+| --- | --- | --- | --- | --- |
+| Dev 통합 서버 | `redis://redis:6379/0` | `mubarelle:dev:` | `http://elasticsearch:9200` | `mubarelle_dev` |
+| 실유저 테스트 서버 독립 운영 | 서버 내부 Redis URL | `mubarelle:user-test:` | 서버 내부 ES URL 또는 fallback | `mubarelle_user_test` |
+| 실유저 테스트가 Dev ES/Redis 임시 공유 | Dev private URL | `mubarelle:user-test:` | Dev private URL | `mubarelle_user_test` |
+| 발표 서버 별도 동결 운영 | 발표용 Redis URL | `mubarelle:demo:` | 발표용 ES URL 또는 snapshot restore | `mubarelle_demo` |
+
+발표 서버를 실유저 테스트 서버 그대로 freeze하는 경우에는 `user-test` prefix를 유지하고, 배포 중단과 DB snapshot/dump로 동결합니다. 발표용 데이터를 별도로 복제하거나 index를 따로 만들 때만 `demo` prefix를 사용합니다.
+
+prefix를 바꾸면 Redis는 cache miss가 발생하고, Elasticsearch는 새 index 생성 또는 reindex가 필요합니다. 배포 중 prefix 변경은 rollback 계획과 smoke test를 같이 잡은 경우에만 진행합니다.
+
 백엔드 작업자가 SSH tunnel로 Dev infra를 사용할 때는 로컬 `.env`에서 host를 `localhost`로 바꿉니다.
 
 ```env
@@ -299,6 +314,133 @@ Host dev-tunnel
 ```bash
 ssh dev-tunnel
 ```
+
+## Redis/Elasticsearch smoke test
+
+실제 Dev 서버에서 Redis/Elasticsearch까지 확인할 때는 SSH 접속 후 서버의 `DEV_APP_DIR`에서 실행합니다.
+
+```bash
+docker compose --profile dev-infra config
+docker compose --profile dev-infra up -d redis elasticsearch
+docker compose ps redis elasticsearch
+docker compose exec -T redis redis-cli ping
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+```
+
+통과 기준:
+
+- Redis와 Elasticsearch container가 `healthy`
+- Redis `PING` 응답이 `PONG`
+- Elasticsearch `_cluster/health`가 `green` 또는 `yellow`
+- `docker compose --profile dev-infra config`에서 Redis/Elasticsearch host bind가 `127.0.0.1`
+- EC2 security group에서 `6379`, `9200` inbound가 외부 공개되지 않음
+
+현재 `docker-compose.yml` 기준으로 Redis는 `appendonly yes`, `maxmemory-policy allkeys-lru`, memory limit `512m`, Elasticsearch는 memory limit `2g`, heap `1g`로 시작합니다.
+
+## Redis/Elasticsearch 장애 운영 기준
+
+Redis/Elasticsearch는 현재 Dev 인프라와 연결 env만 제공합니다. 실제 cache/rate limit, ES 검색 ranking 연결은 기능 담당 PR에서 별도로 진행합니다.
+
+### Redis 장애
+
+원칙:
+
+- 상품 조회, 추천, 장바구니, 주문 같은 핵심 흐름은 Redis 장애만으로 막지 않습니다.
+- cache 기능은 Redis 장애 시 DB 조회로 fail-open합니다.
+- rate limit 기능을 붙일 때는 남용 방지 정책이 필요하므로 fail-open/fail-closed 기준을 PR에서 명시합니다.
+- Redis 데이터 삭제, volume 삭제, prefix 변경은 운영 결정으로 보고 먼저 공유합니다.
+
+확인 명령:
+
+```bash
+docker compose ps redis
+docker compose logs --tail=100 redis
+docker compose exec -T redis redis-cli INFO memory
+docker compose exec -T redis redis-cli INFO stats
+```
+
+복구 순서:
+
+```bash
+docker compose up -d redis
+docker compose restart redis
+docker compose ps redis
+docker compose exec -T redis redis-cli ping
+```
+
+Redis memory limit 또는 `maxmemory`에 걸려 eviction이 급증하면 `REDIS_MAXMEMORY`, `REDIS_MEMORY_LIMIT`, cache TTL, key prefix 사용량을 함께 확인합니다.
+
+### Elasticsearch 장애
+
+원칙:
+
+- ES 장애는 Auth, Profile, Cart, Order, Payment mock 흐름을 막지 않습니다.
+- 검색/추천은 ES 연결 전까지 Postgres 기반 검색/추천 fallback을 유지합니다.
+- ES 검색 ranking을 붙이는 PR은 fallback 조건, fallback 응답 품질, index rebuild 방법을 같이 문서화합니다.
+- index 삭제, prefix 변경, reindex는 검색/추천 담당과 인프라 담당이 함께 확인합니다.
+
+확인 명령:
+
+```bash
+docker compose ps elasticsearch
+docker compose logs --tail=100 elasticsearch
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+curl -fsS 'http://127.0.0.1:9200/_cat/indices?v'
+```
+
+복구 순서:
+
+```bash
+docker compose up -d elasticsearch
+docker compose restart elasticsearch
+docker compose ps elasticsearch
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+```
+
+ES cluster status가 `red`이면 새 배포를 멈추고 DB fallback으로 주요 화면 smoke를 먼저 확인합니다. index 재생성은 reindex script와 대상 prefix가 확정된 뒤 진행합니다.
+
+### Rollback 기준
+
+- 앱 배포 문제는 우선 직전 안정 커밋으로 rollback하고 Redis/ES volume은 유지합니다.
+- Redis cache 문제는 volume 삭제보다 key prefix 변경 또는 특정 prefix cleanup을 우선 검토합니다.
+- ES index 문제는 DB fallback 유지 후 index rebuild 또는 이전 prefix/index로 전환합니다.
+- `docker compose down -v`, Redis volume 삭제, ES volume 삭제는 데이터/검색/인프라 담당 확인 없이 실행하지 않습니다.
+
+## 최소 모니터링 기준
+
+CloudWatch를 아직 붙이지 못한 상태에서는 배포 전후와 실유저 테스트 중 아래 항목을 최소 수동 확인합니다.
+
+```bash
+docker compose ps
+docker stats --no-stream
+df -h
+docker system df
+docker compose logs --tail=100 backend
+docker compose logs --tail=100 redis
+docker compose logs --tail=100 elasticsearch
+docker compose exec -T redis redis-cli INFO memory
+docker compose exec -T redis redis-cli INFO stats
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+```
+
+즉시 확인이 필요한 신호:
+
+- container `unhealthy` 또는 반복 restart
+- backend `/api/health` 실패
+- backend 로그의 반복 5xx/error
+- Redis `used_memory`가 `maxmemory`에 근접하거나 `evicted_keys`가 빠르게 증가
+- ES cluster status `red`
+- host disk 사용률 80% 이상
+- Docker log 또는 image/volume 누적으로 disk 부족
+- EC2 status check 실패
+
+CloudWatch를 붙일 때의 최소 기준:
+
+- EC2 `CPUUtilization`, `StatusCheckFailed`
+- CloudWatch Agent 기반 memory/disk 사용률
+- disk 사용률 80% 이상 알림
+- 비용 예산 초과 알림
+- 가능하면 backend health endpoint 외부 synthetic check
 
 ## 이미지 자산 인프라
 
