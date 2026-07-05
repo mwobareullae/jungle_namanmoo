@@ -22,7 +22,7 @@ from app.services.recommendation_pipeline import (
     MAX_PAGE_SIZE,
     get_recommendation_response,
 )
-from app.services.event_tracking import record_event_log_best_effort
+from app.services.event_tracking import record_event_log_best_effort, request_id_from_request
 
 
 router = APIRouter(tags=["recommendations"])
@@ -152,7 +152,7 @@ def _record_recommendation_event(
             },
         ),
         current_user=current_user,
-        fallback_request_id=http_request.headers.get("x-request-id"),
+        fallback_request_id=request_id_from_request(http_request),
         logger=logger,
         failure_message="failed_to_record_recommendation_event",
     )

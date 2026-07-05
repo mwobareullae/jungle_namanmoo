@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.schemas.common import ApiError, ErrorResponse
 from app.schemas.event import EventLogCreateRequest
 from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
 from app.services.event_service import create_event_log
+from app.services.event_tracking import request_id_from_request
 from app.services.payment_service import confirm_mock_payment, confirm_toss_payment, fail_mock_payment
 from app.services.toss_payments_client import TossPaymentsClient, TossPaymentsClientError
 
@@ -38,6 +39,7 @@ def get_toss_payments_client() -> TossPaymentsClient:
 )
 def post_mock_payment_confirm(
     payment_code: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> PaymentActionResponse:
@@ -49,6 +51,7 @@ def post_mock_payment_confirm(
         response=response,
         event_name="order_completed",
         source="mock_payment_confirm",
+        fallback_request_id=request_id_from_request(http_request),
     )
     return response
 
@@ -64,6 +67,7 @@ def post_mock_payment_confirm(
 )
 def post_mock_payment_fail(
     payment_code: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> PaymentActionResponse:
@@ -75,6 +79,7 @@ def post_mock_payment_fail(
         response=response,
         event_name="payment_failed",
         source="mock_payment_fail",
+        fallback_request_id=request_id_from_request(http_request),
     )
     return response
 
@@ -93,6 +98,7 @@ def post_mock_payment_fail(
 )
 def post_toss_payment_confirm(
     request: TossPaymentConfirmRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
     toss_client: TossPaymentsClient = Depends(get_toss_payments_client),
@@ -105,6 +111,7 @@ def post_toss_payment_confirm(
         response=response,
         event_name="order_completed",
         source="toss_payment_confirm",
+        fallback_request_id=request_id_from_request(http_request),
     )
     return response
 
@@ -116,6 +123,7 @@ def _record_payment_event_log(
     response: PaymentActionResponse,
     event_name: str,
     source: str,
+    fallback_request_id: str | None,
 ) -> None:
     try:
         row = session.execute(
@@ -150,6 +158,7 @@ def _record_payment_event_log(
                 },
             ),
             current_user=current_user,
+            fallback_request_id=fallback_request_id,
         )
         session.commit()
     except Exception:
