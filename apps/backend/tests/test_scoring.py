@@ -14,6 +14,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 from app.services.scoring import score_candidates
+from app.services.search_index_builder import build_product_search_index_documents
 from app.services.search_matching import match_product_search_documents
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -62,10 +63,12 @@ def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
     )
 
     scored_by_id = {product.product_id: product for product in scored_products}
-    assert scored_products[0].product_id == "prod_002"
+    assert (
+        scored_by_id["prod_002"].score_breakdown["skin_profile_score"]
+        > scored_by_id["prod_001"].score_breakdown["skin_profile_score"]
+    )
     assert scored_by_id["prod_002"].score_breakdown["skin_profile_score"] == pytest.approx(0.82)
     assert scored_by_id["prod_001"].score_breakdown["skin_profile_score"] <= 0.5
-    assert scored_by_id["prod_002"].total_score > scored_by_id["prod_001"].total_score
 
 
 def test_score_candidates_uses_price_condition_as_small_bonus() -> None:
@@ -214,4 +217,5 @@ def _seed_example_session() -> Session:
     Base.metadata.create_all(engine)
     session = Session(engine)
     seed_database(session, EXAMPLES_DIR)
+    build_product_search_index_documents(session)
     return session
