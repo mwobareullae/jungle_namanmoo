@@ -122,7 +122,7 @@ function PasswordResetPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['GmarketSans',system-ui,sans-serif] text-[#1A1A1A]">
+    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',system-ui,sans-serif] text-[#1A1A1A]">
       <AuthHeader />
       <main className="flex flex-1 items-center justify-center px-5 py-10">
         <div
