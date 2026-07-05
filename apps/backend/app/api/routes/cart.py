@@ -12,6 +12,7 @@ from app.schemas.cart import (
     CartItemUpdateRequest,
     CartMergeResponse,
     CartResponse,
+    CheckoutPreviewRequest,
     CheckoutPreviewResponse,
     DeleteCartItemResponse,
 )
@@ -125,14 +126,21 @@ def post_cart_merge(
 @router.post(
     "/checkout/preview",
     response_model=CheckoutPreviewResponse,
-    responses={400: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
 def post_checkout_preview(
+    request: CheckoutPreviewRequest,
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> CheckoutPreviewResponse:
-    return get_checkout_preview(session, current_user, anonymous_cart_id)
+    return get_checkout_preview(
+        session,
+        current_user,
+        anonymous_cart_id,
+        cart_item_ids=request.cart_item_ids,
+        address_id=request.address_id,
+    )
 
 
 def _set_anonymous_cart_cookie(response: Response, anonymous_cart_id: str) -> None:
