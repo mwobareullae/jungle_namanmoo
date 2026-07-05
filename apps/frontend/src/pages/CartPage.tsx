@@ -56,6 +56,8 @@ function CartPage() {
               <p>장바구니를 불러오는 중입니다.</p>
             ) : errorMessage ? (
               <p>{errorMessage}</p>
+            ) : cart && cart.total_quantity === 0 ? (
+              <p>장바구니가 비어 있습니다.</p>
             ) : cart ? (
               <p>장바구니를 불러왔습니다. 상품 {cart.total_quantity}개</p>
             ) : (
