@@ -121,7 +121,7 @@ Do not create a separate `민감도 고려` section for P2. Sensitivity is alrea
 
 Runtime home API reads `product_popularity_metrics` through the same service used by `GET /api/products/popular`.
 
-`data/product_market_signals.csv` is mock/sample input unless the team explicitly decides to import it. It must not be treated as real service behavior data by default.
+`data/product_market_signals.csv` is mock/sample input, not real service behavior data. For local/dev P2 demos, backend seed imports it into `product_popularity_metrics` with `score_version=mock_market_signals_v1`; later event/order/review aggregation should replace it.
 
 Source metric schema:
 

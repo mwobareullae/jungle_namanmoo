@@ -75,6 +75,11 @@ class CartMergeResponse(BaseModel):
     cart: CartResponse
 
 
+class CheckoutPreviewRequest(BaseModel):
+    cart_item_ids: list[int]
+    address_id: int | None = None
+
+
 class CheckoutShippingGroup(BaseModel):
     seller_code: str
     seller_name: str

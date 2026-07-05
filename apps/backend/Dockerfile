@@ -17,6 +17,8 @@ RUN if [ "$INSTALL_DEV" = "true" ]; then \
 COPY alembic.ini .
 COPY migrations ./migrations
 COPY app ./app
+COPY scripts ./scripts
+RUN chmod +x scripts/*.sh
 
 EXPOSE 8000
 

@@ -48,7 +48,13 @@ def test_declarative_base_metadata_is_available() -> None:
         "ingredients",
         "inventories",
         "inventory_movements",
+        "order_items",
+        "order_shipping_addresses",
+        "order_shipping_groups",
+        "orders",
         "password_reset_tokens",
+        "payment_events",
+        "payments",
         "product_categories",
         "product_category_aliases",
         "product_images",
@@ -76,6 +82,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "skin_test_results",
         "skin_test_versions",
         "terms_versions",
+        "user_addresses",
         "user_consents",
         "users",
         "wishlists",
@@ -100,6 +107,13 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     risk_flags = Base.metadata.tables["risk_flags"]
     inventories = Base.metadata.tables["inventories"]
     seller_shipping_policies = Base.metadata.tables["seller_shipping_policies"]
+    user_addresses = Base.metadata.tables["user_addresses"]
+    orders = Base.metadata.tables["orders"]
+    order_items = Base.metadata.tables["order_items"]
+    order_shipping_addresses = Base.metadata.tables["order_shipping_addresses"]
+    order_shipping_groups = Base.metadata.tables["order_shipping_groups"]
+    payments = Base.metadata.tables["payments"]
+    payment_events = Base.metadata.tables["payment_events"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
     auth_sessions = Base.metadata.tables["auth_sessions"]
@@ -179,6 +193,92 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     assert {"seller_id", "policy_name", "base_shipping_fee", "free_shipping_threshold", "is_active"}.issubset(
         seller_shipping_policies.columns.keys()
     )
+    assert {
+        "user_id",
+        "recipient_name",
+        "phone",
+        "postal_code",
+        "address1",
+        "address2",
+        "delivery_memo",
+        "is_default",
+    }.issubset(user_addresses.columns.keys())
+    assert {
+        "order_code",
+        "user_id",
+        "cart_id",
+        "idempotency_key",
+        "status",
+        "subtotal_amount",
+        "shipping_fee",
+        "discount_amount",
+        "total_amount",
+        "currency",
+        "item_count",
+        "total_quantity",
+        "payment_expires_at",
+    }.issubset(orders.columns.keys())
+    assert {
+        "order_id",
+        "cart_item_id",
+        "product_id",
+        "seller_id",
+        "product_name_snapshot",
+        "brand_name_snapshot",
+        "seller_name_snapshot",
+        "thumbnail_storage_key_snapshot",
+        "unit_price",
+        "quantity",
+        "line_subtotal",
+        "line_discount_amount",
+        "line_total",
+        "status",
+        "recommendation_id",
+        "recommendation_rank",
+        "source",
+    }.issubset(order_items.columns.keys())
+    assert {
+        "order_id",
+        "user_address_id",
+        "recipient_name",
+        "phone",
+        "postal_code",
+        "address1",
+        "address2",
+        "delivery_memo",
+    }.issubset(order_shipping_addresses.columns.keys())
+    assert {
+        "order_id",
+        "seller_id",
+        "seller_name_snapshot",
+        "item_subtotal",
+        "shipping_fee",
+        "free_shipping_threshold_snapshot",
+        "shipping_policy_snapshot_json",
+    }.issubset(order_shipping_groups.columns.keys())
+    assert {
+        "payment_code",
+        "order_id",
+        "provider",
+        "status",
+        "amount",
+        "currency",
+        "provider_payment_key",
+        "provider_order_id",
+    }.issubset(payments.columns.keys())
+    assert {
+        "payment_id",
+        "order_id",
+        "event_type",
+        "event_id",
+        "provider",
+        "provider_payment_key",
+        "provider_order_id",
+        "amount",
+        "status_before",
+        "status_after",
+        "raw_payload_json",
+    }.issubset(payment_events.columns.keys())
     assert {"email", "display_name", "phone", "status", "role", "last_login_at"}.issubset(users.columns.keys())
     assert {
         "user_id",
