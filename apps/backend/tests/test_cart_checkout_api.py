@@ -96,6 +96,7 @@ def test_anonymous_cart_add_creates_cookie_and_storage_key_item(
     assert event.rank == 1
     assert event.source == "ai_recommendation"
     assert event.recommendation_id == "rec_test"
+    assert event.request_id == response.headers["x-request-id"]
     assert event.metadata_json["quantity"] == 2
 
 

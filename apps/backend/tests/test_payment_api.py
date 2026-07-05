@@ -94,6 +94,7 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert len(event_logs) == 1
     assert event_logs[0].source == "mock_payment_confirm"
     assert event_logs[0].user_id == order.user_id
+    assert event_logs[0].request_id == response.headers["x-request-id"]
     assert event_logs[0].metadata_json["payment_status"] == "APPROVED"
     assert event_logs[0].metadata_json["amount"] == payment.amount
 
@@ -172,6 +173,7 @@ def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
     assert len(event_logs) == 1
     assert event_logs[0].source == "mock_payment_fail"
     assert event_logs[0].user_id == order.user_id
+    assert event_logs[0].request_id == response.headers["x-request-id"]
     assert event_logs[0].metadata_json["payment_status"] == "FAILED"
 
 

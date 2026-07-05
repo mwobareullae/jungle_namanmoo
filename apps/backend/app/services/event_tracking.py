@@ -1,5 +1,6 @@
 import logging
 
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
@@ -28,3 +29,10 @@ def record_event_log_best_effort(
         session.rollback()
         if logger is not None:
             logger.exception(failure_message, extra={"event_name": request.event_name})
+
+
+def request_id_from_request(request: Request) -> str | None:
+    state_request_id = getattr(request.state, "request_id", None)
+    if state_request_id:
+        return str(state_request_id)
+    return request.headers.get("x-request-id")
