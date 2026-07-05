@@ -196,17 +196,21 @@ Request:
 Behavior:
 
 - Requires login.
+- If this is the user's first saved address, the backend sets it as default even when `is_default = false`.
 - If `is_default = true`, unset the previous default address.
 
 ### `PATCH /api/me/addresses/{address_id}`
 
 Updates one saved address owned by the current user.
+If `is_default = true`, the address becomes the user's default address.
+If saved addresses remain, the backend keeps exactly one default address.
 
 ### `DELETE /api/me/addresses/{address_id}`
 
 Deletes one saved address owned by the current user.
 
 The backend may reject deletion if an in-progress order still references the saved address. Existing orders use order shipping snapshots and must not change.
+If the deleted address was the default address, the backend promotes the latest remaining saved address to default.
 
 ## `POST /api/checkout/preview`
 
