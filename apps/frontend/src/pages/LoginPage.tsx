@@ -2,7 +2,8 @@ import { useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
-import { useAuth, type AuthUser } from "../contexts/AuthContext";
+import type { AuthUser } from "../contexts/authContextValue";
+import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 
 type LoginLocationState = {
