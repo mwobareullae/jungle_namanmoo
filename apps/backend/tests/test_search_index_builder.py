@@ -138,6 +138,35 @@ def test_build_product_search_index_documents_resets_embedding_when_content_chan
     assert document.title == "라운드랩 자작나무 수분 크림 리뉴얼"
 
 
+def test_build_product_search_index_documents_preserves_unchanged_document_embedding() -> None:
+    session = _seed_example_session()
+    build_product_search_index_documents(session)
+    changed_document = session.execute(
+        select(SearchDocument).where(SearchDocument.document_code == f"{DOCUMENT_CODE_PREFIX}prod_001")
+    ).scalar_one()
+    unchanged_document = session.execute(
+        select(SearchDocument).where(SearchDocument.document_code == f"{DOCUMENT_CODE_PREFIX}prod_002")
+    ).scalar_one()
+    for document in (changed_document, unchanged_document):
+        document.embedding = "[0.1,0.2]"
+        document.embedding_model = "local-test"
+        document.embedding_dimensions = 2
+    session.flush()
+
+    product = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
+    product.product_name = "자작나무 수분 크림 리뉴얼"
+    result = build_product_search_index_documents(session)
+
+    assert result.upserted == 1
+    assert result.unchanged == 1
+    assert changed_document.embedding is None
+    assert changed_document.embedding_model is None
+    assert changed_document.embedding_dimensions is None
+    assert unchanged_document.embedding == "[0.1,0.2]"
+    assert unchanged_document.embedding_model == "local-test"
+    assert unchanged_document.embedding_dimensions == 2
+
+
 def _seed_example_session() -> Session:
     engine = make_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
