@@ -453,43 +453,54 @@ def _seed_risk_flags(
 
 def _seed_brands(session: Session, catalog: DataCatalog) -> dict[str, BrandRow]:
     brands_by_name: dict[str, BrandRow] = {}
-    brand_names = sorted({product.brand for product in catalog.products})
-    for brand_name in brand_names:
-        normalized_name = _normalize_text(brand_name)
-        row = _one_or_none(session, BrandRow, BrandRow.brand_code == normalized_name)
+    brand_names_by_code: dict[str, set[str]] = {}
+    for product in catalog.products:
+        brand_names_by_code.setdefault(_normalize_text(product.brand), set()).add(product.brand)
+
+    brands_by_code: dict[str, BrandRow] = {}
+    for brand_code, brand_names in sorted(brand_names_by_code.items()):
+        display_name = _pick_display_name(brand_names)
+        row = _one_or_none(session, BrandRow, BrandRow.brand_code == brand_code)
         if row is None:
             row = BrandRow(
-                brand_code=normalized_name,
-                name=brand_name,
-                normalized_name=normalized_name,
+                brand_code=brand_code,
+                name=display_name,
+                normalized_name=brand_code,
             )
             session.add(row)
         else:
-            row.name = brand_name
-            row.normalized_name = normalized_name
+            row.name = display_name
+            row.normalized_name = brand_code
             row.is_active = True
-        brands_by_name[brand_name] = row
+        brands_by_code[brand_code] = row
 
     session.flush()
 
-    for brand_name, brand in brands_by_name.items():
-        normalized_alias = _normalize_text(brand_name)
-        alias = _one_or_none(
-            session,
-            BrandAliasRow,
-            BrandAliasRow.brand_id == brand.id,
-            BrandAliasRow.normalized_alias == normalized_alias,
-        )
-        if alias is None:
-            session.add(
-                BrandAliasRow(
-                    brand_id=brand.id,
-                    alias=brand_name,
-                    normalized_alias=normalized_alias,
-                )
+    for brand_code, brand_names in brand_names_by_code.items():
+        brand = brands_by_code[brand_code]
+        seen_normalized_aliases: set[str] = set()
+        for brand_name in brand_names:
+            brands_by_name[brand_name] = brand
+            normalized_alias = _normalize_text(brand_name)
+            if normalized_alias in seen_normalized_aliases:
+                continue
+            seen_normalized_aliases.add(normalized_alias)
+            alias = _one_or_none(
+                session,
+                BrandAliasRow,
+                BrandAliasRow.brand_id == brand.id,
+                BrandAliasRow.normalized_alias == normalized_alias,
             )
-        else:
-            alias.alias = brand_name
+            if alias is None:
+                session.add(
+                    BrandAliasRow(
+                        brand_id=brand.id,
+                        alias=brand_name,
+                        normalized_alias=normalized_alias,
+                    )
+                )
+            else:
+                alias.alias = brand_name
     session.flush()
     return brands_by_name
 
@@ -612,29 +623,33 @@ def _seed_product_images(
     products_by_code: dict[str, ProductRow],
 ) -> None:
     if catalog.product_image_assets:
+        existing_rows = session.execute(select(ProductImageRow)).scalars()
+        pending_by_storage_key = {(row.product_id, row.storage_key): row for row in existing_rows}
+        pending_by_slot_key = {
+            (row.product_id, row.image_type, row.display_order): row
+            for row in pending_by_storage_key.values()
+        }
         for image in catalog.product_image_assets:
             product_row = products_by_code[image.product_id]
-            row = _one_or_none(
-                session,
-                ProductImageRow,
-                ProductImageRow.product_id == product_row.id,
-                ProductImageRow.storage_key == image.storage_key,
-            )
+            storage_key = (product_row.id, image.storage_key)
+            slot_key = (product_row.id, image.image_type, image.display_order)
+            row = pending_by_storage_key.get(storage_key) or pending_by_slot_key.get(slot_key)
             values = {
                 "image_type": image.image_type,
+                "storage_key": image.storage_key,
                 "display_order": image.display_order,
             }
             if row is None:
-                session.add(
-                    ProductImageRow(
-                        product_id=product_row.id,
-                        storage_key=image.storage_key,
-                        **values,
-                    )
+                row = ProductImageRow(
+                    product_id=product_row.id,
+                    **values,
                 )
+                session.add(row)
             else:
                 for key, value in values.items():
                     setattr(row, key, value)
+            pending_by_storage_key[storage_key] = row
+            pending_by_slot_key[slot_key] = row
         session.flush()
         return
 
@@ -755,6 +770,9 @@ def _seed_product_ingredients(
     products_by_code: dict[str, ProductRow],
     ingredients_by_code: dict[str, IngredientRow],
 ) -> int:
+    existing_rows = session.execute(select(ProductIngredientRow)).scalars()
+    existing_by_pair = {(row.product_id, row.ingredient_id): row for row in existing_rows}
+
     seen_pairs: set[tuple[int, int]] = set()
     for record in catalog.product_ingredients:
         product = products_by_code[record.product_id]
@@ -764,28 +782,23 @@ def _seed_product_ingredients(
             continue
         seen_pairs.add(pair)
 
-        row = _one_or_none(
-            session,
-            ProductIngredientRow,
-            ProductIngredientRow.product_id == product.id,
-            ProductIngredientRow.ingredient_id == ingredient.id,
-        )
+        row = existing_by_pair.get(pair)
         if row is None:
-            session.add(
-                ProductIngredientRow(
-                    product_id=product.id,
-                    ingredient_id=ingredient.id,
-                    ingredient_name=record.ingredient_name,
-                    content_confidence=record.content_confidence,
-                    display_order=record.display_order,
-                    concentration_text=record.concentration_text,
-                    concentration_value=_decimal_or_none(record.concentration_value),
-                    concentration_unit=record.concentration_unit,
-                    concentration_confidence=record.concentration_confidence,
-                    normalized_concentration_value=_decimal_or_none(record.normalized_concentration_value),
-                    normalized_concentration_unit=record.normalized_concentration_unit,
-                )
+            row = ProductIngredientRow(
+                product_id=product.id,
+                ingredient_id=ingredient.id,
+                ingredient_name=record.ingredient_name,
+                content_confidence=record.content_confidence,
+                display_order=record.display_order,
+                concentration_text=record.concentration_text,
+                concentration_value=_decimal_or_none(record.concentration_value),
+                concentration_unit=record.concentration_unit,
+                concentration_confidence=record.concentration_confidence,
+                normalized_concentration_value=_decimal_or_none(record.normalized_concentration_value),
+                normalized_concentration_unit=record.normalized_concentration_unit,
             )
+            session.add(row)
+            existing_by_pair[pair] = row
         else:
             row.ingredient_name = record.ingredient_name
             row.content_confidence = record.content_confidence
@@ -925,6 +938,10 @@ def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
             aliases.append(value)
             seen.add(normalized)
     return tuple(aliases)
+
+
+def _pick_display_name(values: set[str]) -> str:
+    return sorted(values, key=lambda value: (value.isupper(), len(value), value))[0]
 
 
 def _ingredient_alias_canonical_map(catalog: DataCatalog) -> dict[str, str]:

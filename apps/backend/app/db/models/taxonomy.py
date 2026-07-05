@@ -69,9 +69,9 @@ class Ingredient(Base):
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    name_ko: Mapped[str] = mapped_column(String(120), nullable=False)
-    name_en: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    normalized_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    name_ko: Mapped[str] = mapped_column(String(255), nullable=False)
+    name_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    normalized_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")

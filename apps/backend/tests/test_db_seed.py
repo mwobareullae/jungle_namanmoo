@@ -20,6 +20,7 @@ from app.db.models.taxonomy import (
 )
 from app.db.session import make_engine
 from app.models.data_contract import IngredientAlias as IngredientAliasRecord
+from app.models.data_contract import Product as ProductRecord
 from app.services.data_loader import load_data_catalog
 from app.services.db_seed import seed_catalog, seed_database
 from tests.test_data_loader import EXAMPLES_DIR
@@ -66,8 +67,8 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert risk_row.severity_score is not None
     image_row = session.execute(select(ProductImage).order_by(ProductImage.id.asc())).scalars().first()
     assert image_row is not None
-    assert image_row.image_type == "detail"
-    assert image_row.storage_key
+    assert image_row.image_type == "thumbnail"
+    assert image_row.storage_key == "products/prod_001/thumbnail.jpg"
     product_row = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
     assert product_row.seller_id is not None
 
@@ -110,6 +111,38 @@ def test_seed_database_loads_optional_product_inventory(tmp_path: Path) -> None:
     ).scalar_one()
     assert inventory.stock_quantity == 12
     assert inventory.sales_status == "ON_SALE"
+
+
+def test_seed_database_upserts_product_images_by_display_slot(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "product_image_assets.csv").write_text(
+        "product_id,image_type,display_order,storage_key\n"
+        "prod_001,thumbnail,0,products/prod_001/thumb.jpg\n"
+        "prod_001,detail,1,products/prod_001/detail_old.jpg\n"
+        "prod_001,detail,1,products/prod_001/detail_new.jpg\n",
+        encoding="utf-8",
+    )
+    session = _make_session()
+
+    seed_database(session, data_dir)
+    seed_database(session, data_dir)
+
+    detail_rows = (
+        session.execute(
+            select(ProductImage)
+            .join(Product, ProductImage.product_id == Product.id)
+            .where(
+                Product.product_code == "prod_001",
+                ProductImage.image_type == "detail",
+                ProductImage.display_order == 1,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(detail_rows) == 1
+    assert detail_rows[0].storage_key == "products/prod_001/detail_new.jpg"
 
 
 def test_seed_database_deduplicates_existing_risk_flags() -> None:
@@ -201,6 +234,34 @@ def test_seed_catalog_skips_duplicate_product_ingredient_pairs() -> None:
 
     assert result.product_ingredients == 5
     assert _count(session, ProductIngredient) == 5
+
+
+def test_seed_catalog_deduplicates_normalized_brand_codes() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    extra_product = ProductRecord(
+        product_id="prod_dupe_brand",
+        brand="아 누아",
+        name="브랜드 표기 중복 상품",
+        category="serum",
+        skin_type_tags=(),
+        thumbnail_url=None,
+        image_urls=(),
+        functional_review_text=None,
+        functional_cosmetic_status=None,
+        functional_cosmetic_claims=(),
+        functional_claim_confidence=None,
+        functional_claim_basis=None,
+    )
+    catalog_with_duplicate_brand = replace(
+        catalog,
+        products=(*catalog.products, extra_product),
+    )
+
+    seed_catalog(session, catalog_with_duplicate_brand)
+
+    anua_brands = session.execute(select(Brand).where(Brand.brand_code == "아누아")).scalars().all()
+    assert len(anua_brands) == 1
 
 
 def test_seed_database_links_search_documents_to_source_rows() -> None:

@@ -1,11 +1,24 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { callOriginal } from "../lib/originalRuntime";
 
 function HomeHeader() {
   const defaultSectionHref = "/#defaultSection";
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
+  const handleLogout = async () => {
+    try {
+      await logout();
+      callOriginal("showToast", "로그아웃되었습니다.");
+      if (location.pathname !== "/") {
+        navigate("/", { replace: true });
+      }
+    } catch {
+      callOriginal("showToast", "로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    }
+  };
 
   return (
     <header>
@@ -105,21 +118,34 @@ function HomeHeader() {
               0
             </span>
           </button>
-          <a
-            className="btn-login"
-            data-commerce-only
-            href="#"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate("/login", {
-                state: {
-                  from: currentPath,
-                },
-              });
-            }}
-          >
-            로그인
-          </a>
+          {user ? (
+            <button
+              className="btn-login"
+              data-auth-state="authenticated"
+              data-commerce-only
+              onClick={handleLogout}
+              type="button"
+            >
+              로그아웃
+            </button>
+          ) : (
+            <a
+              className="btn-login"
+              data-auth-state="guest"
+              data-commerce-only
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/login", {
+                  state: {
+                    from: currentPath,
+                  },
+                });
+              }}
+            >
+              로그인
+            </a>
+          )}
         </div>
       </div>
     </header>
