@@ -53,7 +53,7 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         requires_auth=False,
         requires_confirmation=False,
         allowed_ui_actions=frozenset({"noop", "navigate", "show_products"}),
-        max_result_items=10,
+        max_result_items=2,
         timeout_ms=2500,
     ),
     "compare_products": AgentToolPolicy(
