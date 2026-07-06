@@ -147,6 +147,7 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
 
     run = _load_run(session, response.recommendation_id)
     diagnostics = run.request_context["candidate_pool_diagnostics"]
+    search_diagnostics = run.request_context["search_no_result_diagnostics"]
 
     assert diagnostics["candidate_generation_version"] == "legacy_id_order_v0"
     assert diagnostics["strategy"] == "legacy_id_order"
@@ -162,6 +163,35 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     assert diagnostics["source_counts"] == {"legacy_id_order": 2}
     assert diagnostics["fallback_used"] is False
     assert diagnostics["hard_filter_total_count"] is None
+    assert search_diagnostics["version"] == "search_no_result_v0"
+    assert search_diagnostics["no_result_reason"] is None
+    assert search_diagnostics["candidate_count"] == 2
+    assert search_diagnostics["join_document_count"] == 2
+    assert search_diagnostics["positive_search_match_count"] > 0
+    assert search_diagnostics["needs_alias_review"] is False
+
+
+def test_create_recommendation_response_persists_no_result_diagnostics() -> None:
+    session = _seed_example_session()
+
+    response = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="주름 탄력 추천"),
+        result_limit=10,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+
+    run = _load_run(session, response.recommendation_id)
+    diagnostics = run.request_context["search_no_result_diagnostics"]
+
+    assert diagnostics["version"] == "search_no_result_v0"
+    assert diagnostics["no_result_reason"] == "no_positive_search_match"
+    assert diagnostics["candidate_count"] == 2
+    assert diagnostics["join_document_count"] == 2
+    assert diagnostics["positive_search_match_count"] == 0
+    assert diagnostics["alias_candidate_terms"]
+    assert diagnostics["needs_alias_review"] is True
 
 
 def _seed_example_session() -> Session:
