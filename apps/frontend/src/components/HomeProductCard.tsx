@@ -1,4 +1,6 @@
 import type { ProductCardItem } from "../types/recommendation";
+import { trackEvent } from "../lib/analytics/events";
+import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
   product: ProductCardItem;
@@ -24,6 +26,18 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
 
   const openDetail = () => {
+    if (recommendationId) {
+      trackEvent("recommendation_product_click", {
+        recommendationId,
+        productId: product.product_id,
+        rank: product.rank,
+        source: "recommendation_result",
+        page: showScore ? "search" : "home",
+        metadata: {
+          score_bucket: `${Math.floor(product.total_score / 10) * 10}_${Math.floor(product.total_score / 10) * 10 + 10}`
+        }
+      });
+    }
     window.location.href = detailUrl;
   };
 
@@ -42,13 +56,7 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
       tabIndex={0}
     >
       <div className="product-img">
-        {hasImage ? (
-          <img className="product-photo" src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
-        ) : (
-          <div className="product-image-empty">
-            <span>이미지 준비중</span>
-          </div>
-        )}
+        <ProductThumbnail className="product-photo" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
         <div className="product-labels">
           {showScore && product.rank && product.rank <= 10 ? (
             <span className="label label-ai">{product.rank}위</span>

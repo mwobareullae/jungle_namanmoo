@@ -34,6 +34,12 @@ export type RecommendationRequest = {
   concern_text: string;
 };
 
+export type RecommendationProfile = {
+  skin: SkinType;
+  sensitivity: Sensitivity;
+  avoidIngredients: string[];
+};
+
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
