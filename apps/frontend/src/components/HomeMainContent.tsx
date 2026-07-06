@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
+import { trackEvent } from "../lib/analytics/events";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
   HomeSection,
@@ -356,6 +357,22 @@ function HomeMainContent({
                 pageSize
               }
             );
+        if (response.products.length === 0) {
+          trackEvent("search_no_result", {
+            recommendationId: response.recommendation_id,
+            source: "recommendation_result",
+            page: mode === "search" ? "search" : "home",
+            metadata: {
+              has_concern_text: true,
+              concern_length: trimmedQuery.length,
+              skin_type: profile.skin,
+              sensitivity: profile.sensitivity,
+              total_items: response.pagination.total_items,
+              unmatched_term_count: response.unmatched_terms.length
+            }
+          });
+        }
+
         const displayResponse =
           response.products.length > 0
             ? response
@@ -390,7 +407,7 @@ function HomeMainContent({
         setIsLoading(false);
       }
     },
-    [pageSize, updateSearchUrl]
+    [mode, pageSize, updateSearchUrl]
   );
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import type { ProductCardItem } from "../types/recommendation";
+import { trackEvent } from "../lib/analytics/events";
 import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
@@ -25,6 +26,18 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
 
   const openDetail = () => {
+    if (recommendationId) {
+      trackEvent("recommendation_product_click", {
+        recommendationId,
+        productId: product.product_id,
+        rank: product.rank,
+        source: "recommendation_result",
+        page: showScore ? "search" : "home",
+        metadata: {
+          score_bucket: `${Math.floor(product.total_score / 10) * 10}_${Math.floor(product.total_score / 10) * 10 + 10}`
+        }
+      });
+    }
     window.location.href = detailUrl;
   };
 
