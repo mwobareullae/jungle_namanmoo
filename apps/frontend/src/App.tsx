@@ -1,20 +1,21 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import { originalPages, type OriginalPageKey } from "./originalPages";
-import CheckoutPage from "./pages/CheckoutPage";
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import PaymentCompletePage from "./pages/PaymentCompletePage";
-import PasswordResetPage from "./pages/PasswordResetPage";
-import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
-import RecommendationGuidePage from "./pages/RecommendationGuidePage";
-import SearchPage from "./pages/SearchPage";
-import SkinTestPage from "./pages/SkinTestPage";
-import SkinTestRecommendationsPage from "./pages/SkinTestRecommendationsPage";
-import SkinTestResultPage from "./pages/SkinTestResultPage";
-import SignupInfoPage from "./pages/SignupInfoPage";
-import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
-import SignupTermsPage from "./pages/SignupTermsPage";
+
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
+const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
+const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
+const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
+const SkinTestPage = lazy(() => import("./pages/SkinTestPage"));
+const SkinTestRecommendationsPage = lazy(() => import("./pages/SkinTestRecommendationsPage"));
+const SkinTestResultPage = lazy(() => import("./pages/SkinTestResultPage"));
+const SignupInfoPage = lazy(() => import("./pages/SignupInfoPage"));
+const SignupSkinProfilePage = lazy(() => import("./pages/SignupSkinProfilePage"));
+const SignupTermsPage = lazy(() => import("./pages/SignupTermsPage"));
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -536,18 +537,20 @@ function LegacyApp() {
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
-    <Routes>
-      {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
-      {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
-      {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
-      {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
-      {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
-      {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
-      {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
-      {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
-      <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
-      <Route path="*" element={<LegacyApp />} />
-    </Routes>
+    <Suspense fallback={<div className="detail-loading">페이지를 불러오는 중입니다.</div>}>
+      <Routes>
+        {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+        {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
+        {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
+        {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
+        {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
+        {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
+        {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
+        {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+        <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
+        <Route path="*" element={<LegacyApp />} />
+      </Routes>
+    </Suspense>
   );
 }
 
