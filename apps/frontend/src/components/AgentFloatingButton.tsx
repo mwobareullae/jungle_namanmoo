@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import type {
@@ -12,8 +12,8 @@ import type {
 import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
-  hasSkinProfile?: boolean;
   isAgentResponding?: boolean;
+  skinProfileStatus?: "empty" | "saved" | "temporary";
   surface?: "home" | "productDetail";
 };
 
@@ -89,10 +89,22 @@ type AgentChatMessage =
 
 type AgentChatView = "home" | "thread";
 
+type AgentChatThreadSummary = {
+  conversationId: string | null;
+  id: string;
+  messages: AgentChatMessage[];
+  title: string;
+  updatedAt: number;
+};
+
 const AGENT_CHAT_HISTORY_KEY = "mwobareullae-agent-chat-history-v2";
 const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
+const AGENT_CHAT_THREADS_KEY = "mwobareullae-agent-chat-threads-v1";
+const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
+const MAX_AGENT_CHAT_THREADS = 5;
 const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
 const MAX_STORED_AGENT_MESSAGES = 24;
+const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 
 const homeQuickQuestions = [
   "이 성분, 내 피부에 맞을까?",
@@ -104,8 +116,6 @@ const productQuickQuestions = [
   "이 성분, 내 피부에 맞을까?",
   "비슷한 상품끼리 비교해줘",
 ];
-
-const fallbackRecentQuestions = ["각질 올라올 때 순한 세럼 추천해줘"];
 
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
@@ -312,6 +322,95 @@ const readNumber = (value: unknown) => {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+const createThreadTitle = (content: string) => {
+  const normalizedContent = content.replace(/\s+/g, " ").trim();
+  if (!normalizedContent) return "새 대화";
+  return normalizedContent.length > MAX_AGENT_CHAT_THREAD_TITLE_LENGTH
+    ? `${normalizedContent.slice(0, MAX_AGENT_CHAT_THREAD_TITLE_LENGTH)}...`
+    : normalizedContent;
+};
+
+const createThreadTitleFromMessages = (messages: AgentChatMessage[]) => {
+  const firstUserMessage = messages.find(
+    (message): message is AgentChatTextMessage => message.kind === "chat" && message.role === "user",
+  );
+  return firstUserMessage ? createThreadTitle(firstUserMessage.content) : "새 대화";
+};
+
+const normalizeStoredThread = (thread: unknown): AgentChatThreadSummary | null => {
+  if (!isRecord(thread)) {
+    return null;
+  }
+
+  const id = readString(thread.id);
+  const messages = Array.isArray(thread.messages)
+    ? thread.messages
+        .map((message) => normalizeStoredMessage(message))
+        .filter((message): message is AgentChatMessage => message !== null)
+        .slice(-MAX_STORED_AGENT_MESSAGES)
+    : [];
+
+  if (!id || messages.length === 0) {
+    return null;
+  }
+
+  return {
+    id,
+    conversationId: readString(thread.conversationId),
+    messages,
+    title: readString(thread.title) ?? createThreadTitleFromMessages(messages),
+    updatedAt: readNumber(thread.updatedAt) ?? Date.now(),
+  };
+};
+
+function readStoredThreads() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedThreads = window.localStorage.getItem(AGENT_CHAT_THREADS_KEY);
+    const parsedThreads: unknown = storedThreads ? JSON.parse(storedThreads) : null;
+
+    if (Array.isArray(parsedThreads)) {
+      return parsedThreads
+        .map((thread) => normalizeStoredThread(thread))
+        .filter((thread): thread is AgentChatThreadSummary => thread !== null)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, MAX_AGENT_CHAT_THREADS);
+    }
+  } catch {
+    // Legacy history is still useful if the new thread list cannot be parsed.
+  }
+
+  const legacyMessages = readStoredMessages();
+  const legacyConversationId = readStoredConversationId();
+  if (legacyMessages.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      id: legacyConversationId ?? "legacy-agent-thread",
+      conversationId: legacyConversationId,
+      messages: legacyMessages,
+      title: createThreadTitleFromMessages(legacyMessages),
+      updatedAt: Date.now(),
+    },
+  ];
+}
+
+const upsertAgentChatThread = (
+  currentThreads: AgentChatThreadSummary[],
+  nextThread: AgentChatThreadSummary,
+) =>
+  [
+    nextThread,
+    ...currentThreads.filter((thread) => thread.id !== nextThread.id),
+  ]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, MAX_AGENT_CHAT_THREADS);
 
 const uniqueNonEmpty = (values: (string | null | undefined)[]) =>
   Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
@@ -591,11 +690,18 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
   return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
 };
 
+const isSimilarProductsAction = (action: AgentUiAction) =>
+  action.type === "show_products" && action.target === "similar_products";
+
 function createResultMessage(
   id: string,
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
 ): AgentChatResultMessage | null {
+  if (isSimilarProductsAction(action)) {
+    return null;
+  }
+
   const productPayload = Array.isArray(action.payload.products)
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
     : [];
@@ -631,9 +737,10 @@ function createResultMessage(
 
 function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
   const nextMessages: AgentChatMessage[] = [];
+  const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
 
-  if (response.message.trim()) {
-    nextMessages.push(createAssistantMessage(`assistant-${timestamp}`, response.message));
+  if (resultMessage) {
+    nextMessages.push(resultMessage);
   }
 
   const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage);
@@ -641,13 +748,12 @@ function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp:
     nextMessages.push(errorMessage);
   }
 
-  if (response.requires_confirmation) {
-    nextMessages.push(createApprovalMessage(response, timestamp));
+  if (response.message.trim()) {
+    nextMessages.push(createAssistantMessage(`assistant-${timestamp}`, response.message));
   }
 
-  const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
-  if (resultMessage) {
-    nextMessages.push(resultMessage);
+  if (response.requires_confirmation) {
+    nextMessages.push(createApprovalMessage(response, timestamp));
   }
 
   if (nextMessages.length === 0) {
@@ -700,7 +806,19 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   return null;
 };
 
-const applyAgentUiAction = (action: AgentUiAction) => {
+const applyAgentUiAction = (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
+  if ((action.type === "show_product_comparison" || isSimilarProductsAction(action)) && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AGENT_PRODUCT_COMPARISON_EVENT, {
+      detail: {
+        action,
+        agentMessage: message,
+        items,
+        payload: action.payload,
+      },
+    }));
+    return;
+  }
+
   const url = resolveNavigateUrl(action);
   if (!url) {
     return;
@@ -712,8 +830,8 @@ const applyAgentUiAction = (action: AgentUiAction) => {
 };
 
 function AgentFloatingButton({
-  hasSkinProfile = true,
   isAgentResponding = false,
+  skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
   const [activeView, setActiveView] = useState<AgentChatView>("home");
@@ -723,20 +841,21 @@ function AgentFloatingButton({
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
   const quickQuestions = useMemo(
     () => (surface === "productDetail" ? productQuickQuestions : homeQuickQuestions),
     [surface],
   );
-  const recentQuestions = useMemo(() => {
-    const userMessages = messages
-      .filter((message): message is AgentChatTextMessage => message.kind === "chat" && message.role === "user")
-      .map((message) => message.content)
-      .reverse();
-
-    return userMessages.length > 0 ? userMessages.slice(0, 3) : fallbackRecentQuestions;
-  }, [messages]);
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
+  const hasSkinProfile = skinProfileStatus !== "empty";
+  const skinProfileChipLabel = skinProfileStatus === "saved"
+    ? "내 피부 타입 적용 중"
+    : skinProfileStatus === "temporary"
+      ? "현재 선택한 피부 타입 적용 중"
+      : "피부 정보를 추가하면 더 정확히 답변해드려요";
 
   useEffect(() => {
     if (!isOpen) {
@@ -762,17 +881,62 @@ function AgentFloatingButton({
   }, [messages]);
 
   useEffect(() => {
+    if (!currentThreadId || messages.length === 0) {
+      return;
+    }
+
+    setChatThreads((currentThreads) =>
+      upsertAgentChatThread(currentThreads, {
+        id: currentThreadId,
+        conversationId,
+        messages: messages.slice(-MAX_STORED_AGENT_MESSAGES),
+        title: createThreadTitleFromMessages(messages),
+        updatedAt: Date.now(),
+      }),
+    );
+  }, [conversationId, currentThreadId, messages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(AGENT_CHAT_THREADS_KEY, JSON.stringify(chatThreads.slice(0, MAX_AGENT_CHAT_THREADS)));
+  }, [chatThreads]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
     if (conversationId) {
       window.localStorage.setItem(AGENT_CONVERSATION_ID_KEY, conversationId);
+    } else {
+      window.localStorage.removeItem(AGENT_CONVERSATION_ID_KEY);
     }
   }, [conversationId]);
 
+  useEffect(() => {
+    if (!isOpen || !isThreadView || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      threadEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [isOpen, isThreadView, messages]);
+
   const appendMessages = (nextMessages: AgentChatMessage[]) => {
     setMessages((currentMessages) => [...currentMessages, ...nextMessages].slice(-MAX_STORED_AGENT_MESSAGES));
+    setActiveView("thread");
+  };
+
+  const openChatThread = (thread: AgentChatThreadSummary) => {
+    setCurrentThreadId(thread.id);
+    setConversationId(thread.conversationId);
+    setMessages(thread.messages);
     setActiveView("thread");
   };
 
@@ -785,6 +949,9 @@ function AgentFloatingButton({
 
     const timestamp = Date.now();
     const statusId = `status-${timestamp}`;
+    const shouldStartNewThread = activeView === "home";
+    const requestConversationId = shouldStartNewThread ? null : conversationId;
+    const nextThreadId = shouldStartNewThread || !currentThreadId ? `thread-${timestamp}` : currentThreadId;
     const userMessage: AgentChatTextMessage = {
       id: `user-${timestamp}`,
       content: nextMessage,
@@ -793,14 +960,24 @@ function AgentFloatingButton({
     };
 
     setLastSentMessage(nextMessage);
-    appendMessages([userMessage, createStatusMessage(statusId, true)]);
+    if (shouldStartNewThread) {
+      setCurrentThreadId(nextThreadId);
+      setConversationId(null);
+      setMessages([userMessage, createStatusMessage(statusId, true)]);
+      setActiveView("thread");
+    } else {
+      if (!currentThreadId) {
+        setCurrentThreadId(nextThreadId);
+      }
+      appendMessages([userMessage, createStatusMessage(statusId, true)]);
+    }
     setDraft("");
     setIsSubmitting(true);
 
     try {
       const response = await api.sendAgentMessage({
         context: buildAgentContext(),
-        conversation_id: conversationId,
+        conversation_id: requestConversationId,
         message: nextMessage,
       });
       const responseTimestamp = Date.now();
@@ -813,7 +990,7 @@ function AgentFloatingButton({
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action);
+      applyAgentUiAction(response.ui_action, response.items, response.message);
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1028,10 +1205,10 @@ function AgentFloatingButton({
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button onClick={() => handleCopyAnswer(message.content)} type="button">복사</button>
-            <button onClick={handleRegenerate} type="button">다시 생성</button>
             <button aria-label="좋아요" type="button">좋아요</button>
             <button aria-label="별로예요" type="button">별로예요</button>
+            <button onClick={handleRegenerate} type="button">다시 생성</button>
+            <button onClick={() => handleCopyAnswer(message.content)} type="button">복사</button>
           </div>
         </>
       ) : null}
@@ -1112,14 +1289,13 @@ function AgentFloatingButton({
               {isThreadView ? (
                 <div className="agent-chat-thread" aria-live="polite">
                   {messages.map((message) => renderMessage(message))}
+                  <div ref={threadEndRef} aria-hidden="true" />
                 </div>
               ) : (
                 <>
                   <div className={`agent-chat-profile-chip${hasSkinProfile ? "" : " empty"}`} role="status">
                     <span aria-hidden="true">{hasSkinProfile ? "✓" : "＋"}</span>
-                    <span>
-                      {hasSkinProfile ? "내 피부 타입 적용 중" : "피부 정보를 추가하면 더 정확히 답변해드려요"}
-                    </span>
+                    <span>{skinProfileChipLabel}</span>
                   </div>
 
                   <div className="agent-chat-divider" />
@@ -1154,35 +1330,42 @@ function AgentFloatingButton({
                     </button>
                   ))}
 
-                  <div className="agent-chat-divider" />
-                  <div className="agent-chat-section-label">최근 대화</div>
-                  {recentQuestions.map((question, index) => (
-                    <button
-                      className="agent-chat-question-row"
-                      disabled={isSubmitting}
-                      key={`${question}-${index}`}
-                      onClick={() => void sendMessage(question)}
-                      type="button"
-                    >
-                      <span className="agent-chat-row-icon" aria-hidden="true">
-                        <svg fill="none" viewBox="0 0 24 24">
-                          <path
-                            d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          />
-                          <path
-                            d="M12 7.5v5l3.2 1.9"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                        </svg>
-                      </span>
-                      <span>{question}</span>
-                    </button>
-                  ))}
+                  {chatThreads.length > 0 ? (
+                    <>
+                      <div className="agent-chat-divider" />
+                      <div className="agent-chat-section-label">최근 대화</div>
+                      {chatThreads.map((thread) => (
+                        <button
+                          aria-label={`${thread.title} 대화 열기`}
+                          className="agent-chat-question-row"
+                          disabled={isSubmitting}
+                          key={thread.id}
+                          onClick={() => openChatThread(thread)}
+                          type="button"
+                        >
+                          <span className="agent-chat-row-icon" aria-hidden="true">
+                            <svg fill="none" viewBox="0 0 24 24">
+                              <path
+                                d="M5 6.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9.25L5 17.5v-11Z"
+                                stroke="currentColor"
+                                strokeLinejoin="round"
+                                strokeWidth="1.8"
+                              />
+                              <path
+                                d="M8.5 8.5h7M8.5 11.5h4.5"
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeWidth="1.8"
+                              />
+                            </svg>
+                          </span>
+                          <span>{thread.title}</span>
+                          <span aria-hidden="true">›</span>
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
+
                 </>
               )}
             </div>
