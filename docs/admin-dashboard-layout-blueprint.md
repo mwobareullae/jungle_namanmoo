@@ -3,6 +3,7 @@
 작성일: 2026-07-07  
 기준 브랜치: `feat/admin-dashboard-shell`  
 대상: 관리자 페이지 `/admin`  
+상태: 교차검증 반영판  
 성격: 디자인·구현·API보다 앞서는 배치 기준 문서. "어떻게 예쁘게 보일지"보다 **무엇이 어디에 있어야 하는지**를 먼저 고정한다.
 
 근거:
@@ -22,9 +23,6 @@
 
 표기 규칙:
 
-- **(기존)** 현재 `/admin` 프로토타입에 이미 있음
-- **(신규)** 이번 설계에서 추가해야 함
-- **(예정)** 자리만 잡고 API/데이터 계약 후 연결
 - **(준비중)** 화면에 비활성으로 노출
 
 ## 1. 전역 원칙
@@ -339,6 +337,7 @@ product_code 누락
 - 실패 row 저장·조회
 - 업로드 회차 = import job 번호로 정의할지
 - import 후 검색 문서 rebuild와 임베딩 자동 반영 방식
+- 임베딩 자동 반영에 필요한 서버 `OPENAI_API_KEY` 준비 여부
 
 ## 7. 이미지 대량 연결
 
@@ -458,6 +457,9 @@ reason 입력
 
 초기에는 상품당 단일 SKU여도 구조는 SKU 단위로 둔다.
 
+같은 상품이라도 셀러별 가격/재고가 다를 수 있으므로, 가격/재고 화면은 항상 셀러 범위를 함께 보여준다.
+재고/가격 수정은 원우 API 계약 전까지 "로컬 미리보기" 라벨을 붙이고 실제 운영 변경처럼 보이지 않게 한다.
+
 ### 9.3 API 필요
 
 - `GET /admin/inventory` (가칭)
@@ -542,7 +544,7 @@ reason 입력
 | 성분 검수 | `GET /admin/ingredient-reviews`, `POST /admin/ingredient-reviews` | pending 처리 + reason, 이력 | 원우·세민 |
 | 재고/가격 | `GET /admin/inventory`, `PUT /admin/inventory` | `seller_id + sku_code` 단위 | 원우 |
 | 주문 | `GET /admin/orders` | 품목별 `seller_id`, 상태 축 | 원우 |
-| 인덱스 | rebuild trigger | import 후 rebuild, 임베딩 자동 반영 여부 | 지운·원우 |
+| 인덱스 | rebuild trigger | import 후 rebuild, 임베딩 자동 반영, 서버 `OPENAI_API_KEY` 필요 | 지운·원우 |
 | 권한 | admin route guard | Step 2 셀러 모델·역할 | 원우 |
 | 로그 | `GET /admin/activity-logs` | 관리자·셀러·유형 필터 | 원우 |
 
@@ -579,6 +581,14 @@ reason 입력
 ```
 
 배지 매핑은 상품 상태 enum 8종과 보조 축(이미지/성분/인덱스)을 분리해서 만든다. 상품 상태와 보조 상태를 같은 enum처럼 섞지 않는다.
+
+디자인 금지:
+
+- 마케팅 랜딩처럼 만들지 않는다.
+- 큰 히어로 영역을 두지 않는다.
+- 카드를 늘려 테이블을 화면 아래로 밀어내지 않는다.
+- `product_code` 단독 매칭처럼 보이는 표기를 쓰지 않는다.
+- OCR 결과가 자동 확정되는 것처럼 보이는 표기를 쓰지 않는다.
 
 ## 14. 확정 필요 (열린 결정 6건)
 
