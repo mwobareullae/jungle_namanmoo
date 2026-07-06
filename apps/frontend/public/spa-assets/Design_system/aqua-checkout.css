@@ -291,55 +291,72 @@ nav a {
 .order-summary {
   position: sticky;
   top: 88px;
-  padding: 24px;
+  padding: 28px 30px;
 }
 
 .order-summary h2 {
-  margin: 0 0 18px;
+  margin: 0 0 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
   color: var(--ink);
-  font-size: var(--fs-20);
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
 }
 
 .summary-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin: 12px 0;
+  gap: 20px;
+  min-height: 42px;
+  margin: 0;
+  border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--fs-14);
-  font-weight: 400;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.summary-row:first-of-type {
+  border-top: 0;
 }
 
 .summary-row strong {
   color: var(--ink);
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .summary-divider {
-  height: 1px;
-  margin: 18px 0;
-  background: var(--line);
+  display: none;
 }
 
 .summary-total {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 20px;
+  min-height: 50px;
+  margin: 0;
+  border-top: 1px solid var(--line);
 }
 
 .summary-total span {
-  color: var(--ink);
-  font-size: var(--fs-16);
-  font-weight: 600;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .summary-total strong {
   color: var(--ink);
-  font-size: var(--fs-28);
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .checkout-btn-main {
@@ -353,15 +370,16 @@ nav a {
   background: var(--aqua-primary);
   color: var(--aqua-primary-text);
   font-family: var(--font-ui);
-  font-size: var(--fs-15);
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
   cursor: pointer;
 }
 
 .summary-note {
   margin: 14px 0 0;
   color: #747474;
-  font-size: var(--fs-12);
+  font-size: var(--fs-14);
   font-weight: 300;
   line-height: var(--lh-140);
 }
