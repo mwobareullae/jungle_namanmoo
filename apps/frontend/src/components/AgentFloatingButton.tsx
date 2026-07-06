@@ -1,0 +1,1132 @@
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { api } from "../lib/api";
+import { navigateWithinApp } from "../lib/navigation";
+import type {
+  AgentChatResponse,
+  AgentContext,
+  AgentResponseItem,
+  AgentToolConfirmResponse,
+  AgentToolName,
+  AgentUiAction,
+} from "../types/agent";
+import type { ApiError } from "../types/recommendation";
+
+type AgentFloatingButtonProps = {
+  hasSkinProfile?: boolean;
+  isAgentResponding?: boolean;
+  surface?: "home" | "productDetail";
+};
+
+type AgentChatBaseMessage = {
+  createdAt?: number;
+  id: string;
+};
+
+type AgentChatTextMessage = AgentChatBaseMessage & {
+  kind: "chat";
+  role: "assistant" | "user";
+  content: string;
+  evidenceExpanded?: boolean;
+  showActions?: boolean;
+};
+
+type AgentStatusStep = {
+  label: string;
+  status: "active" | "done" | "todo";
+};
+
+type AgentChatStatusMessage = AgentChatBaseMessage & {
+  kind: "status";
+  steps: AgentStatusStep[];
+  title: string;
+};
+
+type AgentChatApprovalMessage = AgentChatBaseMessage & {
+  approveLabel: string;
+  kind: "approval";
+  description: string;
+  rejectLabel: string;
+  resolved?: "approved" | "cancelled";
+  title: string;
+  toolCallId: string | null;
+  toolName?: AgentToolName | null;
+};
+
+type AgentChatErrorMessage = AgentChatBaseMessage & {
+  action: "login" | "profile" | "retry";
+  actionLabel: string;
+  kind: "error";
+  message: string;
+  retryMessage?: string;
+  title: string;
+  tone: "amber" | "info";
+};
+
+type AgentChatResultItem = {
+  id: string;
+  itemType: "order" | "product";
+  price?: number | null;
+  subtitle?: string | null;
+  title: string;
+};
+
+type AgentChatResultMessage = AgentChatBaseMessage & {
+  actionTarget?: string | null;
+  actionType: AgentUiAction["type"];
+  description: string;
+  items: AgentChatResultItem[];
+  kind: "result";
+  title: string;
+};
+
+type AgentChatMessage =
+  | AgentChatApprovalMessage
+  | AgentChatErrorMessage
+  | AgentChatResultMessage
+  | AgentChatStatusMessage
+  | AgentChatTextMessage;
+
+type AgentChatView = "home" | "thread";
+
+const AGENT_CHAT_HISTORY_KEY = "mwobareullae-agent-chat-history-v2";
+const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
+const MAX_STORED_AGENT_MESSAGES = 24;
+
+const homeQuickQuestions = [
+  "이 성분, 내 피부에 맞을까?",
+  "이번 주 예산 3만원 루틴 짜줘",
+];
+
+const productQuickQuestions = [
+  "이거랑 비슷한 상품 보여줘",
+  "이 성분, 내 피부에 맞을까?",
+  "비슷한 상품끼리 비교해줘",
+];
+
+const fallbackRecentQuestions = ["각질 올라올 때 순한 세럼 추천해줘"];
+
+const completedStatusSteps: AgentStatusStep[] = [
+  { label: "피부 타입 확인", status: "done" },
+  { label: "성분 근거 찾기", status: "done" },
+  { label: "추천 기준 정리", status: "done" },
+];
+
+const activeStatusSteps: AgentStatusStep[] = [
+  { label: "피부 타입 확인", status: "done" },
+  { label: "상품 성분 확인 중", status: "active" },
+  { label: "추천 결과 정리", status: "todo" },
+];
+
+function createStatusMessage(id: string, isActive = false): AgentChatStatusMessage {
+  return {
+    id,
+    kind: "status",
+    steps: isActive ? activeStatusSteps : completedStatusSteps,
+    title: isActive ? "상품 정보를 확인하고 있어요" : "추천 근거를 확인했어요",
+  };
+}
+
+function createAssistantMessage(id: string, content: string): AgentChatTextMessage {
+  return {
+    id,
+    content,
+    evidenceExpanded: false,
+    kind: "chat",
+    role: "assistant",
+    showActions: true,
+  };
+}
+
+function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+
+  const candidate = message as Record<string, unknown>;
+
+  if (typeof candidate.id !== "string") {
+    return null;
+  }
+
+  const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : undefined;
+
+  if (!("kind" in candidate) && (candidate.role === "assistant" || candidate.role === "user")) {
+    return typeof candidate.content === "string"
+      ? {
+          id: candidate.id,
+          content: candidate.content,
+          createdAt,
+          kind: "chat",
+          role: candidate.role,
+        }
+      : null;
+  }
+
+  if (candidate.kind === "chat") {
+    return (candidate.role === "assistant" || candidate.role === "user") && typeof candidate.content === "string"
+      ? {
+          id: candidate.id,
+          content: candidate.content,
+          createdAt,
+          evidenceExpanded: Boolean(candidate.evidenceExpanded),
+          kind: "chat",
+          role: candidate.role,
+          showActions: Boolean(candidate.showActions),
+        }
+      : null;
+  }
+
+  if (candidate.kind === "status") {
+    return Array.isArray(candidate.steps) && typeof candidate.title === "string"
+      ? {
+          id: candidate.id,
+          createdAt,
+          kind: "status",
+          steps: candidate.steps.filter(
+            (step): step is AgentStatusStep =>
+              Boolean(step) &&
+              typeof step === "object" &&
+              typeof (step as Record<string, unknown>).label === "string" &&
+              ["active", "done", "todo"].includes(String((step as Record<string, unknown>).status)),
+          ),
+          title: candidate.title,
+        }
+      : null;
+  }
+
+  if (candidate.kind === "approval") {
+    return typeof candidate.title === "string" && typeof candidate.description === "string"
+      ? {
+          id: candidate.id,
+          approveLabel: typeof candidate.approveLabel === "string" ? candidate.approveLabel : "승인",
+          createdAt,
+          description: candidate.description,
+          kind: "approval",
+          rejectLabel: typeof candidate.rejectLabel === "string" ? candidate.rejectLabel : "취소",
+          resolved:
+            candidate.resolved === "approved" || candidate.resolved === "cancelled" ? candidate.resolved : undefined,
+          title: candidate.title,
+          toolCallId: typeof candidate.toolCallId === "string" ? candidate.toolCallId : null,
+          toolName: typeof candidate.toolName === "string" ? (candidate.toolName as AgentToolName) : null,
+        }
+      : null;
+  }
+
+  if (candidate.kind === "error") {
+    return typeof candidate.title === "string" &&
+      typeof candidate.message === "string" &&
+      typeof candidate.actionLabel === "string" &&
+      (candidate.tone === "amber" || candidate.tone === "info")
+      ? {
+          id: candidate.id,
+          action:
+            candidate.action === "login" || candidate.action === "profile" || candidate.action === "retry"
+              ? candidate.action
+              : "retry",
+          actionLabel: candidate.actionLabel,
+          createdAt,
+          kind: "error",
+          message: candidate.message,
+          retryMessage: typeof candidate.retryMessage === "string" ? candidate.retryMessage : undefined,
+          title: candidate.title,
+          tone: candidate.tone,
+        }
+      : null;
+  }
+
+  if (candidate.kind === "result") {
+    return typeof candidate.title === "string" &&
+      typeof candidate.description === "string" &&
+      typeof candidate.actionType === "string" &&
+      Array.isArray(candidate.items)
+      ? {
+          id: candidate.id,
+          actionTarget: typeof candidate.actionTarget === "string" ? candidate.actionTarget : null,
+          actionType: candidate.actionType as AgentUiAction["type"],
+          createdAt,
+          description: candidate.description,
+          items: candidate.items.filter((item): item is AgentChatResultItem => {
+            if (!item || typeof item !== "object") {
+              return false;
+            }
+            const nextItem = item as Record<string, unknown>;
+            return (
+              typeof nextItem.id === "string" &&
+              (nextItem.itemType === "order" || nextItem.itemType === "product") &&
+              typeof nextItem.title === "string"
+            );
+          }),
+          kind: "result",
+          title: candidate.title,
+        }
+      : null;
+  }
+
+  return null;
+}
+
+function readStoredMessages() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedMessages = window.localStorage.getItem(AGENT_CHAT_HISTORY_KEY);
+
+    if (!storedMessages) {
+      return [];
+    }
+
+    const parsedMessages: unknown = JSON.parse(storedMessages);
+
+    if (!Array.isArray(parsedMessages)) {
+      return [];
+    }
+
+    return parsedMessages
+      .map((message) => normalizeStoredMessage(message))
+      .filter((message): message is AgentChatMessage => message !== null)
+      .slice(-MAX_STORED_AGENT_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function readStoredConversationId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return readString(window.localStorage.getItem(AGENT_CONVERSATION_ID_KEY));
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const readString = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
+
+const readNumber = (value: unknown) => {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const uniqueNonEmpty = (values: (string | null | undefined)[]) =>
+  Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+
+const collectVisibleProductIds = (currentProductId: string | null) => {
+  if (typeof document === "undefined") {
+    return currentProductId ? [currentProductId] : [];
+  }
+
+  const cardProductIds = Array.from(document.querySelectorAll<HTMLElement>("[data-agent-product-id]"))
+    .map((element) => element.dataset.agentProductId);
+  return uniqueNonEmpty([currentProductId, ...cardProductIds]).slice(0, 20);
+};
+
+const resolveAgentPage = (pathname: string) => {
+  if (pathname.startsWith("/product-detail")) return "product_detail";
+  if (pathname.startsWith("/search")) return "search_results";
+  if (pathname.startsWith("/checkout")) return "checkout";
+  if (pathname.startsWith("/payment-complete")) return "payment_complete";
+  if (pathname.startsWith("/skin-test")) return "skin_test";
+  if (pathname.startsWith("/login")) return "login";
+  return "home";
+};
+
+function buildAgentContext(): AgentContext {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const { hash, pathname, search } = window.location;
+  const params = new URLSearchParams(search);
+  const currentProductId = pathname.startsWith("/product-detail") || pathname.startsWith("/checkout")
+    ? readString(params.get("id"))
+    : null;
+  const filters: Record<string, unknown> = {};
+  const skinType = readString(params.get("skin_type"));
+  const sensitivity = readString(params.get("sensitivity"));
+  const pageSize = readNumber(params.get("page_size"));
+  const page = readNumber(params.get("page"));
+
+  if (skinType) filters.skin_type = skinType;
+  if (sensitivity) filters.sensitivity = sensitivity;
+  if (pageSize) filters.page_size = pageSize;
+  if (page) filters.page = page;
+
+  return {
+    current_product_id: currentProductId,
+    filters,
+    order_code: readString(params.get("order_code")),
+    page: resolveAgentPage(pathname),
+    recommendation_id: readString(params.get("recommendation_id")),
+    route: `${pathname}${search}${hash}`,
+    search_query: readString(params.get("keyword")),
+    selected_product_ids: [],
+    visible_product_ids: collectVisibleProductIds(currentProductId),
+  };
+}
+
+const getApprovalCopy = (toolName?: AgentToolName | null) => {
+  if (toolName === "cancel_recent_order") {
+    return {
+      approveLabel: "취소 진행",
+      description: "주문 상태를 바꾸는 작업이라 한 번 더 확인이 필요해요.",
+      rejectLabel: "취소 안 함",
+      title: "주문 취소를 진행할까요?",
+    };
+  }
+
+  return {
+    approveLabel: "승인",
+    description: "이 작업은 진행 전에 확인이 필요해요.",
+    rejectLabel: "취소",
+    title: "이 작업을 진행할까요?",
+  };
+};
+
+function createApprovalMessage(response: AgentChatResponse, timestamp: number): AgentChatApprovalMessage {
+  const copy = getApprovalCopy(response.tool_name);
+  const orderCode = readString(response.ui_action.payload.order_code);
+
+  return {
+    id: `approval-${timestamp}`,
+    approveLabel: copy.approveLabel,
+    description: orderCode ? `${copy.description} 대상 주문: ${orderCode}` : copy.description,
+    kind: "approval",
+    rejectLabel: copy.rejectLabel,
+    title: copy.title,
+    toolCallId: response.tool_call_id ?? null,
+    toolName: response.tool_name,
+  };
+}
+
+function createAgentErrorMessage(
+  id: string,
+  title: string,
+  message: string,
+  options: Partial<Pick<AgentChatErrorMessage, "action" | "actionLabel" | "retryMessage" | "tone">> = {},
+): AgentChatErrorMessage {
+  return {
+    id,
+    action: options.action ?? "retry",
+    actionLabel: options.actionLabel ?? "다시 시도",
+    kind: "error",
+    message,
+    retryMessage: options.retryMessage,
+    title,
+    tone: options.tone ?? "amber",
+  };
+}
+
+function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: string): AgentChatErrorMessage {
+  const apiError = error as Partial<ApiError>;
+  const status = typeof apiError.status === "number" ? apiError.status : 0;
+  const code = typeof apiError.code === "string" ? apiError.code : "";
+  const message = typeof apiError.message === "string" ? apiError.message : "요청을 처리하지 못했어요.";
+
+  if (status === 401 || code === "AGENT_AUTH_REQUIRED") {
+    return createAgentErrorMessage(id, "로그인이 필요해요", message, {
+      action: "login",
+      actionLabel: "로그인하기",
+      tone: "info",
+    });
+  }
+
+  if (status === 408) {
+    return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
+      retryMessage,
+    });
+  }
+
+  if (status === 503 || code.startsWith("AGENT_OPENAI_") || code === "AGENT_SDK_NOT_INSTALLED") {
+    return createAgentErrorMessage(id, "AI 연결을 확인해야 해요", message, {
+      retryMessage,
+    });
+  }
+
+  return createAgentErrorMessage(id, "답변을 만들지 못했어요", message, {
+    retryMessage,
+  });
+}
+
+function createAgentErrorFromResponse(response: AgentChatResponse, id: string, retryMessage?: string) {
+  if (!response.error) {
+    return null;
+  }
+
+  return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
+    retryMessage,
+    tone: response.error.retryable ? "amber" : "info",
+  });
+}
+
+const formatAgentPrice = (price?: number | null) =>
+  typeof price === "number" ? `${price.toLocaleString("ko-KR")}원` : null;
+
+const mapAgentItem = (item: AgentResponseItem): AgentChatResultItem => ({
+  id: item.id,
+  itemType: item.item_type,
+  price: item.price ?? null,
+  subtitle: item.subtitle ?? null,
+  title: item.title,
+});
+
+const mapPayloadProduct = (item: unknown): AgentChatResultItem | null => {
+  if (!isRecord(item)) {
+    return null;
+  }
+
+  const id = readString(item.product_id) ?? readString(item.id);
+  const name = readString(item.name) ?? readString(item.title) ?? readString(item.product_name);
+  if (!id || !name) {
+    return null;
+  }
+
+  const brand = readString(item.brand);
+  const stockStatus = readString(item.stock_status);
+
+  return {
+    id,
+    itemType: "product",
+    price: readNumber(item.price) ?? readNumber(item.lowest_price),
+    subtitle: uniqueNonEmpty([brand, stockStatus]).join(" · ") || null,
+    title: name,
+  };
+};
+
+const mapOrderPayload = (action: AgentUiAction): AgentChatResultItem | null => {
+  const orderCode = readString(action.payload.order_code);
+  if (!orderCode) {
+    return null;
+  }
+
+  const orderStatus = readString(action.payload.order_status) ?? readString(action.payload.status);
+  const paymentStatus = readString(action.payload.payment_status);
+
+  return {
+    id: orderCode,
+    itemType: "order",
+    subtitle: uniqueNonEmpty([orderStatus, paymentStatus]).join(" · ") || null,
+    title: `주문 ${orderCode}`,
+  };
+};
+
+const getResultTitle = (action: AgentUiAction) => {
+  if (action.type === "show_product_comparison") return "상품 비교 결과";
+  if (action.type === "show_order_status") return "주문 상태";
+  if (action.target === "similar_products") return "비슷한 상품";
+  if (action.target === "refined_products") return "조건에 맞는 상품";
+  if (action.type === "show_products") return "상품 결과";
+  return "처리 결과";
+};
+
+function createResultMessage(
+  id: string,
+  action: AgentUiAction,
+  items: AgentResponseItem[] = [],
+): AgentChatResultMessage | null {
+  const productPayload = Array.isArray(action.payload.products)
+    ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
+    : [];
+  const orderPayload = action.type === "show_order_status" ? mapOrderPayload(action) : null;
+  const resultItems = items.length > 0
+    ? items.map(mapAgentItem)
+    : orderPayload
+      ? [orderPayload]
+      : productPayload;
+
+  if (action.type === "noop" && resultItems.length === 0) {
+    return null;
+  }
+
+  const title = getResultTitle(action);
+  const emptyProducts = action.type === "show_products" && resultItems.length === 0;
+
+  return {
+    id,
+    actionTarget: action.target ?? null,
+    actionType: action.type,
+    description: emptyProducts
+      ? "조건에 맞는 상품을 찾지 못했어요."
+      : resultItems.length > 0
+        ? `${resultItems.length}개 항목을 확인했어요.`
+        : "요청 결과를 확인했어요.",
+    items: resultItems,
+    kind: "result",
+    title,
+  };
+}
+
+function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
+  const nextMessages: AgentChatMessage[] = [];
+
+  if (response.message.trim()) {
+    nextMessages.push(createAssistantMessage(`assistant-${timestamp}`, response.message));
+  }
+
+  const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage);
+  if (errorMessage) {
+    nextMessages.push(errorMessage);
+  }
+
+  if (response.requires_confirmation) {
+    nextMessages.push(createApprovalMessage(response, timestamp));
+  }
+
+  const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
+  if (resultMessage) {
+    nextMessages.push(resultMessage);
+  }
+
+  if (nextMessages.length === 0) {
+    nextMessages.push(createAssistantMessage(`assistant-${timestamp}`, "요청을 확인했어요."));
+  }
+
+  return nextMessages;
+}
+
+function createMessagesFromConfirmResponse(response: AgentToolConfirmResponse, timestamp: number) {
+  const nextMessages: AgentChatMessage[] = [];
+
+  if (response.message.trim()) {
+    nextMessages.push(createAssistantMessage(`assistant-confirm-${timestamp}`, response.message));
+  }
+
+  if (response.error) {
+    nextMessages.push(createAgentErrorMessage(`error-confirm-${timestamp}`, "작업을 완료하지 못했어요", response.error.message, {
+      tone: response.error.retryable ? "amber" : "info",
+    }));
+  }
+
+  const resultMessage = createResultMessage(`result-confirm-${timestamp}`, response.ui_action);
+  if (resultMessage) {
+    nextMessages.push(resultMessage);
+  }
+
+  return nextMessages.length > 0
+    ? nextMessages
+    : [createAssistantMessage(`assistant-confirm-${timestamp}`, "요청을 처리했어요.")];
+}
+
+const resolveNavigateUrl = (action: AgentUiAction) => {
+  if (action.type !== "navigate") {
+    return null;
+  }
+
+  if (action.target === "home") return "/";
+  if (action.target === "login") return "/login";
+  if (action.target === "checkout") return "/checkout";
+  if (action.target === "product_detail") {
+    const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
+    return productId ? `/product-detail?id=${encodeURIComponent(productId)}` : null;
+  }
+  if (action.target === "order_detail") {
+    const orderCode = readString(action.payload.order_code);
+    return orderCode ? `/payment-complete?order_code=${encodeURIComponent(orderCode)}` : null;
+  }
+
+  return null;
+};
+
+const applyAgentUiAction = (action: AgentUiAction) => {
+  const url = resolveNavigateUrl(action);
+  if (!url) {
+    return;
+  }
+
+  navigateWithinApp(url).catch(() => {
+    window.location.href = url;
+  });
+};
+
+function AgentFloatingButton({
+  hasSkinProfile = true,
+  isAgentResponding = false,
+  surface = "home",
+}: AgentFloatingButtonProps) {
+  const [activeView, setActiveView] = useState<AgentChatView>("home");
+  const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [lastSentMessage, setLastSentMessage] = useState("");
+  const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
+  const quickQuestions = useMemo(
+    () => (surface === "productDetail" ? productQuickQuestions : homeQuickQuestions),
+    [surface],
+  );
+  const recentQuestions = useMemo(() => {
+    const userMessages = messages
+      .filter((message): message is AgentChatTextMessage => message.kind === "chat" && message.role === "user")
+      .map((message) => message.content)
+      .reverse();
+
+    return userMessages.length > 0 ? userMessages.slice(0, 3) : fallbackRecentQuestions;
+  }, [messages]);
+  const isThreadView = activeView === "thread" && messages.length > 0;
+  const isAgentBusy = isSubmitting || isAgentResponding;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(AGENT_CHAT_HISTORY_KEY, JSON.stringify(messages.slice(-MAX_STORED_AGENT_MESSAGES)));
+  }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (conversationId) {
+      window.localStorage.setItem(AGENT_CONVERSATION_ID_KEY, conversationId);
+    }
+  }, [conversationId]);
+
+  const appendMessages = (nextMessages: AgentChatMessage[]) => {
+    setMessages((currentMessages) => [...currentMessages, ...nextMessages].slice(-MAX_STORED_AGENT_MESSAGES));
+    setActiveView("thread");
+  };
+
+  const sendMessage = async (message: string) => {
+    const nextMessage = message.trim();
+
+    if (!nextMessage || isSubmitting) {
+      return;
+    }
+
+    const timestamp = Date.now();
+    const statusId = `status-${timestamp}`;
+    const userMessage: AgentChatTextMessage = {
+      id: `user-${timestamp}`,
+      content: nextMessage,
+      kind: "chat",
+      role: "user",
+    };
+
+    setLastSentMessage(nextMessage);
+    appendMessages([userMessage, createStatusMessage(statusId, true)]);
+    setDraft("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await api.sendAgentMessage({
+        context: buildAgentContext(),
+        conversation_id: conversationId,
+        message: nextMessage,
+      });
+      const responseTimestamp = Date.now();
+      setConversationId(response.conversation_id);
+      setMessages((currentMessages) =>
+        [
+          ...currentMessages.map((currentMessage) =>
+            currentMessage.id === statusId ? createStatusMessage(statusId) : currentMessage,
+          ),
+          ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
+        ].slice(-MAX_STORED_AGENT_MESSAGES),
+      );
+      applyAgentUiAction(response.ui_action);
+    } catch (error) {
+      setMessages((currentMessages) =>
+        [
+          ...currentMessages.filter((currentMessage) => currentMessage.id !== statusId),
+          createAgentErrorFromUnknown(error, `error-${Date.now()}`, nextMessage),
+        ].slice(-MAX_STORED_AGENT_MESSAGES),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void sendMessage(draft);
+  };
+
+  const confirmApproval = async (messageId: string, action: "confirm" | "reject") => {
+    const approvalMessage = messages.find(
+      (message): message is AgentChatApprovalMessage => message.id === messageId && message.kind === "approval",
+    );
+
+    if (!approvalMessage?.toolCallId || isSubmitting) {
+      return;
+    }
+
+    const statusId = `status-confirm-${Date.now()}`;
+    setIsSubmitting(true);
+    appendMessages([createStatusMessage(statusId, true)]);
+
+    try {
+      const response = await api.confirmAgentToolCall(approvalMessage.toolCallId, { action });
+      const timestamp = Date.now();
+      setMessages((currentMessages) =>
+        [
+          ...currentMessages
+            .filter((message) => message.id !== statusId)
+            .map((message) =>
+              message.id === messageId && message.kind === "approval"
+                ? { ...message, resolved: action === "confirm" ? "approved" as const : "cancelled" as const }
+                : message,
+            ),
+          createStatusMessage(`status-confirmed-${timestamp}`),
+          ...createMessagesFromConfirmResponse(response, timestamp),
+        ].slice(-MAX_STORED_AGENT_MESSAGES),
+      );
+      applyAgentUiAction(response.ui_action);
+    } catch (error) {
+      setMessages((currentMessages) =>
+        [
+          ...currentMessages.filter((message) => message.id !== statusId),
+          createAgentErrorFromUnknown(error, `error-confirm-${Date.now()}`),
+        ].slice(-MAX_STORED_AGENT_MESSAGES),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRetry = (retryMessage?: string) => {
+    const nextRetryMessage = retryMessage || lastSentMessage;
+    if (nextRetryMessage) {
+      void sendMessage(nextRetryMessage);
+    }
+  };
+
+  const handleRegenerate = () => {
+    handleRetry(lastSentMessage);
+  };
+
+  const handleCopyAnswer = (content: string) => {
+    if (typeof window !== "undefined" && window.navigator.clipboard) {
+      window.navigator.clipboard.writeText(content).catch(() => undefined);
+    }
+  };
+
+  const renderStatusMessage = (message: AgentChatStatusMessage) => (
+    <div className="agent-chat-status-card" key={message.id}>
+      <div className="agent-chat-status-head">
+        <span className="agent-chat-status-badge" aria-hidden="true">✓</span>
+        <strong>{message.title}</strong>
+      </div>
+      <div className="agent-chat-status-steps">
+        {message.steps.map((step) => (
+          <div className={`agent-chat-status-step ${step.status}`} key={step.label}>
+            <span aria-hidden="true" />
+            <span>{step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderApprovalMessage = (message: AgentChatApprovalMessage) => {
+    const isResolved = Boolean(message.resolved);
+
+    return (
+      <div className={`agent-chat-approval-card${isResolved ? " resolved" : ""}`} key={message.id}>
+        <span className="agent-chat-approval-icon" aria-hidden="true">?</span>
+        <strong>{message.title}</strong>
+        <p>{message.description}</p>
+        <div className="agent-chat-approval-actions">
+          <button
+            disabled={isResolved || isSubmitting || !message.toolCallId}
+            onClick={() => void confirmApproval(message.id, "confirm")}
+            type="button"
+          >
+            {message.approveLabel}
+          </button>
+          <button
+            disabled={isResolved || isSubmitting || !message.toolCallId}
+            onClick={() => void confirmApproval(message.id, "reject")}
+            type="button"
+          >
+            {message.rejectLabel}
+          </button>
+        </div>
+        {message.resolved ? <span className="agent-chat-approval-state">{message.resolved === "approved" ? "승인됨" : "취소됨"}</span> : null}
+      </div>
+    );
+  };
+
+  const handleErrorAction = (message: AgentChatErrorMessage) => {
+    if (message.action === "login") {
+      const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`;
+      return;
+    }
+
+    if (message.action === "profile") {
+      void navigateWithinApp("/signup/skin-profile");
+      return;
+    }
+
+    handleRetry(message.retryMessage);
+  };
+
+  const renderErrorMessage = (message: AgentChatErrorMessage) => (
+    <div className={`agent-chat-error-card ${message.tone}`} key={message.id}>
+      <span className="agent-chat-error-icon" aria-hidden="true">{message.tone === "amber" ? "!" : "i"}</span>
+      <strong>{message.title}</strong>
+      <p>{message.message}</p>
+      <button disabled={isSubmitting} onClick={() => handleErrorAction(message)} type="button">
+        {message.actionLabel}
+      </button>
+    </div>
+  );
+
+  const openResultItem = (item: AgentChatResultItem) => {
+    if (item.itemType === "product") {
+      void navigateWithinApp(`/product-detail?id=${encodeURIComponent(item.id)}`);
+    }
+  };
+
+  const renderResultMessage = (message: AgentChatResultMessage) => (
+    <div className="agent-chat-result-card" key={message.id}>
+      <strong>{message.title}</strong>
+      <p>{message.description}</p>
+      {message.items.length > 0 ? (
+        <div className="agent-chat-result-list">
+          {message.items.map((item) => {
+            const priceText = formatAgentPrice(item.price);
+            return (
+              <button
+                className="agent-chat-result-item"
+                disabled={item.itemType !== "product"}
+                key={`${item.itemType}-${item.id}`}
+                onClick={() => openResultItem(item)}
+                type="button"
+              >
+                <span>
+                  <strong>{item.title}</strong>
+                  {item.subtitle ? <small>{item.subtitle}</small> : null}
+                </span>
+                {priceText ? <em>{priceText}</em> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const renderTextMessage = (message: AgentChatTextMessage) => (
+    <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
+      <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
+      {message.role === "assistant" && message.showActions ? (
+        <>
+          <div className="agent-chat-actions" aria-label="답변 액션">
+            <button onClick={() => handleCopyAnswer(message.content)} type="button">복사</button>
+            <button onClick={handleRegenerate} type="button">다시 생성</button>
+            <button aria-label="좋아요" type="button">좋아요</button>
+            <button aria-label="별로예요" type="button">별로예요</button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+
+  const renderMessage = (message: AgentChatMessage) => {
+    if (message.kind === "status") {
+      return renderStatusMessage(message);
+    }
+
+    if (message.kind === "approval") {
+      return renderApprovalMessage(message);
+    }
+
+    if (message.kind === "error") {
+      return renderErrorMessage(message);
+    }
+
+    if (message.kind === "result") {
+      return renderResultMessage(message);
+    }
+
+    return renderTextMessage(message);
+  };
+
+  return (
+    <>
+      <div className={`agent-floating-entry${isOpen ? " is-open" : ""}`} aria-label="AI 에이전트 진입점">
+        {isOpen ? (
+          <section
+            aria-labelledby="agent-chat-title"
+            className="agent-chat-popup"
+            id="agent-chat-popup"
+            role="dialog"
+          >
+            <span className="agent-chat-popup__tail" aria-hidden="true" />
+            <div className={`agent-chat-popup__head${isThreadView ? " has-back" : ""}`}>
+              <span className="agent-chat-popup__avatar" aria-hidden="true">
+                <svg fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2L12 3.5Z"
+                    stroke="currentColor"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                  />
+                </svg>
+              </span>
+              <div className="agent-chat-popup__title">
+                <h2 id="agent-chat-title">뭐바를래 AI</h2>
+                <p>성분 근거로 답해드려요</p>
+              </div>
+              <button
+                aria-label="AI 대화 팝업 닫기"
+                className="agent-chat-popup__close"
+                onClick={() => setIsOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+              {isThreadView ? (
+                <button className="agent-chat-back-button" onClick={() => setActiveView("home")} type="button">
+                  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M15 18 9 12l6-6"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  <span>뒤로</span>
+                </button>
+              ) : null}
+            </div>
+
+            <div className="agent-chat-popup__body">
+              {isThreadView ? (
+                <div className="agent-chat-thread" aria-live="polite">
+                  {messages.map((message) => renderMessage(message))}
+                </div>
+              ) : (
+                <>
+                  <div className={`agent-chat-profile-chip${hasSkinProfile ? "" : " empty"}`} role="status">
+                    <span aria-hidden="true">{hasSkinProfile ? "✓" : "＋"}</span>
+                    <span>
+                      {hasSkinProfile ? "내 피부 타입 적용 중" : "피부 정보를 추가하면 더 정확히 답변해드려요"}
+                    </span>
+                  </div>
+
+                  <div className="agent-chat-section-label">빠른 질문</div>
+                  {quickQuestions.map((question) => (
+                    <button
+                      className="agent-chat-question-row"
+                      disabled={isSubmitting}
+                      key={question}
+                      onClick={() => void sendMessage(question)}
+                      type="button"
+                    >
+                      <span className="agent-chat-row-icon" aria-hidden="true">
+                        <svg fill="none" viewBox="0 0 24 24">
+                          <path
+                            d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8Z"
+                            stroke="currentColor"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </span>
+                      <span>{question}</span>
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  ))}
+
+                  <div className="agent-chat-divider" />
+                  <div className="agent-chat-section-label">최근 대화</div>
+                  {recentQuestions.map((question, index) => (
+                    <button
+                      className="agent-chat-question-row"
+                      disabled={isSubmitting}
+                      key={`${question}-${index}`}
+                      onClick={() => void sendMessage(question)}
+                      type="button"
+                    >
+                      <span className="agent-chat-row-icon" aria-hidden="true">
+                        <svg fill="none" viewBox="0 0 24 24">
+                          <path
+                            d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8Z"
+                            stroke="currentColor"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </span>
+                      <span>{question}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <form className="agent-chat-input" onSubmit={handleSubmit}>
+              <input
+                aria-label="AI에게 질문 입력"
+                disabled={isSubmitting}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="무엇이든 물어보세요..."
+                value={draft}
+              />
+              <button aria-label="질문 전송" disabled={!draft.trim() || isSubmitting} type="submit">
+                <svg fill="none" viewBox="0 0 24 24">
+                  <path d="M12 19V5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <path d="m6.5 10.5 5.5-5.5 5.5 5.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
+              </button>
+            </form>
+          </section>
+        ) : null}
+
+        <button
+          aria-controls="agent-chat-popup"
+          aria-expanded={isOpen}
+          className="agent-floating-entry__button"
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+          aria-label="뭐바를래 AI 열기"
+        >
+          {isAgentBusy ? <span className="agent-floating-entry__badge" aria-hidden="true" /> : null}
+          <svg
+            aria-hidden="true"
+            className="agent-floating-entry__icon"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M20 14.5a3 3 0 0 1-3 3H9.25L4 21V6.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8Z"
+              stroke="currentColor"
+              strokeLinejoin="round"
+              strokeWidth="1.9"
+            />
+            <path
+              d="M8.4 10.4h.01M12 10.4h.01M15.6 10.4h.01"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="2.5"
+            />
+          </svg>
+        </button>
+      </div>
+    </>
+  );
+}
+
+export default AgentFloatingButton;
