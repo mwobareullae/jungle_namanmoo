@@ -13,7 +13,7 @@ function ProductCard({ product, onOpen }: ProductCardProps) {
   const riskCount = product.risk_flags.length;
 
   return (
-    <article className="product-card result-card">
+    <article className="product-card result-card" data-agent-product-id={product.product_id}>
       <button className="card-hit-area" type="button" onClick={() => onOpen(product.product_id)}>
         {product.thumbnail_url ? (
           <img className="product-image" src={product.thumbnail_url} alt="" />

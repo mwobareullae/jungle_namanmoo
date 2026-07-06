@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
+import AgentFloatingButton from "./components/AgentFloatingButton";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
@@ -534,23 +535,38 @@ function LegacyApp() {
   );
 }
 
+function GlobalAgentEntry() {
+  const location = useLocation();
+
+  if (appMode === "community") {
+    return null;
+  }
+
+  return (
+    <AgentFloatingButton surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"} />
+  );
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
-    <Suspense fallback={<div className="detail-loading">페이지를 불러오는 중입니다.</div>}>
-      <Routes>
-        {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
-        {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
-        {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
-        {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
-        {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
-        {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
-        {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
-        {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
-        <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
-        <Route path="*" element={<LegacyApp />} />
-      </Routes>
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="detail-loading">페이지를 불러오는 중입니다.</div>}>
+        <Routes>
+          {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+          {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
+          {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
+          {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
+          {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
+          {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
+          {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
+          {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+          <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
+          <Route path="*" element={<LegacyApp />} />
+        </Routes>
+      </Suspense>
+      <GlobalAgentEntry />
+    </>
   );
 }
 
