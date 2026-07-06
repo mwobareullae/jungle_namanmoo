@@ -1,0 +1,129 @@
+from dataclasses import dataclass
+from typing import Literal, get_args
+
+from app.schemas.agent import AgentToolName, AgentUiAction, AgentUiActionType
+from app.schemas.common import ApiError
+
+
+AgentToolRiskLevel = Literal["READ", "WRITE", "DESTRUCTIVE"]
+
+
+@dataclass(frozen=True)
+class AgentToolPolicy:
+    tool_name: AgentToolName
+    risk_level: AgentToolRiskLevel
+    requires_auth: bool
+    requires_confirmation: bool
+    allowed_ui_actions: frozenset[AgentUiActionType]
+    max_result_items: int
+    timeout_ms: int
+
+
+ALLOWED_UI_ACTION_TARGETS: dict[AgentUiActionType, frozenset[str]] = {
+    "noop": frozenset(),
+    "navigate": frozenset({"home", "login", "product_detail", "order_detail", "checkout"}),
+    "open_modal": frozenset({"agent_confirmation", "order_cancel_confirm"}),
+    "show_products": frozenset({"product_results", "similar_products", "refined_products"}),
+    "show_product_comparison": frozenset({"product_comparison"}),
+    "show_order_status": frozenset({"order_status"}),
+}
+
+AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
+    "order_status_lookup": AgentToolPolicy(
+        tool_name="order_status_lookup",
+        risk_level="READ",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"noop", "navigate", "show_order_status"}),
+        max_result_items=5,
+        timeout_ms=1500,
+    ),
+    "cancel_recent_order": AgentToolPolicy(
+        tool_name="cancel_recent_order",
+        risk_level="DESTRUCTIVE",
+        requires_auth=True,
+        requires_confirmation=True,
+        allowed_ui_actions=frozenset({"noop", "open_modal", "show_order_status"}),
+        max_result_items=1,
+        timeout_ms=1500,
+    ),
+    "find_similar_products": AgentToolPolicy(
+        tool_name="find_similar_products",
+        risk_level="READ",
+        requires_auth=False,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"noop", "navigate", "show_products"}),
+        max_result_items=10,
+        timeout_ms=2500,
+    ),
+    "compare_products": AgentToolPolicy(
+        tool_name="compare_products",
+        risk_level="READ",
+        requires_auth=False,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"noop", "show_product_comparison"}),
+        max_result_items=5,
+        timeout_ms=2500,
+    ),
+    "refine_product_results": AgentToolPolicy(
+        tool_name="refine_product_results",
+        risk_level="READ",
+        requires_auth=False,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"noop", "show_products"}),
+        max_result_items=10,
+        timeout_ms=2500,
+    ),
+}
+
+
+def get_tool_policy(tool_name: str) -> AgentToolPolicy:
+    policy = AGENT_TOOL_POLICIES.get(tool_name)  # type: ignore[arg-type]
+    if policy is None:
+        raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")
+    return policy
+
+
+def validate_tool_access(tool_name: str, *, user_id: int | None) -> AgentToolPolicy:
+    policy = get_tool_policy(tool_name)
+    if policy.requires_auth and user_id is None:
+        raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+    return policy
+
+
+def validate_tool_confirmation(tool_name: str, *, confirmed: bool) -> AgentToolPolicy:
+    policy = get_tool_policy(tool_name)
+    if policy.requires_confirmation and not confirmed:
+        raise ApiError(409, "AGENT_CONFIRMATION_REQUIRED", "Confirmation is required for this agent tool.")
+    return policy
+
+
+def validate_ui_action(action: AgentUiAction) -> AgentUiAction:
+    allowed_action_types = set(get_args(AgentUiActionType))
+    if action.type not in allowed_action_types:
+        raise ApiError(400, "AGENT_UI_ACTION_NOT_ALLOWED", "This UI action is not allowed.")
+
+    allowed_targets = ALLOWED_UI_ACTION_TARGETS[action.type]
+    if action.type == "noop":
+        if action.target is not None:
+            raise ApiError(400, "AGENT_UI_TARGET_NOT_ALLOWED", "Noop UI action cannot have a target.")
+        return action
+
+    if action.target is None or action.target not in allowed_targets:
+        raise ApiError(400, "AGENT_UI_TARGET_NOT_ALLOWED", "This UI action target is not allowed.")
+    return action
+
+
+def validate_tool_ui_action(tool_name: str, action: AgentUiAction) -> AgentUiAction:
+    policy = get_tool_policy(tool_name)
+    validate_ui_action(action)
+    if action.type not in policy.allowed_ui_actions:
+        raise ApiError(400, "AGENT_TOOL_UI_ACTION_MISMATCH", "This tool cannot return the requested UI action.")
+    return action
+
+
+def validate_result_item_count(tool_name: str, item_count: int) -> AgentToolPolicy:
+    policy = get_tool_policy(tool_name)
+    if item_count > policy.max_result_items:
+        raise ApiError(400, "AGENT_RESULT_LIMIT_EXCEEDED", "Agent tool returned too many result items.")
+    return policy
