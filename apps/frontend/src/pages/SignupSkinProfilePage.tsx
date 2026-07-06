@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
+import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 
 type SkinProfileForm = {
@@ -46,6 +47,7 @@ const avoidIngredientOptions = avoidIngredientCategories.map(({ id, label }) => 
 
 function SignupSkinProfilePage() {
   const navigate = useNavigate();
+  const { refreshAuthenticatedUser } = useAuth();
   const [form, setForm] = useState<SkinProfileForm>({
     skinType: "",
     sensitivity: "",
@@ -110,6 +112,7 @@ function SignupSkinProfilePage() {
         return;
       }
 
+      await refreshAuthenticatedUser().catch(() => null);
       navigate("/", { replace: true });
     } catch {
       setErrorMessage("피부 타입 저장에 실패했습니다. 다시 시도해주세요.");
