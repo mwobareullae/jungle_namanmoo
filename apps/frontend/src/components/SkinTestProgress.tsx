@@ -27,7 +27,9 @@ function SkinTestProgress({ current, onBack, total }: SkinTestProgressProps) {
       >
         <div className="skin-test-progress__bar" style={{ width: `${progress}%` }} />
       </div>
-      <span className="skin-test-progress__count">문항 {current} / {total}</span>
+      <span className="skin-test-progress__count">
+        {current} / {total}
+      </span>
     </div>
   );
 }

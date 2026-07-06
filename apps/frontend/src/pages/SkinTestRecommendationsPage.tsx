@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import {
   getLatestSkinTestResult,
@@ -178,8 +178,48 @@ const takeProducts = (products: RecommendationProduct[], startIndex: number) => 
     return products;
   }
 
-  return Array.from({ length: displayCount }, (_, index) => products[(startIndex + index) % products.length]);
+    return Array.from({ length: displayCount }, (_, index) => products[(startIndex + index) % products.length]);
 };
+
+const skeletonSections = [
+  "내 피부에 잘 맞는 제품",
+  "같은 타입이 많이 찾은 제품",
+  "내 구매 스타일과 잘 맞는 제품",
+];
+
+function SkinTestRecommendationSkeleton() {
+  return (
+    <div className="skin-test-recommendation-sections" aria-hidden="true">
+      {skeletonSections.map((title) => (
+        <section className="skin-test-recommendation-section" key={title}>
+          <div className="skin-test-recommendation-section__head">
+            <div className="skin-test-recommendation-skeleton-head">
+              <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--title skeleton-shimmer" />
+              <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--subtitle skeleton-shimmer" />
+            </div>
+          </div>
+          <div className="skin-test-recommendation-grid">
+            {Array.from({ length: 8 }, (_, index) => (
+              <article className="skin-test-recommendation-card skin-test-recommendation-card--skeleton" key={index}>
+                <div className="skin-test-recommendation-card__image skeleton-shimmer" />
+                <div className="skin-test-recommendation-card__body">
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--brand skeleton-shimmer" />
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--name skeleton-shimmer" />
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--name-short skeleton-shimmer" />
+                  <div className="skin-test-recommendation-skeleton-pills">
+                    <span className="skin-test-recommendation-skeleton-pill skeleton-shimmer" />
+                    <span className="skin-test-recommendation-skeleton-pill skeleton-shimmer" />
+                  </div>
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--price skeleton-shimmer" />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 const buildSections = (
   products: RecommendationProduct[],
@@ -325,7 +365,7 @@ function SkinTestRecommendationsPage() {
 
   return (
     <div className="skin-test-shell">
-      <AuthHeader />
+      <HomeHeader />
       <main className="skin-test-recommendation-main">
         <section className="skin-test-recommendation-page">
           <div className="skin-test-recommendation-hero">
@@ -333,7 +373,9 @@ function SkinTestRecommendationsPage() {
               {imageUrl ? <img src={imageUrl} alt="" /> : <span>{typeCode}</span>}
             </div>
             <div>
-              <h1>{typeCode} 타입을 위한 추천</h1>
+              <h1>
+                <span>{typeCode} 타입</span>을 위한 큐레이션
+              </h1>
               <p>
                 {skinTypeLabel} · 민감도 {sensitivityLabel} 기준으로 지금 보기 좋은 상품을 모았어요.
               </p>
@@ -346,10 +388,7 @@ function SkinTestRecommendationsPage() {
           </div>
 
           {isResultLoading ? (
-            <div className="skin-test-state">
-              <span className="skin-test-loader" aria-hidden="true" />
-              <p>추천 기준을 불러오고 있어요.</p>
-            </div>
+            <SkinTestRecommendationSkeleton />
           ) : errorMessage && !result ? (
             <div className="skin-test-state">
               <p>{errorMessage}</p>
@@ -357,6 +396,8 @@ function SkinTestRecommendationsPage() {
                 테스트 시작하기
               </button>
             </div>
+          ) : isProductsLoading ? (
+            <SkinTestRecommendationSkeleton />
           ) : (
             <div className="skin-test-recommendation-sections" aria-busy={isProductsLoading}>
               {sections.map((section) => (
@@ -390,30 +431,35 @@ function SkinTestRecommendationsPage() {
                             onClick={(event) => event.stopPropagation()}
                             type="button"
                           >
-                            ♡
+                            <svg
+                              aria-hidden="true"
+                              fill="none"
+                              height="26"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2.3"
+                              viewBox="0 0 24 24"
+                              width="26"
+                            >
+                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
+                            </svg>
                           </button>
                           {product.thumbnail_url ? (
                             <img src={product.thumbnail_url} alt="" loading="lazy" />
                           ) : (
-                            <span>이미지 준비중</span>
+                            <span>뭐바를래</span>
                           )}
                         </div>
                         <div className="skin-test-recommendation-card__body">
-                          <div className="skin-test-recommendation-card__tags">
-                            {product.tags.slice(0, 2).map((tag) => (
-                              <span key={tag}>#{tag}</span>
-                            ))}
-                          </div>
                           <p className="skin-test-recommendation-card__brand">{product.brand}</p>
                           <h3>{product.name}</h3>
+                          <div className="skin-test-recommendation-card__tags">
+                            {product.tags.slice(0, 3).map((tag) => (
+                              <span key={tag}>{tag}</span>
+                            ))}
+                          </div>
                           <p className="skin-test-recommendation-card__price">{formatPrice(product.lowest_price)}</p>
-                          <p className="skin-test-recommendation-card__reason">{product.reason_summary}</p>
-                          {section.meta === "popular" && (
-                            <p className="skin-test-recommendation-card__meta">{product.social_proof}</p>
-                          )}
-                          {section.meta === "style" && (
-                            <p className="skin-test-recommendation-card__meta">{product.style_reason}</p>
-                          )}
                         </div>
                       </article>
                     ))}
