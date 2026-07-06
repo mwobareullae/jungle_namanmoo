@@ -1,6 +1,6 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
-import type { Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile } from "../types/recommendation";
 
 const setSearch = (text: string) => callOriginal("setSearch", text);
 
@@ -8,26 +8,30 @@ const placeholderExamples = [
   "모공이 넓고 번들거려요",
   "건조하고 주름이 걱정돼요",
   "색소침착과 잡티가 있어요",
-  "민감하고 자주 붉어져요",
+  "민감하고 자주 붉어져요"
 ];
 
 type HomeHeroProps = {
   initialQuery?: string;
-  initialProfile?: {
-    skin: SkinType;
-    sensitivity: Sensitivity;
-  };
+  initialProfile?: RecommendationProfile;
 };
+
+type HomeSearchInputChangeEvent = CustomEvent<{
+  query: string;
+}>;
 
 function HomeHero({
   initialQuery = "",
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
-  },
+    avoidIngredients: []
+  }
 }: HomeHeroProps) {
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(initialQuery);
   const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
 
   useEffect(() => {
     if (query.trim()) return;
@@ -75,6 +79,42 @@ function HomeHero({
     };
   }, [query]);
 
+  useEffect(() => {
+    const handleSearchInputChange = (event: Event) => {
+      setQuery((event as HomeSearchInputChangeEvent).detail.query);
+      setIsSuggestionsOpen(true);
+    };
+
+    window.addEventListener("home-search-input-change", handleSearchInputChange);
+    return () => window.removeEventListener("home-search-input-change", handleSearchInputChange);
+  }, []);
+
+  useEffect(() => {
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      if (!searchContainerRef.current?.contains(event.target as Node)) {
+        setIsSuggestionsOpen(false);
+      }
+    };
+
+    const handleDocumentKeydown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsSuggestionsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeydown);
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeydown);
+    };
+  }, []);
+
+  const openSuggestions = () => {
+    setIsSuggestionsOpen(true);
+    callOriginal("openSearchSuggestions");
+  };
+
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     callOriginal("handleSearch", event);
   };
@@ -98,7 +138,10 @@ function HomeHero({
           지금 필요한 제품을 찾아드려요
         </p>
 
-        <div className="search-container">
+        <div
+          className={`search-container${isSuggestionsOpen ? " suggestions-open" : ""}`}
+          ref={searchContainerRef}
+        >
           <div className="search-combo">
             <div className="search-box" id="searchBox">
               <div className="search-icon">
@@ -119,7 +162,7 @@ function HomeHero({
               <button
                 className="search-profile-chip"
                 id="searchProfileChip"
-                onClick={() => callOriginal("openSearchSuggestions")}
+                onClick={openSuggestions}
                 type="button"
               >
                 {initialProfile.skin} · {initialProfile.sensitivity}
@@ -127,8 +170,8 @@ function HomeHero({
               <input
                 id="searchInput"
                 onChange={(event) => setQuery(event.target.value)}
-                onClick={() => callOriginal("openSearchSuggestions")}
-                onFocus={() => callOriginal("openSearchSuggestions")}
+                onClick={openSuggestions}
+                onFocus={openSuggestions}
                 onKeyDown={handleSearchKey}
                 placeholder={placeholder}
                 type="text"
@@ -153,7 +196,7 @@ function HomeHero({
 
             <div
               aria-label="최근 고민과 피부 조건"
-              className="search-suggest-panel"
+              className={`search-suggest-panel${isSuggestionsOpen ? " active" : ""}`}
               id="searchSuggestPanel"
             >
               <div className="suggest-section">
@@ -204,7 +247,9 @@ function HomeHero({
                           data-profile="sensitivity"
                           data-value={sensitivity}
                           key={sensitivity}
-                          onClick={() => callOriginal("selectProfileOption", "sensitivity", sensitivity)}
+                          onClick={() =>
+                            callOriginal("selectProfileOption", "sensitivity", sensitivity)
+                          }
                           type="button"
                         >
                           {sensitivity}
@@ -224,13 +269,22 @@ function HomeHero({
           </div>
 
           <div className="search-examples search-examples--with-guide">
-            <span className="example-chip" onClick={() => handleExampleClick("모공이 넓고 피지가 많아요")}>
+            <span
+              className="example-chip"
+              onClick={() => handleExampleClick("모공이 넓고 피지가 많아요")}
+            >
               모공이 넓고 피지가 많아요
             </span>
-            <span className="example-chip" onClick={() => handleExampleClick("건조하고 주름이 걱정돼요")}>
+            <span
+              className="example-chip"
+              onClick={() => handleExampleClick("건조하고 주름이 걱정돼요")}
+            >
               건조하고 주름이 걱정돼요
             </span>
-            <span className="example-chip" onClick={() => handleExampleClick("색소침착과 잡티가 있어요")}>
+            <span
+              className="example-chip"
+              onClick={() => handleExampleClick("색소침착과 잡티가 있어요")}
+            >
               색소침착과 잡티가 있어요
             </span>
             <a className="recommendation-guide-link" href="/recommendation-guide">
