@@ -306,6 +306,7 @@ def _record_checkout_started_event(
                     "shipping_fee": preview.shipping_fee,
                     "total": preview.total,
                     "can_checkout": preview.can_checkout,
+                    "product_ids": [item.product.product_id for item in preview.items],
                     "warning_codes": [warning.code for warning in preview.warnings],
                     "address_id_provided": request.address_id is not None,
                 },
