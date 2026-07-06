@@ -8,6 +8,19 @@ function HomeHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
+  const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
+  const handleWishlistClick = () => {
+    if (user) {
+      navigate("/mypage/wishlist");
+      return;
+    }
+
+    navigate("/login", {
+      state: {
+        from: currentPath
+      }
+    });
+  };
   const handleLogout = async () => {
     try {
       await logout();
@@ -21,7 +34,7 @@ function HomeHeader() {
   };
 
   return (
-    <header>
+    <header className="site-header">
       <div className="header-inner">
         <div className="header-brand">
           <button
@@ -78,7 +91,7 @@ function HomeHeader() {
           <button
             className="icon-btn"
             data-commerce-only
-            onClick={() => callOriginal("showToast", "찜 기능은 준비 중입니다")}
+            onClick={handleWishlistClick}
             type="button"
           >
             <svg
@@ -119,15 +132,23 @@ function HomeHeader() {
             </span>
           </button>
           {user ? (
-            <button
-              className="btn-login"
-              data-auth-state="authenticated"
-              data-commerce-only
-              onClick={handleLogout}
-              type="button"
-            >
-              로그아웃
-            </button>
+            <>
+              <a className="btn-login header-user-link" data-commerce-only href="/mypage">
+                {displayName}님
+              </a>
+              <span aria-hidden="true" className="header-action-divider">
+                |
+              </span>
+              <button
+                className="btn-login header-logout-button"
+                data-auth-state="authenticated"
+                data-commerce-only
+                onClick={handleLogout}
+                type="button"
+              >
+                로그아웃
+              </button>
+            </>
           ) : (
             <a
               className="btn-login"

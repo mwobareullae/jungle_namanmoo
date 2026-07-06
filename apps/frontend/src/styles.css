@@ -33,6 +33,31 @@
   --color-warning: #f59e0b;
   --color-danger: #ff6b52;
   --color-info: #6b7280;
+  --font-display:
+    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --font-ui:
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --ink: var(--color-ink);
+  --ink2: var(--color-ink-2);
+  --muted: var(--color-muted-text);
+  --faint: var(--color-faint-text);
+  --bg: var(--color-surface);
+  --white: var(--color-raised-surface);
+  --border: var(--color-edge);
+  --mint: var(--color-accent);
+  --accent-text: var(--color-accent-text);
+  --rm: 14px;
+  --rs: 8px;
+}
+
+@font-face {
+  font-family: "Pretendard Variable";
+  src: url("/fonts/pretendard/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -2274,6 +2299,191 @@ body.search-results-page #searchResultsGrid .search-result-side {
 
 body.search-results-page #searchResultsGrid .product-card:last-child {
   border-bottom: 0;
+}
+
+header.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0 40px;
+  border-bottom: 1.5px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  font-family: var(--font-ui);
+}
+
+header.site-header .header-inner {
+  max-width: 1280px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin: 0 auto;
+}
+
+header.site-header .header-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+header.site-header .header-brand .logo {
+  flex: 0 0 auto;
+  color: #000000;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+header.site-header .category-menu-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #000000;
+  cursor: pointer;
+}
+
+header.site-header .category-menu-btn svg {
+  display: block;
+}
+
+header.site-header nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+header.site-header nav a {
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: normal;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+
+header.site-header nav a:hover {
+  color: var(--ink);
+}
+
+header.site-header nav a.nav-ai {
+  position: relative;
+  color: #0b2a3a;
+  font-weight: 700;
+}
+
+header.site-header nav a.nav-ai::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -22px;
+  left: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: #94e0f8;
+}
+
+header.site-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  min-height: 40px;
+}
+
+header.site-header .icon-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--rm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+header.site-header .icon-btn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+header.site-header .badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #94e0f8;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+header.site-header .btn-login {
+  display: inline;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink2);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+header.site-header .btn-login:hover {
+  background: transparent;
+  color: var(--ink);
+  opacity: 1;
+}
+
+header.site-header .header-user-link {
+  color: #2f3137;
+}
+
+header.site-header .header-logout-button {
+  color: #7a7d82;
+  cursor: pointer;
+}
+
+header.site-header .header-action-divider {
+  color: #d6d6d6;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 header .header-inner {
