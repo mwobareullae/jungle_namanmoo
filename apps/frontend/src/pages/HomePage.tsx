@@ -60,6 +60,7 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
+  const [hasSavedProfile, setHasSavedProfile] = useState(false);
 
   useEffect(() => installHomeRuntime(profile), [profile]);
 
@@ -69,6 +70,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
     getSavedSkinProfile().then((savedProfile) => {
       if (isMounted && savedProfile) {
         setProfile(savedProfile);
+        setHasSavedProfile(true);
       }
     });
 
@@ -85,7 +87,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
         ) : section.id === "header" ? (
           <HomeHeader key={section.id} />
         ) : section.id === "hero" ? (
-          <HomeHero key={section.id} initialProfile={profile} />
+          <HomeHero key={section.id} hasSavedProfile={hasSavedProfile} initialProfile={profile} />
         ) : section.id === "matchresultsection" ? (
           <HomeMatchResult key={section.id} />
         ) : section.id === "maincontent" ? (
