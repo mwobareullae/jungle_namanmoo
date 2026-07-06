@@ -1122,6 +1122,7 @@ function AgentFloatingButton({
                     </span>
                   </div>
 
+                  <div className="agent-chat-divider" />
                   <div className="agent-chat-section-label">빠른 질문</div>
                   {quickQuestions.map((question) => (
                     <button
@@ -1134,8 +1135,15 @@ function AgentFloatingButton({
                       <span className="agent-chat-row-icon" aria-hidden="true">
                         <svg fill="none" viewBox="0 0 24 24">
                           <path
-                            d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8Z"
+                            d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2L12 3.5Z"
                             stroke="currentColor"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                          />
+                          <path
+                            d="M18.5 15.5v3M20 17h-3M5.5 4.5v2M6.5 5.5h-2"
+                            stroke="currentColor"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth="1.8"
                           />
@@ -1159,8 +1167,14 @@ function AgentFloatingButton({
                       <span className="agent-chat-row-icon" aria-hidden="true">
                         <svg fill="none" viewBox="0 0 24 24">
                           <path
-                            d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8Z"
+                            d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"
                             stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+                          <path
+                            d="M12 7.5v5l3.2 1.9"
+                            stroke="currentColor"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth="1.8"
                           />
@@ -1178,7 +1192,7 @@ function AgentFloatingButton({
                 aria-label="AI에게 질문 입력"
                 disabled={isSubmitting}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="무엇이든 물어보세요..."
+                placeholder="무엇이든 물어보세요"
                 value={draft}
               />
               <button aria-label="질문 전송" disabled={!draft.trim() || isSubmitting} type="submit">
