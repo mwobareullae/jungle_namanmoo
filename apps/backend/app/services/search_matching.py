@@ -32,6 +32,40 @@ class SearchMatch:
 
 
 @dataclass(frozen=True)
+class SearchNoResultDiagnostics:
+    version: str
+    no_result_reason: str | None
+    candidate_count: int
+    join_document_count: int
+    search_match_count: int
+    positive_keyword_match_count: int
+    positive_vector_match_count: int
+    positive_search_match_count: int
+    search_terms: tuple[str, ...]
+    unmatched_terms: tuple[str, ...]
+    matched_terms: tuple[str, ...]
+    alias_candidate_terms: tuple[str, ...]
+    needs_alias_review: bool
+
+    def to_dict(self) -> dict:
+        return {
+            "version": self.version,
+            "no_result_reason": self.no_result_reason,
+            "candidate_count": self.candidate_count,
+            "join_document_count": self.join_document_count,
+            "search_match_count": self.search_match_count,
+            "positive_keyword_match_count": self.positive_keyword_match_count,
+            "positive_vector_match_count": self.positive_vector_match_count,
+            "positive_search_match_count": self.positive_search_match_count,
+            "search_terms": list(self.search_terms),
+            "unmatched_terms": list(self.unmatched_terms),
+            "matched_terms": list(self.matched_terms),
+            "alias_candidate_terms": list(self.alias_candidate_terms),
+            "needs_alias_review": self.needs_alias_review,
+        }
+
+
+@dataclass(frozen=True)
 class _WeightedTerm:
     text: str
     weight: float
@@ -126,6 +160,100 @@ def count_join_product_search_documents(
             .where(*conditions)
         ).scalar_one()
     )
+
+
+def build_search_no_result_diagnostics(
+    intent: RecommendationIntent,
+    candidates: list[ProductCandidate],
+    matches: list[SearchMatch],
+    *,
+    join_document_count: int,
+) -> SearchNoResultDiagnostics:
+    search_terms = intent.search_terms
+    unmatched_terms = _dedupe_terms(list(intent.unmatched_terms))
+    matched_terms = _dedupe_terms(
+        [
+            term
+            for match in matches
+            for term in match.matched_terms
+        ]
+    )
+    positive_keyword_match_count = sum(1 for match in matches if match.keyword_score > 0)
+    positive_vector_match_count = sum(1 for match in matches if match.vector_score > 0)
+    positive_search_match_count = sum(1 for match in matches if match.search_match_score > 0)
+    no_result_reason = _search_no_result_reason(
+        intent,
+        candidates,
+        matches,
+        join_document_count=join_document_count,
+        positive_search_match_count=positive_search_match_count,
+    )
+    alias_candidate_terms = _alias_candidate_terms(
+        search_terms=search_terms,
+        unmatched_terms=unmatched_terms,
+        matched_terms=matched_terms,
+        no_result_reason=no_result_reason,
+    )
+
+    return SearchNoResultDiagnostics(
+        version="search_no_result_v0",
+        no_result_reason=no_result_reason,
+        candidate_count=len(candidates),
+        join_document_count=join_document_count,
+        search_match_count=len(matches),
+        positive_keyword_match_count=positive_keyword_match_count,
+        positive_vector_match_count=positive_vector_match_count,
+        positive_search_match_count=positive_search_match_count,
+        search_terms=search_terms,
+        unmatched_terms=unmatched_terms,
+        matched_terms=matched_terms,
+        alias_candidate_terms=alias_candidate_terms,
+        needs_alias_review=bool(alias_candidate_terms),
+    )
+
+
+def _search_no_result_reason(
+    intent: RecommendationIntent,
+    candidates: list[ProductCandidate],
+    matches: list[SearchMatch],
+    *,
+    join_document_count: int,
+    positive_search_match_count: int,
+) -> str | None:
+    if not candidates:
+        return "no_candidates_after_filters"
+    if join_document_count == 0:
+        return "join_documents_missing"
+    if not matches:
+        return "no_search_matches"
+    if not intent.search_terms and intent.unmatched_terms:
+        return "parser_unmatched_only"
+    if positive_search_match_count == 0:
+        return "no_positive_search_match"
+    if intent.unmatched_terms:
+        return "parser_unmatched_partial"
+    return None
+
+
+def _alias_candidate_terms(
+    *,
+    search_terms: tuple[str, ...],
+    unmatched_terms: tuple[str, ...],
+    matched_terms: tuple[str, ...],
+    no_result_reason: str | None,
+) -> tuple[str, ...]:
+    if unmatched_terms:
+        return unmatched_terms
+    if no_result_reason in {"no_positive_search_match", "parser_unmatched_only"}:
+        matched_keys = {_normalize_text(term) for term in matched_terms}
+        return _dedupe_terms(
+            [
+                term
+                for term in search_terms
+                if _normalize_text(term) not in matched_keys
+            ]
+        )
+    return ()
 
 
 def _score_candidate(
