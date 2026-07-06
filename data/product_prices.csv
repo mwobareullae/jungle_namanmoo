@@ -1,4 +1,4 @@
-﻿product_id,mall_name,price,product_url,is_lowest,currency
+product_id,mall_name,price,product_url,is_lowest,currency
 prod_oy_a000000258833,뭐바를래,22700,/products/prod_oy_a000000258833,true,KRW
 prod_oy_a000000256045,뭐바를래,19800,/products/prod_oy_a000000256045,true,KRW
 prod_oy_a000000255290,뭐바를래,23900,/products/prod_oy_a000000255290,true,KRW
@@ -14652,7 +14652,6 @@ sephora_dd82f99872aff4,뭐바를래,322000,/products/sephora_dd82f99872aff4,true
 sephora_ca69556d87bccf,뭐바를래,60500,/products/sephora_ca69556d87bccf,true,KRW
 sephora_5d1fe2f28d6197,뭐바를래,110600,/products/sephora_5d1fe2f28d6197,true,KRW
 sephora_112973d8a8d189,뭐바를래,175000,/products/sephora_112973d8a8d189,true,KRW
-sephora_acfb752b3cfa21,뭐바를래,1000,/products/sephora_acfb752b3cfa21,true,KRW
 sephora_beb573a88ff1a5,뭐바를래,95200,/products/sephora_beb573a88ff1a5,true,KRW
 sephora_b8f4451e3f6315,뭐바를래,54600,/products/sephora_b8f4451e3f6315,true,KRW
 sephora_393c5bd54ba50c,뭐바를래,40600,/products/sephora_393c5bd54ba50c,true,KRW
