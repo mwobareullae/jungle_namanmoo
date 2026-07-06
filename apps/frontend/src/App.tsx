@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import { originalPages, type OriginalPageKey } from "./originalPages";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
@@ -545,6 +546,7 @@ function App() {
       {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
       {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
       {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+      {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
       <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
       <Route path="*" element={<LegacyApp />} />
     </Routes>
