@@ -43,23 +43,23 @@
 
 - 실제 사용자 검색/추천 입력에서 실패한 표현을 모아보는 리포트
 - no-result가 왜 났는지 구분하는 기준
-- 실패 표현을 alias 후보로 만들고 accepted/rejected로 관리하는 흐름
-- alias 후보를 누가 승인하는지에 대한 운영 기준
+- 실패 표현을 alias 후보로 정리하는 리포트
+- alias 후보를 누가 확인할지에 대한 역할 기준
 - 관리자 화면에서 볼 최소 리포트 범위
 
 따라서 이번 문서의 초점은 alias 기능 생성이 아니라, 기존 alias 체계를 운영 가능한 개선 루프로 연결하는 것이다.
 
 ## P2 추천안
 
-P2에서는 관리자 CRUD를 바로 열지 않고, 먼저 관측과 승인 흐름을 만든다.
+P2에서는 관리자 CRUD나 승인 상태 관리를 바로 열지 않고, 먼저 관측과 리포트 흐름을 만든다.
 
 1. 검색/추천 입력이 실패하거나 약한 경우를 진단한다.
 2. 실패한 입력을 `unmatched_terms`, no-result event, search diagnostics로 모은다.
-3. R4/R5가 alias 후보를 검토한다.
+3. R4가 alias 후보를 정리하고, 성분 alias는 R5가 데이터 관점으로 확인한다.
 4. 확정된 alias만 CSV/JSON에 반영한다.
 5. seed 또는 search index rebuild 후 품질을 재확인한다.
 
-즉, P2에서는 "자동 관리자 수정"보다 "실패 검색어 리포트 + 수동 승인 alias 반영"을 우선한다.
+즉, P2에서는 "자동 관리자 수정"보다 "실패 검색어 리포트 + CSV/JSON PR 기반 수동 반영"을 우선한다.
 
 ## 동의어 관리 기준
 
@@ -170,16 +170,16 @@ P2에서는 "수정 화면"보다 "리포트 화면"을 먼저 만든다.
 |---|---|
 | 검색 실패 리포트 | 검색어, 빈도, 결과 수, unmatched_terms, no_result_reason |
 | alias 후보 목록 | 사용자 표현, 추천 canonical, source, confidence |
-| 조치 상태 | pending / accepted / rejected / needs_data_review |
+| 확인 메모 | R4/R5가 나중에 볼 수 있는 간단한 비고 |
 
-P2에서는 accepted alias도 관리자 화면에서 즉시 DB에 쓰지 않고, CSV/JSON PR로 반영한다.
+P2에서는 관리자 화면에서 alias를 즉시 DB에 쓰지 않고, 필요한 항목만 기존 CSV/JSON PR로 반영한다.
 
 ### P3 확장
 
 P3에서 관리자 CRUD를 열 경우 아래가 필요하다.
 
 - alias rule DB table
-- 승인자/수정 이력
+- 승인 상태와 수정 이력
 - 충돌 검증
 - seed/CSV와 DB alias의 우선순위
 - 배포 없이 hot reload할지 여부
@@ -195,7 +195,7 @@ P3에서 관리자 CRUD를 열 경우 아래가 필요하다.
 | 3 | no-result 리포트용 집계 쿼리 또는 CLI 작성 | backend |
 | 4 | alias 후보 CSV 산출 스크립트 작성 | data/ai |
 | 5 | 관리자 리포트 화면 연결 | frontend/admin |
-| 6 | 관리자 CRUD 여부 결정 | P3 |
+| 6 | 관리자 CRUD/승인 상태 관리 여부 결정 | P3 |
 
 ## 하지 않는 것
 
@@ -211,7 +211,7 @@ P2 1차에서는 아래를 하지 않는다.
 
 ### 추천안
 
-P2에서는 검색 실패/무결과를 먼저 관측하고, alias 후보는 리포트로 모은 뒤 CSV/JSON PR로 수동 반영한다. 관리자 화면은 P2에서 리포트 중심으로 시작하고, CRUD는 P3로 넘긴다.
+P2에서는 검색 실패/무결과를 먼저 관측하고, alias 후보는 리포트로 모은 뒤 필요한 항목만 CSV/JSON PR로 수동 반영한다. 관리자 화면은 P2에서 리포트 중심으로 시작하고, CRUD와 accepted/rejected 같은 상태 관리는 P3로 넘긴다.
 
 ### 대안
 
@@ -231,7 +231,7 @@ P2에서는 검색 실패/무결과를 먼저 관측하고, alias 후보는 리�
 | 지현 프론트엔드 | P2 관리자 리포트 화면 또는 no-result 화면 연결 시 참고한다. |
 | 원우 백엔드 | diagnostics 저장 위치, event metadata, no-result 집계 API 여부 확인이 필요하다. |
 | 규태 AI 추천/검색/에이전트 | alias 후보 산출과 no-result 판정 기준을 구현한다. |
-| 세민 데이터 | 성분 alias 후보 승인, pending/canonical 매핑과 충돌 여부를 확인한다. |
+| 세민 데이터 | 성분 alias 후보가 생기면 pending/canonical 매핑과 충돌 여부를 확인한다. |
 | 지운 인프라/로그 | `search_no_result` 이벤트 수집, 리포트 집계, 추후 관리자 로그 연결을 확인한다. |
 
 ## PR 역할별 영향 범위 초안
