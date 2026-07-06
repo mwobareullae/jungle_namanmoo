@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import type { ProductDetail } from "../types/recommendation";
@@ -9,6 +10,18 @@ type CompleteProduct = {
   name: string;
   image: string;
 };
+
+type PaymentCompleteSnapshot = {
+  orderCode?: string;
+  product: CompleteProduct;
+  total: number;
+  count: number;
+  paymentMethod: string;
+  createdAt: number;
+};
+
+const PAYMENT_COMPLETE_SNAPSHOT_KEY = "payment_complete_snapshot";
+const PAYMENT_COMPLETE_SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
 
 const fallbackProducts: Record<string, CompleteProduct> = {
   "10": {
@@ -36,12 +49,13 @@ const formatWon = (value: number) =>
 const getCompleteParams = () => {
   const params = new URLSearchParams(window.location.search);
   return {
-    id: params.get("id") ?? "10",
+    id: params.get("id") ?? "",
     total: Number(params.get("total") ?? 0),
-    count: Number(params.get("count") ?? 1),
+    count: Number(params.get("count") ?? 0),
     recommendationId: params.get("recommendation_id") ?? undefined,
     skinType: params.get("skin_type") ?? "",
     sensitivity: params.get("sensitivity") ?? "",
+    paymentMethod: params.get("payment_method") ?? "간편결제",
   };
 };
 
@@ -52,14 +66,45 @@ const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => 
   image: product.thumbnail_url ?? product.image_urls[0] ?? "",
 });
 
+const getStoredPaymentCompleteSnapshot = (): PaymentCompleteSnapshot | null => {
+  try {
+    const rawSnapshot = sessionStorage.getItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+    if (!rawSnapshot) return null;
+
+    const snapshot = JSON.parse(rawSnapshot) as PaymentCompleteSnapshot;
+    if (!snapshot.product?.id || !snapshot.product.brand || !snapshot.product.name) return null;
+    if (!Number.isFinite(snapshot.total) || !Number.isFinite(snapshot.count)) return null;
+    if (!snapshot.paymentMethod) return null;
+    if (!Number.isFinite(snapshot.createdAt)) return null;
+    if (Date.now() - snapshot.createdAt > PAYMENT_COMPLETE_SNAPSHOT_MAX_AGE_MS) {
+      sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+      return null;
+    }
+
+    return snapshot;
+  } catch {
+    return null;
+  }
+};
+
 function PaymentCompletePage() {
-  const [{ id, total, count, recommendationId, skinType, sensitivity }] = useState(getCompleteParams);
+  const [{ id, total, count, recommendationId, skinType, sensitivity, paymentMethod }] = useState(getCompleteParams);
+  const [storedSnapshot] = useState(getStoredPaymentCompleteSnapshot);
+  const productId = storedSnapshot?.product.id ?? id;
+  const displayTotal = storedSnapshot?.total ?? total;
+  const displayCount = storedSnapshot?.count ?? count;
+  const displayPaymentMethod = storedSnapshot?.paymentMethod ?? paymentMethod;
+  const hasPaymentInfo = Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
-  const [orderNo] = useState(() => `MWB-${String(Date.now()).slice(-8)}`);
+  const [orderNo] = useState(() => storedSnapshot?.orderCode ?? `MWB-${String(Date.now()).slice(-8)}`);
 
   useEffect(() => {
+    if (!productId) {
+      return;
+    }
+
     let isMounted = true;
-    api.getProduct(id, recommendationId)
+    api.getProduct(productId, recommendationId)
       .then((product) => {
         if (isMounted) setApiProduct(mapDetailToCompleteProduct(product));
       })
@@ -70,10 +115,37 @@ function PaymentCompletePage() {
     return () => {
       isMounted = false;
     };
-  }, [id, recommendationId]);
+  }, [productId, recommendationId]);
 
-  const product = apiProduct ?? fallbackProducts[id] ?? fallbackProducts["10"];
-  const productName = count > 1 ? `${product.name} 외 ${count - 1}개` : product.name;
+  if (!hasPaymentInfo) {
+    return (
+      <>
+        <HomeHeader />
+        <main className="complete-page">
+          <section className="complete-shell">
+            <CommercePageHeader
+              currentStep="complete"
+              description="결제 완료 정보는 주문서에서 결제를 진행한 직후에만 확인할 수 있습니다."
+              title="결제 정보 없음"
+            />
+
+            <div className="complete-hero">
+              <h1>확인할 결제 정보가 없습니다</h1>
+              <p>결제 완료 화면은 결제 직후 10분 동안만 유지됩니다. 장바구니에서 주문서를 다시 확인해주세요.</p>
+            </div>
+
+            <div className="complete-actions">
+              <a className="complete-btn" href="/">쇼핑 계속하기</a>
+              <a className="complete-btn primary" href="/cart">장바구니로 이동</a>
+            </div>
+          </section>
+        </main>
+      </>
+    );
+  }
+
+  const product = apiProduct ?? storedSnapshot?.product ?? fallbackProducts[productId] ?? fallbackProducts["10"];
+  const productName = displayCount > 1 ? `${product.name} 외 ${displayCount - 1}개` : product.name;
   const detailParams = new URLSearchParams({ id: product.id });
   if (recommendationId) detailParams.set("recommendation_id", recommendationId);
   if (skinType) detailParams.set("skin_type", skinType);
@@ -84,6 +156,12 @@ function PaymentCompletePage() {
       <HomeHeader />
       <main className="complete-page">
         <section className="complete-shell">
+          <CommercePageHeader
+            currentStep="complete"
+            description="주문 접수 결과와 결제 정보를 확인해주세요."
+            title="결제 완료"
+          />
+
           <div className="complete-hero">
             <div className="complete-mark">
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -103,11 +181,11 @@ function PaymentCompletePage() {
               </div>
               <div className="complete-row">
                 <span>결제금액</span>
-                <strong id="paidTotal">{formatWon(total)}</strong>
+                <strong id="paidTotal">{formatWon(displayTotal)}</strong>
               </div>
               <div className="complete-row">
                 <span>결제수단</span>
-                <strong>간편결제</strong>
+                <strong>{displayPaymentMethod}</strong>
               </div>
               <div className="complete-row">
                 <span>배송 예정</span>
