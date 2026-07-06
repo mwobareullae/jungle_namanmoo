@@ -395,9 +395,9 @@ const integrationChecklist = [
   {
     area: "성분 검수",
     owner: "데이터·R4",
-    need: "canonical 확정, pending 유지, 반려 reason 저장",
-    status: "기준 있음",
-    tone: "success"
+    need: "세민/데이터 계약 기준 canonical 확정, pending 유지, 반려 reason 저장",
+    status: "세민 확인",
+    tone: "warning"
   },
   {
     area: "검색 반영",
@@ -409,8 +409,15 @@ const integrationChecklist = [
   {
     area: "주문 확인",
     owner: "백엔드",
-    need: "주문 조회, 결제 상태, 예약 재고, 취소/만료 이력",
-    status: "API 필요",
+    need: "주문 조회, 결제 상태, 예약 재고, 취소/만료/배송 상태 전이 규칙",
+    status: "원우 확인",
+    tone: "warning"
+  },
+  {
+    area: "관리자 접근 제어",
+    owner: "백엔드·프론트",
+    need: "/admin 라우트 권한 가드, auth 세션 admin role 확인",
+    status: "필수",
     tone: "warning"
   }
 ];
@@ -738,8 +745,8 @@ const ingredientCandidateCards = [
 const ingredientReviewActions = [
   {
     label: "승인",
-    value: "canonical_id 저장",
-    detail: "accepted alias 후보로 남기고 rebuild 대상 표시"
+    value: "세민 확정 후 canonical_id 저장",
+    detail: "accepted alias 후보로 남기되 데이터 계약 절차 확인 후 반영"
   },
   {
     label: "보류",
@@ -900,7 +907,7 @@ const orderExceptionRows = [
 
 const orderOpsRules = [
   { label: "조회 기준", value: "주문 상태, 결제 상태, 사용자, 주문번호" },
-  { label: "수정 가능", value: "만료·취소 승인·배송 상태 액션은 API 연결 전 로컬 미리보기" },
+  { label: "상태 전이", value: "만료·취소·배송 액션은 원우 API 계약 확인 전 로컬 미리보기" },
   { label: "재고", value: "예약/복원 이력을 함께 노출" },
   { label: "추천 추적", value: "recommendation_id와 rank 유지" }
 ];
@@ -3308,7 +3315,7 @@ function AdminDashboardPage() {
           </button>
         </div>
         <div className="admin-stock-warning">
-          현재 액션은 로컬 미리보기입니다. 원우 API 계약이 확정되면 같은 버튼을 실제 주문/재고 API에 연결합니다.
+          현재 액션은 원우 API 계약 확인 전 로컬 미리보기입니다. 결제 만료, 취소 승인, 배송 전이 규칙은 백엔드 계약 확정 후 연결합니다.
         </div>
       </aside>
 
