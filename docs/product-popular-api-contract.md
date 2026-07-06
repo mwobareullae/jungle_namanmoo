@@ -10,6 +10,10 @@ This API does not calculate popularity from raw event/order/review tables on eve
 
 Popularity scoring policy is defined in [`docs/popularity-ranking-score.md`](./popularity-ranking-score.md).
 
+Frontend event contract is defined in [`docs/popularity-event-frontend-contract.md`](./popularity-event-frontend-contract.md).
+
+Rollup operation guide is defined in [`docs/popularity-rollup-operations.md`](./popularity-rollup-operations.md).
+
 ## Endpoint
 
 ```http

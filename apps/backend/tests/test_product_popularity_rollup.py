@@ -2,7 +2,8 @@ from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, select
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -11,6 +12,8 @@ from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Order, OrderItem, ProductPopularityMetric, Seller
 from app.db.models.events import EventLog
+from app.db.session import get_db
+from app.main import app
 from app.services.db_seed import seed_database
 from app.services.popularity_score import POPULARITY_SCORE_VERSION, calculate_product_popularity_score
 from app.services.product_popularity_rollup import rollup_product_popularity_metrics
@@ -32,6 +35,18 @@ def db_engine() -> Generator[Engine, None, None]:
         yield engine
     finally:
         engine.dispose()
+
+
+@pytest.fixture()
+def client(db_engine: Engine) -> Generator[TestClient, None, None]:
+    def override_get_db():
+        with Session(db_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
 
 def test_calculate_product_popularity_score_uses_counts_and_capped_rates() -> None:
@@ -154,6 +169,58 @@ def test_rollup_product_popularity_metrics_from_behavior_events(db_engine: Engin
     assert float(metric.popularity_score) > 0
 
 
+def test_event_api_rollup_updates_popular_products_response(client: TestClient, db_engine: Engine) -> None:
+    computed_at = datetime(2026, 7, 6, 12, 0, tzinfo=UTC)
+    with Session(db_engine) as session:
+        session.execute(delete(ProductPopularityMetric))
+        session.commit()
+
+    response = client.post(
+        "/api/events/batch",
+        json={
+            "events": [
+                _event_payload("prod1_view_1", "product_viewed", "prod_001", computed_at),
+                _event_payload("prod1_view_2", "product_viewed", "prod_001", computed_at),
+                _event_payload("prod1_home_imp", "home_product_impression", "prod_001", computed_at),
+                _event_payload("prod1_home_click", "home_product_click", "prod_001", computed_at),
+                _event_payload("prod1_search_imp", "search_result_impression", "prod_001", computed_at),
+                _event_payload("prod1_search_click", "search_result_click", "prod_001", computed_at),
+                _event_payload("prod1_wishlist", "wishlist_added", "prod_001", computed_at),
+                _event_payload("prod1_cart", "cart_added", "prod_001", computed_at),
+                _event_payload("prod2_view", "product_viewed", "prod_002", computed_at),
+            ]
+        },
+        headers={
+            "x-mwbl-anonymous-user-id": "anon-popular-e2e",
+            "x-mwbl-session-id": "session-popular-e2e",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["accepted_count"] == 9
+
+    with Session(db_engine) as session:
+        result = rollup_product_popularity_metrics(session, window_days=7, computed_at=computed_at)
+        session.commit()
+
+    assert result.touched_products == 2
+
+    popular_response = client.get("/api/products/popular", params={"window_days": 7, "limit": 2})
+
+    assert popular_response.status_code == 200
+    items = popular_response.json()["items"]
+    assert [item["product_id"] for item in items] == ["prod_001", "prod_002"]
+    first_metrics = items[0]["metrics"]
+    assert items[0]["score_version"] == POPULARITY_SCORE_VERSION
+    assert first_metrics["view_count"] == 2
+    assert first_metrics["home_product_impression_count"] == 1
+    assert first_metrics["home_product_click_count"] == 1
+    assert first_metrics["search_result_impression_count"] == 1
+    assert first_metrics["search_result_click_count"] == 1
+    assert first_metrics["wishlist_add_count"] == 1
+    assert first_metrics["cart_add_count"] == 1
+
+
 def _event(
     event_id: str,
     event_name: str,
@@ -172,3 +239,17 @@ def _event(
         metadata_json=metadata_json or {},
         created_at=occurred_at,
     )
+
+
+def _event_payload(event_id: str, event_name: str, product_id: str, occurred_at: datetime) -> dict:
+    return {
+        "event_id": event_id,
+        "event_name": event_name,
+        "product_id": product_id,
+        "occurred_at": occurred_at.isoformat(),
+        "page": "home" if event_name.startswith("home_") else "search",
+        "source": "market_popular" if event_name.startswith("home_") else "search_result",
+        "metadata": {
+            "section_id": "market_popular" if event_name.startswith("home_") else "search_results",
+        },
+    }
