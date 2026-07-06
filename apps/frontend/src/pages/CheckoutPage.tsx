@@ -307,10 +307,6 @@ function CheckoutPage() {
     }
 
     if (!user) {
-      setAddresses([]);
-      setSelectedAddressId(null);
-      setAddressErrorMessage("");
-      setIsAddressLoading(false);
       return;
     }
 
@@ -441,21 +437,10 @@ function CheckoutPage() {
   const shippingFeeLabel = isCheckoutResolving ? "확인 중" : shippingFee === 0 ? "무료" : formatWon(shippingFee);
   const discountLabel = isCheckoutResolving ? "확인 중" : discount > 0 ? `-${formatWon(discount)}` : formatWon(0);
   const totalLabel = isCheckoutResolving ? "확인 중" : formatWon(total);
-  const previewStatusText = isPreviewLoading
-    ? "주문서 정보를 확인하는 중입니다."
-    : previewErrorMessage;
-  const previewStatusClassName = `checkout-preview-status${previewErrorMessage ? " error" : ""}`;
   const isCheckoutBlocked = Boolean(isCartCheckout && checkoutPreview && !checkoutPreview.can_checkout);
   const hasBlockingWarning = Boolean(
     isCartCheckout && checkoutPreview?.warnings.some((warning) => warning.severity === "BLOCKING"),
   );
-  const checkoutBlockMessage = previewErrorMessage
-    || (isCheckoutBlocked
-      ? "구매할 수 없는 상품이 포함되어 있습니다. 장바구니에서 상품 상태를 확인해주세요."
-      : "")
-    || (hasBlockingWarning
-      ? "재고 부족 또는 구매 불가 상품이 포함되어 있습니다. 장바구니에서 정리해주세요."
-      : "");
   const isPaymentDisabled =
     isCheckoutResolving
     || items.length === 0
@@ -1094,14 +1079,6 @@ function CheckoutPage() {
                 <span>총 결제금액</span>
                 <strong id="summaryTotal">{totalLabel}</strong>
               </div>
-              {false && checkoutBlockMessage ? (
-                <div className="summary-blocking-note">
-                  <p>{checkoutBlockMessage}</p>
-                  <button type="button" onClick={() => navigateWithinApp("/cart")}>
-                    장바구니로 돌아가기
-                  </button>
-                </div>
-              ) : null}
               {orderErrorMessage ? (
                 <p className="summary-note" role="alert">{orderErrorMessage}</p>
               ) : null}
