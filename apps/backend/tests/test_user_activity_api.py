@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.commerce import RecentView, Wishlist
+from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -97,6 +98,48 @@ def test_wishlist_add_list_delete_is_idempotent_and_uses_storage_key(
     assert second_delete.json() == {"success": True}
     assert after_delete.json()["items"] == []
     assert wishlist_count == 0
+
+
+def test_user_activity_records_behavior_events(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="activity-events@example.com", nickname="행동로그")
+
+    headers = {
+        "X-MWBL-Anonymous-User-Id": "anon_activity",
+        "X-MWBL-Session-Id": "session_activity",
+        "x-request-id": "request_activity",
+    }
+    wishlist_add = client.post(
+        "/api/me/wishlist",
+        json={"product_id": "prod_001"},
+        headers=headers,
+    )
+    recent_view = client.post(
+        "/api/me/recent",
+        json={"product_id": "prod_002"},
+        headers=headers,
+    )
+    wishlist_remove = client.delete("/api/me/wishlist/prod_001", headers=headers)
+
+    assert wishlist_add.status_code == 200
+    assert recent_view.status_code == 200
+    assert wishlist_remove.status_code == 200
+
+    with Session(db_engine) as session:
+        events = session.execute(select(EventLog).order_by(EventLog.id)).scalars().all()
+
+    assert [event.event_name for event in events] == [
+        "wishlist_added",
+        "recent_product_viewed",
+        "wishlist_removed",
+    ]
+    assert [event.product_id for event in events] == ["prod_001", "prod_002", "prod_001"]
+    assert {event.anonymous_user_id for event in events} == {"anon_activity"}
+    assert {event.session_id for event in events} == {"session_activity"}
+    assert {event.request_id for event in events} == {"request_activity"}
+    assert all(event.user_id is not None for event in events)
 
 
 def test_wishlist_is_owned_by_current_user(
