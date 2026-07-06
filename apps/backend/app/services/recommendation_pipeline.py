@@ -37,7 +37,10 @@ from app.services.recommendation_run_store import (
 )
 from app.services.scoring import SCORING_VERSION, score_candidates
 from app.services.search_candidate_store import save_search_candidates
-from app.services.search_matching import match_product_search_documents
+from app.services.search_matching import (
+    count_join_product_search_documents,
+    match_product_search_documents,
+)
 
 
 DEFAULT_RESULT_LIMIT = 50
@@ -124,6 +127,10 @@ def create_recommendation_response(
             loaded_candidates,
             normalized_request.avoid_ingredients,
         )
+        search_join_document_count = count_join_product_search_documents(
+            session,
+            [candidate.db_product_id for candidate in candidates],
+        )
         matches = match_product_search_documents(session, intent, candidates)
         save_search_candidates(session, saved_run.run.id, candidates, matches)
 
@@ -142,6 +149,7 @@ def create_recommendation_response(
             result_limit=result_limit,
             loaded_candidate_count=len(loaded_candidates),
             after_avoid_filter_count=len(candidates),
+            search_join_document_count=search_join_document_count,
             search_match_count=len(matches),
             scored_candidate_count=len(scored_candidates),
             final_result_count=len(scored_products),
@@ -514,6 +522,7 @@ def _attach_candidate_pool_diagnostics(
     result_limit: int,
     loaded_candidate_count: int,
     after_avoid_filter_count: int,
+    search_join_document_count: int,
     search_match_count: int,
     scored_candidate_count: int,
     final_result_count: int,
@@ -527,6 +536,7 @@ def _attach_candidate_pool_diagnostics(
         "loaded_candidate_count": loaded_candidate_count,
         "avoid_filtered_count": loaded_candidate_count - after_avoid_filter_count,
         "after_avoid_filter_count": after_avoid_filter_count,
+        "join_document_count": search_join_document_count,
         "search_match_count": search_match_count,
         "scored_candidate_count": scored_candidate_count,
         "final_result_count": final_result_count,

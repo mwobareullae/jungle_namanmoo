@@ -23,6 +23,7 @@ from app.services.recommendation_run_store import (
     save_recommendation_run,
 )
 from app.services.repository import load_repository
+from app.services.search_index_builder import build_product_search_index_documents
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -154,6 +155,7 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     assert diagnostics["loaded_candidate_count"] == 2
     assert diagnostics["avoid_filtered_count"] == 0
     assert diagnostics["after_avoid_filter_count"] == 2
+    assert diagnostics["join_document_count"] == 2
     assert diagnostics["search_match_count"] == 2
     assert diagnostics["scored_candidate_count"] == 2
     assert diagnostics["final_result_count"] == 2
@@ -167,6 +169,7 @@ def _seed_example_session() -> Session:
     Base.metadata.create_all(engine)
     session = Session(engine)
     seed_database(session, EXAMPLES_DIR)
+    build_product_search_index_documents(session)
     return session
 
 

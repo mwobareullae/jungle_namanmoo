@@ -13,6 +13,7 @@ from app.services.recommendation_result_store import save_recommendation_results
 from app.services.recommendation_run_store import save_recommendation_run
 from app.services.repository import load_repository
 from app.services.scoring import ScoredProduct, score_candidates
+from app.services.search_index_builder import build_product_search_index_documents
 from app.services.search_matching import match_product_search_documents
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -125,6 +126,7 @@ def _seed_example_session() -> Session:
     Base.metadata.create_all(engine)
     session = Session(engine)
     seed_database(session, EXAMPLES_DIR)
+    build_product_search_index_documents(session)
     return session
 
 

@@ -1,4 +1,4 @@
-﻿product_id,dry_fit,oily_fit,combination_fit,normal_fit,dehydrated_oily_fit,sensitive_fit,sensitivity_tag,confidence,reason
+product_id,dry_fit,oily_fit,combination_fit,normal_fit,dehydrated_oily_fit,sensitive_fit,sensitivity_tag,confidence,reason
 prod_oy_a000000258833,0.78,0.56,0.65,0.75,0.79,0.68,민감가능,low,상품명 보습/장벽 문구; 진정 성분
 prod_oy_a000000256045,0.92,0.54,0.71,0.81,0.91,0.79,민감추천,medium,상품명 보습/장벽 문구; 보습/장벽 성분; 진정 성분
 prod_oy_a000000255290,0.77,0.82,0.89,0.78,0.94,1.00,민감추천,medium,상품명 민감/진정 문구; 보습/장벽 성분; 피지/트러블 성분; 진정 성분
@@ -14652,7 +14652,6 @@ sephora_dd82f99872aff4,0.78,0.58,0.60,0.70,0.80,0.55,정보없음,low,보습/장
 sephora_ca69556d87bccf,0.58,0.58,0.60,0.62,0.58,0.55,정보없음,unknown,해외 상품명 기반 기본값
 sephora_5d1fe2f28d6197,0.58,0.58,0.60,0.62,0.58,0.55,정보없음,low,기본추천 제외 상품
 sephora_112973d8a8d189,0.58,0.58,0.60,0.62,0.58,0.55,정보없음,low,기본추천 제외 상품
-sephora_acfb752b3cfa21,0.58,0.58,0.60,0.62,0.58,0.55,정보없음,low,기본추천 제외 상품
 sephora_beb573a88ff1a5,0.58,0.58,0.60,0.62,0.58,0.55,정보없음,low,기본추천 제외 상품
 sephora_b8f4451e3f6315,0.58,0.84,0.82,0.62,0.70,0.47,정보없음,low,가벼운 수분 제형; 피지/트러블 키워드; 기본추천 제외 상품
 sephora_393c5bd54ba50c,0.78,0.66,0.70,0.70,0.92,0.55,정보없음,low,보습/장벽 컨셉; 가벼운 수분 제형
