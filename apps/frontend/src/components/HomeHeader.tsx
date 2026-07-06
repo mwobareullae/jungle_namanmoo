@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { getCart } from "../lib/cartApi";
+import { navigateWithinApp } from "../lib/navigation";
 import { callOriginal } from "../lib/originalRuntime";
 
 function HomeHeader() {
@@ -7,6 +10,7 @@ function HomeHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [cartCount, setCartCount] = useState(0);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
   const handleWishlistClick = () => {
@@ -21,15 +25,42 @@ function HomeHeader() {
       }
     });
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCartCount = async () => {
+      try {
+        const cart = await getCart();
+        if (!isMounted) return;
+        setCartCount(cart.total_quantity);
+      } catch {
+        if (!isMounted) return;
+        setCartCount(0);
+      }
+    };
+
+    const handleCartUpdated = () => {
+      void loadCartCount();
+    };
+
+    void loadCartCount();
+    window.addEventListener("cart:updated", handleCartUpdated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("cart:updated", handleCartUpdated);
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await logout();
       callOriginal("showToast", "로그아웃되었습니다.");
-      if (location.pathname !== "/") {
-        navigate("/", { replace: true });
-      }
     } catch {
       callOriginal("showToast", "로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      await navigateWithinApp("/");
     }
   };
 
@@ -110,7 +141,8 @@ function HomeHeader() {
           <button
             className="icon-btn"
             data-commerce-only
-            onClick={() => callOriginal("toggleCart")}
+            aria-label="장바구니로 이동"
+            onClick={() => navigate("/cart")}
             type="button"
           >
             <svg
@@ -128,7 +160,7 @@ function HomeHeader() {
               <path d="M16 10a4 4 0 0 1-8 0" />
             </svg>
             <span className="badge" id="headerCartBadge">
-              0
+              {cartCount}
             </span>
           </button>
           {user ? (

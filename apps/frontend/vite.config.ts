@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://52.79.240.15:8000",
+        target: "https://dev.api.mubarelle.com",
         changeOrigin: true
       }
     }

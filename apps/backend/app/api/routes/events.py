@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogBatchRequest, EventLogBatchResponse, EventLogCreateRequest, EventLogResponse
 from app.services.event_service import create_event_log, create_event_logs
+from app.services.event_tracking import anonymous_user_id_from_request, session_id_from_request
 
 
 router = APIRouter(tags=["events"])
@@ -28,6 +29,8 @@ def post_event(
         payload,
         current_user=current_user,
         fallback_request_id=_extract_request_id(request),
+        fallback_anonymous_user_id=anonymous_user_id_from_request(request),
+        fallback_session_id=session_id_from_request(request),
     )
     session.commit()
     return result
@@ -49,6 +52,8 @@ def post_events_batch(
         payload.events,
         current_user=current_user,
         fallback_request_id=_extract_request_id(request),
+        fallback_anonymous_user_id=anonymous_user_id_from_request(request),
+        fallback_session_id=session_id_from_request(request),
     )
     session.commit()
     duplicate_count = sum(1 for event in events if event.duplicate)

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthHeader from "../components/AuthHeader";
 import SignupProgress from "../components/SignupProgress";
+import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 
 type SignupErrorResponse = {
@@ -93,6 +94,7 @@ const getStoredSignupAgreements = (): SignupAgreements | null => {
 function SignupInfoPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { refreshAuthenticatedUser } = useAuth();
   const agreements = (location.state?.agreements as SignupAgreements | undefined) ?? getStoredSignupAgreements();
 
   const [email, setEmail] = useState("");
@@ -382,6 +384,17 @@ function SignupInfoPage() {
       }
 
       sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
+      try {
+        const nextUser = await refreshAuthenticatedUser();
+
+        if (!nextUser) {
+          setErrorMessage("회원가입은 완료됐지만 로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.");
+          return;
+        }
+      } catch {
+        setErrorMessage("회원가입은 완료됐지만 로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.");
+        return;
+      }
       navigate("/signup/skin-profile", { replace: true });
     } finally {
       setIsSubmitting(false);
