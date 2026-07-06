@@ -91,25 +91,39 @@
   gap: 4px;
 }
 
-.admin-nav a {
+.admin-nav a,
+.admin-nav button {
   min-height: 42px;
   padding: 13px 14px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
   color: rgba(255, 255, 255, 0.72);
+  font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.15;
   text-decoration: none;
+  text-align: left;
+  cursor: pointer;
 }
 
 .admin-nav a:hover,
-.admin-nav a.active {
+.admin-nav a.active,
+.admin-nav button:hover,
+.admin-nav button.active {
   background: rgba(148, 224, 248, 0.16);
   color: var(--admin-white);
 }
 
-.admin-nav a.active {
+.admin-nav a.active,
+.admin-nav button.active {
   box-shadow: inset 3px 0 0 var(--admin-accent-mint);
+}
+
+.admin-nav button:disabled {
+  cursor: default;
+  opacity: 0.56;
 }
 
 .admin-sidebar-status {
@@ -540,14 +554,16 @@
   font-weight: 700;
 }
 
-.admin-nav a {
+.admin-nav a,
+.admin-nav button {
   min-height: 38px;
   padding: 11px 12px;
   border-radius: 8px;
   font-size: 13px;
 }
 
-.admin-nav a.active {
+.admin-nav a.active,
+.admin-nav button.active {
   background: var(--admin-accent-mint);
   color: var(--admin-ink-navy);
   box-shadow: none;
@@ -634,6 +650,22 @@
 
 .admin-workflow-panel {
   grid-column: 1 / -1;
+}
+
+.admin-product-panel,
+.admin-product-layout {
+  min-width: 0;
+}
+
+.admin-product-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-product-header {
+  align-items: center;
 }
 
 .admin-panel-header {
@@ -731,6 +763,10 @@
   font-size: 12px;
 }
 
+.admin-product-table {
+  min-width: 1040px;
+}
+
 .admin-table.compact th,
 .admin-table.compact td {
   height: 46px;
@@ -752,9 +788,45 @@
   text-overflow: ellipsis;
 }
 
+.admin-product-code {
+  display: block;
+  margin-top: 5px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .admin-danger-text {
   color: #c2402c;
   font-weight: 800;
+}
+
+.admin-text-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-text-button:hover {
+  border-color: var(--admin-accent-2);
+  color: var(--admin-ink-navy);
+}
+
+.admin-list-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .admin-metric-list {
@@ -902,6 +974,72 @@
   background: var(--admin-muted);
 }
 
+.admin-product-form {
+  min-width: 0;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+
+.admin-form-grid label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-form-grid input,
+.admin-form-grid select,
+.admin-form-grid textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-form-grid input,
+.admin-form-grid select {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.admin-form-grid textarea {
+  resize: vertical;
+  padding: 12px;
+  line-height: 1.55;
+}
+
+.admin-form-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-form-aside {
+  position: sticky;
+  top: 20px;
+}
+
+.admin-form-note {
+  margin: 4px 18px 18px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f8fbfc;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .admin-footnote {
   margin: 16px 0 0;
   color: var(--admin-muted);
@@ -920,6 +1058,14 @@
 
   .admin-workflow-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-product-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-form-aside {
+    position: static;
   }
 }
 
@@ -943,7 +1089,8 @@
     gap: 6px 10px;
   }
 
-  .admin-nav a {
+  .admin-nav a,
+  .admin-nav button {
     min-height: 38px;
     overflow-wrap: anywhere;
   }
@@ -993,6 +1140,14 @@
 
   .admin-badge {
     align-self: flex-start;
+  }
+
+  .admin-product-header {
+    align-items: stretch;
+  }
+
+  .admin-form-grid {
+    grid-template-columns: 1fr;
   }
 
   .admin-rebuild-list li {
