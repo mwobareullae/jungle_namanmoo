@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addCartItem } from "../lib/cartApi";
@@ -92,6 +93,185 @@ const parseRiskFlag = (riskFlag: string) => {
 const isCommunityMode = import.meta.env.VITE_APP_MODE === "community";
 const normalizeDetailHash = (hash: string) =>
   isCommunityMode && hash === "#related" ? "#summary" : hash || "#summary";
+const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
+
+type ProductComparisonRequest = {
+  compareProductIds: string[];
+  differences: ProductComparisonDifference[];
+  recommendationReason: string;
+  source: "comparison" | "similar";
+  summary: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toDisplayString = (value: unknown) => {
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number") return String(value);
+  return null;
+};
+
+const readString = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = toDisplayString(record[key]);
+    if (value) return value;
+  }
+  return null;
+};
+
+const readRecord = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key];
+    if (isRecord(value)) return value;
+  }
+  return null;
+};
+
+const getComparisonPayload = (detail: unknown) => {
+  if (!isRecord(detail)) return {};
+  if (isRecord(detail.payload)) return detail.payload;
+
+  const action = isRecord(detail.action) ? detail.action : null;
+  return action && isRecord(action.payload) ? action.payload : {};
+};
+
+const getComparisonAction = (detail: unknown) =>
+  isRecord(detail) && isRecord(detail.action) ? detail.action : {};
+
+const getComparisonItems = (detail: unknown) =>
+  isRecord(detail) && Array.isArray(detail.items) ? detail.items : [];
+
+const getAgentMessage = (detail: unknown) =>
+  isRecord(detail) ? readString(detail, ["agentMessage", "message", "summary"]) : null;
+
+const readProductId = (value: unknown) => {
+  const rawValue = toDisplayString(value);
+  if (rawValue) return rawValue;
+  if (!isRecord(value)) return null;
+
+  return readString(value, [
+    "compare_product_id",
+    "compared_product_id",
+    "comparison_product_id",
+    "target_product_id",
+    "recommended_product_id",
+    "product_id",
+    "id",
+  ]);
+};
+
+const collectProductIds = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return value.map(readProductId).filter((id): id is string => Boolean(id));
+};
+
+const uniqueProductIds = (values: Array<string | null | undefined>) => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  values.forEach((value) => {
+    const normalized = value?.trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+};
+
+const normalizeComparisonDifference = (
+  value: unknown,
+  index: number,
+): ProductComparisonDifference | null => {
+  const description = toDisplayString(value);
+  if (description) {
+    return {
+      description,
+      label: `비교 포인트 ${index + 1}`,
+    };
+  }
+
+  if (!isRecord(value)) return null;
+
+  return {
+    base: readString(value, ["base", "base_value", "current", "current_value", "left", "source"]),
+    compare: readString(value, ["compare", "compare_value", "compared", "compared_value", "right", "target"]),
+    description: readString(value, ["description", "summary", "reason", "detail"]),
+    label: readString(value, ["label", "title", "category", "name", "criterion"]) ?? `비교 포인트 ${index + 1}`,
+  };
+};
+
+const readComparisonDifferences = (
+  payload: Record<string, unknown>,
+  comparison: Record<string, unknown>,
+) => {
+  const rawDifferences =
+    payload.differences ??
+    payload.comparison_points ??
+    payload.diff ??
+    comparison.differences ??
+    comparison.comparison_points;
+
+  if (!Array.isArray(rawDifferences)) return [];
+
+  return rawDifferences
+    .map(normalizeComparisonDifference)
+    .filter((difference): difference is ProductComparisonDifference => difference !== null);
+};
+
+const createComparisonRequest = (
+  detail: unknown,
+  currentProductId: string,
+): ProductComparisonRequest | null => {
+  const action = getComparisonAction(detail);
+  const actionType = readString(action, ["type"]);
+  const actionTarget = readString(action, ["target"]);
+  const source = actionType === "show_products" && actionTarget === "similar_products" ? "similar" : "comparison";
+  const payload = getComparisonPayload(detail);
+  const comparison =
+    readRecord(payload, ["comparison", "comparison_result", "result", "analysis"]) ?? {};
+  const baseProductId =
+    readString(payload, ["base_product_id", "source_product_id", "current_product_id"]) ?? currentProductId;
+  const directCompareProductId =
+    readString(payload, [
+      "compare_product_id",
+      "compared_product_id",
+      "comparison_product_id",
+      "target_product_id",
+      "recommended_product_id",
+    ]) ??
+    readProductId(payload.compare_product) ??
+    readProductId(payload.compared_product) ??
+    readProductId(payload.target_product);
+  const candidateProductIds = uniqueProductIds([
+    directCompareProductId,
+    ...collectProductIds(payload.products),
+    ...collectProductIds(payload.product_ids),
+    ...collectProductIds(payload.compare_product_ids),
+    ...collectProductIds(getComparisonItems(detail)),
+  ]);
+  const compareProductIds = candidateProductIds
+    .filter((id) => id !== currentProductId && id !== baseProductId)
+    .slice(0, 2);
+
+  if (compareProductIds.length === 0) {
+    return null;
+  }
+
+  const structuredSummary =
+    readString(payload, ["summary", "comparison_summary", "description", "reason"]) ??
+    readString(comparison, ["summary", "comparison_summary", "description", "reason"]);
+
+  return {
+    compareProductIds,
+    differences: readComparisonDifferences(payload, comparison),
+    recommendationReason:
+      readString(payload, ["recommendation_reason", "recommendation", "conclusion", "final_recommendation"]) ??
+      readString(comparison, ["recommendation_reason", "recommendation", "conclusion", "final_recommendation"]) ??
+      "",
+    source,
+    summary: structuredSummary ?? (source === "comparison" ? getAgentMessage(detail) : null) ?? "",
+  };
+};
 
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
@@ -113,6 +293,10 @@ function ProductDetailSpaPage() {
     label: string;
     items: IngredientEvidence[];
   } | null>(null);
+  const [comparisonRequest, setComparisonRequest] = useState<ProductComparisonRequest | null>(null);
+  const [comparisonProducts, setComparisonProducts] = useState<ProductDetail[]>([]);
+  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+  const [comparisonErrorMessage, setComparisonErrorMessage] = useState("");
 
   useEffect(() => installHomeRuntime(), []);
 
@@ -137,6 +321,29 @@ function ProductDetailSpaPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const handleComparisonEvent = (event: Event) => {
+      const request = createComparisonRequest((event as CustomEvent).detail, productId);
+      if (!request) {
+        return;
+      }
+
+      setComparisonRequest(request);
+      setComparisonProducts([]);
+      setComparisonErrorMessage("");
+
+      window.requestAnimationFrame(() => {
+        document.getElementById("productComparisonPanel")?.scrollIntoView({
+          block: "start",
+          behavior: "smooth",
+        });
+      });
+    };
+
+    window.addEventListener(AGENT_PRODUCT_COMPARISON_EVENT, handleComparisonEvent);
+    return () => window.removeEventListener(AGENT_PRODUCT_COMPARISON_EVENT, handleComparisonEvent);
+  }, [productId]);
 
   useEffect(() => {
     if (!productId) {
@@ -172,6 +379,57 @@ function ProductDetailSpaPage() {
       isMounted = false;
     };
   }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!comparisonRequest) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadComparisonProducts = async () => {
+      setIsComparisonLoading(true);
+      setComparisonErrorMessage("");
+
+      const loadedProducts = await Promise.all(
+        comparisonRequest.compareProductIds.map(async (compareProductId) => {
+          try {
+            return await api.getProduct(compareProductId, recommendationId);
+          } catch {
+            return getFallbackProductDetail(compareProductId);
+          }
+        }),
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      const nextProducts = loadedProducts.filter((item): item is ProductDetail => item !== null);
+      setComparisonProducts(nextProducts);
+
+      if (nextProducts.length === 0) {
+        setComparisonErrorMessage("비교 상품 정보를 불러오지 못했습니다.");
+      } else if (nextProducts.length < comparisonRequest.compareProductIds.length) {
+        setComparisonErrorMessage("일부 비교 상품 정보를 불러오지 못했습니다.");
+      }
+
+      setIsComparisonLoading(false);
+    };
+
+    loadComparisonProducts().catch(() => {
+      if (!isMounted) {
+        return;
+      }
+      setComparisonProducts([]);
+      setComparisonErrorMessage("비교 상품 정보를 불러오지 못했습니다.");
+      setIsComparisonLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [comparisonRequest, recommendationId]);
 
   useEffect(() => {
     if (!productId || !recommendationId) {
@@ -482,6 +740,26 @@ function ProductDetailSpaPage() {
             </div>
           ) : null}
         </section>
+
+        {product && comparisonRequest ? (
+          <ProductComparisonPanel
+            differences={comparisonRequest.differences}
+            errorMessage={comparisonErrorMessage}
+            expectedProductCount={comparisonRequest.compareProductIds.length + 1}
+            isLoading={isComparisonLoading}
+            onClose={() => {
+              setComparisonRequest(null);
+              setComparisonProducts([]);
+              setComparisonErrorMessage("");
+            }}
+            products={[product, ...comparisonProducts]}
+            recommendationReason={comparisonRequest.recommendationReason}
+            sensitivity={sensitivity}
+            skinType={skinType}
+            source={comparisonRequest.source}
+            summary={comparisonRequest.summary}
+          />
+        ) : null}
 
         {product && detailData ? (
           <>
