@@ -98,13 +98,13 @@ const workflowCards = [
     label: "엑셀 업로드",
     title: "상품 기본정보 자동 등록",
     detail: "성공 행 커밋 · 실패 행 결과 파일",
-    status: "P2 포함",
+    status: "필수 포함",
     tone: "success"
   },
   {
     label: "이미지 업로드",
     title: "파일명/매핑표 자동 연결",
-    detail: "OCR 자동 확정은 P3 검수 보조",
+    detail: "OCR 자동 확정 금지 · 검수 보조",
     status: "가능",
     tone: "success"
   },
@@ -177,7 +177,7 @@ function AdminDashboardPage() {
           <div>
             <div className="admin-title-row">
               <p>대시보드</p>
-              <span>P2 데모·QA</span>
+              <span>운영 확장</span>
             </div>
             <h1>상품 운영 관리자</h1>
           </div>
@@ -290,7 +290,7 @@ function AdminDashboardPage() {
           <section className="admin-panel admin-workflow-panel">
             <div className="admin-panel-header compact">
               <div>
-                <p>P2 확정 범위</p>
+                <p>필수 기능 범위</p>
                 <h2>자동 등록 운영 흐름</h2>
               </div>
               <span className="admin-badge success">팀장 확인</span>
