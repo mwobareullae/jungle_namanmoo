@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import (
     addresses,
+    agent,
     auth,
     cart,
     events,
@@ -51,6 +52,7 @@ app.include_router(addresses.router, prefix=settings.api_base_path)
 app.include_router(orders.router, prefix=settings.api_base_path)
 app.include_router(payments.router, prefix=settings.api_base_path)
 app.include_router(events.router, prefix=settings.api_base_path)
+app.include_router(agent.router, prefix=settings.api_base_path)
 
 
 @app.exception_handler(ApiError)
