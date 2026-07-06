@@ -14,6 +14,7 @@ OFFICIAL_EVENT_NAMES: frozenset[str] = frozenset(
         "home_product_impression",
         "home_product_click",
         "search_result_impression",
+        "search_result_click",
         "product_viewed",
         "recent_product_viewed",
         "wishlist_added",
