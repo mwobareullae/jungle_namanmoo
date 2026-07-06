@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import SkinTestProgress from "../components/SkinTestProgress";
 import SkinTestQuestionCard from "../components/SkinTestQuestionCard";
 import { api } from "../lib/api";
@@ -9,8 +9,6 @@ import type { ApiError } from "../types/recommendation";
 import type { SkinTestOption, SkinTestQuestionsResponse } from "../types/skinTest";
 
 type AnswerMap = Record<string, SkinTestOption["id"]>;
-
-const AUTO_ADVANCE_DELAY_MS = 300;
 
 const getErrorMessage = (error: unknown) => {
   const apiError = error as Partial<ApiError>;
@@ -24,7 +22,6 @@ const getErrorMessage = (error: unknown) => {
 
 function SkinTestPage() {
   const navigate = useNavigate();
-  const autoAdvanceTimerRef = useRef<number | null>(null);
   const [questionSet, setQuestionSet] = useState<SkinTestQuestionsResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -65,15 +62,6 @@ function SkinTestPage() {
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      if (autoAdvanceTimerRef.current !== null) {
-        window.clearTimeout(autoAdvanceTimerRef.current);
-      }
-    },
-    [],
-  );
-
   const questions = useMemo(() => questionSet?.questions ?? [], [questionSet?.questions]);
   const currentQuestion = questions[currentIndex];
   const selectedOptionId = currentQuestion ? answers[String(currentQuestion.id)] ?? null : null;
@@ -83,35 +71,19 @@ function SkinTestPage() {
     [answers, questions],
   );
 
-  const clearAutoAdvanceTimer = () => {
-    if (autoAdvanceTimerRef.current !== null) {
-      window.clearTimeout(autoAdvanceTimerRef.current);
-      autoAdvanceTimerRef.current = null;
-    }
-  };
-
   const handleSelectOption = (optionId: SkinTestOption["id"]) => {
     if (!currentQuestion) {
       return;
     }
 
-    clearAutoAdvanceTimer();
     setAnswers((currentAnswers) => ({
       ...currentAnswers,
       [String(currentQuestion.id)]: optionId,
     }));
     setErrorMessage("");
-
-    if (!isLastQuestion) {
-      autoAdvanceTimerRef.current = window.setTimeout(() => {
-        setCurrentIndex((index) => (index >= questions.length - 1 ? index : index + 1));
-        autoAdvanceTimerRef.current = null;
-      }, AUTO_ADVANCE_DELAY_MS);
-    }
   };
 
   const handlePrevious = () => {
-    clearAutoAdvanceTimer();
     setErrorMessage("");
 
     if (currentIndex === 0) {
@@ -123,8 +95,6 @@ function SkinTestPage() {
   };
 
   const handleNext = async () => {
-    clearAutoAdvanceTimer();
-
     if (!currentQuestion || !questionSet) {
       return;
     }
@@ -178,7 +148,7 @@ function SkinTestPage() {
 
   return (
     <div className="skin-test-shell">
-      <AuthHeader />
+      <HomeHeader />
       <main className="skin-test-main">
         <div className="skin-test-layout">
           <section className="skin-test-panel" aria-live="polite">
@@ -213,16 +183,13 @@ function SkinTestPage() {
                   onSelect={handleSelectOption}
                 />
                 <div className="skin-test-actions">
-                  <button className="skin-test-secondary-button" onClick={handlePrevious} type="button">
-                    &larr; 뒤로
-                  </button>
                   <button
                     className="skin-test-primary-button"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || selectedOptionId === null}
                     onClick={handleNext}
                     type="button"
                   >
-                    {isLastQuestion ? "결과 보기" : "다음"} &rarr;
+                    {isLastQuestion ? "결과 보기" : "확인"}
                   </button>
                 </div>
                 <div className="skin-test-footnote">

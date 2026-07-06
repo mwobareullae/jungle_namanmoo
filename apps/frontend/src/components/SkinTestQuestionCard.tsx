@@ -9,11 +9,12 @@ type SkinTestQuestionCardProps = {
 function SkinTestQuestionCard({ question, selectedOptionId, onSelect }: SkinTestQuestionCardProps) {
   return (
     <section className="skin-test-question" aria-labelledby={`skin-test-question-${question.id}`}>
+      <p className="skin-test-question__eyebrow">맞춤 추천 테스트</p>
       <h2 className="skin-test-question__title" id={`skin-test-question-${question.id}`}>
         {question.text}
       </h2>
       <div className="skin-test-options" role="radiogroup" aria-label={question.text}>
-        {question.options.map((option, index) => {
+        {question.options.map((option) => {
           const isSelected = String(option.id) === String(selectedOptionId);
 
           return (
@@ -25,8 +26,10 @@ function SkinTestQuestionCard({ question, selectedOptionId, onSelect }: SkinTest
               role="radio"
               type="button"
             >
-              <span className="skin-test-option__index">{index + 1}</span>
               <span>{option.text}</span>
+              <span className="skin-test-option__check" aria-hidden="true">
+                ✓
+              </span>
             </button>
           );
         })}
