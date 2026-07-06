@@ -117,7 +117,10 @@ const idsFromLabels = <T extends string>(options: { id: T; label: string }[], la
 
 const avoidIdFromStoredValue = (value: string) =>
   avoidOptions.find(
-    (option) => option.id === value || option.label === value || option.mappedIngredients.includes(value)
+    (option) =>
+      option.id === value ||
+      option.label === value ||
+      (option.mappedIngredients as readonly string[]).includes(value)
   )?.id;
 
 const avoidIdsFromStoredValues = (values: string[]) =>
