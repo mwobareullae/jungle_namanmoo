@@ -2,11 +2,14 @@ from datetime import UTC, datetime, timedelta
 import logging
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_optional_current_user
 from app.core.config import settings
 from app.db.models.auth import User
+from app.db.models.catalog import Product
+from app.db.models.commerce import Cart, CartItem
 from app.db.session import get_db
 from app.schemas.cart import (
     CartItemAddRequest,
@@ -93,10 +96,17 @@ def post_cart_item(
 def patch_cart_item(
     item_id: int,
     request: CartItemUpdateRequest,
+    http_request: Request,
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> CartResponse:
+    event_context = _load_cart_item_event_context(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=anonymous_cart_id,
+        item_id=item_id,
+    )
     cart = update_cart_item_quantity(
         session,
         current_user,
@@ -105,16 +115,37 @@ def patch_cart_item(
         quantity=request.quantity,
     )
     session.commit()
+    if event_context is not None:
+        _record_cart_item_event(
+            session,
+            current_user=current_user,
+            anonymous_cart_id=anonymous_cart_id,
+            cart_id=event_context["cart_id"],
+            product_id=event_context["product_id"],
+            event_name="cart_removed" if request.quantity == 0 else "cart_quantity_changed",
+            previous_quantity=event_context["quantity"],
+            quantity=request.quantity,
+            fallback_request_id=request_id_from_request(http_request),
+            fallback_anonymous_user_id=anonymous_user_id_from_request(http_request),
+            fallback_session_id=session_id_from_request(http_request),
+        )
     return cart
 
 
 @router.delete("/cart/items/{item_id}", response_model=DeleteCartItemResponse)
 def delete_cart_item(
     item_id: int,
+    http_request: Request,
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> DeleteCartItemResponse:
+    event_context = _load_cart_item_event_context(
+        session,
+        current_user=current_user,
+        anonymous_cart_id=anonymous_cart_id,
+        item_id=item_id,
+    )
     cart = remove_cart_item(
         session,
         current_user,
@@ -122,6 +153,20 @@ def delete_cart_item(
         item_id=item_id,
     )
     session.commit()
+    if event_context is not None:
+        _record_cart_item_event(
+            session,
+            current_user=current_user,
+            anonymous_cart_id=anonymous_cart_id,
+            cart_id=event_context["cart_id"],
+            product_id=event_context["product_id"],
+            event_name="cart_removed",
+            previous_quantity=event_context["quantity"],
+            quantity=0,
+            fallback_request_id=request_id_from_request(http_request),
+            fallback_anonymous_user_id=anonymous_user_id_from_request(http_request),
+            fallback_session_id=session_id_from_request(http_request),
+        )
     return DeleteCartItemResponse(success=True, cart=cart)
 
 
@@ -274,3 +319,80 @@ def _record_checkout_started_event(
     except Exception:
         session.rollback()
         logger.exception("failed_to_record_checkout_started_event")
+
+
+def _load_cart_item_event_context(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    item_id: int,
+) -> dict | None:
+    if current_user is None and not anonymous_cart_id:
+        return None
+
+    conditions = [
+        CartItem.id == item_id,
+        Cart.status == "ACTIVE",
+    ]
+    if current_user is not None:
+        conditions.append(Cart.user_id == current_user.id)
+    else:
+        conditions.append(Cart.anonymous_cart_id == anonymous_cart_id)
+
+    row = session.execute(
+        select(CartItem, Cart, Product.product_code)
+        .join(Cart, CartItem.cart_id == Cart.id)
+        .join(Product, CartItem.product_id == Product.id)
+        .where(*conditions)
+    ).one_or_none()
+    if row is None:
+        return None
+
+    item, cart, product_id = row
+    return {
+        "cart_id": cart.id,
+        "product_id": product_id,
+        "quantity": item.quantity,
+    }
+
+
+def _record_cart_item_event(
+    session: Session,
+    *,
+    current_user: User | None,
+    anonymous_cart_id: str | None,
+    cart_id: int | None,
+    product_id: str,
+    event_name: str,
+    previous_quantity: int,
+    quantity: int,
+    fallback_request_id: str | None,
+    fallback_anonymous_user_id: str | None,
+    fallback_session_id: str | None,
+) -> None:
+    try:
+        create_event_log(
+            session,
+            EventLogCreateRequest(
+                event_name=event_name,
+                anonymous_user_id=fallback_anonymous_user_id or (None if current_user is not None else anonymous_cart_id),
+                session_id=fallback_session_id,
+                cart_id=cart_id,
+                product_id=product_id,
+                source="cart",
+                page="cart",
+                metadata={
+                    "previous_quantity": previous_quantity,
+                    "quantity": quantity,
+                },
+            ),
+            current_user=current_user,
+            fallback_request_id=fallback_request_id,
+            fallback_anonymous_user_id=fallback_anonymous_user_id,
+            fallback_session_id=fallback_session_id,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("failed_to_record_cart_item_event", extra={"event_name": event_name})
