@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
 import { originalPages, type OriginalPageKey } from "./originalPages";
+import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
@@ -559,6 +560,7 @@ function App() {
         {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
         {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
         {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+        {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
         <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
         <Route path="*" element={<LegacyApp />} />
       </Routes>
