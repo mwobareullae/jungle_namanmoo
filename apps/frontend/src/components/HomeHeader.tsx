@@ -134,6 +134,21 @@ function HomeHeader() {
           {user ? (
             <>
               <a className="btn-login header-user-link" data-commerce-only href="/mypage">
+                <span className="header-user-icon" aria-hidden="true">
+                  <svg
+                    fill="none"
+                    height="18"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    width="18"
+                  >
+                    <path d="M20 21a8 8 0 0 0-16 0" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </span>
                 {displayName}님
               </a>
               <span aria-hidden="true" className="header-action-divider">
@@ -146,6 +161,22 @@ function HomeHeader() {
                 onClick={handleLogout}
                 type="button"
               >
+                <span className="header-logout-icon" aria-hidden="true">
+                  <svg
+                    fill="none"
+                    height="18"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    width="18"
+                  >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <path d="M16 17l5-5-5-5" />
+                    <path d="M21 12H9" />
+                  </svg>
+                </span>
                 로그아웃
               </button>
             </>
