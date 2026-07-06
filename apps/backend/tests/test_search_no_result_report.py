@@ -7,6 +7,7 @@ from app.db.models.recommendation import RecommendationRun
 from app.db.session import make_engine
 from app.services.search_no_result_report import (
     build_search_no_result_report,
+    format_alias_candidates_csv,
     format_json_report,
     format_markdown_report,
 )
@@ -68,6 +69,36 @@ def test_search_no_result_report_formatters_include_summary() -> None:
     assert "까무잡잡한데 허예지고 싶어" in markdown
     assert '"recommendation_id": "rec_alias"' in json_report
     assert '"alias_candidate_terms": [' in json_report
+
+
+def test_format_alias_candidates_csv_outputs_review_columns() -> None:
+    session = _make_session()
+    _add_run(
+        session,
+        recommendation_code="rec_1",
+        concern_text="주름 탄력 추천",
+        no_result_reason="no_positive_search_match",
+        alias_candidate_terms=["주름", "탄력"],
+    )
+    _add_run(
+        session,
+        recommendation_code="rec_2",
+        concern_text="주름 크림",
+        no_result_reason="parser_unmatched_partial",
+        alias_candidate_terms=["주름"],
+    )
+    session.commit()
+    report = build_search_no_result_report(session, top_n=5)
+
+    csv_report = format_alias_candidates_csv(report)
+
+    assert (
+        "alias,candidate_count,no_result_reasons,sample_recommendation_ids,"
+        "sample_inputs,canonical_id,review_status,review_note"
+    ) in csv_report
+    assert "주름,2," in csv_report
+    assert "candidate" in csv_report
+    assert "rec_2; rec_1" in csv_report
 
 
 def _make_session() -> Session:

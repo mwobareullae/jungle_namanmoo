@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 from collections import Counter
 from dataclasses import dataclass
@@ -165,6 +167,64 @@ def format_json_report(report: SearchNoResultReport) -> str:
     )
 
 
+def format_alias_candidates_csv(report: SearchNoResultReport) -> str:
+    buffer = io.StringIO()
+    fieldnames = [
+        "alias",
+        "candidate_count",
+        "no_result_reasons",
+        "sample_recommendation_ids",
+        "sample_inputs",
+        "canonical_id",
+        "review_status",
+        "review_note",
+    ]
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for summary in report.top_alias_candidate_terms:
+        related_entries = [
+            entry
+            for entry in report.entries
+            if summary.term in entry.alias_candidate_terms
+        ]
+        writer.writerow(
+            {
+                "alias": summary.term,
+                "candidate_count": summary.count,
+                "no_result_reasons": _csv_join(
+                    _dedupe(
+                        [
+                            entry.no_result_reason or ""
+                            for entry in related_entries
+                        ]
+                    )
+                ),
+                "sample_recommendation_ids": _csv_join(
+                    _dedupe(
+                        [
+                            entry.recommendation_code
+                            for entry in related_entries
+                        ]
+                    )[:5]
+                ),
+                "sample_inputs": _csv_join(
+                    _dedupe(
+                        [
+                            entry.concern_text
+                            for entry in related_entries
+                        ]
+                    )[:3]
+                ),
+                "canonical_id": "",
+                "review_status": "candidate",
+                "review_note": "",
+            }
+        )
+
+    return buffer.getvalue()
+
+
 def _search_no_result_diagnostics(run: RecommendationRun) -> dict | None:
     request_context = run.request_context or {}
     if not isinstance(request_context, dict):
@@ -245,3 +305,22 @@ def _join_or_dash(values: tuple[str, ...]) -> str:
 
 def _clean_cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _csv_join(values: list[str]) -> str:
+    return "; ".join(value for value in values if value)
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(text)
+    return deduped
