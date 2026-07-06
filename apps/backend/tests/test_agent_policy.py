@@ -93,10 +93,10 @@ def test_tool_ui_action_must_match_policy() -> None:
 
 
 def test_result_item_count_is_limited_per_tool() -> None:
-    validate_result_item_count("find_similar_products", 10)
+    validate_result_item_count("find_similar_products", 2)
 
     with pytest.raises(ApiError) as exc_info:
-        validate_result_item_count("find_similar_products", 11)
+        validate_result_item_count("find_similar_products", 3)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "AGENT_RESULT_LIMIT_EXCEEDED"
