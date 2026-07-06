@@ -1,5 +1,5 @@
 import type { ProductCardItem } from "../types/recommendation";
-import { trackEvent } from "../lib/analytics/events";
+import { trackEvent } from "../lib/appSignals/client";
 import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
