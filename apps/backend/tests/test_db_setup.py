@@ -29,6 +29,7 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
+        "agent_tool_calls",
         "auth_accounts",
         "auth_sessions",
         "baumann_type_profiles",
@@ -116,6 +117,7 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     payments = Base.metadata.tables["payments"]
     payment_events = Base.metadata.tables["payment_events"]
     event_logs = Base.metadata.tables["event_logs"]
+    agent_tool_calls = Base.metadata.tables["agent_tool_calls"]
     users = Base.metadata.tables["users"]
     auth_accounts = Base.metadata.tables["auth_accounts"]
     auth_sessions = Base.metadata.tables["auth_sessions"]
@@ -298,6 +300,25 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "order_id",
         "metadata_json",
     }.issubset(event_logs.columns.keys())
+    assert {
+        "tool_call_id",
+        "conversation_id",
+        "user_id",
+        "anonymous_user_id",
+        "session_id",
+        "request_id",
+        "tool_name",
+        "status",
+        "confirmation_required",
+        "confirmed_at",
+        "executed_at",
+        "expires_at",
+        "input_json",
+        "output_json",
+        "error_code",
+        "error_message",
+        "latency_ms",
+    }.issubset(agent_tool_calls.columns.keys())
     assert {"email", "display_name", "phone", "status", "role", "last_login_at"}.issubset(users.columns.keys())
     assert {
         "user_id",
