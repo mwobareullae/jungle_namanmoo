@@ -73,6 +73,7 @@ type AgentChatResultItem = {
 type AgentChatResultMessage = AgentChatBaseMessage & {
   actionTarget?: string | null;
   actionType: AgentUiAction["type"];
+  actionUrl?: string | null;
   description: string;
   items: AgentChatResultItem[];
   kind: "result";
@@ -90,6 +91,7 @@ type AgentChatView = "home" | "thread";
 
 const AGENT_CHAT_HISTORY_KEY = "mwobareullae-agent-chat-history-v2";
 const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
+const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
 const MAX_STORED_AGENT_MESSAGES = 24;
 
 const homeQuickQuestions = [
@@ -243,6 +245,7 @@ function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
           id: candidate.id,
           actionTarget: typeof candidate.actionTarget === "string" ? candidate.actionTarget : null,
           actionType: candidate.actionType as AgentUiAction["type"],
+          actionUrl: typeof candidate.actionUrl === "string" ? candidate.actionUrl : null,
           createdAt,
           description: candidate.description,
           items: candidate.items.filter((item): item is AgentChatResultItem => {
@@ -312,6 +315,15 @@ const readNumber = (value: unknown) => {
 
 const uniqueNonEmpty = (values: (string | null | undefined)[]) =>
   Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+
+const readPayloadString = (payload: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = readString(payload[key]);
+    if (value) return value;
+  }
+
+  return null;
+};
 
 const collectVisibleProductIds = (currentProductId: string | null) => {
   if (typeof document === "undefined") {
@@ -521,6 +533,64 @@ const getResultTitle = (action: AgentUiAction) => {
   return "처리 결과";
 };
 
+const normalizeInternalResultUrl = (value: unknown) => {
+  const rawUrl = readString(value);
+  if (!rawUrl) return null;
+
+  try {
+    const baseOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+    const url = new URL(rawUrl, baseOrigin);
+    if (url.origin !== baseOrigin) return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return rawUrl.startsWith("/") ? rawUrl : null;
+  }
+};
+
+const buildProductsResultUrl = (action: AgentUiAction) => {
+  if (action.type !== "show_products") {
+    return null;
+  }
+
+  const directUrl =
+    normalizeInternalResultUrl(action.payload.result_url) ??
+    normalizeInternalResultUrl(action.payload.results_url) ??
+    normalizeInternalResultUrl(action.payload.url) ??
+    normalizeInternalResultUrl(action.payload.href);
+  if (directUrl) {
+    return directUrl;
+  }
+
+  const filters = isRecord(action.payload.filters) ? action.payload.filters : {};
+  const params = new URLSearchParams();
+  const keyword =
+    readPayloadString(action.payload, ["keyword", "query", "search_query", "concern_text"]) ??
+    readPayloadString(filters, ["keyword", "query", "search_query", "concern_text"]);
+  const skinType =
+    readPayloadString(action.payload, ["skin_type", "skinType"]) ??
+    readPayloadString(filters, ["skin_type", "skinType"]);
+  const sensitivity =
+    readPayloadString(action.payload, ["sensitivity"]) ??
+    readPayloadString(filters, ["sensitivity"]);
+  const recommendationId =
+    readPayloadString(action.payload, ["recommendation_id", "recommendationId"]) ??
+    readPayloadString(filters, ["recommendation_id", "recommendationId"]);
+  const pageSize =
+    readNumber(action.payload.page_size) ??
+    readNumber(action.payload.pageSize) ??
+    readNumber(filters.page_size) ??
+    readNumber(filters.pageSize) ??
+    10;
+
+  if (keyword) params.set("keyword", keyword);
+  if (skinType) params.set("skin_type", skinType);
+  if (sensitivity) params.set("sensitivity", sensitivity);
+  if (recommendationId) params.set("recommendation_id", recommendationId);
+  params.set("page_size", String(pageSize));
+
+  return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
+};
+
 function createResultMessage(
   id: string,
   action: AgentUiAction,
@@ -547,6 +617,7 @@ function createResultMessage(
     id,
     actionTarget: action.target ?? null,
     actionType: action.type,
+    actionUrl: buildProductsResultUrl(action),
     description: emptyProducts
       ? "조건에 맞는 상품을 찾지 못했어요."
       : resultItems.length > 0
@@ -897,34 +968,59 @@ function AgentFloatingButton({
     }
   };
 
-  const renderResultMessage = (message: AgentChatResultMessage) => (
-    <div className="agent-chat-result-card" key={message.id}>
-      <strong>{message.title}</strong>
-      <p>{message.description}</p>
-      {message.items.length > 0 ? (
-        <div className="agent-chat-result-list">
-          {message.items.map((item) => {
-            const priceText = formatAgentPrice(item.price);
-            return (
-              <button
-                className="agent-chat-result-item"
-                disabled={item.itemType !== "product"}
-                key={`${item.itemType}-${item.id}`}
-                onClick={() => openResultItem(item)}
-                type="button"
-              >
-                <span>
-                  <strong>{item.title}</strong>
-                  {item.subtitle ? <small>{item.subtitle}</small> : null}
-                </span>
-                {priceText ? <em>{priceText}</em> : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
+  const openResultAction = (actionUrl?: string | null) => {
+    if (!actionUrl) {
+      return;
+    }
+
+    navigateWithinApp(actionUrl).catch(() => {
+      window.location.href = actionUrl;
+    });
+  };
+
+  const renderResultMessage = (message: AgentChatResultMessage) => {
+    const previewItems = message.actionType === "show_products"
+      ? message.items.slice(0, MAX_AGENT_PRODUCT_PREVIEW_ITEMS)
+      : message.items;
+
+    return (
+      <div className="agent-chat-result-card" key={message.id}>
+        <strong>{message.title}</strong>
+        <p>{message.description}</p>
+        {previewItems.length > 0 ? (
+          <div className="agent-chat-result-list">
+            {previewItems.map((item) => {
+              const priceText = formatAgentPrice(item.price);
+              return (
+                <button
+                  className="agent-chat-result-item"
+                  disabled={item.itemType !== "product"}
+                  key={`${item.itemType}-${item.id}`}
+                  onClick={() => openResultItem(item)}
+                  type="button"
+                >
+                  <span>
+                    <strong>{item.title}</strong>
+                    {item.subtitle ? <small>{item.subtitle}</small> : null}
+                  </span>
+                  {priceText ? <em>{priceText}</em> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {message.actionType === "show_products" && message.actionUrl ? (
+          <button
+            className="agent-chat-result-more"
+            onClick={() => openResultAction(message.actionUrl)}
+            type="button"
+          >
+            전체 보기
+          </button>
+        ) : null}
+      </div>
+    );
+  };
 
   const renderTextMessage = (message: AgentChatTextMessage) => (
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
