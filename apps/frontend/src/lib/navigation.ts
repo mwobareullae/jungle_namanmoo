@@ -15,7 +15,7 @@ const APP_NAVIGATION_STYLE_ATTRIBUTE = "data-app-navigation-style";
 const getTargetStyleHrefs = (url: string) => {
   const { pathname } = new URL(url, window.location.origin);
 
-  if (pathname.startsWith("/checkout")) {
+  if (pathname.startsWith("/cart") || pathname.startsWith("/checkout")) {
     return checkoutStyleHrefs;
   }
 

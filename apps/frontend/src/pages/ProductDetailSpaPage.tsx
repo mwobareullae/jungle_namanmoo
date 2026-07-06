@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addCartItem } from "../lib/cartApi";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
@@ -93,6 +95,8 @@ const normalizeDetailHash = (hash: string) =>
 
 function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
@@ -237,24 +241,38 @@ function ProductDetailSpaPage() {
   }, [product]);
 
   const tabClassName = (hash: string) => `detail-tab${activeTab === hash ? " active" : ""}`;
-  const checkoutQuery = useMemo(() => {
-    const params = new URLSearchParams({ id: productId });
-    if (recommendationId) params.set("recommendation_id", recommendationId);
-    if (skinType) params.set("skin_type", skinType);
-    if (sensitivity) params.set("sensitivity", sensitivity);
-    return params;
-  }, [productId, recommendationId, skinType, sensitivity]);
+  const addCurrentProductToCart = async () => {
+    if (!productId) {
+      throw new Error("상품 정보를 찾을 수 없습니다.");
+    }
 
-  const goToCheckout = (mode: "cart" | "buy") => {
-    const params = new URLSearchParams(checkoutQuery);
-    params.set("mode", mode);
-    navigateWithinApp(`/checkout?${params.toString()}`);
+    await addCartItem({
+      product_id: productId,
+      quantity: 1,
+      source: "product_detail",
+      recommendation_id: recommendationId ?? null,
+    });
+    window.dispatchEvent(new Event("cart:updated"));
   };
 
   const handleAddToCart = async () => {
-    if (!productId) {
-      setCartMessage("");
-      setCartErrorMessage("상품 정보를 찾을 수 없습니다.");
+    setIsAddingToCart(true);
+    setCartMessage("");
+    setCartErrorMessage("");
+
+    try {
+      await addCurrentProductToCart();
+      navigateWithinApp("/cart");
+    } catch (error) {
+      setCartErrorMessage(error instanceof Error ? error.message : "장바구니 담기에 실패했습니다.");
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!user) {
+      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
       return;
     }
 
@@ -263,15 +281,10 @@ function ProductDetailSpaPage() {
     setCartErrorMessage("");
 
     try {
-      await addCartItem({
-        product_id: productId,
-        quantity: 1,
-        source: "product_detail",
-        recommendation_id: recommendationId ?? null,
-      });
-      navigateWithinApp("/cart");
+      await addCurrentProductToCart();
+      navigateWithinApp("/checkout");
     } catch (error) {
-      setCartErrorMessage(error instanceof Error ? error.message : "장바구니 담기에 실패했습니다.");
+      setCartErrorMessage(error instanceof Error ? error.message : "구매하기 처리에 실패했습니다.");
     } finally {
       setIsAddingToCart(false);
     }
@@ -459,7 +472,9 @@ function ProductDetailSpaPage() {
                   <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={handleAddToCart}>
                     {isAddingToCart ? "담는 중..." : "장바구니"}
                   </button>
-                  <button className="detail-btn primary" type="button" onClick={() => goToCheckout("buy")}>구매하기</button>
+                  <button className="detail-btn primary" disabled={isAddingToCart} type="button" onClick={handleBuyNow}>
+                    구매하기
+                  </button>
                 </div>
                 {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
                 {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
