@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { trackEvent } from "../lib/analytics/events";
+import { trackEvent } from "../lib/appSignals/client";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
   HomeSection,

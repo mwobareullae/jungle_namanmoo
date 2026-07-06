@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
+import AgentFloatingButton from "./components/AgentFloatingButton";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -534,6 +535,18 @@ function LegacyApp() {
   );
 }
 
+function GlobalAgentEntry() {
+  const location = useLocation();
+
+  if (appMode === "community") {
+    return null;
+  }
+
+  return (
+    <AgentFloatingButton surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"} />
+  );
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
@@ -551,6 +564,7 @@ function App() {
         <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
         <Route path="*" element={<LegacyApp />} />
       </Routes>
+      <GlobalAgentEntry />
     </>
   );
 }
