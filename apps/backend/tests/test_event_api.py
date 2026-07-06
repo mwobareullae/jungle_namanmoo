@@ -80,6 +80,37 @@ def test_event_api_accepts_unknown_event_name_and_metadata(
     assert event.metadata_json["section_id"] == "home_hero"
 
 
+def test_event_api_uses_identity_headers_and_accepts_string_numeric_ids(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    response = client.post(
+        "/api/events",
+        json={
+            "event_name": "home_product_click",
+            "product_id": "prod_001",
+            "cart_id": "123",
+            "order_id": "456",
+        },
+        headers={
+            "x-mwbl-anonymous-user-id": "anon_header",
+            "x-mwbl-session-id": "session_header",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["official_event"] is True
+
+    with Session(db_engine) as session:
+        event = session.execute(select(EventLog)).scalar_one()
+
+    assert event.event_name == "home_product_click"
+    assert event.anonymous_user_id == "anon_header"
+    assert event.session_id == "session_header"
+    assert event.cart_id == 123
+    assert event.order_id == 456
+
+
 def test_event_api_deduplicates_by_event_id(
     client: TestClient,
     db_engine: Engine,
@@ -177,11 +208,65 @@ def test_event_batch_api_stores_multiple_events(client: TestClient, db_engine: E
     assert [event.product_id for event in events] == ["prod_001", "prod_002"]
 
 
+def test_event_batch_api_accepts_home_impression_events_with_identity_headers(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    response = client.post(
+        "/api/events/batch",
+        json={
+            "events": [
+                {
+                    "event_id": "home_impression_1",
+                    "event_name": "home_product_impression",
+                    "product_id": "prod_001",
+                    "rank": 1,
+                    "source": "home",
+                    "page": "home",
+                    "metadata": {"section_id": "market_popular"},
+                },
+                {
+                    "event_id": "search_impression_1",
+                    "event_name": "search_result_impression",
+                    "recommendation_id": "rec_001",
+                    "product_id": "prod_002",
+                    "rank": 2,
+                    "source": "recommendation_result",
+                    "page": "search",
+                },
+            ]
+        },
+        headers={
+            "x-mwbl-anonymous-user-id": "anon_batch",
+            "x-mwbl-session-id": "session_batch",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["accepted_count"] == 2
+    assert all(event["official_event"] for event in data["events"])
+
+    with Session(db_engine) as session:
+        events = session.execute(select(EventLog).order_by(EventLog.rank)).scalars().all()
+
+    assert [event.event_name for event in events] == ["home_product_impression", "search_result_impression"]
+    assert {event.anonymous_user_id for event in events} == {"anon_batch"}
+    assert {event.session_id for event in events} == {"session_batch"}
+
+
 def test_product_detail_records_product_viewed_event(
     client: TestClient,
     db_engine: Engine,
 ) -> None:
-    response = client.get("/api/products/prod_001", headers={"x-request-id": "product-view-request"})
+    response = client.get(
+        "/api/products/prod_001",
+        headers={
+            "x-request-id": "product-view-request",
+            "x-mwbl-anonymous-user-id": "anon_product_view",
+            "x-mwbl-session-id": "session_product_view",
+        },
+    )
 
     assert response.status_code == 200
     with Session(db_engine) as session:
@@ -190,6 +275,8 @@ def test_product_detail_records_product_viewed_event(
     assert event.event_name == "product_viewed"
     assert event.product_id == "prod_001"
     assert event.request_id == "product-view-request"
+    assert event.anonymous_user_id == "anon_product_view"
+    assert event.session_id == "session_product_view"
     assert event.source == "product_detail"
     assert event.page == "product_detail"
     assert event.metadata_json["has_recommendation_context"] is False
