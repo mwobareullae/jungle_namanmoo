@@ -38,6 +38,8 @@ from app.services.recommendation_run_store import (
 from app.services.scoring import SCORING_VERSION, score_candidates
 from app.services.search_candidate_store import save_search_candidates
 from app.services.search_matching import (
+    SearchNoResultDiagnostics,
+    build_search_no_result_diagnostics,
     count_join_product_search_documents,
     match_product_search_documents,
 )
@@ -132,6 +134,12 @@ def create_recommendation_response(
             [candidate.db_product_id for candidate in candidates],
         )
         matches = match_product_search_documents(session, intent, candidates)
+        search_no_result_diagnostics = build_search_no_result_diagnostics(
+            intent,
+            candidates,
+            matches,
+            join_document_count=search_join_document_count,
+        )
         save_search_candidates(session, saved_run.run.id, candidates, matches)
 
         scored_candidates = score_candidates(
@@ -151,6 +159,7 @@ def create_recommendation_response(
             after_avoid_filter_count=len(candidates),
             search_join_document_count=search_join_document_count,
             search_match_count=len(matches),
+            search_no_result_diagnostics=search_no_result_diagnostics,
             scored_candidate_count=len(scored_candidates),
             final_result_count=len(scored_products),
         )
@@ -524,6 +533,7 @@ def _attach_candidate_pool_diagnostics(
     after_avoid_filter_count: int,
     search_join_document_count: int,
     search_match_count: int,
+    search_no_result_diagnostics: SearchNoResultDiagnostics,
     scored_candidate_count: int,
     final_result_count: int,
 ) -> None:
@@ -550,6 +560,7 @@ def _attach_candidate_pool_diagnostics(
             "hard filter total count is not measured in F-180 v0",
         ],
     }
+    request_context["search_no_result_diagnostics"] = search_no_result_diagnostics.to_dict()
     run.request_context = request_context
 
 

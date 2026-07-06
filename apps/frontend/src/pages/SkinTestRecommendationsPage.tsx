@@ -383,15 +383,15 @@ function SkinTestRecommendationsPage() {
                         role="link"
                         tabIndex={0}
                       >
-                        <button
-                          aria-label={`${product.name} 찜하기`}
-                          className="skin-test-recommendation-card__heart"
-                          onClick={(event) => event.stopPropagation()}
-                          type="button"
-                        >
-                          ♡
-                        </button>
                         <div className="skin-test-recommendation-card__image">
+                          <button
+                            aria-label={`${product.name} 찜하기`}
+                            className="skin-test-recommendation-card__heart"
+                            onClick={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            ♡
+                          </button>
                           {product.thumbnail_url ? (
                             <img src={product.thumbnail_url} alt="" loading="lazy" />
                           ) : (
@@ -407,7 +407,7 @@ function SkinTestRecommendationsPage() {
                           <p className="skin-test-recommendation-card__brand">{product.brand}</p>
                           <h3>{product.name}</h3>
                           <p className="skin-test-recommendation-card__price">{formatPrice(product.lowest_price)}</p>
-                          <p className="skin-test-recommendation-card__reason">왜 추천? {product.reason_summary}</p>
+                          <p className="skin-test-recommendation-card__reason">{product.reason_summary}</p>
                           {section.meta === "popular" && (
                             <p className="skin-test-recommendation-card__meta">{product.social_proof}</p>
                           )}
