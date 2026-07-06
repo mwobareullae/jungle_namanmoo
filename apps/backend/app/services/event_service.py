@@ -50,6 +50,8 @@ def create_event_log(
     *,
     current_user: User | None = None,
     fallback_request_id: str | None = None,
+    fallback_anonymous_user_id: str | None = None,
+    fallback_session_id: str | None = None,
 ) -> EventLogResponse:
     event_id = _normalize_optional_text(request.event_id) or str(uuid4())
     existing = _load_event_by_event_id(session, event_id)
@@ -63,8 +65,9 @@ def create_event_log(
         event_name=request.event_name.strip(),
         occurred_at=request.occurred_at or now,
         user_id=current_user.id if current_user is not None else None,
-        anonymous_user_id=_normalize_optional_text(request.anonymous_user_id),
-        session_id=_normalize_optional_text(request.session_id),
+        anonymous_user_id=_normalize_optional_text(request.anonymous_user_id)
+        or _normalize_optional_text(fallback_anonymous_user_id),
+        session_id=_normalize_optional_text(request.session_id) or _normalize_optional_text(fallback_session_id),
         request_id=_normalize_optional_text(request.request_id) or _normalize_optional_text(fallback_request_id),
         recommendation_id=_normalize_optional_text(request.recommendation_id),
         product_id=_normalize_optional_text(request.product_id),
@@ -87,6 +90,8 @@ def create_event_logs(
     *,
     current_user: User | None = None,
     fallback_request_id: str | None = None,
+    fallback_anonymous_user_id: str | None = None,
+    fallback_session_id: str | None = None,
 ) -> list[EventLogResponse]:
     return [
         create_event_log(
@@ -94,6 +99,8 @@ def create_event_logs(
             request,
             current_user=current_user,
             fallback_request_id=fallback_request_id,
+            fallback_anonymous_user_id=fallback_anonymous_user_id,
+            fallback_session_id=fallback_session_id,
         )
         for request in requests
     ]
