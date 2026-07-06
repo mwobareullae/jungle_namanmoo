@@ -192,8 +192,7 @@ function HomeFooter() {
         ))}
       </div>
       <div className="footer-bottom">
-        <span>© 2025 뭐바를래. All rights reserved.</span>
-        <span data-commerce-only>사업자등록번호 123-45-67890 | 대표 홍길동</span>
+        <span>© 2026 뭐바를래. All rights reserved.</span>
       </div>
     </footer>
   );

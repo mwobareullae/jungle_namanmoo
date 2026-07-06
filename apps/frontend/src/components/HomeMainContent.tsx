@@ -75,6 +75,28 @@ function ProductSkeletonList({
   count: number;
   variant?: "home" | "search";
 }) {
+  if (variant === "home") {
+    return (
+      <>
+        {Array.from({ length: count }, (_, index) => (
+          <article className="product-card product-card-loading" key={index} aria-hidden="true">
+            <div className="product-img skeleton-shimmer" />
+            <div className="product-info">
+              <div className="skeleton-line skeleton-brand skeleton-shimmer" />
+              <div className="skeleton-line skeleton-title skeleton-shimmer" />
+              <div className="skeleton-line skeleton-title short skeleton-shimmer" />
+              <div className="skeleton-pill-row">
+                <div className="skeleton-pill skeleton-shimmer" />
+                <div className="skeleton-pill skeleton-shimmer" />
+              </div>
+              <div className="skeleton-price skeleton-shimmer" />
+            </div>
+          </article>
+        ))}
+      </>
+    );
+  }
+
   return (
     <>
       {Array.from({ length: count }, (_, index) => (
@@ -102,6 +124,82 @@ function ProductSkeletonList({
   );
 }
 
+function HomeSectionLoadingSkeleton() {
+  return (
+    <div className="home-section-stack home-loading-stack" aria-label="상품 섹션 로딩 중">
+      <section className="home-api-section home-ranking-section home-loading-section">
+        <HomeLoadingSectionHead />
+        <div className="home-ranking-wrap">
+          <div className="home-ranking-rail home-ranking-loading-rail">
+            {Array.from({ length: 5 }, (_, index) => (
+              <article className="home-ranking-card home-ranking-loading-card" key={index} aria-hidden="true">
+                <div className="home-ranking-visual">
+                  <div className="home-ranking-media skeleton-shimmer" />
+                </div>
+                <div className="home-ranking-brand skeleton-shimmer" />
+                <div className="home-ranking-name skeleton-shimmer" />
+                <div className="home-ranking-price skeleton-shimmer" />
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="home-api-section home-deal-section tone-mint home-loading-section">
+        <HomeLoadingSectionHead />
+        <div className="home-deal-grid">
+          {Array.from({ length: 8 }, (_, index) => (
+            <article className="home-deal-card home-deal-loading-card" key={index} aria-hidden="true">
+              <div className="home-deal-media skeleton-shimmer" />
+              <div className="home-deal-body">
+                <div className="home-ranking-brand skeleton-shimmer" />
+                <div className="home-deal-name skeleton-shimmer" />
+                <div className="home-deal-tags">
+                  <span className="skeleton-shimmer" />
+                  <span className="skeleton-shimmer" />
+                </div>
+                <div className="home-deal-price skeleton-shimmer" />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-api-section home-original-section home-personal-section home-loading-section">
+        <HomeLoadingSectionHead />
+        <div className="product-grid" id="defaultProductGrid">
+          <ProductSkeletonList count={8} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function HomeLoadingSectionHead() {
+  return (
+    <div className="home-section-head home-loading-head" aria-hidden="true">
+      <div>
+        <div className="home-section-kicker skeleton-shimmer" />
+        <div className="section-title skeleton-shimmer" />
+        <div className="section-subtitle skeleton-shimmer" />
+      </div>
+      <div className="home-see-all skeleton-shimmer" />
+    </div>
+  );
+}
+
+function HomeSectionErrorState() {
+  return (
+    <section className="home-section-error-state" aria-live="polite">
+      <div className="home-section-error-icon" aria-hidden="true">
+        !
+      </div>
+      <h2>상품을 불러오지 못했습니다.</h2>
+      <p>잠시 후 새로고침 해주세요.</p>
+    </section>
+  );
+}
+
 function HomeRankingSection({
   products,
   section
@@ -110,7 +208,34 @@ function HomeRankingSection({
   section: HomeSection;
   sectionIndex: number;
 }) {
-  const visibleProducts = products.slice(0, 5);
+  const [pageIndex, setPageIndex] = useState(0);
+  const rankingPages = useMemo(() => {
+    const pages: ProductCardItem[][] = [];
+
+    for (let index = 0; index < products.length; index += 5) {
+      pages.push(products.slice(index, index + 5));
+    }
+
+    return pages;
+  }, [products]);
+  const pageCount = rankingPages.length;
+  const lastPageIndex = Math.max(0, pageCount - 1);
+  const canScrollPrev = pageIndex > 0;
+  const canScrollNext = pageIndex < lastPageIndex;
+
+  useEffect(() => {
+    setPageIndex((currentPage) => Math.min(currentPage, lastPageIndex));
+  }, [lastPageIndex]);
+
+  const moveRankingPage = (direction: "prev" | "next") => {
+    setPageIndex((currentPage) => {
+      if (direction === "prev") {
+        return Math.max(0, currentPage - 1);
+      }
+
+      return Math.min(lastPageIndex, currentPage + 1);
+    });
+  };
 
   return (
     <section className="home-api-section home-ranking-section">
@@ -127,33 +252,69 @@ function HomeRankingSection({
       </div>
 
       <div className="home-ranking-wrap">
-        <div className="home-ranking-rail">
-          {visibleProducts.map((product, index) => {
-            return (
-              <article
-                aria-label={`${product.brand} ${product.name} 상세 보기`}
-                className="home-ranking-card"
-                key={product.product_id}
-                onClick={() => openProductDetail(product)}
-                role="link"
-                tabIndex={0}
-              >
-                <div className="home-ranking-visual">
-                  {(product.rank || index + 1) <= 10 ? (
-                    <span className="home-rank-badge">{product.rank || index + 1}</span>
-                  ) : null}
-                  <div className="home-ranking-media">
-                    <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
-                  </div>
+        {products.length > 5 ? (
+          <button
+            aria-label="이전 인기 제품 보기"
+            className="home-ranking-nav home-ranking-nav-prev"
+            disabled={!canScrollPrev}
+            onClick={() => moveRankingPage("prev")}
+            type="button"
+          >
+            ‹
+          </button>
+        ) : null}
+        <div className="home-ranking-viewport">
+          <div
+            className="home-ranking-swiper"
+            style={{ transform: `translate3d(-${pageIndex * 100}%, 0, 0)` }}
+          >
+            {rankingPages.map((pageProducts, pageOffset) => (
+              <div className="home-ranking-slide" key={`ranking-page-${pageOffset}`}>
+                <div className="home-ranking-rail">
+                  {pageProducts.map((product, index) => {
+                    const displayRank = pageOffset * 5 + index + 1;
+
+                    return (
+                      <article
+                        aria-label={`${product.brand} ${product.name} 상세 보기`}
+                        className="home-ranking-card"
+                        key={product.product_id}
+                        onClick={() => openProductDetail(product)}
+                        role="link"
+                        tabIndex={0}
+                      >
+                        <div className="home-ranking-visual">
+                          {(product.rank || displayRank) <= 10 ? (
+                            <span className="home-rank-badge">
+                              {String(product.rank || displayRank).padStart(2, "0")}
+                            </span>
+                          ) : null}
+                          <div className="home-ranking-media">
+                            <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+                          </div>
+                        </div>
+                        <div className="home-ranking-brand">{product.brand}</div>
+                        <div className="home-ranking-name">{product.name}</div>
+                        <div className="home-ranking-price">{formatPrice(product.lowest_price)}</div>
+                      </article>
+                    );
+                  })}
                 </div>
-                <div className="home-ranking-brand">{product.brand}</div>
-                <div className="home-ranking-name">{product.name}</div>
-                <div className="home-ranking-price">{formatPrice(product.lowest_price)}</div>
-                <div className="home-ranking-reason">{product.reason_summary}</div>
-              </article>
-            );
-          })}
+              </div>
+            ))}
+          </div>
         </div>
+        {products.length > 5 ? (
+          <button
+            aria-label="다음 인기 제품 보기"
+            className="home-ranking-nav home-ranking-nav-next"
+            disabled={!canScrollNext}
+            onClick={() => moveRankingPage("next")}
+            type="button"
+          >
+            ›
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -231,6 +392,8 @@ function HomeOriginalGridSection({
   products: ProductCardItem[];
   section: HomeSection;
 }) {
+  const visibleProducts = products.slice(0, 8);
+
   return (
     <section className="home-api-section home-original-section home-personal-section">
       <div className="home-section-head">
@@ -245,8 +408,8 @@ function HomeOriginalGridSection({
         </a>
       </div>
       <div className="product-grid">
-        {products.length ? (
-          products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+        {visibleProducts.length ? (
+          visibleProducts.map((product) => <HomeProductCard key={product.product_id} product={product} />)
         ) : (
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
@@ -691,20 +854,9 @@ function HomeMainContent({
         style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}
       >
         {isHomeSectionLoading ? (
-          <section className="home-api-section">
-            <div className="section-header">
-              <div>
-                <div className="sec-eyebrow">Best Sellers</div>
-                <div className="section-title">상품 섹션을 불러오는 중입니다</div>
-                <div className="section-subtitle">피부 조건에 맞는 섹션을 준비하고 있습니다</div>
-              </div>
-            </div>
-            <div className="product-grid" id="defaultProductGrid">
-              <ProductSkeletonList count={6} />
-            </div>
-          </section>
+          <HomeSectionLoadingSkeleton />
         ) : homeSectionError ? (
-          <div className="empty-state">{homeSectionError}</div>
+          <HomeSectionErrorState />
         ) : homeSections.length ? (
           <div className="home-section-stack">
             {homeSections.map((section, sectionIndex) => {
