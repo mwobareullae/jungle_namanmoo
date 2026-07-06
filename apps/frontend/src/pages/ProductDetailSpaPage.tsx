@@ -269,7 +269,7 @@ function ProductDetailSpaPage() {
         source: "product_detail",
         recommendation_id: recommendationId ?? null,
       });
-      setCartMessage("장바구니에 담았습니다.");
+      navigateWithinApp("/cart");
     } catch (error) {
       setCartErrorMessage(error instanceof Error ? error.message : "장바구니 담기에 실패했습니다.");
     } finally {

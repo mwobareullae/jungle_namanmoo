@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
-import { getCart, updateCartItem } from "../lib/cartApi";
+import { deleteCartItem, getCart, updateCartItem } from "../lib/cartApi";
+import { navigateWithinApp } from "../lib/navigation";
 import type { CartResponse } from "../types/cart";
 
 function CartPage() {
@@ -8,6 +9,7 @@ function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,6 +60,24 @@ function CartPage() {
     }
   };
 
+  const handleDeleteItem = async (itemId: number) => {
+    setDeletingItemId(itemId);
+    setErrorMessage(null);
+
+    try {
+      const response = await deleteCartItem(itemId);
+      setCart(response.cart);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "상품 삭제에 실패했습니다.");
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
+  const handleGoToCheckout = () => {
+    navigateWithinApp("/checkout");
+  };
+
   return (
     <>
       <HomeHeader />
@@ -83,6 +103,20 @@ function CartPage() {
               <p>장바구니 정보가 없습니다.</p>
             )}
           </div>
+
+          {cart && cart.warnings.length > 0 && (
+            <div className="cart-page-warning-list">
+              {cart.warnings.map((warning) => (
+                <div
+                  className={`cart-page-warning${warning.severity === "BLOCKING" ? " blocking" : ""}`}
+                  key={`${warning.code}-${warning.item_id ?? warning.product_id ?? warning.message}`}
+                >
+                  <strong>{warning.severity === "BLOCKING" ? "구매 불가" : "확인 필요"}</strong>
+                  <p>{warning.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {cart && cart.total_quantity > 0 && (
             <>
@@ -115,6 +149,14 @@ function CartPage() {
                         </button>
                       </div>
                       <strong>{item.line_subtotal.toLocaleString()}원</strong>
+                      <button
+                        className="cart-page-remove-button"
+                        disabled={deletingItemId === item.id || updatingItemId === item.id}
+                        type="button"
+                        onClick={() => handleDeleteItem(item.id)}
+                      >
+                        삭제
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -130,6 +172,9 @@ function CartPage() {
                   <strong>{cart.subtotal.toLocaleString()}원</strong>
                 </div>
               </div>
+              <button className="checkout-btn-main" type="button" onClick={handleGoToCheckout}>
+                구매하기
+              </button>
             </>
           )}
         </section>

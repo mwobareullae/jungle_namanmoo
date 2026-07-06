@@ -3045,6 +3045,52 @@ html[data-app-mode="community"] .search-results-shell {
   text-align: center;
 }
 
+.cart-page-remove-button {
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cart-page-remove-button:disabled {
+  color: var(--color-faint-text);
+  cursor: not-allowed;
+}
+
+.cart-page-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.cart-page-warning {
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--color-ink-2);
+}
+
+.cart-page-warning.blocking {
+  border-color: rgba(255, 107, 82, 0.28);
+  background: rgba(255, 107, 82, 0.08);
+}
+
+.cart-page-warning strong {
+  display: block;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.cart-page-warning p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .cart-page-total-card {
   display: grid;
   gap: 10px;
