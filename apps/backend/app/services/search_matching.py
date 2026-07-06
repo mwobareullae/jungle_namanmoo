@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-from sqlalchemy import bindparam, select, text
+from sqlalchemy import bindparam, func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -16,6 +16,10 @@ from app.services.embeddings import (
 )
 from app.services.product_candidates import ProductCandidate
 from app.services.recommendation_intent import RecommendationIntent
+from app.services.search_index_builder import DOCUMENT_CODE_PREFIX as JOIN_DOCUMENT_CODE_PREFIX
+
+
+JOIN_DOCUMENT_CODE_PATTERN = f"{JOIN_DOCUMENT_CODE_PREFIX}%"
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,7 @@ def _load_product_documents(
             select(SearchDocument).where(
                 SearchDocument.product_id.in_(product_ids),
                 SearchDocument.document_type == "product",
+                SearchDocument.document_code.like(JOIN_DOCUMENT_CODE_PATTERN),
             )
         )
         .scalars()
@@ -99,6 +104,28 @@ def _load_product_documents(
         product_id: tuple(documents)
         for product_id, documents in documents_by_product_id.items()
     }
+
+
+def count_join_product_search_documents(
+    session: Session,
+    product_ids: list[int] | None = None,
+) -> int:
+    conditions = [
+        SearchDocument.document_type == "product",
+        SearchDocument.document_code.like(JOIN_DOCUMENT_CODE_PATTERN),
+    ]
+    if product_ids is not None:
+        if not product_ids:
+            return 0
+        conditions.append(SearchDocument.product_id.in_(product_ids))
+
+    return int(
+        session.execute(
+            select(func.count())
+            .select_from(SearchDocument)
+            .where(*conditions)
+        ).scalar_one()
+    )
 
 
 def _score_candidate(
@@ -179,6 +206,7 @@ def _has_matching_embeddings(
         select(SearchDocument.id)
         .where(
             SearchDocument.document_type == "product",
+            SearchDocument.document_code.like(JOIN_DOCUMENT_CODE_PATTERN),
             SearchDocument.embedding.is_not(None),
             SearchDocument.embedding_model == provider.model,
             SearchDocument.embedding_dimensions == provider.dimensions,
@@ -206,6 +234,7 @@ def _load_postgres_vector_scores(
         FROM search_documents
         WHERE product_id IN :product_ids
           AND document_type = 'product'
+          AND document_code LIKE :join_document_code_pattern
           AND embedding IS NOT NULL
           AND embedding_model = :embedding_model
           AND embedding_dimensions = :embedding_dimensions
@@ -217,6 +246,7 @@ def _load_postgres_vector_scores(
         statement,
         {
             "product_ids": list(product_codes_by_db_id),
+            "join_document_code_pattern": JOIN_DOCUMENT_CODE_PATTERN,
             "query_embedding": format_vector(query_vector),
             "embedding_model": provider.model,
             "embedding_dimensions": provider.dimensions,
@@ -246,6 +276,7 @@ def _load_python_vector_scores(
         ).where(
             SearchDocument.product_id.in_(product_codes_by_db_id),
             SearchDocument.document_type == "product",
+            SearchDocument.document_code.like(JOIN_DOCUMENT_CODE_PATTERN),
             SearchDocument.embedding.is_not(None),
             SearchDocument.embedding_model == provider.model,
             SearchDocument.embedding_dimensions == provider.dimensions,
