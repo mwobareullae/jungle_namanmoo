@@ -50,6 +50,18 @@ class ProductPopularityMetrics(BaseModel):
     cart_add_count: int
     order_count: int
     units_sold: int
+    wishlist_add_count: int
+    checkout_start_count: int
+    paid_order_count: int
+    home_product_impression_count: int
+    home_product_click_count: int
+    search_result_impression_count: int
+    search_result_click_count: int
+    wishlist_remove_count: int
+    cart_remove_count: int
+    cart_quantity_change_count: int
+    payment_failed_count: int
+    order_cancel_count: int
     review_count: int
     average_rating: float | None
 

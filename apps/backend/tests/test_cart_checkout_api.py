@@ -138,6 +138,21 @@ def test_cart_patch_zero_deletes_item(
 
     with Session(db_engine) as session:
         assert len(session.execute(select(CartItem)).scalars().all()) == 0
+        events = session.execute(select(EventLog).order_by(EventLog.id)).scalars().all()
+
+    assert [event.event_name for event in events] == [
+        "cart_added",
+        "cart_quantity_changed",
+        "cart_removed",
+    ]
+    quantity_event = events[1]
+    assert quantity_event.product_id == "prod_001"
+    assert quantity_event.metadata_json["previous_quantity"] == 1
+    assert quantity_event.metadata_json["quantity"] == 2
+    removed_event = events[2]
+    assert removed_event.product_id == "prod_001"
+    assert removed_event.metadata_json["previous_quantity"] == 2
+    assert removed_event.metadata_json["quantity"] == 0
 
 
 def test_cart_rejects_product_without_stock_information(client: TestClient) -> None:
