@@ -17,7 +17,7 @@ import SkinTestResultPage from "./pages/SkinTestResultPage";
 import SignupInfoPage from "./pages/SignupInfoPage";
 import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
 import SignupTermsPage from "./pages/SignupTermsPage";
-import WishList from "./pages/mypage/WishList";
+import WishList, { RecentProducts } from "./pages/mypage/WishList";
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -549,6 +549,7 @@ function App() {
         {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
         {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
         {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
+        {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
         {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
         {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
         {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
