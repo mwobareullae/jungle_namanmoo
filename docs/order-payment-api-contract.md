@@ -183,6 +183,7 @@ Request:
 
 ```json
 {
+  "address_name": "Home",
   "recipient_name": "Kim Wonwoo",
   "phone": "01012345678",
   "postal_code": "12345",
@@ -326,6 +327,7 @@ Request using direct shipping address:
 {
   "cart_item_ids": [12, 15],
   "shipping_address": {
+    "address_name": "Home",
     "recipient_name": "Kim Wonwoo",
     "phone": "01012345678",
     "postal_code": "12345",
@@ -452,6 +454,7 @@ Order creation always creates an `order_shipping_addresses` snapshot:
 
 ```text
 order_id
+address_name
 recipient_name
 phone
 postal_code
