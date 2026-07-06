@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../api";
-import { createEventId, getAnonymousUserId, getSessionId } from "./identity";
-import { trackGa4Event } from "./ga4";
-import type { EventLogRequest, EventMetadata, OfficialEventName, TrackEventPayload } from "./types";
+import { createEventId, getAnonymousUserId, getSessionId } from "./ids";
+import { trackGa4Event } from "./google";
+import type { EventLogRequest, EventMetadata, OfficialEventName, TrackEventPayload } from "./contracts";
 
 const sensitiveMetadataKeys = new Set([
   "access_token",
