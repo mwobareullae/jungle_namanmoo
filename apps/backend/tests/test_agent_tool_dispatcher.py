@@ -45,7 +45,7 @@ def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engin
         response = execute_agent_tool(
             session,
             tool_name="find_similar_products",
-            arguments={"product_id": "prod_001", "limit": 3},
+            arguments={"product_id": "prod_001", "limit": 2},
             conversation_id="conv_dispatch",
             request_id="req_dispatch",
             session_id="sess_dispatch",
@@ -65,7 +65,7 @@ def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engin
     assert tool_call.tool_name == "find_similar_products"
     assert tool_call.status == "EXECUTED"
     assert tool_call.confirmation_required is False
-    assert tool_call.input_json == {"product_id": "prod_001", "limit": 3, "min_price": None, "max_price": None}
+    assert tool_call.input_json == {"product_id": "prod_001", "limit": 2, "min_price": None, "max_price": None}
     assert tool_call.output_json["tool_name"] == "find_similar_products"
     assert tool_call.output_json["items"][0]["id"] == "prod_002"
     assert tool_call.executed_at is not None
