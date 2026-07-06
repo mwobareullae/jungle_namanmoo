@@ -1,4 +1,5 @@
 import type { ProductCardItem } from "../types/recommendation";
+import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
   product: ProductCardItem;
@@ -42,13 +43,7 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
       tabIndex={0}
     >
       <div className="product-img">
-        {hasImage ? (
-          <img className="product-photo" src={product.thumbnail_url ?? ""} alt={`${product.brand} ${product.name}`} loading="lazy" />
-        ) : (
-          <div className="product-image-empty">
-            <span>이미지 준비중</span>
-          </div>
-        )}
+        <ProductThumbnail className="product-photo" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
         <div className="product-labels">
           {showScore && product.rank && product.rank <= 10 ? (
             <span className="label label-ai">{product.rank}위</span>
