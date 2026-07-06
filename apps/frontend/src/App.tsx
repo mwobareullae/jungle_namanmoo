@@ -538,7 +538,7 @@ function LegacyApp() {
 function GlobalAgentEntry() {
   const location = useLocation();
 
-  if (appMode === "community") {
+  if (appMode === "community" || location.pathname.startsWith("/admin")) {
     return null;
   }
 
