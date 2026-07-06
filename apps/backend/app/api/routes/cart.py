@@ -30,7 +30,7 @@ from app.services.cart_service import (
     update_cart_item_quantity,
 )
 from app.services.event_service import create_event_log
-from app.services.event_tracking import request_id_from_request
+from app.services.event_tracking import anonymous_user_id_from_request, request_id_from_request, session_id_from_request
 
 
 router = APIRouter(tags=["cart"])
@@ -77,6 +77,8 @@ def post_cart_item(
         cart_id=result.cart.cart_id,
         request=request,
         fallback_request_id=request_id_from_request(http_request),
+        fallback_anonymous_user_id=anonymous_user_id_from_request(http_request),
+        fallback_session_id=session_id_from_request(http_request),
     )
     if result.anonymous_cart_id:
         _set_anonymous_cart_cookie(response, result.anonymous_cart_id)
@@ -163,6 +165,8 @@ def post_checkout_preview(
         request=request,
         preview=preview,
         fallback_request_id=request_id_from_request(http_request),
+        fallback_anonymous_user_id=anonymous_user_id_from_request(http_request),
+        fallback_session_id=session_id_from_request(http_request),
     )
     return preview
 
@@ -199,13 +203,16 @@ def _record_cart_added_event(
     cart_id: int | None,
     request: CartItemAddRequest,
     fallback_request_id: str | None,
+    fallback_anonymous_user_id: str | None,
+    fallback_session_id: str | None,
 ) -> None:
     try:
         create_event_log(
             session,
             EventLogCreateRequest(
                 event_name="cart_added",
-                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                anonymous_user_id=fallback_anonymous_user_id or (None if current_user is not None else anonymous_cart_id),
+                session_id=fallback_session_id,
                 cart_id=cart_id,
                 product_id=request.product_id,
                 rank=request.recommendation_rank,
@@ -217,6 +224,8 @@ def _record_cart_added_event(
             ),
             current_user=current_user,
             fallback_request_id=fallback_request_id,
+            fallback_anonymous_user_id=fallback_anonymous_user_id,
+            fallback_session_id=fallback_session_id,
         )
         session.commit()
     except Exception:
@@ -232,13 +241,16 @@ def _record_checkout_started_event(
     request: CheckoutPreviewRequest,
     preview: CheckoutPreviewResponse,
     fallback_request_id: str | None,
+    fallback_anonymous_user_id: str | None,
+    fallback_session_id: str | None,
 ) -> None:
     try:
         create_event_log(
             session,
             EventLogCreateRequest(
                 event_name="checkout_started",
-                anonymous_user_id=None if current_user is not None else anonymous_cart_id,
+                anonymous_user_id=fallback_anonymous_user_id or (None if current_user is not None else anonymous_cart_id),
+                session_id=fallback_session_id,
                 cart_id=preview.cart_id,
                 source="checkout_preview",
                 page="checkout",
@@ -255,6 +267,8 @@ def _record_checkout_started_event(
             ),
             current_user=current_user,
             fallback_request_id=fallback_request_id,
+            fallback_anonymous_user_id=fallback_anonymous_user_id,
+            fallback_session_id=fallback_session_id,
         )
         session.commit()
     except Exception:

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 OFFICIAL_EVENT_NAMES: frozenset[str] = frozenset(
@@ -11,12 +11,19 @@ OFFICIAL_EVENT_NAMES: frozenset[str] = frozenset(
         "recommendation_viewed",
         "recommendation_product_impression",
         "recommendation_product_click",
+        "home_product_impression",
+        "home_product_click",
+        "search_result_impression",
         "product_viewed",
+        "recent_product_viewed",
+        "wishlist_added",
+        "wishlist_removed",
         "cart_added",
         "checkout_started",
         "order_completed",
         "search_performed",
         "search_no_result",
+        "recommendation_fallback_used",
         "payment_failed",
         "llm_call",
         "api_request_logged",
@@ -43,6 +50,19 @@ class EventLogCreateRequest(BaseModel):
     cart_id: int | None = Field(default=None, ge=1)
     order_id: int | None = Field(default=None, ge=1)
     metadata: dict[str, Any] = Field(default_factory=dict, alias="metadata_json")
+
+    @field_validator("cart_id", "order_id", mode="before")
+    @classmethod
+    def _coerce_numeric_id(cls, value: Any) -> Any:
+        if value is None or isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            if normalized.isdecimal():
+                return int(normalized)
+        return value
 
 
 class EventLogResponse(BaseModel):
