@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
+import { addCartItem } from "../lib/cartApi";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
@@ -99,6 +100,9 @@ function ProductDetailSpaPage() {
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState(() => productId ? "" : "상품 정보를 찾을 수 없습니다.");
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [cartMessage, setCartMessage] = useState("");
+  const [cartErrorMessage, setCartErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [selectedEffect, setSelectedEffect] = useState<{
     icon: string;
@@ -245,6 +249,32 @@ function ProductDetailSpaPage() {
     const params = new URLSearchParams(checkoutQuery);
     params.set("mode", mode);
     navigateWithinApp(`/checkout?${params.toString()}`);
+  };
+
+  const handleAddToCart = async () => {
+    if (!productId) {
+      setCartMessage("");
+      setCartErrorMessage("상품 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    setIsAddingToCart(true);
+    setCartMessage("");
+    setCartErrorMessage("");
+
+    try {
+      await addCartItem({
+        product_id: productId,
+        quantity: 1,
+        source: "product_detail",
+        recommendation_id: recommendationId ?? null,
+      });
+      setCartMessage("장바구니에 담았습니다.");
+    } catch (error) {
+      setCartErrorMessage(error instanceof Error ? error.message : "장바구니 담기에 실패했습니다.");
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
   const narrativeCard = narrativeProduct?.card;
@@ -426,9 +456,13 @@ function ProductDetailSpaPage() {
                   </div>
                 </div>
                 <div data-commerce-only className="detail-cta-row">
-                  <button className="detail-btn" type="button" onClick={() => goToCheckout("cart")}>장바구니</button>
+                  <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={handleAddToCart}>
+                    {isAddingToCart ? "담는 중..." : "장바구니"}
+                  </button>
                   <button className="detail-btn primary" type="button" onClick={() => goToCheckout("buy")}>구매하기</button>
                 </div>
+                {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
+                {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
               </div>
             </div>
           ) : null}

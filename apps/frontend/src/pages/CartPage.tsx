@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
-import { getCart } from "../lib/cartApi";
+import { getCart, updateCartItem } from "../lib/cartApi";
 import type { CartResponse } from "../types/cart";
 
 function CartPage() {
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -39,6 +40,24 @@ function CartPage() {
     };
   }, []);
 
+  const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
+    if (nextQuantity < 1) {
+      return;
+    }
+
+    setUpdatingItemId(itemId);
+    setErrorMessage(null);
+
+    try {
+      const updatedCart = await updateCartItem(itemId, { quantity: nextQuantity });
+      setCart(updatedCart);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "수량 변경에 실패했습니다.");
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
   return (
     <>
       <HomeHeader />
@@ -64,6 +83,55 @@ function CartPage() {
               <p>장바구니 정보가 없습니다.</p>
             )}
           </div>
+
+          {cart && cart.total_quantity > 0 && (
+            <>
+              <div className="cart-page-list">
+                {cart.items.map((item) => (
+                  <article className="cart-page-item" key={item.id}>
+                    <div className="cart-page-item-main">
+                      <p className="cart-page-item-brand">{item.product.brand}</p>
+                      <h2 className="cart-page-item-name">{item.product.name}</h2>
+                    </div>
+
+                    <div className="cart-page-item-meta">
+                      <div className="cart-page-quantity-control" aria-label={`${item.product.name} 수량`}>
+                        <button
+                          disabled={updatingItemId === item.id || item.quantity <= 1}
+                          type="button"
+                          aria-label={`${item.product.name} 수량 감소`}
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                        >
+                          -
+                        </button>
+                        <span>{item.quantity}개</span>
+                        <button
+                          disabled={updatingItemId === item.id}
+                          type="button"
+                          aria-label={`${item.product.name} 수량 증가`}
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <strong>{item.line_subtotal.toLocaleString()}원</strong>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="cart-page-total-card">
+                <div>
+                  <span>총 수량</span>
+                  <strong>{cart.total_quantity}개</strong>
+                </div>
+                <div>
+                  <span>상품 금액</span>
+                  <strong>{cart.subtotal.toLocaleString()}원</strong>
+                </div>
+              </div>
+            </>
+          )}
         </section>
       </main>
     </>
