@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import type { AuthUser } from "../contexts/authContextValue";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
+import { mergeCart } from "../lib/cartApi";
 
 type LoginLocationState = {
   from?: string;
@@ -62,6 +63,14 @@ const getRedirectPath = (from?: string) => {
   }
 
   return from;
+};
+
+const getPostLoginRedirectPath = (redirectPath: string) => {
+  if (redirectPath.startsWith("/checkout")) {
+    return "/cart";
+  }
+
+  return redirectPath;
 };
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
@@ -138,8 +147,12 @@ function LoginPage() {
         await refreshAuthenticatedUser().catch(() => null);
       }
 
+      await mergeCart()
+        .then(() => window.dispatchEvent(new Event("cart:updated")))
+        .catch(() => null);
+
       setMessage("로그인 성공!");
-      navigate(redirectPath, { replace: true });
+      navigate(getPostLoginRedirectPath(redirectPath), { replace: true });
     },
     [navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
   );
@@ -311,7 +324,7 @@ function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',system-ui,sans-serif] text-[#1A1A1A]">
-      <AuthHeader />
+      <HomeHeader />
       <main className="flex flex-1 items-center justify-center px-5 py-10">
         <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
           <div className="mb-7">
