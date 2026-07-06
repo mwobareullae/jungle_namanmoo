@@ -22,6 +22,7 @@ from app.db.models.commerce import (
     Payment,
     UserAddress,
 )
+from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -120,6 +121,9 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
             select(Cart).where(Cart.user_id == user.id, Cart.status == "ACTIVE")
         ).scalar_one()
         active_items = session.execute(select(CartItem).where(CartItem.cart_id == active_cart.id)).scalars().all()
+        order_created_event = session.execute(
+            select(EventLog).where(EventLog.event_name == "order_created", EventLog.order_id == order.id)
+        ).scalar_one()
 
     assert order.cart_id is not None
     assert order.item_count == 1
@@ -146,6 +150,11 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
     assert prod_001_inventory.reserved_quantity == 0
     assert prod_002_inventory.reserved_quantity == 1
     assert [item.product_id for item in active_items] == [_product_id(db_engine, "prod_001")]
+    assert order_created_event.user_id == user.id
+    assert order_created_event.request_id == response.headers["x-request-id"]
+    assert order_created_event.metadata_json["order_code"] == order.order_code
+    assert order_created_event.metadata_json["payment_provider"] == "MOCK"
+    assert order_created_event.metadata_json["total"] == 25900
 
 
 def test_create_order_is_idempotent_and_does_not_reserve_twice(
@@ -170,11 +179,13 @@ def test_create_order_is_idempotent_and_does_not_reserve_twice(
         orders = session.execute(select(Order)).scalars().all()
         payments = session.execute(select(Payment)).scalars().all()
         movements = session.execute(select(InventoryMovement).where(InventoryMovement.movement_type == "RESERVE")).scalars().all()
+        event_logs = session.execute(select(EventLog).where(EventLog.event_name == "order_created")).scalars().all()
         inventory = _load_inventory(session, "prod_001")
 
     assert len(orders) == 1
     assert len(payments) == 1
     assert len(movements) == 1
+    assert len(event_logs) == 1
     assert inventory.reserved_quantity == 1
 
 
