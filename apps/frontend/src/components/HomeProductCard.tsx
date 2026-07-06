@@ -45,7 +45,6 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
     <article
       aria-label={`${product.brand} ${product.name} 상세 보기`}
       className={`product-card product-card-hit${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}`}
-      data-agent-product-id={product.product_id}
       onClick={openDetail}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {

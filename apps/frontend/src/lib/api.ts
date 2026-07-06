@@ -17,12 +17,6 @@ import type {
   SkinTestSubmitRequest,
   SkinTestSubmitResponse
 } from "../types/skinTest";
-import type {
-  AgentChatRequest,
-  AgentChatResponse,
-  AgentToolConfirmRequest,
-  AgentToolConfirmResponse
-} from "../types/agent";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
@@ -49,11 +43,6 @@ type RecommendationApi = {
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
   getSkinTestResult: (resultId: number) => Promise<SkinTestResultResponse>;
   applySkinTestResult: (resultId: number) => Promise<ApplySkinTestResultResponse>;
-  sendAgentMessage: (request: AgentChatRequest) => Promise<AgentChatResponse>;
-  confirmAgentToolCall: (
-    toolCallId: string,
-    request: AgentToolConfirmRequest
-  ) => Promise<AgentToolConfirmResponse>;
 };
 
 type BackendErrorResponse = {
@@ -341,7 +330,6 @@ export const parseJson = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const errorBody = body as BackendErrorResponse | null;
     const apiError: ApiError = {
-      code: errorBody?.error?.code,
       status: response.status,
       message: errorBody?.error?.message ?? "API 요청에 실패했습니다."
     };
@@ -453,30 +441,5 @@ export const api: RecommendationApi = {
       body: JSON.stringify({ result_id: resultId })
     });
     return parseJson<ApplySkinTestResultResponse>(response);
-  },
-
-  async sendAgentMessage(request) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/agent/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(request)
-    });
-    return parseJson<AgentChatResponse>(response);
-  },
-
-  async confirmAgentToolCall(toolCallId, request) {
-    const response = await fetchWithTimeout(
-      `${API_BASE_URL}/agent/tool-calls/${encodeURIComponent(toolCallId)}/confirm`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(request)
-      }
-    );
-    return parseJson<AgentToolConfirmResponse>(response);
   }
 };
