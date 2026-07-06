@@ -1,64 +1,82 @@
-const productRows = [
-  {
-    id: "P-24585",
-    name: "토리든 다이브인 저분자 히알루론산 세럼",
-    brand: "토리든",
-    status: "판매중",
-    inventory: 124,
-    price: "24,000",
-    updatedAt: "10분 전"
-  },
-  {
-    id: "P-23911",
-    name: "라운드랩 1025 독도 토너",
-    brand: "라운드랩",
-    status: "검수필요",
-    inventory: 18,
-    price: "15,000",
-    updatedAt: "32분 전"
-  },
-  {
-    id: "P-23104",
-    name: "아누아 어성초 77 수딩 토너",
-    brand: "아누아",
-    status: "품절임박",
-    inventory: 6,
-    price: "22,000",
-    updatedAt: "1시간 전"
-  },
-  {
-    id: "P-22087",
-    name: "에스트라 아토베리어365 크림",
-    brand: "에스트라",
-    status: "판매중",
-    inventory: 73,
-    price: "33,000",
-    updatedAt: "오늘"
-  }
-];
-
-const queueItems = [
-  { label: "상품 검수 대기", count: 18, note: "성분 매핑 확인 필요" },
-  { label: "재고 임계치 이하", count: 42, note: "10개 미만 상품" },
-  { label: "이미지 누락", count: 7, note: "대표 이미지 필요" },
-  { label: "가격 미확정", count: 12, note: "판매가 검증 필요" }
-];
-
-const stats = [
-  { label: "전체 상품", value: "24,585", helper: "현재 로직 대상" },
-  { label: "추천 가능", value: "10,167", helper: "is_recommendable" },
-  { label: "오늘 주문", value: "128", helper: "mock 결제 포함" },
-  { label: "처리 필요", value: "79", helper: "검수/재고/이미지" }
-];
-
 const navItems = [
   "대시보드",
   "상품 조회",
   "상품 등록",
-  "재고 관리",
-  "주문 관리",
-  "QA 리포트",
-  "검색/추천"
+  "엑셀 대량 등록",
+  "이미지 등록",
+  "성분 매핑 검수",
+  "재고·가격",
+  "주문·결제"
+];
+
+const stats = [
+  { label: "전체 상품", value: "24,585" },
+  { label: "추천 가능", value: "10,167" },
+  { label: "판매중", value: "9,812" },
+  { label: "검수 필요", value: "1,204" },
+  { label: "품절 임박", value: "87" },
+  { label: "이미지 누락", value: "342" }
+];
+
+const pendingItems = [
+  {
+    label: "성분 매핑 검수 대기",
+    note: "pending 27,243종 · 연결 665,304건",
+    status: "검수 필요",
+    tone: "warning"
+  },
+  {
+    label: "상품명 중복 후보",
+    note: "2,590그룹 · 6,450개 상품",
+    status: "확인 대기",
+    tone: "neutral"
+  },
+  {
+    label: "import 실패 행",
+    note: "products_0706.xlsx · 12행",
+    status: "실패 파일",
+    tone: "danger"
+  }
+];
+
+const importRows = [
+  {
+    time: "14:02",
+    file: "products_0706.xlsx",
+    success: 118,
+    failed: 12,
+    status: "부분 실패",
+    tone: "danger"
+  },
+  {
+    time: "10:31",
+    file: "brand_a_products.xlsx",
+    success: 42,
+    failed: 0,
+    status: "완료",
+    tone: "success"
+  },
+  {
+    time: "어제",
+    file: "image_batch_01.zip",
+    success: 310,
+    failed: 4,
+    status: "매칭 실패",
+    tone: "warning"
+  }
+];
+
+const orderSummary = [
+  { label: "신규 주문", value: "36" },
+  { label: "결제 완료", value: "31" },
+  { label: "결제 대기", value: "5" },
+  { label: "취소", value: "0" }
+];
+
+const indexSummary = [
+  { label: "조인 문서", value: "24,585" },
+  { label: "임베딩 반영", value: "24,585 / 24,585" },
+  { label: "마지막 rebuild", value: "09:12 · 13.3초" }
 ];
 
 function AdminDashboardPage() {
@@ -69,9 +87,10 @@ function AdminDashboardPage() {
           <span className="admin-brand-mark">뭐</span>
           <span>
             <strong>뭐바를래</strong>
-            <small>Admin</small>
+            <small>관리자</small>
           </span>
         </a>
+
         <nav className="admin-nav">
           {navItems.map((item) => (
             <a className={item === "대시보드" ? "active" : ""} href="#admin-dashboard" key={item}>
@@ -79,26 +98,18 @@ function AdminDashboardPage() {
             </a>
           ))}
         </nav>
-        <div className="admin-sidebar-status">
-          <span>dev</span>
-          <strong>운영 점검 모드</strong>
-        </div>
       </aside>
 
       <section className="admin-main" id="admin-dashboard">
         <header className="admin-topbar">
           <div>
-            <p>상품 운영</p>
-            <h1>관리자 대시보드</h1>
+            <div className="admin-title-row">
+              <p>대시보드</p>
+              <span>P2 데모·QA</span>
+            </div>
+            <h1>상품 운영 관리자</h1>
           </div>
-          <div className="admin-topbar-actions">
-            <button className="admin-secondary-button" type="button">
-              CSV 업로드
-            </button>
-            <button className="admin-primary-button" type="button">
-              상품 등록
-            </button>
-          </div>
+          <time dateTime="2026-07-06">2026-07-06 월</time>
         </header>
 
         <section className="admin-stats" aria-label="운영 지표">
@@ -106,122 +117,112 @@ function AdminDashboardPage() {
             <article className="admin-stat" key={item.label}>
               <span>{item.label}</span>
               <strong>{item.value}</strong>
-              <small>{item.helper}</small>
             </article>
           ))}
         </section>
 
-        <section className="admin-workspace">
-          <div className="admin-panel admin-product-panel">
+        <section className="admin-grid">
+          <section className="admin-panel admin-pending-panel">
             <div className="admin-panel-header">
               <div>
-                <p>상품 관리</p>
-                <h2>상품 조회</h2>
-              </div>
-              <div className="admin-filter-row" role="search">
-                <input aria-label="상품 검색" placeholder="상품명, 브랜드, 상품 ID 검색" type="search" />
-                <select aria-label="상품 상태">
-                  <option>전체 상태</option>
-                  <option>판매중</option>
-                  <option>검수필요</option>
-                  <option>품절임박</option>
-                </select>
-                <button className="admin-secondary-button" type="button">
-                  검색
-                </button>
+                <p>처리 대기</p>
+                <h2>오늘 확인할 일</h2>
               </div>
             </div>
+            <div className="admin-pending-list">
+              {pendingItems.map((item) => (
+                <button className="admin-pending-item" key={item.label} type="button">
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.note}</small>
+                  </span>
+                  <b className={`admin-badge ${item.tone}`}>{item.status}</b>
+                </button>
+              ))}
+            </div>
+          </section>
 
+          <section className="admin-panel admin-import-panel">
+            <div className="admin-panel-header">
+              <div>
+                <p>최근 import job</p>
+                <h2>엑셀·이미지 업로드 결과</h2>
+              </div>
+              <button className="admin-secondary-button" type="button">
+                실패 파일
+              </button>
+            </div>
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table compact">
                 <thead>
                   <tr>
-                    <th scope="col">상품 ID</th>
-                    <th scope="col">상품명</th>
-                    <th scope="col">브랜드</th>
+                    <th scope="col">시간</th>
+                    <th scope="col">파일</th>
+                    <th scope="col">성공</th>
+                    <th scope="col">실패</th>
                     <th scope="col">상태</th>
-                    <th scope="col">재고</th>
-                    <th scope="col">판매가</th>
-                    <th scope="col">수정</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productRows.map((product) => (
-                    <tr key={product.id}>
-                      <td>{product.id}</td>
-                      <td className="admin-product-name">{product.name}</td>
-                      <td>{product.brand}</td>
+                  {importRows.map((row) => (
+                    <tr key={`${row.time}-${row.file}`}>
+                      <td>{row.time}</td>
+                      <td className="admin-file-name">{row.file}</td>
+                      <td>{row.success}</td>
+                      <td className={row.failed > 0 ? "admin-danger-text" : undefined}>{row.failed}</td>
                       <td>
-                        <span className={`admin-status ${statusClass(product.status)}`}>{product.status}</span>
+                        <span className={`admin-badge ${row.tone}`}>{row.status}</span>
                       </td>
-                      <td>{product.inventory}</td>
-                      <td>{product.price}원</td>
-                      <td>{product.updatedAt}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          <aside className="admin-side-panels">
-            <section className="admin-panel">
-              <div className="admin-panel-header compact">
-                <div>
-                  <p>처리 대기</p>
-                  <h2>오늘 할 일</h2>
+          <section className="admin-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>주문·결제</p>
+                <h2>오늘 요약</h2>
+              </div>
+            </div>
+            <dl className="admin-metric-list">
+              {orderSummary.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
                 </div>
-              </div>
-              <div className="admin-queue-list">
-                {queueItems.map((item) => (
-                  <button className="admin-queue-item" key={item.label} type="button">
-                    <span>
-                      <strong>{item.label}</strong>
-                      <small>{item.note}</small>
-                    </span>
-                    <b>{item.count}</b>
-                  </button>
-                ))}
-              </div>
-            </section>
+              ))}
+            </dl>
+          </section>
 
-            <section className="admin-panel">
-              <div className="admin-panel-header compact">
-                <div>
-                  <p>검색/추천</p>
-                  <h2>데이터 상태</h2>
-                </div>
+          <section className="admin-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>검색·추천</p>
+                <h2>인덱스 상태</h2>
               </div>
-              <dl className="admin-health-list">
-                <div>
-                  <dt>검색 조인 문서</dt>
-                  <dd>24,585</dd>
+              <span className="admin-badge success">정상</span>
+            </div>
+            <dl className="admin-metric-list">
+              {indexSummary.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
                 </div>
-                <div>
-                  <dt>임베딩 완료</dt>
-                  <dd>24,585</dd>
-                </div>
-                <div>
-                  <dt>alias 후보</dt>
-                  <dd>CSV 산출 대기</dd>
-                </div>
-              </dl>
-            </section>
-          </aside>
+              ))}
+            </dl>
+          </section>
         </section>
+
+        <p className="admin-footnote">
+          판매중·검수 필요·품절 임박·이미지 누락·주문·import 수치는 화면 검토용 예시값입니다.
+          검색/추천 인덱스와 pending 수치는 현재 프로젝트 실측 기준을 반영했습니다.
+        </p>
       </section>
     </main>
   );
-}
-
-function statusClass(status: string) {
-  if (status === "판매중") {
-    return "success";
-  }
-  if (status === "품절임박") {
-    return "warning";
-  }
-  return "review";
 }
 
 export default AdminDashboardPage;
