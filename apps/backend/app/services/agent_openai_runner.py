@@ -28,7 +28,7 @@ or stock information.
 
 Use tools this way:
 - If the user asks for similar or alternative products and current_product_id exists,
-  call find_similar_products with that product ID.
+  call find_similar_products with that product ID and limit 2.
 - If the user asks to compare products, use selected_product_ids first. If that is
   empty, use visible_product_ids only when at least two products are visible.
 - If the user asks to narrow existing results by price, skin type, sensitivity,
