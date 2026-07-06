@@ -13,7 +13,7 @@ import {
 import type { SkinTestResult } from "../../types/skinTest";
 
 export type MypageEventContext = {
-  page: "mypage" | "mypage_skin_profile" | "mypage_wishlist";
+  page: "mypage" | "mypage_skin_profile" | "mypage_wishlist" | "mypage_recent";
   source?: string;
   sectionId?: string;
   productId?: string;
@@ -43,15 +43,14 @@ type MypageToast = {
 
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "";
   label: string;
-  group: 1 | 2;
-  disabled?: boolean;
+  group: 1 | 2 | 3;
 };
 
 let cachedSkinProfile: SkinProfileData | null | undefined;
@@ -61,9 +60,11 @@ const FALLBACK_SKIN_TEST_RESULT_ID = 1;
 
 const navItems: MyPageNavItem[] = [
   { path: "/mypage", label: "마이페이지 홈", group: 1 },
-  { path: "/mypage/skin-profile", label: "피부 프로필 관리", group: 1 },
-  { path: "", label: "최근 본 상품", group: 2, disabled: true },
-  { path: "", label: "배송지 관리", group: 2, disabled: true }
+  { path: "/mypage/skin-profile", label: "피부 프로필", group: 1 },
+  { path: "/mypage/wishlist", label: "찜한 상품", group: 2 },
+  { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
+  { path: "", label: "배송지 관리", group: 3 },
+  { path: "", label: "개인정보 설정", group: 3 }
 ] as const;
 
 const orderStatusItems = [
@@ -199,7 +200,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     <div style={styles.shell}>
       <HomeHeader />
       <nav style={styles.mobileTabs} aria-label="마이페이지 모바일 메뉴">
-        {navItems.filter((item) => !item.disabled).map((item) => (
+        {navItems.filter((item) => item.path).map((item) => (
           <Link
             key={item.label}
             to={item.path}
@@ -224,12 +225,10 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
             </div>
           </section>
           <nav style={styles.sidebarNav}>
-            {[1, 2].map((group) => (
-              <div key={group} style={group === 2 ? styles.navGroupWithLine : styles.navGroup}>
+            {[1, 2, 3].map((group) => (
+              <div key={group} style={group === 1 ? styles.navGroup : styles.navGroupWithLine}>
                 {navItems.filter((item) => item.group === group).map((item) => (
-                  item.disabled ? (
-                    <span key={item.label} style={styles.navDisabled}>{item.label}</span>
-                  ) : (
+                  item.path ? (
                     <Link
                       key={item.label}
                       to={item.path}
@@ -243,6 +242,10 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
                     >
                       {item.label}
                     </Link>
+                  ) : (
+                    <span key={item.label} style={styles.navDisabled}>
+                      {item.label}
+                    </span>
                   )
                 ))}
               </div>
@@ -555,7 +558,7 @@ const styles: Record<string, CSSProperties> = {
   },
   page: {
     display: "grid",
-    gridTemplateColumns: "168px minmax(0, 1fr)",
+    gridTemplateColumns: "220px minmax(0, 1fr)",
     gap: 48,
     alignItems: "start",
     width: "min(1180px, calc(100% - 80px))",
@@ -597,23 +600,24 @@ const styles: Record<string, CSSProperties> = {
   sidebarNav: {
     marginTop: 14,
     border: "1px solid #e0e0e0",
-    borderRadius: 6,
+    borderRadius: 8,
     overflow: "hidden"
   },
   navGroup: {
-    padding: "12px 0"
+    padding: "28px 0"
   },
   navGroupWithLine: {
-    padding: "12px 0",
+    padding: "28px 0",
     borderTop: "1px solid #e0e0e0"
   },
   navItem: {
     display: "block",
-    padding: "11px 16px",
+    padding: "12px 32px",
     borderRadius: 0,
     color: "#444444",
-    fontSize: 14,
-    lineHeight: 1.45,
+    fontSize: 17,
+    fontWeight: 400,
+    lineHeight: 1.5,
     textDecoration: "none"
   },
   navItemHover: {
@@ -626,10 +630,11 @@ const styles: Record<string, CSSProperties> = {
   },
   navDisabled: {
     display: "block",
-    padding: "11px 16px",
-    color: "#bbbbbb",
-    fontSize: 14,
-    lineHeight: 1.45
+    padding: "12px 32px",
+    color: "#444444",
+    fontSize: 17,
+    fontWeight: 400,
+    lineHeight: 1.5
   },
   mobileTabs: {
     display: "none"
