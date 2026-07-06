@@ -11,6 +11,7 @@ import type {
   RecommendationProfile
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
+import ProductThumbnail from "./ProductThumbnail";
 
 const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
 
@@ -39,12 +40,6 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
-
-const hasUsableImageUrl = (url: string | null) =>
-  Boolean(
-    url &&
-    !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url)
-  );
 
 const openProductDetail = (product: ProductCardItem) => {
   window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
@@ -133,7 +128,6 @@ function HomeRankingSection({
       <div className="home-ranking-wrap">
         <div className="home-ranking-rail">
           {visibleProducts.map((product, index) => {
-            const hasImage = hasUsableImageUrl(product.thumbnail_url);
             return (
               <article
                 aria-label={`${product.brand} ${product.name} 상세 보기`}
@@ -148,15 +142,7 @@ function HomeRankingSection({
                     <span className="home-rank-badge">{product.rank || index + 1}</span>
                   ) : null}
                   <div className="home-ranking-media">
-                    {hasImage ? (
-                      <img
-                        src={product.thumbnail_url ?? ""}
-                        alt={`${product.brand} ${product.name}`}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="home-rank-empty">이미지 준비중</div>
-                    )}
+                    <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
                   </div>
                 </div>
                 <div className="home-ranking-brand">{product.brand}</div>
@@ -200,7 +186,6 @@ function HomeDealSection({
       <div className="home-deal-grid">
         {visibleProducts.length ? (
           visibleProducts.map((product) => {
-            const hasImage = hasUsableImageUrl(product.thumbnail_url);
             return (
               <article
                 aria-label={`${product.brand} ${product.name} 상세 보기`}
@@ -211,15 +196,7 @@ function HomeDealSection({
                 tabIndex={0}
               >
                 <div className="home-deal-media">
-                  {hasImage ? (
-                    <img
-                      src={product.thumbnail_url ?? ""}
-                      alt={`${product.brand} ${product.name}`}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="home-deal-empty">이미지 준비중</div>
-                  )}
+                  <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
                 </div>
                 <div className="home-deal-body">
                   <div className="home-ranking-brand">{product.brand}</div>

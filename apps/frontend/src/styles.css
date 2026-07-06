@@ -602,6 +602,15 @@ body {
   object-position: center bottom;
 }
 
+.home-section-stack .product-photo.product-image-fallback,
+.home-ranking-media .product-image-fallback,
+.home-deal-media .product-image-fallback {
+  background: #f3f8f8;
+  object-fit: cover;
+  object-position: center;
+  transform: none;
+}
+
 .home-section-stack .product-card-hit:hover .product-photo,
 .home-section-stack .product-card-hit:focus-visible .product-photo,
 .home-ranking-card:hover .home-ranking-media img,
@@ -1492,6 +1501,12 @@ body {
   transform: none;
   transition: none;
   will-change: auto;
+}
+
+.home-personal-section .product-photo.product-image-fallback {
+  padding: 0;
+  object-fit: cover;
+  background: #f3f8f8;
 }
 
 .home-personal-section .product-card-hit:hover .product-photo,
