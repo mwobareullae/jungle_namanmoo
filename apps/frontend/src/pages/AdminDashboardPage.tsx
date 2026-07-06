@@ -15,7 +15,9 @@ const stats = [
   { label: "판매중", value: "9,812" },
   { label: "검수 필요", value: "1,204" },
   { label: "품절 임박", value: "87" },
-  { label: "이미지 누락", value: "342" }
+  { label: "이미지 누락", value: "342" },
+  { label: "전성분 원문", value: "24,585" },
+  { label: "인덱스 대기", value: "0" }
 ];
 
 const pendingItems = [
@@ -36,6 +38,18 @@ const pendingItems = [
     note: "products_0706.xlsx · 12행",
     status: "실패 파일",
     tone: "danger"
+  },
+  {
+    label: "이미지 자동 연결 실패",
+    note: "image_batch_01.zip · 4개 파일",
+    status: "매칭 실패",
+    tone: "warning"
+  },
+  {
+    label: "임베딩 자동 반영",
+    note: "서버 OPENAI_API_KEY 준비 전 일배치",
+    status: "키 대기",
+    tone: "neutral"
   }
 ];
 
@@ -77,6 +91,64 @@ const indexSummary = [
   { label: "조인 문서", value: "24,585" },
   { label: "임베딩 반영", value: "24,585 / 24,585" },
   { label: "마지막 rebuild", value: "09:12 · 13.3초" }
+];
+
+const workflowCards = [
+  {
+    label: "엑셀 업로드",
+    title: "상품 기본정보 자동 등록",
+    detail: "성공 행 커밋 · 실패 행 결과 파일",
+    status: "P2 포함",
+    tone: "success"
+  },
+  {
+    label: "이미지 업로드",
+    title: "파일명/매핑표 자동 연결",
+    detail: "OCR 자동 확정은 P3 검수 보조",
+    status: "가능",
+    tone: "success"
+  },
+  {
+    label: "성분",
+    title: "전성분 원문 전체 저장",
+    detail: "ingredients.csv 정규화 exact만 자동 연결",
+    status: "보수 확정",
+    tone: "warning"
+  },
+  {
+    label: "검색 반영",
+    title: "검색 문서 rebuild 자동 job",
+    detail: "임베딩은 서버 키 준비 후 즉시 승격",
+    status: "2단",
+    tone: "neutral"
+  }
+];
+
+const rebuildSteps = [
+  {
+    label: "검색 문서",
+    value: "즉시 job",
+    detail: "idx_prod_join_* 갱신",
+    tone: "success"
+  },
+  {
+    label: "임베딩",
+    value: "키 대기",
+    detail: "서버 키 준비 전 일배치/운영자 실행",
+    tone: "warning"
+  },
+  {
+    label: "최근 full 반영",
+    value: "24,585 / 24,585",
+    detail: "변경분만 재임베딩 확인",
+    tone: "success"
+  }
+];
+
+const ingredientPolicy = [
+  { label: "저장", value: "전성분 원문 전체" },
+  { label: "자동 연결", value: "정규화 exact match" },
+  { label: "보류", value: "부분일치·OCR·복합 원료" }
 ];
 
 function AdminDashboardPage() {
@@ -207,6 +279,67 @@ function AdminDashboardPage() {
             </div>
             <dl className="admin-metric-list">
               {indexSummary.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className="admin-panel admin-workflow-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>P2 확정 범위</p>
+                <h2>자동 등록 운영 흐름</h2>
+              </div>
+              <span className="admin-badge success">팀장 확인</span>
+            </div>
+            <div className="admin-workflow-grid">
+              {workflowCards.map((item) => (
+                <article className="admin-workflow-card" key={item.label}>
+                  <div>
+                    <span>{item.label}</span>
+                    <strong>{item.title}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                  <b className={`admin-badge ${item.tone}`}>{item.status}</b>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="admin-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>자동 rebuild</p>
+                <h2>검색·임베딩 반영</h2>
+              </div>
+            </div>
+            <ol className="admin-rebuild-list">
+              {rebuildSteps.map((item) => (
+                <li key={item.label}>
+                  <span className={`admin-rebuild-dot ${item.tone}`} />
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                  <b>{item.value}</b>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="admin-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>성분 정책</p>
+                <h2>전성분 입력 기준</h2>
+              </div>
+              <span className="admin-badge warning">검수 병행</span>
+            </div>
+            <dl className="admin-metric-list">
+              {ingredientPolicy.map((item) => (
                 <div key={item.label}>
                   <dt>{item.label}</dt>
                   <dd>{item.value}</dd>
