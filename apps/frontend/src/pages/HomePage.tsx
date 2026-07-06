@@ -3,9 +3,10 @@ import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
+import AppFooter from "../components/AppFooter";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import { HomeFooter, HomeMatchResult } from "../components/HomeStaticSections";
+import { HomeMatchResult } from "../components/HomeStaticSections";
 import type { RecommendationProfile } from "../types/recommendation";
 
 type HomeSection = {
@@ -94,7 +95,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
           <HomeMainContent key={section.id} initialProfile={profile} />
         ) : section.id === "howitworks" || section.id === "ingredients" ? null : section.id ===
           "footer" ? (
-          <HomeFooter key={section.id} />
+          <AppFooter key={section.id} />
         ) : (
           <div
             className="spa-origin-section"
