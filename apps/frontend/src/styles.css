@@ -3205,7 +3205,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin-top: 2px;
   color: #98a8b3;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 550;
   line-height: 1.35;
 }
 
@@ -3233,7 +3233,7 @@ html[data-app-mode="community"] .search-results-shell {
   background: rgba(148, 224, 248, 0.14);
   color: #536471;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 550;
   gap: 7px;
   line-height: 1.35;
 }
@@ -3262,7 +3262,7 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   gap: 4px;
   line-height: 1.2;
   padding: 2px 0;
@@ -3288,7 +3288,7 @@ html[data-app-mode="community"] .search-results-shell {
   min-height: 46px;
   color: #263442;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 550;
   line-height: 1.35;
 }
 
@@ -3362,7 +3362,7 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 16px;
   padding: 11px 13px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 550;
   line-height: 1.55;
 }
 
@@ -3405,7 +3405,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-status-head strong {
   color: #008db0;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 550;
   line-height: 1.35;
 }
 
@@ -3435,7 +3435,7 @@ html[data-app-mode="community"] .search-results-shell {
   min-height: 30px;
   color: #98a8b3;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .agent-chat-status-step > span:first-child {
@@ -3538,7 +3538,7 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
   font: inherit;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 550;
 }
 
 .agent-chat-approval-actions button:first-child,
@@ -3615,7 +3615,7 @@ html[data-app-mode="community"] .search-results-shell {
   display: block;
   color: #263442;
   font-size: 15px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -3623,7 +3623,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 6px 0 0;
   color: #7e8b96;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 450;
   line-height: 1.5;
 }
 
@@ -3663,7 +3663,7 @@ html[data-app-mode="community"] .search-results-shell {
   overflow: hidden;
   color: #263442;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 550;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3674,7 +3674,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin-top: 3px;
   color: #8b99a6;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 450;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3685,7 +3685,7 @@ html[data-app-mode="community"] .search-results-shell {
   color: #082d3e;
   font-size: 13px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: 500;
 }
 
 .agent-chat-result-more {
@@ -3730,7 +3730,7 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 0 8px;
 }
 
@@ -3861,7 +3861,7 @@ html[data-app-mode="community"] .search-results-shell {
   color: #102d3b;
   font: inherit;
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 500;
   outline: none;
   padding: 0 8px;
 }
