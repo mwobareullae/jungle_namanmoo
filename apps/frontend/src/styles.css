@@ -3635,6 +3635,30 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 900;
 }
 
+.agent-chat-result-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  border: 1px solid #94e0f8;
+  border-radius: 13px;
+  background: #e9f7fb;
+  color: #102d3b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.agent-chat-result-more:hover,
+.agent-chat-result-more:focus-visible {
+  border-color: #5ec6e8;
+  background: #d8f3fb;
+  outline: none;
+}
+
 .agent-chat-actions {
   display: flex;
   flex-wrap: wrap;
