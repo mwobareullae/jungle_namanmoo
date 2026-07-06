@@ -204,7 +204,6 @@ export type ProductDetail = ProductCardItem & {
 };
 
 export type ApiError = {
-  code?: string;
   status: number;
   message: string;
 };
