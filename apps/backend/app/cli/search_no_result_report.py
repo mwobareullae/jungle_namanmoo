@@ -5,6 +5,7 @@ from app.services.search_no_result_report import (
     DEFAULT_SCAN_LIMIT,
     DEFAULT_TOP_N,
     build_search_no_result_report,
+    format_alias_candidates_csv,
     format_json_report,
     format_markdown_report,
 )
@@ -19,7 +20,9 @@ def main() -> None:
             top_n=args.top_n,
         )
 
-    if args.format == "json":
+    if args.format == "csv":
+        print(format_alias_candidates_csv(report), end="")
+    elif args.format == "json":
         print(format_json_report(report))
     else:
         print(format_markdown_report(report))
@@ -43,7 +46,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--format",
-        choices=("markdown", "json"),
+        choices=("markdown", "json", "csv"),
         default="markdown",
     )
     return parser.parse_args()
