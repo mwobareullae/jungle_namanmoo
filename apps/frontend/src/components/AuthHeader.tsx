@@ -1,5 +1,18 @@
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
+
 function AuthHeader() {
   const defaultSectionHref = "/#defaultSection";
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/", { replace: true });
+    }
+  };
 
   return (
     <header className="border-b border-[rgba(0,0,0,0.07)] bg-white/90 px-5 font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',-apple-system,BlinkMacSystemFont,sans-serif] before:fixed before:top-0 before:left-0 before:z-10 before:h-[5px] before:w-full before:bg-[#94e0f8]">
@@ -59,12 +72,22 @@ function AuthHeader() {
               <path d="m21 21-4.35-4.35" />
             </svg>
           </a>
-          <a
-            className="text-[14px] leading-none font-medium text-[#333333] no-underline hover:text-[#1A1A1A]"
-            href="/login"
-          >
-            로그인
-          </a>
+          {user ? (
+            <button
+              className="cursor-pointer border-0 bg-transparent p-0 text-[14px] leading-none font-medium text-[#333333] hover:text-[#1A1A1A]"
+              onClick={handleLogout}
+              type="button"
+            >
+              로그아웃
+            </button>
+          ) : (
+            <a
+              className="text-[14px] leading-none font-medium text-[#333333] no-underline hover:text-[#1A1A1A]"
+              href="/login"
+            >
+              로그인
+            </a>
+          )}
         </div>
       </div>
     </header>
