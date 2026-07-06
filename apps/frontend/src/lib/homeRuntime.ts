@@ -1,4 +1,4 @@
-import type { Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile, Sensitivity, SkinType } from "../types/recommendation";
 
 const RECENT_CONCERNS_KEY = "mwobareullae_recent_concerns";
 const MAX_RECENT_CONCERNS = 3;
@@ -6,7 +6,7 @@ const MAX_RECENT_CONCERNS = 3;
 const fallbackRecentConcerns = [
   "수부지인데 모공과 좁쌀이 고민이에요",
   "민감하고 자주 붉어져요",
-  "건조하고 화장이 들떠요",
+  "건조하고 화장이 들떠요"
 ];
 
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
@@ -15,11 +15,7 @@ const sensitivities = ["낮음", "보통", "높음"] as const;
 const searchProfile = {
   skin: "수부지" as SkinType,
   sensitivity: "보통" as Sensitivity,
-};
-
-type SearchProfile = {
-  skin: SkinType;
-  sensitivity: Sensitivity;
+  avoidIngredients: [] as string[]
 };
 
 type HomeRuntime = Record<string, (...args: unknown[]) => void>;
@@ -27,20 +23,28 @@ type HomeRuntime = Record<string, (...args: unknown[]) => void>;
 const getRuntime = () => window as unknown as HomeRuntime;
 
 const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;",
-  })[char] ?? char);
+  value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[char] ?? char
+  );
 
 const getRecentConcerns = () => {
   try {
     const raw = localStorage.getItem(RECENT_CONCERNS_KEY);
     if (raw === null) return [];
     const saved = JSON.parse(raw) as unknown;
-    return Array.isArray(saved) ? saved.filter((item): item is string => typeof item === "string").slice(0, MAX_RECENT_CONCERNS) : [];
+    return Array.isArray(saved)
+      ? saved
+          .filter((item): item is string => typeof item === "string")
+          .slice(0, MAX_RECENT_CONCERNS)
+      : [];
   } catch {
     return [];
   }
@@ -51,7 +55,10 @@ const saveRecentConcern = (text: string) => {
   if (!clean) return;
 
   const current = getRecentConcerns().filter((item) => item !== clean);
-  localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify([clean, ...current].slice(0, MAX_RECENT_CONCERNS)));
+  localStorage.setItem(
+    RECENT_CONCERNS_KEY,
+    JSON.stringify([clean, ...current].slice(0, MAX_RECENT_CONCERNS))
+  );
 };
 
 const buildSearchResultsUrl = (query: string) => {
@@ -59,7 +66,7 @@ const buildSearchResultsUrl = (query: string) => {
     keyword: query,
     skin_type: searchProfile.skin,
     sensitivity: searchProfile.sensitivity,
-    page_size: "10",
+    page_size: "10"
   });
 
   return `/search?${params.toString()}`;
@@ -78,7 +85,9 @@ const renderRecentConcerns = () => {
     return;
   }
 
-  list.innerHTML = concerns.map((text) => `
+  list.innerHTML = concerns
+    .map(
+      (text) => `
     <div class="recent-item">
       <button class="recent-query" type="button" data-query="${escapeHtml(text)}">
         <svg class="recent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -90,7 +99,9 @@ const renderRecentConcerns = () => {
       </button>
       <button class="recent-delete" type="button" data-query="${escapeHtml(text)}" aria-label="최근 고민 삭제">×</button>
     </div>
-  `).join("");
+  `
+    )
+    .join("");
 };
 
 const updateProfileSummary = () => {
@@ -98,7 +109,8 @@ const updateProfileSummary = () => {
   const chip = document.getElementById("searchProfileChip");
   const label = `${searchProfile.skin} · ${searchProfile.sensitivity}`;
 
-  if (summary) summary.textContent = `${searchProfile.skin} · 민감도 ${searchProfile.sensitivity} 기준으로 추천`;
+  if (summary)
+    summary.textContent = `${searchProfile.skin} · 민감도 ${searchProfile.sensitivity} 기준으로 추천`;
   if (chip) chip.textContent = label;
 };
 
@@ -121,6 +133,16 @@ const goToSearchResultsPage = (query: string) => {
   saveRecentConcern(query);
   closeSearchSuggestions();
   window.location.href = buildSearchResultsUrl(query);
+};
+
+const updateSearchInput = (query: string) => {
+  const inputElement = document.getElementById("searchInput") as HTMLInputElement | null;
+  if (inputElement) inputElement.value = query;
+  window.dispatchEvent(
+    new CustomEvent("home-search-input-change", {
+      detail: { query }
+    })
+  );
 };
 
 const showToast = (message: string) => {
@@ -215,10 +237,11 @@ const installFunctions = () => {
   };
 };
 
-export const installHomeRuntime = (initialProfile?: SearchProfile) => {
+export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
   if (initialProfile) {
     searchProfile.skin = initialProfile.skin;
     searchProfile.sensitivity = initialProfile.sensitivity;
+    searchProfile.avoidIngredients = initialProfile.avoidIngredients;
   }
 
   installFunctions();
@@ -232,7 +255,8 @@ export const installHomeRuntime = (initialProfile?: SearchProfile) => {
 
   const handleInputFocus = () => openSearchSuggestions();
   const handleDocumentClick = (event: Event) => {
-    if (searchContainer && !searchContainer.contains(event.target as Node)) closeSearchSuggestions();
+    if (searchContainer && !searchContainer.contains(event.target as Node))
+      closeSearchSuggestions();
   };
   const handleDocumentKeydown = (event: Event) => {
     if ((event as KeyboardEvent).key === "Escape") {
@@ -247,14 +271,16 @@ export const installHomeRuntime = (initialProfile?: SearchProfile) => {
 
     if (deleteButton?.dataset.query) {
       event.stopPropagation();
-      localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify(getRecentConcerns().filter((item) => item !== deleteButton.dataset.query)));
+      localStorage.setItem(
+        RECENT_CONCERNS_KEY,
+        JSON.stringify(getRecentConcerns().filter((item) => item !== deleteButton.dataset.query))
+      );
       renderRecentConcerns();
       return;
     }
 
     if (queryButton?.dataset.query) {
-      const inputElement = document.getElementById("searchInput") as HTMLInputElement | null;
-      if (inputElement) inputElement.value = queryButton.dataset.query;
+      updateSearchInput(queryButton.dataset.query);
       openSearchSuggestions();
     }
   };
@@ -264,7 +290,9 @@ export const installHomeRuntime = (initialProfile?: SearchProfile) => {
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
   document.getElementById("recentConcernList")?.addEventListener("click", handleRecentClick);
-  categoryPanel?.querySelectorAll("a").forEach((link) => link.addEventListener("click", getRuntime().closeCategoryMenu));
+  categoryPanel
+    ?.querySelectorAll("a")
+    .forEach((link) => link.addEventListener("click", getRuntime().closeCategoryMenu));
 
   return () => {
     input?.removeEventListener("focus", handleInputFocus);
@@ -272,6 +300,8 @@ export const installHomeRuntime = (initialProfile?: SearchProfile) => {
     document.removeEventListener("click", handleDocumentClick);
     document.removeEventListener("keydown", handleDocumentKeydown);
     document.getElementById("recentConcernList")?.removeEventListener("click", handleRecentClick);
-    categoryPanel?.querySelectorAll("a").forEach((link) => link.removeEventListener("click", getRuntime().closeCategoryMenu));
+    categoryPanel
+      ?.querySelectorAll("a")
+      .forEach((link) => link.removeEventListener("click", getRuntime().closeCategoryMenu));
   };
 };
