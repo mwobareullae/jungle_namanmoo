@@ -14,7 +14,7 @@ function SkinTestQuestionCard({ question, selectedOptionId, onSelect }: SkinTest
         {question.text}
       </h2>
       <div className="skin-test-options" role="radiogroup" aria-label={question.text}>
-        {question.options.map((option) => {
+        {question.options.map((option, index) => {
           const isSelected = String(option.id) === String(selectedOptionId);
 
           return (
@@ -26,9 +26,12 @@ function SkinTestQuestionCard({ question, selectedOptionId, onSelect }: SkinTest
               role="radio"
               type="button"
             >
-              <span>{option.text}</span>
-              <span className="skin-test-option__check" aria-hidden="true">
-                ✓
+              <span className="skin-test-option__number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="skin-test-option__text">{option.text}</span>
+              <span className="skin-test-option__spacer" aria-hidden="true">
+                {index + 1}
               </span>
             </button>
           );
