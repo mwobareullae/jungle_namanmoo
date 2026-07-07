@@ -86,6 +86,47 @@ class PopularProductsResponse(BaseModel):
     items: list[PopularProductItem]
 
 
+class ProductSearchItem(BaseModel):
+    product_id: str
+    brand: str
+    name: str
+    category_code: str
+    category_name: str
+    thumbnail_url: str
+    lowest_price: int
+    search_score: float | None = None
+    match_source: str
+
+
+class ProductSearchPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
+class ProductSearchDiagnostics(BaseModel):
+    backend: str
+    fallback_used: bool
+    es_attempted: bool
+    es_failure_reason: str | None = None
+    es_duration_ms: int | None = None
+    vector_attempted: bool = False
+    vector_failure_reason: str | None = None
+    vector_duration_ms: int | None = None
+    vector_result_count: int = 0
+    vector_embedding_coverage: float | None = None
+
+
+class ProductSearchResponse(BaseModel):
+    query: str
+    items: list[ProductSearchItem]
+    pagination: ProductSearchPagination
+    diagnostics: ProductSearchDiagnostics
+
+
 class ProductIngredient(BaseModel):
     name: str
     purpose: str

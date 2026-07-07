@@ -35,7 +35,7 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
         scored_products[1].db_product_id,
     ]
     assert saved.results[0].total_score == _score_to_decimal(scored_products[0].total_score)
-    assert saved.results[0].score_breakdown["scoring_version"] == "v0"
+    assert saved.results[0].score_breakdown["scoring_version"] == "v1_search_intent_boost"
     assert "skin_profile_score" in saved.results[0].score_breakdown
     assert len(saved.evidence) > 0
     assert len(saved.evidence) <= len(saved.results) * 3
