@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
 import { deleteCartItem, getCart, updateCartItem } from "../lib/cartApi";
@@ -23,17 +22,6 @@ const unavailableSalesStatuses = new Set([
   "NOT_FOR_SALE",
   "OUT_OF_SALE",
 ]);
-
-const cartCategoryLabels: Record<string, string> = {
-  serum: "세럼",
-  toner: "토너",
-  cream: "크림",
-  mask: "마스크팩",
-  cleanser: "클렌저",
-  sunscreen: "선케어",
-  makeup: "메이크업",
-  skincare: "스킨케어",
-};
 
 const formatStockStatus = (stockStatus: string) => {
   switch (stockStatus) {
@@ -71,16 +59,54 @@ const getStockStatusClassName = (stockStatus: string) => {
   return "";
 };
 
-const getCartCategoryLabel = (categoryName: string | null | undefined, categoryCode: string | null | undefined) => {
-  if (categoryName) {
-    return cartCategoryLabels[categoryName.toLowerCase()] ?? categoryName;
+const getStringField = (source: unknown, keys: string[]) => {
+  if (!source || typeof source !== "object") {
+    return null;
   }
 
-  if (!categoryCode) {
-    return "상품 정보";
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
   }
 
-  return cartCategoryLabels[categoryCode.toLowerCase()] ?? "상품 정보";
+  return null;
+};
+
+const getCartItemOptionLabel = (item: CartItem) => {
+  const directOption = getStringField(item, [
+    "option_label",
+    "option_text",
+    "selected_option",
+    "variant_label",
+    "variant_name",
+    "option_name",
+  ]);
+
+  if (directOption) {
+    return directOption;
+  }
+
+  const productOption = getStringField(item.product, [
+    "option_label",
+    "option_text",
+    "variant_label",
+    "variant_name",
+  ]);
+
+  if (productOption) {
+    return productOption;
+  }
+
+  const volume = getStringField(item, ["volume_text", "capacity_text", "size_text"]) ??
+    getStringField(item.product, ["volume_text", "capacity_text", "size_text"]);
+  const unit = getStringField(item, ["unit_text", "packaging_text", "option_value"]);
+  const parts = [volume, unit].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
 };
 
 function CartPage() {
@@ -172,7 +198,6 @@ function CartPage() {
   );
   const selectedItemIdSet = new Set(selectedItemIds);
   const selectedItems = cart ? cart.items.filter((item) => selectedItemIdSet.has(item.id) && isPurchasableCartItem(item)) : [];
-  const selectedTotalQuantity = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.line_subtotal, 0);
   const selectedShippingFee = selectedSubtotal <= 0
     ? 0
@@ -180,6 +205,10 @@ function CartPage() {
       ? 0
       : DEFAULT_SHIPPING_FEE;
   const selectedShippingFeeLabel = selectedShippingFee === 0 ? "무료" : `${selectedShippingFee.toLocaleString()}원`;
+  const selectedPaymentTotal = Math.max(0, selectedSubtotal - TOTAL_DISCOUNT_AMOUNT + selectedShippingFee);
+  const expectedPointAmount = Math.round(selectedSubtotal * 0.01);
+  const remainingFreeShippingAmount = Math.max(0, FREE_SHIPPING_THRESHOLD - selectedSubtotal);
+  const freeShippingProgress = Math.min(100, Math.round((selectedSubtotal / FREE_SHIPPING_THRESHOLD) * 100));
   const unavailableItemIds = cart
     ? cart.items
         .filter((item) => !isPurchasableCartItem(item))
@@ -290,11 +319,25 @@ function CartPage() {
       <HomeHeader />
       <main className="checkout-page cart-page">
         <section className="checkout-shell">
-          <CommercePageHeader
-            currentStep="cart"
-            description="담아둔 상품을 확인하고 주문서로 이동해주세요."
-            title="장바구니"
-          />
+          <header className="cart-page-template-header">
+            <h1>장바구니</h1>
+            <nav className="cart-page-stepper" aria-label="구매 진행 단계">
+              <span className="active">
+                <b>01</b>
+                장바구니
+              </span>
+              <i aria-hidden="true" />
+              <span>
+                <b>02</b>
+                주문서
+              </span>
+              <i aria-hidden="true" />
+              <span>
+                <b>03</b>
+                결제완료
+              </span>
+            </nav>
+          </header>
 
           {isLoading && (
             <div className="cart-page-layout" aria-label="장바구니 로딩 중">
@@ -310,9 +353,11 @@ function CartPage() {
                 <div className="cart-page-list">
                   <article className="cart-page-item">
                     <span className="cart-skeleton cart-skeleton-check" />
+                    <span className="cart-skeleton cart-skeleton-thumb" />
                     <div className="cart-page-item-main">
                       <span className="cart-skeleton cart-skeleton-brand" />
                       <span className="cart-skeleton cart-skeleton-name" />
+                      <span className="cart-skeleton cart-skeleton-option" />
                     </div>
                     <div className="cart-page-item-meta">
                       <span className="cart-skeleton cart-skeleton-quantity" />
@@ -349,13 +394,53 @@ function CartPage() {
             </div>
           )}
 
+          {!isLoading && !errorMessage && cart && !isAuthLoading && !user && (
+            <section className="cart-page-login-banner" aria-label="비로그인 장바구니 안내">
+              <div className="cart-page-login-banner-copy">
+                <span className="cart-page-login-banner-icon" aria-hidden="true">
+                  ✦
+                </span>
+                <div>
+                  <h2>로그인하고 적립 혜택을 받아보세요</h2>
+                  <p>구매 금액의 최대 1% 적립과 주문내역 저장을 이용할 수 있습니다.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => navigate("/login", { state: { from: "/cart" } })}>
+                로그인
+              </button>
+            </section>
+          )}
+
+          {!isLoading && !errorMessage && cart && !isAuthLoading && user && (
+            <div className="cart-page-login-banner-spacer" aria-hidden="true" />
+          )}
+
           {!isLoading && !errorMessage && cart && cart.total_quantity === 0 && (
             <div className="cart-page-empty-state">
-              <h2>장바구니가 비어 있습니다.</h2>
-              <p>마음에 드는 상품을 담으면 여기에서 수량과 주문 금액을 확인할 수 있습니다.</p>
-              <button type="button" onClick={() => navigateWithinApp("/")}>
-                상품 보러가기
-              </button>
+              <span className="cart-page-empty-icon" aria-hidden="true">
+                EMPTY
+              </span>
+              <h2>{user ? `${user.nickname ?? "회원"}님의 장바구니가 비어 있어요` : "장바구니가 비어 있어요"}</h2>
+              <p>추천받은 뷰티 상품을 담아보세요.</p>
+              <div className="cart-page-empty-actions">
+                <button type="button" onClick={() => navigateWithinApp("/search")}>
+                  추천 상품 보러가기
+                </button>
+                {!user && (
+                  <button
+                    className="cart-page-empty-secondary"
+                    type="button"
+                    onClick={() => navigate("/login", { state: { from: "/cart" } })}
+                  >
+                    로그인하고 이전 장바구니 복원하기
+                  </button>
+                )}
+                {user && (
+                  <button className="cart-page-empty-link" type="button">
+                    최근 본 상품 보기
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -376,16 +461,13 @@ function CartPage() {
           {cart && hasCartItems && (
             <div className="cart-page-layout">
               <section className="cart-page-list-section">
-                <div className="cart-page-section-head">
-                  <div>
-                    <h2>구매할 상품을 확인해주세요</h2>
-                  </div>
-                </div>
-
                 <div className="cart-page-selection-bar">
                   <label className="cart-page-select-all">
                     <input checked={allItemsSelected} onChange={handleToggleSelectAll} type="checkbox" />
                     <span>전체선택</span>
+                    <em>
+                      ({selectedItems.length}/{purchasableItemIds.length})
+                    </em>
                   </label>
                   <div className="cart-page-selection-actions">
                     <button
@@ -393,22 +475,29 @@ function CartPage() {
                       onClick={handleDeleteSelected}
                       type="button"
                     >
-                      선택상품 삭제
+                      선택삭제
                     </button>
-                    <button
-                      disabled={!hasUnavailableItems || isDeletingUnavailable}
-                      onClick={handleDeleteUnavailableItems}
-                      type="button"
-                    >
-                      구매불가상품 삭제
-                    </button>
+                    {hasUnavailableItems && (
+                      <button
+                        disabled={isDeletingUnavailable}
+                        onClick={handleDeleteUnavailableItems}
+                        type="button"
+                      >
+                        구매불가 삭제
+                      </button>
+                    )}
                   </div>
+                </div>
+
+                <div className="cart-page-delivery-group">
+                  <strong>일반배송</strong>
+                  <span>30,000원 이상 무료배송</span>
                 </div>
 
                 <div className="cart-page-list">
                   {cart.items.map((item) => {
                     const imageUrl = getProductImageUrl(item.product.thumbnail_url, "w400");
-                    const categoryLabel = getCartCategoryLabel(item.product.category_name, item.product.category_code);
+                    const optionLabel = getCartItemOptionLabel(item);
                     const isUnavailableItem = !isPurchasableCartItem(item);
                     const stockStatusClassName = getStockStatusClassName(item.product.stock_status);
 
@@ -435,18 +524,22 @@ function CartPage() {
                         <div className="cart-page-item-main">
                           <p className="cart-page-item-brand">{item.product.brand}</p>
                           <h2 className="cart-page-item-name">{item.product.name}</h2>
-                          <div className="cart-page-item-details">
-                            <span>{categoryLabel}</span>
-                            <span className={`cart-page-stock-badge${stockStatusClassName}`}>
-                              {formatStockStatus(item.product.stock_status)}
-                            </span>
-                          </div>
-                          <p className="cart-page-item-sub">
-                            {categoryLabel} · {formatStockStatus(item.product.stock_status)}
+                          {optionLabel && <p className="cart-page-item-option">{optionLabel}</p>}
+                          <p className={`cart-page-stock-text${stockStatusClassName}`}>
+                            {formatStockStatus(item.product.stock_status)}
                           </p>
                         </div>
 
                         <div className="cart-page-item-meta">
+                          <button
+                            className="cart-page-remove-button"
+                            aria-label={`${item.product.name} 삭제`}
+                            disabled={deletingItemId === item.id || updatingItemId === item.id}
+                            onClick={() => handleDeleteItem(item.id)}
+                            type="button"
+                          >
+                            ×
+                          </button>
                           <div className="cart-page-quantity-control" aria-label={`${item.product.name} 수량`}>
                             <button
                               aria-label={`${item.product.name} 수량 감소`}
@@ -470,14 +563,6 @@ function CartPage() {
                             <span>상품 금액</span>
                             <strong>{item.line_subtotal.toLocaleString()}원</strong>
                           </div>
-                          <button
-                            className="cart-page-remove-button"
-                            disabled={deletingItemId === item.id || updatingItemId === item.id}
-                            onClick={() => handleDeleteItem(item.id)}
-                            type="button"
-                          >
-                            삭제
-                          </button>
                         </div>
                       </article>
                     );
@@ -486,31 +571,50 @@ function CartPage() {
               </section>
 
               <aside className="cart-page-summary-card">
-                <h2>주문 요약</h2>
+                <h2>결제금액</h2>
                 <div>
-                  <span>상품 수량</span>
-                  <strong>{selectedTotalQuantity}개</strong>
-                </div>
-                <div>
-                  <span>상품 금액</span>
+                  <span>상품금액</span>
                   <strong>{selectedSubtotal.toLocaleString()}원</strong>
                 </div>
                 <div>
-                  <span>총 할인 금액</span>
+                  <span>상품할인금액</span>
                   <strong>{TOTAL_DISCOUNT_AMOUNT.toLocaleString()}원</strong>
                 </div>
                 <div>
                   <span>배송비</span>
                   <strong>{selectedItems.length === 0 ? "0원" : selectedShippingFeeLabel}</strong>
                 </div>
+                <div className="cart-page-summary-total">
+                  <span>결제예정금액</span>
+                  <strong>{selectedPaymentTotal.toLocaleString()}원</strong>
+                </div>
+                <p className="cart-page-point-note">
+                  {selectedItems.length === 0
+                    ? "구매할 상품을 선택해 주세요."
+                    : user
+                      ? `결제 시 ${expectedPointAmount.toLocaleString()}원 적립 예정`
+                      : `로그인하면 최대 ${expectedPointAmount.toLocaleString()}원 적립`}
+                </p>
                 <button
                   className="checkout-btn-main"
                   disabled={selectedItems.length === 0 || isAuthLoading}
                   type="button"
                   onClick={handleGoToCheckout}
                 >
-                  구매하기
+                  {user ? "결제하기" : "로그인하고 결제하기"}
                 </button>
+                <div className="cart-page-free-shipping">
+                  <span>
+                    <i style={{ width: `${freeShippingProgress}%` }} />
+                  </span>
+                  <p>
+                    {selectedItems.length === 0
+                      ? "구매할 상품을 선택해 주세요."
+                      : selectedShippingFee === 0
+                        ? "🎉 무료배송 조건을 충족했어요."
+                        : `🚚 ${remainingFreeShippingAmount.toLocaleString()}원 더 담으면 무료배송이에요.`}
+                  </p>
+                </div>
               </aside>
             </div>
           )}
