@@ -15,7 +15,7 @@ function AuthHeader() {
   };
 
   return (
-    <header className="border-b border-[rgba(0,0,0,0.07)] bg-white/90 px-5 font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',-apple-system,BlinkMacSystemFont,sans-serif] before:fixed before:top-0 before:left-0 before:z-10 before:h-[5px] before:w-full before:bg-[#94e0f8]">
+    <header className="auth-site-header border-b border-[rgba(0,0,0,0.07)] bg-white/90 px-5 font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',-apple-system,BlinkMacSystemFont,sans-serif] before:fixed before:top-0 before:left-0 before:z-10 before:h-[5px] before:w-full before:bg-[#94e0f8]">
       <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center gap-8">
         <a
           className="shrink-0 font-['GmarketSans','Pretendard_Variable','Noto_Sans_KR',-apple-system,BlinkMacSystemFont,sans-serif] text-[20px] leading-[1.4] font-medium text-[#222222] no-underline"

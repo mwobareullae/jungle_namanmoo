@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
+import { confirmTossPayment } from "../lib/orderApi";
 import type { ProductDetail } from "../types/recommendation";
 
 type CompleteProduct = {
@@ -19,6 +20,8 @@ type PaymentCompleteSnapshot = {
   paymentMethod: string;
   createdAt: number;
 };
+
+type TossConfirmStatus = "idle" | "confirming" | "approved" | "failed";
 
 const PAYMENT_COMPLETE_SNAPSHOT_KEY = "payment_complete_snapshot";
 const PAYMENT_COMPLETE_SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
@@ -52,6 +55,13 @@ const getCompleteParams = () => {
     id: params.get("id") ?? "",
     total: Number(params.get("total") ?? 0),
     count: Number(params.get("count") ?? 0),
+    orderCode: params.get("order_code") ?? "",
+    tossOrderId: params.get("orderId") ?? "",
+    tossAmount: Number(params.get("amount") ?? 0),
+    tossPaymentKey: params.get("paymentKey") ?? "",
+    paymentFailed: params.get("payment_failed") === "1" || params.has("code"),
+    paymentFailCode: params.get("code") ?? "",
+    paymentFailMessage: params.get("message") ?? "",
     recommendationId: params.get("recommendation_id") ?? undefined,
     skinType: params.get("skin_type") ?? "",
     sensitivity: params.get("sensitivity") ?? "",
@@ -88,15 +98,35 @@ const getStoredPaymentCompleteSnapshot = (): PaymentCompleteSnapshot | null => {
 };
 
 function PaymentCompletePage() {
-  const [{ id, total, count, recommendationId, skinType, sensitivity, paymentMethod }] = useState(getCompleteParams);
+  const [{
+    id,
+    total,
+    count,
+    orderCode,
+    tossOrderId,
+    tossAmount,
+    tossPaymentKey,
+    paymentFailed,
+    paymentFailCode,
+    paymentFailMessage,
+    recommendationId,
+    skinType,
+    sensitivity,
+    paymentMethod,
+  }] = useState(getCompleteParams);
   const [storedSnapshot] = useState(getStoredPaymentCompleteSnapshot);
   const productId = storedSnapshot?.product.id ?? id;
-  const displayTotal = storedSnapshot?.total ?? total;
-  const displayCount = storedSnapshot?.count ?? count;
+  const displayTotal = storedSnapshot?.total ?? (total > 0 ? total : tossAmount);
+  const displayCount = storedSnapshot?.count ?? (count > 0 ? count : 1);
   const displayPaymentMethod = storedSnapshot?.paymentMethod ?? paymentMethod;
-  const hasPaymentInfo = Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0);
+  const hasPaymentInfo = Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0) || Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
+  const shouldConfirmTossPayment = Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
-  const [orderNo] = useState(() => storedSnapshot?.orderCode ?? `MWB-${String(Date.now()).slice(-8)}`);
+  const [orderNo] = useState(() => storedSnapshot?.orderCode || tossOrderId || orderCode || `MWB-${String(Date.now()).slice(-8)}`);
+  const [tossConfirmStatus, setTossConfirmStatus] = useState<TossConfirmStatus>(() =>
+    shouldConfirmTossPayment ? "confirming" : "idle",
+  );
+  const [tossConfirmErrorMessage, setTossConfirmErrorMessage] = useState("");
 
   useEffect(() => {
     if (!productId) {
@@ -116,6 +146,61 @@ function PaymentCompletePage() {
       isMounted = false;
     };
   }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!tossPaymentKey || !tossOrderId || tossAmount <= 0) {
+      return;
+    }
+
+    let isMounted = true;
+    confirmTossPayment({
+      payment_key: tossPaymentKey,
+      order_code: tossOrderId,
+      amount: tossAmount,
+    })
+      .then(() => {
+        if (!isMounted) return;
+        setTossConfirmStatus("approved");
+        window.dispatchEvent(new Event("cart:updated"));
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setTossConfirmStatus("failed");
+        setTossConfirmErrorMessage(error instanceof Error ? error.message : "토스 결제 승인 확인에 실패했습니다.");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [tossAmount, tossOrderId, tossPaymentKey]);
+
+  if (paymentFailed) {
+    return (
+      <>
+        <HomeHeader />
+        <main className="complete-page">
+          <section className="complete-shell">
+            <CommercePageHeader
+              currentStep="complete"
+              description="결제가 완료되지 않았습니다. 주문서에서 결제 수단과 금액을 다시 확인해주세요."
+              title="결제 실패"
+            />
+
+            <div className="complete-hero">
+              <h1>결제를 완료하지 못했습니다</h1>
+              <p>{paymentFailMessage || "결제창에서 결제가 취소되었거나 실패했습니다."}</p>
+              {paymentFailCode ? <p>오류 코드: {paymentFailCode}</p> : null}
+            </div>
+
+            <div className="complete-actions">
+              <a className="complete-btn" href="/cart">장바구니로 이동</a>
+              <a className="complete-btn primary" href="/checkout">주문서 다시 보기</a>
+            </div>
+          </section>
+        </main>
+      </>
+    );
+  }
 
   if (!hasPaymentInfo) {
     return (
@@ -170,6 +255,12 @@ function PaymentCompletePage() {
             </div>
             <h1>결제가 완료되었습니다</h1>
             <p>피부 고민에 맞춰 고른 상품 주문이 접수되었어요. 주문 정보와 배송 진행 상황은 마이페이지에서 확인할 수 있습니다.</p>
+            {tossConfirmStatus === "confirming" ? (
+              <p role="status">토스 결제 승인 정보를 확인하고 있습니다.</p>
+            ) : null}
+            {tossConfirmStatus === "failed" ? (
+              <p role="alert">결제 승인 확인이 필요합니다. {tossConfirmErrorMessage}</p>
+            ) : null}
           </div>
 
           <div className="complete-grid">
