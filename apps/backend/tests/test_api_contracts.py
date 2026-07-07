@@ -356,6 +356,23 @@ def test_create_recommendation_uses_concern_parser(client: TestClient) -> None:
     assert data["unmatched_terms"] == []
 
 
+def test_create_recommendation_infers_sensitive_profile_from_concern_text(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "민감하고 진정 위주 추천"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["summary"]["sensitivity"] == "민감"
+    assert data["summary"]["matched_concerns"] == ["민감"]
+    assert "진정" in data["summary"]["expected_effects"]
+    assert data["unmatched_terms"] == []
+
+
 def test_create_recommendation_includes_purchase_constraints(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
@@ -700,6 +717,31 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
     assert data["evidence"]["ingredient_evidence"]
     assert data["sources"]
     assert data["product"]["cart_handoff"] is None
+
+
+def test_search_products_returns_product_cards(client: TestClient) -> None:
+    response = client.get("/api/products/search", params={"q": "수분 크림", "page_size": 2})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["query"] == "수분 크림"
+    assert data["pagination"]["page"] == 1
+    assert data["pagination"]["page_size"] == 2
+    assert data["pagination"]["total_items"] >= len(data["items"])
+    assert data["diagnostics"]["backend"] == "database"
+    assert data["diagnostics"]["es_attempted"] is False
+    assert data["items"]
+    first_item = data["items"][0]
+    assert {
+        "product_id",
+        "brand",
+        "name",
+        "category_code",
+        "category_name",
+        "thumbnail_url",
+        "lowest_price",
+        "match_source",
+    }.issubset(first_item)
 
 
 def test_get_product_detail_includes_purchase_stock_info(

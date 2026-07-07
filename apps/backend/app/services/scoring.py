@@ -19,7 +19,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v0"
+SCORING_VERSION = "v1_search_intent_boost"
 EFFECT_CAP = 1.2
 TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
@@ -53,6 +53,18 @@ class ScoreWeights:
     functional_claim: float = 0.05
     search_match: float = 0.07
     price: float = 0.05
+
+
+DEFAULT_SCORE_WEIGHTS = ScoreWeights()
+SEARCH_INTENT_SCORE_WEIGHTS = ScoreWeights(
+    ingredient_effect=0.31,
+    ingredient_evidence=0.21,
+    skin_profile=0.15,
+    concentration_fit=0.08,
+    functional_claim=0.05,
+    search_match=0.15,
+    price=0.05,
+)
 
 
 @dataclass(frozen=True)
@@ -198,7 +210,7 @@ def score_candidates(
     *,
     skin_type: str | None = None,
     sensitivity: str | None = None,
-    weights: ScoreWeights = ScoreWeights(),
+    weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
 ) -> list[ScoredProduct]:
@@ -214,6 +226,10 @@ def score_candidates(
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     matches_by_product_code = {match.product_id: match for match in matches}
+    resolved_weights, weight_profile, search_intent_signals = _resolve_score_weights(
+        intent,
+        weights,
+    )
 
     scored_products = [
         _score_candidate(
@@ -229,7 +245,9 @@ def score_candidates(
             intent.purchase_conditions,
             skin_type=skin_type,
             sensitivity=sensitivity,
-            weights=weights,
+            weights=resolved_weights,
+            weight_profile=weight_profile,
+            search_intent_signals=search_intent_signals,
             concentration_policy=concentration_policy,
             skin_profile_weights=skin_profile_weights,
         )
@@ -272,6 +290,8 @@ def _score_candidate(
     skin_type: str | None,
     sensitivity: str | None,
     weights: ScoreWeights,
+    weight_profile: str,
+    search_intent_signals: tuple[str, ...],
     concentration_policy: ConcentrationScorePolicy,
     skin_profile_weights: SkinProfileWeights,
 ) -> ScoredProduct:
@@ -346,6 +366,8 @@ def _score_candidate(
             "search_match": weights.search_match,
             "price": weights.price,
         },
+        "weight_profile": weight_profile,
+        "search_intent_signals": list(search_intent_signals),
         "skin_profile_weights": {
             "skin_type": skin_profile_weights.skin_type,
             "sensitivity": skin_profile_weights.sensitivity,
@@ -381,6 +403,65 @@ def _score_candidate(
         score_breakdown=score_breakdown,
         score_evidence=score_evidence,
     )
+
+
+def _resolve_score_weights(
+    intent: RecommendationIntent,
+    weights: ScoreWeights,
+) -> tuple[ScoreWeights, str, tuple[str, ...]]:
+    signals = _search_intent_signals(intent)
+    if weights != DEFAULT_SCORE_WEIGHTS:
+        return weights, "custom", signals
+    if _has_strong_search_intent(intent, signals):
+        return SEARCH_INTENT_SCORE_WEIGHTS, "search_intent_boost", signals
+    return weights, "default", signals
+
+
+def _has_strong_search_intent(
+    intent: RecommendationIntent,
+    signals: tuple[str, ...],
+) -> bool:
+    has_product_selector = bool(
+        intent.purchase_conditions.categories
+        or intent.purchase_conditions.brands
+    )
+    if not has_product_selector:
+        return False
+
+    selector_count = sum(
+        1
+        for active in (
+            bool(intent.purchase_conditions.categories),
+            bool(intent.purchase_conditions.brands),
+            intent.purchase_conditions.price_min is not None
+            or intent.purchase_conditions.price_max is not None,
+        )
+        if active
+    )
+    has_relevance_terms = bool(
+        intent.search_terms
+        or intent.priority_effects
+        or selector_count >= 2
+    )
+    return has_relevance_terms and bool(signals)
+
+
+def _search_intent_signals(intent: RecommendationIntent) -> tuple[str, ...]:
+    signals: list[str] = []
+    if intent.purchase_conditions.categories:
+        signals.append("category")
+    if intent.purchase_conditions.brands:
+        signals.append("brand")
+    if (
+        intent.purchase_conditions.price_min is not None
+        or intent.purchase_conditions.price_max is not None
+    ):
+        signals.append("price")
+    if intent.search_terms:
+        signals.append("search_terms")
+    if intent.priority_effects:
+        signals.append("priority_effect")
+    return tuple(signals)
 
 
 def _build_desired_effects(intent: RecommendationIntent) -> tuple[_DesiredEffect, ...]:
