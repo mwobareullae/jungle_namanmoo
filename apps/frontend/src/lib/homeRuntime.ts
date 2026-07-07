@@ -166,17 +166,20 @@ const getHeaderBottom = () => {
   return Math.max(64, Math.round(header?.getBoundingClientRect().bottom ?? 64));
 };
 
+const CATEGORY_PANEL_MIN_HEIGHT = 160;
+const CATEGORY_PANEL_MAX_HEIGHT = 300;
+
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
   const searchBox = document.getElementById("searchBox");
   const headerBottom = getHeaderBottom();
   const searchTop = searchBox?.getBoundingClientRect().top;
-  const availableHeight =
-    searchTop && searchTop > headerBottom + 180
-      ? searchTop - headerBottom - 10
-      : Math.min(window.innerHeight - headerBottom - 24, 560);
+  const shouldAvoidSearchBox =
+    window.scrollY <= 4 && typeof searchTop === "number" && searchTop > headerBottom + CATEGORY_PANEL_MIN_HEIGHT;
+  const heightToSearch = shouldAvoidSearchBox ? searchTop - headerBottom - 10 : CATEGORY_PANEL_MAX_HEIGHT;
+  const availableHeight = Math.min(heightToSearch, window.innerHeight - headerBottom - 24, CATEGORY_PANEL_MAX_HEIGHT);
 
   document.documentElement.style.setProperty("--category-panel-top", `${headerBottom}px`);
-  panel.style.setProperty("--category-panel-max-height", `${Math.max(160, availableHeight)}px`);
+  panel.style.setProperty("--category-panel-max-height", `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`);
 };
 
 const installFunctions = () => {
