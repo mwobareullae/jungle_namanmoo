@@ -1,4 +1,6 @@
 from collections.abc import Generator
+import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -58,7 +60,14 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
         quantity=2,
     )["payment_code"]
 
-    response = client.post(f"/api/payments/{payment_code}/mock/confirm")
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(
+            f"/api/payments/{payment_code}/mock/confirm",
+            headers={"x-request-id": "payment-confirm-request"},
+        )
+    finally:
+        logs.close()
 
     assert response.status_code == 200
     data = response.json()
@@ -66,6 +75,13 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert data["payment_status"] == "APPROVED"
     assert data["approved_at"] is not None
     assert data["failed_at"] is None
+    log_payload = next(line for line in logs.json_lines if line["event"] == "payment_confirm_completed")
+    assert log_payload["request_id"] == "payment-confirm-request"
+    assert log_payload["provider"] == "MOCK"
+    assert log_payload["order_status"] == "PAID"
+    assert log_payload["payment_status"] == "APPROVED"
+    assert log_payload["confirmed_quantity_total"] == 2
+    assert log_payload["idempotent_replay"] is False
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == data["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == payment_code)).scalar_one()
@@ -85,6 +101,7 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert order.paid_at is not None
     assert payment.status == "APPROVED"
     assert payment.approved_at is not None
+    assert log_payload["amount"] == payment.amount
     assert inventory.stock_quantity == 8
     assert inventory.reserved_quantity == 0
     assert [movement.movement_type for movement in movements] == ["RESERVE", "SALE_CONFIRM"]
@@ -150,11 +167,25 @@ def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
         quantity=1,
     )
 
-    response = client.post(f"/api/payments/{pending['payment_code']}/mock/fail")
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(
+            f"/api/payments/{pending['payment_code']}/mock/fail",
+            headers={"x-request-id": "payment-fail-request"},
+        )
+    finally:
+        logs.close()
 
     assert response.status_code == 200
     assert response.json()["order_status"] == "PAYMENT_FAILED"
     assert response.json()["payment_status"] == "FAILED"
+    log_payload = next(line for line in logs.json_lines if line["event"] == "payment_fail_completed")
+    assert log_payload["request_id"] == "payment-fail-request"
+    assert log_payload["provider"] == "MOCK"
+    assert log_payload["payment_status"] == "FAILED"
+    assert log_payload["order_status"] == "PAYMENT_FAILED"
+    assert log_payload["released_quantity_total"] == 1
+    assert log_payload["idempotent_replay"] is False
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
@@ -454,6 +485,31 @@ def _set_inventory(
 def _load_inventory(session: Session, product_code: str) -> Inventory:
     product = session.execute(select(Product).where(Product.product_code == product_code)).scalar_one()
     return session.execute(select(Inventory).where(Inventory.product_id == product.id)).scalar_one()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    logger.setLevel(logging.INFO)
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler
 
 
 class _FakeTossPaymentsClient:

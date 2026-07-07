@@ -44,6 +44,17 @@ class Settings(BaseModel):
         "false",
         "no",
     }
+    enable_performance_logging: bool = os.getenv("ENABLE_PERFORMANCE_LOGGING", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+    enable_db_slow_query_logging: bool = os.getenv("ENABLE_DB_SLOW_QUERY_LOGGING", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+    db_slow_query_threshold_ms: float = float(os.getenv("DB_SLOW_QUERY_THRESHOLD_MS", "100"))
     backend_cors_origins: list[str] = _parse_cors_origins(
         os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     )

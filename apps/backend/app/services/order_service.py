@@ -5,6 +5,7 @@ import secrets
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
 from app.db.models.commerce import (
@@ -83,56 +84,89 @@ def create_order(
     request: OrderCreateRequest,
     idempotency_key: str | None,
 ) -> OrderCreateResponse:
-    normalized_key = _normalize_idempotency_key(idempotency_key)
-    existing_order = _load_order_by_idempotency_key(session, user.id, normalized_key)
-    if existing_order is not None:
-        return _to_order_response(session, existing_order)
+    started_at = current_time()
+    requested_item_count = len(request.cart_item_ids)
+    try:
+        normalized_key = _normalize_idempotency_key(idempotency_key)
+        existing_order = _load_order_by_idempotency_key(session, user.id, normalized_key)
+        if existing_order is not None:
+            response = _to_order_response(session, existing_order)
+            _log_order_create_completed(
+                started_at,
+                order=existing_order,
+                payment_provider=response.payment.provider,
+                requested_item_count=requested_item_count,
+                reserved_item_count=existing_order.item_count,
+                reserved_quantity_total=existing_order.total_quantity,
+                seller_count=None,
+                idempotent_replay=True,
+            )
+            return response
 
-    selected_item_ids = _validate_cart_item_ids(request.cart_item_ids)
-    shipping_address = _resolve_shipping_address(session, user, request)
-    active_cart = _require_active_user_cart(session, user.id)
-    selected_rows = _load_selected_cart_rows(session, active_cart.id, selected_item_ids)
+        selected_item_ids = _validate_cart_item_ids(request.cart_item_ids)
+        shipping_address = _resolve_shipping_address(session, user, request)
+        active_cart = _require_active_user_cart(session, user.id)
+        selected_rows = _load_selected_cart_rows(session, active_cart.id, selected_item_ids)
 
-    _validate_selected_rows(selected_rows)
-    shipping_groups = _build_shipping_group_snapshots(session, selected_rows)
-    subtotal = sum(row.line_subtotal for row in selected_rows)
-    shipping_fee = sum(group.shipping_fee for group in shipping_groups)
-    discount_total = 0
-    total = subtotal + shipping_fee - discount_total
-    currency = _resolve_currency(selected_rows)
-    now = datetime.now(UTC)
+        _validate_selected_rows(selected_rows)
+        shipping_groups = _build_shipping_group_snapshots(session, selected_rows)
+        subtotal = sum(row.line_subtotal for row in selected_rows)
+        shipping_fee = sum(group.shipping_fee for group in shipping_groups)
+        discount_total = 0
+        total = subtotal + shipping_fee - discount_total
+        currency = _resolve_currency(selected_rows)
+        now = datetime.now(UTC)
 
-    ordered_cart = _create_ordered_cart(session, user.id, now)
-    order = Order(
-        order_code=_generate_public_code("ord", now),
-        user_id=user.id,
-        cart_id=ordered_cart.id,
-        idempotency_key=normalized_key,
-        status="PENDING_PAYMENT",
-        subtotal_amount=subtotal,
-        shipping_fee=shipping_fee,
-        discount_amount=discount_total,
-        total_amount=total,
-        currency=currency,
-        item_count=len(selected_rows),
-        total_quantity=sum(row.item.quantity for row in selected_rows),
-        payment_expires_at=now + timedelta(minutes=PAYMENT_EXPIRY_MINUTES),
-        ordered_at=now,
-        created_at=now,
-        updated_at=now,
-    )
-    session.add(order)
-    session.flush()
+        ordered_cart = _create_ordered_cart(session, user.id, now)
+        order = Order(
+            order_code=_generate_public_code("ord", now),
+            user_id=user.id,
+            cart_id=ordered_cart.id,
+            idempotency_key=normalized_key,
+            status="PENDING_PAYMENT",
+            subtotal_amount=subtotal,
+            shipping_fee=shipping_fee,
+            discount_amount=discount_total,
+            total_amount=total,
+            currency=currency,
+            item_count=len(selected_rows),
+            total_quantity=sum(row.item.quantity for row in selected_rows),
+            payment_expires_at=now + timedelta(minutes=PAYMENT_EXPIRY_MINUTES),
+            ordered_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(order)
+        session.flush()
 
-    _reserve_inventory(session, selected_rows, order.order_code, now)
-    _move_selected_items_to_ordered_cart(selected_rows, ordered_cart.id, now)
-    _create_order_items(session, order.id, selected_rows, now)
-    _create_shipping_address_snapshot(session, order.id, shipping_address)
-    _create_shipping_group_snapshots(session, order.id, shipping_groups)
-    _create_ready_payment(session, order, request.payment_provider, now)
-    _touch_cart(active_cart, now)
-    session.flush()
-    return _to_order_response(session, order)
+        _reserve_inventory(session, selected_rows, order.order_code, now)
+        _move_selected_items_to_ordered_cart(selected_rows, ordered_cart.id, now)
+        _create_order_items(session, order.id, selected_rows, now)
+        _create_shipping_address_snapshot(session, order.id, shipping_address)
+        _create_shipping_group_snapshots(session, order.id, shipping_groups)
+        _create_ready_payment(session, order, request.payment_provider, now)
+        _touch_cart(active_cart, now)
+        session.flush()
+        response = _to_order_response(session, order)
+        _log_order_create_completed(
+            started_at,
+            order=order,
+            payment_provider=request.payment_provider,
+            requested_item_count=requested_item_count,
+            reserved_item_count=len(selected_rows),
+            reserved_quantity_total=order.total_quantity,
+            seller_count=len({int(row.seller.id) for row in selected_rows}),
+            idempotent_replay=False,
+        )
+        return response
+    except ApiError as exc:
+        _log_order_create_failed(
+            started_at,
+            error_code=exc.code,
+            requested_item_count=requested_item_count,
+            payment_provider=request.payment_provider,
+        )
+        raise
 
 
 def _normalize_idempotency_key(idempotency_key: str | None) -> str:
@@ -600,3 +634,51 @@ def _generate_public_code(prefix: str, now: datetime) -> str:
 
 def _touch_cart(cart: Cart, now: datetime) -> None:
     cart.updated_at = now
+
+
+def _log_order_create_completed(
+    started_at: float,
+    *,
+    order: Order,
+    payment_provider: str,
+    requested_item_count: int,
+    reserved_item_count: int,
+    reserved_quantity_total: int,
+    seller_count: int | None,
+    idempotent_replay: bool,
+) -> None:
+    log_performance_event(
+        "order_create_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "requested_item_count": requested_item_count,
+            "selected_item_count": order.item_count,
+            "reserved_item_count": reserved_item_count,
+            "reserved_quantity_total": reserved_quantity_total,
+            "seller_count": seller_count,
+            "subtotal_amount": order.subtotal_amount,
+            "shipping_fee": order.shipping_fee,
+            "total_amount": order.total_amount,
+            "payment_provider": payment_provider,
+            "order_status": order.status,
+            "idempotent_replay": idempotent_replay,
+        },
+    )
+
+
+def _log_order_create_failed(
+    started_at: float,
+    *,
+    error_code: str,
+    requested_item_count: int,
+    payment_provider: str,
+) -> None:
+    log_performance_event(
+        "order_create_failed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "requested_item_count": requested_item_count,
+            "payment_provider": payment_provider,
+            "error_code": error_code,
+        },
+    )

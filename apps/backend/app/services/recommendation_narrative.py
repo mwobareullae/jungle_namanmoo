@@ -8,7 +8,9 @@ from typing import Protocol
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
+from app.core.ai_logging import extract_chat_completion_usage_from_body, log_ai_call
 from app.core.config import settings
+from app.core.performance_logging import current_time, elapsed_ms
 from app.schemas.common import ApiError
 from app.schemas.recommendation import (
     RecommendationNarrative,
@@ -170,18 +172,51 @@ class OpenAIRecommendationNarrativeGenerator:
             method="POST",
         )
 
+        started_at = current_time()
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
+            log_ai_call(
+                "recommendation_narrative",
+                model=self.model,
+                duration_ms=elapsed_ms(started_at),
+                success=False,
+                error="HTTPError",
+                metadata={
+                    "status_code": exc.code,
+                    "view": view,
+                    "mode": mode,
+                },
+            )
             raise RecommendationNarrativeError(
                 f"OpenAI recommendation narrative request failed with status {exc.code}: "
                 f"{_shorten(detail)}"
             ) from exc
         except urllib.error.URLError as exc:
+            log_ai_call(
+                "recommendation_narrative",
+                model=self.model,
+                duration_ms=elapsed_ms(started_at),
+                success=False,
+                error=type(exc.reason).__name__ if getattr(exc, "reason", None) is not None else "URLError",
+                metadata={"view": view, "mode": mode},
+            )
             raise RecommendationNarrativeError(f"OpenAI recommendation narrative request failed: {exc}") from exc
 
+        log_ai_call(
+            "recommendation_narrative",
+            model=self.model,
+            duration_ms=elapsed_ms(started_at),
+            usage=extract_chat_completion_usage_from_body(body),
+            metadata={
+                "view": view,
+                "mode": mode,
+                "product_count": len(recommendation.products),
+                "has_product_focus": product_id is not None,
+            },
+        )
         return _extract_chat_completion_json(body)
 
 

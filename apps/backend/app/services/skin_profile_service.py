@@ -103,6 +103,7 @@ def to_skin_profile_data(session: Session, profile: SkinProfile) -> SkinProfileD
         explicit_skin_type=profile.explicit_skin_type,
         explicit_sensitivity=profile.explicit_sensitivity,
         avoid_ingredients=list(profile.avoid_ingredients or []),
+        concerns=_profile_concerns(profile),
         baumann_type_code=profile.baumann_type_code,
         baumann_inferred_skin_type=profile.baumann_inferred_skin_type,
         baumann_inferred_sensitivity=profile.baumann_inferred_sensitivity,
@@ -114,6 +115,14 @@ def to_skin_profile_data(session: Session, profile: SkinProfile) -> SkinProfileD
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )
+
+
+def _profile_concerns(profile: SkinProfile) -> list[str]:
+    concern_profile = profile.concern_profile_json or {}
+    concerns = concern_profile.get("concerns")
+    if not isinstance(concerns, list):
+        return []
+    return [concern for concern in concerns if isinstance(concern, str)]
 
 
 def _normalize_skin_type(value: str) -> str:
