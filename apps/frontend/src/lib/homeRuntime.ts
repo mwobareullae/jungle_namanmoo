@@ -169,6 +169,12 @@ const getHeaderBottom = () => {
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
 const CATEGORY_PANEL_MAX_HEIGHT = 300;
 
+const getCategoryPanelInlineStart = () => {
+  const button = document.querySelector(".site-header .category-menu-btn, .category-menu-btn");
+  const buttonLeft = button?.getBoundingClientRect().left;
+  return Math.max(20, Math.round(buttonLeft ?? 64));
+};
+
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
   const searchBox = document.getElementById("searchBox");
   const headerBottom = getHeaderBottom();
@@ -179,6 +185,7 @@ const updateCategoryPanelLayout = (panel: HTMLElement) => {
   const availableHeight = Math.min(heightToSearch, window.innerHeight - headerBottom - 24, CATEGORY_PANEL_MAX_HEIGHT);
 
   document.documentElement.style.setProperty("--category-panel-top", `${headerBottom}px`);
+  document.documentElement.style.setProperty("--category-panel-inline-start", `${getCategoryPanelInlineStart()}px`);
   panel.style.setProperty("--category-panel-max-height", `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`);
 };
 
