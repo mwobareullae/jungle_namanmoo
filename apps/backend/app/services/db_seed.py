@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import math
@@ -8,6 +8,7 @@ from typing import TypeVar
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.catalog import (
     Brand as BrandRow,
     BrandAlias as BrandAliasRow,
@@ -66,8 +67,45 @@ BAYESIAN_RATING_CONFIDENCE_REVIEWS = 50.0
 
 
 def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
-    catalog = load_data_catalog(data_dir)
-    return seed_catalog(session, catalog)
+    started_at = current_time()
+    data_dir_path = Path(data_dir)
+    catalog: DataCatalog | None = None
+    try:
+        catalog = load_data_catalog(data_dir_path)
+        result = seed_catalog(session, catalog)
+    except Exception as exc:
+        metadata: dict[str, object] = {
+            "data_dir": str(data_dir_path),
+            "error": type(exc).__name__,
+            "error_count": 1,
+            "failed_row_sample_count": 0,
+        }
+        if catalog is not None:
+            metadata["row_counts"] = _catalog_row_counts(catalog)
+        log_performance_event(
+            "seed_database_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata=metadata,
+        )
+        raise
+
+    row_counts = _catalog_row_counts(catalog)
+    seed_counts = asdict(result)
+    log_performance_event(
+        "seed_database_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "data_dir": str(data_dir_path),
+            "row_counts": row_counts,
+            "loaded_row_count": sum(row_counts.values()),
+            "seed_counts": seed_counts,
+            "seeded_entity_count": sum(seed_counts.values()),
+            "error_count": 0,
+            "failed_row_sample_count": 0,
+            "counting_mode": "loaded_rows_and_final_seed_counts",
+        },
+    )
+    return result
 
 
 def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
@@ -111,6 +149,27 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         ingredient_evidence=len(catalog.ingredient_evidence),
         search_documents=len(catalog.search_documents),
     )
+
+
+def _catalog_row_counts(catalog: DataCatalog) -> dict[str, int]:
+    return {
+        "products.csv": len(catalog.products),
+        "product_prices.csv": len(catalog.product_prices),
+        "product_image_assets.csv": len(catalog.product_image_assets),
+        "product_inventory.csv": len(catalog.product_inventories),
+        "product_market_signals.csv": len(catalog.product_market_signals),
+        "product_ingredients.csv": len(catalog.product_ingredients),
+        "product_skin_profiles.csv": len(catalog.product_skin_profiles),
+        "ingredients.csv": len(catalog.ingredients),
+        "ingredient_aliases.csv": len(catalog.ingredient_aliases),
+        "ingredient_effect.csv": len(catalog.ingredient_effects),
+        "ingredient_effect_ranges.csv": len(catalog.ingredient_effect_ranges),
+        "ingredient_evidence.csv": len(catalog.ingredient_evidence),
+        "risk_flags.csv": len(catalog.risk_flags),
+        "vector_docs.csv": len(catalog.search_documents),
+        "tags.json.concerns": len(catalog.concern_tags),
+        "tags.json.concern_effects": len(catalog.concern_effects),
+    }
 
 
 def _seed_effects(session: Session, catalog: DataCatalog) -> dict[str, EffectRow]:
