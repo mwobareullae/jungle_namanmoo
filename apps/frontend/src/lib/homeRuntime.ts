@@ -161,6 +161,27 @@ const renderDefaultEmptyState = () => {
   grid.innerHTML = '<div class="empty-state">추천 검색을 시작하면 상품이 표시됩니다.</div>';
 };
 
+const getHeaderBottom = () => {
+  const header = document.querySelector(".home-header, .site-header, .auth-site-header, header");
+  return Math.max(64, Math.round(header?.getBoundingClientRect().bottom ?? 64));
+};
+
+const CATEGORY_PANEL_MIN_HEIGHT = 160;
+const CATEGORY_PANEL_MAX_HEIGHT = 300;
+
+const updateCategoryPanelLayout = (panel: HTMLElement) => {
+  const searchBox = document.getElementById("searchBox");
+  const headerBottom = getHeaderBottom();
+  const searchTop = searchBox?.getBoundingClientRect().top;
+  const shouldAvoidSearchBox =
+    window.scrollY <= 4 && typeof searchTop === "number" && searchTop > headerBottom + CATEGORY_PANEL_MIN_HEIGHT;
+  const heightToSearch = shouldAvoidSearchBox ? searchTop - headerBottom - 10 : CATEGORY_PANEL_MAX_HEIGHT;
+  const availableHeight = Math.min(heightToSearch, window.innerHeight - headerBottom - 24, CATEGORY_PANEL_MAX_HEIGHT);
+
+  document.documentElement.style.setProperty("--category-panel-top", `${headerBottom}px`);
+  panel.style.setProperty("--category-panel-max-height", `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`);
+};
+
 const installFunctions = () => {
   const runtime = getRuntime();
 
@@ -171,6 +192,7 @@ const installFunctions = () => {
   runtime.closeCategoryMenu = () => {
     document.getElementById("categoryPanel")?.classList.remove("active");
     document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
+    document.body.classList.remove("category-menu-open");
     document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
   };
   runtime.toggleCategoryMenu = () => {
@@ -179,8 +201,11 @@ const installFunctions = () => {
     const button = document.querySelector(".category-menu-btn");
     const willOpen = !panel?.classList.contains("active");
 
+    if (willOpen && panel) updateCategoryPanelLayout(panel);
+
     panel?.classList.toggle("active", willOpen);
     backdrop?.classList.toggle("active", willOpen);
+    document.body.classList.toggle("category-menu-open", willOpen);
     button?.setAttribute("aria-expanded", willOpen ? "true" : "false");
   };
   runtime.showToast = (message) => showToast(String(message));
@@ -284,11 +309,16 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
       openSearchSuggestions();
     }
   };
+  const handleCategoryPanelViewportChange = () => {
+    if (categoryPanel?.classList.contains("active")) updateCategoryPanelLayout(categoryPanel);
+  };
 
   input?.addEventListener("focus", handleInputFocus);
   input?.addEventListener("click", handleInputFocus);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
+  window.addEventListener("resize", handleCategoryPanelViewportChange);
+  window.addEventListener("scroll", handleCategoryPanelViewportChange, { passive: true });
   document.getElementById("recentConcernList")?.addEventListener("click", handleRecentClick);
   categoryPanel
     ?.querySelectorAll("a")
@@ -299,7 +329,10 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
     input?.removeEventListener("click", handleInputFocus);
     document.removeEventListener("click", handleDocumentClick);
     document.removeEventListener("keydown", handleDocumentKeydown);
+    window.removeEventListener("resize", handleCategoryPanelViewportChange);
+    window.removeEventListener("scroll", handleCategoryPanelViewportChange);
     document.getElementById("recentConcernList")?.removeEventListener("click", handleRecentClick);
+    document.body.classList.remove("category-menu-open");
     categoryPanel
       ?.querySelectorAll("a")
       .forEach((link) => link.removeEventListener("click", getRuntime().closeCategoryMenu));

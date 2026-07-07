@@ -5,6 +5,7 @@ import SignupProgress from "../components/SignupProgress";
 import { privacyPolicy, termsOfService } from "../content/terms";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
+import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
 
 const SIGNUP_AGREEMENTS_STORAGE_KEY = "signupAgreements";
 const PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY = "pending_google_credential";
@@ -343,6 +344,7 @@ function SignupTermsPage() {
 
         sessionStorage.removeItem(PENDING_GOOGLE_CREDENTIAL_STORAGE_KEY);
         await refreshAuthenticatedUser().catch(() => null);
+        markSkinTestPromptPending();
         navigate("/signup/skin-profile", { replace: true });
       } catch {
         setNoticeMessage("Google 가입 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");

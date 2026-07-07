@@ -6,6 +6,7 @@ import type { AuthUser } from "../contexts/authContextValue";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { mergeCart } from "../lib/cartApi";
+import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
 
 type LoginLocationState = {
   from?: string;
@@ -152,6 +153,7 @@ function LoginPage() {
         .catch(() => null);
 
       setMessage("로그인 성공!");
+      markSkinTestPromptPending();
       navigate(getPostLoginRedirectPath(redirectPath), { replace: true });
     },
     [navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
