@@ -131,7 +131,7 @@ def parse_purchase_conditions(
 
 @lru_cache(maxsize=1)
 def get_default_brand_aliases() -> tuple[BrandAliasGroup, ...]:
-    brand_names = _load_brand_names_from_products(Path(settings.data_dir) / "products.csv")
+    brand_names = _load_brand_names_from_products(Path(settings.data_dir))
     override_names = tuple(BRAND_ALIAS_OVERRIDES.keys())
     return build_brand_aliases((*brand_names, *override_names))
 
@@ -154,17 +154,32 @@ def build_brand_aliases(brand_names: tuple[str, ...]) -> tuple[BrandAliasGroup, 
     return tuple(groups_by_code.values())
 
 
-def _load_brand_names_from_products(products_path: Path) -> tuple[str, ...]:
-    if not products_path.exists():
+def _load_brand_names_from_products(data_dir: Path) -> tuple[str, ...]:
+    products_paths = _resolve_product_csv_paths(data_dir)
+    if not products_paths:
         return ()
 
-    with products_path.open(encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-        return tuple(
-            row["brand"].strip()
-            for row in reader
-            if row.get("brand") and row["brand"].strip()
-        )
+    brand_names: list[str] = []
+    for products_path in products_paths:
+        with products_path.open(encoding="utf-8-sig", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            brand_names.extend(
+                row["brand"].strip()
+                for row in reader
+                if row.get("brand") and row["brand"].strip()
+            )
+    return tuple(brand_names)
+
+
+def _resolve_product_csv_paths(data_dir: Path) -> tuple[Path, ...]:
+    products_path = data_dir / "products.csv"
+    products_dir = data_dir / "products"
+
+    if products_path.exists():
+        return (products_path,)
+    if not products_dir.exists():
+        return ()
+    return tuple(sorted(path for path in products_dir.glob("*.csv") if path.is_file()))
 
 
 def _match_categories(
