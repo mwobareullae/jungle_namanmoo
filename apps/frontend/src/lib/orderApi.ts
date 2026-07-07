@@ -1,6 +1,7 @@
 import type {
   CreateOrderRequest,
   CreateOrderResponse,
+  OrderCancelResponse,
   TossPaymentConfirmRequest,
   TossPaymentConfirmResponse,
 } from "../types/order";
@@ -35,4 +36,10 @@ export const confirmTossPayment = (
     },
     body: JSON.stringify(request),
   }).then((response) => parseJson<TossPaymentConfirmResponse>(response));
+};
+
+export const cancelOrder = (orderCode: string): Promise<OrderCancelResponse> => {
+  return fetchWithTimeout(`${API_BASE_URL}/orders/${encodeURIComponent(orderCode)}/cancel`, {
+    method: "POST",
+  }).then((response) => parseJson<OrderCancelResponse>(response));
 };
