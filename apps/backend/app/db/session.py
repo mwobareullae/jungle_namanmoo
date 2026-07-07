@@ -4,6 +4,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
+from app.db.slow_query_logging import configure_db_slow_query_logging
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -13,10 +14,12 @@ def normalize_database_url(database_url: str) -> str:
 
 
 def make_engine(database_url: str | None = None) -> Engine:
-    return create_engine(
+    created_engine = create_engine(
         normalize_database_url(database_url or settings.database_url),
         pool_pre_ping=True,
     )
+    configure_db_slow_query_logging(created_engine)
+    return created_engine
 
 
 engine = make_engine()
