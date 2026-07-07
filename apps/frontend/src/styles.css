@@ -1788,6 +1788,47 @@ body {
   outline: none;
 }
 
+.skin-test-recommendation-card__heart.is-wished,
+.detail-icon-btn.is-wished {
+  color: #ef6f5e;
+}
+
+.skin-test-recommendation-card__heart:disabled,
+.detail-icon-btn:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.activity-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  z-index: 300;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(148, 224, 248, 0.42);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 32px rgba(16, 28, 42, 0.12);
+  color: #1f2a32;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  transform: translateX(-50%);
+}
+
+.activity-toast__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94e0f8;
+  flex: 0 0 auto;
+}
+
 .skin-test-recommendation-card__image {
   position: relative;
   display: flex;
