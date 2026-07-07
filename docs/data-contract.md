@@ -48,9 +48,9 @@
 
 | 파일 | 형식 | 설명 |
 | --- | --- | --- |
-| `data/products.csv` | CSV | 상품 기본 정보 |
+| `data/products.csv` 또는 `data/products/*.csv` | CSV | 상품 기본 정보. 대량 seed는 동일 헤더의 분할 CSV 사용 가능 |
 | `data/product_skin_profiles.csv` | CSV | 상품별 피부타입/민감도 적합 점수 |
-| `data/product_ingredients.csv` | CSV | 상품과 성분의 매핑 |
+| `data/product_ingredients.csv` 또는 `data/product_ingredients/*.csv` | CSV | 상품과 성분의 매핑. 대량 seed는 동일 헤더의 분할 CSV 사용 가능 |
 | `data/product_prices.csv` | CSV | P2 자사몰 판매가와 상품 상세 URL |
 | `data/product_inventory.csv` | CSV | P2 자사몰 재고와 판매 상태 |
 | `data/product_image_assets.csv` | CSV | P2 자사몰 대표/상세 이미지 자산 |
@@ -60,13 +60,15 @@
 
 현재 레포의 `data/*.csv`는 P2 1P 자사몰과 10만 상품 import를 검증하기 위한 정규화 결과물입니다. 최종 10만 feed 원본 자체가 아니라, 백엔드 seed/import와 추천/검색 dry-run에 바로 사용할 수 있는 검증된 subset으로 봅니다.
 
+대량 CSV는 GitHub 단일 파일 100MB 제한을 피하기 위해 같은 헤더의 분할 파일로 둘 수 있습니다. 예를 들어 `data/products.csv` 대신 `data/products/products_000.csv`, `data/products/products_001.csv`를 둘 수 있습니다. 백엔드 loader는 단일 파일이 있으면 단일 파일을 읽고, 단일 파일이 없으면 같은 이름의 디렉터리 안 `*.csv`를 파일명 오름차순으로 모두 읽습니다. 단일 파일과 분할 디렉터리가 동시에 있으면 중복 적재 위험이 있으므로 오류로 처리합니다.
+
 ## P2/MVP 대량 카탈로그 계약
 
 새 명세서 기준 P2/MVP는 작은 수동 상품 목록이 아니라, 1P 자사몰 구매 흐름과 대량 상품 검색/추천 기반을 함께 검증합니다. 따라서 데이터 계약은 아래 두 층으로 나눕니다.
 
 | 층 | 목적 | 소유 |
 | --- | --- | --- |
-| 정규화 seed | `data/products.csv` 등 레포 CSV. P2 데모, seed, 추천/검색 dry-run에 사용 | R5 세민 |
+| 정규화 seed | `data/products.csv` 또는 `data/products/*.csv` 등 레포 CSV. P2 데모, seed, 추천/검색 dry-run에 사용 | R5 세민 |
 | 대량 feed/import | 10만 상품 원본 feed를 staging으로 적재, 검증, upsert, rollback하는 운영 경로 | R5 세민, R3 원우, R6 지운 |
 
 대량 feed/import 원칙:
@@ -82,7 +84,7 @@
 
 | 객체 | 의미 | P2 기준 |
 | --- | --- | --- |
-| `Product` | canonical 상품 master. 브랜드, 상품명, 카테고리, 성분/이미지의 기준 | `data/products.csv` |
+| `Product` | canonical 상품 master. 브랜드, 상품명, 카테고리, 성분/이미지의 기준 | `data/products.csv` 또는 `data/products/*.csv` |
 | `Seller` | 상품 판매 주체 | P2는 기본 seller `mwobareullae`를 사용하고 `products.seller_id`로 연결 |
 | `ProductPrice` | 자사몰 판매가와 상품 상세 경로 | `product_prices.csv` |
 | `Inventory` | 판매 가능 수량과 품절/숨김 상태 | P2는 `product_id` 기준 재고 |
@@ -133,7 +135,7 @@ staging 검증은 row 단위로 성공/실패를 남겨야 합니다. 실패 row
 | 항목 | 기준 |
 | --- | --- |
 | 필수 컬럼 누락 | release seed 기준 `critical=0` |
-| 상품 ID 참조 무결성 | `products.csv` 기준 참조 파일 누락 `0건` |
+| 상품 ID 참조 무결성 | 상품 CSV 기준 참조 파일 누락 `0건` |
 | 가격 이상 | 음수/0원/비정상 문자열 `0건`, 의심 가격은 warning으로 분리 |
 | 대표 이미지 | placeholder/깨진 URL은 기본 release seed에서 제외 또는 `FAILED` 처리 |
 | 전성분 누락 | 상품은 보존 가능하나 `is_recommendable=false`, `missing_ingredients`로 분리 |
@@ -268,7 +270,9 @@ excessive     -> 0.4 + 주의 문구
 
 위험성분은 기본적으로 점수에서 직접 감점하지 않습니다. 다만 추후 민감도 적합성 계산과 주의 문구 노출에 사용합니다.
 
-### `data/products.csv`
+### `data/products.csv` 또는 `data/products/*.csv`
+
+상품 데이터는 기본적으로 `data/products.csv` 단일 파일을 사용할 수 있습니다. 상품 수가 많아 단일 파일이 커지는 경우 `data/products/` 디렉터리에 같은 헤더의 CSV 조각을 나눠 둘 수 있습니다. 현재 loader는 `products.csv`가 없고 `products/` 디렉터리가 있으면 `products/*.csv`를 모두 읽습니다.
 
 | 컬럼 | 설명 |
 | --- | --- |
@@ -296,7 +300,7 @@ excessive     -> 0.4 + 주의 문구
 
 추천 후보 분류 원칙:
 
-- `products.csv`는 자사몰 카탈로그이므로 상품을 가능한 한 보존합니다.
+- 상품 CSV는 자사몰 카탈로그이므로 상품을 가능한 한 보존합니다.
 - DB 등록 최소 조건은 상품명, 브랜드명, 지원 카테고리(`toner`, `serum`, `cream`, `lotion`), 판매가, 대표 이미지입니다.
 - 전성분은 DB 등록 필수 조건이 아닙니다. 전성분이 없으면 상품은 카탈로그에 남기되 `is_recommendable=false`, `recommend_exclude_reason=missing_ingredients`로 둡니다.
 - 다만 기본 AI 추천은 사용자가 일반적인 기초 제품을 기대한다는 전제로 동작하므로, 남성 전용, 올인원, 눈가/목 전용, 국소 스팟 제품은 `is_recommendable=false`로 둡니다.
@@ -337,7 +341,9 @@ skin_profile_score =
 skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
 ```
 
-### `data/product_ingredients.csv`
+### `data/product_ingredients.csv` 또는 `data/product_ingredients/*.csv`
+
+상품-성분 매핑 데이터는 기본적으로 `data/product_ingredients.csv` 단일 파일을 사용할 수 있습니다. 행 수가 많아 단일 파일이 커지는 경우 `data/product_ingredients/` 디렉터리에 같은 헤더의 CSV 조각을 나눠 둘 수 있습니다. 현재 loader는 `product_ingredients.csv`가 없고 `product_ingredients/` 디렉터리가 있으면 `product_ingredients/*.csv`를 모두 읽습니다.
 
 | 컬럼 | 설명 |
 | --- | --- |
@@ -446,8 +452,8 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 
 - 팀원5는 이미지 파일을 직접 저장하지 않고 `product_image_assets.csv`를 작업 큐로 제공합니다.
 - 백엔드/인프라 배치는 `source_image_url`을 다운로드해 `storage_key` 위치에 저장합니다.
-- 상품 이미지 노출은 `products.csv`의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
-- `products.csv`의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
+- 상품 이미지 노출은 상품 CSV의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
+- 상품 CSV의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
 - P2 초기 데이터의 `public_url`은 `storage_key`와 같은 예정 경로이며, 배치/QA 확인용 메타데이터입니다.
 - MVP `product_images` DB 테이블에는 `product_id`, `image_type`, `display_order`, `storage_key`를 저장합니다.
 - DB에는 CloudFront 절대 URL을 저장하지 않습니다.

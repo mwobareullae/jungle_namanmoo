@@ -29,9 +29,15 @@ data/
   ingredient_effect_ranges.csv
   risk_flags.csv
 
-  products.csv
+  products/
+    products_000.csv
+    products_001.csv
+    ...
+  product_ingredients/
+    product_ingredients_000.csv
+    product_ingredients_001.csv
+    ...
   product_skin_profiles.csv
-  product_ingredients.csv
   product_prices.csv
   product_inventory.csv
   product_image_assets.csv
@@ -60,16 +66,18 @@ risk_flags.csv
 팀원5: 상품, 상품 성분, 가격, 검색 문서 데이터
 
 ```text
-products.csv
+products.csv 또는 products/*.csv
 product_skin_profiles.csv
-product_ingredients.csv
+product_ingredients.csv 또는 product_ingredients/*.csv
 product_prices.csv
 product_inventory.csv
 product_image_assets.csv
 vector_docs.csv
 ```
 
-팀원5 데이터는 P2 자사몰 seed와 10만 feed dry-run의 기준입니다. `products.csv`, `product_prices.csv`, `product_inventory.csv`, `product_image_assets.csv`는 각각 Product, 기본 Offer seed, Inventory seed, Image storage 작업 큐로 해석합니다.
+팀원5 데이터는 P2 자사몰 seed와 10만 feed dry-run의 기준입니다. `products.csv` 또는 `products/*.csv`, `product_ingredients.csv` 또는 `product_ingredients/*.csv`, `product_prices.csv`, `product_inventory.csv`, `product_image_assets.csv`는 각각 Product, Ingredient mapping, 기본 Offer seed, Inventory seed, Image storage 작업 큐로 해석합니다.
+
+상품 수나 상품-성분 매핑 행이 늘어 단일 CSV가 커지는 경우에는 같은 이름의 디렉터리에 같은 헤더의 CSV 조각을 나눠 둡니다. 예를 들어 `products.csv`는 `products/*.csv`, `product_ingredients.csv`는 `product_ingredients/*.csv`로 분할할 수 있습니다. 백엔드 loader는 단일 파일이 있으면 단일 파일을 읽고, 단일 파일이 없으면 같은 이름의 디렉터리 안 `*.csv`를 파일명 순서대로 읽습니다. 중복 적재를 막기 위해 단일 파일과 분할 디렉터리를 동시에 두지 않습니다.
 
 ## 공통 규칙
 
@@ -87,8 +95,8 @@ vector_docs.csv
 ## 피부타입 태그 규칙
 
 - `product_skin_profiles.csv`는 모든 상품에 대해 건성/지성/복합성/중성/수부지/민감성 적합도 점수를 0.0~1.0으로 저장합니다.
-- `products.csv`의 `skin_type_tags`는 추천 필터에 바로 쓰는 강한 태그만 저장합니다.
-- `products.csv`의 `is_recommendable`은 기본 AI 추천 후보에 포함할지 여부를 저장합니다.
+- 상품 CSV의 `skin_type_tags`는 추천 필터에 바로 쓰는 강한 태그만 저장합니다.
+- 상품 CSV의 `is_recommendable`은 기본 AI 추천 후보에 포함할지 여부를 저장합니다.
 - `is_recommendable=false`인 상품은 카탈로그에는 남기되 기본 추천 후보에서는 제외합니다.
 - DB 등록 최소 조건은 상품명, 브랜드명, 지원 카테고리, 판매가, 대표 이미지입니다.
 - 전성분이 없는 상품도 DB에는 등록할 수 있습니다. 이 경우 기본 추천에서는 제외하고 `recommend_exclude_reason=missing_ingredients`로 저장합니다.
@@ -103,7 +111,7 @@ vector_docs.csv
 
 ## 기능성 화장품 표시 규칙
 
-- 올리브영 상품정보 제공고시에 있는 `기능성 화장품 식품의약품안전처 심사필 여부` 문구는 `products.csv`에 함께 저장합니다.
+- 올리브영 상품정보 제공고시에 있는 `기능성 화장품 식품의약품안전처 심사필 여부` 문구는 상품 CSV에 함께 저장합니다.
 - 원문은 `functional_review_text`에 그대로 보존합니다.
 - 내부 분류값은 `functional_cosmetic_status`에 저장합니다.
   - `FUNCTIONAL_CONFIRMED`: `심사(또는 보고)를 필함`처럼 기능성 화장품 절차를 거쳤다고 확인되는 상품
@@ -145,8 +153,8 @@ vector_docs.csv
 - `product_image_assets.csv`는 P2 자사몰에서 사용할 대표 이미지와 상세 이미지를 서버가 저장하기 위한 이미지 다운로드 작업 큐입니다.
 - `image_type=thumbnail`은 대표 이미지, `image_type=detail`은 상품 상세 광고/설명 이미지입니다.
 - 한 상품에 상세 이미지가 여러 장 있을 수 있으므로 `display_order`로 노출 순서를 정합니다.
-- 프론트/백엔드는 상품 이미지 노출 시 `products.csv`의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
-- `products.csv`의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
+- 프론트/백엔드는 상품 이미지 노출 시 상품 CSV의 `thumbnail_url`, `image_urls`보다 `product_image_assets.csv`를 우선 사용합니다.
+- 상품 CSV의 `thumbnail_url`, `image_urls`는 원본 수집값 확인용 보조 컬럼입니다.
 - 서버는 `source_image_url`을 읽어 이미지를 다운로드하고 `storage_key` 경로에 저장합니다.
 - `storage_key`는 S3 key 또는 서버 정적 파일 경로로 사용할 수 있는 자사몰 내부 저장 경로입니다.
 - DB의 `product_images`에는 최종 CDN URL을 저장하지 않고 `product_id`, `image_type`, `display_order`, `storage_key`를 저장합니다.
@@ -253,7 +261,7 @@ python data/scripts/download_product_images.py \
 
 ## 상품 성분 함량 규칙
 
-- `product_ingredients.csv`는 성분명과 표시 순서뿐 아니라 가능한 경우 함량 표기도 함께 저장합니다.
+- 상품-성분 CSV는 성분명과 표시 순서뿐 아니라 가능한 경우 함량 표기도 함께 저장합니다.
 - 함량이 명시되지 않은 성분은 `concentration_text`, `concentration_value`, `concentration_unit`을 비워두고 `concentration_confidence=unknown`으로 둡니다.
 - 전성분 표시 순서만 보고 함량을 억지로 추정하지 않습니다.
 - `concentration_text`는 상품 정보에 적힌 원문 표기를 그대로 보존합니다.
@@ -269,8 +277,8 @@ python data/scripts/download_product_images.py \
 
 ## ID 연결 규칙
 
-- `products.csv`의 `product_id`는 `product_ingredients.csv`, `product_prices.csv`, `product_inventory.csv`, `product_image_assets.csv`, `vector_docs.csv`에서 그대로 사용합니다.
-- `products.csv`의 `product_id`는 `product_skin_profiles.csv`에서도 그대로 사용합니다.
+- 상품 CSV의 `product_id`는 `product_ingredients.csv`, `product_prices.csv`, `product_inventory.csv`, `product_image_assets.csv`, `vector_docs.csv`에서 그대로 사용합니다.
+- 상품 CSV의 `product_id`는 `product_skin_profiles.csv`에서도 그대로 사용합니다.
 - `ingredients.csv`의 `ingredient_id`는 `product_ingredients.csv`, `ingredient_effect.csv`, `ingredient_evidence.csv`, `risk_flags.csv`, `vector_docs.csv`에서 그대로 사용합니다.
 - `ingredients.csv`의 `ingredient_id`는 `ingredient_effect_ranges.csv`에서도 그대로 사용합니다.
 - `tags.json`의 `tag_id`는 `concern_to_effect.json`에서 그대로 사용합니다.
@@ -306,4 +314,4 @@ python data/scripts/download_product_images.py \
 
 입력 형식은 `data/examples/`의 파일을 기준으로 맞춥니다.
 
-실제 데이터를 채울 때는 `data/examples/products.csv`를 복사해서 `data/products.csv`를 만들고 내용을 늘리면 됩니다.
+실제 데이터를 작게 채울 때는 `data/examples/products.csv`를 복사해서 `data/products.csv`를 만들고 내용을 늘리면 됩니다. 대량 데이터는 `data/products/products_000.csv`처럼 같은 헤더의 분할 파일로 저장합니다.

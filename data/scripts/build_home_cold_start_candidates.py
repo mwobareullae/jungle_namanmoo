@@ -136,8 +136,24 @@ OUTPUT_FIELDS = [
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8-sig") as f:
-        return list(csv.DictReader(f))
+    rows: list[dict[str, str]] = []
+    for csv_path in resolve_csv_paths(path):
+        with csv_path.open(newline="", encoding="utf-8-sig") as f:
+            rows.extend(csv.DictReader(f))
+    return rows
+
+
+def resolve_csv_paths(path: Path) -> tuple[Path, ...]:
+    if path.exists():
+        return (path,)
+
+    shard_dir = path.parent / path.stem
+    if not shard_dir.exists():
+        raise FileNotFoundError(path)
+    shard_paths = tuple(sorted(csv_path for csv_path in shard_dir.glob("*.csv") if csv_path.is_file()))
+    if not shard_paths:
+        raise FileNotFoundError(f"Split CSV directory is empty: {shard_dir}")
+    return shard_paths
 
 
 def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
