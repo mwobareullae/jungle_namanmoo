@@ -80,10 +80,13 @@ def test_manual_skin_profile_accepts_frontend_signup_contract(client: TestClient
     assert profile["explicit_skin_type"] == "수부지"
     assert profile["explicit_sensitivity"] == "보통"
     assert profile["avoid_ingredients"] == ["fragrance", "alcohol"]
+    assert profile["concerns"] == ["concern_dry_barrier", "concern_pore"]
 
     get_response = client.get("/api/me/skin-profile", headers=_auth_headers(signup_data))
     assert get_response.status_code == 200
-    assert get_response.json()["has_profile"] is True
+    get_body = get_response.json()
+    assert get_body["has_profile"] is True
+    assert get_body["profile"]["concerns"] == ["concern_dry_barrier", "concern_pore"]
 
 
 def test_skin_test_submit_stores_result_and_returns_frontend_result(
