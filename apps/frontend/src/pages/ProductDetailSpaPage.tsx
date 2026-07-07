@@ -504,13 +504,14 @@ function ProductDetailSpaPage() {
       throw new Error("상품 정보를 찾을 수 없습니다.");
     }
 
-    await addCartItem({
+    const updatedCart = await addCartItem({
       product_id: productId,
       quantity: 1,
       source: "product_detail",
       recommendation_id: recommendationId ?? null,
     });
     window.dispatchEvent(new Event("cart:updated"));
+    return updatedCart;
   };
 
   const handleAddToCart = async () => {
@@ -539,8 +540,14 @@ function ProductDetailSpaPage() {
     setCartErrorMessage("");
 
     try {
-      await addCurrentProductToCart();
-      navigateWithinApp("/checkout");
+      const updatedCart = await addCurrentProductToCart();
+      const checkoutItem = updatedCart.items.find((item) => item.product_id === productId);
+
+      if (!checkoutItem) {
+        throw new Error("주문서로 이동할 장바구니 상품을 찾지 못했습니다.");
+      }
+
+      navigateWithinApp(`/checkout?cart_item_ids=${checkoutItem.id}`);
     } catch (error) {
       setCartErrorMessage(error instanceof Error ? error.message : "구매하기 처리에 실패했습니다.");
     } finally {

@@ -9,7 +9,7 @@ import { createAddress, deleteAddress, getAddresses, updateAddress } from "../li
 import { getCart, previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
-import { createOrder } from "../lib/orderApi";
+import { cancelOrder, createOrder } from "../lib/orderApi";
 import type { UserAddress, UserAddressCreateRequest } from "../types/address";
 import type { CartItem, CheckoutPreviewResponse } from "../types/cart";
 import type { CreateOrderShippingAddress } from "../types/order";
@@ -29,6 +29,7 @@ type OrderProduct = {
 
 type ProductLoadState = "idle" | "loading" | "success" | "fallback";
 type AddressFormMode = "closed" | "create" | "edit";
+type CashReceiptMode = "personal" | "business";
 
 type AddressFormState = {
   address_name: string;
@@ -109,6 +110,20 @@ const INSTALLMENT_OPTIONS = [
   "11개월",
   "12개월",
 ];
+const BANK_OPTIONS = [
+  "우리은행",
+  "신한은행",
+  "하나은행",
+  "SC은행",
+  "국민은행",
+  "우체국",
+  "기업은행",
+  "농협",
+  "외환은행",
+  "부산은행",
+];
+const CASH_RECEIPT_PERSONAL_METHODS = ["휴대폰 번호로 발급", "현금영수증 카드로 발급"];
+const CASH_RECEIPT_BUSINESS_METHODS = ["사업자등록번호로 발급"];
 const DELIVERY_MEMO_OPTIONS = [
   "배송시 요청사항을 선택해 주세요.",
   "직접 수령하겠습니다.",
@@ -315,6 +330,18 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("간편결제");
   const [selectedCardCompany, setSelectedCardCompany] = useState("");
   const [selectedInstallment, setSelectedInstallment] = useState("일시불");
+  const [selectedBank, setSelectedBank] = useState("");
+  const [cashReceiptEnabled, setCashReceiptEnabled] = useState(true);
+  const [cashReceiptMode, setCashReceiptMode] = useState<CashReceiptMode>("personal");
+  const [isCashReceiptEditing, setIsCashReceiptEditing] = useState(false);
+  const [cashReceiptIssueMethod, setCashReceiptIssueMethod] = useState(CASH_RECEIPT_PERSONAL_METHODS[0]);
+  const [cashReceiptPhonePrefix, setCashReceiptPhonePrefix] = useState("010");
+  const [cashReceiptPhoneMiddle, setCashReceiptPhoneMiddle] = useState("5670");
+  const [cashReceiptPhoneLast, setCashReceiptPhoneLast] = useState("2965");
+  const [cashReceiptBusinessPart1, setCashReceiptBusinessPart1] = useState("");
+  const [cashReceiptBusinessPart2, setCashReceiptBusinessPart2] = useState("");
+  const [cashReceiptBusinessPart3, setCashReceiptBusinessPart3] = useState("");
+  const [isCashReceiptGuideOpen, setIsCashReceiptGuideOpen] = useState(false);
   const [tossPayments, setTossPayments] = useState<TossPaymentsSDK | null>(null);
   const [isTossSdkLoading, setIsTossSdkLoading] = useState(false);
   const [tossSdkErrorMessage, setTossSdkErrorMessage] = useState("");
@@ -336,6 +363,7 @@ function CheckoutPage() {
   const [addressForm, setAddressForm] = useState<AddressFormState>(emptyAddressForm);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState<number | null>(null);
+  const [defaultingAddressId, setDefaultingAddressId] = useState<number | null>(null);
   const [addressFormErrorMessage, setAddressFormErrorMessage] = useState("");
   const tossClientKey = import.meta.env.VITE_TOSS_CLIENT_KEY ?? "";
 
@@ -553,11 +581,18 @@ function CheckoutPage() {
   const expectedPointAmount = Math.floor(total * 0.01);
   const pointEarnNote = isCheckoutResolving ? "" : `결제 후 최대 ${expectedPointAmount.toLocaleString("ko-KR")}원 적립`;
   const isCardPaymentReady = paymentMethod !== "신용카드" || Boolean(selectedCardCompany);
+  const isBankTransferReady = paymentMethod !== "무통장입금" || Boolean(selectedBank);
+  const cashReceiptDisplayType = cashReceiptMode === "personal" ? "개인소득공제" : "사업자 지출증빙";
+  const cashReceiptDisplayNumber = cashReceiptMode === "personal"
+    ? [cashReceiptPhonePrefix, cashReceiptPhoneMiddle, cashReceiptPhoneLast].filter(Boolean).join("-")
+    : [cashReceiptBusinessPart1, cashReceiptBusinessPart2, cashReceiptBusinessPart3].filter(Boolean).join("-");
   const selectedPaymentLabel = paymentMethod === "신용카드"
     ? `신용카드${selectedCardCompany ? ` (${selectedCardCompany}, ${selectedInstallment})` : ""}`
     : paymentMethod === "간편결제"
       ? "토스페이먼츠"
-      : paymentMethod;
+      : paymentMethod === "무통장입금" && selectedBank
+        ? `무통장입금 (${selectedBank})`
+        : paymentMethod;
   const isCheckoutBlocked = Boolean(isCartCheckout && checkoutPreview && !checkoutPreview.can_checkout);
   const hasBlockingWarning = Boolean(
     isCartCheckout && checkoutPreview?.warnings.some((warning) => warning.severity === "BLOCKING"),
@@ -567,6 +602,7 @@ function CheckoutPage() {
     || items.length === 0
     || !hasAgreedPayment
     || !isCardPaymentReady
+    || !isBankTransferReady
     || Boolean(previewErrorMessage)
     || isCheckoutBlocked
     || hasBlockingWarning;
@@ -707,9 +743,21 @@ function CheckoutPage() {
           name: representative.name,
           image: representative.image,
         },
+        products: items.map((item) => ({
+          id: item.productId,
+          brand: item.brand,
+          name: item.name,
+          image: item.image,
+          price: item.price,
+          quantity: item.quantity,
+          option: item.chips[0] ?? "",
+        })),
         total: order.total,
         count: items.length,
         paymentMethod: selectedPaymentLabel,
+        shippingAddress: selectedAddress
+          ? [selectedAddress.address1, selectedAddress.address2].filter(Boolean).join(" ")
+          : directShippingAddress?.address1 ?? "",
         createdAt: Date.now(),
       }));
 
@@ -736,23 +784,38 @@ function CheckoutPage() {
           customerKey: getTossCustomerKey(user.id),
         });
 
-        await payment.requestPayment({
-          method: "CARD",
-          amount: {
-            currency: "KRW",
-            value: order.total,
-          },
-          orderId: order.order_code,
-          orderName: items.length > 1 ? `${representative.name} 외 ${items.length - 1}개` : representative.name,
-          successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
-          failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
-          customerEmail: user.email,
-          customerName: user.nickname ?? user.email,
-          card: {
-            flowMode: "DIRECT",
-            easyPay: "TOSSPAY",
-          },
-        });
+        try {
+          await payment.requestPayment({
+            method: "CARD",
+            amount: {
+              currency: "KRW",
+              value: order.total,
+            },
+            orderId: order.order_code,
+            orderName: items.length > 1 ? `${representative.name} 외 ${items.length - 1}개` : representative.name,
+            successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
+            failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
+            customerEmail: user.email,
+            customerName: user.nickname ?? user.email,
+            card: {
+              flowMode: "DIRECT",
+              easyPay: "TOSSPAY",
+            },
+          });
+        } catch (paymentError) {
+          sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+          try {
+            await cancelOrder(order.order_code);
+            window.dispatchEvent(new Event("cart:updated"));
+          } catch {
+            throw paymentError;
+          }
+          const canceledPaymentError = new Error("결제가 완료되지 않아 주문을 취소하고 장바구니로 되돌렸습니다.") as Error & {
+            cause?: unknown;
+          };
+          canceledPaymentError.cause = paymentError;
+          throw canceledPaymentError;
+        }
         return;
       }
 
@@ -801,6 +864,23 @@ function CheckoutPage() {
     setSelectedAddressId(addressId);
     setIsAddressManagerOpen(false);
     closeAddressForm();
+  };
+
+  const handleSetDefaultAddress = async (address: UserAddress) => {
+    setDefaultingAddressId(address.id);
+    setAddressErrorMessage("");
+    setAddressFormErrorMessage("");
+
+    try {
+      const savedAddress = await updateAddress(address.id, { is_default: true });
+      const response = await getAddresses();
+      setAddresses(response.items);
+      setSelectedAddressId(savedAddress.id);
+    } catch (error) {
+      setAddressErrorMessage(error instanceof Error ? error.message : "기본 배송지 설정에 실패했습니다.");
+    } finally {
+      setDefaultingAddressId(null);
+    }
   };
 
   const updateAddressFormField = <Field extends keyof AddressFormState>(
@@ -933,10 +1013,12 @@ function CheckoutPage() {
             <div className="checkout-main">
               <section className="checkout-card">
                 <div className="checkout-card-head">
-                  <h2>주문 상품</h2>
-                  <span id="cartCountLabel">
-                    {isResolvingProduct || isPreviewLoading ? "상품 확인 중" : `상품 ${itemCount}개`}
-                  </span>
+                  <h2>
+                    주문 상품
+                    <span className="checkout-card-title-count" id="cartCountLabel">
+                      {isResolvingProduct || isPreviewLoading ? "상품 확인 중" : `상품 ${itemCount}개`}
+                    </span>
+                  </h2>
                 </div>
                 <div id="cartItems">
                   {isCheckoutResolving ? (
@@ -1123,7 +1205,6 @@ function CheckoutPage() {
               <section className="checkout-card">
                 <div className="checkout-card-head">
                   <h2>결제 수단</h2>
-                  <span>선택 1개</span>
                 </div>
                 <div className="payment-options">
                   {["간편결제", "신용카드", "무통장입금"].map((method) => (
@@ -1137,7 +1218,7 @@ function CheckoutPage() {
                     </button>
                   ))}
                 </div>
-                {paymentMethod === "간편결제" && (!tossClientKey || isTossSdkLoading || tossSdkErrorMessage) ? (
+                {paymentMethod === "간편결제" ? (
                   <div className="checkout-payment-detail">
                     <div className="checkout-payment-info">
                       {!tossClientKey ? (
@@ -1148,6 +1229,9 @@ function CheckoutPage() {
                       ) : null}
                       {tossClientKey && !isTossSdkLoading && tossSdkErrorMessage ? (
                         <p role="alert">{tossSdkErrorMessage}</p>
+                      ) : null}
+                      {tossClientKey && !isTossSdkLoading && !tossSdkErrorMessage ? (
+                        <p>결제하기를 누르면 토스페이먼츠 통합 결제창에서 간편결제를 선택할 수 있습니다.</p>
                       ) : null}
                     </div>
                   </div>
@@ -1176,6 +1260,183 @@ function CheckoutPage() {
                       ))}
                     </select>
                   </div>
+                ) : null}
+                {paymentMethod === "무통장입금" ? (
+                  <>
+                    <div className="checkout-card-payment-fields checkout-bank-payment-fields">
+                      <label htmlFor="bankName">은행 선택</label>
+                      <select
+                        id="bankName"
+                        value={selectedBank}
+                        onChange={(event) => setSelectedBank(event.target.value)}
+                      >
+                        <option value="">은행을 선택해주세요.</option>
+                        {BANK_OPTIONS.map((bank) => (
+                          <option value={bank} key={bank}>{bank}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <section className={`checkout-cash-receipt${isCashReceiptEditing ? " editing" : ""}`}>
+                      {!isCashReceiptEditing ? (
+                        <div className="checkout-cash-receipt-summary">
+                          <label className="checkout-cash-receipt-check">
+                            <input
+                              type="checkbox"
+                              checked={cashReceiptEnabled}
+                              onChange={(event) => setCashReceiptEnabled(event.target.checked)}
+                            />
+                            <span>현금영수증 신청</span>
+                            <button
+                              className="checkout-cash-receipt-help"
+                              type="button"
+                              aria-label="현금영수증 안내 보기"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                setIsCashReceiptGuideOpen(true);
+                              }}
+                            >
+                              i
+                            </button>
+                          </label>
+                          {cashReceiptEnabled ? (
+                            <>
+                              <strong>{cashReceiptDisplayType}</strong>
+                              <span>{cashReceiptDisplayNumber || "번호 미입력"}</span>
+                            </>
+                          ) : (
+                            <span className="checkout-cash-receipt-muted">신청 안 함</span>
+                          )}
+                          <button type="button" onClick={() => setIsCashReceiptEditing(true)}>
+                            수정
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="checkout-cash-receipt-editor">
+                          <div className="checkout-cash-receipt-head">
+                            <label className="checkout-cash-receipt-check">
+                              <input
+                                type="checkbox"
+                                checked={cashReceiptEnabled}
+                                onChange={(event) => setCashReceiptEnabled(event.target.checked)}
+                              />
+                              <span>현금영수증 신청</span>
+                              <button
+                                className="checkout-cash-receipt-help"
+                                type="button"
+                                aria-label="현금영수증 안내 보기"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  setIsCashReceiptGuideOpen(true);
+                                }}
+                              >
+                                i
+                              </button>
+                            </label>
+                            <div className="checkout-cash-receipt-actions">
+                              <button type="button" onClick={() => setIsCashReceiptEditing(false)}>
+                                취소
+                              </button>
+                              <button type="button" onClick={() => setIsCashReceiptEditing(false)}>
+                                확인
+                              </button>
+                            </div>
+                          </div>
+
+                          {cashReceiptEnabled ? (
+                            <>
+                              <div className="checkout-cash-receipt-radios">
+                                <label>
+                                  <input
+                                    type="radio"
+                                    checked={cashReceiptMode === "personal"}
+                                    onChange={() => {
+                                      setCashReceiptMode("personal");
+                                      setCashReceiptIssueMethod(CASH_RECEIPT_PERSONAL_METHODS[0]);
+                                    }}
+                                  />
+                                  개인소득공제
+                                </label>
+                                <label>
+                                  <input
+                                    type="radio"
+                                    checked={cashReceiptMode === "business"}
+                                    onChange={() => {
+                                      setCashReceiptMode("business");
+                                      setCashReceiptIssueMethod(CASH_RECEIPT_BUSINESS_METHODS[0]);
+                                    }}
+                                  />
+                                  사업자 지출증빙
+                                </label>
+                              </div>
+
+                              <select
+                                className="checkout-cash-receipt-select"
+                                value={cashReceiptIssueMethod}
+                                onChange={(event) => setCashReceiptIssueMethod(event.target.value)}
+                              >
+                                {(cashReceiptMode === "personal"
+                                  ? CASH_RECEIPT_PERSONAL_METHODS
+                                  : CASH_RECEIPT_BUSINESS_METHODS).map((method) => (
+                                    <option value={method} key={method}>{method}</option>
+                                  ))}
+                              </select>
+
+                              {cashReceiptMode === "personal" ? (
+                                <div className="checkout-cash-receipt-inputs">
+                                  <select
+                                    value={cashReceiptPhonePrefix}
+                                    onChange={(event) => setCashReceiptPhonePrefix(event.target.value)}
+                                    aria-label="현금영수증 휴대폰 앞자리"
+                                  >
+                                    <option value="010">010</option>
+                                    <option value="011">011</option>
+                                    <option value="016">016</option>
+                                    <option value="017">017</option>
+                                    <option value="018">018</option>
+                                    <option value="019">019</option>
+                                  </select>
+                                  <input
+                                    value={cashReceiptPhoneMiddle}
+                                    onChange={(event) => setCashReceiptPhoneMiddle(event.target.value)}
+                                    inputMode="numeric"
+                                    aria-label="현금영수증 휴대폰 중간자리"
+                                  />
+                                  <input
+                                    value={cashReceiptPhoneLast}
+                                    onChange={(event) => setCashReceiptPhoneLast(event.target.value)}
+                                    inputMode="numeric"
+                                    aria-label="현금영수증 휴대폰 끝자리"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="checkout-cash-receipt-inputs">
+                                  <input
+                                    value={cashReceiptBusinessPart1}
+                                    onChange={(event) => setCashReceiptBusinessPart1(event.target.value)}
+                                    inputMode="numeric"
+                                    aria-label="사업자등록번호 첫 번째 입력"
+                                  />
+                                  <input
+                                    value={cashReceiptBusinessPart2}
+                                    onChange={(event) => setCashReceiptBusinessPart2(event.target.value)}
+                                    inputMode="numeric"
+                                    aria-label="사업자등록번호 두 번째 입력"
+                                  />
+                                  <input
+                                    value={cashReceiptBusinessPart3}
+                                    onChange={(event) => setCashReceiptBusinessPart3(event.target.value)}
+                                    inputMode="numeric"
+                                    aria-label="사업자등록번호 세 번째 입력"
+                                  />
+                                </div>
+                              )}
+                            </>
+                          ) : null}
+                        </div>
+                      )}
+                    </section>
+                  </>
                 ) : null}
               </section>
             </div>
@@ -1208,7 +1469,7 @@ function CheckoutPage() {
                 type="button"
                 onClick={() => setHasAgreedPayment((current) => !current)}
               >
-                <span aria-hidden="true">{hasAgreedPayment ? "✓" : ""}</span>
+                <span aria-hidden="true" />
                 <em>주문 내용을 확인했으며 결제에 동의합니다. (필수)</em>
               </button>
               <button className="checkout-btn-main" type="button" onClick={handlePayment} disabled={paymentButtonDisabled}>
@@ -1270,9 +1531,20 @@ function CheckoutPage() {
                         <button type="button" onClick={() => openEditAddressForm(address)}>
                           수정
                         </button>
+                        {!address.is_default ? (
+                          <button
+                            type="button"
+                            disabled={defaultingAddressId === address.id}
+                            onClick={() => {
+                              void handleSetDefaultAddress(address);
+                            }}
+                          >
+                            {defaultingAddressId === address.id ? "설정 중" : "기본 설정"}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          disabled={deletingAddressId === address.id}
+                          disabled={deletingAddressId === address.id || defaultingAddressId === address.id}
                           onClick={() => {
                             void handleDeleteAddress(address.id);
                           }}
@@ -1388,6 +1660,45 @@ function CheckoutPage() {
                   </div>
                 </form>
               ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isCashReceiptGuideOpen ? (
+        <div
+          className="checkout-modal-backdrop"
+          role="presentation"
+          onClick={() => setIsCashReceiptGuideOpen(false)}
+        >
+          <section
+            className="checkout-cash-receipt-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cashReceiptGuideTitle"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="checkout-cash-receipt-modal-head">
+              <h2 id="cashReceiptGuideTitle">현금영수증 안내</h2>
+              <button
+                type="button"
+                aria-label="현금영수증 안내 닫기"
+                onClick={() => setIsCashReceiptGuideOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="checkout-cash-receipt-modal-body">
+              <ul>
+                <li>무통장입금으로 결제한 주문은 입금 확인 후 현금영수증 발급 대상이 됩니다.</li>
+                <li>현금영수증 신청 정보는 결제 전 주문서에서 수정할 수 있습니다.</li>
+                <li>개인소득공제는 휴대폰 번호 또는 현금영수증 카드 번호 기준으로 신청할 수 있습니다.</li>
+                <li>사업자 지출증빙은 사업자등록번호 기준으로 신청할 수 있습니다.</li>
+                <li>쿠폰, 적립금, 할인 금액은 현금영수증 발급 금액에서 제외될 수 있습니다.</li>
+                <li>주문 취소나 환불이 발생하면 발급된 현금영수증도 취소 또는 정정될 수 있습니다.</li>
+                <li>발급 내역은 국세청 현금영수증 서비스에서 확인할 수 있습니다.</li>
+                <li>일부 결제수단 또는 주문 상태에 따라 현금영수증 발급이 제한될 수 있습니다.</li>
+              </ul>
             </div>
           </section>
         </div>

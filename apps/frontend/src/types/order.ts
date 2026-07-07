@@ -52,3 +52,8 @@ export type TossPaymentConfirmResponse = {
   payment_status: string;
   approved_at?: string | null;
 };
+
+export type OrderCancelResponse = {
+  order_code: string;
+  status: string;
+};
