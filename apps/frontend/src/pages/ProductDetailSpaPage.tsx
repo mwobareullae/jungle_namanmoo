@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
+import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { addCartItem } from "../lib/cartApi";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
@@ -285,8 +286,12 @@ function ProductDetailSpaPage() {
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState(() => productId ? "" : "상품 정보를 찾을 수 없습니다.");
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isWished, setIsWished] = useState(false);
+  const [isWishlistPending, setIsWishlistPending] = useState(false);
   const [cartMessage, setCartMessage] = useState("");
   const [cartErrorMessage, setCartErrorMessage] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [selectedEffect, setSelectedEffect] = useState<{
     icon: string;
@@ -299,6 +304,12 @@ function ProductDetailSpaPage() {
   const [comparisonErrorMessage, setComparisonErrorMessage] = useState("");
 
   useEffect(() => installHomeRuntime(), []);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -379,6 +390,39 @@ function ProductDetailSpaPage() {
       isMounted = false;
     };
   }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!user || !productId || !product) {
+      return;
+    }
+
+    addMyRecentProduct(productId).catch(() => {
+      // Recent-view logging should never block the product detail page.
+    });
+  }, [product, productId, user]);
+
+  useEffect(() => {
+    if (!user || !productId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    getMyWishlist()
+      .then((items) => {
+        if (!isMounted) return;
+        setIsWished(items.some((item) => item.productId === productId));
+      })
+      .catch(() => {
+        if (isMounted) setIsWished(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [productId, user]);
+
+  const displayedIsWished = Boolean(user && isWished);
 
   useEffect(() => {
     if (!comparisonRequest) {
@@ -513,6 +557,17 @@ function ProductDetailSpaPage() {
     window.dispatchEvent(new Event("cart:updated"));
   };
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage("");
+      toastTimerRef.current = null;
+    }, 2500);
+  };
+
   const handleAddToCart = async () => {
     setIsAddingToCart(true);
     setCartMessage("");
@@ -545,6 +600,36 @@ function ProductDetailSpaPage() {
       setCartErrorMessage(error instanceof Error ? error.message : "구매하기 처리에 실패했습니다.");
     } finally {
       setIsAddingToCart(false);
+    }
+  };
+
+  const handleToggleWishlist = async () => {
+    if (!productId || isWishlistPending) {
+      return;
+    }
+
+    if (!user) {
+      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      return;
+    }
+
+    const nextIsWished = !displayedIsWished;
+    setIsWished(nextIsWished);
+    setIsWishlistPending(true);
+
+    try {
+      if (nextIsWished) {
+        await addMyWishlistItem(productId);
+        showToast("찜한 상품에 추가했습니다.");
+      } else {
+        await deleteMyWishlistItem(productId);
+        showToast("찜한 상품에서 해제했습니다.");
+      }
+    } catch {
+      setIsWished(!nextIsWished);
+      showToast("찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsWishlistPending(false);
     }
   };
 
@@ -648,8 +733,16 @@ function ProductDetailSpaPage() {
                         <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
                       </svg>
                     </button>
-                    <button data-commerce-only className="detail-icon-btn" type="button" aria-label="찜">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <button
+                      aria-label={displayedIsWished ? "찜 해제" : "찜"}
+                      aria-pressed={displayedIsWished}
+                      className={`detail-icon-btn${displayedIsWished ? " is-wished" : ""}`}
+                      data-commerce-only
+                      disabled={isWishlistPending}
+                      onClick={handleToggleWishlist}
+                      type="button"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill={displayedIsWished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
                       </svg>
                     </button>
@@ -958,6 +1051,13 @@ function ProductDetailSpaPage() {
           </>
         ) : null}
       </main>
+
+      {toastMessage ? (
+        <div className="activity-toast" role="status" aria-live="polite">
+          <span className="activity-toast__dot" />
+          {toastMessage}
+        </div>
+      ) : null}
 
       {selectedEffect ? (
         <>
