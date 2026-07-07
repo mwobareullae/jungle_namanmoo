@@ -127,13 +127,37 @@ const todayLabel = `${todayIso} ${["일", "월", "화", "수", "목", "금", "�
 const stats = [
   { label: "전체 상품", value: "24,585" },
   { label: "추천 가능", value: "10,167" },
-  { label: "판매중", value: "9,812" },
-  { label: "검수 필요", value: "1,204" },
-  { label: "품절 임박", value: "87" },
-  { label: "이미지 누락", value: "342" },
   { label: "전성분 원문", value: "24,585" },
   { label: "인덱스 대기", value: "0" }
 ];
+
+// 화면 검토용 예시값(mock). 실제 API 연동 시 이 상수만 교체하면 된다.
+const MOCK_STATUS_BREAKDOWN = [
+  { label: "판매중", value: 9812, color: "#3aa6d1" },
+  { label: "검수 필요", value: 1204, color: "#f0b429" },
+  { label: "이미지 누락", value: 342, color: "#e57373" },
+  { label: "품절 임박", value: 87, color: "#9575cd" },
+  { label: "정상", value: 13140, color: "#e2e8ee" }
+];
+const MOCK_STATUS_TOTAL = MOCK_STATUS_BREAKDOWN.reduce((sum, seg) => sum + seg.value, 0);
+const DONUT_CIRC = 2 * Math.PI * 52;
+const MOCK_STATUS_SEGMENTS = (() => {
+  let acc = 0;
+  return MOCK_STATUS_BREAKDOWN.map((seg) => {
+    const dash = (seg.value / MOCK_STATUS_TOTAL) * DONUT_CIRC;
+    const segment = { ...seg, dash, offset: -acc };
+    acc += dash;
+    return segment;
+  });
+})();
+const MOCK_PENDING_QUEUE = [
+  { label: "성분 검수", value: 27243, color: "#f0b429" },
+  { label: "상품명 중복", value: 2590, color: "#3aa6d1" },
+  { label: "import 실패", value: 12, color: "#e57373" },
+  { label: "이미지 실패", value: 4, color: "#e57373" },
+  { label: "임베딩 대기", value: 1, color: "#9575cd" }
+];
+const MOCK_PENDING_MAX = Math.max(...MOCK_PENDING_QUEUE.map((bar) => bar.value));
 
 const initialProducts: ProductRow[] = [
   {
@@ -1608,6 +1632,69 @@ function AdminDashboardPage() {
             <strong>{item.value}</strong>
           </article>
         ))}
+      </section>
+
+      <section
+        className="admin-dashboard-charts"
+        aria-label="상품 구성과 처리 대기"
+        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "16px", margin: "0 0 18px" }}
+      >
+        <article className="admin-panel">
+          <div className="admin-panel-header">
+            <div>
+              <p>상품 구성</p>
+              <h2>상품 상태 구성비</h2>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <svg viewBox="0 0 140 140" role="img" aria-label="상품 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
+              {MOCK_STATUS_SEGMENTS.map((seg) => (
+                <circle
+                  key={seg.label}
+                  cx="70"
+                  cy="70"
+                  r="52"
+                  fill="none"
+                  stroke={seg.color}
+                  strokeWidth="16"
+                  strokeDasharray={`${seg.dash} ${DONUT_CIRC - seg.dash}`}
+                  strokeDashoffset={seg.offset}
+                  transform="rotate(-90 70 70)"
+                />
+              ))}
+              <text x="70" y="68" textAnchor="middle" style={{ fontSize: "20px", fontWeight: 700, fill: "#222" }}>24.6k</text>
+              <text x="70" y="86" textAnchor="middle" style={{ fontSize: "10px", fill: "#8a9099" }}>전체 상품</text>
+            </svg>
+            <ul style={{ flex: 1, listStyle: "none", margin: 0, padding: 0 }}>
+              {MOCK_STATUS_BREAKDOWN.map((seg) => (
+                <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "11.5px", color: "#55585d", margin: "3px 0" }}>
+                  <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: seg.color, flex: "0 0 auto" }} />
+                  <span style={{ flex: 1 }}>{seg.label}</span>
+                  <b style={{ color: "#222" }}>{seg.value.toLocaleString("ko-KR")}</b>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </article>
+        <article className="admin-panel">
+          <div className="admin-panel-header">
+            <div>
+              <p>처리 대기</p>
+              <h2>업무별 대기 건수</h2>
+            </div>
+          </div>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {MOCK_PENDING_QUEUE.map((bar) => (
+              <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
+                <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
+                <span style={{ flex: 1, background: "#eef1f4", borderRadius: "5px", height: "17px", overflow: "hidden" }}>
+                  <span style={{ display: "block", width: `${Math.max(1.5, (bar.value / MOCK_PENDING_MAX) * 100)}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
+                </span>
+                <b style={{ width: "56px", fontSize: "11.5px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
+              </li>
+            ))}
+          </ul>
+        </article>
       </section>
 
       <section className="admin-grid">
