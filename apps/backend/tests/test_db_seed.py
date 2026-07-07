@@ -8,6 +8,7 @@ from shutil import copytree
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+import app.services.db_seed as db_seed
 from app.db.base import Base
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductIngredient, ProductSkinProfile
 from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
@@ -88,7 +89,24 @@ def test_seed_database_emits_seed_performance_log() -> None:
         logs.close()
 
     payload = next(log for log in logs.payloads() if log["event"] == "seed_database_completed")
+    loaded_payload = next(log for log in logs.payloads() if log["event"] == "seed_catalog_loaded")
+    phase_payloads = [log for log in logs.payloads() if log["event"] == "seed_phase_completed"]
     assert result.products == 2
+    assert loaded_payload["data_dir"] == str(EXAMPLES_DIR)
+    assert loaded_payload["row_counts"]["products.csv"] == 2
+    assert loaded_payload["loaded_row_count"] > 0
+    assert [payload["phase"] for payload in phase_payloads] == [
+        "taxonomy",
+        "ingredients",
+        "product_catalog",
+        "commerce_seed",
+        "product_ingredients",
+        "product_skin_profiles",
+        "search_documents",
+    ]
+    assert phase_payloads[0]["phase_order"] == 1
+    assert phase_payloads[-1]["phase_order"] == 7
+    assert all(phase["phase_count"] == 7 for phase in phase_payloads)
     assert payload["data_dir"] == str(EXAMPLES_DIR)
     assert payload["row_counts"]["products.csv"] == 2
     assert payload["row_counts"]["product_ingredients.csv"] == 5
@@ -101,6 +119,28 @@ def test_seed_database_emits_seed_performance_log() -> None:
     assert payload["failed_row_sample_count"] == 0
     assert payload["counting_mode"] == "loaded_rows_and_final_seed_counts"
     assert "duration_ms" in payload
+
+
+def test_seed_product_ingredients_emits_progress_log(monkeypatch) -> None:
+    monkeypatch.setattr(db_seed, "SEED_PROGRESS_INTERVAL_ROWS", 2)
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    logs = _capture_performance_logs()
+
+    try:
+        seed_catalog(session, catalog, data_dir="example-data")
+    finally:
+        logs.close()
+
+    progress_payloads = [
+        log for log in logs.payloads() if log["event"] == "seed_product_ingredients_progress"
+    ]
+    assert [payload["processed_row_count"] for payload in progress_payloads] == [2, 4]
+    assert all(payload["phase"] == "product_ingredients" for payload in progress_payloads)
+    assert all(payload["total_row_count"] == 5 for payload in progress_payloads)
+    assert progress_payloads[0]["data_dir"] == "example-data"
+    assert progress_payloads[0]["deduplicated_pair_count"] == 2
+    assert progress_payloads[0]["progress_percent"] == 40.0
 
 
 def test_seed_database_emits_failure_performance_log(tmp_path: Path) -> None:
