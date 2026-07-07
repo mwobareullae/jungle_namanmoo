@@ -6,7 +6,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_logging import extract_agents_usage, log_ai_call
 from app.core.config import settings
+from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.auth import User
 from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentUiAction
 from app.schemas.common import ApiError, dump_model
@@ -118,22 +120,70 @@ async def run_openai_agent_chat(
         ],
     )
 
-    result = await Runner.run(
-        agent,
-        input=_build_agent_input(request),
-        context=context,
-        max_turns=4,
-    )
+    started_at = current_time()
+    try:
+        result = await Runner.run(
+            agent,
+            input=_build_agent_input(request),
+            context=context,
+            max_turns=4,
+        )
+    except Exception as exc:
+        log_ai_call(
+            "agent_chat",
+            model=settings.openai_agent_model,
+            duration_ms=elapsed_ms(started_at),
+            request_id=request_id,
+            success=False,
+            error=type(exc).__name__,
+            metadata={
+                "conversation_id": _resolve_conversation_id(request.conversation_id),
+                "max_turns": 4,
+                "tool_called": False,
+            },
+        )
+        raise
 
     if context.last_tool_response is not None:
-        return _with_agent_message(context.last_tool_response, result.final_output)
+        response = _with_agent_message(context.last_tool_response, result.final_output)
+        log_ai_call(
+            "agent_chat",
+            model=settings.openai_agent_model,
+            duration_ms=elapsed_ms(started_at),
+            request_id=request_id,
+            usage=extract_agents_usage(result),
+            metadata={
+                "conversation_id": response.conversation_id,
+                "max_turns": 4,
+                "tool_called": True,
+                "tool_name": response.tool_name,
+                "item_count": len(response.items),
+                "ui_action_type": response.ui_action.type,
+            },
+        )
+        return response
 
-    return AgentChatResponse(
+    response = AgentChatResponse(
         conversation_id=_resolve_conversation_id(request.conversation_id),
         message=_normalize_agent_text(result.final_output) or "I could not find an action to run.",
         ui_action=AgentUiAction(),
         items=[],
     )
+    log_ai_call(
+        "agent_chat",
+        model=settings.openai_agent_model,
+        duration_ms=elapsed_ms(started_at),
+        request_id=request_id,
+        usage=extract_agents_usage(result),
+        metadata={
+            "conversation_id": response.conversation_id,
+            "max_turns": 4,
+            "tool_called": False,
+            "item_count": 0,
+            "ui_action_type": response.ui_action.type,
+        },
+    )
+    return response
 
 
 def _build_agent_input(request: AgentChatRequest) -> str:
