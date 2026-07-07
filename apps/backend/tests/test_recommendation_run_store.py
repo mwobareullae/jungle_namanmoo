@@ -149,18 +149,29 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     diagnostics = run.request_context["candidate_pool_diagnostics"]
     search_diagnostics = run.request_context["search_no_result_diagnostics"]
 
-    assert diagnostics["candidate_generation_version"] == "legacy_id_order_v0"
-    assert diagnostics["strategy"] == "legacy_id_order"
+    assert diagnostics["candidate_generation_version"] == "candidate_pool_pgvector_v1"
+    assert diagnostics["strategy"] == "candidate_pool"
     assert diagnostics["requested_candidate_pool_limit"] == 20
     assert diagnostics["result_limit"] == 10
     assert diagnostics["loaded_candidate_count"] == 2
     assert diagnostics["avoid_filtered_count"] == 0
     assert diagnostics["after_avoid_filter_count"] == 2
+    assert diagnostics["merged_count"] == 2
+    assert diagnostics["deduped_count"] == 2
     assert diagnostics["join_document_count"] == 2
     assert diagnostics["search_match_count"] == 2
     assert diagnostics["scored_candidate_count"] == 2
     assert diagnostics["final_result_count"] == 2
     assert diagnostics["source_counts"] == {"legacy_id_order": 2}
+    assert diagnostics["source_diagnostics"] == [
+        {
+            "source": "legacy_id_order",
+            "requested_limit": 20,
+            "returned_count": 2,
+            "after_dedupe_count": 2,
+            "skipped_count": 0,
+        }
+    ]
     assert diagnostics["fallback_used"] is False
     assert diagnostics["hard_filter_total_count"] is None
     assert search_diagnostics["version"] == "search_no_result_v0"
