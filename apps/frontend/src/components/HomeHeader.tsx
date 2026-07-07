@@ -52,7 +52,7 @@ function HomeHeader() {
   };
 
   return (
-    <header>
+    <header className="home-header">
       <div className="header-inner">
         <div className="header-brand">
           <button
