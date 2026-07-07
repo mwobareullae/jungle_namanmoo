@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 
 type AdminView =
   | "dashboard"
@@ -520,6 +520,155 @@ const excelFailureRows = [
     reason: "필수값 누락"
   }
 ];
+
+type ExcelGrid = string[][];
+type DeflateStream = { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> };
+
+const decodeXmlEntities = (text: string): string =>
+  text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/g, "&");
+
+const parseCsvText = (text: string): ExcelGrid => {
+  const rows: ExcelGrid = [];
+  let cell = "";
+  let row: string[] = [];
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(cell);
+      cell = "";
+      if (row.some((value) => value !== "")) rows.push(row);
+      row = [];
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  if (row.some((value) => value !== "")) rows.push(row);
+  return rows;
+};
+
+const inflateRawBytes = async (bytes: Uint8Array): Promise<Uint8Array | null> => {
+  const Ctor = (globalThis as { DecompressionStream?: new (format: string) => DeflateStream }).DecompressionStream;
+  if (!Ctor) return null;
+  const safeBytes = new Uint8Array(bytes);
+  const stream = new Blob([safeBytes.buffer as ArrayBuffer]).stream().pipeThrough(new Ctor("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+};
+
+const readZipEntries = async (buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> => {
+  const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+  const entries = new Map<string, Uint8Array>();
+  let eocd = -1;
+  for (let i = buffer.byteLength - 22; i >= Math.max(0, buffer.byteLength - 65558); i -= 1) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return entries;
+  const count = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  for (let n = 0; n < count; n += 1) {
+    if (view.getUint32(offset, true) !== 0x02014b50) break;
+    const method = view.getUint16(offset + 10, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const nameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const localOffset = view.getUint32(offset + 42, true);
+    const name = new TextDecoder().decode(bytes.slice(offset + 46, offset + 46 + nameLength));
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const data = bytes.slice(dataStart, dataStart + compressedSize);
+    if (method === 0) {
+      entries.set(name, data);
+    } else {
+      const inflated = await inflateRawBytes(data);
+      if (inflated) entries.set(name, inflated);
+    }
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+};
+
+const columnLetterToIndex = (letters: string): number =>
+  letters.split("").reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+
+const parseSheetXml = (sheetXml: string, sharedStrings: string[]): ExcelGrid => {
+  const rows: ExcelGrid = [];
+  const rowChunks = sheetXml.match(/<row[^>]*>[\s\S]*?<\/row>/g) ?? [];
+  for (const chunk of rowChunks) {
+    const cells: string[] = [];
+    const cellPattern = /<c r="([A-Z]+)\d+"([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    let match: RegExpExecArray | null = cellPattern.exec(chunk);
+    while (match) {
+      const inner = match[3] ?? "";
+      const rawValue =
+        (inner.match(/<v>([\s\S]*?)<\/v>/) ?? [])[1] ??
+        (inner.match(/<t[^>]*>([\s\S]*?)<\/t>/) ?? [])[1] ??
+        "";
+      const isShared = /t="s"/.test(match[2] ?? "");
+      cells[columnLetterToIndex(match[1])] = decodeXmlEntities(
+        isShared ? sharedStrings[Number(rawValue)] ?? "" : rawValue,
+      );
+      match = cellPattern.exec(chunk);
+    }
+    rows.push(Array.from(cells, (value) => value ?? ""));
+  }
+  return rows;
+};
+
+const parseExcelUpload = async (file: File): Promise<ExcelGrid | null> => {
+  try {
+    if (/\.csv$/i.test(file.name)) {
+      return parseCsvText(await file.text());
+    }
+    const entries = await readZipEntries(await file.arrayBuffer());
+    const sheetName =
+      [...entries.keys()].find((key) => key === "xl/worksheets/sheet1.xml") ??
+      [...entries.keys()].find((key) => key.startsWith("xl/worksheets/"));
+    const sheetBytes = sheetName ? entries.get(sheetName) : undefined;
+    if (!sheetBytes) return null;
+    const decoder = new TextDecoder();
+    const sharedXml = entries.has("xl/sharedStrings.xml")
+      ? decoder.decode(entries.get("xl/sharedStrings.xml"))
+      : "";
+    const sharedStrings = (sharedXml.match(/<si>[\s\S]*?<\/si>/g) ?? []).map((si) =>
+      decodeXmlEntities(
+        (si.match(/<t[^>]*>[\s\S]*?<\/t>/g) ?? []).map((tag) => tag.replace(/<[^>]*>/g, "")).join(""),
+      ),
+    );
+    return parseSheetXml(decoder.decode(sheetBytes), sharedStrings);
+  } catch {
+    return null;
+  }
+};
 
 const excelRebuildQueue = [
   {
@@ -1088,6 +1237,9 @@ function AdminDashboardPage() {
   const [draftProduct, setDraftProduct] = useState<ProductRow>(initialProducts[0] ?? emptyProduct);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("products_0706.xlsx");
+  const excelFileRef = useRef<File | null>(null);
+  const [excelSummaryRows, setExcelSummaryRows] = useState(excelValidationSummary);
+  const [excelFailureList, setExcelFailureList] = useState(excelFailureRows);
   const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
   const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
   const [ingredientRows, setIngredientRows] = useState<IngredientReviewRow[]>(ingredientReviewRows);
@@ -1400,7 +1552,78 @@ function AdminDashboardPage() {
     pushOperationLog("재고", "변경 이력 CSV 다운로드", "가격·재고 변경 이력 파일 생성", "neutral");
   };
 
-  const handleExcelValidate = () => {
+  const handleExcelValidate = async () => {
+    const file = excelFileRef.current;
+    if (file) {
+      const grid = await parseExcelUpload(file);
+      if (!grid || grid.length < 2) {
+        pushOperationLog("엑셀", "엑셀 파싱 실패", `${file.name} · xlsx/csv 형식 확인 필요`, "danger");
+        return;
+      }
+      const header = grid[0].map((cell) => (cell || "").trim());
+      const columnIndex = (name: string) => header.indexOf(name);
+      const skuCol = columnIndex("seller_sku");
+      const nameCol = columnIndex("product_name");
+      const priceCol = columnIndex("price");
+      const ingredientCol = columnIndex("ingredients_raw");
+      const failures: { row: number; sellerSku: string; field: string; value: string; reason: string }[] = [];
+      const pendingNames = new Set<string>();
+      const existingNames = new Set(products.map((product) => product.name));
+      let okCount = 0;
+      grid.slice(1).forEach((cells, index) => {
+        const rowNo = index + 2;
+        const sku = (cells[skuCol] || "").trim();
+        const fail = (field: string, value: string, reason: string) =>
+          failures.push({ row: rowNo, sellerSku: sku || "(누락)", field, value, reason });
+        let bad = false;
+        if (!sku) {
+          fail("seller_sku", "", "필수값 누락");
+          bad = true;
+        }
+        const productName = (cells[nameCol] || "").trim();
+        if (!productName) {
+          fail("product_name", "", "필수값 누락");
+          bad = true;
+        }
+        const priceRaw = (cells[priceCol] ?? "").toString().trim();
+        if (!priceRaw || Number.isNaN(Number(priceRaw))) {
+          fail("price", priceRaw, priceRaw ? "숫자만 허용" : "필수값 누락");
+          bad = true;
+        }
+        const ingredientsRaw = (cells[ingredientCol] || "").trim();
+        if (!ingredientsRaw) {
+          fail("ingredients_raw", "", "필수값 누락");
+          bad = true;
+        }
+        if (!bad && existingNames.has(productName)) {
+          fail("product_name", productName, "기존 카탈로그 이름 중복 후보");
+        }
+        ingredientsRaw
+          .split(",")
+          .map((token) => token.trim())
+          .filter(Boolean)
+          .forEach((token) => {
+            if (!canonicalIngredientNames.includes(token)) pendingNames.add(token);
+          });
+        if (!bad) okCount += 1;
+      });
+      setExcelSummaryRows([
+        { label: "총 행", value: String(grid.length - 1), tone: "neutral" },
+        { label: "등록 가능", value: String(okCount), tone: "success" },
+        { label: "실패", value: String(grid.length - 1 - okCount), tone: "danger" },
+        { label: "pending 성분", value: String(pendingNames.size), tone: "warning" }
+      ]);
+      setExcelFailureList(failures);
+      setExcelImportState("validated");
+      setExcelQueueState("pending");
+      pushOperationLog(
+        "엑셀",
+        "상품 엑셀 검증 완료",
+        `${file.name} · 총 ${grid.length - 1}행 · 등록 가능 ${okCount}행`,
+        failures.length > 0 ? "warning" : "success",
+      );
+      return;
+    }
     setExcelImportState("validated");
     setExcelQueueState("pending");
     pushOperationLog("엑셀", "상품 엑셀 검증 완료", `${excelFileName} · 등록 가능 118행`, "warning");
@@ -1431,7 +1654,7 @@ function AdminDashboardPage() {
     }
 
     setExcelQueueState("queued");
-    pushOperationLog("엑셀", "상품 등록 대기열 추가", "성공 118행 · rebuild job 대기", "success");
+    pushOperationLog("엑셀", "상품 등록 대기열 추가", `성공 ${excelSummaryRows[1]?.value ?? "0"}행 · rebuild job 대기`, "success");
   };
 
   const handleFailureFile = (area: "엑셀" | "이미지" | "import") => {
@@ -1448,7 +1671,7 @@ function AdminDashboardPage() {
         "mwbl_product_import_failures.csv",
         buildCsv([
           ["row", "seller_sku", "field", "value", "reason"],
-          ...excelFailureRows.map((row) => [row.row, row.sellerSku, row.field, row.value, row.reason])
+          ...excelFailureList.map((row) => [row.row, row.sellerSku, row.field, row.value, row.reason])
         ]),
       );
     }
@@ -2270,6 +2493,7 @@ function AdminDashboardPage() {
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) {
+                  excelFileRef.current = file;
                   setExcelFileName(file.name);
                   setExcelImportState("idle");
                   setExcelQueueState("idle");
@@ -2332,7 +2556,7 @@ function AdminDashboardPage() {
           </button>
         </div>
         <div className="admin-excel-summary-grid">
-          {excelValidationSummary.map((item) => (
+          {excelSummaryRows.map((item) => (
             <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
               <span>{item.label}</span>
               <strong>{excelImportState === "validated" ? item.value : "-"}</strong>
@@ -2362,7 +2586,7 @@ function AdminDashboardPage() {
             </thead>
             <tbody>
               {excelImportState === "validated" ? (
-                excelFailureRows.map((row) => (
+                excelFailureList.map((row) => (
                   <tr key={`${row.row}-${row.field}`}>
                     <td>{row.row}</td>
                     <td className="admin-file-name">{row.sellerSku}</td>
