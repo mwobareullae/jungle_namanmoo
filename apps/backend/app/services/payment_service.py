@@ -4,6 +4,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
 from app.schemas.common import ApiError
@@ -30,34 +31,54 @@ def confirm_mock_payment(
     user: User,
     payment_code: str,
 ) -> PaymentActionResponse:
-    payment, order = _load_user_payment(session, user.id, payment_code)
-    if payment.status == PAYMENT_STATUS_APPROVED and order.status == ORDER_STATUS_PAID:
-        return _to_response(order, payment)
+    started_at = current_time()
+    try:
+        payment, order = _load_user_payment(session, user.id, payment_code)
+        if payment.status == PAYMENT_STATUS_APPROVED and order.status == ORDER_STATUS_PAID:
+            response = _to_response(order, payment)
+            _log_payment_confirm_completed(
+                started_at,
+                payment=payment,
+                order=order,
+                confirmed_quantity_total=0,
+                idempotent_replay=True,
+            )
+            return response
 
-    _require_status(
-        order.status == ORDER_STATUS_PENDING_PAYMENT,
-        "ORDER_NOT_PENDING_PAYMENT",
-        "Order is not pending payment.",
-    )
-    _require_status(
-        payment.status == PAYMENT_STATUS_READY,
-        "PAYMENT_NOT_READY",
-        "Payment is not ready.",
-    )
+        _require_status(
+            order.status == ORDER_STATUS_PENDING_PAYMENT,
+            "ORDER_NOT_PENDING_PAYMENT",
+            "Order is not pending payment.",
+        )
+        _require_status(
+            payment.status == PAYMENT_STATUS_READY,
+            "PAYMENT_NOT_READY",
+            "Payment is not ready.",
+        )
 
-    now = datetime.now(UTC)
-    if order.payment_expires_at is not None and _as_utc(order.payment_expires_at) <= now:
-        raise ApiError(409, "PAYMENT_EXPIRED", "Payment window has expired.")
+        now = datetime.now(UTC)
+        if order.payment_expires_at is not None and _as_utc(order.payment_expires_at) <= now:
+            raise ApiError(409, "PAYMENT_EXPIRED", "Payment window has expired.")
 
-    return _approve_payment(
-        session,
-        payment=payment,
-        order=order,
-        event_type="MOCK_PAYMENT_APPROVED",
-        event_id=f"mock_confirm:{payment.payment_code}",
-        payload={"source": "mock_confirm"},
-        now=now,
-    )
+        response = _approve_payment(
+            session,
+            payment=payment,
+            order=order,
+            event_type="MOCK_PAYMENT_APPROVED",
+            event_id=f"mock_confirm:{payment.payment_code}",
+            payload={"source": "mock_confirm"},
+            now=now,
+            started_at=started_at,
+        )
+        return response
+    except ApiError as exc:
+        _log_payment_confirm_failed(
+            started_at,
+            provider="MOCK",
+            amount=None,
+            error_code=exc.code,
+        )
+        raise
 
 
 def confirm_toss_payment(
@@ -66,47 +87,74 @@ def confirm_toss_payment(
     request: TossPaymentConfirmRequest,
     toss_client: TossConfirmClient,
 ) -> PaymentActionResponse:
-    payment_key = request.payment_key.strip()
-    order_code = request.order_code.strip()
-    if not payment_key or not order_code:
-        raise ApiError(400, "INVALID_TOSS_CONFIRM_REQUEST", "payment_key and order_code are required.")
-
-    payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=False)
-    now = datetime.now(UTC)
-    if _is_approved_payment(payment, order):
-        _require_same_provider_payment_key(payment, payment_key)
-        return _to_response(order, payment)
-    _require_toss_confirmable(payment, order, request.amount, now)
-
+    started_at = current_time()
     try:
-        toss_response = toss_client.confirm_payment(
-            payment_key=payment_key,
-            order_code=order_code,
-            amount=request.amount,
+        payment_key = request.payment_key.strip()
+        order_code = request.order_code.strip()
+        if not payment_key or not order_code:
+            raise ApiError(400, "INVALID_TOSS_CONFIRM_REQUEST", "payment_key and order_code are required.")
+
+        payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=False)
+        now = datetime.now(UTC)
+        if _is_approved_payment(payment, order):
+            _require_same_provider_payment_key(payment, payment_key)
+            response = _to_response(order, payment)
+            _log_payment_confirm_completed(
+                started_at,
+                payment=payment,
+                order=order,
+                confirmed_quantity_total=0,
+                idempotent_replay=True,
+            )
+            return response
+        _require_toss_confirmable(payment, order, request.amount, now)
+
+        try:
+            toss_response = toss_client.confirm_payment(
+                payment_key=payment_key,
+                order_code=order_code,
+                amount=request.amount,
+            )
+        except TossPaymentsClientError as exc:
+            raise ApiError(502, "TOSS_CONFIRM_FAILED", exc.message) from exc
+        _validate_toss_confirm_response(toss_response, payment_key, order_code, request.amount)
+
+        session.expire_all()
+        payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=True)
+        now = datetime.now(UTC)
+        if _is_approved_payment(payment, order):
+            _require_same_provider_payment_key(payment, payment_key)
+            response = _to_response(order, payment)
+            _log_payment_confirm_completed(
+                started_at,
+                payment=payment,
+                order=order,
+                confirmed_quantity_total=0,
+                idempotent_replay=True,
+            )
+            return response
+        _require_toss_confirmable(payment, order, request.amount, now)
+
+        payment.provider_payment_key = payment_key
+        payment.provider_order_id = order_code
+        return _approve_payment(
+            session,
+            payment=payment,
+            order=order,
+            event_type="TOSS_PAYMENT_APPROVED",
+            event_id=f"toss_confirm:{payment_key}",
+            payload=_build_toss_event_payload(toss_response),
+            now=now,
+            started_at=started_at,
         )
-    except TossPaymentsClientError as exc:
-        raise ApiError(502, "TOSS_CONFIRM_FAILED", exc.message) from exc
-    _validate_toss_confirm_response(toss_response, payment_key, order_code, request.amount)
-
-    session.expire_all()
-    payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=True)
-    now = datetime.now(UTC)
-    if _is_approved_payment(payment, order):
-        _require_same_provider_payment_key(payment, payment_key)
-        return _to_response(order, payment)
-    _require_toss_confirmable(payment, order, request.amount, now)
-
-    payment.provider_payment_key = payment_key
-    payment.provider_order_id = order_code
-    return _approve_payment(
-        session,
-        payment=payment,
-        order=order,
-        event_type="TOSS_PAYMENT_APPROVED",
-        event_id=f"toss_confirm:{payment_key}",
-        payload=_build_toss_event_payload(toss_response),
-        now=now,
-    )
+    except ApiError as exc:
+        _log_payment_confirm_failed(
+            started_at,
+            provider=PAYMENT_PROVIDER_TOSS,
+            amount=request.amount,
+            error_code=exc.code,
+        )
+        raise
 
 
 def fail_mock_payment(
@@ -114,45 +162,67 @@ def fail_mock_payment(
     user: User,
     payment_code: str,
 ) -> PaymentActionResponse:
-    payment, order = _load_user_payment(session, user.id, payment_code)
-    if payment.status == PAYMENT_STATUS_FAILED and order.status == ORDER_STATUS_PAYMENT_FAILED:
-        return _to_response(order, payment)
+    started_at = current_time()
+    try:
+        payment, order = _load_user_payment(session, user.id, payment_code)
+        if payment.status == PAYMENT_STATUS_FAILED and order.status == ORDER_STATUS_PAYMENT_FAILED:
+            response = _to_response(order, payment)
+            _log_payment_fail_completed(
+                started_at,
+                payment=payment,
+                order=order,
+                released_quantity_total=0,
+                idempotent_replay=True,
+            )
+            return response
 
-    _require_status(
-        order.status == ORDER_STATUS_PENDING_PAYMENT,
-        "ORDER_NOT_PENDING_PAYMENT",
-        "Order is not pending payment.",
-    )
-    _require_status(
-        payment.status == PAYMENT_STATUS_READY,
-        "PAYMENT_NOT_READY",
-        "Payment is not ready.",
-    )
+        _require_status(
+            order.status == ORDER_STATUS_PENDING_PAYMENT,
+            "ORDER_NOT_PENDING_PAYMENT",
+            "Order is not pending payment.",
+        )
+        _require_status(
+            payment.status == PAYMENT_STATUS_READY,
+            "PAYMENT_NOT_READY",
+            "Payment is not ready.",
+        )
 
-    now = datetime.now(UTC)
-    order_items = _load_order_items(session, order.id)
-    inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
-    _release_reserved_inventory(session, order, order_items, inventories, now, "payment failed reservation release")
+        now = datetime.now(UTC)
+        order_items = _load_order_items(session, order.id)
+        inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
+        released_quantity_total = _quantity_total(order_items)
+        _release_reserved_inventory(session, order, order_items, inventories, now, "payment failed reservation release")
 
-    old_payment_status = payment.status
-    payment.status = PAYMENT_STATUS_FAILED
-    payment.failed_at = now
-    payment.updated_at = now
-    order.status = ORDER_STATUS_PAYMENT_FAILED
-    order.updated_at = now
-    _record_payment_event(
-        session,
-        payment=payment,
-        order=order,
-        event_type="MOCK_PAYMENT_FAILED",
-        event_id=f"mock_fail:{payment.payment_code}",
-        status_before=old_payment_status,
-        status_after=payment.status,
-        payload={"source": "mock_fail"},
-        now=now,
-    )
-    session.flush()
-    return _to_response(order, payment)
+        old_payment_status = payment.status
+        payment.status = PAYMENT_STATUS_FAILED
+        payment.failed_at = now
+        payment.updated_at = now
+        order.status = ORDER_STATUS_PAYMENT_FAILED
+        order.updated_at = now
+        _record_payment_event(
+            session,
+            payment=payment,
+            order=order,
+            event_type="MOCK_PAYMENT_FAILED",
+            event_id=f"mock_fail:{payment.payment_code}",
+            status_before=old_payment_status,
+            status_after=payment.status,
+            payload={"source": "mock_fail"},
+            now=now,
+        )
+        session.flush()
+        response = _to_response(order, payment)
+        _log_payment_fail_completed(
+            started_at,
+            payment=payment,
+            order=order,
+            released_quantity_total=released_quantity_total,
+            idempotent_replay=False,
+        )
+        return response
+    except ApiError as exc:
+        _log_payment_fail_failed(started_at, provider="MOCK", error_code=exc.code)
+        raise
 
 
 def _load_user_payment(session: Session, user_id: int, payment_code: str) -> tuple[Payment, Order]:
@@ -282,9 +352,11 @@ def _approve_payment(
     event_id: str,
     payload: dict[str, Any],
     now: datetime,
+    started_at: float,
 ) -> PaymentActionResponse:
     order_items = _load_order_items(session, order.id)
     inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
+    confirmed_quantity_total = _quantity_total(order_items)
     _confirm_reserved_inventory(session, order, order_items, inventories, now)
 
     old_payment_status = payment.status
@@ -306,7 +378,15 @@ def _approve_payment(
         now=now,
     )
     session.flush()
-    return _to_response(order, payment)
+    response = _to_response(order, payment)
+    _log_payment_confirm_completed(
+        started_at,
+        payment=payment,
+        order=order,
+        confirmed_quantity_total=confirmed_quantity_total,
+        idempotent_replay=False,
+    )
+    return response
 
 
 def _load_order_items(session: Session, order_id: int) -> list[OrderItem]:
@@ -440,4 +520,80 @@ def _to_response(order: Order, payment: Payment) -> PaymentActionResponse:
         payment_status=payment.status,
         approved_at=payment.approved_at,
         failed_at=payment.failed_at,
+    )
+
+
+def _quantity_total(order_items: list[OrderItem]) -> int:
+    return sum(item.quantity for item in order_items)
+
+
+def _log_payment_confirm_completed(
+    started_at: float,
+    *,
+    payment: Payment,
+    order: Order,
+    confirmed_quantity_total: int,
+    idempotent_replay: bool,
+) -> None:
+    log_performance_event(
+        "payment_confirm_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "provider": payment.provider,
+            "amount": payment.amount,
+            "order_status": order.status,
+            "payment_status": payment.status,
+            "confirmed_quantity_total": confirmed_quantity_total,
+            "idempotent_replay": idempotent_replay,
+        },
+    )
+
+
+def _log_payment_confirm_failed(
+    started_at: float,
+    *,
+    provider: str,
+    amount: int | None,
+    error_code: str,
+) -> None:
+    log_performance_event(
+        "payment_confirm_failed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "provider": provider,
+            "amount": amount,
+            "error_code": error_code,
+        },
+    )
+
+
+def _log_payment_fail_completed(
+    started_at: float,
+    *,
+    payment: Payment,
+    order: Order,
+    released_quantity_total: int,
+    idempotent_replay: bool,
+) -> None:
+    log_performance_event(
+        "payment_fail_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "provider": payment.provider,
+            "payment_status": payment.status,
+            "order_status": order.status,
+            "released_quantity_total": released_quantity_total,
+            "idempotent_replay": idempotent_replay,
+        },
+    )
+
+
+def _log_payment_fail_failed(started_at: float, *, provider: str, error_code: str) -> None:
+    log_performance_event(
+        "payment_fail_failed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "provider": provider,
+            "error_code": error_code,
+        },
     )

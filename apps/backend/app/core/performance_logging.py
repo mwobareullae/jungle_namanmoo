@@ -53,7 +53,7 @@ def log_performance_event(
         "timestamp": _utc_timestamp(),
         "service": SERVICE_NAME,
         "event": event,
-        "request_id": request_id,
+        "request_id": request_id or get_current_request_id(),
     }
     if duration_ms is not None:
         payload["duration_ms"] = round(float(duration_ms), 2)
