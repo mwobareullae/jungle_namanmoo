@@ -22,10 +22,13 @@ from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
 
-pytestmark = pytest.mark.skipif(
-    os.getenv("RUN_OPENAI_AGENT_LIVE") != "1",
-    reason="Set RUN_OPENAI_AGENT_LIVE=1 to spend OpenAI API credits on this live smoke test.",
-)
+pytestmark = [
+    pytest.mark.live,
+    pytest.mark.skipif(
+        os.getenv("RUN_OPENAI_AGENT_LIVE") != "1",
+        reason="Set RUN_OPENAI_AGENT_LIVE=1 to spend OpenAI API credits on this live smoke test.",
+    ),
+]
 
 
 @pytest.fixture()

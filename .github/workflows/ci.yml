@@ -12,7 +12,18 @@ on:
     branches:
       - main
       - dev
+  schedule:
+    - cron: "0 18 * * *"
   workflow_dispatch:
+    inputs:
+      backend_test_suite:
+        description: "Backend pytest suite to run"
+        required: true
+        default: full
+        type: choice
+        options:
+          - fast
+          - full
 
 jobs:
   infra:
@@ -95,7 +106,12 @@ jobs:
       - name: Check backend hello endpoint
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health
 
-      - name: Run backend tests
+      - name: Run backend fast tests
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.backend_test_suite == 'fast')
+        run: docker compose exec -T backend python -m pytest -m "not slow and not live"
+
+      - name: Run backend full tests
+        if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.backend_test_suite == 'full')
         run: docker compose exec -T backend python -m pytest
 
       - name: Check backend Alembic config
