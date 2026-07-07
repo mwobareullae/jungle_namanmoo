@@ -51,6 +51,7 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae}
       DATA_DIR: ${DATA_DIR:-/data}
+      SEED_PRODUCT_INGREDIENT_BATCH_SIZE: ${SEED_PRODUCT_INGREDIENT_BATCH_SIZE:-10000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       OPENAI_AGENT_MODEL: ${OPENAI_AGENT_MODEL:-gpt-5.5}
