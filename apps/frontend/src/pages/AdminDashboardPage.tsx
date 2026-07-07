@@ -312,167 +312,6 @@ const indexSummary = [
   { label: "마지막 rebuild", value: "09:12 · 13.3초" }
 ];
 
-const workflowCards = [
-  {
-    label: "엑셀 업로드",
-    title: "상품 기본정보 자동 등록",
-    detail: "성공 행 커밋 · 실패 행 결과 파일",
-    status: "필수 포함",
-    tone: "success"
-  },
-  {
-    label: "이미지 업로드",
-    title: "파일명/매핑표 자동 연결",
-    detail: "OCR 자동 확정 금지 · 검수 보조",
-    status: "가능",
-    tone: "success"
-  },
-  {
-    label: "성분",
-    title: "전성분 원문 전체 저장",
-    detail: "ingredients.csv 정규화 exact만 자동 연결",
-    status: "보수 확정",
-    tone: "warning"
-  },
-  {
-    label: "검색 반영",
-    title: "검색 문서 rebuild 자동 job",
-    detail: "임베딩은 서버 키 준비 후 즉시 승격",
-    status: "2단",
-    tone: "neutral"
-  }
-];
-
-const teamFeatureReadiness: Array<{
-  label: string;
-  detail: string;
-  status: string;
-  tone: BadgeTone;
-  view: AdminView;
-}> = [
-  {
-    label: "관리자 대시보드",
-    detail: "운영 지표, 처리 대기, import job, 인덱스 상태",
-    status: "화면 있음",
-    tone: "success",
-    view: "dashboard"
-  },
-  {
-    label: "상품 조회/상태 확인",
-    detail: "상품 검색, 판매 상태, 검수 상태, 이미지·성분·인덱스 상태",
-    status: "화면 있음",
-    tone: "success",
-    view: "products"
-  },
-  {
-    label: "엑셀 기반 상품 대량 등록",
-    detail: "템플릿, 검증 결과, 부분 성공, 실패 파일, rebuild 대기열",
-    status: "mock 동작",
-    tone: "warning",
-    view: "excelUpload"
-  },
-  {
-    label: "파일명 기반 이미지 대량 연결",
-    detail: "파일명 규칙, 매칭 결과, 실패 파일, 대표 이미지 확인",
-    status: "mock 동작",
-    tone: "warning",
-    view: "imageUpload"
-  },
-  {
-    label: "성분 매핑 검수",
-    detail: "pending 후보, canonical 승인, 보류, 반려, 검수 저장",
-    status: "mock 동작",
-    tone: "warning",
-    view: "ingredientReview"
-  },
-  {
-    label: "재고·가격·주문 상태 확인",
-    detail: "재고/가격 수정 화면과 주문·결제 상태 확인 화면 분리 제공",
-    status: "화면 분리",
-    tone: "success",
-    view: "stockPrice"
-  }
-];
-
-const integrationChecklist = [
-  {
-    area: "상품 등록/수정",
-    owner: "백엔드",
-    need: "상품 생성·수정 API, 중복 경고 응답",
-    status: "확인 필요",
-    tone: "warning"
-  },
-  {
-    area: "엑셀 import",
-    owner: "백엔드·데이터",
-    need: "부분 성공 커밋, 실패 파일, import job ID",
-    status: "API 필요",
-    tone: "warning"
-  },
-  {
-    area: "이미지 연결",
-    owner: "백엔드·인프라",
-    need: "파일 업로드, storage_key 생성, 대표/상세 이미지 구분",
-    status: "API 필요",
-    tone: "warning"
-  },
-  {
-    area: "성분 검수",
-    owner: "데이터·R4",
-    need: "세민/데이터 계약 기준 canonical 확정, pending 유지, 반려 reason 저장",
-    status: "세민 확인",
-    tone: "warning"
-  },
-  {
-    area: "검색 반영",
-    owner: "R4·인프라",
-    need: "import 완료 후 search document rebuild, 변경분 임베딩",
-    status: "키 대기",
-    tone: "neutral"
-  },
-  {
-    area: "주문 확인",
-    owner: "백엔드",
-    need: "주문 조회, 결제 상태, 예약 재고, 취소/만료/배송 상태 전이 규칙",
-    status: "원우 확인",
-    tone: "warning"
-  },
-  {
-    area: "관리자 접근 제어",
-    owner: "백엔드·프론트",
-    need: "/admin 라우트 권한 가드, auth 세션 admin role 확인",
-    status: "필수",
-    tone: "warning"
-  }
-];
-
-const rebuildSteps = [
-  {
-    label: "검색 문서",
-    value: "즉시 job",
-    detail: "idx_prod_join_* 갱신",
-    tone: "success"
-  },
-  {
-    label: "임베딩",
-    value: "키 대기",
-    detail: "서버 키 준비 전 일배치/운영자 실행",
-    tone: "warning"
-  },
-  {
-    label: "최근 full 반영",
-    value: "24,585 / 24,585",
-    detail: "변경분만 재임베딩 확인",
-    tone: "success"
-  }
-];
-
-const ingredientPolicy = [
-  { label: "저장", value: "전성분 원문 전체" },
-  { label: "자동 연결", value: "정규화 exact match" },
-  { label: "보류", value: "부분일치·OCR·복합 원료" }
-];
-
 const excelTemplateColumns = [
   { label: "seller_sku", required: "필수", note: "셀러 기준 상품 식별자" },
   { label: "product_name", required: "필수", note: "상품명, 기존 카탈로그 중복 경고 기준" },
@@ -670,60 +509,11 @@ const parseExcelUpload = async (file: File): Promise<ExcelGrid | null> => {
   }
 };
 
-const excelRebuildQueue = [
-  {
-    label: "상품 등록",
-    value: "성공 행 118건 커밋",
-    detail: "실패 행은 결과 파일로 분리"
-  },
-  {
-    label: "검색 문서",
-    value: "자동 rebuild 대기",
-    detail: "build_search_index_documents 실행"
-  },
-  {
-    label: "임베딩",
-    value: "변경분만 반영",
-    detail: "서버 키 준비 전 운영자 실행"
-  }
-];
-
 const imageFileRules = [
   { label: "대표 이미지", value: "seller_sku_main.jpg / product_code_main.jpg" },
   { label: "추가 이미지", value: "seller_sku_01.jpg, seller_sku_02.jpg" },
   { label: "매핑표", value: "image_file_names 컬럼과 동일 파일명 우선" },
   { label: "불가", value: "OCR로 상품명 추정 후 자동 확정 금지" }
-];
-
-const imageAutoRegistrationModes = [
-  {
-    label: "파일명/매핑표",
-    title: "기존 상품에 이미지 자동 연결",
-    detail: "product_code 또는 seller_sku가 맞으면 대표/상세 이미지를 바로 연결",
-    status: "자동 가능",
-    tone: "success"
-  },
-  {
-    label: "이미지 + 엑셀",
-    title: "상품 기본정보와 이미지 동시 등록",
-    detail: "엑셀 성공 행을 상품으로 만들고 image_file_names 값으로 이미지 연결",
-    status: "자동 가능",
-    tone: "success"
-  },
-  {
-    label: "라벨/OCR",
-    title: "상품명·전성분 후보 추출",
-    detail: "이미지에서 뽑은 값은 검수 후보로만 두고 자동 확정하지 않음",
-    status: "검수 보조",
-    tone: "warning"
-  },
-  {
-    label: "이미지만 단독",
-    title: "완전 자동 상품 생성",
-    detail: "가격·재고·브랜드·성분 신뢰도가 부족해 운영자 확인 후 등록",
-    status: "보류",
-    tone: "neutral"
-  }
 ];
 
 const imageOcrCandidateRows = [
@@ -814,24 +604,6 @@ const imagePreviewRows = [
   }
 ];
 
-const imagePostSteps = [
-  {
-    label: "파일 저장",
-    value: "storage_key 생성",
-    detail: "원본 파일명과 매칭 결과를 함께 보관"
-  },
-  {
-    label: "상품 연결",
-    value: "대표/상세 구분",
-    detail: "대표 이미지 없으면 상태 확인 대상으로 표시"
-  },
-  {
-    label: "검색 반영",
-    value: "상품 이미지 즉시 노출",
-    detail: "검색 문서 rebuild는 상품 정보 변경 시만 필요"
-  }
-];
-
 const ingredientReviewRows: IngredientReviewRow[] = [
   {
     id: "pending_ha",
@@ -890,13 +662,6 @@ const ingredientReviewRows: IngredientReviewRow[] = [
   }
 ];
 
-const ingredientDecisionRules = [
-  { label: "canonical", value: "내부 ingredients.csv 기준" },
-  { label: "자동 확정", value: "정규화 exact match만" },
-  { label: "참조 사전", value: "협회/INCI는 검증 보조" },
-  { label: "금지", value: "부분일치 자동 확정 금지" }
-];
-
 const ingredientCandidateCards = [
   {
     label: "추천 품질 직결",
@@ -913,31 +678,6 @@ const ingredientCandidateCards = [
     title: "복합 원료·상표명·추출물",
     detail: "부분일치 후보는 pending 유지 후 세민 확인"
   }
-];
-
-const ingredientReviewActions = [
-  {
-    label: "승인",
-    value: "세민 확정 후 canonical_id 저장",
-    detail: "accepted alias 후보로 남기되 데이터 계약 절차 확인 후 반영"
-  },
-  {
-    label: "보류",
-    value: "pending 유지",
-    detail: "검색/추천 점수와 문서에서는 계속 제외"
-  },
-  {
-    label: "반려",
-    value: "오탐 후보 차단",
-    detail: "같은 후보가 반복 추천되지 않게 reason 저장"
-  }
-];
-
-const stockPolicyRules = [
-  { label: "수정 범위", value: "판매가, 재고, 판매 상태" },
-  { label: "저장 방식", value: "상품 수정 API 연결 필요" },
-  { label: "주문 영향", value: "checkout 시점 재검증" },
-  { label: "감사 로그", value: "변경 전/후 값 기록" }
 ];
 
 const stockHistoryRows = [
@@ -961,24 +701,6 @@ const stockHistoryRows = [
     change: "18,900원 → 19,900원",
     actor: "import job",
     reason: "엑셀 대량 등록"
-  }
-];
-
-const stockActionSteps = [
-  {
-    label: "가격",
-    value: "즉시 화면 반영",
-    detail: "저장 시 product_prices 또는 상품 수정 API 필요"
-  },
-  {
-    label: "재고",
-    value: "주문 전 재검증",
-    detail: "장바구니/checkout은 서버 계산값을 기준으로 유지"
-  },
-  {
-    label: "판매상태",
-    value: "추천/검색 노출 제어",
-    detail: "판매중지 상품은 운영 정책에 따라 노출 제외"
   }
 ];
 
@@ -1050,13 +772,6 @@ const orderRows: OrderRow[] = [
   }
 ];
 
-const orderLifecycleSteps = [
-  { label: "checkout preview", value: "가격·재고 재검증" },
-  { label: "주문 생성", value: "상품/가격 snapshot 저장" },
-  { label: "결제 승인", value: "mock/Toss 응답 기준 상태 갱신" },
-  { label: "실패·취소·만료", value: "예약 재고 복원" }
-];
-
 const orderExceptionRows = [
   {
     time: "16:31",
@@ -1076,13 +791,6 @@ const orderExceptionRows = [
     issue: "mock 결제 실패",
     action: "사용자 재시도 가능"
   }
-];
-
-const orderOpsRules = [
-  { label: "조회 기준", value: "주문 상태, 결제 상태, 사용자, 주문번호" },
-  { label: "상태 전이", value: "만료·취소·배송 액션은 원우 API 계약 확인 전 로컬 미리보기" },
-  { label: "재고", value: "예약/복원 이력을 함께 노출" },
-  { label: "추천 추적", value: "recommendation_id와 rank 유지" }
 ];
 
 const initialOperationLogs: OperationLogRow[] = [
@@ -1654,15 +1362,6 @@ function AdminDashboardPage() {
     pushOperationLog("엑셀", "템플릿 다운로드", "상품 대량 등록 CSV 템플릿 생성", "neutral");
   };
 
-  const handleExcelQueue = () => {
-    if (excelImportState === "idle") {
-      return;
-    }
-
-    setExcelQueueState("queued");
-    pushOperationLog("엑셀", "상품 등록 대기열 추가", `성공 ${excelSummaryRows[1]?.value ?? "0"}행 · rebuild job 대기`, "success");
-  };
-
   const handleFailureFile = (area: "엑셀" | "이미지" | "import") => {
     if (area === "이미지") {
       downloadTextFile(
@@ -1702,15 +1401,6 @@ function AdminDashboardPage() {
       ]),
     );
     pushOperationLog("이미지", "매핑표 다운로드", "파일명 기반 이미지 연결 CSV 생성", "neutral");
-  };
-
-  const handleImageQueue = () => {
-    if (imageBatchState === "idle") {
-      return;
-    }
-
-    setImageQueueState("queued");
-    pushOperationLog("이미지", "이미지 연결 대기열 추가", "310개 연결 · 4개 확인 필요", "success");
   };
 
   const handleImageOcrAssist = () => {
@@ -1762,17 +1452,6 @@ function AdminDashboardPage() {
       ]),
     );
     pushOperationLog("성분", "후보 CSV 다운로드", "pending 성분 검수 후보 파일 생성", "neutral");
-  };
-
-  const handleIntegrationDownload = () => {
-    downloadTextFile(
-      "mwbl_admin_api_handoff.csv",
-      buildCsv([
-        ["area", "owner", "need", "status"],
-        ...integrationChecklist.map((item) => [item.area, item.owner, item.need, item.status])
-      ]),
-    );
-    pushOperationLog("대시보드", "API 연동 목록 다운로드", "관리자 화면 백엔드 필요 항목 CSV 생성", "neutral");
   };
 
   const handleSelectIngredient = (ingredientId: string) => {
@@ -1920,15 +1599,6 @@ function AdminDashboardPage() {
     pushOperationLog("대시보드", "임베딩 자동 반영 확인", item.note, item.tone);
   };
 
-  const handleFeatureReadinessClick = (view: AdminView, label: string) => {
-    if (view === "productForm" && selectedProductId !== "draft") {
-      setDraftProduct(selectedProduct);
-    }
-
-    setActiveView(view);
-    pushOperationLog("대시보드", `${label} 확인`, "팀장 필수 기능 체크에서 이동", "neutral");
-  };
-
   const renderDashboard = () => (
     <>
       <section className="admin-stats" aria-label="운영 지표">
@@ -1941,30 +1611,6 @@ function AdminDashboardPage() {
       </section>
 
       <section className="admin-grid">
-        <section className="admin-panel admin-readiness-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>팀장 필수 기능</p>
-              <h2>관리자 화면 구성 체크</h2>
-            </div>
-            <span className="admin-badge success">6개 반영</span>
-          </div>
-          <div className="admin-readiness-grid">
-            {teamFeatureReadiness.map((item, index) => (
-              <button
-                className="admin-readiness-card"
-                key={item.label}
-                onClick={() => handleFeatureReadinessClick(item.view, item.label)}
-                type="button"
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{item.label}</strong>
-                <small>{item.detail}</small>
-                <b className={`admin-badge ${item.tone}`}>{item.status}</b>
-              </button>
-            ))}
-          </div>
-        </section>
 
         <section className="admin-panel admin-pending-panel">
           <div className="admin-panel-header">
@@ -2087,90 +1733,6 @@ function AdminDashboardPage() {
           </dl>
         </section>
 
-        <section className="admin-panel admin-workflow-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>필수 기능 범위</p>
-              <h2>자동 등록 운영 흐름</h2>
-            </div>
-            <span className="admin-badge success">팀장 확인</span>
-          </div>
-          <div className="admin-workflow-grid">
-            {workflowCards.map((item) => (
-              <article className="admin-workflow-card" key={item.label}>
-                <div>
-                  <span>{item.label}</span>
-                  <strong>{item.title}</strong>
-                  <small>{item.detail}</small>
-                </div>
-                <b className={`admin-badge ${item.tone}`}>{item.status}</b>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="admin-panel admin-integration-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>연동 체크리스트</p>
-              <h2>실제 API·job 연결 필요 항목</h2>
-            </div>
-            <button className="admin-secondary-button" onClick={handleIntegrationDownload} type="button">
-              연동 CSV
-            </button>
-          </div>
-          <div className="admin-integration-list">
-            {integrationChecklist.map((item) => (
-              <article className="admin-integration-item" key={item.area}>
-                <div>
-                  <span>{item.owner}</span>
-                  <strong>{item.area}</strong>
-                  <small>{item.need}</small>
-                </div>
-                <b className={`admin-badge ${item.tone}`}>{item.status}</b>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>자동 rebuild</p>
-              <h2>검색·임베딩 반영</h2>
-            </div>
-          </div>
-          <ol className="admin-rebuild-list">
-            {rebuildSteps.map((item) => (
-              <li key={item.label}>
-                <span className={`admin-rebuild-dot ${item.tone}`} />
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>{item.detail}</small>
-                </div>
-                <b>{item.value}</b>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>성분 정책</p>
-              <h2>전성분 입력 기준</h2>
-            </div>
-            <span className="admin-badge warning">검수 병행</span>
-          </div>
-          <dl className="admin-metric-list">
-            {ingredientPolicy.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
       </section>
     </>
   );
@@ -2427,36 +1989,6 @@ function AdminDashboardPage() {
         </div>
       </form>
 
-      <aside className="admin-panel admin-form-aside">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>검수 상태</p>
-            <h2>저장 전 확인</h2>
-          </div>
-        </div>
-        <dl className="admin-metric-list">
-          <div>
-            <dt>성분 자동 연결</dt>
-            <dd>정규화 exact만</dd>
-          </div>
-          <div>
-            <dt>미확정 성분</dt>
-            <dd>pending 보관</dd>
-          </div>
-          <div>
-            <dt>이미지 연결</dt>
-            <dd>파일명/매핑표</dd>
-          </div>
-          <div>
-            <dt>검색 반영</dt>
-            <dd>rebuild job 대기</dd>
-          </div>
-        </dl>
-        <div className="admin-form-note">
-          API 연결 전에는 로컬 미리보기 저장만 동작합니다. 실제 저장 시에는 상품 수정 API, 이미지 업로드 API,
-          search document rebuild job이 필요합니다.
-        </div>
-      </aside>
     </section>
   );
 
@@ -2616,41 +2148,6 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>등록 후 자동화</p>
-            <h2>검색·추천 반영 단계</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={excelImportState === "idle"}
-            onClick={handleExcelQueue}
-            type="button"
-          >
-            대기열 추가
-          </button>
-        </div>
-        <div className={`admin-state-banner ${excelQueueState === "queued" ? "success" : excelQueueState === "pending" ? "warning" : "neutral"}`}>
-          <strong>{excelQueueState === "queued" ? "등록 대기열 추가됨" : excelQueueState === "pending" ? "등록 대기" : "검증 전"}</strong>
-          <span>
-            {excelQueueState === "queued"
-              ? "성공 행은 import job으로 넘기고 실패 행은 결과 파일로 유지합니다."
-              : excelQueueState === "pending"
-                ? "검증 결과를 확인한 뒤 성공 행만 대기열에 올릴 수 있습니다."
-                : "검증 전에는 상품 등록 job을 만들지 않습니다."}
-          </span>
-        </div>
-        <ol className="admin-import-flow">
-          {excelRebuildQueue.map((item) => (
-            <li key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.detail}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
     </section>
   );
 
@@ -2757,26 +2254,6 @@ function AdminDashboardPage() {
             <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
               <span>{item.label}</span>
               <strong>{imageBatchState === "matched" ? item.value : "-"}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-image-auto-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>자동 등록 가능 범위</p>
-            <h2>이미지 업로드만으로 어디까지 처리할 수 있는가</h2>
-          </div>
-          <span className="admin-badge warning">검수 전제</span>
-        </div>
-        <div className="admin-image-auto-grid">
-          {imageAutoRegistrationModes.map((item) => (
-            <article className="admin-image-auto-card" key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.title}</strong>
-              <small>{item.detail}</small>
-              <b className={`admin-badge ${item.tone}`}>{item.status}</b>
             </article>
           ))}
         </div>
@@ -2905,41 +2382,6 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>등록 후 처리</p>
-            <h2>이미지 반영 단계</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={imageBatchState === "idle"}
-            onClick={handleImageQueue}
-            type="button"
-          >
-            연결 대기열
-          </button>
-        </div>
-        <div className={`admin-state-banner ${imageQueueState === "queued" ? "success" : imageQueueState === "pending" ? "warning" : "neutral"}`}>
-          <strong>{imageQueueState === "queued" ? "이미지 연결 대기열 추가됨" : imageQueueState === "pending" ? "연결 대기" : "매칭 전"}</strong>
-          <span>
-            {imageQueueState === "queued"
-              ? "대표/상세 이미지는 storage_key 생성 후 상품에 연결됩니다."
-              : imageQueueState === "pending"
-                ? "매칭 성공 파일은 연결 가능하고 실패 파일은 운영자 조치가 필요합니다."
-                : "매칭 전에는 이미지 연결 job을 만들지 않습니다."}
-          </span>
-        </div>
-        <ol className="admin-import-flow">
-          {imagePostSteps.map((item) => (
-            <li key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.detail}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
     </section>
   );
 
@@ -3081,23 +2523,6 @@ function AdminDashboardPage() {
       <section className="admin-panel">
         <div className="admin-panel-header compact">
           <div>
-            <p>판정 규칙</p>
-            <h2>자동 연결 품질 기준</h2>
-          </div>
-        </div>
-        <dl className="admin-metric-list">
-          {ingredientDecisionRules.map((rule) => (
-            <div key={rule.label}>
-              <dt>{rule.label}</dt>
-              <dd>{rule.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
             <p>우선순위</p>
             <h2>검수 전략</h2>
           </div>
@@ -3113,24 +2538,6 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="admin-panel admin-ingredient-flow-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>검수 후 처리</p>
-            <h2>검색·추천 반영 흐름</h2>
-          </div>
-          <span className="admin-badge neutral">API 연결 필요</span>
-        </div>
-        <ol className="admin-import-flow">
-          {ingredientReviewActions.map((item) => (
-            <li key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.detail}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
     </section>
   );
 
@@ -3324,23 +2731,6 @@ function AdminDashboardPage() {
       <section className="admin-panel">
         <div className="admin-panel-header compact">
           <div>
-            <p>운영 기준</p>
-            <h2>수정 정책</h2>
-          </div>
-        </div>
-        <dl className="admin-metric-list">
-          {stockPolicyRules.map((rule) => (
-            <div key={rule.label}>
-              <dt>{rule.label}</dt>
-              <dd>{rule.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
             <p>최근 변경</p>
             <h2>가격·재고 이력</h2>
           </div>
@@ -3371,24 +2761,6 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="admin-panel admin-stock-flow-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>저장 후 처리</p>
-            <h2>검색·주문 영향</h2>
-          </div>
-          <span className="admin-badge neutral">API 연결 필요</span>
-        </div>
-        <ol className="admin-import-flow">
-          {stockActionSteps.map((item) => (
-            <li key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.detail}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
     </section>
   );
 
@@ -3599,26 +2971,6 @@ function AdminDashboardPage() {
       <section className="admin-panel">
         <div className="admin-panel-header compact">
           <div>
-            <p>상태 흐름</p>
-            <h2>주문 처리 기준</h2>
-          </div>
-        </div>
-        <ol className="admin-order-timeline">
-          {orderLifecycleSteps.map((step) => (
-            <li key={step.label}>
-              <span />
-              <div>
-                <strong>{step.label}</strong>
-                <small>{step.value}</small>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
             <p>확인 필요</p>
             <h2>결제·재고 예외</h2>
           </div>
@@ -3648,22 +3000,6 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="admin-panel admin-order-flow-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>운영 정책</p>
-            <h2>관리자에서 봐야 하는 값</h2>
-          </div>
-        </div>
-        <dl className="admin-metric-list">
-          {orderOpsRules.map((rule) => (
-            <div key={rule.label}>
-              <dt>{rule.label}</dt>
-              <dd>{rule.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
     </section>
   );
 
