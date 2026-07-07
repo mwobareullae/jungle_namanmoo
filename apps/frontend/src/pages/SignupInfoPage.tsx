@@ -4,6 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
+import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
 
 type SignupErrorResponse = {
   code?: string;
@@ -395,6 +396,8 @@ function SignupInfoPage() {
         setErrorMessage("회원가입은 완료됐지만 로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.");
         return;
       }
+
+      markSkinTestPromptPending();
       navigate("/signup/skin-profile", { replace: true });
     } finally {
       setIsSubmitting(false);
