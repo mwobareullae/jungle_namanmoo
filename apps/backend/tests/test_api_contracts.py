@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.performance_logging import log_performance_event
 from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, ProductPopularityMetric
@@ -140,6 +142,32 @@ def test_request_log_records_unhandled_exception_as_json() -> None:
     assert payload["error"] == "RuntimeError"
 
 
+def test_performance_log_utility_writes_json_line() -> None:
+    logs = _capture_performance_logs()
+    try:
+        log_performance_event(
+            "performance_test_completed",
+            request_id="performance-request",
+            duration_ms=12.345,
+            metadata={
+                "count": 3,
+                "score": Decimal("1.25"),
+                "timestamp": "should_not_override",
+            },
+        )
+    finally:
+        logs.close()
+
+    payload = logs.json_lines[-1]
+    assert payload["service"] == "commerce-backend"
+    assert payload["event"] == "performance_test_completed"
+    assert payload["request_id"] == "performance-request"
+    assert payload["duration_ms"] == 12.35
+    assert payload["count"] == 3
+    assert payload["score"] == 1.25
+    assert payload["timestamp"].endswith("Z")
+
+
 def test_get_home_sections_returns_main_page_products(client: TestClient) -> None:
     response = client.get(
         "/api/home/sections",
@@ -183,6 +211,26 @@ def test_get_home_sections_returns_main_page_products(client: TestClient) -> Non
     assert not product["thumbnail_url"].startswith("http")
     assert product["badges"]
     assert 0 <= product["display_score"] <= 100
+
+
+def test_get_home_sections_emits_performance_log(client: TestClient) -> None:
+    logs = _capture_performance_logs()
+    try:
+        response = client.get(
+            "/api/home/sections",
+            params={"limit_per_section": 2},
+            headers={"X-Request-ID": "home-performance-request"},
+        )
+    finally:
+        logs.close()
+
+    assert response.status_code == 200
+    payload = logs.json_lines[-1]
+    assert payload["event"] == "home_sections_completed"
+    assert payload["request_id"] == "home-performance-request"
+    assert payload["duration_ms"] >= 0
+    assert payload["section_count"] >= 1
+    assert payload["product_count"] >= 1
 
 
 def test_get_popular_products_returns_metric_ranked_products(
@@ -806,6 +854,13 @@ def _capture_request_logs():
     return handler
 
 
+def _capture_performance_logs():
+    logger = logging.getLogger("mwobareullae.performance")
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler
+
+
 class _RequestLogCaptureHandler(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
@@ -820,6 +875,23 @@ class _RequestLogCaptureHandler(logging.Handler):
 
     def close(self) -> None:
         logging.getLogger("mwobareullae.request").removeHandler(self)
+        super().close()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
         super().close()
 
 

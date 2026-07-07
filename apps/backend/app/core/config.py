@@ -32,6 +32,11 @@ class Settings(BaseModel):
         "false",
         "no",
     }
+    enable_performance_logging: bool = os.getenv("ENABLE_PERFORMANCE_LOGGING", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
     backend_cors_origins: list[str] = _parse_cors_origins(
         os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     )

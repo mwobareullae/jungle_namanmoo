@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_optional_current_user
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
@@ -33,17 +34,32 @@ logger = logging.getLogger(__name__)
     response_model=PopularProductsResponse,
 )
 def get_popular_products(
+    request: Request,
     window_days: int = Query(default=DEFAULT_POPULAR_WINDOW_DAYS, ge=0, le=365),
     limit: int = Query(default=DEFAULT_POPULAR_LIMIT, ge=1, le=MAX_POPULAR_LIMIT),
     category_code: str | None = Query(default=None),
     session: Session = Depends(get_db),
 ) -> PopularProductsResponse:
-    return get_popular_products_response(
+    started_at = current_time()
+    response = get_popular_products_response(
         session,
         window_days=window_days,
         limit=limit,
         category_code=category_code,
     )
+    log_performance_event(
+        "popular_products_completed",
+        request_id=request_id_from_request(request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "window_days": response.window_days,
+            "requested_limit": limit,
+            "item_count": len(response.items),
+            "category_code": category_code,
+            "top_popularity_score": response.items[0].popularity_score if response.items else None,
+        },
+    )
+    return response
 
 
 @router.get(
@@ -61,6 +77,7 @@ def get_product_by_id(
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> ProductDetailResponse:
+    started_at = current_time()
     response = get_product_detail_response(session, product_id, recommendation_id)
     _record_product_viewed_event(
         session,
@@ -68,6 +85,18 @@ def get_product_by_id(
         response=response,
         recommendation_id=recommendation_id,
         current_user=current_user,
+    )
+    log_performance_event(
+        "product_detail_completed",
+        request_id=request_id_from_request(request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "product_id": response.product.product_id,
+            "has_recommendation_context": recommendation_id is not None,
+            "can_purchase": response.purchase_info.can_purchase,
+            "sales_status": response.purchase_info.sales_status,
+            "stock_status": response.purchase_info.stock_status,
+        },
     )
     return response
 
