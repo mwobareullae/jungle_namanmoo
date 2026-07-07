@@ -14,6 +14,7 @@ const placeholderExamples = [
 type HomeHeroProps = {
   initialQuery?: string;
   initialProfile?: RecommendationProfile;
+  hasSavedProfile?: boolean;
 };
 
 type HomeSearchInputChangeEvent = CustomEvent<{
@@ -22,6 +23,7 @@ type HomeSearchInputChangeEvent = CustomEvent<{
 
 function HomeHero({
   initialQuery = "",
+  hasSavedProfile = false,
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
@@ -159,14 +161,16 @@ function HomeHero({
                   <path d="m21 21-4.35-4.35" />
                 </svg>
               </div>
-              <button
-                className="search-profile-chip"
-                id="searchProfileChip"
-                onClick={openSuggestions}
-                type="button"
-              >
-                {initialProfile.skin} · {initialProfile.sensitivity}
-              </button>
+              {!hasSavedProfile ? (
+                <button
+                  className="search-profile-chip"
+                  id="searchProfileChip"
+                  onClick={openSuggestions}
+                  type="button"
+                >
+                  {initialProfile.skin} · {initialProfile.sensitivity}
+                </button>
+              ) : null}
               <input
                 id="searchInput"
                 onChange={(event) => setQuery(event.target.value)}
@@ -214,57 +218,59 @@ function HomeHero({
                 <div className="recent-list" id="recentConcernList" />
               </div>
 
-              <div className="suggest-section">
-                <div className="profile-picker-grid">
-                  <div className="profile-picker-group">
-                    <span className="profile-picker-label">피부 타입</span>
-                    <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
-                      {["건성", "지성", "복합성", "수부지", "중성"].map((skinType) => (
-                        <button
-                          className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
-                          data-profile="skin"
-                          data-value={skinType}
-                          key={skinType}
-                          onClick={() => callOriginal("selectProfileOption", "skin", skinType)}
-                          type="button"
-                        >
-                          {skinType}
-                        </button>
-                      ))}
+              {!hasSavedProfile ? (
+                <div className="suggest-section">
+                  <div className="profile-picker-grid">
+                    <div className="profile-picker-group">
+                      <span className="profile-picker-label">피부 타입</span>
+                      <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
+                        {["건성", "지성", "복합성", "수부지", "중성"].map((skinType) => (
+                          <button
+                            className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
+                            data-profile="skin"
+                            data-value={skinType}
+                            key={skinType}
+                            onClick={() => callOriginal("selectProfileOption", "skin", skinType)}
+                            type="button"
+                          >
+                            {skinType}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="profile-picker-group">
+                      <span className="profile-picker-label">민감도</span>
+                      <div
+                        aria-label="민감도"
+                        className="profile-segments sensitivity"
+                        role="radiogroup"
+                      >
+                        {["낮음", "보통", "높음"].map((sensitivity) => (
+                          <button
+                            className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
+                            data-profile="sensitivity"
+                            data-value={sensitivity}
+                            key={sensitivity}
+                            onClick={() =>
+                              callOriginal("selectProfileOption", "sensitivity", sensitivity)
+                            }
+                            type="button"
+                          >
+                            {sensitivity}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="profile-picker-group">
-                    <span className="profile-picker-label">민감도</span>
-                    <div
-                      aria-label="민감도"
-                      className="profile-segments sensitivity"
-                      role="radiogroup"
-                    >
-                      {["낮음", "보통", "높음"].map((sensitivity) => (
-                        <button
-                          className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
-                          data-profile="sensitivity"
-                          data-value={sensitivity}
-                          key={sensitivity}
-                          onClick={() =>
-                            callOriginal("selectProfileOption", "sensitivity", sensitivity)
-                          }
-                          type="button"
-                        >
-                          {sensitivity}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="suggest-actions">
+                    <span className="profile-summary" id="profileSummary">
+                      {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
+                    </span>
                   </div>
                 </div>
-
-                <div className="suggest-actions">
-                  <span className="profile-summary" id="profileSummary">
-                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
-                  </span>
-                </div>
-              </div>
+              ) : null}
             </div>
           </div>
 

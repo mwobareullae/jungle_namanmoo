@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
 import { privacyPolicy, termsOfService } from "../content/terms";
 import { useAuth } from "../contexts/useAuth";
@@ -359,7 +359,7 @@ function SignupTermsPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-['Pretendard_Variable','Pretendard','Noto_Sans_KR',system-ui,sans-serif] text-[#1A1A1A]">
-      <AuthHeader />
+      <HomeHeader />
       <div className="flex flex-1 items-center justify-center px-5 py-10">
         <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(0,0,0,0.07)] bg-white px-6 py-8 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-9 sm:py-10">
           <div className="mb-7">

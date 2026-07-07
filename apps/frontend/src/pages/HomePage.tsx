@@ -3,9 +3,10 @@ import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
+import AppFooter from "../components/AppFooter";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import { HomeFooter, HomeMatchResult } from "../components/HomeStaticSections";
+import { HomeMatchResult } from "../components/HomeStaticSections";
 import type { RecommendationProfile } from "../types/recommendation";
 
 type HomeSection = {
@@ -60,6 +61,7 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
+  const [hasSavedProfile, setHasSavedProfile] = useState(false);
 
   useEffect(() => installHomeRuntime(profile), [profile]);
 
@@ -69,6 +71,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
     getSavedSkinProfile().then((savedProfile) => {
       if (isMounted && savedProfile) {
         setProfile(savedProfile);
+        setHasSavedProfile(true);
       }
     });
 
@@ -85,14 +88,14 @@ function HomePage({ bodyHtml }: HomePageProps) {
         ) : section.id === "header" ? (
           <HomeHeader key={section.id} />
         ) : section.id === "hero" ? (
-          <HomeHero key={section.id} initialProfile={profile} />
+          <HomeHero key={section.id} hasSavedProfile={hasSavedProfile} initialProfile={profile} />
         ) : section.id === "matchresultsection" ? (
           <HomeMatchResult key={section.id} />
         ) : section.id === "maincontent" ? (
           <HomeMainContent key={section.id} initialProfile={profile} />
         ) : section.id === "howitworks" || section.id === "ingredients" ? null : section.id ===
           "footer" ? (
-          <HomeFooter key={section.id} />
+          <AppFooter key={section.id} />
         ) : (
           <div
             className="spa-origin-section"

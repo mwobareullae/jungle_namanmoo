@@ -1,24 +1,27 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
-import { HomeFooter } from "./components/HomeStaticSections";
+import AppFooter from "./components/AppFooter";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import MyPageShell from "./pages/mypage/MyPageShell";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
 import RecommendationGuidePage from "./pages/RecommendationGuidePage";
 import SearchPage from "./pages/SearchPage";
+import SkinProfile from "./pages/mypage/SkinProfile";
 import SkinTestPage from "./pages/SkinTestPage";
 import SkinTestRecommendationsPage from "./pages/SkinTestRecommendationsPage";
 import SkinTestResultPage from "./pages/SkinTestResultPage";
 import SignupInfoPage from "./pages/SignupInfoPage";
 import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
 import SignupTermsPage from "./pages/SignupTermsPage";
+import WishList, { RecentProducts } from "./pages/mypage/WishList";
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -589,7 +592,7 @@ function GlobalFooter() {
     return null;
   }
 
-  return <HomeFooter />;
+  return <AppFooter />;
 }
 
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
@@ -602,6 +605,10 @@ function App() {
         {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
         {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
         {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
+        {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
+        {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
+        {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
+        {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
         {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
         {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
         {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}

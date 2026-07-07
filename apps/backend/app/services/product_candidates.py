@@ -26,6 +26,44 @@ def list_product_candidates(
     *,
     limit: int = 50,
 ) -> list[ProductCandidate]:
+    statement, _ = _build_product_candidate_statement(purchase_conditions)
+
+    rows = session.execute(
+        statement
+        .order_by(Product.id.asc())
+        .limit(limit)
+    ).all()
+    return _rows_to_product_candidates(session, rows)
+
+
+def list_product_candidates_by_db_ids(
+    session: Session,
+    purchase_conditions: ParsedPurchaseConditions,
+    product_db_ids: list[int],
+    *,
+    limit: int = 50,
+) -> list[ProductCandidate]:
+    ordered_product_ids = _dedupe_ints(product_db_ids)
+    if not ordered_product_ids:
+        return []
+
+    statement, _ = _build_product_candidate_statement(purchase_conditions)
+    rows = session.execute(statement.where(Product.id.in_(ordered_product_ids))).all()
+    candidates_by_db_id = {
+        candidate.db_product_id: candidate
+        for candidate in _rows_to_product_candidates(session, rows)
+    }
+
+    return [
+        candidates_by_db_id[product_id]
+        for product_id in ordered_product_ids
+        if product_id in candidates_by_db_id
+    ][:limit]
+
+
+def _build_product_candidate_statement(
+    purchase_conditions: ParsedPurchaseConditions,
+):
     lowest_price = func.min(ProductPrice.price)
 
     statement = (
@@ -54,8 +92,6 @@ def list_product_candidates(
             ProductCategory.category_code,
             Product.product_name,
         )
-        .order_by(Product.id.asc())
-        .limit(limit)
     )
 
     if purchase_conditions.categories:
@@ -75,7 +111,10 @@ def list_product_candidates(
     if purchase_conditions.price_max is not None:
         statement = statement.having(lowest_price <= purchase_conditions.price_max)
 
-    rows = session.execute(statement).all()
+    return statement, lowest_price
+
+
+def _rows_to_product_candidates(session: Session, rows) -> list[ProductCandidate]:
     thumbnail_storage_keys = load_thumbnail_storage_keys(session, [int(row.id) for row in rows])
     return [
         ProductCandidate(
@@ -90,3 +129,15 @@ def list_product_candidates(
         )
         for row in rows
     ]
+
+
+def _dedupe_ints(values: list[int]) -> list[int]:
+    deduped: list[int] = []
+    seen: set[int] = set()
+    for value in values:
+        int_value = int(value)
+        if int_value in seen:
+            continue
+        seen.add(int_value)
+        deduped.append(int_value)
+    return deduped
