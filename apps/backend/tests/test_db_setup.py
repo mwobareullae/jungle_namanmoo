@@ -418,5 +418,10 @@ def test_settings_exposes_database_url() -> None:
 def test_settings_exposes_dev_infra_urls() -> None:
     assert settings.redis_url
     assert settings.redis_key_prefix
+    assert settings.search_backend_mode in {"auto", "postgres", "elasticsearch"}
     assert settings.elasticsearch_url
     assert settings.elasticsearch_index_prefix
+    assert settings.elasticsearch_products_alias
+    assert settings.elasticsearch_timeout_seconds > 0
+    assert settings.elasticsearch_max_retries >= 0
+    assert settings.elasticsearch_circuit_breaker_seconds > 0
