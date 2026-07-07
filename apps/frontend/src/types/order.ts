@@ -1,4 +1,4 @@
-export type OrderPaymentProvider = "MOCK";
+export type OrderPaymentProvider = "MOCK" | "TOSS";
 
 export type CreateOrderShippingAddress = {
   address_name?: string | null;
@@ -37,4 +37,18 @@ export type CreateOrderResponse = {
   total: number;
   currency: string;
   payment_expires_at: string;
+};
+
+export type TossPaymentConfirmRequest = {
+  payment_key: string;
+  order_code: string;
+  amount: number;
+};
+
+export type TossPaymentConfirmResponse = {
+  order_code: string;
+  payment_code: string;
+  order_status: string;
+  payment_status: string;
+  approved_at?: string | null;
 };
