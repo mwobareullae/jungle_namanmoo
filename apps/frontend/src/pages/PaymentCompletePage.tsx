@@ -120,9 +120,12 @@ function PaymentCompletePage() {
   const displayCount = storedSnapshot?.count ?? (count > 0 ? count : 1);
   const displayPaymentMethod = storedSnapshot?.paymentMethod ?? paymentMethod;
   const hasPaymentInfo = Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0) || Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
+  const shouldConfirmTossPayment = Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
   const [orderNo] = useState(() => storedSnapshot?.orderCode || tossOrderId || orderCode || `MWB-${String(Date.now()).slice(-8)}`);
-  const [tossConfirmStatus, setTossConfirmStatus] = useState<TossConfirmStatus>("idle");
+  const [tossConfirmStatus, setTossConfirmStatus] = useState<TossConfirmStatus>(() =>
+    shouldConfirmTossPayment ? "confirming" : "idle",
+  );
   const [tossConfirmErrorMessage, setTossConfirmErrorMessage] = useState("");
 
   useEffect(() => {
@@ -150,9 +153,6 @@ function PaymentCompletePage() {
     }
 
     let isMounted = true;
-    setTossConfirmStatus("confirming");
-    setTossConfirmErrorMessage("");
-
     confirmTossPayment({
       payment_key: tossPaymentKey,
       order_code: tossOrderId,

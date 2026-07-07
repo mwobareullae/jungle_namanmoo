@@ -421,9 +421,6 @@ function CheckoutPage() {
 
   useEffect(() => {
     if (!tossClientKey) {
-      setTossPayments(null);
-      setTossSdkErrorMessage("");
-      setIsTossSdkLoading(false);
       return;
     }
 
@@ -555,7 +552,6 @@ function CheckoutPage() {
   const totalLabel = isCheckoutResolving ? "확인 중" : formatWon(total);
   const expectedPointAmount = Math.floor(total * 0.01);
   const pointEarnNote = isCheckoutResolving ? "" : `결제 후 최대 ${expectedPointAmount.toLocaleString("ko-KR")}원 적립`;
-  const isTossSdkReady = Boolean(tossPayments);
   const isCardPaymentReady = paymentMethod !== "신용카드" || Boolean(selectedCardCompany);
   const selectedPaymentLabel = paymentMethod === "신용카드"
     ? `신용카드${selectedCardCompany ? ` (${selectedCardCompany}, ${selectedInstallment})` : ""}`
