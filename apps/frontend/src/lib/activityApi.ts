@@ -37,6 +37,10 @@ type BackendDeleteResponse = {
   success: boolean;
 };
 
+type BackendActivityRequest = {
+  product_id: string;
+};
+
 export type ActivityProductItem = {
   id: string;
   productId: string;
@@ -98,6 +102,17 @@ export const getMyWishlist = async (limit = 50): Promise<ActivityProductItem[]> 
   return data.items.map((item) => mapActivityProduct(item, { isWished: true }));
 };
 
+export const addMyWishlistItem = async (productId: string): Promise<ActivityProductItem> => {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product_id: productId } satisfies BackendActivityRequest)
+  });
+  const data = await parseJson<BackendWishlistItem>(response);
+
+  return mapActivityProduct(data, { isWished: true });
+};
+
 export const deleteMyWishlistItem = async (productId: string) => {
   const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist/${encodeURIComponent(productId)}`, {
     method: "DELETE"
@@ -116,6 +131,20 @@ export const getMyRecentProducts = async (limit = 50): Promise<ActivityProductIt
       isWished: false
     })
   );
+};
+
+export const addMyRecentProduct = async (productId: string): Promise<ActivityProductItem> => {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/me/recent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product_id: productId } satisfies BackendActivityRequest)
+  });
+  const data = await parseJson<BackendRecentViewItem>(response);
+
+  return mapActivityProduct(data, {
+    dateText: data.viewed_at,
+    isWished: false
+  });
 };
 
 export const deleteMyRecentProduct = async (productId: string) => {
