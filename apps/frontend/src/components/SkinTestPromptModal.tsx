@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dismissSkinTestPromptForSevenDays } from "../lib/skinTestPrompt";
 
@@ -36,6 +36,19 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
     onClose();
     navigate("/skin-test");
   };
+
+  const handleHideForSevenDaysChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const shouldHide = event.target.checked;
+      setHideForSevenDays(shouldHide);
+
+      if (shouldHide) {
+        dismissSkinTestPromptForSevenDays();
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -144,7 +157,7 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
           <input
             checked={hideForSevenDays}
             className="skin-test-prompt__dismiss-input"
-            onChange={(event) => setHideForSevenDays(event.target.checked)}
+            onChange={handleHideForSevenDaysChange}
             type="checkbox"
           />
           <span className="skin-test-prompt__checkbox" aria-hidden="true">
