@@ -1311,6 +1311,29 @@ function AdminDashboardPage() {
     setSelectedProductId(savedProduct.id);
     setDraftProduct(savedProduct);
     setProductSaveState("saved");
+    const localPendingNames = (savedProduct.ingredientsRaw || "")
+      .split(",")
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0 && !canonicalIngredientNames.includes(token));
+    if (localPendingNames.length > 0) {
+      setIngredientRows((currentRows) => {
+        const knownNames = new Set(currentRows.map((row) => row.rawName));
+        const appended = localPendingNames
+          .filter((name) => !knownNames.has(name))
+          .map((name, index) => ({
+            id: `pend_local_${Date.now()}_${index}`,
+            pendingCode: `ing_pending_local_${currentRows.length + index + 1}`,
+            rawName: name,
+            normalizedName: name,
+            productCount: 1,
+            connectionCount: 1,
+            suggestedCanonical: "-",
+            confidence: "로컬",
+            status: "검토 대기" as const,
+          }));
+        return appended.length > 0 ? [...appended, ...currentRows] : currentRows;
+      });
+    }
     pushOperationLog(
       "상품",
       draftProduct.id === "draft" ? "새 상품 로컬 저장" : "상품 기본정보 로컬 저장",
