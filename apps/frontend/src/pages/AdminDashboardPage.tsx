@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 type AdminView =
   | "dashboard"
@@ -91,14 +91,38 @@ type PendingItem = {
 
 const navItems: Array<{ label: string; view: AdminView }> = [
   { label: "대시보드", view: "dashboard" },
-  { label: "상품 조회", view: "products" },
-  { label: "상품 등록", view: "productForm" },
-  { label: "엑셀 대량 등록", view: "excelUpload" },
-  { label: "이미지 등록", view: "imageUpload" },
+  { label: "상품 조회/상태 확인", view: "products" },
+  { label: "상품 등록/수정", view: "productForm" },
+  { label: "엑셀 상품 대량 등록", view: "excelUpload" },
+  { label: "이미지 대량 연결", view: "imageUpload" },
   { label: "성분 매핑 검수", view: "ingredientReview" },
-  { label: "재고·가격", view: "stockPrice" },
-  { label: "주문·결제", view: "orderStatus" }
+  { label: "재고/가격 확인", view: "stockPrice" },
+  { label: "주문 상태 확인", view: "orderStatus" }
 ];
+
+const navGroupHeadings: Partial<Record<AdminView, string>> = {
+  products: "상품 운영",
+  orderStatus: "주문 운영"
+};
+
+const navPendingGroups: Array<{ heading: string; items: string[] }> = [
+  { heading: "셀러 운영", items: ["셀러 관리", "셀러별 상품 검수", "셀러별 정산"] },
+  {
+    heading: "운영 설정",
+    items: [
+      "카테고리·브랜드 관리",
+      "성분 사전 관리",
+      "이미지 파일명 규칙",
+      "엑셀 업로드 양식",
+      "관리자 권한/작업 로그"
+    ]
+  }
+];
+
+const now = new Date();
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const todayIso = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+const todayLabel = `${todayIso} ${["일", "월", "화", "수", "목", "금", "토"][now.getDay()]}`;
 
 const stats = [
   { label: "전체 상품", value: "24,585" },
@@ -3420,42 +3444,59 @@ function AdminDashboardPage() {
 
         <nav className="admin-nav">
           {navItems.map((item) => (
-            <button
-              className={item.view === activeView ? "active" : ""}
-              disabled={
-                ![
-                  "dashboard",
-                  "products",
-                  "productForm",
-                  "excelUpload",
-                  "imageUpload",
-                  "ingredientReview",
-                  "stockPrice",
-                  "orderStatus"
-                ].includes(item.view)
-              }
-              key={item.label}
-              onClick={() => {
-                if (
-                  item.view === "dashboard" ||
-                  item.view === "products" ||
-                  item.view === "productForm" ||
-                  item.view === "excelUpload" ||
-                  item.view === "imageUpload" ||
-                  item.view === "ingredientReview" ||
-                  item.view === "stockPrice" ||
-                  item.view === "orderStatus"
-                ) {
-                  if (item.view === "productForm" && selectedProductId !== "draft") {
-                    setDraftProduct(selectedProduct);
-                  }
-                  setActiveView(item.view);
+            <Fragment key={item.view}>
+              {navGroupHeadings[item.view] ? (
+                <div className="admin-nav-group">{navGroupHeadings[item.view]}</div>
+              ) : null}
+              <button
+                className={item.view === activeView ? "active" : ""}
+                disabled={
+                  ![
+                    "dashboard",
+                    "products",
+                    "productForm",
+                    "excelUpload",
+                    "imageUpload",
+                    "ingredientReview",
+                    "stockPrice",
+                    "orderStatus"
+                  ].includes(item.view)
                 }
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
+                onClick={() => {
+                  if (
+                    item.view === "dashboard" ||
+                    item.view === "products" ||
+                    item.view === "productForm" ||
+                    item.view === "excelUpload" ||
+                    item.view === "imageUpload" ||
+                    item.view === "ingredientReview" ||
+                    item.view === "stockPrice" ||
+                    item.view === "orderStatus"
+                  ) {
+                    if (item.view === "productForm" && selectedProductId !== "draft") {
+                      setDraftProduct(selectedProduct);
+                    }
+                    setActiveView(item.view);
+                  }
+                }}
+                type="button"
+              >
+                {item.label}
+              </button>
+            </Fragment>
+          ))}
+          {navPendingGroups.map((group) => (
+            <Fragment key={group.heading}>
+              <div className="admin-nav-group">
+                {group.heading}
+                <span className="admin-nav-ready">준비중</span>
+              </div>
+              {group.items.map((label) => (
+                <div className="admin-nav-disabled" key={label}>
+                  {label}
+                </div>
+              ))}
+            </Fragment>
           ))}
         </nav>
 
@@ -3482,7 +3523,11 @@ function AdminDashboardPage() {
               </button>
             </div>
           )}
-          <time dateTime="2026-07-06">2026-07-06 월</time>
+          <div className="admin-topbar-side">
+            <span className="admin-scope-chip">현재 운영 범위: 본사 셀러</span>
+            <span className="admin-scope-chip">권한: 플랫폼 상품 운영자</span>
+            <time dateTime={todayIso}>{todayLabel}</time>
+          </div>
         </header>
 
         {activeView === "dashboard" && renderDashboard()}
