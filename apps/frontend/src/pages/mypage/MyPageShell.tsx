@@ -137,15 +137,20 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
   useEffect(() => {
     if (userOverride || !authUser) {
-      setSkinProfile(null);
-      return;
+      const timerId = window.setTimeout(() => setSkinProfile(null), 0);
+      return () => window.clearTimeout(timerId);
     }
 
     let isMounted = true;
     const hasCachedProfile = cachedSkinProfile !== undefined;
+    let cachedProfileTimerId: number | null = null;
 
     if (hasCachedProfile) {
-      setSkinProfile(cachedSkinProfile ?? null);
+      cachedProfileTimerId = window.setTimeout(() => {
+        if (isMounted) {
+          setSkinProfile(cachedSkinProfile ?? null);
+        }
+      }, 0);
     }
 
     getMySkinProfile()
@@ -164,6 +169,9 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     return () => {
       isMounted = false;
+      if (cachedProfileTimerId !== null) {
+        window.clearTimeout(cachedProfileTimerId);
+      }
     };
   }, [authUser, userOverride]);
 
@@ -171,9 +179,14 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     let isMounted = true;
     const latestResult = cachedSkinTestResult ?? getLatestSkinTestResult();
     const resultId = latestResult?.result_id ?? FALLBACK_SKIN_TEST_RESULT_ID;
+    let latestResultTimerId: number | null = null;
 
     if (latestResult) {
-      setSkinTestResult(latestResult);
+      latestResultTimerId = window.setTimeout(() => {
+        if (isMounted) {
+          setSkinTestResult(latestResult);
+        }
+      }, 0);
     }
 
     api.getSkinTestResult(resultId)
@@ -193,6 +206,9 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     return () => {
       isMounted = false;
+      if (latestResultTimerId !== null) {
+        window.clearTimeout(latestResultTimerId);
+      }
     };
   }, []);
 
@@ -393,7 +409,8 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
   const effectTags = result?.recommended_effects ?? [];
 
   useEffect(() => {
-    setImageFailed(false);
+    const timerId = window.setTimeout(() => setImageFailed(false), 0);
+    return () => window.clearTimeout(timerId);
   }, [imageUrl]);
 
   return (
@@ -501,42 +518,6 @@ function ProfileAvatar({ size }: { size: "small" | "large" }) {
         <circle cx="12" cy="8" r="4" />
       </svg>
     </div>
-  );
-}
-
-function IconInfoRow({ icon, value }: { icon: "face" | "pin" | "mail"; value: string }) {
-  return (
-    <div style={styles.iconInfoRow}>
-      <InfoIcon icon={icon} />
-      <strong style={styles.iconInfoText}>{value}</strong>
-    </div>
-  );
-}
-
-function InfoIcon({ icon }: { icon: "face" | "pin" | "mail" }) {
-  if (icon === "pin") {
-    return (
-      <svg style={styles.infoIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M12 21s7-5.2 7-11a7 7 0 0 0-14 0c0 5.8 7 11 7 11Z" />
-        <circle cx="12" cy="10" r="2.5" />
-      </svg>
-    );
-  }
-
-  if (icon === "mail") {
-    return (
-      <svg style={styles.infoIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="4" y="6" width="16" height="12" rx="2" />
-        <path d="m5 8 7 5 7-5" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg style={styles.infoIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <circle cx="12" cy="8" r="4" />
-    </svg>
   );
 }
 

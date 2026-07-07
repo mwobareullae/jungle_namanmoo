@@ -220,12 +220,9 @@ function HomeRankingSection({
   }, [products]);
   const pageCount = rankingPages.length;
   const lastPageIndex = Math.max(0, pageCount - 1);
-  const canScrollPrev = pageIndex > 0;
-  const canScrollNext = pageIndex < lastPageIndex;
-
-  useEffect(() => {
-    setPageIndex((currentPage) => Math.min(currentPage, lastPageIndex));
-  }, [lastPageIndex]);
+  const safePageIndex = Math.min(pageIndex, lastPageIndex);
+  const canScrollPrev = safePageIndex > 0;
+  const canScrollNext = safePageIndex < lastPageIndex;
 
   const moveRankingPage = (direction: "prev" | "next") => {
     setPageIndex((currentPage) => {
@@ -266,7 +263,7 @@ function HomeRankingSection({
         <div className="home-ranking-viewport">
           <div
             className="home-ranking-swiper"
-            style={{ transform: `translate3d(-${pageIndex * 100}%, 0, 0)` }}
+            style={{ transform: `translate3d(-${safePageIndex * 100}%, 0, 0)` }}
           >
             {rankingPages.map((pageProducts, pageOffset) => (
               <div className="home-ranking-slide" key={`ranking-page-${pageOffset}`}>
