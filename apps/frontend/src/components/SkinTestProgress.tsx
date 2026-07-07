@@ -15,7 +15,7 @@ function SkinTestProgress({ current, onBack, total }: SkinTestProgressProps) {
         onClick={onBack}
         type="button"
       >
-        &larr;
+        <span aria-hidden="true">‹</span>
       </button>
       <div
         className="skin-test-progress__track"

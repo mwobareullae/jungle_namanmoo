@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
+import { useAuth } from "../contexts/useAuth";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import {
   getLatestSkinTestResult,
@@ -178,8 +180,48 @@ const takeProducts = (products: RecommendationProduct[], startIndex: number) => 
     return products;
   }
 
-  return Array.from({ length: displayCount }, (_, index) => products[(startIndex + index) % products.length]);
+    return Array.from({ length: displayCount }, (_, index) => products[(startIndex + index) % products.length]);
 };
+
+const skeletonSections = [
+  "내 피부에 잘 맞는 제품",
+  "같은 타입이 많이 찾은 제품",
+  "내 구매 스타일과 잘 맞는 제품",
+];
+
+function SkinTestRecommendationSkeleton() {
+  return (
+    <div className="skin-test-recommendation-sections" aria-hidden="true">
+      {skeletonSections.map((title) => (
+        <section className="skin-test-recommendation-section" key={title}>
+          <div className="skin-test-recommendation-section__head">
+            <div className="skin-test-recommendation-skeleton-head">
+              <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--title skeleton-shimmer" />
+              <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--subtitle skeleton-shimmer" />
+            </div>
+          </div>
+          <div className="skin-test-recommendation-grid">
+            {Array.from({ length: 8 }, (_, index) => (
+              <article className="skin-test-recommendation-card skin-test-recommendation-card--skeleton" key={index}>
+                <div className="skin-test-recommendation-card__image skeleton-shimmer" />
+                <div className="skin-test-recommendation-card__body">
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--brand skeleton-shimmer" />
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--name skeleton-shimmer" />
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--name-short skeleton-shimmer" />
+                  <div className="skin-test-recommendation-skeleton-pills">
+                    <span className="skin-test-recommendation-skeleton-pill skeleton-shimmer" />
+                    <span className="skin-test-recommendation-skeleton-pill skeleton-shimmer" />
+                  </div>
+                  <span className="skin-test-recommendation-skeleton-line skin-test-recommendation-skeleton-line--price skeleton-shimmer" />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 const buildSections = (
   products: RecommendationProduct[],
@@ -213,13 +255,24 @@ function SkinTestRecommendationsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const locationState = location.state as SkinTestRecommendationsLocationState | null;
   const [result, setResult] = useState<SkinTestResult | null>(() => locationState?.result ?? getLatestSkinTestResult());
   const [products, setProducts] = useState<RecommendationProduct[]>(fallbackProducts);
   const [isResultLoading, setIsResultLoading] = useState(false);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef<number | null>(null);
   const resultId = getResultIdFromSearchParams(searchParams) ?? result?.result_id ?? null;
+
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (locationState?.result) {
@@ -313,6 +366,27 @@ function SkinTestRecommendationsPage() {
     };
   }, [result, sensitivityLabel, skinTypeLabel, typeCode]);
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let isActive = true;
+
+    getMyWishlist()
+      .then((items) => {
+        if (!isActive) return;
+        setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isActive) setWishedProductIds(new Set());
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
+
   const recommendationProducts = products.length ? products : fallbackProducts;
   const sections = useMemo(
     () => buildSections(recommendationProducts, typeCode, skinTypeLabel),
@@ -323,9 +397,70 @@ function SkinTestRecommendationsPage() {
     navigate(`/product-detail?id=${encodeURIComponent(productId)}`);
   };
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage("");
+      toastTimerRef.current = null;
+    }, 2500);
+  };
+
+  const toggleWishlist = async (productId: string) => {
+    if (pendingWishlistProductIds.has(productId)) {
+      return;
+    }
+
+    if (!user) {
+      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      return;
+    }
+
+    const wasWished = wishedProductIds.has(productId);
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+    setWishedProductIds((current) => {
+      const next = new Set(current);
+      if (wasWished) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+
+    try {
+      if (wasWished) {
+        await deleteMyWishlistItem(productId);
+        showToast("찜한 상품에서 해제했습니다.");
+      } else {
+        await addMyWishlistItem(productId);
+        showToast("찜한 상품에 추가했습니다.");
+      }
+    } catch {
+      setWishedProductIds((current) => {
+        const next = new Set(current);
+        if (wasWished) {
+          next.add(productId);
+        } else {
+          next.delete(productId);
+        }
+        return next;
+      });
+      showToast("찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setPendingWishlistProductIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="skin-test-shell">
-      <AuthHeader />
+      <HomeHeader />
       <main className="skin-test-recommendation-main">
         <section className="skin-test-recommendation-page">
           <div className="skin-test-recommendation-hero">
@@ -333,7 +468,9 @@ function SkinTestRecommendationsPage() {
               {imageUrl ? <img src={imageUrl} alt="" /> : <span>{typeCode}</span>}
             </div>
             <div>
-              <h1>{typeCode} 타입을 위한 추천</h1>
+              <h1>
+                <span>{typeCode} 타입</span>을 위한 큐레이션
+              </h1>
               <p>
                 {skinTypeLabel} · 민감도 {sensitivityLabel} 기준으로 지금 보기 좋은 상품을 모았어요.
               </p>
@@ -346,10 +483,7 @@ function SkinTestRecommendationsPage() {
           </div>
 
           {isResultLoading ? (
-            <div className="skin-test-state">
-              <span className="skin-test-loader" aria-hidden="true" />
-              <p>추천 기준을 불러오고 있어요.</p>
-            </div>
+            <SkinTestRecommendationSkeleton />
           ) : errorMessage && !result ? (
             <div className="skin-test-state">
               <p>{errorMessage}</p>
@@ -357,6 +491,8 @@ function SkinTestRecommendationsPage() {
                 테스트 시작하기
               </button>
             </div>
+          ) : isProductsLoading ? (
+            <SkinTestRecommendationSkeleton />
           ) : (
             <div className="skin-test-recommendation-sections" aria-busy={isProductsLoading}>
               {sections.map((section) => (
@@ -369,54 +505,69 @@ function SkinTestRecommendationsPage() {
                   </div>
 
                   <div className="skin-test-recommendation-grid">
-                    {section.products.map((product, index) => (
-                      <article
-                        className="skin-test-recommendation-card"
-                        key={`${section.id}-${product.product_id}-${index}`}
-                        onClick={() => openProduct(product.product_id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openProduct(product.product_id);
-                          }
-                        }}
-                        role="link"
-                        tabIndex={0}
-                      >
-                        <div className="skin-test-recommendation-card__image">
-                          <button
-                            aria-label={`${product.name} 찜하기`}
-                            className="skin-test-recommendation-card__heart"
-                            onClick={(event) => event.stopPropagation()}
-                            type="button"
+                    {section.products.map((product, index) => {
+                        const isWished = wishedProductIds.has(product.product_id);
+                        const isPending = pendingWishlistProductIds.has(product.product_id);
+
+                        return (
+                          <article
+                            className="skin-test-recommendation-card"
+                            key={`${section.id}-${product.product_id}-${index}`}
+                            onClick={() => openProduct(product.product_id)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openProduct(product.product_id);
+                              }
+                            }}
+                            role="link"
+                            tabIndex={0}
                           >
-                            ♡
-                          </button>
-                          {product.thumbnail_url ? (
-                            <img src={product.thumbnail_url} alt="" loading="lazy" />
-                          ) : (
-                            <span>이미지 준비중</span>
-                          )}
-                        </div>
-                        <div className="skin-test-recommendation-card__body">
-                          <div className="skin-test-recommendation-card__tags">
-                            {product.tags.slice(0, 2).map((tag) => (
-                              <span key={tag}>#{tag}</span>
-                            ))}
-                          </div>
-                          <p className="skin-test-recommendation-card__brand">{product.brand}</p>
-                          <h3>{product.name}</h3>
-                          <p className="skin-test-recommendation-card__price">{formatPrice(product.lowest_price)}</p>
-                          <p className="skin-test-recommendation-card__reason">{product.reason_summary}</p>
-                          {section.meta === "popular" && (
-                            <p className="skin-test-recommendation-card__meta">{product.social_proof}</p>
-                          )}
-                          {section.meta === "style" && (
-                            <p className="skin-test-recommendation-card__meta">{product.style_reason}</p>
-                          )}
-                        </div>
-                      </article>
-                    ))}
+                            <div className="skin-test-recommendation-card__image">
+                              <button
+                                aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                                aria-pressed={isWished}
+                                className={`skin-test-recommendation-card__heart${isWished ? " is-wished" : ""}`}
+                                disabled={isPending}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void toggleWishlist(product.product_id);
+                                }}
+                                type="button"
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  fill={isWished ? "currentColor" : "none"}
+                                  height="26"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2.3"
+                                  viewBox="0 0 24 24"
+                                  width="26"
+                                >
+                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
+                                </svg>
+                              </button>
+                              {product.thumbnail_url ? (
+                                <img src={product.thumbnail_url} alt="" loading="lazy" />
+                              ) : (
+                                <span>뭐바를래</span>
+                              )}
+                            </div>
+                            <div className="skin-test-recommendation-card__body">
+                              <p className="skin-test-recommendation-card__brand">{product.brand}</p>
+                              <h3>{product.name}</h3>
+                              <div className="skin-test-recommendation-card__tags">
+                                {product.tags.slice(0, 3).map((tag) => (
+                                  <span key={tag}>{tag}</span>
+                                ))}
+                              </div>
+                              <p className="skin-test-recommendation-card__price">{formatPrice(product.lowest_price)}</p>
+                            </div>
+                          </article>
+                        );
+                    })}
                   </div>
                 </section>
               ))}
@@ -424,6 +575,12 @@ function SkinTestRecommendationsPage() {
           )}
         </section>
       </main>
+      {toastMessage ? (
+        <div className="activity-toast" role="status" aria-live="polite">
+          <span className="activity-toast__dot" />
+          {toastMessage}
+        </div>
+      ) : null}
     </div>
   );
 }
