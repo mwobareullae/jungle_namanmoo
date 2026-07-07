@@ -4,9 +4,12 @@ import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import AppFooter from "../components/AppFooter";
+import SkinTestPromptModal from "../components/SkinTestPromptModal";
+import { useAuth } from "../contexts/useAuth";
+import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import { HomeMatchResult } from "../components/HomeStaticSections";
+import { consumeSkinTestPromptPending, hasDismissedSkinTestPrompt } from "../lib/skinTestPrompt";
 import type { RecommendationProfile } from "../types/recommendation";
 
 type HomeSection = {
@@ -60,8 +63,10 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
+  const { user } = useAuth();
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
+  const [isSkinTestPromptOpen, setIsSkinTestPromptOpen] = useState(false);
 
   useEffect(() => installHomeRuntime(profile), [profile]);
 
@@ -79,6 +84,22 @@ function HomePage({ bodyHtml }: HomePageProps) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const shouldPrompt = consumeSkinTestPromptPending();
+
+    if (shouldPrompt && !hasDismissedSkinTestPrompt()) {
+      const promptTimer = window.setTimeout(() => {
+        setIsSkinTestPromptOpen(true);
+      }, 0);
+
+      return () => window.clearTimeout(promptTimer);
+    }
+  }, [user]);
 
   return (
     <>
@@ -103,6 +124,9 @@ function HomePage({ bodyHtml }: HomePageProps) {
             key={section.id}
           />
         )
+      )}
+      {isSkinTestPromptOpen && (
+        <SkinTestPromptModal onClose={() => setIsSkinTestPromptOpen(false)} />
       )}
     </>
   );
