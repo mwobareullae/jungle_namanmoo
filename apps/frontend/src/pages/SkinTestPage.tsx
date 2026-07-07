@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import SkinTestProgress from "../components/SkinTestProgress";
 import SkinTestQuestionCard from "../components/SkinTestQuestionCard";
 import { api } from "../lib/api";
@@ -9,8 +9,6 @@ import type { ApiError } from "../types/recommendation";
 import type { SkinTestOption, SkinTestQuestionsResponse } from "../types/skinTest";
 
 type AnswerMap = Record<string, SkinTestOption["id"]>;
-
-const AUTO_ADVANCE_DELAY_MS = 300;
 
 const getErrorMessage = (error: unknown) => {
   const apiError = error as Partial<ApiError>;
@@ -24,11 +22,11 @@ const getErrorMessage = (error: unknown) => {
 
 function SkinTestPage() {
   const navigate = useNavigate();
-  const autoAdvanceTimerRef = useRef<number | null>(null);
   const [questionSet, setQuestionSet] = useState<SkinTestQuestionsResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [hasStarted, setHasStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,15 +63,6 @@ function SkinTestPage() {
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      if (autoAdvanceTimerRef.current !== null) {
-        window.clearTimeout(autoAdvanceTimerRef.current);
-      }
-    },
-    [],
-  );
-
   const questions = useMemo(() => questionSet?.questions ?? [], [questionSet?.questions]);
   const currentQuestion = questions[currentIndex];
   const selectedOptionId = currentQuestion ? answers[String(currentQuestion.id)] ?? null : null;
@@ -82,65 +71,14 @@ function SkinTestPage() {
     () => questions.filter((question) => answers[String(question.id)] !== undefined).length,
     [answers, questions],
   );
+  const isQuestionStep = Boolean(currentQuestion && hasStarted && !isSubmitting && !isLoading);
 
-  const clearAutoAdvanceTimer = () => {
-    if (autoAdvanceTimerRef.current !== null) {
-      window.clearTimeout(autoAdvanceTimerRef.current);
-      autoAdvanceTimerRef.current = null;
-    }
-  };
-
-  const handleSelectOption = (optionId: SkinTestOption["id"]) => {
-    if (!currentQuestion) {
+  const submitAnswers = async (finalAnswers: AnswerMap) => {
+    if (!questionSet) {
       return;
     }
 
-    clearAutoAdvanceTimer();
-    setAnswers((currentAnswers) => ({
-      ...currentAnswers,
-      [String(currentQuestion.id)]: optionId,
-    }));
-    setErrorMessage("");
-
-    if (!isLastQuestion) {
-      autoAdvanceTimerRef.current = window.setTimeout(() => {
-        setCurrentIndex((index) => (index >= questions.length - 1 ? index : index + 1));
-        autoAdvanceTimerRef.current = null;
-      }, AUTO_ADVANCE_DELAY_MS);
-    }
-  };
-
-  const handlePrevious = () => {
-    clearAutoAdvanceTimer();
-    setErrorMessage("");
-
-    if (currentIndex === 0) {
-      navigate("/");
-      return;
-    }
-
-    setCurrentIndex((index) => index - 1);
-  };
-
-  const handleNext = async () => {
-    clearAutoAdvanceTimer();
-
-    if (!currentQuestion || !questionSet) {
-      return;
-    }
-
-    if (selectedOptionId === null) {
-      setErrorMessage("답변을 하나 선택해 주세요.");
-      return;
-    }
-
-    if (!isLastQuestion) {
-      setCurrentIndex((index) => index + 1);
-      setErrorMessage("");
-      return;
-    }
-
-    const unansweredQuestion = questions.find((question) => answers[String(question.id)] === undefined);
+    const unansweredQuestion = questions.find((question) => finalAnswers[String(question.id)] === undefined);
 
     if (unansweredQuestion) {
       setCurrentIndex(questions.indexOf(unansweredQuestion));
@@ -157,7 +95,7 @@ function SkinTestPage() {
           version: questionSet.version,
           answers: questions.map((question) => ({
             question_id: question.id,
-            option_id: answers[String(question.id)],
+            option_id: finalAnswers[String(question.id)],
           })),
         }),
         new Promise((resolve) => window.setTimeout(resolve, 700)),
@@ -176,11 +114,45 @@ function SkinTestPage() {
     }
   };
 
+  const handleSelectOption = (optionId: SkinTestOption["id"]) => {
+    if (!currentQuestion || isSubmitting) {
+      return;
+    }
+
+    const nextAnswers = {
+      ...answers,
+      [String(currentQuestion.id)]: optionId,
+    };
+
+    setAnswers(nextAnswers);
+    setErrorMessage("");
+
+    window.setTimeout(() => {
+      if (!isLastQuestion) {
+        setCurrentIndex((index) => index + 1);
+        return;
+      }
+
+      void submitAnswers(nextAnswers);
+    }, 180);
+  };
+
+  const handlePrevious = () => {
+    setErrorMessage("");
+
+    if (currentIndex === 0) {
+      setHasStarted(false);
+      return;
+    }
+
+    setCurrentIndex((index) => index - 1);
+  };
+
   return (
     <div className="skin-test-shell">
-      <AuthHeader />
+      <HomeHeader />
       <main className="skin-test-main">
-        <div className="skin-test-layout">
+        <div className={`skin-test-layout${isQuestionStep ? " skin-test-layout--question" : ""}`}>
           <section className="skin-test-panel" aria-live="polite">
             {isSubmitting ? (
               <div className="skin-test-state skin-test-state--analysis">
@@ -204,32 +176,37 @@ function SkinTestPage() {
                   홈으로 이동
                 </button>
               </div>
+            ) : !hasStarted ? (
+              <div className="skin-test-intro">
+                <p className="skin-test-intro__eyebrow">맞춤 추천 테스트</p>
+                <h1>내 피부 상태 셀프 진단하기</h1>
+                <p className="skin-test-intro__copy">
+                  몇 가지 질문에 답하면 피부 타입과 고민을 바탕으로 맞춤 추천을 준비해드려요.
+                </p>
+                <div className="skin-test-intro-card" aria-hidden="true">
+                  <span>CleanPick boarding pass</span>
+                  <strong>뭐바를래 피부 체크인</strong>
+                  <em>내 피부에 맞는 추천 여정의 시작</em>
+                </div>
+                <button className="skin-test-intro-button" onClick={() => setHasStarted(true)} type="button">
+                  셀프 체크인 시작하기
+                </button>
+              </div>
             ) : (
-              <>
+              <div className="skin-test-question-frame" key={currentQuestion.id}>
                 <SkinTestProgress current={currentIndex + 1} onBack={handlePrevious} total={questions.length} />
                 <SkinTestQuestionCard
                   question={currentQuestion}
                   selectedOptionId={selectedOptionId}
                   onSelect={handleSelectOption}
                 />
-                <div className="skin-test-actions">
-                  <button className="skin-test-secondary-button" onClick={handlePrevious} type="button">
-                    &larr; 뒤로
-                  </button>
-                  <button
-                    className="skin-test-primary-button"
-                    disabled={isSubmitting}
-                    onClick={handleNext}
-                    type="button"
-                  >
-                    {isLastQuestion ? "결과 보기" : "다음"} &rarr;
-                  </button>
-                </div>
                 <div className="skin-test-footnote">
-                  <span>{answeredCount}개 답변 완료</span>
+                  <span>
+                    {answeredCount}/{questions.length} 답변 완료
+                  </span>
                   {errorMessage && <strong>{errorMessage}</strong>}
                 </div>
-              </>
+              </div>
             )}
           </section>
         </div>

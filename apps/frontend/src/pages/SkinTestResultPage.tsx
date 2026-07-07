@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import AuthHeader from "../components/AuthHeader";
+import HomeHeader from "../components/HomeHeader";
 import { api } from "../lib/api";
 import {
   getLatestSkinTestResult,
@@ -133,7 +133,7 @@ function SkinTestResultPage() {
 
   return (
     <div className="skin-test-shell">
-      <AuthHeader />
+      <HomeHeader />
       <main className="skin-test-main skin-test-result-main">
         <section className="skin-test-result">
           {isLoading ? (
