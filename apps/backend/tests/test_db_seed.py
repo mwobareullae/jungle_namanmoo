@@ -121,6 +121,27 @@ def test_seed_database_emits_seed_performance_log() -> None:
     assert "duration_ms" in payload
 
 
+def test_seed_database_streams_product_ingredients_from_data_dir(monkeypatch) -> None:
+    captured_include_flags: list[bool] = []
+    original_load_data_catalog = db_seed.load_data_catalog
+
+    def fake_load_data_catalog(data_dir, *, include_product_ingredients=True):
+        captured_include_flags.append(include_product_ingredients)
+        return original_load_data_catalog(
+            data_dir,
+            include_product_ingredients=include_product_ingredients,
+        )
+
+    monkeypatch.setattr(db_seed, "load_data_catalog", fake_load_data_catalog)
+    session = _make_session()
+
+    result = seed_database(session, EXAMPLES_DIR)
+
+    assert captured_include_flags == [False]
+    assert result.product_ingredients == 5
+    assert _count(session, ProductIngredient) == 5
+
+
 def test_seed_product_ingredients_emits_progress_log(monkeypatch) -> None:
     monkeypatch.setattr(db_seed, "SEED_PROGRESS_INTERVAL_ROWS", 2)
     session = _make_session()
@@ -364,6 +385,25 @@ def test_seed_catalog_skips_duplicate_product_ingredient_pairs() -> None:
     )
 
     result = seed_catalog(session, catalog_with_duplicate)
+
+    assert result.product_ingredients == 5
+    assert _count(session, ProductIngredient) == 5
+
+
+def test_seed_catalog_batches_product_ingredient_upserts(monkeypatch) -> None:
+    monkeypatch.setattr(db_seed, "SEED_PRODUCT_INGREDIENT_BATCH_SIZE", 2)
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    catalog_with_duplicate = replace(
+        catalog,
+        product_ingredients=(
+            *catalog.product_ingredients,
+            catalog.product_ingredients[0],
+        ),
+    )
+
+    result = seed_catalog(session, catalog_with_duplicate)
+    seed_catalog(session, catalog_with_duplicate)
 
     assert result.product_ingredients == 5
     assert _count(session, ProductIngredient) == 5

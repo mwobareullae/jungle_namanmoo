@@ -161,7 +161,7 @@ SALES_STATUS_VALUES = {"ON_SALE", "SOLD_OUT", "HIDDEN"}
 T = TypeVar("T")
 
 
-def load_data_catalog(data_dir: str | Path) -> DataCatalog:
+def load_data_catalog(data_dir: str | Path, *, include_product_ingredients: bool = True) -> DataCatalog:
     base_path = Path(data_dir)
 
     products = _load_csv(base_path, "products.csv", _parse_product)
@@ -181,10 +181,14 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         "product_market_signals.csv",
         _parse_product_market_signal,
     )
-    product_ingredients = _load_csv(
-        base_path,
-        "product_ingredients.csv",
-        _parse_product_ingredient,
+    product_ingredients = (
+        _load_csv(
+            base_path,
+            "product_ingredients.csv",
+            _parse_product_ingredient,
+        )
+        if include_product_ingredients
+        else ()
     )
     product_skin_profiles = _load_csv(
         base_path,
@@ -235,8 +239,32 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
         concern_effects=concern_effects,
         search_documents=search_documents,
     )
-    _validate_catalog(catalog)
+    _validate_catalog(catalog, validate_product_ingredients=include_product_ingredients)
     return catalog
+
+
+def iter_product_ingredients(data_dir: str | Path) -> Iterable[ProductIngredient]:
+    return _iter_csv(Path(data_dir), "product_ingredients.csv", _parse_product_ingredient)
+
+
+def count_csv_records(data_dir: str | Path, file_name: str) -> int:
+    base_path = Path(data_dir)
+    file_paths = _resolve_csv_paths(base_path, file_name)
+    if not file_paths:
+        raise DataLoadError(f"?꾩닔 ?곗씠???뚯씪???놁뒿?덈떎: {file_name}")
+
+    count = 0
+    for file_path in file_paths:
+        source_name = _csv_source_name(base_path, file_path)
+        with file_path.open(encoding="utf-8-sig", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            headers = set(reader.fieldnames or [])
+            missing_headers = sorted(CSV_HEADERS[file_name] - headers)
+            if missing_headers:
+                missing = ", ".join(missing_headers)
+                raise DataLoadError(f"{source_name} ?꾩닔 而щ읆???놁뒿?덈떎: {missing}")
+            count += sum(1 for _ in reader)
+    return count
 
 
 def load_concern_tags(data_dir: str | Path) -> tuple[ConcernTag, ...]:
@@ -252,11 +280,18 @@ def _load_csv(
     file_name: str,
     parser: Callable[[dict[str, str], str, int], T],
 ) -> tuple[T, ...]:
+    return tuple(_iter_csv(base_path, file_name, parser))
+
+
+def _iter_csv(
+    base_path: Path,
+    file_name: str,
+    parser: Callable[[dict[str, str], str, int], T],
+) -> Iterable[T]:
     file_paths = _resolve_csv_paths(base_path, file_name)
     if not file_paths:
         raise DataLoadError(f"필수 데이터 파일이 없습니다: {file_name}")
 
-    records: list[T] = []
     for file_path in file_paths:
         source_name = _csv_source_name(base_path, file_path)
         with file_path.open(encoding="utf-8-sig", newline="") as csv_file:
@@ -267,9 +302,8 @@ def _load_csv(
                 missing = ", ".join(missing_headers)
                 raise DataLoadError(f"{source_name} 필수 컬럼이 없습니다: {missing}")
 
-            records.extend(parser(row, source_name, line_number) for line_number, row in enumerate(reader, 2))
-
-    return tuple(records)
+            for line_number, row in enumerate(reader, 2):
+                yield parser(row, source_name, line_number)
 
 
 def _load_optional_csv(
@@ -641,7 +675,7 @@ def _parse_search_document(
     )
 
 
-def _validate_catalog(catalog: DataCatalog) -> None:
+def _validate_catalog(catalog: DataCatalog, *, validate_product_ingredients: bool = True) -> None:
     product_ids = {product.product_id for product in catalog.products}
     ingredient_ids = {ingredient.ingredient_id for ingredient in catalog.ingredients}
     effect_ids = {effect.effect_id for effect in catalog.ingredient_effects}
@@ -671,24 +705,26 @@ def _validate_catalog(catalog: DataCatalog) -> None:
         (signal.product_id for signal in catalog.product_market_signals),
         product_ids,
     )
-    _validate_references(
-        "product_ingredients.csv",
-        "product_id",
-        (ingredient.product_id for ingredient in catalog.product_ingredients),
-        product_ids,
-    )
+    if validate_product_ingredients:
+        _validate_references(
+            "product_ingredients.csv",
+            "product_id",
+            (ingredient.product_id for ingredient in catalog.product_ingredients),
+            product_ids,
+        )
     _validate_references(
         "product_skin_profiles.csv",
         "product_id",
         (profile.product_id for profile in catalog.product_skin_profiles),
         product_ids,
     )
-    _validate_references(
-        "product_ingredients.csv",
-        "ingredient_id",
-        (ingredient.ingredient_id for ingredient in catalog.product_ingredients),
-        ingredient_ids,
-    )
+    if validate_product_ingredients:
+        _validate_references(
+            "product_ingredients.csv",
+            "ingredient_id",
+            (ingredient.ingredient_id for ingredient in catalog.product_ingredients),
+            ingredient_ids,
+        )
     _validate_references(
         "ingredient_aliases.csv",
         "canonical_id",
