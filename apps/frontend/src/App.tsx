@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
+import AppFooter from "./components/AppFooter";
+import { getSavedSkinProfile } from "./lib/profileApi";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -540,14 +542,57 @@ function LegacyApp() {
 
 function GlobalAgentEntry() {
   const location = useLocation();
+  const [hasSavedSkinProfile, setHasSavedSkinProfile] = useState(false);
+  const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
+
+  const hasTemporarySkinProfile = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return Boolean(params.get("skin_type") && params.get("sensitivity"));
+  }, [location.search]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getSavedSkinProfile().then((profile) => {
+      if (isMounted) {
+        setHasSavedSkinProfile(Boolean(profile));
+        setIsSkinProfileResolved(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (appMode === "community") {
     return null;
   }
 
+  const skinProfileStatus = hasSavedSkinProfile
+    ? "saved"
+    : hasTemporarySkinProfile
+      ? "temporary"
+      : isSkinProfileResolved
+        ? "empty"
+        : "empty";
+
   return (
-    <AgentFloatingButton surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"} />
+    <AgentFloatingButton
+      skinProfileStatus={skinProfileStatus}
+      surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"}
+    />
   );
+}
+
+function GlobalFooter() {
+  const location = useLocation();
+
+  if (location.pathname === "/") {
+    return null;
+  }
+
+  return <AppFooter />;
 }
 
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
@@ -571,6 +616,7 @@ function App() {
         <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
         <Route path="*" element={<LegacyApp />} />
       </Routes>
+      <GlobalFooter />
       <GlobalAgentEntry />
     </>
   );
