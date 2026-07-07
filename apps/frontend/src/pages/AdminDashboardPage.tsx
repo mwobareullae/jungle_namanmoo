@@ -1463,10 +1463,11 @@ function AdminDashboardPage() {
     setSelectedProductId(savedProduct.id);
     setDraftProduct(savedProduct);
     setProductSaveState("saved");
+    const canonicalNormalizedNames = new Set(canonicalIngredientNames.map((name) => normalizeIngredientName(name)));
     const localPendingNames = (savedProduct.ingredientsRaw || "")
       .split(",")
       .map((token) => token.trim())
-      .filter((token) => token.length > 0 && !canonicalIngredientNames.includes(token));
+      .filter((token) => token.length > 0 && !canonicalNormalizedNames.has(normalizeIngredientName(token)));
     if (localPendingNames.length > 0) {
       setIngredientRows((currentRows) => {
         const knownNames = new Set(currentRows.map((row) => row.rawName));
@@ -1560,14 +1561,19 @@ function AdminDashboardPage() {
         pushOperationLog("엑셀", "엑셀 파싱 실패", `${file.name} · xlsx/csv 형식 확인 필요`, "danger");
         return;
       }
-      const header = grid[0].map((cell) => (cell || "").trim());
+      const header = grid[0].map((cell) => (cell || "").replace(/^\ufeff/, "").trim());
       const columnIndex = (name: string) => header.indexOf(name);
       const skuCol = columnIndex("seller_sku");
       const nameCol = columnIndex("product_name");
       const priceCol = columnIndex("price");
       const ingredientCol = columnIndex("ingredients_raw");
+      if (skuCol < 0 || nameCol < 0 || priceCol < 0 || ingredientCol < 0) {
+        pushOperationLog("엑셀", "템플릿 형식 오류", `${file.name} · 필수 컬럼 헤더 누락(seller_sku/product_name/price/ingredients_raw)`, "danger");
+        return;
+      }
       const failures: { row: number; sellerSku: string; field: string; value: string; reason: string }[] = [];
       const pendingNames = new Set<string>();
+      const canonicalNormalizedNames = new Set(canonicalIngredientNames.map((name) => normalizeIngredientName(name)));
       const existingNames = new Set(products.map((product) => product.name));
       let okCount = 0;
       grid.slice(1).forEach((cells, index) => {
@@ -1603,7 +1609,7 @@ function AdminDashboardPage() {
           .map((token) => token.trim())
           .filter(Boolean)
           .forEach((token) => {
-            if (!canonicalIngredientNames.includes(token)) pendingNames.add(token);
+            if (!canonicalNormalizedNames.has(normalizeIngredientName(token))) pendingNames.add(token);
           });
         if (!bad) okCount += 1;
       });
