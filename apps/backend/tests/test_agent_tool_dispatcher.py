@@ -1,4 +1,6 @@
 from collections.abc import Generator
+import json
+import logging
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -41,17 +43,21 @@ def test_dispatcher_lists_registered_agent_tools() -> None:
 def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engine) -> None:
     _set_inventory(db_engine, "prod_002", stock_quantity=10)
 
+    logs = _capture_performance_logs()
     with Session(db_engine) as session:
-        response = execute_agent_tool(
-            session,
-            tool_name="find_similar_products",
-            arguments={"product_id": "prod_001", "limit": 2},
-            conversation_id="conv_dispatch",
-            request_id="req_dispatch",
-            session_id="sess_dispatch",
-            anonymous_user_id="anon_dispatch",
-        )
-        session.commit()
+        try:
+            response = execute_agent_tool(
+                session,
+                tool_name="find_similar_products",
+                arguments={"product_id": "prod_001", "limit": 2},
+                conversation_id="conv_dispatch",
+                request_id="req_dispatch",
+                session_id="sess_dispatch",
+                anonymous_user_id="anon_dispatch",
+            )
+            session.commit()
+        finally:
+            logs.close()
 
     assert response.tool_name == "find_similar_products"
     assert response.conversation_id == "conv_dispatch"
@@ -70,6 +76,13 @@ def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engin
     assert tool_call.output_json["items"][0]["id"] == "prod_002"
     assert tool_call.executed_at is not None
     assert tool_call.latency_ms is not None
+    performance_payload = next(
+        line for line in logs.json_lines if line["event"] == "agent_tool_completed"
+    )
+    assert performance_payload["request_id"] == "req_dispatch"
+    assert performance_payload["tool_name"] == "find_similar_products"
+    assert performance_payload["status"] == "EXECUTED"
+    assert performance_payload["item_count"] == 1
 
 
 def test_dispatcher_rejects_unknown_tool(db_engine: Engine) -> None:
@@ -135,3 +148,28 @@ def _set_inventory(
             inventory.safety_stock = safety_stock
             inventory.sales_status = sales_status
         session.commit()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    logger.setLevel(logging.INFO)
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler
