@@ -37,23 +37,6 @@ type ProductListProps = {
   onSortChange?: (sort: WishlistSort) => void;
 };
 
-const wishlistItems: MypageProductListItem[] = [
-  {
-    id: "wish-1",
-    productId: "prod_wish_1",
-    brand: "라운드랩",
-    name: "1025 독도 토너 500ml",
-    price: 19800,
-    originalPrice: 30000,
-    discountRate: 34,
-    deliveryLabel: "무료배송",
-    thumbnailUrl: null,
-    tags: ["수분", "저자극"],
-    isWished: true,
-    eventContext: { page: "mypage_wishlist", source: "wishlist", sectionId: "wishlist_list", productId: "prod_wish_1", rank: 1 }
-  }
-];
-
 const recommendedItems: MypageProductListItem[] = [
   {
     id: "wish-1",
@@ -96,69 +79,6 @@ const recommendedItems: MypageProductListItem[] = [
     tags: ["장벽", "민감"],
     isWished: true,
     eventContext: { page: "mypage_wishlist", source: "wishlist", sectionId: "wishlist_list", productId: "prod_wish_3", rank: 3 }
-  }
-];
-
-const recentItems: MypageProductListItem[] = [
-  {
-    id: "recent-1",
-    productId: "prod_recent_1",
-    brand: "이니스프리",
-    name: "그린티 씨드 히알루론산 세럼",
-    price: 21600,
-    originalPrice: 27000,
-    discountRate: 20,
-    deliveryLabel: "3,000원",
-    thumbnailUrl: null,
-    dateLabel: "2026.07.06.",
-    tags: ["수분", "세럼"],
-    isWished: false,
-    eventContext: { page: "mypage_recent", source: "recent_products", sectionId: "recent_list", productId: "prod_recent_1", rank: 1 }
-  },
-  {
-    id: "recent-2",
-    productId: "prod_recent_2",
-    brand: "라네즈",
-    name: "워터뱅크 블루 히알루로닉 크림",
-    price: 18900,
-    originalPrice: 23500,
-    discountRate: 19,
-    deliveryLabel: "3,000원",
-    thumbnailUrl: null,
-    dateLabel: "2026.07.06.",
-    tags: ["보습", "크림"],
-    isWished: true,
-    eventContext: { page: "mypage_recent", source: "recent_products", sectionId: "recent_list", productId: "prod_recent_2", rank: 2 }
-  },
-  {
-    id: "recent-3",
-    productId: "prod_recent_3",
-    brand: "에스트라",
-    name: "아토베리어365 크림",
-    price: 22900,
-    originalPrice: 29900,
-    discountRate: 23,
-    deliveryLabel: "무료배송",
-    thumbnailUrl: null,
-    dateLabel: "2026.07.04.",
-    tags: ["장벽", "저자극"],
-    isWished: false,
-    eventContext: { page: "mypage_recent", source: "recent_products", sectionId: "recent_list", productId: "prod_recent_3", rank: 3 }
-  },
-  {
-    id: "recent-4",
-    productId: "prod_recent_4",
-    brand: "라로슈포제",
-    name: "시카플라스트 밤 B5+",
-    price: 24900,
-    originalPrice: 54000,
-    discountRate: 53,
-    deliveryLabel: "무료배송",
-    thumbnailUrl: null,
-    dateLabel: "2026.07.01.",
-    tags: ["진정", "재생"],
-    isWished: false,
-    eventContext: { page: "mypage_recent", source: "recent_products", sectionId: "recent_list", productId: "prod_recent_4", rank: 4 }
   }
 ];
 
@@ -245,15 +165,21 @@ function MypageProductList({
 
   useEffect(() => {
     if (items) {
-      setListItems(items);
-      setIsLoading(false);
-      setLoadError(null);
-      return;
+      const timerId = window.setTimeout(() => {
+        setListItems(items);
+        setIsLoading(false);
+        setLoadError(null);
+      }, 0);
+      return () => window.clearTimeout(timerId);
     }
 
     let isMounted = true;
-    setIsLoading(true);
-    setLoadError(null);
+    const loadingTimerId = window.setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(true);
+        setLoadError(null);
+      }
+    }, 0);
 
     const request = mode === "wishlist" ? getMyWishlist() : getMyRecentProducts();
     request
@@ -280,6 +206,7 @@ function MypageProductList({
 
     return () => {
       isMounted = false;
+      window.clearTimeout(loadingTimerId);
     };
   }, [items, mode, title]);
 

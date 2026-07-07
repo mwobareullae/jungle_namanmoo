@@ -368,7 +368,6 @@ function SkinTestRecommendationsPage() {
 
   useEffect(() => {
     if (!user) {
-      setWishedProductIds(new Set());
       return;
     }
 
