@@ -1,3 +1,5 @@
+import json
+import logging
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -6,6 +8,7 @@ from shutil import copytree
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+import app.services.db_seed as db_seed
 from app.db.base import Base
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductIngredient, ProductSkinProfile
 from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
@@ -74,6 +77,99 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert image_row.storage_key == "products/prod_001/thumbnail.jpg"
     product_row = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
     assert product_row.seller_id is not None
+
+
+def test_seed_database_emits_seed_performance_log() -> None:
+    session = _make_session()
+    logs = _capture_performance_logs()
+
+    try:
+        result = seed_database(session, EXAMPLES_DIR)
+    finally:
+        logs.close()
+
+    payload = next(log for log in logs.payloads() if log["event"] == "seed_database_completed")
+    loaded_payload = next(log for log in logs.payloads() if log["event"] == "seed_catalog_loaded")
+    phase_payloads = [log for log in logs.payloads() if log["event"] == "seed_phase_completed"]
+    assert result.products == 2
+    assert loaded_payload["data_dir"] == str(EXAMPLES_DIR)
+    assert loaded_payload["row_counts"]["products.csv"] == 2
+    assert loaded_payload["loaded_row_count"] > 0
+    assert [payload["phase"] for payload in phase_payloads] == [
+        "taxonomy",
+        "ingredients",
+        "product_catalog",
+        "commerce_seed",
+        "product_ingredients",
+        "product_skin_profiles",
+        "search_documents",
+    ]
+    assert phase_payloads[0]["phase_order"] == 1
+    assert phase_payloads[-1]["phase_order"] == 7
+    assert all(phase["phase_count"] == 7 for phase in phase_payloads)
+    assert payload["data_dir"] == str(EXAMPLES_DIR)
+    assert payload["row_counts"]["products.csv"] == 2
+    assert payload["row_counts"]["product_ingredients.csv"] == 5
+    assert payload["row_counts"]["vector_docs.csv"] == 4
+    assert payload["loaded_row_count"] > 0
+    assert payload["seed_counts"]["products"] == 2
+    assert payload["seed_counts"]["product_ingredients"] == 5
+    assert payload["seeded_entity_count"] > 0
+    assert payload["error_count"] == 0
+    assert payload["failed_row_sample_count"] == 0
+    assert payload["counting_mode"] == "loaded_rows_and_final_seed_counts"
+    assert "duration_ms" in payload
+
+
+def test_seed_product_ingredients_emits_progress_log(monkeypatch) -> None:
+    monkeypatch.setattr(db_seed, "SEED_PROGRESS_INTERVAL_ROWS", 2)
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    logs = _capture_performance_logs()
+
+    try:
+        seed_catalog(session, catalog, data_dir="example-data")
+    finally:
+        logs.close()
+
+    progress_payloads = [
+        log for log in logs.payloads() if log["event"] == "seed_product_ingredients_progress"
+    ]
+    assert [payload["processed_row_count"] for payload in progress_payloads] == [2, 4]
+    assert all(payload["phase"] == "product_ingredients" for payload in progress_payloads)
+    assert all(payload["total_row_count"] == 5 for payload in progress_payloads)
+    assert progress_payloads[0]["data_dir"] == "example-data"
+    assert progress_payloads[0]["deduplicated_pair_count"] == 2
+    assert progress_payloads[0]["progress_percent"] == 40.0
+
+
+def test_seed_database_emits_failure_performance_log(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    (data_dir / "ingredient_aliases.csv").write_text(
+        "alias,canonical_id,alias_type,confidence,source\n"
+        "missing,missing_ingredient,ko,high,test\n",
+        encoding="utf-8",
+    )
+    session = _make_session()
+    logs = _capture_performance_logs()
+
+    try:
+        seed_database(session, data_dir)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("seed_database should reject missing ingredient alias references")
+    finally:
+        logs.close()
+
+    payload = next(log for log in logs.payloads() if log["event"] == "seed_database_failed")
+    assert payload["data_dir"] == str(data_dir)
+    assert "row_counts" not in payload
+    assert payload["error"] == "DataLoadError"
+    assert payload["error_count"] == 1
+    assert payload["failed_row_sample_count"] == 0
+    assert "duration_ms" in payload
 
 
 def test_seed_database_is_idempotent_for_example_catalog() -> None:
@@ -327,3 +423,27 @@ def _make_session() -> Session:
 
 def _count(session: Session, model) -> int:
     return session.execute(select(func.count()).select_from(model)).scalar_one()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def payloads(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return handler

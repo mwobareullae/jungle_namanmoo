@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.catalog import Product
 from app.db.models.commerce import OrderItem, ProductPopularityMetric
 from app.db.models.events import EventLog
@@ -51,16 +52,33 @@ def rollup_product_popularity_metrics(
     window_days: int = 7,
     computed_at: datetime | None = None,
 ) -> ProductPopularityRollupResult:
+    total_started_at = current_time()
+    stage_durations: dict[str, float] = {}
     normalized_window_days = max(0, int(window_days))
     now = computed_at or datetime.now(UTC)
+
+    stage_started_at = current_time()
     product_code_to_id = _load_product_code_to_id(session)
+    _record_stage_duration(stage_durations, "product_lookup_ms", stage_started_at)
     counters: dict[int, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
 
+    stage_started_at = current_time()
     _collect_direct_product_event_counts(session, counters, product_code_to_id, normalized_window_days, now)
-    _collect_checkout_started_counts(session, counters, product_code_to_id, normalized_window_days, now)
-    _collect_order_event_counts(session, counters, normalized_window_days, now)
+    _record_stage_duration(stage_durations, "direct_event_collect_ms", stage_started_at)
 
+    stage_started_at = current_time()
+    _collect_checkout_started_counts(session, counters, product_code_to_id, normalized_window_days, now)
+    _record_stage_duration(stage_durations, "checkout_collect_ms", stage_started_at)
+
+    stage_started_at = current_time()
+    _collect_order_event_counts(session, counters, normalized_window_days, now)
+    _record_stage_duration(stage_durations, "order_event_collect_ms", stage_started_at)
+
+    stage_started_at = current_time()
     existing_metrics = _load_existing_metrics(session, normalized_window_days)
+    _record_stage_duration(stage_durations, "existing_metric_load_ms", stage_started_at)
+
+    stage_started_at = current_time()
     product_ids_to_update = set(existing_metrics) | set(counters)
     for product_id in sorted(product_ids_to_update):
         metric = existing_metrics.get(product_id)
@@ -70,14 +88,39 @@ def rollup_product_popularity_metrics(
 
         product_counts = counters.get(product_id, defaultdict(int))
         _apply_counts(metric, product_counts, now)
+    _record_stage_duration(stage_durations, "metric_apply_ms", stage_started_at)
 
+    stage_started_at = current_time()
     session.flush()
-    return ProductPopularityRollupResult(
+    _record_stage_duration(stage_durations, "flush_ms", stage_started_at)
+
+    result = ProductPopularityRollupResult(
         window_days=normalized_window_days,
         touched_products=len(counters),
         updated_metrics=len(product_ids_to_update),
         computed_at=now,
     )
+    log_performance_event(
+        "product_popularity_rollup_completed",
+        duration_ms=elapsed_ms(total_started_at),
+        metadata={
+            **stage_durations,
+            "window_days": result.window_days,
+            "product_count": len(product_code_to_id),
+            "touched_products": result.touched_products,
+            "updated_metrics": result.updated_metrics,
+            "score_version": result.score_version,
+        },
+    )
+    return result
+
+
+def _record_stage_duration(
+    stage_durations: dict[str, float],
+    key: str,
+    started_at: float,
+) -> None:
+    stage_durations[key] = round(elapsed_ms(started_at), 2)
 
 
 def _load_product_code_to_id(session: Session) -> dict[str, int]:

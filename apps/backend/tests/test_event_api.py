@@ -1,4 +1,6 @@
 from collections.abc import Generator
+import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -175,37 +177,87 @@ def test_event_api_rejects_sensitive_metadata(client: TestClient) -> None:
 
 
 def test_event_batch_api_stores_multiple_events(client: TestClient, db_engine: Engine) -> None:
-    response = client.post(
-        "/api/events/batch",
-        json={
-            "events": [
-                {
-                    "event_id": "batch_evt_1",
-                    "event_name": "recommendation_product_impression",
-                    "recommendation_id": "rec_001",
-                    "product_id": "prod_001",
-                    "rank": 1,
-                },
-                {
-                    "event_id": "batch_evt_2",
-                    "event_name": "recommendation_product_impression",
-                    "recommendation_id": "rec_001",
-                    "product_id": "prod_002",
-                    "rank": 2,
-                },
-            ]
-        },
-    )
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(
+            "/api/events/batch",
+            json={
+                "events": [
+                    {
+                        "event_id": "batch_evt_1",
+                        "event_name": "recommendation_product_impression",
+                        "recommendation_id": "rec_001",
+                        "product_id": "prod_001",
+                        "rank": 1,
+                    },
+                    {
+                        "event_id": "batch_evt_2",
+                        "event_name": "recommendation_product_impression",
+                        "recommendation_id": "rec_001",
+                        "product_id": "prod_002",
+                        "rank": 2,
+                    },
+                ]
+            },
+            headers={"x-request-id": "batch-request"},
+        )
+    finally:
+        logs.close()
 
     assert response.status_code == 200
     data = response.json()
     assert data["accepted_count"] == 2
     assert data["duplicate_count"] == 0
+    log_payload = next(line for line in logs.json_lines if line["event"] == "event_batch_collected")
+    assert log_payload["request_id"] == "batch-request"
+    assert log_payload["batch_size"] == 2
+    assert log_payload["accepted_count"] == 2
+    assert log_payload["duplicate_count"] == 0
+    assert log_payload["rejected_count"] == 0
+    assert log_payload["event_name_counts"] == {"recommendation_product_impression": 2}
+    assert "metadata" not in log_payload
 
     with Session(db_engine) as session:
         events = session.execute(select(EventLog).order_by(EventLog.rank)).scalars().all()
 
     assert [event.product_id for event in events] == ["prod_001", "prod_002"]
+
+
+def test_event_batch_api_logs_rejected_batch(client: TestClient, db_engine: Engine) -> None:
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(
+            "/api/events/batch",
+            json={
+                "events": [
+                    {
+                        "event_id": "batch_rejected_1",
+                        "event_name": "home_product_click",
+                        "product_id": "prod_001",
+                        "metadata": {"email": "user@example.com"},
+                    }
+                ]
+            },
+            headers={"x-request-id": "batch-rejected-request"},
+        )
+    finally:
+        logs.close()
+
+    assert response.status_code == 400
+    log_payload = next(line for line in logs.json_lines if line["event"] == "event_batch_failed")
+    assert log_payload["request_id"] == "batch-rejected-request"
+    assert log_payload["batch_size"] == 1
+    assert log_payload["accepted_count"] == 0
+    assert log_payload["duplicate_count"] == 0
+    assert log_payload["rejected_count"] == 1
+    assert log_payload["event_name_counts"] == {"home_product_click": 1}
+    assert log_payload["error_code"] == "EVENT_METADATA_CONTAINS_SENSITIVE_DATA"
+    assert "user@example.com" not in json.dumps(log_payload)
+
+    with Session(db_engine) as session:
+        events = session.execute(select(EventLog)).scalars().all()
+
+    assert events == []
 
 
 def test_event_batch_api_accepts_home_impression_events_with_identity_headers(
@@ -339,3 +391,28 @@ def _signup(client: TestClient) -> None:
         },
     )
     assert response.status_code == 200
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    logger.setLevel(logging.INFO)
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler

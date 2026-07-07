@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
 from app.schemas.common import ApiError
@@ -24,29 +25,55 @@ def cancel_order(
     user: User,
     order_code: str,
 ) -> OrderCancelResponse:
-    order = _load_user_order_for_update(session, user.id, order_code)
-    if order.status in {
-        ORDER_STATUS_CANCELED,
-        ORDER_STATUS_CANCEL_REQUESTED,
-        ORDER_STATUS_PAYMENT_FAILED,
-        ORDER_STATUS_EXPIRED,
-    }:
-        return _to_response(order)
+    started_at = current_time()
+    try:
+        order = _load_user_order_for_update(session, user.id, order_code)
+        if order.status in {
+            ORDER_STATUS_CANCELED,
+            ORDER_STATUS_CANCEL_REQUESTED,
+            ORDER_STATUS_PAYMENT_FAILED,
+            ORDER_STATUS_EXPIRED,
+        }:
+            _log_order_cancel_completed(
+                started_at,
+                order=order,
+                payment_status=None,
+                released_quantity_total=0,
+                idempotent_replay=True,
+            )
+            return _to_response(order)
 
-    payment = _load_payment(session, order.id)
-    now = datetime.now(UTC)
-    if order.status == ORDER_STATUS_PENDING_PAYMENT:
-        _cancel_pending_payment_order(session, order, payment, now)
-        session.flush()
-        return _to_response(order)
+        payment = _load_payment(session, order.id)
+        now = datetime.now(UTC)
+        if order.status == ORDER_STATUS_PENDING_PAYMENT:
+            released_quantity_total = _cancel_pending_payment_order(session, order, payment, now)
+            session.flush()
+            _log_order_cancel_completed(
+                started_at,
+                order=order,
+                payment_status=payment.status,
+                released_quantity_total=released_quantity_total,
+                idempotent_replay=False,
+            )
+            return _to_response(order)
 
-    if order.status == ORDER_STATUS_PAID:
-        order.status = ORDER_STATUS_CANCEL_REQUESTED
-        order.updated_at = now
-        session.flush()
-        return _to_response(order)
+        if order.status == ORDER_STATUS_PAID:
+            order.status = ORDER_STATUS_CANCEL_REQUESTED
+            order.updated_at = now
+            session.flush()
+            _log_order_cancel_completed(
+                started_at,
+                order=order,
+                payment_status=payment.status,
+                released_quantity_total=0,
+                idempotent_replay=False,
+            )
+            return _to_response(order)
 
-    raise ApiError(409, "ORDER_NOT_CANCELABLE", "Order cannot be canceled in the current status.")
+        raise ApiError(409, "ORDER_NOT_CANCELABLE", "Order cannot be canceled in the current status.")
+    except ApiError as exc:
+        _log_order_cancel_failed(started_at, error_code=exc.code)
+        raise
 
 
 def _load_user_order_for_update(session: Session, user_id: int, order_code: str) -> Order:
@@ -82,12 +109,13 @@ def _cancel_pending_payment_order(
     order: Order,
     payment: Payment,
     now: datetime,
-) -> None:
+) -> int:
     if payment.status != PAYMENT_STATUS_READY:
         raise ApiError(409, "PAYMENT_NOT_READY", "Payment is not ready.")
 
     order_items = _load_order_items(session, order.id)
     inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
+    released_quantity_total = _quantity_total(order_items)
     _release_reserved_inventory(session, order, order_items, inventories, now)
 
     for item in order_items:
@@ -111,6 +139,7 @@ def _cancel_pending_payment_order(
         status_after=payment.status,
         now=now,
     )
+    return released_quantity_total
 
 
 def _load_order_items(session: Session, order_id: int) -> list[OrderItem]:
@@ -196,3 +225,35 @@ def _record_payment_event(
 
 def _to_response(order: Order) -> OrderCancelResponse:
     return OrderCancelResponse(order_code=order.order_code, status=order.status)
+
+
+def _quantity_total(order_items: list[OrderItem]) -> int:
+    return sum(item.quantity for item in order_items)
+
+
+def _log_order_cancel_completed(
+    started_at: float,
+    *,
+    order: Order,
+    payment_status: str | None,
+    released_quantity_total: int,
+    idempotent_replay: bool,
+) -> None:
+    log_performance_event(
+        "order_cancel_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "order_status": order.status,
+            "payment_status": payment_status,
+            "released_quantity_total": released_quantity_total,
+            "idempotent_replay": idempotent_replay,
+        },
+    )
+
+
+def _log_order_cancel_failed(started_at: float, *, error_code: str) -> None:
+    log_performance_event(
+        "order_cancel_failed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={"error_code": error_code},
+    )
