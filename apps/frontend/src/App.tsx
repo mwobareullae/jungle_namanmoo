@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
+import { HomeFooter } from "./components/HomeStaticSections";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import CartPage from "./pages/CartPage";
@@ -581,6 +582,16 @@ function GlobalAgentEntry() {
   );
 }
 
+function GlobalFooter() {
+  const location = useLocation();
+
+  if (location.pathname === "/") {
+    return null;
+  }
+
+  return <HomeFooter />;
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
@@ -598,6 +609,7 @@ function App() {
         <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
         <Route path="*" element={<LegacyApp />} />
       </Routes>
+      <GlobalFooter />
       <GlobalAgentEntry />
     </>
   );
