@@ -84,6 +84,39 @@ def test_score_candidates_uses_price_condition_as_small_bonus() -> None:
     assert scored_products[0].score_breakdown["price_score"] == pytest.approx(1.0)
 
 
+def test_score_candidates_boosts_search_match_for_strong_search_intent() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("수분 진정 크림", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+
+    scored_products = score_candidates(session, intent, candidates, matches)
+
+    assert scored_products
+    breakdown = scored_products[0].score_breakdown
+    assert breakdown["weight_profile"] == "search_intent_boost"
+    assert breakdown["weights"]["search_match"] == pytest.approx(0.15)
+    assert "category" in breakdown["search_intent_signals"]
+    assert "search_terms" in breakdown["search_intent_signals"]
+
+
+def test_score_candidates_keeps_default_weights_for_open_concern_query() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+
+    scored_products = score_candidates(session, intent, candidates, matches)
+
+    assert scored_products
+    breakdown = scored_products[0].score_breakdown
+    assert breakdown["weight_profile"] == "default"
+    assert breakdown["weights"]["search_match"] == pytest.approx(0.07)
+    assert "category" not in breakdown["search_intent_signals"]
+
+
 def test_score_candidates_adds_concentration_fit_bonus() -> None:
     session = _seed_example_session()
     intent = RecommendationIntent(
