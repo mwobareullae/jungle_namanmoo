@@ -252,19 +252,24 @@ def _load_csv(
     file_name: str,
     parser: Callable[[dict[str, str], str, int], T],
 ) -> tuple[T, ...]:
-    file_path = base_path / file_name
-    if not file_path.exists():
+    file_paths = _resolve_csv_paths(base_path, file_name)
+    if not file_paths:
         raise DataLoadError(f"필수 데이터 파일이 없습니다: {file_name}")
 
-    with file_path.open(encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-        headers = set(reader.fieldnames or [])
-        missing_headers = sorted(CSV_HEADERS[file_name] - headers)
-        if missing_headers:
-            missing = ", ".join(missing_headers)
-            raise DataLoadError(f"{file_name} 필수 컬럼이 없습니다: {missing}")
+    records: list[T] = []
+    for file_path in file_paths:
+        source_name = _csv_source_name(base_path, file_path)
+        with file_path.open(encoding="utf-8-sig", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            headers = set(reader.fieldnames or [])
+            missing_headers = sorted(CSV_HEADERS[file_name] - headers)
+            if missing_headers:
+                missing = ", ".join(missing_headers)
+                raise DataLoadError(f"{source_name} 필수 컬럼이 없습니다: {missing}")
 
-        return tuple(parser(row, file_name, line_number) for line_number, row in enumerate(reader, 2))
+            records.extend(parser(row, source_name, line_number) for line_number, row in enumerate(reader, 2))
+
+    return tuple(records)
 
 
 def _load_optional_csv(
@@ -272,12 +277,38 @@ def _load_optional_csv(
     file_name: str,
     parser: Callable[[dict[str, str], str, int], T],
 ) -> tuple[T, ...]:
-    file_path = base_path / file_name
-    if not file_path.exists():
+    if not _resolve_csv_paths(base_path, file_name):
         logger.warning("선택 데이터 파일이 없습니다: %s", file_name)
         return ()
 
     return _load_csv(base_path, file_name, parser)
+
+
+def _resolve_csv_paths(base_path: Path, file_name: str) -> tuple[Path, ...]:
+    file_path = base_path / file_name
+    shard_dir = base_path / Path(file_name).stem
+
+    if file_path.exists() and shard_dir.exists():
+        raise DataLoadError(
+            f"{file_name}와 {shard_dir.name}/ 분할 CSV가 동시에 존재합니다. "
+            "중복 적재를 막기 위해 하나만 남겨주세요."
+        )
+    if file_path.exists():
+        return (file_path,)
+    if not shard_dir.exists():
+        return ()
+
+    shard_paths = tuple(sorted(path for path in shard_dir.glob("*.csv") if path.is_file()))
+    if not shard_paths:
+        raise DataLoadError(f"{shard_dir.name}/ 분할 CSV 디렉터리에 csv 파일이 없습니다.")
+    return shard_paths
+
+
+def _csv_source_name(base_path: Path, file_path: Path) -> str:
+    try:
+        return file_path.relative_to(base_path).as_posix()
+    except ValueError:
+        return file_path.as_posix()
 
 
 def _load_tags(base_path: Path) -> tuple[ConcernTag, ...]:

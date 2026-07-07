@@ -70,7 +70,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-non-recommendable",
         action="store_true",
-        help="Do not filter by products.csv is_recommendable=true.",
+        help="Do not filter by products CSV is_recommendable=true.",
     )
     parser.add_argument(
         "--force",
@@ -211,7 +211,7 @@ def _select_products(
     rows = products.rows
     if recommendable_only:
         if "is_recommendable" not in (products.fieldnames or ()):
-            raise ValueError("products.csv must contain is_recommendable when recommendable_only=True.")
+            raise ValueError("products CSV must contain is_recommendable when recommendable_only=True.")
         rows = [row for row in rows if _is_true(row.get("is_recommendable", ""))]
     if limit is not None:
         rows = rows[:limit]
@@ -227,12 +227,35 @@ class _CsvRows:
 
 
 def _read_csv(path: Path) -> _CsvRows:
-    if not path.exists():
+    paths = _resolve_csv_paths(path)
+    if not paths:
         raise FileNotFoundError(path)
-    with path.open(encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-        fieldnames = list(reader.fieldnames or [])
-        return _CsvRows(fieldnames=fieldnames, rows=[dict(row) for row in reader])
+
+    fieldnames: list[str] | None = None
+    rows: list[dict[str, str]] = []
+    for csv_path in paths:
+        with csv_path.open(encoding="utf-8-sig", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            current_fieldnames = list(reader.fieldnames or [])
+            if fieldnames is None:
+                fieldnames = current_fieldnames
+            elif current_fieldnames != fieldnames:
+                raise ValueError(f"Split CSV headers differ: {csv_path}")
+            rows.extend(dict(row) for row in reader)
+    return _CsvRows(fieldnames=fieldnames or [], rows=rows)
+
+
+def _resolve_csv_paths(path: Path) -> tuple[Path, ...]:
+    if path.exists():
+        return (path,)
+
+    shard_dir = path.parent / path.stem
+    if not shard_dir.exists():
+        return ()
+    shard_paths = tuple(sorted(csv_path for csv_path in shard_dir.glob("*.csv") if csv_path.is_file()))
+    if not shard_paths:
+        raise FileNotFoundError(f"Split CSV directory is empty: {shard_dir}")
+    return shard_paths
 
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
