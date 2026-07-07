@@ -23,6 +23,18 @@ def _default_data_dir() -> str:
     return "/data"
 
 
+def _normalize_search_backend_mode(value: str) -> str:
+    normalized = value.strip().lower() or "auto"
+    if normalized in {"auto", "postgres", "elasticsearch"}:
+        return normalized
+    return "auto"
+
+
+def _default_elasticsearch_products_alias() -> str:
+    index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
+    return f"{index_prefix}_products_current"
+
+
 class Settings(BaseModel):
     app_name: str = os.getenv("APP_NAME", "mwobareullae")
     api_base_path: str = _normalize_api_base_path(os.getenv("API_BASE_PATH", "/api"))
@@ -63,8 +75,22 @@ class Settings(BaseModel):
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_key_prefix: str = os.getenv("REDIS_KEY_PREFIX", "mubarelle:dev:")
+    search_backend_mode: str = _normalize_search_backend_mode(
+        os.getenv("SEARCH_BACKEND_MODE", "auto")
+    )
     elasticsearch_url: str = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
     elasticsearch_index_prefix: str = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
+    elasticsearch_products_alias: str = os.getenv(
+        "ELASTICSEARCH_PRODUCTS_ALIAS",
+        _default_elasticsearch_products_alias(),
+    )
+    elasticsearch_timeout_seconds: float = float(
+        os.getenv("ELASTICSEARCH_TIMEOUT_SECONDS", "2.0")
+    )
+    elasticsearch_max_retries: int = int(os.getenv("ELASTICSEARCH_MAX_RETRIES", "0"))
+    elasticsearch_circuit_breaker_seconds: int = int(
+        os.getenv("ELASTICSEARCH_CIRCUIT_BREAKER_SECONDS", "60")
+    )
     auth_jwt_secret_key: str = os.getenv("AUTH_JWT_SECRET_KEY", "change-me-local-secret")
     auth_session_cookie_name: str = os.getenv("AUTH_SESSION_COOKIE_NAME", "mwbl_session")
     auth_session_ttl_days: int = int(os.getenv("AUTH_SESSION_TTL_DAYS", "14"))

@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
-from app.db.models.catalog import Brand, Product, ProductIngredient, ProductPrice
+from app.db.models.catalog import Brand, Product, ProductPrice
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -27,7 +28,7 @@ from app.schemas.recommendation import (
     RecommendationSummary,
     ScoreBreakdown,
 )
-from app.services.product_candidates import ProductCandidate, list_product_candidates
+from app.services.candidate_pool import CandidatePool, generate_candidate_pool
 from app.services.product_image_service import load_thumbnail_storage_keys
 from app.services.concern_llm_parser import get_default_concern_llm_parser
 from app.services.recommendation_intent import build_recommendation_intent
@@ -51,11 +52,11 @@ DEFAULT_CANDIDATE_POOL_LIMIT = settings.recommendation_candidate_pool_limit
 DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
-CANDIDATE_GENERATION_VERSION = "legacy_id_order_v0"
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
 ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
 DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"
+SENSITIVE_INTENT_PATTERN = re.compile(r"(?:민감(?:성|한|하고|해서|해)?|예민(?:함|한|하고|해서|해)?)")
 
 
 @dataclass(frozen=True)
@@ -129,21 +130,16 @@ def create_recommendation_response(
 
         requested_candidate_pool_limit = max(candidate_pool_limit, result_limit)
         stage_started_at = current_time()
-        loaded_candidates = list_product_candidates(
+        candidate_pool = generate_candidate_pool(
             session,
-            intent.purchase_conditions,
-            limit=requested_candidate_pool_limit,
+            intent,
+            skin_type=normalized_request.skin_type,
+            sensitivity=normalized_request.sensitivity,
+            avoid_ingredients=normalized_request.avoid_ingredients,
+            target_pool_size=requested_candidate_pool_limit,
         )
-        _record_stage_duration(stage_durations, "candidate_load_ms", stage_started_at)
-
-        stage_started_at = current_time()
-        candidates = _filter_avoided_ingredients(
-            session,
-            loaded_candidates,
-            normalized_request.avoid_ingredients,
-        )
-        _record_stage_duration(stage_durations, "avoid_filter_ms", stage_started_at)
-
+        _record_stage_duration(stage_durations, "candidate_pool_ms", stage_started_at)
+        candidates = candidate_pool.candidates
         stage_started_at = current_time()
         search_join_document_count = count_join_product_search_documents(
             session,
@@ -176,10 +172,8 @@ def create_recommendation_response(
         scored_products = scored_candidates[:result_limit]
         _attach_candidate_pool_diagnostics(
             saved_run.run,
-            requested_candidate_pool_limit=requested_candidate_pool_limit,
+            candidate_pool=candidate_pool,
             result_limit=result_limit,
-            loaded_candidate_count=len(loaded_candidates),
-            after_avoid_filter_count=len(candidates),
             search_join_document_count=search_join_document_count,
             search_match_count=len(matches),
             search_no_result_diagnostics=search_no_result_diagnostics,
@@ -223,8 +217,8 @@ def create_recommendation_response(
                 "result_limit": result_limit,
                 "page": pagination.page,
                 "page_size": pagination.page_size,
-                "loaded_candidate_count": len(loaded_candidates),
-                "after_avoid_filter_count": len(candidates),
+                "candidate_pool_candidate_count": len(candidates),
+                "candidate_pool_source_counts": candidate_pool.source_counts,
                 "search_join_document_count": search_join_document_count,
                 "search_match_count": len(matches),
                 "positive_search_match_count": search_no_result_diagnostics.positive_search_match_count,
@@ -319,12 +313,7 @@ def normalize_recommendation_request(
         ALLOWED_SKIN_TYPES,
         "피부 타입 값이 올바르지 않습니다.",
     )
-    sensitivity = _normalize_choice(
-        request.sensitivity,
-        DEFAULT_SENSITIVITY,
-        ALLOWED_SENSITIVITIES,
-        "민감도 값이 올바르지 않습니다.",
-    )
+    sensitivity = _normalize_sensitivity(request.sensitivity, concern_text)
 
     return NormalizedRecommendationRequest(
         concern_text=concern_text,
@@ -565,53 +554,11 @@ def _purchase_constraints_from_context(request_context: dict) -> PurchaseConstra
     )
 
 
-def _filter_avoided_ingredients(
-    session: Session,
-    candidates: list[ProductCandidate],
-    avoid_ingredients: list[str],
-) -> list[ProductCandidate]:
-    avoid_terms = {_normalize_match_text(ingredient) for ingredient in avoid_ingredients}
-    avoid_terms.discard("")
-    if not candidates or not avoid_terms:
-        return candidates
-
-    candidate_ids = [candidate.db_product_id for candidate in candidates]
-    rows = session.execute(
-        select(
-            ProductIngredient.product_id,
-            ProductIngredient.ingredient_name,
-            Ingredient.ingredient_code,
-            Ingredient.name_ko,
-            Ingredient.name_en,
-        )
-        .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
-        .where(ProductIngredient.product_id.in_(candidate_ids))
-    ).all()
-
-    blocked_product_ids: set[int] = set()
-    for product_id, ingredient_name, ingredient_code, name_ko, name_en in rows:
-        searchable_values = {
-            _normalize_match_text(value)
-            for value in (ingredient_name, ingredient_code, name_ko, name_en)
-            if value
-        }
-        if _has_avoided_match(avoid_terms, searchable_values):
-            blocked_product_ids.add(int(product_id))
-
-    return [
-        candidate
-        for candidate in candidates
-        if candidate.db_product_id not in blocked_product_ids
-    ]
-
-
 def _attach_candidate_pool_diagnostics(
     run: RecommendationRun,
     *,
-    requested_candidate_pool_limit: int,
+    candidate_pool: CandidatePool,
     result_limit: int,
-    loaded_candidate_count: int,
-    after_avoid_filter_count: int,
     search_join_document_count: int,
     search_match_count: int,
     search_no_result_diagnostics: SearchNoResultDiagnostics,
@@ -619,39 +566,19 @@ def _attach_candidate_pool_diagnostics(
     final_result_count: int,
 ) -> None:
     request_context = dict(run.request_context or {})
-    request_context["candidate_pool_diagnostics"] = {
-        "candidate_generation_version": CANDIDATE_GENERATION_VERSION,
-        "strategy": "legacy_id_order",
-        "requested_candidate_pool_limit": requested_candidate_pool_limit,
-        "result_limit": result_limit,
-        "loaded_candidate_count": loaded_candidate_count,
-        "avoid_filtered_count": loaded_candidate_count - after_avoid_filter_count,
-        "after_avoid_filter_count": after_avoid_filter_count,
-        "join_document_count": search_join_document_count,
-        "search_match_count": search_match_count,
-        "scored_candidate_count": scored_candidate_count,
-        "final_result_count": final_result_count,
-        "source_counts": {
-            "legacy_id_order": loaded_candidate_count,
-        },
-        "fallback_used": False,
-        "hard_filter_total_count": None,
-        "notes": [
-            "legacy diagnostics only",
-            "hard filter total count is not measured in F-180 v0",
-        ],
-    }
+    diagnostics = candidate_pool.to_diagnostics()
+    diagnostics.update(
+        {
+            "result_limit": result_limit,
+            "join_document_count": search_join_document_count,
+            "search_match_count": search_match_count,
+            "scored_candidate_count": scored_candidate_count,
+            "final_result_count": final_result_count,
+        }
+    )
+    request_context["candidate_pool_diagnostics"] = diagnostics
     request_context["search_no_result_diagnostics"] = search_no_result_diagnostics.to_dict()
     run.request_context = request_context
-
-
-def _has_avoided_match(avoid_terms: set[str], values: set[str]) -> bool:
-    return any(
-        avoid_term in value or value in avoid_term
-        for avoid_term in avoid_terms
-        for value in values
-        if avoid_term and value
-    )
 
 
 def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
@@ -734,14 +661,27 @@ def _normalize_choice(
     return normalized
 
 
+def _normalize_sensitivity(value: str | None, concern_text: str) -> str:
+    if value is not None and value.strip():
+        return _normalize_choice(
+            value,
+            DEFAULT_SENSITIVITY,
+            ALLOWED_SENSITIVITIES,
+            "민감도 값이 올바르지 않습니다.",
+        )
+    if _has_sensitive_intent(concern_text):
+        return "민감"
+    return DEFAULT_SENSITIVITY
+
+
+def _has_sensitive_intent(concern_text: str) -> bool:
+    return SENSITIVE_INTENT_PATTERN.search(concern_text.strip().lower()) is not None
+
+
 def _normalize_avoid_ingredients(value: list[str] | None) -> list[str]:
     if value is None:
         return []
     return [ingredient.strip() for ingredient in value if ingredient and ingredient.strip()]
-
-
-def _normalize_match_text(value: str) -> str:
-    return "".join(value.casefold().split())
 
 
 def _dict_items(value: object) -> list[dict]:
