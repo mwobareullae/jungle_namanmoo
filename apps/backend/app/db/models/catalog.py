@@ -76,7 +76,7 @@ class Product(Base):
     seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), nullable=False, index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("product_categories.id"), nullable=False, index=True)
-    product_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(512), nullable=False)
     skin_type_tags: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_url: Mapped[str | None] = mapped_column(Text, nullable=True)
