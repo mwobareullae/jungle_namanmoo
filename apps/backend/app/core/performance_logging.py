@@ -2,6 +2,7 @@ import json
 import logging
 import time
 from collections.abc import Mapping
+from contextvars import ContextVar, Token
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -12,6 +13,7 @@ from app.core.logging import PERFORMANCE_LOGGER_NAME
 
 SERVICE_NAME = "commerce-backend"
 _RESERVED_KEYS = {"timestamp", "service", "event", "request_id", "duration_ms"}
+_request_id_context: ContextVar[str | None] = ContextVar("mwobareullae_request_id", default=None)
 
 logger = logging.getLogger(PERFORMANCE_LOGGER_NAME)
 
@@ -22,6 +24,18 @@ def current_time() -> float:
 
 def elapsed_ms(started_at: float) -> float:
     return (time.perf_counter() - started_at) * 1000
+
+
+def set_current_request_id(request_id: str | None) -> Token[str | None]:
+    return _request_id_context.set(request_id)
+
+
+def reset_current_request_id(token: Token[str | None]) -> None:
+    _request_id_context.reset(token)
+
+
+def get_current_request_id() -> str | None:
+    return _request_id_context.get()
 
 
 def log_performance_event(
