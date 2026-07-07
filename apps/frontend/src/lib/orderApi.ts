@@ -1,4 +1,9 @@
-import type { CreateOrderRequest, CreateOrderResponse } from "../types/order";
+import type {
+  CreateOrderRequest,
+  CreateOrderResponse,
+  TossPaymentConfirmRequest,
+  TossPaymentConfirmResponse,
+} from "../types/order";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "./api";
 
 const createIdempotencyKey = () => {
@@ -18,4 +23,16 @@ export const createOrder = (request: CreateOrderRequest): Promise<CreateOrderRes
     },
     body: JSON.stringify(request),
   }).then((response) => parseJson<CreateOrderResponse>(response));
+};
+
+export const confirmTossPayment = (
+  request: TossPaymentConfirmRequest,
+): Promise<TossPaymentConfirmResponse> => {
+  return fetchWithTimeout(`${API_BASE_URL}/payments/toss/confirm`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  }).then((response) => parseJson<TossPaymentConfirmResponse>(response));
 };
