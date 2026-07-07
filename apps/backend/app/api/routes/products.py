@@ -9,7 +9,7 @@ from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogCreateRequest
-from app.schemas.product import PopularProductsResponse, ProductDetailResponse
+from app.schemas.product import PopularProductsResponse, ProductDetailResponse, ProductSearchResponse
 from app.services.event_tracking import (
     anonymous_user_id_from_request,
     record_event_log_best_effort,
@@ -23,6 +23,12 @@ from app.services.popular_products_service import (
     get_popular_products_response,
 )
 from app.services.product_detail_service import get_product_detail_response
+from app.services.product_search_service import (
+    DEFAULT_PRODUCT_SEARCH_PAGE,
+    DEFAULT_PRODUCT_SEARCH_PAGE_SIZE,
+    MAX_PRODUCT_SEARCH_PAGE_SIZE,
+    get_product_search_response,
+)
 
 
 router = APIRouter(tags=["products"])
@@ -60,6 +66,24 @@ def get_popular_products(
         },
     )
     return response
+
+
+@router.get(
+    "/products/search",
+    response_model=ProductSearchResponse,
+)
+def search_products(
+    q: str = Query(min_length=1, max_length=200),
+    page: int = Query(DEFAULT_PRODUCT_SEARCH_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PRODUCT_SEARCH_PAGE_SIZE, ge=1, le=MAX_PRODUCT_SEARCH_PAGE_SIZE),
+    session: Session = Depends(get_db),
+) -> ProductSearchResponse:
+    return get_product_search_response(
+        session,
+        query=q,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get(

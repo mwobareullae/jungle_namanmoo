@@ -80,6 +80,7 @@ function SearchPage() {
       <HomeHeader />
       <SearchBarPanel
         key={`${profile.skin}-${profile.sensitivity}-${profile.avoidIngredients.join("|")}`}
+        hasSavedProfile={Boolean(savedProfile)}
         initialProfile={profile}
         initialQuery={keyword}
       />

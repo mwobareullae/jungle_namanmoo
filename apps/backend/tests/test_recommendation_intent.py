@@ -50,6 +50,19 @@ def test_build_recommendation_intent_exposes_search_terms_and_semantic_text() ->
     assert "보습·장벽" in intent.semantic_query_text
 
 
+def test_build_recommendation_intent_matches_sensitive_concern_from_main_data() -> None:
+    repository = load_repository(DATA_DIR)
+
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+
+    assert [concern.tag_id for concern in intent.concerns] == ["concern_sensitive"]
+    assert intent.matched_concern_names == ("민감",)
+    assert "진정" in intent.expected_effect_names
+    assert "민감" in intent.search_terms
+    assert "민감" not in intent.unmatched_terms
+    assert intent.needs_llm is False
+
+
 def test_build_recommendation_intent_marks_llm_fallback_need() -> None:
     repository = cached_repository(DATA_DIR)
 
