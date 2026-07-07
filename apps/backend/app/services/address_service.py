@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
-from app.db.models.commerce import UserAddress
+from app.db.models.commerce import OrderShippingAddress, UserAddress
 from app.schemas.address import (
     UserAddressCreateRequest,
     UserAddressResponse,
@@ -104,6 +104,12 @@ def update_user_address(
 def delete_user_address(session: Session, user: User, address_id: int) -> bool:
     row = _load_owned_address(session, user.id, address_id)
     was_default = row.is_default
+
+    session.execute(
+        update(OrderShippingAddress)
+        .where(OrderShippingAddress.user_address_id == row.id)
+        .values(user_address_id=None)
+    )
     session.delete(row)
     session.flush()
 
