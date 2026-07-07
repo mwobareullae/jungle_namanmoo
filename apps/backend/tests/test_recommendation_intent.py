@@ -51,7 +51,7 @@ def test_build_recommendation_intent_exposes_search_terms_and_semantic_text() ->
 
 
 def test_build_recommendation_intent_matches_sensitive_concern_from_main_data() -> None:
-    repository = load_repository(DATA_DIR)
+    repository = cached_repository(DATA_DIR)
 
     intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
 
