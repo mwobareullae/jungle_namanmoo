@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
 import { HomeFooter } from "./components/HomeStaticSections";
+import { getSavedSkinProfile } from "./lib/profileApi";
 import { originalPages, type OriginalPageKey } from "./originalPages";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -538,13 +539,46 @@ function LegacyApp() {
 
 function GlobalAgentEntry() {
   const location = useLocation();
+  const [hasSavedSkinProfile, setHasSavedSkinProfile] = useState(false);
+  const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
+
+  const hasTemporarySkinProfile = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return Boolean(params.get("skin_type") && params.get("sensitivity"));
+  }, [location.search]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getSavedSkinProfile().then((profile) => {
+      if (isMounted) {
+        setHasSavedSkinProfile(Boolean(profile));
+        setIsSkinProfileResolved(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (appMode === "community") {
     return null;
   }
 
+  const skinProfileStatus = hasSavedSkinProfile
+    ? "saved"
+    : hasTemporarySkinProfile
+      ? "temporary"
+      : isSkinProfileResolved
+        ? "empty"
+        : "empty";
+
   return (
-    <AgentFloatingButton surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"} />
+    <AgentFloatingButton
+      skinProfileStatus={skinProfileStatus}
+      surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"}
+    />
   );
 }
 

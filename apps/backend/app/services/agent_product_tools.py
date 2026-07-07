@@ -29,9 +29,14 @@ from app.services.product_image_service import load_thumbnail_storage_keys
 FIND_SIMILAR_PRODUCTS_TOOL = "find_similar_products"
 COMPARE_PRODUCTS_TOOL = "compare_products"
 REFINE_PRODUCT_RESULTS_TOOL = "refine_product_results"
-DEFAULT_SIMILAR_LIMIT = 10
+DEFAULT_SIMILAR_LIMIT = 2
 DEFAULT_REFINE_LIMIT = 10
 SIMILAR_CANDIDATE_POOL_SIZE = 200
+SIMILAR_CATEGORY_WEIGHT = 20
+SIMILAR_PRICE_WEIGHT = 5
+SIMILAR_SKIN_PROFILE_WEIGHT = 20
+SIMILAR_EFFECT_WEIGHT = 25
+SIMILAR_INGREDIENT_WEIGHT = 30
 
 
 @dataclass(frozen=True)
@@ -436,26 +441,26 @@ def _score_similarity(
     score = 0.0
 
     if source.category_code == candidate.category_code:
-        score += 30
+        score += SIMILAR_CATEGORY_WEIGHT
         reasons.append("same_category")
 
     price_similarity = _price_similarity(source.lowest_price, candidate.lowest_price)
-    score += price_similarity * 20
+    score += price_similarity * SIMILAR_PRICE_WEIGHT
     if price_similarity >= 0.8:
         reasons.append("similar_price")
 
     skin_similarity = _skin_profile_similarity(source.skin_profile, candidate.skin_profile)
-    score += skin_similarity * 20
+    score += skin_similarity * SIMILAR_SKIN_PROFILE_WEIGHT
     if skin_similarity >= 0.75:
         reasons.append("similar_skin_profile")
 
     effect_similarity = _jaccard(source.effects, candidate.effects)
-    score += effect_similarity * 20
+    score += effect_similarity * SIMILAR_EFFECT_WEIGHT
     if effect_similarity > 0:
         reasons.append("shared_effects")
 
     ingredient_similarity = _jaccard(source.ingredients, candidate.ingredients)
-    score += ingredient_similarity * 10
+    score += ingredient_similarity * SIMILAR_INGREDIENT_WEIGHT
     if ingredient_similarity > 0:
         reasons.append("shared_ingredients")
 

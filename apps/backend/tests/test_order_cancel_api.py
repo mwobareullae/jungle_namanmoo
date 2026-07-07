@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
+from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -70,6 +71,9 @@ def test_cancel_pending_payment_order_releases_reserved_stock(
             select(InventoryMovement).where(InventoryMovement.reference_id == order.order_code)
         ).scalars().all()
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        event_log = session.execute(
+            select(EventLog).where(EventLog.event_name == "order_cancelled", EventLog.order_id == order.id)
+        ).scalar_one()
 
     assert order.status == "CANCELED"
     assert order.canceled_at is not None
@@ -85,6 +89,10 @@ def test_cancel_pending_payment_order_releases_reserved_stock(
     assert events[0].event_type == "ORDER_PAYMENT_CANCELED"
     assert events[0].status_before == "READY"
     assert events[0].status_after == "CANCELED"
+    assert event_log.user_id == order.user_id
+    assert event_log.request_id == response.headers["x-request-id"]
+    assert event_log.metadata_json["order_status"] == "CANCELED"
+    assert event_log.metadata_json["payment_status"] == "CANCELED"
 
 
 def test_cancel_pending_payment_order_is_idempotent(
@@ -111,11 +119,13 @@ def test_cancel_pending_payment_order_is_idempotent(
             select(InventoryMovement).where(InventoryMovement.reference_id == pending["order_code"])
         ).scalars().all()
         events = session.execute(select(PaymentEvent)).scalars().all()
+        event_logs = session.execute(select(EventLog).where(EventLog.event_name == "order_cancelled")).scalars().all()
 
     assert inventory.stock_quantity == 10
     assert inventory.reserved_quantity == 0
     assert [movement.movement_type for movement in movements] == ["RESERVE", "RELEASE_RESERVATION"]
     assert len(events) == 1
+    assert len(event_logs) == 1
 
 
 def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
@@ -144,6 +154,9 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
             select(InventoryMovement).where(InventoryMovement.reference_id == pending["order_code"])
         ).scalars().all()
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        event_log = session.execute(
+            select(EventLog).where(EventLog.event_name == "order_cancelled", EventLog.order_id == order.id)
+        ).scalar_one()
 
     assert order.status == "CANCEL_REQUESTED"
     assert order.canceled_at is None
@@ -153,6 +166,8 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     assert [movement.movement_type for movement in movements] == ["RESERVE", "SALE_CONFIRM"]
     assert len(events) == 1
     assert events[0].event_type == "MOCK_PAYMENT_APPROVED"
+    assert event_log.metadata_json["order_status"] == "CANCEL_REQUESTED"
+    assert event_log.metadata_json["payment_status"] == "APPROVED"
 
 
 def test_cancel_order_ownership_is_enforced(
