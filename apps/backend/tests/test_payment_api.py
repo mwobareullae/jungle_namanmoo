@@ -77,6 +77,9 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
         event_logs = session.execute(
             select(EventLog).where(EventLog.event_name == "order_completed", EventLog.order_id == order.id)
         ).scalars().all()
+        started_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "payment_started", EventLog.order_id == order.id)
+        ).scalars().all()
 
     assert order.status == "PAID"
     assert order.paid_at is not None
@@ -97,6 +100,9 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert event_logs[0].request_id == response.headers["x-request-id"]
     assert event_logs[0].metadata_json["payment_status"] == "APPROVED"
     assert event_logs[0].metadata_json["amount"] == payment.amount
+    assert len(started_logs) == 1
+    assert started_logs[0].source == "mock_payment_confirm"
+    assert started_logs[0].metadata_json["payment_status"] == "READY"
 
 
 def test_mock_confirm_is_idempotent_and_does_not_deduct_stock_twice(
@@ -293,12 +299,25 @@ def test_toss_confirm_rejects_amount_mismatch_before_provider_call(
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
         inventory = _load_inventory(session, "prod_001")
+        started_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "payment_started", EventLog.order_id == order.id)
+        ).scalars().all()
+        failed_logs = session.execute(
+            select(EventLog).where(EventLog.event_name == "payment_failed", EventLog.order_id == order.id)
+        ).scalars().all()
 
     assert order.status == "PENDING_PAYMENT"
     assert payment.status == "READY"
     assert payment.provider_payment_key is None
     assert inventory.stock_quantity == 10
     assert inventory.reserved_quantity == 1
+    assert len(started_logs) == 1
+    assert started_logs[0].source == "toss_payment_confirm"
+    assert "payment_key" not in started_logs[0].metadata_json
+    assert len(failed_logs) == 1
+    assert failed_logs[0].source == "toss_payment_confirm"
+    assert failed_logs[0].metadata_json["error_code"] == "PAYMENT_AMOUNT_MISMATCH"
+    assert "payment_key" not in failed_logs[0].metadata_json
 
 
 def test_toss_confirm_is_idempotent_for_same_payment_key(

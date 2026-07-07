@@ -9,7 +9,12 @@ from app.db.session import get_db
 from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogCreateRequest
 from app.schemas.product import PopularProductsResponse, ProductDetailResponse
-from app.services.event_tracking import record_event_log_best_effort, request_id_from_request
+from app.services.event_tracking import (
+    anonymous_user_id_from_request,
+    record_event_log_best_effort,
+    request_id_from_request,
+    session_id_from_request,
+)
 from app.services.popular_products_service import (
     DEFAULT_POPULAR_LIMIT,
     DEFAULT_POPULAR_WINDOW_DAYS,
@@ -94,6 +99,8 @@ def _record_product_viewed_event(
         ),
         current_user=current_user,
         fallback_request_id=request_id_from_request(request),
+        fallback_anonymous_user_id=anonymous_user_id_from_request(request),
+        fallback_session_id=session_id_from_request(request),
         logger=logger,
         failure_message="failed_to_record_product_viewed_event",
     )
