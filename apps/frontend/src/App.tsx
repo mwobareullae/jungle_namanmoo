@@ -4,6 +4,7 @@ import AgentFloatingButton from "./components/AgentFloatingButton";
 import AppFooter from "./components/AppFooter";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import { originalPages, type OriginalPageKey } from "./originalPages";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
@@ -567,7 +568,7 @@ function GlobalAgentEntry() {
     };
   }, []);
 
-  if (appMode === "community") {
+  if (appMode === "community" || location.pathname.startsWith("/admin")) {
     return null;
   }
 
@@ -616,6 +617,7 @@ function App() {
         {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
         {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
         {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+        {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
         {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
         <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
         <Route path="*" element={<LegacyApp />} />

@@ -1,13 +1,17 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import math
+import os
 from pathlib import Path
 from typing import TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.catalog import (
     Brand as BrandRow,
     BrandAlias as BrandAliasRow,
@@ -37,7 +41,7 @@ from app.db.models.taxonomy import (
     RiskFlag as RiskFlagRow,
 )
 from app.models.data_contract import DataCatalog
-from app.services.data_loader import load_data_catalog
+from app.services.data_loader import count_csv_records, iter_product_ingredients, load_data_catalog
 
 
 @dataclass(frozen=True)
@@ -63,36 +67,187 @@ ModelT = TypeVar("ModelT")
 POPULARITY_WINDOW_DAYS = 7
 MOCK_POPULARITY_SCORE_VERSION = "mock_market_signals_v1"
 BAYESIAN_RATING_CONFIDENCE_REVIEWS = 50.0
+SEED_PROGRESS_INTERVAL_ROWS = 10_000
+SEED_PRODUCT_INGREDIENT_BATCH_SIZE = max(1, int(os.getenv("SEED_PRODUCT_INGREDIENT_BATCH_SIZE", "10000")))
+SEED_PHASE_COUNT = 7
+PRODUCT_INGREDIENT_UPSERT_COLUMNS = (
+    "ingredient_name",
+    "content_confidence",
+    "display_order",
+    "concentration_text",
+    "concentration_value",
+    "concentration_unit",
+    "concentration_confidence",
+    "normalized_concentration_value",
+    "normalized_concentration_unit",
+)
 
 
 def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
-    catalog = load_data_catalog(data_dir)
-    return seed_catalog(session, catalog)
+    started_at = current_time()
+    data_dir_path = Path(data_dir)
+    catalog: DataCatalog | None = None
+    try:
+        catalog = load_data_catalog(data_dir_path, include_product_ingredients=False)
+        row_counts = _catalog_row_counts(catalog, data_dir=data_dir_path)
+        log_performance_event(
+            "seed_catalog_loaded",
+            duration_ms=elapsed_ms(started_at),
+            metadata={
+                "data_dir": str(data_dir_path),
+                "row_counts": row_counts,
+                "loaded_row_count": sum(row_counts.values()),
+            },
+        )
+        result = seed_catalog(session, catalog, data_dir=str(data_dir_path))
+    except Exception as exc:
+        metadata: dict[str, object] = {
+            "data_dir": str(data_dir_path),
+            "error": type(exc).__name__,
+            "error_count": 1,
+            "failed_row_sample_count": 0,
+        }
+        if catalog is not None:
+            metadata["row_counts"] = _catalog_row_counts(catalog, data_dir=data_dir_path)
+        log_performance_event(
+            "seed_database_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata=metadata,
+        )
+        raise
+
+    row_counts = _catalog_row_counts(catalog, data_dir=data_dir_path)
+    seed_counts = asdict(result)
+    log_performance_event(
+        "seed_database_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "data_dir": str(data_dir_path),
+            "row_counts": row_counts,
+            "loaded_row_count": sum(row_counts.values()),
+            "seed_counts": seed_counts,
+            "seeded_entity_count": sum(seed_counts.values()),
+            "error_count": 0,
+            "failed_row_sample_count": 0,
+            "counting_mode": "loaded_rows_and_final_seed_counts",
+        },
+    )
+    return result
 
 
-def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
+def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None = None) -> SeedResult:
+    phase_started_at = current_time()
     effects_by_code = _seed_effects(session, catalog)
     concerns_by_code = _seed_concerns(session, catalog)
     _seed_concern_effects(session, catalog, concerns_by_code, effects_by_code)
+    _log_seed_phase_completed(
+        "taxonomy",
+        1,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=len(catalog.concern_tags) + len(catalog.concern_effects),
+        concerns_count=len(catalog.concern_tags),
+        effects_count=len(effects_by_code),
+    )
 
+    phase_started_at = current_time()
     ingredients_by_code = _seed_ingredients(session, catalog)
     ingredient_alias_count = _seed_ingredient_aliases(session, catalog, ingredients_by_code)
     _seed_ingredient_effects(session, catalog, ingredients_by_code, effects_by_code)
     _seed_ingredient_effect_ranges(session, catalog, ingredients_by_code, effects_by_code)
     evidence_rows = _seed_ingredient_evidence(session, catalog, ingredients_by_code, effects_by_code)
     _seed_risk_flags(session, catalog, ingredients_by_code)
+    _log_seed_phase_completed(
+        "ingredients",
+        2,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=(
+            len(catalog.ingredients)
+            + len(catalog.ingredient_aliases)
+            + len(catalog.ingredient_effects)
+            + len(catalog.ingredient_effect_ranges)
+            + len(catalog.ingredient_evidence)
+            + len(catalog.risk_flags)
+        ),
+        ingredients_count=len(catalog.ingredients),
+        ingredient_aliases_count=ingredient_alias_count,
+        ingredient_evidence_count=len(catalog.ingredient_evidence),
+    )
 
+    phase_started_at = current_time()
     brands_by_name = _seed_brands(session, catalog)
     categories_by_code = _seed_categories(session, catalog)
     default_seller = _seed_default_seller(session)
     products_by_code = _seed_products(session, catalog, brands_by_name, categories_by_code, default_seller)
     _seed_product_images(session, catalog, products_by_code)
     _seed_product_prices(session, catalog, products_by_code)
+    _log_seed_phase_completed(
+        "product_catalog",
+        3,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=len(catalog.products) + len(catalog.product_image_assets) + len(catalog.product_prices),
+        products_count=len(catalog.products),
+        brands_count=len(brands_by_name),
+        categories_count=len(categories_by_code),
+        image_assets_count=len(catalog.product_image_assets),
+        prices_count=len(catalog.product_prices),
+    )
+
+    phase_started_at = current_time()
     inventory_count = _seed_product_inventories(session, catalog, products_by_code)
     popularity_metric_count = _seed_product_popularity_metrics(session, catalog, products_by_code)
-    product_ingredient_count = _seed_product_ingredients(session, catalog, products_by_code, ingredients_by_code)
+    _log_seed_phase_completed(
+        "commerce_seed",
+        4,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=len(catalog.product_inventories) + len(catalog.product_market_signals),
+        inventories_count=inventory_count,
+        popularity_metrics_count=popularity_metric_count,
+    )
+
+    phase_started_at = current_time()
+    product_ingredient_total_row_count = _product_ingredient_row_count(catalog, data_dir)
+    product_ingredient_count = _seed_product_ingredients(
+        session,
+        catalog,
+        products_by_code,
+        ingredients_by_code,
+        total_row_count=product_ingredient_total_row_count,
+        data_dir=data_dir,
+    )
+    _log_seed_phase_completed(
+        "product_ingredients",
+        5,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=product_ingredient_total_row_count,
+        product_ingredients_count=product_ingredient_count,
+    )
+
+    phase_started_at = current_time()
     _seed_product_skin_profiles(session, catalog, products_by_code)
+    _log_seed_phase_completed(
+        "product_skin_profiles",
+        6,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=len(catalog.product_skin_profiles),
+        product_skin_profiles_count=len(catalog.product_skin_profiles),
+    )
+
+    phase_started_at = current_time()
     _seed_search_documents(session, catalog, products_by_code, ingredients_by_code, evidence_rows)
+    _log_seed_phase_completed(
+        "search_documents",
+        7,
+        phase_started_at,
+        data_dir=data_dir,
+        row_count=len(catalog.search_documents),
+        search_documents_count=len(catalog.search_documents),
+    )
 
     return SeedResult(
         concerns=len(catalog.concern_tags),
@@ -110,6 +265,58 @@ def seed_catalog(session: Session, catalog: DataCatalog) -> SeedResult:
         ingredient_effect_ranges=len(catalog.ingredient_effect_ranges),
         ingredient_evidence=len(catalog.ingredient_evidence),
         search_documents=len(catalog.search_documents),
+    )
+
+
+def _catalog_row_counts(catalog: DataCatalog, *, data_dir: str | Path | None = None) -> dict[str, int]:
+    return {
+        "products.csv": len(catalog.products),
+        "product_prices.csv": len(catalog.product_prices),
+        "product_image_assets.csv": len(catalog.product_image_assets),
+        "product_inventory.csv": len(catalog.product_inventories),
+        "product_market_signals.csv": len(catalog.product_market_signals),
+        "product_ingredients.csv": _product_ingredient_row_count(catalog, data_dir),
+        "product_skin_profiles.csv": len(catalog.product_skin_profiles),
+        "ingredients.csv": len(catalog.ingredients),
+        "ingredient_aliases.csv": len(catalog.ingredient_aliases),
+        "ingredient_effect.csv": len(catalog.ingredient_effects),
+        "ingredient_effect_ranges.csv": len(catalog.ingredient_effect_ranges),
+        "ingredient_evidence.csv": len(catalog.ingredient_evidence),
+        "risk_flags.csv": len(catalog.risk_flags),
+        "vector_docs.csv": len(catalog.search_documents),
+        "tags.json.concerns": len(catalog.concern_tags),
+        "tags.json.concern_effects": len(catalog.concern_effects),
+    }
+
+
+def _product_ingredient_row_count(catalog: DataCatalog, data_dir: str | Path | None) -> int:
+    if catalog.product_ingredients:
+        return len(catalog.product_ingredients)
+    if data_dir is None:
+        return 0
+    return count_csv_records(data_dir, "product_ingredients.csv")
+
+
+def _log_seed_phase_completed(
+    phase: str,
+    phase_order: int,
+    started_at: float,
+    *,
+    data_dir: str | None,
+    **metadata: object,
+) -> None:
+    log_metadata = {
+        "phase": phase,
+        "phase_order": phase_order,
+        "phase_count": SEED_PHASE_COUNT,
+        **metadata,
+    }
+    if data_dir is not None:
+        log_metadata["data_dir"] = data_dir
+    log_performance_event(
+        "seed_phase_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata=log_metadata,
     )
 
 
@@ -824,48 +1031,137 @@ def _seed_product_ingredients(
     catalog: DataCatalog,
     products_by_code: dict[str, ProductRow],
     ingredients_by_code: dict[str, IngredientRow],
+    *,
+    total_row_count: int,
+    data_dir: str | None = None,
 ) -> int:
-    existing_rows = session.execute(select(ProductIngredientRow)).scalars()
-    existing_by_pair = {(row.product_id, row.ingredient_id): row for row in existing_rows}
-
+    started_at = current_time()
+    batch_values: list[dict[str, object]] = []
     seen_pairs: set[tuple[int, int]] = set()
-    for record in catalog.product_ingredients:
+    records = _iter_product_ingredient_records(catalog, data_dir)
+
+    for processed_row_count, record in enumerate(records, 1):
         product = products_by_code[record.product_id]
         ingredient = ingredients_by_code[record.ingredient_id]
         pair = (product.id, ingredient.id)
         if pair in seen_pairs:
+            _log_product_ingredient_progress(
+                started_at,
+                processed_row_count,
+                total_row_count,
+                len(seen_pairs),
+                len(batch_values),
+                data_dir=data_dir,
+            )
             continue
         seen_pairs.add(pair)
 
-        row = existing_by_pair.get(pair)
-        if row is None:
-            row = ProductIngredientRow(
-                product_id=product.id,
-                ingredient_id=ingredient.id,
-                ingredient_name=record.ingredient_name,
-                content_confidence=record.content_confidence,
-                display_order=record.display_order,
-                concentration_text=record.concentration_text,
-                concentration_value=_decimal_or_none(record.concentration_value),
-                concentration_unit=record.concentration_unit,
-                concentration_confidence=record.concentration_confidence,
-                normalized_concentration_value=_decimal_or_none(record.normalized_concentration_value),
-                normalized_concentration_unit=record.normalized_concentration_unit,
-            )
-            session.add(row)
-            existing_by_pair[pair] = row
-        else:
-            row.ingredient_name = record.ingredient_name
-            row.content_confidence = record.content_confidence
-            row.display_order = record.display_order
-            row.concentration_text = record.concentration_text
-            row.concentration_value = _decimal_or_none(record.concentration_value)
-            row.concentration_unit = record.concentration_unit
-            row.concentration_confidence = record.concentration_confidence
-            row.normalized_concentration_value = _decimal_or_none(record.normalized_concentration_value)
-            row.normalized_concentration_unit = record.normalized_concentration_unit
+        batch_values.append(
+            {
+                "product_id": product.id,
+                "ingredient_id": ingredient.id,
+                "ingredient_name": record.ingredient_name,
+                "content_confidence": record.content_confidence,
+                "display_order": record.display_order,
+                "concentration_text": record.concentration_text,
+                "concentration_value": _decimal_or_none(record.concentration_value),
+                "concentration_unit": record.concentration_unit,
+                "concentration_confidence": record.concentration_confidence,
+                "normalized_concentration_value": _decimal_or_none(record.normalized_concentration_value),
+                "normalized_concentration_unit": record.normalized_concentration_unit,
+            }
+        )
+        if len(batch_values) >= SEED_PRODUCT_INGREDIENT_BATCH_SIZE:
+            _upsert_product_ingredient_batch(session, batch_values)
+            batch_values.clear()
+
+        _log_product_ingredient_progress(
+            started_at,
+            processed_row_count,
+            total_row_count,
+            len(seen_pairs),
+            len(batch_values),
+            data_dir=data_dir,
+        )
+    if batch_values:
+        _upsert_product_ingredient_batch(session, batch_values)
     session.flush()
     return len(seen_pairs)
+
+
+def _iter_product_ingredient_records(catalog: DataCatalog, data_dir: str | None):
+    if catalog.product_ingredients:
+        return iter(catalog.product_ingredients)
+    if data_dir is None:
+        return iter(())
+    return iter_product_ingredients(data_dir)
+
+
+def _upsert_product_ingredient_batch(session: Session, values: list[dict[str, object]]) -> None:
+    if not values:
+        return
+
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = postgresql_insert(ProductIngredientRow)
+    elif dialect_name == "sqlite":
+        statement = sqlite_insert(ProductIngredientRow)
+    else:
+        _upsert_product_ingredient_batch_orm(session, values)
+        return
+
+    statement = statement.on_conflict_do_update(
+        index_elements=["product_id", "ingredient_id"],
+        set_={column: getattr(statement.excluded, column) for column in PRODUCT_INGREDIENT_UPSERT_COLUMNS},
+    )
+    session.execute(statement, values)
+    session.flush()
+
+
+def _upsert_product_ingredient_batch_orm(session: Session, values: list[dict[str, object]]) -> None:
+    for value in values:
+        row = _one_or_none(
+            session,
+            ProductIngredientRow,
+            ProductIngredientRow.product_id == value["product_id"],
+            ProductIngredientRow.ingredient_id == value["ingredient_id"],
+        )
+        if row is None:
+            session.add(ProductIngredientRow(**value))
+            continue
+        for column in PRODUCT_INGREDIENT_UPSERT_COLUMNS:
+            setattr(row, column, value[column])
+    session.flush()
+
+
+def _log_product_ingredient_progress(
+    started_at: float,
+    processed_row_count: int,
+    total_row_count: int,
+    deduplicated_pair_count: int,
+    pending_batch_count: int,
+    *,
+    data_dir: str | None,
+) -> None:
+    if not total_row_count or processed_row_count % SEED_PROGRESS_INTERVAL_ROWS != 0:
+        return
+
+    metadata: dict[str, object] = {
+        "phase": "product_ingredients",
+        "processed_row_count": processed_row_count,
+        "total_row_count": total_row_count,
+        "deduplicated_pair_count": deduplicated_pair_count,
+        "progress_percent": round((processed_row_count / total_row_count) * 100, 2),
+        "batch_size": SEED_PRODUCT_INGREDIENT_BATCH_SIZE,
+        "pending_batch_count": pending_batch_count,
+    }
+    if data_dir is not None:
+        metadata["data_dir"] = data_dir
+    log_performance_event(
+        "seed_product_ingredients_progress",
+        duration_ms=elapsed_ms(started_at),
+        metadata=metadata,
+    )
 
 
 def _seed_product_skin_profiles(

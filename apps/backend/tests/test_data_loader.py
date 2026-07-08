@@ -191,6 +191,50 @@ def test_loader_reports_missing_csv_header(tmp_path: Path) -> None:
     assert "skin_type_tags" in str(exc_info.value)
 
 
+def test_load_data_catalog_reads_split_csv_files(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    products_csv = data_dir / "products.csv"
+    products_dir = data_dir / "products"
+    products_dir.mkdir()
+    (products_dir / "products_000.csv").write_text(products_csv.read_text(encoding="utf-8"), encoding="utf-8")
+    products_csv.unlink()
+
+    catalog = load_data_catalog(data_dir)
+
+    assert catalog.products[0].product_id == "prod_001"
+    assert len(catalog.products) == 2
+
+
+def test_loader_rejects_csv_file_and_split_dir_together(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    products_dir = data_dir / "products"
+    products_dir.mkdir()
+    (products_dir / "products_000.csv").write_text((data_dir / "products.csv").read_text(encoding="utf-8"), encoding="utf-8")
+
+    with pytest.raises(DataLoadError, match="동시에 존재"):
+        load_data_catalog(data_dir)
+
+
+def test_load_data_catalog_reads_split_product_ingredients_csv_files(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    product_ingredients_csv = data_dir / "product_ingredients.csv"
+    product_ingredients_dir = data_dir / "product_ingredients"
+    product_ingredients_dir.mkdir()
+    (product_ingredients_dir / "product_ingredients_000.csv").write_text(
+        product_ingredients_csv.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    product_ingredients_csv.unlink()
+
+    catalog = load_data_catalog(data_dir)
+
+    assert catalog.product_ingredients[0].product_id == "prod_001"
+    assert len(catalog.product_ingredients) == 5
+
+
 def test_loader_reports_invalid_product_skin_profile_reference(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)

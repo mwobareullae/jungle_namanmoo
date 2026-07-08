@@ -29,6 +29,7 @@ class SkinProfileData(BaseModel):
     explicit_skin_type: str | None = None
     explicit_sensitivity: str | None = None
     avoid_ingredients: list[str] = Field(default_factory=list)
+    concerns: list[str] = Field(default_factory=list)
     baumann_type_code: str | None = None
     baumann_inferred_skin_type: str | None = None
     baumann_inferred_sensitivity: str | None = None

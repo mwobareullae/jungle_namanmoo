@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.catalog import Brand, Product, ProductPrice
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -102,15 +103,21 @@ def create_recommendation_response(
     page_size: int = DEFAULT_PAGE_SIZE,
     commit: bool = True,
 ) -> RecommendationResponse:
+    total_started_at = current_time()
+    stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
     normalized_request = normalize_recommendation_request(request)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
+
+    stage_started_at = current_time()
     intent = build_recommendation_intent(
         normalized_request.concern_text,
         llm_parser=llm_parser,
     )
+    _record_stage_duration(stage_durations, "intent_parse_ms", stage_started_at)
 
     try:
+        stage_started_at = current_time()
         saved_run = save_recommendation_run(
             session,
             intent,
@@ -119,7 +126,10 @@ def create_recommendation_response(
             avoid_ingredients=normalized_request.avoid_ingredients,
             scoring_version=SCORING_VERSION,
         )
+        _record_stage_duration(stage_durations, "run_save_ms", stage_started_at)
+
         requested_candidate_pool_limit = max(candidate_pool_limit, result_limit)
+        stage_started_at = current_time()
         candidate_pool = generate_candidate_pool(
             session,
             intent,
@@ -128,7 +138,9 @@ def create_recommendation_response(
             avoid_ingredients=normalized_request.avoid_ingredients,
             target_pool_size=requested_candidate_pool_limit,
         )
+        _record_stage_duration(stage_durations, "candidate_pool_ms", stage_started_at)
         candidates = candidate_pool.candidates
+        stage_started_at = current_time()
         search_join_document_count = count_join_product_search_documents(
             session,
             [candidate.db_product_id for candidate in candidates],
@@ -140,8 +152,13 @@ def create_recommendation_response(
             matches,
             join_document_count=search_join_document_count,
         )
-        save_search_candidates(session, saved_run.run.id, candidates, matches)
+        _record_stage_duration(stage_durations, "search_match_ms", stage_started_at)
 
+        stage_started_at = current_time()
+        save_search_candidates(session, saved_run.run.id, candidates, matches)
+        _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
+
+        stage_started_at = current_time()
         scored_candidates = score_candidates(
             session,
             intent,
@@ -150,6 +167,8 @@ def create_recommendation_response(
             skin_type=normalized_request.skin_type,
             sensitivity=normalized_request.sensitivity,
         )
+        _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
+
         scored_products = scored_candidates[:result_limit]
         _attach_candidate_pool_diagnostics(
             saved_run.run,
@@ -161,25 +180,75 @@ def create_recommendation_response(
             scored_candidate_count=len(scored_candidates),
             final_result_count=len(scored_products),
         )
+        stage_started_at = current_time()
         save_recommendation_results(
             session,
             saved_run.run.id,
             scored_products,
             result_limit=result_limit,
         )
+        _record_stage_duration(stage_durations, "result_save_ms", stage_started_at)
+
         recommendation_code = saved_run.run.recommendation_code
+        stage_started_at = current_time()
         if commit:
             session.commit()
         else:
             session.flush()
-        return get_recommendation_response(
+        _record_stage_duration(stage_durations, "commit_ms", stage_started_at)
+
+        stage_started_at = current_time()
+        response = get_recommendation_response(
             session,
             recommendation_code,
             page=pagination.page,
             page_size=pagination.page_size,
         )
-    except Exception:
+        _record_stage_duration(stage_durations, "response_load_ms", stage_started_at)
+        log_performance_event(
+            "recommendation_pipeline_completed",
+            duration_ms=elapsed_ms(total_started_at),
+            metadata={
+                **stage_durations,
+                "recommendation_id": recommendation_code,
+                "llm_available": llm_parser is not None,
+                "llm_used": intent.llm_used,
+                "candidate_pool_limit": requested_candidate_pool_limit,
+                "result_limit": result_limit,
+                "page": pagination.page,
+                "page_size": pagination.page_size,
+                "candidate_pool_candidate_count": len(candidates),
+                "candidate_pool_source_counts": candidate_pool.source_counts,
+                "search_join_document_count": search_join_document_count,
+                "search_match_count": len(matches),
+                "positive_search_match_count": search_no_result_diagnostics.positive_search_match_count,
+                "no_result_reason": search_no_result_diagnostics.no_result_reason,
+                "scored_candidate_count": len(scored_candidates),
+                "final_result_count": len(scored_products),
+                "returned_product_count": len(response.products),
+                "total_items": response.pagination.total_items,
+                "matched_concern_count": len(intent.concerns),
+                "expected_effect_count": len(intent.effects),
+                "unmatched_term_count": len(intent.unmatched_terms),
+                "avoid_ingredient_count": len(normalized_request.avoid_ingredients),
+            },
+        )
+        return response
+    except Exception as exc:
         session.rollback()
+        log_performance_event(
+            "recommendation_pipeline_failed",
+            duration_ms=elapsed_ms(total_started_at),
+            metadata={
+                **stage_durations,
+                "llm_available": llm_parser is not None,
+                "llm_used": intent.llm_used,
+                "result_limit": result_limit,
+                "page": pagination.page,
+                "page_size": pagination.page_size,
+                "error": type(exc).__name__,
+            },
+        )
         raise
 
 
@@ -219,6 +288,14 @@ def get_recommendation_response(
             total_items=total_items,
         ),
     )
+
+
+def _record_stage_duration(
+    stage_durations: dict[str, float],
+    key: str,
+    started_at: float,
+) -> None:
+    stage_durations[key] = round(elapsed_ms(started_at), 2)
 
 
 def normalize_recommendation_request(

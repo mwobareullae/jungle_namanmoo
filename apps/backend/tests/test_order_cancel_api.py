@@ -1,4 +1,6 @@
 from collections.abc import Generator
+import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -58,10 +60,23 @@ def test_cancel_pending_payment_order_releases_reserved_stock(
         quantity=2,
     )
 
-    response = client.post(f"/api/orders/{pending['order_code']}/cancel")
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(
+            f"/api/orders/{pending['order_code']}/cancel",
+            headers={"x-request-id": "order-cancel-request"},
+        )
+    finally:
+        logs.close()
 
     assert response.status_code == 200
     assert response.json() == {"order_code": pending["order_code"], "status": "CANCELED"}
+    log_payload = next(line for line in logs.json_lines if line["event"] == "order_cancel_completed")
+    assert log_payload["request_id"] == "order-cancel-request"
+    assert log_payload["order_status"] == "CANCELED"
+    assert log_payload["payment_status"] == "CANCELED"
+    assert log_payload["released_quantity_total"] == 2
+    assert log_payload["idempotent_replay"] is False
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
@@ -293,3 +308,28 @@ def _set_inventory(
 def _load_inventory(session: Session, product_code: str) -> Inventory:
     product = session.execute(select(Product).where(Product.product_code == product_code)).scalar_one()
     return session.execute(select(Inventory).where(Inventory.product_id == product.id)).scalar_one()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    logger.setLevel(logging.INFO)
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler

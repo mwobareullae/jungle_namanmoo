@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 
 from fastapi import Request, Response
 
+from app.core.performance_logging import reset_current_request_id, set_current_request_id
+
 
 REQUEST_ID_HEADER = "X-Request-ID"
 PROCESS_TIME_HEADER = "X-Process-Time-Ms"
@@ -21,40 +23,44 @@ async def request_logging_middleware(
 ) -> Response:
     request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
     request.state.request_id = request_id
+    request_id_token = set_current_request_id(request_id)
     started_at = time.perf_counter()
 
     try:
-        response = await call_next(request)
-    except Exception as exc:
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            duration_ms = _elapsed_ms(started_at)
+            logger.error(
+                _json_log_line(
+                    _build_log_payload(
+                        request=request,
+                        request_id=request_id,
+                        status_code=500,
+                        response_time_ms=duration_ms,
+                        error=type(exc).__name__,
+                    )
+                )
+            )
+            raise
+
         duration_ms = _elapsed_ms(started_at)
-        logger.error(
+        response.headers[REQUEST_ID_HEADER] = request_id
+        response.headers[PROCESS_TIME_HEADER] = f"{duration_ms:.2f}"
+        logger.info(
             _json_log_line(
                 _build_log_payload(
                     request=request,
                     request_id=request_id,
-                    status_code=500,
+                    status_code=response.status_code,
                     response_time_ms=duration_ms,
-                    error=type(exc).__name__,
+                    error=None,
                 )
             )
         )
-        raise
-
-    duration_ms = _elapsed_ms(started_at)
-    response.headers[REQUEST_ID_HEADER] = request_id
-    response.headers[PROCESS_TIME_HEADER] = f"{duration_ms:.2f}"
-    logger.info(
-        _json_log_line(
-            _build_log_payload(
-                request=request,
-                request_id=request_id,
-                status_code=response.status_code,
-                response_time_ms=duration_ms,
-                error=None,
-            )
-        )
-    )
-    return response
+        return response
+    finally:
+        reset_current_request_id(request_id_token)
 
 
 def _elapsed_ms(started_at: float) -> float:

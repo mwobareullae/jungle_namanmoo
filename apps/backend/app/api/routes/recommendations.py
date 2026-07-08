@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_optional_current_user
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
@@ -47,6 +48,7 @@ def post_recommendation(
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
+    started_at = current_time()
     response = create_recommendation_response(session, request, page=page, page_size=page_size)
     _record_recommendation_event(
         session,
@@ -63,6 +65,21 @@ def post_recommendation(
         current_user=current_user,
         event_name="recommendation_analyzed",
         source="recommendation_create",
+    )
+    log_performance_event(
+        "recommendation_create_completed",
+        request_id=request_id_from_request(http_request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "recommendation_id": response.recommendation_id,
+            "returned_product_count": len(response.products),
+            "total_items": response.pagination.total_items,
+            "page": response.pagination.page,
+            "page_size": response.pagination.page_size,
+            "matched_concern_count": len(response.summary.matched_concerns),
+            "expected_effect_count": len(response.summary.expected_effects),
+            "unmatched_term_count": len(response.unmatched_terms),
+        },
     )
     return response
 
@@ -83,6 +100,7 @@ def get_recommendation_by_id(
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
+    started_at = current_time()
     response = get_recommendation_response(
         session,
         recommendation_id,
@@ -97,6 +115,18 @@ def get_recommendation_by_id(
         event_name="recommendation_viewed",
         source="recommendation_get",
     )
+    log_performance_event(
+        "recommendation_get_completed",
+        request_id=request_id_from_request(http_request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "recommendation_id": response.recommendation_id,
+            "returned_product_count": len(response.products),
+            "total_items": response.pagination.total_items,
+            "page": response.pagination.page,
+            "page_size": response.pagination.page_size,
+        },
+    )
     return response
 
 
@@ -110,15 +140,29 @@ def get_recommendation_by_id(
     },
 )
 def post_recommendation_narrative(
+    http_request: Request,
     recommendation_id: str,
     request: RecommendationNarrativeRequest | None = None,
     session: Session = Depends(get_db),
 ) -> RecommendationNarrativeResponse:
-    return create_recommendation_narrative_response(
+    started_at = current_time()
+    response = create_recommendation_narrative_response(
         session,
         recommendation_id,
         request,
     )
+    log_performance_event(
+        "recommendation_narrative_completed",
+        request_id=request_id_from_request(http_request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "recommendation_id": response.recommendation_id,
+            "generation_source": response.narrative.generation_source,
+            "fallback_reason": response.narrative.fallback_reason,
+            "product_explanation_count": len(response.narrative.product_explanations),
+        },
+    )
+    return response
 
 
 def _record_recommendation_event(

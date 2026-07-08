@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import log_performance_event
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
 from app.schemas.agent import AgentChatResponse, AgentToolName
@@ -111,6 +112,7 @@ def execute_agent_tool(
             anonymous_user_id=anonymous_user_id,
         )
     except ApiError as exc:
+        latency_ms = _elapsed_ms(started_at)
         _record_failed_tool_call(
             session,
             tool_name=tool_name,
@@ -121,10 +123,23 @@ def execute_agent_tool(
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,
             error=exc,
-            latency_ms=_elapsed_ms(started_at),
+            latency_ms=latency_ms,
+        )
+        log_performance_event(
+            "agent_tool_failed",
+            request_id=request_id,
+            duration_ms=latency_ms,
+            metadata={
+                "tool_name": tool_name,
+                "status": "FAILED",
+                "confirmation_required": policy.requires_confirmation,
+                "error_code": exc.code,
+                "user_authenticated": user is not None,
+            },
         )
         raise
 
+    latency_ms = _elapsed_ms(started_at)
     if not policy.requires_confirmation:
         _record_executed_tool_call(
             session,
@@ -134,8 +149,25 @@ def execute_agent_tool(
             request_id=request_id,
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,
-            latency_ms=_elapsed_ms(started_at),
+            latency_ms=latency_ms,
         )
+        status = "EXECUTED"
+    else:
+        status = "AWAITING_CONFIRMATION"
+    log_performance_event(
+        "agent_tool_completed",
+        request_id=request_id,
+        duration_ms=latency_ms,
+        metadata={
+            "tool_name": response.tool_name or tool_name,
+            "status": status,
+            "confirmation_required": policy.requires_confirmation,
+            "tool_call_id": response.tool_call_id,
+            "item_count": len(response.items),
+            "ui_action_type": response.ui_action.type,
+            "user_authenticated": user is not None,
+        },
+    )
     return response
 
 

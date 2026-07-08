@@ -12,7 +12,18 @@ on:
     branches:
       - main
       - dev
+  schedule:
+    - cron: "0 18 * * *"
   workflow_dispatch:
+    inputs:
+      backend_test_suite:
+        description: "Backend pytest suite to run"
+        required: true
+        default: full
+        type: choice
+        options:
+          - fast
+          - full
 
 jobs:
   infra:
@@ -95,7 +106,29 @@ jobs:
       - name: Check backend hello endpoint
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health
 
-      - name: Run backend tests
+      - name: Run backend fast tests
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.backend_test_suite == 'fast')
+        shell: bash
+        run: |
+          docker compose exec -T backend python -m pytest \
+            tests/test_db_setup.py \
+            tests/test_api_contracts.py::test_health_endpoint_returns_ok \
+            tests/test_api_contracts.py::test_health_endpoint_includes_request_observability_headers \
+            tests/test_api_contracts.py::test_openapi_docs_are_available \
+            tests/test_auth_api.py \
+            tests/test_address_api.py \
+            tests/test_cart_checkout_api.py \
+            tests/test_order_api.py \
+            tests/test_order_cancel_api.py \
+            tests/test_order_query_api.py \
+            tests/test_payment_api.py \
+            tests/test_payment_expiry_service.py \
+            tests/test_skin_api.py \
+            tests/test_event_api.py \
+            tests/test_user_activity_api.py
+
+      - name: Run backend full tests
+        if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.backend_test_suite == 'full')
         run: docker compose exec -T backend python -m pytest
 
       - name: Check backend Alembic config
