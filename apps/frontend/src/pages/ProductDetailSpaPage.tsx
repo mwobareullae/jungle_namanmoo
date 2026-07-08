@@ -75,6 +75,8 @@ const parseRiskFlag = (riskFlag: string) => {
 const DETAIL_TAB_HASHES = ["#description", "#ingredients", "#reviews", "#qna"] as const;
 const STICKY_TAB_TOP_PX = 66;
 const DETAIL_ACTIVE_OFFSET_PX = STICKY_TAB_TOP_PX + 72;
+const CORE_INGREDIENT_COUNT = 4;
+const INITIAL_VISIBLE_INGREDIENT_COUNT = 12;
 const normalizeDetailHash = (hash: string) =>
   DETAIL_TAB_HASHES.includes(hash as typeof DETAIL_TAB_HASHES[number])
     ? hash
@@ -278,6 +280,7 @@ function ProductDetailSpaPage() {
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
+  const [isIngredientExpanded, setIsIngredientExpanded] = useState(false);
   const [selectedEffect, setSelectedEffect] = useState<{
     icon: string;
     label: string;
@@ -341,6 +344,13 @@ function ProductDetailSpaPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const resetTimer = window.setTimeout(() => {
+      setIsIngredientExpanded(false);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
+  }, [product?.product_id]);
 
   const productImageUrls = useMemo(() => {
     const urls: string[] = [];
@@ -543,9 +553,17 @@ function ProductDetailSpaPage() {
 
     const relatedIngredients =
       product.related_ingredients.length > 0 ? product.related_ingredients : product.key_ingredients;
-    const effectiveIngredients = Array.from(
-      new Set(product.evidence.map((item) => item.ingredient_name).filter(Boolean)),
-    );
+    const coreIngredients = product.ingredients
+      .filter((ingredient) => ingredient.name)
+      .slice(0, CORE_INGREDIENT_COUNT);
+    const allIngredients =
+      product.ingredients.length > 0
+        ? product.ingredients.map((ingredient) => ingredient.name).filter(Boolean)
+        : relatedIngredients;
+    const visibleIngredients = isIngredientExpanded
+      ? allIngredients
+      : allIngredients.slice(0, INITIAL_VISIBLE_INGREDIENT_COUNT);
+    const hasMoreIngredients = allIngredients.length > INITIAL_VISIBLE_INGREDIENT_COUNT;
     const effectGroups = Array.from(new Set(product.evidence.map((item) => item.effect_name).filter(Boolean)))
       .map((effect) => ({
         effect,
@@ -557,10 +575,12 @@ function ProductDetailSpaPage() {
 
     return {
       relatedIngredients,
-      effectiveIngredients,
+      coreIngredients,
+      visibleIngredients,
+      hasMoreIngredients,
       effectGroups,
     };
-  }, [product]);
+  }, [isIngredientExpanded, product]);
 
   const tabClassName = (hash: string) => `detail-tab${activeTab === hash ? " active" : ""}`;
   const addCurrentProductToCart = async () => {
@@ -950,9 +970,26 @@ function ProductDetailSpaPage() {
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
                   <div className="ingredient-panel">
+                    <div className="ingredient-tags" id="ingredientTags">
+                      <div className="ingredient-tag-group">
+                        <div className="ingredient-tag-label">대표 성분</div>
+                        <div className="core-ingredient-list">
+                          {detailData.coreIngredients.length > 0 ? (
+                            detailData.coreIngredients.map((ingredient) => (
+                              <article className="core-ingredient-item" key={ingredient.name}>
+                                <strong>{ingredient.name}</strong>
+                                <p>{ingredient.purpose || "성분 목적 정보가 준비 중입니다."}</p>
+                              </article>
+                            ))
+                          ) : (
+                            <span className="ingredient-tag empty">대표 성분 정보 없음</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     {detailData.effectGroups.length > 0 ? (
                       <div className="effect-toggle-list" id="effectToggleList">
-                          <div className="effect-toggle-title">목적별 성분</div>
+                          <div className="effect-toggle-title">효능별 핵심 성분</div>
                           {detailData.effectGroups.map((group) => (
                             <button
                               className="effect-toggle-row"
@@ -961,32 +998,35 @@ function ProductDetailSpaPage() {
                               key={group.effect}
                             >
                               <span className="effect-toggle-icon">{group.icon}</span>
-                              <span>{group.label}</span>
-                              <strong>{group.items.length}</strong>
+                              <span className="effect-toggle-copy">
+                                <span className="effect-toggle-label">{group.label}</span>
+                                <span className="effect-toggle-meta">관련 성분 {group.items.length}개</span>
+                              </span>
                               <span className="effect-toggle-caret">⌄</span>
                             </button>
                           ))}
                       </div>
                     ) : null}
-                    <div className="ingredient-tags" id="ingredientTags">
-                      <div className="ingredient-tag-group">
-                        <div className="ingredient-tag-label">효능 성분</div>
-                        <div className="ingredient-tag-list">
-                          {detailData.effectiveIngredients.length > 0 ? (
-                            detailData.effectiveIngredients.map((ingredient) => (
-                              <span className="ingredient-tag effective" key={ingredient}>{ingredient}</span>
-                            ))
-                          ) : (
-                            <span className="ingredient-tag empty">효능 성분 정보 없음</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                     <div className="ingredient-copy" id="ingredientCopy">
                       <div className="ingredient-copy-label">전성분</div>
-                      {detailData.relatedIngredients.length > 0
-                        ? detailData.relatedIngredients.join(", ")
-                        : "성분 정보가 준비 중입니다."}
+                      <p className="ingredient-copy-text">
+                        {detailData.visibleIngredients.length > 0
+                          ? detailData.visibleIngredients.join(", ")
+                          : "성분 정보가 준비 중입니다."}
+                      </p>
+                      {detailData.hasMoreIngredients ? (
+                        <div className="ingredient-copy-actions">
+                          <button
+                            className="ingredient-copy-toggle"
+                            type="button"
+                            aria-expanded={isIngredientExpanded}
+                            aria-controls="ingredientCopy"
+                            onClick={() => setIsIngredientExpanded((current) => !current)}
+                          >
+                            {isIngredientExpanded ? "접기" : "전성분 전체 보기"}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -995,23 +1035,23 @@ function ProductDetailSpaPage() {
                     <h3>성분 근거</h3>
                     <p>성분명, 기대 효능, 근거 수준, 출처를 한곳에서 확인할 수 있습니다.</p>
                   </div>
-                  <div className="review-list" id="evidenceList">
+                  <div className="ingredient-evidence-list" id="evidenceList">
                     {product.evidence.length > 0 ? (
                       product.evidence.map((evidence) => {
                         const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
                         return (
                           <article
-                            className="review-item"
+                            className="ingredient-evidence-card"
                             key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
                           >
-                            <div className="review-item-head">
+                            <div className="ingredient-evidence-card-head">
                               <strong>{evidence.ingredient_name || "성분"}</strong>
                               <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
                             </div>
                             <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
                             {evidence.source_title ? (
                               <a
-                                className="review-source-link"
+                                className="ingredient-evidence-source-link"
                                 href={sourceUrl || "#sourceList"}
                                 target={sourceUrl ? "_blank" : undefined}
                                 rel={sourceUrl ? "noopener noreferrer" : undefined}
@@ -1023,17 +1063,17 @@ function ProductDetailSpaPage() {
                         );
                       })
                     ) : (
-                      <div className="review-item"><p>표시할 성분 효능 근거가 없습니다.</p></div>
+                      <div className="ingredient-evidence-card"><p>표시할 성분 효능 근거가 없습니다.</p></div>
                     )}
                   </div>
-                  <div className="source-list" id="sourceList">
+                  <div className="ingredient-source-list" id="sourceList">
                     {product.sources.length > 0 ? (
                       <>
-                        <div className="source-list-title">근거 출처</div>
-                        <div className="source-chip-list">
+                        <div className="ingredient-source-title">근거 출처</div>
+                        <div className="ingredient-source-items">
                           {product.sources.map((source) => (
                             <a
-                              className="source-chip"
+                              className="ingredient-source-item"
                               href={source.url || "#sourceList"}
                               target={source.url ? "_blank" : undefined}
                               rel={source.url ? "noopener noreferrer" : undefined}
@@ -1046,7 +1086,7 @@ function ProductDetailSpaPage() {
                         </div>
                       </>
                     ) : (
-                      <div className="review-item"><p>표시할 근거 출처 정보가 없습니다.</p></div>
+                      <div className="ingredient-source-empty"><p>표시할 근거 출처 정보가 없습니다.</p></div>
                     )}
                   </div>
                 </div>

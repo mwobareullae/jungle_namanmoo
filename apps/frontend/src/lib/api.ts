@@ -3,6 +3,7 @@ import type {
   HomeSectionsResponse,
   ProductCardItem,
   ProductDetail,
+  ProductIngredient,
   PurchaseConstraints,
   RecommendationNarrativeRequest,
   RecommendationNarrativeResponse,
@@ -254,6 +255,14 @@ const mapRecommendation = (response: BackendRecommendationResponse): Recommendat
   pagination: response.pagination
 });
 
+const mapProductIngredient = (
+  ingredient: BackendProductDetailResponse["ingredients"][number]
+): ProductIngredient => ({
+  name: ingredient.name,
+  purpose: ingredient.purpose,
+  risk_note: ingredient.risk_note ?? null
+});
+
 const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail => {
   const lowestPrice = response.prices.find((price) => price.is_lowest) ?? response.prices[0];
   const evidenceTags = Array.from(
@@ -297,6 +306,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
           ? "low"
           : "unknown",
     related_ingredients: keyIngredients,
+    ingredients: response.ingredients.map(mapProductIngredient),
     purchase_url: lowestPrice?.product_url ?? null,
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,

@@ -31,6 +31,12 @@ export const fallbackProductDetails: ProductDetail[] = [
     image_urls: [],
     content_confidence: "medium",
     related_ingredients: ["판테놀", "마데카소사이드", "글리세린", "시어버터"],
+    ingredients: [
+      { name: "판테놀", purpose: "피부 진정과 장벽 케어 보조", risk_note: null },
+      { name: "마데카소사이드", purpose: "민감 피부 진정 보조", risk_note: null },
+      { name: "글리세린", purpose: "피부 보습", risk_note: null },
+      { name: "시어버터", purpose: "보습막 형성 보조", risk_note: null },
+    ],
     purchase_url: null,
     evidence: [
       {
@@ -67,6 +73,12 @@ export const fallbackProductDetails: ProductDetail[] = [
     image_urls: [],
     content_confidence: "medium",
     related_ingredients: ["판테놀", "소듐하이알루로네이트", "글리세린", "프로판다이올"],
+    ingredients: [
+      { name: "판테놀", purpose: "피부 진정과 장벽 케어 보조", risk_note: null },
+      { name: "소듐하이알루로네이트", purpose: "피부 수분 유지", risk_note: null },
+      { name: "글리세린", purpose: "피부 보습", risk_note: null },
+      { name: "프로판다이올", purpose: "보습 보조", risk_note: null },
+    ],
     purchase_url: null,
     evidence: [
       {
@@ -103,6 +115,12 @@ export const fallbackProductDetails: ProductDetail[] = [
     image_urls: [],
     content_confidence: "medium",
     related_ingredients: ["자작나무수액", "판테놀", "글리세린", "히알루론산"],
+    ingredients: [
+      { name: "자작나무수액", purpose: "수분 공급 보조", risk_note: null },
+      { name: "판테놀", purpose: "피부 진정과 장벽 케어 보조", risk_note: null },
+      { name: "글리세린", purpose: "피부 보습", risk_note: null },
+      { name: "히알루론산", purpose: "피부 수분 유지", risk_note: null },
+    ],
     purchase_url: null,
     evidence: [
       {
