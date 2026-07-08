@@ -1684,15 +1684,18 @@ function AdminDashboardPage() {
             </div>
           </div>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {MOCK_PENDING_QUEUE.map((bar) => (
-              <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
-                <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
-                <span style={{ flex: 1, background: "#eef1f4", borderRadius: "5px", height: "17px", overflow: "hidden" }}>
-                  <span style={{ display: "block", width: `${Math.max(1.5, (bar.value / MOCK_PENDING_MAX) * 100)}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
-                </span>
-                <b style={{ width: "56px", fontSize: "11.5px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
-              </li>
-            ))}
+            {MOCK_PENDING_QUEUE.map((bar) => {
+              const pct = Math.max(1.5, (bar.value / MOCK_PENDING_MAX) * 100);
+              return (
+                <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
+                  <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
+                  <span style={{ flex: 1, position: "relative", background: "#eef1f4", borderRadius: "5px", height: "17px" }}>
+                    <span style={{ display: "block", width: `${pct}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
+                    <b style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", left: `min(calc(${pct}% + 8px), calc(100% - 58px))`, fontSize: "11.5px", color: "#222", whiteSpace: "nowrap" }}>{bar.value.toLocaleString("ko-KR")}</b>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </article>
       </section>
