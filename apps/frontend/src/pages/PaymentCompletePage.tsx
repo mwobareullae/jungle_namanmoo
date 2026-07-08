@@ -165,7 +165,8 @@ function PaymentCompletePage() {
   const shouldConfirmTossPayment = Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
   const [isProductListOpen, setIsProductListOpen] = useState(false);
-  const fallbackOrderNo = storedSnapshot?.orderCode || tossOrderId || orderCode || `MWB-${String(Date.now()).slice(-8)}`;
+  const [generatedFallbackOrderNo] = useState(() => `MWB-${String(Date.now()).slice(-8)}`);
+  const fallbackOrderNo = storedSnapshot?.orderCode || tossOrderId || orderCode || generatedFallbackOrderNo;
   const [tossConfirmStatus, setTossConfirmStatus] = useState<TossConfirmStatus>(() =>
     shouldConfirmTossPayment ? "confirming" : "idle",
   );
@@ -201,29 +202,32 @@ function PaymentCompletePage() {
     }
 
     let isMounted = true;
-    setIsOrderDetailLoading(true);
-    setOrderDetailErrorMessage("");
+    const timerId = window.setTimeout(() => {
+      setIsOrderDetailLoading(true);
+      setOrderDetailErrorMessage("");
 
-    getOrderDetail(detailOrderCode)
-      .then((detail) => {
-        if (!isMounted) return;
-        setOrderDetail(detail);
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setOrderDetail(null);
-        setOrderDetailErrorMessage(
-          error instanceof Error ? error.message : "주문 상세 정보를 불러오지 못했습니다.",
-        );
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsOrderDetailLoading(false);
-        }
-      });
+      getOrderDetail(detailOrderCode)
+        .then((detail) => {
+          if (!isMounted) return;
+          setOrderDetail(detail);
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          setOrderDetail(null);
+          setOrderDetailErrorMessage(
+            error instanceof Error ? error.message : "주문 상세 정보를 불러오지 못했습니다.",
+          );
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsOrderDetailLoading(false);
+          }
+        });
+    }, 0);
 
     return () => {
       isMounted = false;
+      window.clearTimeout(timerId);
     };
   }, [detailOrderCode, paymentFailed, shouldConfirmTossPayment, tossConfirmStatus]);
 

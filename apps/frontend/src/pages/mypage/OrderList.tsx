@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { getOrders } from "../../lib/orderApi";
@@ -38,7 +38,7 @@ export default function OrderList() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const loadOrders = async (cursor?: string | null) => {
+  const loadOrders = useCallback(async (cursor?: string | null) => {
     const isFirstPage = !cursor;
     if (isFirstPage) {
       setIsLoading(true);
@@ -61,11 +61,15 @@ export default function OrderList() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    void loadOrders();
-  }, []);
+    const timerId = window.setTimeout(() => {
+      void loadOrders();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [loadOrders]);
 
   return (
     <MyPageLayout activePath="/mypage/orders">

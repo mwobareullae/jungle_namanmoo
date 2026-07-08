@@ -284,25 +284,6 @@ const mapCartItemToOrderProduct = (item: CartItem): OrderProduct => ({
   quantity: item.quantity,
 });
 
-const getCheckoutFieldValue = (id: string) => {
-  const element = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
-  return element?.value.trim() ?? "";
-};
-
-const getDeliveryMemoValue = () => {
-  const memoOption = getCheckoutFieldValue("memo");
-
-  if (memoOption === "직접 입력") {
-    return getCheckoutFieldValue("directMemo");
-  }
-
-  if (memoOption === "배송시 요청사항을 선택해 주세요.") {
-    return "";
-  }
-
-  return memoOption;
-};
-
 const mapAddressToForm = (address: UserAddress): AddressFormState => ({
   address_name: address.address_name ?? "",
   recipient_name: address.recipient_name,

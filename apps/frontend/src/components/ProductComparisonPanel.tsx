@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { ProductDetail } from "../types/recommendation";
 
 export type ProductComparisonDifference = {
@@ -591,46 +591,44 @@ function ProductComparisonPanel({
   const candidateProducts = visibleProducts.slice(1, MAX_SIMILAR_PRODUCTS + 1);
   const comparisonCardProducts = visibleProducts.slice(0, MAX_SIMILAR_PRODUCTS + 1);
   const missingCandidateCount = Math.max(expectedCandidateCount - candidateProducts.length, 0);
-  const decisionSummary = useMemo(
-    () => getDecisionSummary(visibleProducts, source, skinType, sensitivity, summary, recommendationReason),
-    [recommendationReason, sensitivity, skinType, source, summary, visibleProducts],
+  const decisionSummary = getDecisionSummary(
+    visibleProducts,
+    source,
+    skinType,
+    sensitivity,
+    summary,
+    recommendationReason,
   );
-  const scenarioGuideItems = useMemo(
-    () => getProductScenarioGuideItems(visibleProducts),
-    [visibleProducts],
-  );
-  const comparisonRows: ProductComparisonTableRow[] = useMemo(() => {
-    const currentConcernSet = new Set(currentProduct?.evidence_tags ?? []);
-    const lowestPrice = getLowestComparablePrice(visibleProducts);
-
-    return [{
-      label: "고민 적합도",
-      values: visibleProducts.map((product, index) => (
-        renderComparableValues(product.evidence_tags, index === 0 ? new Set<string>() : currentConcernSet)
-      )),
-    },
-    {
-      label: "핵심 성분",
-      values: visibleProducts.map((product) => (
-        renderComparableValues(
-          product.key_ingredients,
-          new Set(product.key_ingredients.slice(0, 2)),
-        )
-      )),
-    },
-    {
-      label: "가격 부담",
-      values: visibleProducts.map((product) => renderPriceComparisonValue(product, lowestPrice)),
-    },
-    {
-      label: "별점(리뷰)",
-      values: visibleProducts.map(() => "리뷰 데이터 준비 중"),
-    },
-    {
-      label: "타입별 선호도",
-      values: visibleProducts.map(() => "선호도 데이터 준비 중"),
-    }];
-  }, [currentProduct?.evidence_tags, visibleProducts]);
+  const scenarioGuideItems = getProductScenarioGuideItems(visibleProducts);
+  const currentConcernSet = new Set(currentProduct?.evidence_tags ?? []);
+  const lowestPrice = getLowestComparablePrice(visibleProducts);
+  const comparisonRows: ProductComparisonTableRow[] = [{
+    label: "고민 적합도",
+    values: visibleProducts.map((product, index) => (
+      renderComparableValues(product.evidence_tags, index === 0 ? new Set<string>() : currentConcernSet)
+    )),
+  },
+  {
+    label: "핵심 성분",
+    values: visibleProducts.map((product) => (
+      renderComparableValues(
+        product.key_ingredients,
+        new Set(product.key_ingredients.slice(0, 2)),
+      )
+    )),
+  },
+  {
+    label: "가격 부담",
+    values: visibleProducts.map((product) => renderPriceComparisonValue(product, lowestPrice)),
+  },
+  {
+    label: "별점(리뷰)",
+    values: visibleProducts.map(() => "리뷰 데이터 준비 중"),
+  },
+  {
+    label: "타입별 선호도",
+    values: visibleProducts.map(() => "선호도 데이터 준비 중"),
+  }];
 
   return (
     <section className="product-comparison-panel" id="productComparisonPanel" aria-labelledby="productComparisonTitle">

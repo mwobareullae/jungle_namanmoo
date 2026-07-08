@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { getOrderDetail } from "../../lib/orderApi";
@@ -53,7 +53,7 @@ export default function OrderDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const loadOrderDetail = async () => {
+  const loadOrderDetail = useCallback(async () => {
     if (!orderCode) {
       setErrorMessage("주문번호가 없습니다.");
       setIsLoading(false);
@@ -72,11 +72,15 @@ export default function OrderDetail() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [orderCode]);
 
   useEffect(() => {
-    void loadOrderDetail();
-  }, [orderCode]);
+    const timerId = window.setTimeout(() => {
+      void loadOrderDetail();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [loadOrderDetail]);
 
   return (
     <MyPageLayout activePath="/mypage/orders">
