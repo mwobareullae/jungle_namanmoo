@@ -14,6 +14,7 @@ from app.services.product_image_service import load_thumbnail_storage_keys
 
 DEFAULT_HOME_LIMIT_PER_SECTION = 8
 MAX_HOME_LIMIT_PER_SECTION = 20
+MAX_HOME_LOOKUP_IDS = 10_000
 
 
 @dataclass(frozen=True)
@@ -201,47 +202,48 @@ def _load_product_signals(
     if not product_ids:
         return {}
 
-    rows = session.execute(
-        select(
-            ProductIngredient.product_id,
-            Ingredient.name_ko,
-            Effect.name,
-            IngredientEffect.effect_score,
-            IngredientEvidence.evidence_score,
-        )
-        .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
-        .outerjoin(IngredientEffect, IngredientEffect.ingredient_id == Ingredient.id)
-        .outerjoin(Effect, IngredientEffect.effect_id == Effect.id)
-        .outerjoin(
-            IngredientEvidence,
-            and_(
-                IngredientEvidence.ingredient_id == Ingredient.id,
-                IngredientEvidence.effect_id == IngredientEffect.effect_id,
-            ),
-        )
-        .where(ProductIngredient.product_id.in_(product_ids))
-        .order_by(ProductIngredient.display_order.asc(), ProductIngredient.id.asc())
-    ).all()
-
     ingredients_by_product_id: dict[int, list[str]] = {}
     effects_by_product_id: dict[int, list[str]] = {}
     max_effect_score_by_product_id: dict[int, float] = {}
     max_evidence_score_by_product_id: dict[int, float] = {}
 
-    for product_id, ingredient_name, effect_name, effect_score, evidence_score in rows:
-        db_product_id = int(product_id)
-        if ingredient_name:
-            ingredients_by_product_id.setdefault(db_product_id, []).append(str(ingredient_name))
-        if effect_name:
-            effects_by_product_id.setdefault(db_product_id, []).append(str(effect_name))
-        max_effect_score_by_product_id[db_product_id] = max(
-            max_effect_score_by_product_id.get(db_product_id, 0.0),
-            _decimal_score_to_unit(effect_score),
-        )
-        max_evidence_score_by_product_id[db_product_id] = max(
-            max_evidence_score_by_product_id.get(db_product_id, 0.0),
-            _decimal_score_to_unit(evidence_score),
-        )
+    for product_id_chunk in _chunks(product_ids, MAX_HOME_LOOKUP_IDS):
+        rows = session.execute(
+            select(
+                ProductIngredient.product_id,
+                Ingredient.name_ko,
+                Effect.name,
+                IngredientEffect.effect_score,
+                IngredientEvidence.evidence_score,
+            )
+            .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
+            .outerjoin(IngredientEffect, IngredientEffect.ingredient_id == Ingredient.id)
+            .outerjoin(Effect, IngredientEffect.effect_id == Effect.id)
+            .outerjoin(
+                IngredientEvidence,
+                and_(
+                    IngredientEvidence.ingredient_id == Ingredient.id,
+                    IngredientEvidence.effect_id == IngredientEffect.effect_id,
+                ),
+            )
+            .where(ProductIngredient.product_id.in_(product_id_chunk))
+            .order_by(ProductIngredient.display_order.asc(), ProductIngredient.id.asc())
+        ).all()
+
+        for product_id, ingredient_name, effect_name, effect_score, evidence_score in rows:
+            db_product_id = int(product_id)
+            if ingredient_name:
+                ingredients_by_product_id.setdefault(db_product_id, []).append(str(ingredient_name))
+            if effect_name:
+                effects_by_product_id.setdefault(db_product_id, []).append(str(effect_name))
+            max_effect_score_by_product_id[db_product_id] = max(
+                max_effect_score_by_product_id.get(db_product_id, 0.0),
+                _decimal_score_to_unit(effect_score),
+            )
+            max_evidence_score_by_product_id[db_product_id] = max(
+                max_evidence_score_by_product_id.get(db_product_id, 0.0),
+                _decimal_score_to_unit(evidence_score),
+            )
 
     return {
         product_id: _ProductSignals(
@@ -261,34 +263,40 @@ def _load_skin_profiles(
     if not product_ids:
         return {}
 
-    rows = session.execute(
-        select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_ids))
-    ).scalars()
-    return {
-        row.product_id: _SkinProfileSignals(
-            dry_fit=_decimal_to_unit(row.dry_fit),
-            oily_fit=_decimal_to_unit(row.oily_fit),
-            combination_fit=_decimal_to_unit(row.combination_fit),
-            normal_fit=_decimal_to_unit(row.normal_fit),
-            dehydrated_oily_fit=_decimal_to_unit(row.dehydrated_oily_fit),
-            sensitive_fit=_decimal_to_unit(row.sensitive_fit),
+    skin_profiles_by_product_id: dict[int, _SkinProfileSignals] = {}
+    for product_id_chunk in _chunks(product_ids, MAX_HOME_LOOKUP_IDS):
+        rows = session.execute(
+            select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_id_chunk))
+        ).scalars()
+        skin_profiles_by_product_id.update(
+            {
+                row.product_id: _SkinProfileSignals(
+                    dry_fit=_decimal_to_unit(row.dry_fit),
+                    oily_fit=_decimal_to_unit(row.oily_fit),
+                    combination_fit=_decimal_to_unit(row.combination_fit),
+                    normal_fit=_decimal_to_unit(row.normal_fit),
+                    dehydrated_oily_fit=_decimal_to_unit(row.dehydrated_oily_fit),
+                    sensitive_fit=_decimal_to_unit(row.sensitive_fit),
+                )
+                for row in rows
+            }
         )
-        for row in rows
-    }
+    return skin_profiles_by_product_id
 
 
 def _load_purchase_urls(session: Session, product_ids: list[int]) -> dict[int, str]:
     if not product_ids:
         return {}
 
-    rows = session.execute(
-        select(ProductPrice.product_id, ProductPrice.product_url)
-        .where(ProductPrice.product_id.in_(product_ids))
-        .order_by(ProductPrice.product_id.asc(), ProductPrice.is_lowest.desc(), ProductPrice.price.asc())
-    ).all()
     urls_by_product_id: dict[int, str] = {}
-    for product_id, product_url in rows:
-        urls_by_product_id.setdefault(int(product_id), product_url)
+    for product_id_chunk in _chunks(product_ids, MAX_HOME_LOOKUP_IDS):
+        rows = session.execute(
+            select(ProductPrice.product_id, ProductPrice.product_url)
+            .where(ProductPrice.product_id.in_(product_id_chunk))
+            .order_by(ProductPrice.product_id.asc(), ProductPrice.is_lowest.desc(), ProductPrice.price.asc())
+        ).all()
+        for product_id, product_url in rows:
+            urls_by_product_id.setdefault(int(product_id), product_url)
     return urls_by_product_id
 
 
@@ -528,6 +536,10 @@ def _unit_to_percent(value: float) -> int:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _chunks(values: list[int], size: int) -> list[list[int]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
 
 
 def _dedupe(values: list[str]) -> list[str]:

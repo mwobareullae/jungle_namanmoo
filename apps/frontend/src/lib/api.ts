@@ -181,7 +181,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localh
   ""
 );
 
-const requestTimeoutMs = 15000;
+const requestTimeoutMs = 120000;
 
 const emptyPurchaseConstraints: PurchaseConstraints = {
   categories: [],
