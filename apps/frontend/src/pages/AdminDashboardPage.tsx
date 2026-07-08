@@ -1683,7 +1683,7 @@ function AdminDashboardPage() {
               <h2>업무별 대기 건수</h2>
             </div>
           </div>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, maxWidth: "540px" }}>
+          <ul style={{ listStyle: "none", margin: 0, padding: "0 36px 0 0" }}>
             {MOCK_PENDING_QUEUE.map((bar) => (
               <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
                 <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
