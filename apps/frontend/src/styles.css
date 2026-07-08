@@ -6518,53 +6518,77 @@ html[data-app-mode="community"] .search-results-shell {
 
 .detail-page .ingredient-panel {
   display: grid;
-  gap: 18px;
+  gap: 24px;
 }
 
 .detail-page .effect-toggle-list {
   display: grid;
+  gap: 8px;
   margin: 0;
   padding: 18px;
-  border: 1px solid #eef3f5;
-  border-radius: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
   background: #fbfdfe;
 }
 
 .detail-page .effect-toggle-title {
-  padding: 0 0 10px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
+  padding: 0 0 4px;
 }
 
 .detail-page .effect-toggle-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto 18px;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
   gap: 12px;
   align-items: center;
   min-height: 58px;
-  padding: 11px 0;
-  border: 0 !important;
-  border-top: 0 !important;
-  border-bottom: 0 !important;
-  background: transparent;
+  padding: 12px;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--rs);
+  background: var(--white);
   color: var(--ink2);
   font-family: inherit;
   font-size: 15px;
   font-weight: 500;
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
 }
 
 .detail-page .effect-toggle-row + .effect-toggle-row {
-  border-top: 1px solid #edf2f4 !important;
+  border-top: 1px solid var(--border) !important;
 }
 
-.detail-page .effect-toggle-row > span:nth-child(2) {
+.detail-page .effect-toggle-row:hover {
+  border-color: rgba(42, 166, 209, 0.34) !important;
+  background: #fbfdfe;
+}
+
+.detail-page .effect-toggle-row:focus-visible {
+  outline: 2px solid rgba(42, 166, 209, 0.42);
+  outline-offset: 2px;
+}
+
+.detail-page .effect-toggle-copy {
+  display: grid;
+  gap: 3px;
   min-width: 0;
-  color: var(--ink2);
+}
+
+.detail-page .effect-toggle-label {
+  min-width: 0;
+  color: var(--ink);
   font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .effect-toggle-meta {
+  color: var(--muted);
+  font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .detail-page .effect-toggle-icon {
@@ -6577,12 +6601,6 @@ html[data-app-mode="community"] .search-results-shell {
   background: #e9faff;
   color: #25a8ca;
   font-size: 13px;
-  font-weight: 700;
-}
-
-.detail-page .effect-toggle-row > strong {
-  color: var(--ink);
-  font-size: 15px;
   font-weight: 700;
 }
 
@@ -6605,13 +6623,14 @@ html[data-app-mode="community"] .search-results-shell {
   display: grid;
   gap: 10px;
   padding: 18px;
-  border: 1px solid #eef3f5;
-  border-radius: 14px;
-  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
 }
 
 .detail-page .ingredient-tag-label,
-.detail-page .ingredient-copy-label {
+.detail-page .ingredient-copy-label,
+.detail-page .effect-toggle-title {
   color: var(--ink2);
   font-size: 13px;
   font-weight: 700;
@@ -6625,12 +6644,58 @@ html[data-app-mode="community"] .search-results-shell {
   gap: 10px;
 }
 
+.detail-page .core-ingredient-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.detail-page .core-ingredient-item {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.detail-page .core-ingredient-item:hover {
+  border-color: rgba(42, 166, 209, 0.34);
+  background: #fbfdfe;
+}
+
+.detail-page .core-ingredient-item strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .core-ingredient-item p {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 .detail-page .ingredient-copy {
+  display: grid;
+  gap: 12px;
   margin-top: 0;
-  padding: 20px 22px;
-  border: 1px solid #eef2f4;
-  border-radius: 14px;
-  background: #f8fbfb;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: #fbfdfe;
   color: var(--ink2);
   font-size: 14px;
   font-weight: 500;
@@ -6639,7 +6704,181 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .ingredient-copy-label {
-  margin-bottom: 12px;
+  margin-bottom: 0;
+}
+
+.detail-page .ingredient-copy-text {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .ingredient-copy-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 2px;
+}
+
+.detail-page .ingredient-copy-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(42, 166, 209, 0.28);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--accent-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.detail-page .ingredient-copy-toggle:hover {
+  border-color: rgba(42, 166, 209, 0.42);
+  background: #e9faff;
+}
+
+.detail-page .ingredient-evidence-list {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-page .ingredient-evidence-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+}
+
+.detail-page .ingredient-evidence-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-page .ingredient-evidence-card-head strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .ingredient-evidence-card-head span {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e9faff;
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.detail-page .ingredient-evidence-card p {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .ingredient-evidence-source-link {
+  justify-self: start;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.detail-page .ingredient-evidence-source-link:hover {
+  text-decoration: underline;
+}
+
+.detail-page .ingredient-source-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: #fbfdfe;
+}
+
+.detail-page .ingredient-source-title {
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.detail-page .ingredient-source-items {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-page .ingredient-source-item {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.detail-page .ingredient-source-item:hover {
+  border-color: rgba(42, 166, 209, 0.34);
+  background: #fbfdfe;
+}
+
+.detail-page .ingredient-source-item span {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e9faff;
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.detail-page .ingredient-source-item strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.detail-page .ingredient-source-empty {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+}
+
+.detail-page .ingredient-source-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.55;
 }
 
 .ingredient-sheet-backdrop {
@@ -6809,10 +7048,10 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .source-list {
-  margin-top: 18px;
+  margin-top: 24px;
   padding: 18px;
-  border: 1px solid #eef3f5;
-  border-radius: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
   background: #fbfdfe;
 }
 
@@ -6999,9 +7238,13 @@ html[data-app-mode="community"] .search-results-shell {
 .detail-page .detail-subsection {
   display: grid;
   gap: 18px;
-  margin-top: 30px;
-  padding-top: 30px;
+  margin-top: 32px;
+  padding-top: 32px;
   border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.detail-page .ingredient-evidence-section {
+  margin-top: 32px;
 }
 
 .detail-page .detail-subsection-head {
