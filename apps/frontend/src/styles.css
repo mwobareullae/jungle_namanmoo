@@ -11320,3 +11320,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 /* admin polish 보강: 우선 처리 후보 표 세로 가운데 */
 .admin-main .admin-ingredient-table th,
 .admin-main .admin-ingredient-table td { vertical-align: middle !important; }
+
+/* admin polish 보강: 업로드 결과 표 상태 열 간격 */
+.admin-main .admin-import-panel table th:nth-child(5),
+.admin-main .admin-import-panel table td:nth-child(5) { padding-left: 36px !important; }
