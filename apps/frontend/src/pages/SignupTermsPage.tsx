@@ -373,7 +373,7 @@ function SignupTermsPage() {
             <label className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-[rgba(148,224,248,0.44)] bg-[rgba(148,224,248,0.16)] px-4 py-4">
               <input
                 checked={allChecked}
-                className="h-4 w-4 cursor-pointer accent-[#94e0f8]"
+                className="signup-terms-checkbox h-4 w-4 cursor-pointer"
                 onChange={handleToggleAll}
                 type="checkbox"
               />
@@ -384,7 +384,7 @@ function SignupTermsPage() {
                 <label className="flex min-w-0 cursor-pointer items-center gap-3">
                   <input
                     checked={agreements.tos}
-                    className="h-4 w-4 shrink-0 cursor-pointer accent-[#94e0f8]"
+                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
                     onChange={() => handleChange("tos")}
                     type="checkbox"
                   />
@@ -405,7 +405,7 @@ function SignupTermsPage() {
                 <label className="flex min-w-0 cursor-pointer items-center gap-3">
                   <input
                     checked={agreements.privacy}
-                    className="h-4 w-4 shrink-0 cursor-pointer accent-[#94e0f8]"
+                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
                     onChange={() => handleChange("privacy")}
                     type="checkbox"
                   />
@@ -425,7 +425,7 @@ function SignupTermsPage() {
               <label className="flex cursor-pointer items-center gap-3 border-b border-[rgba(0,0,0,0.07)] px-4 py-4">
                 <input
                   checked={agreements.age14}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-[#94e0f8]"
+                  className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
                   onChange={() => handleChange("age14")}
                   type="checkbox"
                 />
@@ -437,7 +437,7 @@ function SignupTermsPage() {
                 <label className="flex cursor-pointer items-center gap-3">
                   <input
                     checked={agreements.marketing}
-                    className="h-4 w-4 shrink-0 cursor-pointer accent-[#94e0f8]"
+                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
                     onChange={() => handleChange("marketing")}
                     type="checkbox"
                   />
