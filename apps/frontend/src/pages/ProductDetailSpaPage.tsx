@@ -19,13 +19,6 @@ import type {
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const confidenceLabel: Record<ProductDetail["content_confidence"], string> = {
-  high: "높음",
-  medium: "보통",
-  low: "낮음",
-  unknown: "확인 필요",
-};
-
 const evidenceLevelLabel: Record<IngredientEvidence["evidence_level"], string> = {
   high: "근거 높음",
   medium: "근거 보통",
@@ -59,18 +52,6 @@ const getEffectLabel = (effect: string) => {
   return `${effect} 효능과 연결된 성분`;
 };
 
-const getPurchaseOptions = (product: ProductDetail) => {
-  if (product.prices.length > 0) return product.prices.slice(0, 8);
-  if (!product.purchase_url || product.lowest_price === null) return [];
-
-  return [{
-    mall_name: "구매처",
-    price: product.lowest_price,
-    product_url: product.purchase_url,
-    is_lowest: true,
-  }];
-};
-
 const normalizeNarrativeTitle = (title: string) => {
   if (/내 피부 고민 기준 추천 근거|추천\s*근거|왜\s*추천/.test(title)) return "왜 추천했나요";
   if (/핵심\s*성분/.test(title)) return "핵심 성분";
@@ -91,9 +72,13 @@ const parseRiskFlag = (riskFlag: string) => {
   };
 };
 
-const isCommunityMode = import.meta.env.VITE_APP_MODE === "community";
+const DETAIL_TAB_HASHES = ["#description", "#ingredients", "#reviews", "#qna"] as const;
+const STICKY_TAB_TOP_PX = 66;
+const DETAIL_ACTIVE_OFFSET_PX = STICKY_TAB_TOP_PX + 72;
 const normalizeDetailHash = (hash: string) =>
-  isCommunityMode && hash === "#related" ? "#summary" : hash || "#summary";
+  DETAIL_TAB_HASHES.includes(hash as typeof DETAIL_TAB_HASHES[number])
+    ? hash
+    : "#description";
 const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
 
 type ProductComparisonRequest = {
@@ -325,6 +310,30 @@ function ProductDetailSpaPage() {
   }, []);
 
   useEffect(() => {
+    if (!product) return;
+
+    const handleScroll = () => {
+      const activeSection = DETAIL_TAB_HASHES
+        .map((hash) => document.getElementById(hash.slice(1)))
+        .filter((section): section is HTMLElement => Boolean(section))
+        .reverse()
+        .find((section) => section.getBoundingClientRect().top <= DETAIL_ACTIVE_OFFSET_PX);
+
+      if (activeSection) {
+        setActiveTab(`#${activeSection.id}`);
+      }
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [product]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setSelectedEffect(null);
     };
@@ -332,6 +341,18 @@ function ProductDetailSpaPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  const productImageUrls = useMemo(() => {
+    const urls: string[] = [];
+    if (product?.thumbnail_url) urls.push(product.thumbnail_url);
+    product?.image_urls.forEach((imageUrl) => {
+      if (imageUrl && !urls.includes(imageUrl)) urls.push(imageUrl);
+    });
+    return urls;
+  }, [product]);
+
+  const mainImageUrl = productImageUrls[0] ?? "";
+  const descriptionImageUrls = productImageUrls.slice(1);
 
   useEffect(() => {
     const handleComparisonEvent = (event: Event) => {
@@ -538,7 +559,6 @@ function ProductDetailSpaPage() {
       relatedIngredients,
       effectiveIngredients,
       effectGroups,
-      purchaseOptions: getPurchaseOptions(product),
     };
   }, [product]);
 
@@ -694,9 +714,9 @@ function ProductDetailSpaPage() {
         <section className="detail-shell">
           <div className="detail-breadcrumb">
             <a href="/">홈</a>
-            <span>/</span>
+            <span>&gt;</span>
             <span>스킨케어</span>
-            <span>/</span>
+            <span>&gt;</span>
             <span id="breadcrumbProduct">{product?.name ?? "상품 상세"}</span>
           </div>
 
@@ -708,23 +728,12 @@ function ProductDetailSpaPage() {
             <div className="detail-hero">
               <div className="detail-media">
                 <div className="detail-image-box">
-                  {product.thumbnail_url ? (
-                    <img id="productImage" src={product.thumbnail_url} alt={product.name} />
+                  {mainImageUrl ? (
+                    <img id="productImage" src={mainImageUrl} alt={product.name} />
                   ) : null}
-                  {!product.thumbnail_url ? (
+                  {!mainImageUrl ? (
                     <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
                   ) : null}
-                </div>
-                <div className="detail-image-gallery" id="productImageGallery">
-                  {product.image_urls.slice(0, 6).map((imageUrl, index) => (
-                    <button
-                      className={`detail-thumb${index === 0 ? " active" : ""}`}
-                      type="button"
-                      key={imageUrl}
-                    >
-                      <img src={imageUrl} alt="" loading="lazy" />
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -864,33 +873,79 @@ function ProductDetailSpaPage() {
         {product && detailData ? (
           <>
             <nav className="detail-tabs" aria-label="상품 상세 탭">
-              <a className={tabClassName("#summary")} href="#summary">요약</a>
-              <a className={tabClassName("#reviews")} href="#reviews">성분</a>
-              <a className={tabClassName("#ingredients")} href="#ingredients">성분 근거</a>
-              <a data-commerce-only className={tabClassName("#related")} href="#related">구매처</a>
+              <a className={tabClassName("#description")} href="#description">상품 설명</a>
+              <a className={tabClassName("#ingredients")} href="#ingredients">성분</a>
+              <a className={tabClassName("#reviews")} href="#reviews">리뷰</a>
+              <a className={tabClassName("#qna")} href="#qna">QnA</a>
             </nav>
 
             <section className="detail-sections">
-              <section className="detail-section" id="summary">
-                <div className="section-kicker">Product Summary</div>
-                <h2>피부 고민과 성분 근거를 함께 보는 상세 정보</h2>
-                <div className="evidence-grid" id="summaryGrid">
-                  <article className="evidence-card">
-                    <strong>추천 점수 {product.total_score}</strong>
-                    <p>{product.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다."}</p>
-                  </article>
-                  <article className="evidence-card">
-                    <strong>함량 신뢰도 {confidenceLabel[product.content_confidence]}</strong>
-                    <p>성분 근거와 상품 정보를 함께 확인해 추천에 반영했습니다.</p>
-                  </article>
-                  <article className="evidence-card">
-                    <strong>{formatPrice(product.lowest_price)}</strong>
-                    <p>현재 확인 가능한 가격 정보를 함께 표시합니다.</p>
-                  </article>
+              <section className="detail-section" id="description">
+                <div className="section-kicker">Product Description</div>
+                <h2>상품 상세 이미지</h2>
+                {descriptionImageUrls.length > 0 ? (
+                  <div className="product-description-images">
+                    {descriptionImageUrls.map((imageUrl, index) => (
+                      <img
+                        src={imageUrl}
+                        alt={`${product.name} 상세 이미지 ${index + 2}`}
+                        loading="lazy"
+                        key={imageUrl}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="detail-empty-state">
+                    <strong>상세 이미지가 준비 중입니다.</strong>
+                    <p>대표 이미지를 제외한 상품 설명 이미지를 확인하면 이 영역에 표시합니다.</p>
+                  </div>
+                )}
+                <div className="detail-subsection">
+                  <div className="detail-subsection-head">
+                    <h3>주의사항</h3>
+                    <p>민감도와 피부 타입에 따라 사용 전 한 번 더 확인하면 좋은 정보입니다.</p>
+                  </div>
+                  <div className="review-list" id="riskList">
+                    {product.risk_flags.length > 0 ? (
+                      product.risk_flags.map((riskFlag) => {
+                        const risk = parseRiskFlag(riskFlag);
+                        return (
+                          <article className="review-item" key={riskFlag}>
+                            <div className="review-item-head">
+                              <strong>{risk.name}</strong>
+                              <span>주의 정보</span>
+                            </div>
+                            <p>{risk.note || "민감도와 피부 타입에 따라 사용 전 성분 확인이 필요합니다."}</p>
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <div className="detail-empty-state">
+                        <strong>표시할 주의 성분 정보가 없습니다.</strong>
+                        <p>민감 피부라면 구매 전 전성분과 사용 방법을 한 번 더 확인하는 것을 권장합니다.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="detail-subsection">
+                  <div className="detail-subsection-head">
+                    <h3>배송·교환 안내</h3>
+                    <p>주문과 교환·반품 조건은 구매 전 확인해야 하는 상품 정보로 함께 제공합니다.</p>
+                  </div>
+                  <div className="shipping-info-list">
+                    <article className="shipping-info-item">
+                      <strong>배송 안내</strong>
+                      <p>주문 결제 완료 후 상품 준비가 시작되며, 실제 배송 일정은 주문/결제 화면의 정책을 따릅니다.</p>
+                    </article>
+                    <article className="shipping-info-item">
+                      <strong>교환·반품 안내</strong>
+                      <p>개봉 여부, 사용 흔적, 상품 상태에 따라 교환·반품 가능 여부가 달라질 수 있습니다.</p>
+                    </article>
+                  </div>
                 </div>
               </section>
 
-              <section className="detail-section" id="reviews">
+              <section className="detail-section" id="ingredients">
                 <div className="section-kicker">Ingredients</div>
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
@@ -926,18 +981,6 @@ function ProductDetailSpaPage() {
                           )}
                         </div>
                       </div>
-                      <div className="ingredient-tag-group">
-                        <div className="ingredient-tag-label">주의 성분</div>
-                        <div className="ingredient-tag-list">
-                          {product.risk_flags.length > 0 ? (
-                            product.risk_flags.map((riskFlag) => (
-                              <span className="ingredient-tag risk" key={riskFlag}>{riskFlag}</span>
-                            ))
-                          ) : (
-                            <span className="ingredient-tag empty">표시할 주의 성분 없음</span>
-                          )}
-                        </div>
-                      </div>
                     </div>
                     <div className="ingredient-copy" id="ingredientCopy">
                       <div className="ingredient-copy-label">전성분</div>
@@ -947,111 +990,83 @@ function ProductDetailSpaPage() {
                     </div>
                   </div>
                 </div>
-              </section>
-
-              <section className="detail-section" id="ingredients">
-                <div className="section-kicker">Evidence</div>
-                <h2>성분 효능 근거</h2>
-                <div className="review-list" id="evidenceList">
-                  {product.evidence.length > 0 ? (
-                    product.evidence.map((evidence) => {
-                      const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
-                      return (
-                        <article
-                          className="review-item"
-                          key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
-                        >
-                          <div className="review-item-head">
-                            <strong>{evidence.ingredient_name || "성분"}</strong>
-                            <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
-                          </div>
-                          <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
-                          {evidence.source_title ? (
-                            <a
-                              className="review-source-link"
-                              href={sourceUrl || "#sourceList"}
-                              target={sourceUrl ? "_blank" : undefined}
-                              rel={sourceUrl ? "noopener noreferrer" : undefined}
-                            >
-                              {evidence.source_title}
-                            </a>
-                          ) : null}
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="review-item"><p>표시할 성분 효능 근거가 없습니다.</p></div>
-                  )}
-                </div>
-                <div className="source-list" id="sourceList">
-                  {product.sources.length > 0 ? (
-                    <>
-                      <div className="source-list-title">근거 출처</div>
-                      <div className="source-chip-list">
-                        {product.sources.map((source) => (
-                          <a
-                            className="source-chip"
-                            href={source.url || "#sourceList"}
-                            target={source.url ? "_blank" : undefined}
-                            rel={source.url ? "noopener noreferrer" : undefined}
-                            key={`${source.title}-${source.url}`}
+                <div className="detail-subsection ingredient-evidence-section" id="ingredientEvidence">
+                  <div className="detail-subsection-head">
+                    <h3>성분 근거</h3>
+                    <p>성분명, 기대 효능, 근거 수준, 출처를 한곳에서 확인할 수 있습니다.</p>
+                  </div>
+                  <div className="review-list" id="evidenceList">
+                    {product.evidence.length > 0 ? (
+                      product.evidence.map((evidence) => {
+                        const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
+                        return (
+                          <article
+                            className="review-item"
+                            key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
                           >
-                            <span>{source.source_type || "source"}</span>
-                            <strong>{source.title || "출처"}</strong>
-                          </a>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="review-item"><p>표시할 근거 출처 정보가 없습니다.</p></div>
-                  )}
+                            <div className="review-item-head">
+                              <strong>{evidence.ingredient_name || "성분"}</strong>
+                              <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
+                            </div>
+                            <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
+                            {evidence.source_title ? (
+                              <a
+                                className="review-source-link"
+                                href={sourceUrl || "#sourceList"}
+                                target={sourceUrl ? "_blank" : undefined}
+                                rel={sourceUrl ? "noopener noreferrer" : undefined}
+                              >
+                                {evidence.source_title}
+                              </a>
+                            ) : null}
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <div className="review-item"><p>표시할 성분 효능 근거가 없습니다.</p></div>
+                    )}
+                  </div>
+                  <div className="source-list" id="sourceList">
+                    {product.sources.length > 0 ? (
+                      <>
+                        <div className="source-list-title">근거 출처</div>
+                        <div className="source-chip-list">
+                          {product.sources.map((source) => (
+                            <a
+                              className="source-chip"
+                              href={source.url || "#sourceList"}
+                              target={source.url ? "_blank" : undefined}
+                              rel={source.url ? "noopener noreferrer" : undefined}
+                              key={`${source.title}-${source.url}`}
+                            >
+                              <span>{source.source_type || "source"}</span>
+                              <strong>{source.title || "출처"}</strong>
+                            </a>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="review-item"><p>표시할 근거 출처 정보가 없습니다.</p></div>
+                    )}
+                  </div>
                 </div>
               </section>
 
-              <section className="detail-section" id="risks">
-                <div className="section-kicker">Cautions</div>
-                <h2>주의 성분</h2>
-                <div className="review-list" id="riskList">
-                  {product.risk_flags.length > 0 ? (
-                    product.risk_flags.map((riskFlag) => {
-                      const risk = parseRiskFlag(riskFlag);
-                      return (
-                        <article className="review-item" key={riskFlag}>
-                          <div className="review-item-head">
-                            <strong>{risk.name}</strong>
-                            <span>주의 정보</span>
-                          </div>
-                          <p>{risk.note || "민감도와 피부 타입에 따라 사용 전 성분 확인이 필요합니다."}</p>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="review-item"><p>표시할 주의 성분 정보가 없습니다.</p></div>
-                  )}
+              <section className="detail-section" id="reviews">
+                <div className="section-kicker">Reviews</div>
+                <h2>리뷰</h2>
+                <div className="detail-empty-state">
+                  <strong>리뷰 기능을 준비 중입니다.</strong>
+                  <p>리뷰 API 계약이 확정되면 실제 구매자 리뷰와 요약 정보를 이 영역에 연결합니다.</p>
                 </div>
               </section>
 
-              <section data-commerce-only className="detail-section" id="related">
-                <div className="section-kicker">Purchase Options</div>
-                <h2>구매처 가격 비교</h2>
-                <div className="related-grid" id="relatedGrid">
-                  {detailData.purchaseOptions.length > 0 ? (
-                    detailData.purchaseOptions.map((price) => (
-                      <a
-                        className={`related-card${price.is_lowest ? " is-lowest-price" : ""}`}
-                        href={price.product_url || product.purchase_url || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        key={`${price.mall_name}-${price.product_url}`}
-                      >
-                        <div className="related-brand">{price.mall_name || "구매처"}</div>
-                        <div className="related-name">{price.is_lowest ? "최저가 구매처" : "가격 비교 구매처"}</div>
-                        <div className="related-price">{formatPrice(price.price)}</div>
-                      </a>
-                    ))
-                  ) : (
-                    <div className="review-item"><p>표시할 구매처 가격 정보가 없습니다.</p></div>
-                  )}
+              <section className="detail-section" id="qna">
+                <div className="section-kicker">QnA</div>
+                <h2>QnA</h2>
+                <div className="detail-empty-state">
+                  <strong>상품 문의 기능을 준비 중입니다.</strong>
+                  <p>QnA API 계약이 확정되면 문의 목록과 답변 상태를 이 영역에 연결합니다.</p>
                 </div>
               </section>
             </section>
