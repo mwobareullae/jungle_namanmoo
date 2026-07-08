@@ -1646,7 +1646,7 @@ function AdminDashboardPage() {
               <h2>상품 상태 구성비</h2>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "22px" }}>
             <svg viewBox="0 0 140 140" role="img" aria-label="상품 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
               {MOCK_STATUS_SEGMENTS.map((seg) => (
                 <circle
@@ -1665,7 +1665,7 @@ function AdminDashboardPage() {
               <text x="70" y="68" textAnchor="middle" style={{ fontSize: "20px", fontWeight: 700, fill: "#222" }}>24.6k</text>
               <text x="70" y="86" textAnchor="middle" style={{ fontSize: "10px", fill: "#8a9099" }}>전체 상품</text>
             </svg>
-            <ul style={{ flex: 1, listStyle: "none", margin: 0, padding: 0 }}>
+            <ul style={{ flex: "0 1 230px", maxWidth: "230px", listStyle: "none", margin: 0, padding: 0 }}>
               {MOCK_STATUS_BREAKDOWN.map((seg) => (
                 <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "11.5px", color: "#55585d", margin: "3px 0" }}>
                   <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: seg.color, flex: "0 0 auto" }} />
