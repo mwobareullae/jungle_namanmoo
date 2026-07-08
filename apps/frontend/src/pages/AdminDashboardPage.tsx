@@ -1646,7 +1646,7 @@ function AdminDashboardPage() {
               <h2>상품 상태 구성비</h2>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "22px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "22px" }}>
             <svg viewBox="0 0 140 140" role="img" aria-label="상품 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
               {MOCK_STATUS_SEGMENTS.map((seg) => (
                 <circle
