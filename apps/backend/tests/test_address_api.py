@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,7 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.commerce import UserAddress
+from app.db.models.auth import User
+from app.db.models.commerce import Order, OrderShippingAddress, UserAddress
 from app.db.session import get_db
 from app.main import app
 
@@ -159,6 +161,68 @@ def test_delete_default_address_promotes_latest_remaining_address(client: TestCl
     assert len(items) == 1
     assert items[0]["id"] == first_id
     assert items[0]["is_default"] is True
+
+
+def test_delete_address_used_by_order_detaches_order_snapshot(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="address-order-delete@example.com", nickname="address-order-delete")
+    address_id = _create_address(client, recipient_name="Ordered", is_default=True)["id"]
+
+    with Session(db_engine) as session:
+        user = session.execute(select(User).where(User.email == "address-order-delete@example.com")).scalar_one()
+        now = datetime.now(UTC)
+        order = Order(
+            order_code="ord_address_delete_001",
+            user_id=user.id,
+            idempotency_key="address-delete-order",
+            status="PENDING_PAYMENT",
+            subtotal_amount=10000,
+            shipping_fee=3000,
+            discount_amount=0,
+            total_amount=13000,
+            currency="KRW",
+            item_count=1,
+            total_quantity=1,
+            ordered_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(order)
+        session.flush()
+        order_id = order.id
+        session.add(
+            OrderShippingAddress(
+                order_id=order_id,
+                user_address_id=address_id,
+                recipient_name="Ordered",
+                phone="01012345678",
+                postal_code="12345",
+                address1="Seoul",
+                address2="101",
+                delivery_memo="Leave at door",
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    delete_response = client.delete(f"/api/me/addresses/{address_id}")
+    list_response = client.get("/api/me/addresses")
+
+    with Session(db_engine) as session:
+        deleted_address = session.execute(select(UserAddress).where(UserAddress.id == address_id)).scalar_one_or_none()
+        shipping_address = session.execute(
+            select(OrderShippingAddress).where(OrderShippingAddress.order_id == order_id)
+        ).scalar_one()
+
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"success": True}
+    assert list_response.json()["items"] == []
+    assert deleted_address is None
+    assert shipping_address.user_address_id is None
+    assert shipping_address.recipient_name == "Ordered"
+    assert shipping_address.address1 == "Seoul"
 
 
 def test_address_ownership_is_enforced(client: TestClient) -> None:

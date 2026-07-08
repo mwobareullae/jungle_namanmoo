@@ -12,7 +12,7 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         default=settings.data_dir,
-        help="Directory containing products.csv, tags.json, and other data contract files.",
+        help="Directory containing products CSV data, tags.json, and other data contract files.",
     )
     args = parser.parse_args()
 

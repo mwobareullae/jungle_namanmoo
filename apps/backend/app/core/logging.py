@@ -3,6 +3,7 @@ import sys
 
 
 REQUEST_LOGGER_NAME = "mwobareullae.request"
+PERFORMANCE_LOGGER_NAME = "mwobareullae.performance"
 
 
 def configure_logging(log_level: str) -> None:
@@ -12,6 +13,7 @@ def configure_logging(log_level: str) -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     _configure_message_only_logger(REQUEST_LOGGER_NAME, level)
+    _configure_message_only_logger(PERFORMANCE_LOGGER_NAME, level)
 
 
 def _configure_message_only_logger(name: str, level: int) -> None:

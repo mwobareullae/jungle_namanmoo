@@ -1,5 +1,7 @@
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,12 +63,21 @@ def test_expire_pending_orders_marks_expired_and_releases_reserved_stock(
     )
     _set_payment_expires_at(db_engine, pending["order_code"], now - timedelta(minutes=1))
 
-    with Session(db_engine) as session:
-        result = expire_pending_orders(session, now=now, limit=100)
-        session.commit()
+    logs = _capture_performance_logs()
+    try:
+        with Session(db_engine) as session:
+            result = expire_pending_orders(session, now=now, limit=100)
+            session.commit()
+    finally:
+        logs.close()
 
     assert result.expired_count == 1
     assert result.order_codes == [pending["order_code"]]
+    log_payload = next(line for line in logs.json_lines if line["event"] == "payment_expiry_sweep_completed")
+    assert log_payload["limit"] == 100
+    assert log_payload["scanned_count"] == 1
+    assert log_payload["expired_count"] == 1
+    assert log_payload["released_quantity_total"] == 2
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
@@ -312,6 +323,31 @@ def _set_payment_expires_at(
 def _load_inventory(session: Session, product_code: str) -> Inventory:
     product = session.execute(select(Product).where(Product.product_code == product_code)).scalar_one()
     return session.execute(select(Inventory).where(Inventory.product_id == product.id)).scalar_one()
+
+
+class _PerformanceLogCaptureHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @property
+    def json_lines(self) -> list[dict]:
+        return [json.loads(message) for message in self.messages]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+    def close(self) -> None:
+        logging.getLogger("mwobareullae.performance").removeHandler(self)
+        super().close()
+
+
+def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
+    logger = logging.getLogger("mwobareullae.performance")
+    logger.setLevel(logging.INFO)
+    handler = _PerformanceLogCaptureHandler()
+    logger.addHandler(handler)
+    return handler
 
 
 def _as_utc(value: datetime | None) -> datetime | None:

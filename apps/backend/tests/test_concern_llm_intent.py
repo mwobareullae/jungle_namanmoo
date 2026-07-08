@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app.services.concern_llm_parser import (
     ConcernLlmParserError,
     ConcernLlmParserOutput,
@@ -11,7 +13,7 @@ from app.services.concern_llm_parser import (
 )
 from app.services.parser import ConcernRepository, ParsedConcernResult, parse_concern_text
 from app.services.recommendation_intent import build_recommendation_intent
-from app.services.repository import load_repository
+from tests.repository_cache import cached_repository
 
 
 def _resolve_data_dir() -> Path:
@@ -23,10 +25,11 @@ def _resolve_data_dir() -> Path:
 
 
 DATA_DIR = _resolve_data_dir()
+pytestmark = pytest.mark.slow
 
 
 def test_build_recommendation_intent_merges_llm_parser_output() -> None:
-    repository = load_repository(DATA_DIR)
+    repository = cached_repository(DATA_DIR)
     llm_parser = _FakeConcernLlmParser(
         ConcernLlmParserOutput(
             matched_concerns=(
@@ -82,7 +85,7 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
 
 
 def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:
-    repository = load_repository(DATA_DIR)
+    repository = cached_repository(DATA_DIR)
     llm_parser = _FailingConcernLlmParser()
 
     intent = build_recommendation_intent(
@@ -101,7 +104,7 @@ def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:
 
 
 def test_concern_llm_parser_output_rejects_unknown_ids() -> None:
-    repository = load_repository(DATA_DIR)
+    repository = cached_repository(DATA_DIR)
 
     try:
         ConcernLlmParserOutput.from_payload(
@@ -129,7 +132,7 @@ def test_concern_llm_parser_output_rejects_unknown_ids() -> None:
 
 
 def test_openai_concern_llm_parser_sends_deterministic_seed(monkeypatch) -> None:
-    repository = load_repository(DATA_DIR)
+    repository = cached_repository(DATA_DIR)
     rule_result = parse_concern_text("까무잡잡한데 밝아지고 싶어", repository)
     captured_payload: dict = {}
 

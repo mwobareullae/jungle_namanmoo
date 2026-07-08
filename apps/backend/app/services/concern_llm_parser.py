@@ -8,7 +8,9 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.core.ai_logging import extract_chat_completion_usage_from_body, log_ai_call
 from app.core.config import settings
+from app.core.performance_logging import current_time, elapsed_ms
 from app.services.parser import ConcernRepository, ParsedConcernResult
 
 
@@ -214,18 +216,41 @@ class OpenAIConcernLlmParser:
             method="POST",
         )
 
+        started_at = current_time()
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
+            log_ai_call(
+                "concern_parser",
+                model=self.model,
+                duration_ms=elapsed_ms(started_at),
+                success=False,
+                error="HTTPError",
+                metadata={"status_code": exc.code},
+            )
             raise ConcernLlmParserError(
                 f"OpenAI concern parser request failed with status {exc.code}: "
                 f"{_shorten(detail)}"
             ) from exc
         except urllib.error.URLError as exc:
+            log_ai_call(
+                "concern_parser",
+                model=self.model,
+                duration_ms=elapsed_ms(started_at),
+                success=False,
+                error=type(exc.reason).__name__ if getattr(exc, "reason", None) is not None else "URLError",
+            )
             raise ConcernLlmParserError(f"OpenAI concern parser request failed: {exc}") from exc
 
+        log_ai_call(
+            "concern_parser",
+            model=self.model,
+            duration_ms=elapsed_ms(started_at),
+            usage=extract_chat_completion_usage_from_body(body),
+            metadata={"schema": "concern_parser_output"},
+        )
         return _extract_chat_completion_json(body)
 
 

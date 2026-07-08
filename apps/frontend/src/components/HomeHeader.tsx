@@ -95,10 +95,8 @@ function HomeHeader() {
         <nav>
           <a href={defaultSectionHref}>신상품</a>
           <a href={defaultSectionHref}>베스트</a>
-          <a href={defaultSectionHref}>스킨케어</a>
-          <a href={defaultSectionHref}>메이크업</a>
-          <a href={defaultSectionHref}>헤어/바디</a>
           <a href={defaultSectionHref}>브랜드</a>
+          <a href={defaultSectionHref}>쿠폰</a>
           <a className="nav-ai" href="/skin-test">
             맞춤 추천
           </a>

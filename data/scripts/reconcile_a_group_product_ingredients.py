@@ -29,6 +29,8 @@ PRODUCT_INGREDIENT_FIELDS = [
     "normalized_concentration_unit",
 ]
 
+SPLIT_CSV_TARGET_BYTES = 45 * 1024 * 1024
+
 REVIEW_FIELDS = [
     "product_id",
     "canonical_id",
@@ -62,8 +64,11 @@ CLAIM_PREFIXES = (
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8-sig") as handle:
-        return list(csv.DictReader(handle))
+    rows: list[dict[str, str]] = []
+    for csv_path in resolve_csv_paths(path):
+        with csv_path.open(newline="", encoding="utf-8-sig") as handle:
+            rows.extend(csv.DictReader(handle))
+    return rows
 
 
 def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
@@ -72,6 +77,59 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> 
         writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def resolve_csv_paths(path: Path) -> tuple[Path, ...]:
+    if path.exists():
+        return (path,)
+
+    shard_dir = path.parent / path.stem
+    if not shard_dir.exists():
+        raise FileNotFoundError(path)
+    shard_paths = tuple(sorted(csv_path for csv_path in shard_dir.glob("*.csv") if csv_path.is_file()))
+    if not shard_paths:
+        raise FileNotFoundError(f"Split CSV directory is empty: {shard_dir}")
+    return shard_paths
+
+
+def write_product_ingredients(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+    shard_dir = path.parent / path.stem
+    if shard_dir.exists() or not path.exists():
+        write_csv_shards(shard_dir, path.stem, fieldnames, rows)
+        if path.exists():
+            path.unlink()
+        return
+
+    write_csv(path, fieldnames, rows)
+
+
+def write_csv_shards(shard_dir: Path, prefix: str, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    for old_path in shard_dir.glob("*.csv"):
+        old_path.unlink()
+
+    part = 0
+    rows_in_part = 0
+    out_path = shard_dir / f"{prefix}_{part:03d}.csv"
+    out_handle = out_path.open("w", newline="", encoding="utf-8")
+    writer = csv.DictWriter(out_handle, fieldnames=fieldnames, lineterminator="\n", extrasaction="ignore")
+    writer.writeheader()
+
+    try:
+        for row in rows:
+            if rows_in_part > 0 and out_path.stat().st_size >= SPLIT_CSV_TARGET_BYTES:
+                out_handle.close()
+                part += 1
+                rows_in_part = 0
+                out_path = shard_dir / f"{prefix}_{part:03d}.csv"
+                out_handle = out_path.open("w", newline="", encoding="utf-8")
+                writer = csv.DictWriter(out_handle, fieldnames=fieldnames, lineterminator="\n", extrasaction="ignore")
+                writer.writeheader()
+
+            writer.writerow(row)
+            rows_in_part += 1
+    finally:
+        out_handle.close()
 
 
 def normalize_text(value: str) -> str:
@@ -332,7 +390,7 @@ def main() -> None:
     output_rows, review_rows, stats = reconcile_rows(rows, alias_lookup)
 
     if args.write:
-        write_csv(args.product_ingredients, PRODUCT_INGREDIENT_FIELDS, output_rows)
+        write_product_ingredients(args.product_ingredients, PRODUCT_INGREDIENT_FIELDS, output_rows)
         write_csv(args.review_output, REVIEW_FIELDS, review_rows)
 
     for key, value in stats.items():
