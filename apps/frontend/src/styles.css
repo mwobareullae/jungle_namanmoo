@@ -11305,3 +11305,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main [class*="panel-header"] h3, .admin-main [class*="panel-header"] h4 {
   white-space: normal !important; word-break: keep-all !important; overflow-wrap: anywhere;
 }
+
+/* admin polish 보강: 이력 표 정렬 통일 */
+.admin-main .admin-stock-history-table th,
+.admin-main .admin-stock-history-table td { text-align: left !important; }
