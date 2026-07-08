@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
 import { deleteCartItem, getCart, updateCartItem } from "../lib/cartApi";
@@ -319,25 +320,7 @@ function CartPage() {
       <HomeHeader />
       <main className="checkout-page cart-page">
         <section className="checkout-shell">
-          <header className="cart-page-template-header">
-            <h1>장바구니</h1>
-            <nav className="cart-page-stepper" aria-label="구매 진행 단계">
-              <span className="active">
-                <b>01</b>
-                장바구니
-              </span>
-              <i aria-hidden="true" />
-              <span>
-                <b>02</b>
-                주문서
-              </span>
-              <i aria-hidden="true" />
-              <span>
-                <b>03</b>
-                결제완료
-              </span>
-            </nav>
-          </header>
+          <CommercePageHeader currentStep="cart" title="장바구니" />
 
           {isLoading && (
             <div className="cart-page-layout" aria-label="장바구니 로딩 중">
@@ -436,7 +419,11 @@ function CartPage() {
                   </button>
                 )}
                 {user && (
-                  <button className="cart-page-empty-link" type="button">
+                  <button
+                    className="cart-page-empty-link"
+                    type="button"
+                    onClick={() => navigateWithinApp("/mypage/recent")}
+                  >
                     최근 본 상품 보기
                   </button>
                 )}

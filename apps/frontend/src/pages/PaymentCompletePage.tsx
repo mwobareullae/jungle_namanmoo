@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
+import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
-import { confirmTossPayment } from "../lib/orderApi";
+import { getProductImageUrl } from "../lib/imageUrls";
+import { navigateWithinApp } from "../lib/navigation";
+import { cancelOrder, confirmTossPayment, getOrderDetail } from "../lib/orderApi";
+import type { OrderDetailItem, OrderDetailResponse } from "../types/order";
 import type { ProductDetail } from "../types/recommendation";
 
 type CompleteProduct = {
@@ -10,14 +14,19 @@ type CompleteProduct = {
   brand: string;
   name: string;
   image: string;
+  price?: number;
+  quantity?: number;
+  option?: string;
 };
 
 type PaymentCompleteSnapshot = {
   orderCode?: string;
   product: CompleteProduct;
+  products?: CompleteProduct[];
   total: number;
   count: number;
   paymentMethod: string;
+  shippingAddress?: string;
   createdAt: number;
 };
 
@@ -76,6 +85,35 @@ const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => 
   image: product.thumbnail_url ?? product.image_urls[0] ?? "",
 });
 
+const mapOrderItemToCompleteProduct = (item: OrderDetailItem): CompleteProduct => ({
+  id: item.product_id,
+  brand: item.brand_name,
+  name: item.product_name,
+  image: getProductImageUrl(item.thumbnail_storage_key, "w400"),
+  price: item.line_total,
+  quantity: item.quantity,
+});
+
+const formatPaymentProvider = (provider?: string) => {
+  switch (provider) {
+    case "TOSS":
+      return "토스페이먼츠";
+    case "MOCK":
+      return "mock 결제";
+    case "KAKAO_PAY":
+      return "카카오페이";
+    case "NAVER_PAY":
+      return "네이버페이";
+    default:
+      return "간편결제";
+  }
+};
+
+const formatShippingAddress = (address?: OrderDetailResponse["shipping_address"] | null) => {
+  if (!address) return "";
+  return [address.address1, address.address2].filter(Boolean).join(" ");
+};
+
 const getStoredPaymentCompleteSnapshot = (): PaymentCompleteSnapshot | null => {
   try {
     const rawSnapshot = sessionStorage.getItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
@@ -110,23 +148,30 @@ function PaymentCompletePage() {
     paymentFailCode,
     paymentFailMessage,
     recommendationId,
-    skinType,
-    sensitivity,
     paymentMethod,
   }] = useState(getCompleteParams);
+  const { user } = useAuth();
   const [storedSnapshot] = useState(getStoredPaymentCompleteSnapshot);
+  const detailOrderCode = orderCode || tossOrderId || storedSnapshot?.orderCode || "";
   const productId = storedSnapshot?.product.id ?? id;
-  const displayTotal = storedSnapshot?.total ?? (total > 0 ? total : tossAmount);
-  const displayCount = storedSnapshot?.count ?? (count > 0 ? count : 1);
-  const displayPaymentMethod = storedSnapshot?.paymentMethod ?? paymentMethod;
-  const hasPaymentInfo = Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0) || Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
+  const [orderDetail, setOrderDetail] = useState<OrderDetailResponse | null>(null);
+  const [isOrderDetailLoading, setIsOrderDetailLoading] = useState(false);
+  const [orderDetailErrorMessage, setOrderDetailErrorMessage] = useState("");
+  const displayTotal = orderDetail?.total ?? storedSnapshot?.total ?? (total > 0 ? total : tossAmount);
+  const displayPaymentMethod = orderDetail
+    ? formatPaymentProvider(orderDetail.payment.provider)
+    : storedSnapshot?.paymentMethod ?? paymentMethod;
+  const hasPaymentInfo = Boolean(detailOrderCode) || Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0) || Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const shouldConfirmTossPayment = Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
-  const [orderNo] = useState(() => storedSnapshot?.orderCode || tossOrderId || orderCode || `MWB-${String(Date.now()).slice(-8)}`);
+  const [isProductListOpen, setIsProductListOpen] = useState(false);
+  const [generatedFallbackOrderNo] = useState(() => `MWB-${String(Date.now()).slice(-8)}`);
+  const fallbackOrderNo = storedSnapshot?.orderCode || tossOrderId || orderCode || generatedFallbackOrderNo;
   const [tossConfirmStatus, setTossConfirmStatus] = useState<TossConfirmStatus>(() =>
     shouldConfirmTossPayment ? "confirming" : "idle",
   );
   const [tossConfirmErrorMessage, setTossConfirmErrorMessage] = useState("");
+  const [failedPaymentCancelMessage, setFailedPaymentCancelMessage] = useState("");
 
   useEffect(() => {
     if (!productId) {
@@ -146,6 +191,45 @@ function PaymentCompletePage() {
       isMounted = false;
     };
   }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!detailOrderCode || paymentFailed) {
+      return;
+    }
+
+    if (shouldConfirmTossPayment && tossConfirmStatus === "confirming") {
+      return;
+    }
+
+    let isMounted = true;
+    const timerId = window.setTimeout(() => {
+      setIsOrderDetailLoading(true);
+      setOrderDetailErrorMessage("");
+
+      getOrderDetail(detailOrderCode)
+        .then((detail) => {
+          if (!isMounted) return;
+          setOrderDetail(detail);
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          setOrderDetail(null);
+          setOrderDetailErrorMessage(
+            error instanceof Error ? error.message : "주문 상세 정보를 불러오지 못했습니다.",
+          );
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsOrderDetailLoading(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timerId);
+    };
+  }, [detailOrderCode, paymentFailed, shouldConfirmTossPayment, tossConfirmStatus]);
 
   useEffect(() => {
     if (!tossPaymentKey || !tossOrderId || tossAmount <= 0) {
@@ -174,6 +258,35 @@ function PaymentCompletePage() {
     };
   }, [tossAmount, tossOrderId, tossPaymentKey]);
 
+  useEffect(() => {
+    const failedOrderCode = orderCode || tossOrderId;
+    if (!paymentFailed || !failedOrderCode) {
+      return;
+    }
+
+    let isMounted = true;
+    cancelOrder(failedOrderCode)
+      .then(() => {
+        if (!isMounted) return;
+        sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+        window.dispatchEvent(new Event("cart:updated"));
+        setFailedPaymentCancelMessage("주문을 취소하고 장바구니로 되돌렸습니다.");
+        navigateWithinApp("/cart");
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setFailedPaymentCancelMessage(
+          error instanceof Error
+            ? error.message
+            : "주문 취소 상태를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.",
+        );
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderCode, paymentFailed, tossOrderId]);
+
   if (paymentFailed) {
     return (
       <>
@@ -190,6 +303,7 @@ function PaymentCompletePage() {
               <h1>결제를 완료하지 못했습니다</h1>
               <p>{paymentFailMessage || "결제창에서 결제가 취소되었거나 실패했습니다."}</p>
               {paymentFailCode ? <p>오류 코드: {paymentFailCode}</p> : null}
+              {failedPaymentCancelMessage ? <p>{failedPaymentCancelMessage}</p> : null}
             </div>
 
             <div className="complete-actions">
@@ -229,47 +343,67 @@ function PaymentCompletePage() {
     );
   }
 
-  const product = apiProduct ?? storedSnapshot?.product ?? fallbackProducts[productId] ?? fallbackProducts["10"];
-  const productName = displayCount > 1 ? `${product.name} 외 ${displayCount - 1}개` : product.name;
-  const detailParams = new URLSearchParams({ id: product.id });
-  if (recommendationId) detailParams.set("recommendation_id", recommendationId);
-  if (skinType) detailParams.set("skin_type", skinType);
-  if (sensitivity) detailParams.set("sensitivity", sensitivity);
+  const orderDetailProducts = orderDetail?.items.map(mapOrderItemToCompleteProduct) ?? [];
+  const product = apiProduct ?? storedSnapshot?.product ?? orderDetailProducts[0] ?? fallbackProducts[productId] ?? fallbackProducts["10"];
+  const completeProducts = orderDetailProducts.length
+    ? orderDetailProducts
+    : storedSnapshot?.products?.length
+    ? storedSnapshot.products
+    : [product];
+  const productName = completeProducts.length > 1 ? `${completeProducts[0].name} 외 ${completeProducts.length - 1}개` : product.name;
+  const expectedPointAmount = Math.floor(displayTotal * 0.01);
+  const shippingAddress = formatShippingAddress(orderDetail?.shipping_address) || storedSnapshot?.shippingAddress || "배송지는 주문 내역에서 확인해주세요.";
+  const displayNickname = user?.nickname || "고객";
+  const displayOrderNo = orderDetail?.order_code || fallbackOrderNo;
 
   return (
     <>
       <HomeHeader />
       <main className="complete-page">
         <section className="complete-shell">
-          <CommercePageHeader
-            currentStep="complete"
-            description="주문 접수 결과와 결제 정보를 확인해주세요."
-            title="결제 완료"
-          />
+          <CommercePageHeader currentStep="complete" title="주문완료" />
 
-          <div className="complete-hero">
+          <section className="complete-receipt-card">
             <div className="complete-mark">
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
+              <span>✓</span>
             </div>
-            <h1>결제가 완료되었습니다</h1>
-            <p>피부 고민에 맞춰 고른 상품 주문이 접수되었어요. 주문 정보와 배송 진행 상황은 마이페이지에서 확인할 수 있습니다.</p>
+
+            <h1>주문이 완료되었어요</h1>
+            <p className="complete-subcopy">{displayNickname}님, 주문해주셔서 감사합니다.</p>
+
             {tossConfirmStatus === "confirming" ? (
-              <p role="status">토스 결제 승인 정보를 확인하고 있습니다.</p>
+              <p className="complete-status-message" role="status">토스 결제 승인 정보를 확인하고 있습니다.</p>
             ) : null}
             {tossConfirmStatus === "failed" ? (
-              <p role="alert">결제 승인 확인이 필요합니다. {tossConfirmErrorMessage}</p>
+              <p className="complete-status-message error" role="alert">결제 승인 확인이 필요합니다. {tossConfirmErrorMessage}</p>
             ) : null}
-          </div>
+            {isOrderDetailLoading ? (
+              <p className="complete-status-message" role="status">주문 상세 정보를 불러오고 있습니다.</p>
+            ) : null}
+            {orderDetailErrorMessage ? (
+              <p className="complete-status-message error" role="alert">
+                주문 상세 조회에 실패해 결제 직후 정보를 표시합니다. {orderDetailErrorMessage}
+              </p>
+            ) : null}
 
-          <div className="complete-grid">
-            <section className="complete-card">
-              <h2>주문 정보</h2>
+            <section className="complete-info-box" aria-labelledby="completeOrderInfoTitle">
+              <h2 id="completeOrderInfoTitle">주문 정보</h2>
               <div className="complete-row">
                 <span>주문번호</span>
-                <strong id="orderNo">{orderNo}</strong>
+                <strong id="orderNo">{displayOrderNo}</strong>
               </div>
+              <div className="complete-row">
+                <span>도착예정</span>
+                <strong className="accent">내일 오전 도착</strong>
+              </div>
+              <div className="complete-row">
+                <span>배송지</span>
+                <strong>{shippingAddress}</strong>
+              </div>
+            </section>
+
+            <section className="complete-info-box" aria-labelledby="completePaymentInfoTitle">
+              <h2 id="completePaymentInfoTitle">결제 정보</h2>
               <div className="complete-row">
                 <span>결제금액</span>
                 <strong id="paidTotal">{formatWon(displayTotal)}</strong>
@@ -278,38 +412,58 @@ function PaymentCompletePage() {
                 <span>결제수단</span>
                 <strong>{displayPaymentMethod}</strong>
               </div>
-              <div className="complete-row">
-                <span>배송 예정</span>
-                <strong>내일 출고 예정</strong>
-              </div>
             </section>
 
-            <section className="complete-card">
-              <h2>주문 상품</h2>
-              <div className="complete-product">
-                {product.image ? (
-                  <img
-                    id="productImage"
-                    src={product.image}
-                    alt={`${product.brand} ${product.name}`}
-                  />
-                ) : (
-                  <div className="complete-image-empty" id="productImage">
-                    이미지 준비중
-                  </div>
-                )}
-                <div>
-                  <div className="complete-brand" id="productBrand">{product.brand}</div>
-                  <div className="complete-name" id="productName">{productName}</div>
+            <section className="complete-product-toggle">
+              <button
+                type="button"
+                aria-expanded={isProductListOpen}
+                onClick={() => setIsProductListOpen((current) => !current)}
+              >
+                <span>주문 상품</span>
+                <strong>{productName}</strong>
+                <i>{isProductListOpen ? "접기" : `${completeProducts.length}개 보기`}</i>
+              </button>
+
+              {isProductListOpen ? (
+                <div className="complete-product-list">
+                  {completeProducts.map((completeProduct) => (
+                    <article className="complete-product" key={`${completeProduct.id}-${completeProduct.name}`}>
+                      {completeProduct.image ? (
+                        <img
+                          src={completeProduct.image}
+                          alt={`${completeProduct.brand} ${completeProduct.name}`}
+                        />
+                      ) : (
+                        <div className="complete-image-empty">
+                          이미지 준비중
+                        </div>
+                      )}
+                      <div>
+                        <div className="complete-brand">{completeProduct.brand}</div>
+                        <div className="complete-name">{completeProduct.name}</div>
+                        <div className="complete-meta">
+                          {completeProduct.option ? <span>{completeProduct.option}</span> : null}
+                          <span>수량 {completeProduct.quantity ?? 1}개</span>
+                          {completeProduct.price ? <span>{formatWon(completeProduct.price)}</span> : null}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </div>
+              ) : null}
             </section>
-          </div>
 
-          <div className="complete-actions">
-            <a className="complete-btn" href="/">쇼핑 계속하기</a>
-            <a className="complete-btn primary" href={`/product-detail?${detailParams.toString()}`}>상품 다시 보기</a>
-          </div>
+            <div className="complete-point-note">
+              <span aria-hidden="true">✨</span>
+              <span>결제 후 최대 {expectedPointAmount.toLocaleString("ko-KR")}원 적립 예정</span>
+            </div>
+
+            <div className="complete-actions">
+              <a className="complete-btn" href="/cart">주문 상세보기</a>
+              <a className="complete-btn primary" href="/">쇼핑 계속하기</a>
+            </div>
+          </section>
         </section>
       </main>
     </>
