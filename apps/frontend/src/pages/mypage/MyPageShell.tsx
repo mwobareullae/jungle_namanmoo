@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import HomeHeader from "../../components/HomeHeader";
 import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
+import { getOrders } from "../../lib/orderApi";
 import { getMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
 import {
   getLatestSkinTestResult,
@@ -11,6 +12,7 @@ import {
   saveLatestSkinTestResult
 } from "../../lib/skinTest";
 import type { SkinTestResult } from "../../types/skinTest";
+import type { OrderListItem } from "../../types/order";
 
 export type MypageEventContext = {
   page: "mypage" | "mypage_skin_profile" | "mypage_wishlist" | "mypage_recent";
@@ -43,12 +45,12 @@ type MypageToast = {
 
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "";
   label: string;
   group: 1 | 2 | 3;
 };
@@ -63,17 +65,31 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/skin-profile", label: "피부 프로필", group: 1 },
   { path: "/mypage/wishlist", label: "찜한 상품", group: 2 },
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
+  { path: "/mypage/orders", label: "주문내역", group: 3 },
   { path: "", label: "배송지 관리", group: 3 },
   { path: "", label: "개인정보 설정", group: 3 }
 ] as const;
 
 const orderStatusItems = [
-  { label: "주문접수", count: 0 },
-  { label: "결제완료", count: 0 },
-  { label: "배송준비중", count: 0 },
-  { label: "배송중", count: 0 },
-  { label: "배송완료", count: 0 }
+  { label: "주문접수", statuses: ["PENDING_PAYMENT"] },
+  { label: "결제완료", statuses: ["PAID"] },
+  { label: "배송준비중", statuses: ["PREPARING_SHIPMENT"] },
+  { label: "배송중", statuses: ["SHIPPED"] },
+  { label: "배송완료", statuses: ["DELIVERED"] }
 ] as const;
+
+type OrderStatusSummaryItem = {
+  label: string;
+  count: number;
+};
+
+const buildOrderStatusSummary = (orders: OrderListItem[]): OrderStatusSummaryItem[] =>
+  orderStatusItems.map((item) => ({
+    label: item.label,
+    count: orders.filter((order) => (item.statuses as readonly string[]).includes(order.status)).length
+  }));
+
+const emptyOrderStatusSummary = buildOrderStatusSummary([]);
 
 const formatSensitivityLabel = (label: string) => (label === "미설정" ? "민감도 미설정" : `민감 ${label}`);
 
@@ -114,6 +130,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     const latestResult = getLatestSkinTestResult();
     return cachedSkinTestResult ?? latestResult;
   });
+  const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
   const [toast, setToast] = useState<MypageToast | null>(null);
   const [hoveredNavLabel, setHoveredNavLabel] = useState<string | null>(null);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
@@ -174,6 +191,43 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
       }
     };
   }, [authUser, userOverride]);
+
+  useEffect(() => {
+    if (!authUser) {
+      setOrderStatusSummary(emptyOrderStatusSummary);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadOrderStatusSummary = async () => {
+      try {
+        const orders: OrderListItem[] = [];
+        let cursor: string | null | undefined = null;
+
+        for (let page = 0; page < 5; page += 1) {
+          const response = await getOrders({ limit: 50, cursor });
+          orders.push(...response.items);
+          cursor = response.next_cursor;
+          if (!cursor) break;
+        }
+
+        if (isMounted) {
+          setOrderStatusSummary(buildOrderStatusSummary(orders));
+        }
+      } catch {
+        if (isMounted) {
+          setOrderStatusSummary(emptyOrderStatusSummary);
+        }
+      }
+    };
+
+    void loadOrderStatusSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authUser]);
 
   useEffect(() => {
     let isMounted = true;
@@ -269,7 +323,14 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
           </nav>
         </aside>
         <section style={styles.content}>
-          {children ?? <MyPageOverview onToast={showMypageToast} skinTestResult={skinTestResult} user={user} />}
+          {children ?? (
+            <MyPageOverview
+              onToast={showMypageToast}
+              orderStatusSummary={orderStatusSummary}
+              skinTestResult={skinTestResult}
+              user={user}
+            />
+          )}
         </section>
       </main>
       {toast ? <MypageToastMessage key={toast.id} message={toast.message} /> : null}
@@ -279,27 +340,36 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
 function MyPageOverview({
   onToast,
+  orderStatusSummary,
   skinTestResult,
   user
 }: {
   onToast: (message: string) => void;
+  orderStatusSummary: OrderStatusSummaryItem[];
   skinTestResult: SkinTestResult | null;
   user: MypageUserSummary;
 }) {
   return (
     <div>
       <PageTitle title="마이페이지 홈" />
-      <UserSummaryCard onToast={onToast} skinTestResult={skinTestResult} user={user} />
+      <UserSummaryCard
+        onToast={onToast}
+        orderStatusSummary={orderStatusSummary}
+        skinTestResult={skinTestResult}
+        user={user}
+      />
     </div>
   );
 }
 
 function UserSummaryCard({
   onToast,
+  orderStatusSummary,
   skinTestResult,
   user
 }: {
   onToast: (message: string) => void;
+  orderStatusSummary: OrderStatusSummaryItem[];
   skinTestResult: SkinTestResult | null;
   user: MypageUserSummary;
 }) {
@@ -335,20 +405,19 @@ function UserSummaryCard({
       <section style={styles.summarySection} aria-label="주문 배송 조회">
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.orderSectionTitle}>주문/배송 조회</h3>
-          <button
-            type="button"
+          <Link
+            to="/mypage/orders"
             style={styles.orderViewAllButton}
-            onClick={() => onToast("준비중입니다.")}
           >
             전체보기 <span aria-hidden="true">›</span>
-          </button>
+          </Link>
         </div>
         <section style={styles.orderStatusGrid} aria-label="주문 배송 단계">
-          {orderStatusItems.map((item, index) => (
+          {orderStatusSummary.map((item, index) => (
             <div key={item.label} style={styles.orderStatusItem}>
               <strong style={styles.orderStatusCount}>{item.count}</strong>
               <span style={styles.orderStatusLabel}>{item.label}</span>
-              {index < orderStatusItems.length - 1 ? <span style={styles.orderStatusArrow}>›</span> : null}
+              {index < orderStatusSummary.length - 1 ? <span style={styles.orderStatusArrow}>›</span> : null}
             </div>
           ))}
         </section>

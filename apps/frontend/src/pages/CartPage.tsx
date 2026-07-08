@@ -419,7 +419,11 @@ function CartPage() {
                   </button>
                 )}
                 {user && (
-                  <button className="cart-page-empty-link" type="button">
+                  <button
+                    className="cart-page-empty-link"
+                    type="button"
+                    onClick={() => navigateWithinApp("/mypage/recent")}
+                  >
                     최근 본 상품 보기
                   </button>
                 )}

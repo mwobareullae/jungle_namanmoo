@@ -12,7 +12,6 @@ import { navigateWithinApp } from "../lib/navigation";
 import { cancelOrder, createOrder } from "../lib/orderApi";
 import type { UserAddress, UserAddressCreateRequest } from "../types/address";
 import type { CartItem, CheckoutPreviewResponse } from "../types/cart";
-import type { CreateOrderShippingAddress } from "../types/order";
 import type { ProductDetail } from "../types/recommendation";
 
 type OrderProduct = {
@@ -350,9 +349,6 @@ function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
   const [addressErrorMessage, setAddressErrorMessage] = useState("");
-  const [directShippingAddressText, setDirectShippingAddressText] = useState("서울특별시 성분구 피부로 12");
-  const [directPostalCode, setDirectPostalCode] = useState("");
-  const [directAddressDetail, setDirectAddressDetail] = useState("");
   const [isPostcodeLoading, setIsPostcodeLoading] = useState(false);
   const [postcodeErrorMessage, setPostcodeErrorMessage] = useState("");
   const [isAddressManagerOpen, setIsAddressManagerOpen] = useState(false);
@@ -555,10 +551,7 @@ function CheckoutPage() {
   }, [apiProduct, checkoutPreview, isPreviewLoading, isResolvingProduct, selectedId]);
 
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId) ?? null;
-  const selectedAddressLine = selectedAddress ? selectedAddress.address1 : "";
-  const shippingAddressText = selectedAddressLine || directShippingAddressText;
-  const shippingPostalCode = selectedAddress?.postal_code ?? directPostalCode;
-  const shippingAddressDetail = selectedAddress?.address2 ?? directAddressDetail;
+  const shippingAddressText = selectedAddress?.address1 ?? "";
   const isCartCheckout = !selectedId;
   const isCheckoutResolving = isResolvingProduct || isPreviewLoading;
   const itemOriginalSubtotal = items.reduce((sum, item) => sum + item.original, 0);
@@ -566,10 +559,11 @@ function CheckoutPage() {
   const subtotal = isCartCheckout && checkoutPreview
     ? checkoutPreview.subtotal
     : itemOriginalSubtotal;
-  const shippingBaseAmount = isCartCheckout && checkoutPreview ? checkoutPreview.subtotal : itemPayableSubtotal;
-  const shippingFee = getEstimatedShippingFee(shippingBaseAmount, shippingAddressText);
+  const shippingFee = isCartCheckout && checkoutPreview
+    ? checkoutPreview.shipping_fee
+    : getEstimatedShippingFee(itemPayableSubtotal, shippingAddressText);
   const total = isCartCheckout && checkoutPreview
-    ? checkoutPreview.subtotal + shippingFee
+    ? checkoutPreview.total
     : itemPayableSubtotal + shippingFee;
   const discount = isCartCheckout && checkoutPreview ? 0 : subtotal - itemPayableSubtotal;
   const itemCount = selectedId ? items.length : checkoutPreview?.items.length ?? 0;
@@ -599,7 +593,9 @@ function CheckoutPage() {
   );
   const isPaymentDisabled =
     isCheckoutResolving
+    || isAddressLoading
     || items.length === 0
+    || !selectedAddress
     || !hasAgreedPayment
     || !isCardPaymentReady
     || !isBankTransferReady
@@ -607,16 +603,6 @@ function CheckoutPage() {
     || isCheckoutBlocked
     || hasBlockingWarning;
   const paymentButtonDisabled = isPaymentDisabled || isCompletingPayment || isAuthLoading;
-
-  const switchToDirectAddressInput = () => {
-    if (selectedAddress) {
-      setDirectPostalCode(selectedAddress.postal_code);
-      setDirectShippingAddressText(selectedAddress.address1);
-      setDirectAddressDetail(selectedAddress.address2 ?? "");
-    }
-
-    setSelectedAddressId(null);
-  };
 
   const openDaumPostcode = async (onComplete: (data: DaumPostcodeData) => void) => {
     setIsPostcodeLoading(true);
@@ -639,20 +625,6 @@ function CheckoutPage() {
     }
   };
 
-  const handleFindDirectAddress = () => {
-    void openDaumPostcode((data) => {
-      const nextAddress = data.roadAddress || data.jibunAddress || data.address;
-      setSelectedAddressId(null);
-      setDirectPostalCode(data.zonecode);
-      setDirectShippingAddressText(nextAddress);
-      setDirectAddressDetail("");
-
-      window.setTimeout(() => {
-        document.getElementById("addressDetail")?.focus();
-      }, 0);
-    });
-  };
-
   const handleFindAddressFormAddress = () => {
     void openDaumPostcode((data) => {
       const nextAddress = data.roadAddress || data.jibunAddress || data.address;
@@ -667,26 +639,6 @@ function CheckoutPage() {
         document.getElementById("addressFormDetail")?.focus();
       }, 0);
     });
-  };
-
-  const buildDirectOrderShippingAddress = (): CreateOrderShippingAddress => ({
-    address_name: getCheckoutFieldValue("addressName") || null,
-    recipient_name: getCheckoutFieldValue("receiverName"),
-    phone: getCheckoutFieldValue("receiverPhone"),
-    postal_code: getCheckoutFieldValue("postalCode"),
-    address1: getCheckoutFieldValue("address"),
-    address2: getCheckoutFieldValue("addressDetail") || null,
-    delivery_memo: getDeliveryMemoValue() || null,
-    save_to_address_book: false,
-    set_as_default: false,
-  });
-
-  const validateDirectOrderShippingAddress = (shippingAddress: CreateOrderShippingAddress) => {
-    if (!shippingAddress.recipient_name) return "받는 분을 입력해주세요.";
-    if (!shippingAddress.phone) return "연락처를 입력해주세요.";
-    if (!shippingAddress.postal_code) return "우편번호를 입력해주세요.";
-    if (!shippingAddress.address1) return "주소를 입력해주세요.";
-    return "";
   };
 
   const handlePayment = async () => {
@@ -717,20 +669,13 @@ function CheckoutPage() {
         throw new Error("주문할 장바구니 상품이 없습니다.");
       }
 
-      const directShippingAddress = selectedAddressId ? null : buildDirectOrderShippingAddress();
-      const directAddressValidationMessage = directShippingAddress
-        ? validateDirectOrderShippingAddress(directShippingAddress)
-        : "";
-
-      if (directAddressValidationMessage) {
-        throw new Error(directAddressValidationMessage);
+      if (!selectedAddress) {
+        throw new Error("배송지를 추가하거나 선택해주세요.");
       }
 
       const order = await createOrder({
         cart_item_ids: orderCartItemIds,
-        ...(selectedAddressId
-          ? { address_id: selectedAddressId }
-          : { shipping_address: directShippingAddress as CreateOrderShippingAddress }),
+        address_id: selectedAddress.id,
         payment_provider: isTossPayment ? "TOSS" : "MOCK",
       });
 
@@ -755,9 +700,7 @@ function CheckoutPage() {
         total: order.total,
         count: items.length,
         paymentMethod: selectedPaymentLabel,
-        shippingAddress: selectedAddress
-          ? [selectedAddress.address1, selectedAddress.address2].filter(Boolean).join(" ")
-          : directShippingAddress?.address1 ?? "",
+        shippingAddress: [selectedAddress.address1, selectedAddress.address2].filter(Boolean).join(" "),
         createdAt: Date.now(),
       }));
 
@@ -807,14 +750,11 @@ function CheckoutPage() {
           try {
             await cancelOrder(order.order_code);
             window.dispatchEvent(new Event("cart:updated"));
+            navigateWithinApp("/cart");
+            return;
           } catch {
             throw paymentError;
           }
-          const canceledPaymentError = new Error("결제가 완료되지 않아 주문을 취소하고 장바구니로 되돌렸습니다.") as Error & {
-            cause?: unknown;
-          };
-          canceledPaymentError.cause = paymentError;
-          throw canceledPaymentError;
         }
         return;
       }
@@ -1106,99 +1046,13 @@ function CheckoutPage() {
                   </div>
                 ) : null}
                 {!isAddressLoading && !selectedAddress ? (
-                  <>
-                    <div className="checkout-address-summary muted">
-                      <strong>저장된 배송지가 없습니다.</strong>
-                      <p>배송 정보를 직접 입력하거나 새 배송지를 추가해주세요.</p>
-                      <button className="checkout-address-add-button" type="button" onClick={openAddressManager}>
-                        배송지 관리
-                      </button>
-                    </div>
-                    <div className="form-grid" key="manual">
-                      <div className="form-field">
-                        <label htmlFor="addressName">배송지명</label>
-                        <input id="addressName" defaultValue="집" autoComplete="off" />
-                      </div>
-                      <div className="form-field">
-                        <label htmlFor="receiverName">받는 분</label>
-                        <input id="receiverName" defaultValue="나코" autoComplete="name" />
-                      </div>
-                      <div className="form-field">
-                        <label htmlFor="receiverPhone">연락처</label>
-                        <input id="receiverPhone" defaultValue="010-0000-0000" autoComplete="tel" />
-                      </div>
-                      <div className="form-field">
-                        <label htmlFor="postalCode">우편번호</label>
-                        <div className="checkout-postcode-row">
-                          <input
-                            id="postalCode"
-                            value={shippingPostalCode}
-                            onChange={(event) => {
-                              switchToDirectAddressInput();
-                              setDirectPostalCode(event.target.value);
-                            }}
-                            autoComplete="postal-code"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleFindDirectAddress}
-                            disabled={isPostcodeLoading}
-                          >
-                            {isPostcodeLoading ? "검색 중" : "주소 찾기"}
-                          </button>
-                        </div>
-                        {postcodeErrorMessage ? (
-                          <small className="checkout-postcode-error" role="alert">{postcodeErrorMessage}</small>
-                        ) : null}
-                      </div>
-                      <div className="form-field full">
-                        <label htmlFor="address">주소</label>
-                        <input
-                          id="address"
-                          value={shippingAddressText}
-                          onChange={(event) => {
-                            switchToDirectAddressInput();
-                            setDirectShippingAddressText(event.target.value);
-                          }}
-                          autoComplete="street-address"
-                        />
-                      </div>
-                      <div className="form-field full">
-                        <label htmlFor="addressDetail">상세주소</label>
-                        <input
-                          id="addressDetail"
-                          value={shippingAddressDetail}
-                          onChange={(event) => {
-                            switchToDirectAddressInput();
-                            setDirectAddressDetail(event.target.value);
-                          }}
-                          autoComplete="address-line2"
-                        />
-                      </div>
-                      <div className="form-field full">
-                        <label htmlFor="memo">배송 요청사항</label>
-                        <select
-                          id="memo"
-                          value={deliveryMemoOption}
-                          onChange={(event) => setDeliveryMemoOption(event.target.value)}
-                        >
-                          {DELIVERY_MEMO_OPTIONS.map((option) => (
-                            <option value={option} key={option}>{option}</option>
-                          ))}
-                        </select>
-                        {deliveryMemoOption === "직접 입력" ? (
-                          <input
-                            id="directMemo"
-                            className="checkout-direct-memo-input"
-                            value={directDeliveryMemo}
-                            onChange={(event) => setDirectDeliveryMemo(event.target.value.slice(0, 50))}
-                            maxLength={50}
-                            placeholder="부재 시 문 앞에 놓아주세요."
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  </>
+                  <div className="checkout-address-summary muted">
+                    <strong>저장된 배송지가 없습니다.</strong>
+                    <p>배송지 관리에서 새 배송지를 추가한 뒤 주문에 사용할 배송지를 선택해주세요.</p>
+                    <button className="checkout-address-add-button" type="button" onClick={openAddressManager}>
+                      배송지 관리
+                    </button>
+                  </div>
                 ) : null}
               </section>
 
@@ -1615,6 +1469,9 @@ function CheckoutPage() {
                           주소 찾기
                         </button>
                       </div>
+                      {postcodeErrorMessage ? (
+                        <small className="checkout-postcode-error" role="alert">{postcodeErrorMessage}</small>
+                      ) : null}
                     </label>
                     <label className="full">
                       주소

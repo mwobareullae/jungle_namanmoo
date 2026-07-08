@@ -9,6 +9,8 @@ import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import MyPageShell from "./pages/mypage/MyPageShell";
+import OrderDetail from "./pages/mypage/OrderDetail";
+import OrderList from "./pages/mypage/OrderList";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
@@ -609,6 +611,8 @@ function App() {
         {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
         {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
         {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
+        {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
+        {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
         {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
         {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
         {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
