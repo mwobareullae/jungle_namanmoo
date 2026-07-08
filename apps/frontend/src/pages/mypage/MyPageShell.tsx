@@ -194,8 +194,8 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
   useEffect(() => {
     if (!authUser) {
-      setOrderStatusSummary(emptyOrderStatusSummary);
-      return;
+      const timerId = window.setTimeout(() => setOrderStatusSummary(emptyOrderStatusSummary), 0);
+      return () => window.clearTimeout(timerId);
     }
 
     let isMounted = true;
