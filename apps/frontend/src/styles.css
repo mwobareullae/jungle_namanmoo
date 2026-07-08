@@ -11309,3 +11309,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 /* admin polish 보강: 이력 표 정렬 통일 */
 .admin-main .admin-stock-history-table th,
 .admin-main .admin-stock-history-table td { text-align: left !important; }
+
+/* admin polish 보강: 가격·재고 입력칸 숫자 왼쪽 */
+.admin-main .admin-stock-table input { text-align: left !important; padding-left: 10px !important; }
