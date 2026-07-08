@@ -2,10 +2,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import math
+import os
 from pathlib import Path
 from typing import TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
@@ -38,7 +41,7 @@ from app.db.models.taxonomy import (
     RiskFlag as RiskFlagRow,
 )
 from app.models.data_contract import DataCatalog
-from app.services.data_loader import load_data_catalog
+from app.services.data_loader import count_csv_records, iter_product_ingredients, load_data_catalog
 
 
 @dataclass(frozen=True)
@@ -64,8 +67,20 @@ ModelT = TypeVar("ModelT")
 POPULARITY_WINDOW_DAYS = 7
 MOCK_POPULARITY_SCORE_VERSION = "mock_market_signals_v1"
 BAYESIAN_RATING_CONFIDENCE_REVIEWS = 50.0
-SEED_PROGRESS_INTERVAL_ROWS = 50_000
+SEED_PROGRESS_INTERVAL_ROWS = 10_000
+SEED_PRODUCT_INGREDIENT_BATCH_SIZE = max(1, int(os.getenv("SEED_PRODUCT_INGREDIENT_BATCH_SIZE", "10000")))
 SEED_PHASE_COUNT = 7
+PRODUCT_INGREDIENT_UPSERT_COLUMNS = (
+    "ingredient_name",
+    "content_confidence",
+    "display_order",
+    "concentration_text",
+    "concentration_value",
+    "concentration_unit",
+    "concentration_confidence",
+    "normalized_concentration_value",
+    "normalized_concentration_unit",
+)
 
 
 def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
@@ -73,8 +88,8 @@ def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
     data_dir_path = Path(data_dir)
     catalog: DataCatalog | None = None
     try:
-        catalog = load_data_catalog(data_dir_path)
-        row_counts = _catalog_row_counts(catalog)
+        catalog = load_data_catalog(data_dir_path, include_product_ingredients=False)
+        row_counts = _catalog_row_counts(catalog, data_dir=data_dir_path)
         log_performance_event(
             "seed_catalog_loaded",
             duration_ms=elapsed_ms(started_at),
@@ -93,7 +108,7 @@ def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
             "failed_row_sample_count": 0,
         }
         if catalog is not None:
-            metadata["row_counts"] = _catalog_row_counts(catalog)
+            metadata["row_counts"] = _catalog_row_counts(catalog, data_dir=data_dir_path)
         log_performance_event(
             "seed_database_failed",
             duration_ms=elapsed_ms(started_at),
@@ -101,7 +116,7 @@ def seed_database(session: Session, data_dir: str | Path) -> SeedResult:
         )
         raise
 
-    row_counts = _catalog_row_counts(catalog)
+    row_counts = _catalog_row_counts(catalog, data_dir=data_dir_path)
     seed_counts = asdict(result)
     log_performance_event(
         "seed_database_completed",
@@ -194,11 +209,13 @@ def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None
     )
 
     phase_started_at = current_time()
+    product_ingredient_total_row_count = _product_ingredient_row_count(catalog, data_dir)
     product_ingredient_count = _seed_product_ingredients(
         session,
         catalog,
         products_by_code,
         ingredients_by_code,
+        total_row_count=product_ingredient_total_row_count,
         data_dir=data_dir,
     )
     _log_seed_phase_completed(
@@ -206,7 +223,7 @@ def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None
         5,
         phase_started_at,
         data_dir=data_dir,
-        row_count=len(catalog.product_ingredients),
+        row_count=product_ingredient_total_row_count,
         product_ingredients_count=product_ingredient_count,
     )
 
@@ -251,14 +268,14 @@ def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None
     )
 
 
-def _catalog_row_counts(catalog: DataCatalog) -> dict[str, int]:
+def _catalog_row_counts(catalog: DataCatalog, *, data_dir: str | Path | None = None) -> dict[str, int]:
     return {
         "products.csv": len(catalog.products),
         "product_prices.csv": len(catalog.product_prices),
         "product_image_assets.csv": len(catalog.product_image_assets),
         "product_inventory.csv": len(catalog.product_inventories),
         "product_market_signals.csv": len(catalog.product_market_signals),
-        "product_ingredients.csv": len(catalog.product_ingredients),
+        "product_ingredients.csv": _product_ingredient_row_count(catalog, data_dir),
         "product_skin_profiles.csv": len(catalog.product_skin_profiles),
         "ingredients.csv": len(catalog.ingredients),
         "ingredient_aliases.csv": len(catalog.ingredient_aliases),
@@ -270,6 +287,14 @@ def _catalog_row_counts(catalog: DataCatalog) -> dict[str, int]:
         "tags.json.concerns": len(catalog.concern_tags),
         "tags.json.concern_effects": len(catalog.concern_effects),
     }
+
+
+def _product_ingredient_row_count(catalog: DataCatalog, data_dir: str | Path | None) -> int:
+    if catalog.product_ingredients:
+        return len(catalog.product_ingredients)
+    if data_dir is None:
+        return 0
+    return count_csv_records(data_dir, "product_ingredients.csv")
 
 
 def _log_seed_phase_completed(
@@ -1007,15 +1032,15 @@ def _seed_product_ingredients(
     products_by_code: dict[str, ProductRow],
     ingredients_by_code: dict[str, IngredientRow],
     *,
+    total_row_count: int,
     data_dir: str | None = None,
 ) -> int:
     started_at = current_time()
-    total_row_count = len(catalog.product_ingredients)
-    existing_rows = session.execute(select(ProductIngredientRow)).scalars()
-    existing_by_pair = {(row.product_id, row.ingredient_id): row for row in existing_rows}
-
+    batch_values: list[dict[str, object]] = []
     seen_pairs: set[tuple[int, int]] = set()
-    for processed_row_count, record in enumerate(catalog.product_ingredients, 1):
+    records = _iter_product_ingredient_records(catalog, data_dir)
+
+    for processed_row_count, record in enumerate(records, 1):
         product = products_by_code[record.product_id]
         ingredient = ingredients_by_code[record.ingredient_id]
         pair = (product.id, ingredient.id)
@@ -1025,47 +1050,88 @@ def _seed_product_ingredients(
                 processed_row_count,
                 total_row_count,
                 len(seen_pairs),
+                len(batch_values),
                 data_dir=data_dir,
             )
             continue
         seen_pairs.add(pair)
 
-        row = existing_by_pair.get(pair)
-        if row is None:
-            row = ProductIngredientRow(
-                product_id=product.id,
-                ingredient_id=ingredient.id,
-                ingredient_name=record.ingredient_name,
-                content_confidence=record.content_confidence,
-                display_order=record.display_order,
-                concentration_text=record.concentration_text,
-                concentration_value=_decimal_or_none(record.concentration_value),
-                concentration_unit=record.concentration_unit,
-                concentration_confidence=record.concentration_confidence,
-                normalized_concentration_value=_decimal_or_none(record.normalized_concentration_value),
-                normalized_concentration_unit=record.normalized_concentration_unit,
-            )
-            session.add(row)
-            existing_by_pair[pair] = row
-        else:
-            row.ingredient_name = record.ingredient_name
-            row.content_confidence = record.content_confidence
-            row.display_order = record.display_order
-            row.concentration_text = record.concentration_text
-            row.concentration_value = _decimal_or_none(record.concentration_value)
-            row.concentration_unit = record.concentration_unit
-            row.concentration_confidence = record.concentration_confidence
-            row.normalized_concentration_value = _decimal_or_none(record.normalized_concentration_value)
-            row.normalized_concentration_unit = record.normalized_concentration_unit
+        batch_values.append(
+            {
+                "product_id": product.id,
+                "ingredient_id": ingredient.id,
+                "ingredient_name": record.ingredient_name,
+                "content_confidence": record.content_confidence,
+                "display_order": record.display_order,
+                "concentration_text": record.concentration_text,
+                "concentration_value": _decimal_or_none(record.concentration_value),
+                "concentration_unit": record.concentration_unit,
+                "concentration_confidence": record.concentration_confidence,
+                "normalized_concentration_value": _decimal_or_none(record.normalized_concentration_value),
+                "normalized_concentration_unit": record.normalized_concentration_unit,
+            }
+        )
+        if len(batch_values) >= SEED_PRODUCT_INGREDIENT_BATCH_SIZE:
+            _upsert_product_ingredient_batch(session, batch_values)
+            batch_values.clear()
+
         _log_product_ingredient_progress(
             started_at,
             processed_row_count,
             total_row_count,
             len(seen_pairs),
+            len(batch_values),
             data_dir=data_dir,
         )
+    if batch_values:
+        _upsert_product_ingredient_batch(session, batch_values)
     session.flush()
     return len(seen_pairs)
+
+
+def _iter_product_ingredient_records(catalog: DataCatalog, data_dir: str | None):
+    if catalog.product_ingredients:
+        return iter(catalog.product_ingredients)
+    if data_dir is None:
+        return iter(())
+    return iter_product_ingredients(data_dir)
+
+
+def _upsert_product_ingredient_batch(session: Session, values: list[dict[str, object]]) -> None:
+    if not values:
+        return
+
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = postgresql_insert(ProductIngredientRow)
+    elif dialect_name == "sqlite":
+        statement = sqlite_insert(ProductIngredientRow)
+    else:
+        _upsert_product_ingredient_batch_orm(session, values)
+        return
+
+    statement = statement.on_conflict_do_update(
+        index_elements=["product_id", "ingredient_id"],
+        set_={column: getattr(statement.excluded, column) for column in PRODUCT_INGREDIENT_UPSERT_COLUMNS},
+    )
+    session.execute(statement, values)
+    session.flush()
+
+
+def _upsert_product_ingredient_batch_orm(session: Session, values: list[dict[str, object]]) -> None:
+    for value in values:
+        row = _one_or_none(
+            session,
+            ProductIngredientRow,
+            ProductIngredientRow.product_id == value["product_id"],
+            ProductIngredientRow.ingredient_id == value["ingredient_id"],
+        )
+        if row is None:
+            session.add(ProductIngredientRow(**value))
+            continue
+        for column in PRODUCT_INGREDIENT_UPSERT_COLUMNS:
+            setattr(row, column, value[column])
+    session.flush()
 
 
 def _log_product_ingredient_progress(
@@ -1073,6 +1139,7 @@ def _log_product_ingredient_progress(
     processed_row_count: int,
     total_row_count: int,
     deduplicated_pair_count: int,
+    pending_batch_count: int,
     *,
     data_dir: str | None,
 ) -> None:
@@ -1085,6 +1152,8 @@ def _log_product_ingredient_progress(
         "total_row_count": total_row_count,
         "deduplicated_pair_count": deduplicated_pair_count,
         "progress_percent": round((processed_row_count / total_row_count) * 100, 2),
+        "batch_size": SEED_PRODUCT_INGREDIENT_BATCH_SIZE,
+        "pending_batch_count": pending_batch_count,
     }
     if data_dir is not None:
         metadata["data_dir"] = data_dir
