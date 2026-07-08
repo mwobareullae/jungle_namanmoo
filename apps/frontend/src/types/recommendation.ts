@@ -193,10 +193,17 @@ export type ProductSource = {
   source_type: string;
 };
 
+export type ProductIngredient = {
+  name: string;
+  purpose: string;
+  risk_note: string | null;
+};
+
 export type ProductDetail = ProductCardItem & {
   image_urls: string[];
   content_confidence: ContentConfidence;
   related_ingredients: string[];
+  ingredients: ProductIngredient[];
   purchase_url: string | null;
   evidence: IngredientEvidence[];
   prices: ProductPrice[];
