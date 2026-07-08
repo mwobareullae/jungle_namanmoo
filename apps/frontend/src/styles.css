@@ -11316,3 +11316,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 /* admin polish 보강: 결제·재고 예외 표 정렬 */
 .admin-main .admin-order-exception-table th,
 .admin-main .admin-order-exception-table td { text-align: left !important; }
+
+/* admin polish 보강: 우선 처리 후보 표 세로 가운데 */
+.admin-main .admin-ingredient-table th,
+.admin-main .admin-ingredient-table td { vertical-align: middle !important; }
