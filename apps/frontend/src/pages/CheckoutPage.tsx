@@ -1028,10 +1028,9 @@ function CheckoutPage() {
                 ) : null}
                 {!isAddressLoading && !selectedAddress ? (
                   <div className="checkout-address-summary muted">
-                    <strong>저장된 배송지가 없습니다.</strong>
-                    <p>배송지 관리에서 새 배송지를 추가한 뒤 주문에 사용할 배송지를 선택해주세요.</p>
+                    <strong>아직 등록된 배송지가 없어요</strong>
                     <button className="checkout-address-add-button" type="button" onClick={openAddressManager}>
-                      배송지 관리
+                      + 배송지 추가
                     </button>
                   </div>
                 ) : null}
