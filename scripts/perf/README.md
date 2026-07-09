@@ -367,6 +367,7 @@ POST /api/checkout/preview    # CART_WRITES=true 일 때만
 
 검색어는 `SEARCH_QUERIES`로 조절합니다.
 로그인 사용자 홈 추천은 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정했을 때만 추가 실행합니다.
+기본 실행은 비로그인/fallback for-you만 포함하며, 로그인 시나리오 포함 여부는 `report.md`의 `Auth home for-you` 행과 Slack 요약에 표시됩니다.
 리포트 제목은 `REPORT_TITLE`로 조절합니다.
 
 ```env
