@@ -73,10 +73,13 @@ jobs:
             set -euo pipefail
             cd '$DEV_APP_DIR'
             test -f .env || cp .env.example .env
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml config
+            if [ -f data/scripts/build_seed_subset.py ] && [ -f data/products.csv ]; then
+              python3 data/scripts/build_seed_subset.py --source-dir data --output-dir data/dev-small --force
+            fi
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache config
             docker compose -f docker-compose.yml -f docker-compose.proxy.yml stop frontend || true
             docker compose -f docker-compose.yml -f docker-compose.proxy.yml rm -f frontend || true
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml up --build -d
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache up --build -d backend redis elasticsearch caddy
             docker compose ps
           "
 
@@ -106,7 +109,7 @@ jobs:
                       type: "header",
                       text: {
                         type: "plain_text",
-                        text: "🚨 dev 배포 완료 — 즉시 Pull 필요",
+                        text: "🚨 dev API 배포 완료 — 즉시 Pull 필요",
                         emoji: true,
                       },
                     },
@@ -115,7 +118,7 @@ jobs:
                       type: "section",
                       text: {
                         type: "mrkdwn",
-                        text: ":point_right: *지금 바로 `git pull` 해주세요*\n안 받으면 로컬-서버 코드가 어긋납니다!",
+                        text: ":point_right: *지금 바로 `git pull` 해주세요*\nEC2는 backend/API 중심으로 배포됐고, frontend는 Vercel 배포 상태를 확인해주세요.",
                       },
                     },
                     {
