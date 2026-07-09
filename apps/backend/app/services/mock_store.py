@@ -19,7 +19,7 @@ from app.services.recommendation_intent import build_recommendation_intent
 
 
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
-ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
+ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음"}
 
 DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"

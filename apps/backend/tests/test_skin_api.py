@@ -234,7 +234,7 @@ def test_apply_skin_test_does_not_override_manual_profile(
     assert profile["sensitivity"] == "보통"
     assert profile["baumann_type_code"] == "DSPW"
     assert profile["baumann_inferred_skin_type"] == "건성"
-    assert profile["baumann_inferred_sensitivity"] == "민감"
+    assert profile["baumann_inferred_sensitivity"] == "높음"
     assert profile["baumann_signal_weight"] == 0.25
     assert profile["source"] == "mixed"
 
@@ -268,7 +268,7 @@ def test_apply_skin_test_creates_profile_when_manual_profile_is_missing(client: 
     assert response.status_code == 200
     profile = response.json()["skin_profile"]
     assert profile["skin_type"] == "지성"
-    assert profile["sensitivity"] == "민감"
+    assert profile["sensitivity"] == "높음"
     assert profile["skin_type_source"] == "skin_test"
     assert profile["sensitivity_source"] == "skin_test"
     assert profile["source"] == "skin_test"

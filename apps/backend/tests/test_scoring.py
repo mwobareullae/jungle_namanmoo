@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.base import Base
 from app.db.models.auth import User
 from app.db.models.catalog import Product
-from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.commerce import ProductPopularityMetric, Wishlist
 from app.db.models.skin import BaumannTypeProfile, SkinProfile, SkinTestResult
 from app.db.models.taxonomy import Ingredient, RiskFlag
 from app.db.session import make_engine
@@ -18,6 +20,7 @@ from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 from app.services.scoring import (
     SkinTestScoringContext,
+    load_behavior_personalization_context,
     load_skin_test_scoring_context,
     score_candidates,
 )
@@ -67,7 +70,7 @@ def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
         candidates,
         matches,
         skin_type="지성",
-        sensitivity="민감",
+        sensitivity="높음",
     )
 
     scored_by_id = {product.product_id: product for product in scored_products}
@@ -247,7 +250,7 @@ def test_score_candidates_penalizes_sensitive_user_only_for_sensitive_risk_flags
         candidates,
         matches,
         skin_type="지성",
-        sensitivity="민감",
+        sensitivity="높음",
     )
     normal_by_id = {product.product_id: product for product in normal_scores}
     sensitive_by_id = {product.product_id: product for product in sensitive_scores}
@@ -321,6 +324,49 @@ def test_score_candidates_uses_value_preference_for_relative_price() -> None:
     )
 
 
+def test_score_candidates_applies_behavior_personalization_from_wishlist() -> None:
+    session = _seed_example_session()
+    user = User(email="behavior-context@example.com", display_name="behavior-context")
+    product = session.execute(
+        select(Product).where(Product.product_code == "prod_002")
+    ).scalar_one()
+    session.add(user)
+    session.flush()
+    session.add(
+        Wishlist(
+            user_id=user.id,
+            product_id=product.id,
+            added_at=datetime.now(UTC),
+        )
+    )
+    session.flush()
+
+    behavior_context = load_behavior_personalization_context(session, user.id)
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("誘쇨컧?섍퀬 吏꾩젙 ?꾩＜ 異붿쿇", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+
+    scored_products = score_candidates(
+        session,
+        intent,
+        candidates,
+        matches,
+        behavior_personalization_context=behavior_context,
+    )
+
+    scored_by_id = {product.product_id: product for product in scored_products}
+    assert behavior_context is not None
+    assert "wishlist" in behavior_context.source_profiles
+    assert scored_by_id["prod_002"].score_breakdown["behavior_personalization_applied"] is True
+    assert "wishlist" in scored_by_id["prod_002"].score_breakdown["behavior_personalization_sources"]
+    assert scored_by_id["prod_002"].score_breakdown["weights"]["behavior_personalization"] > 0
+    assert (
+        scored_by_id["prod_002"].score_breakdown["behavior_personalization_score"]
+        > scored_by_id["prod_001"].score_breakdown["behavior_personalization_score"]
+    )
+
+
 def test_load_skin_test_scoring_context_uses_latest_profile_result() -> None:
     session = _seed_example_session()
     version = ensure_default_skin_test(session)
@@ -381,7 +427,7 @@ def _skin_test_context(
         result_id=1,
         type_code="OSPW",
         mapped_skin_type="oily",
-        mapped_sensitivity="sensitive",
+        mapped_sensitivity="높음",
         axis_scores=axis_scores or _axis_scores(),
         commerce_profile=commerce_profile or {},
     )

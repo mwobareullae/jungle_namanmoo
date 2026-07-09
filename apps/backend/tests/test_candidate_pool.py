@@ -58,7 +58,7 @@ def test_generate_candidate_pool_filters_avoided_ingredients() -> None:
         session,
         intent,
         skin_type="수부지",
-        sensitivity="민감",
+        sensitivity="높음",
         avoid_ingredients=["판테놀"],
         target_pool_size=20,
     )

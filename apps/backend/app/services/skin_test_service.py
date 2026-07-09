@@ -563,7 +563,7 @@ def _ensure_baumann_type_profiles(session: Session) -> None:
         profile.description = f"{seed.object_name} 오브제로 표현한 {seed.type_code} 피부 타입입니다."
         profile.image_storage_key = f"skin-types/{seed.type_code}/{seed.type_code}.png"
         profile.mapped_skin_type = "지성" if seed.type_code[0] == "O" else "건성"
-        profile.mapped_sensitivity = "민감" if seed.type_code[1] == "S" else "보통"
+        profile.mapped_sensitivity = "높음" if seed.type_code[1] == "S" else "보통"
         profile.concern_tags = list(seed.concern_tags)
         profile.recommended_effect_ids = list(seed.keywords)
         profile.avoid_hints = _avoid_hints(seed.type_code)
@@ -742,7 +742,6 @@ def _frontend_sensitivity(mapped_sensitivity: str) -> str:
         "낮음": "low",
         "보통": "medium",
         "높음": "high",
-        "민감": "high",
     }.get(mapped_sensitivity, mapped_sensitivity)
 
 

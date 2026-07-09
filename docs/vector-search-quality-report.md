@@ -437,19 +437,19 @@ pgvector 고도화 방향은 맞다. 다만 pgvector를 ES keyword의 대체재�
 
 - 운영 데이터에 `concern_sensitive`를 추가했다.
 - `concern_sensitive`는 `진정`을 주효과, `보습·장벽`을 보조효과로 연결했다.
-- `sensitivity`가 비어 있고 concern text에 `민감/예민` 계열 표현이 있으면 민감도 `민감`으로 추론하도록 했다.
+- `sensitivity`가 비어 있고 concern text에 `민감/예민` 계열 표현이 있으면 민감도 `높음`으로 추론하도록 했다.
 - 사용자가 `sensitivity`를 직접 보낸 경우에는 명시값을 우선한다.
 
 검증 결과:
 
 - `민감하고 진정 위주 추천`
-  - `sensitivity`: `민감`
+  - `sensitivity`: `높음`
   - `matched_concerns`: `민감`
   - `expected_effects`: `진정`, `보습·장벽`
   - `unmatched_terms`: 없음
   - `needs_llm`: `False`
 - `민감 피부 장벽 세럼`
-  - `sensitivity`: `민감`
+  - `sensitivity`: `높음`
   - `matched_concerns`: `민감`
   - `expected_effects`: `진정`, `보습·장벽`
   - `unmatched_terms`: 없음
@@ -484,7 +484,7 @@ Docker Compose 기준으로 backend/Postgres/Redis/Elasticsearch를 실행해 �
   - API는 실패하지 않고 3개 상품을 반환했다.
 - AI 추천 API:
   - 요청: `민감하고 진정 위주 추천`
-  - `sensitivity`: `민감`
+  - `sensitivity`: `높음`
   - `matched_concerns`: `민감`
   - `expected_effects`: `진정`, `보습·장벽`
   - `unmatched_terms`: 없음

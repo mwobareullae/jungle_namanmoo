@@ -1,11 +1,13 @@
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
-from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
+from app.db.models.commerce import Cart, CartItem, Order, OrderItem, ProductPopularityMetric, RecentView, Wishlist
+from app.db.models.events import EventLog
 from app.db.models.skin import SkinProfile, SkinTestResult
 from app.db.models.taxonomy import (
     Effect,
@@ -21,7 +23,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v2_skin_test_context"
+SCORING_VERSION = "v3_behavior_personalization"
 EFFECT_CAP = 1.2
 TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
@@ -45,6 +47,52 @@ CONFIDENCE_MULTIPLIERS = {
 }
 SENSITIVE_RISK_PENALTY_CAP = 8.0
 MARKET_SIGNAL_WINDOW_DAYS = 7
+BEHAVIOR_PERSONALIZATION_LOOKBACK_DAYS = 90
+BEHAVIOR_PERSONALIZATION_RECENT_LIMIT = 100
+BEHAVIOR_POSITIVE_SOURCE_WEIGHTS = {
+    "wishlist": 0.30,
+    "cart": 0.22,
+    "purchase": 0.20,
+    "recent_view": 0.13,
+    "click": 0.10,
+}
+BEHAVIOR_NEGATIVE_GUARD_WEIGHT = 0.05
+BEHAVIOR_AFFINITY_COMPONENT_WEIGHTS = {
+    "effect": 0.32,
+    "ingredient": 0.23,
+    "category": 0.20,
+    "price_band": 0.15,
+    "brand": 0.10,
+}
+BEHAVIOR_ACTION_WEIGHTS = {
+    "wishlist": 1.00,
+    "cart": 1.20,
+    "purchase": 1.35,
+    "recent_view": 0.45,
+    "click": 0.55,
+    "negative_feedback": 0.60,
+}
+BEHAVIOR_POSITIVE_EVENT_NAMES = {
+    "recommendation_product_click",
+    "search_result_click",
+    "home_product_click",
+}
+BEHAVIOR_NEGATIVE_EVENT_NAMES = {
+    "wishlist_removed",
+    "cart_removed",
+}
+BEHAVIOR_POSITIVE_ORDER_STATUSES = {
+    "PAID",
+    "PREPARING_SHIPMENT",
+    "SHIPPED",
+    "DELIVERED",
+}
+BEHAVIOR_POSITIVE_ORDER_ITEM_STATUSES = {
+    "ORDERED",
+    "PREPARING_SHIPMENT",
+    "SHIPPED",
+    "DELIVERED",
+}
 SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS = {
     "OD": 0.20,
     "SR": 0.20,
@@ -75,6 +123,7 @@ SCORE_WEIGHT_FIELDS = (
     "price",
     "market_signal",
     "skin_test_context",
+    "behavior_personalization",
 )
 VALUE_ORIENTED_BUYING_CRITERIA = {"value"}
 VALUE_ORIENTED_PRICE_INVESTMENTS = {"daily_repeat_value", "value_volume"}
@@ -93,6 +142,7 @@ class ScoreWeights:
     price: float = 0.04
     market_signal: float = 0.02
     skin_test_context: float = 0.05
+    behavior_personalization: float = 0.08
 
 
 DEFAULT_SCORE_WEIGHTS = ScoreWeights()
@@ -106,6 +156,7 @@ SEARCH_INTENT_SCORE_WEIGHTS = ScoreWeights(
     price=0.04,
     market_signal=0.02,
     skin_test_context=0.05,
+    behavior_personalization=0.06,
 )
 
 
@@ -120,6 +171,7 @@ class ScoreMultipliers:
     price: float = 1.0
     market_signal: float = 1.0
     skin_test_context: float = 1.0
+    behavior_personalization: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -139,6 +191,14 @@ class SkinTestScoringContext:
     mapped_sensitivity: str
     axis_scores: dict
     commerce_profile: dict
+
+
+@dataclass(frozen=True)
+class BehaviorPersonalizationContext:
+    user_id: int
+    source_profiles: dict[str, "_BehaviorPreferenceProfile"]
+    negative_profile: "_BehaviorPreferenceProfile | None"
+    source_event_counts: dict[str, int]
 
 
 @dataclass(frozen=True)
@@ -291,6 +351,44 @@ class _SkinTestContextScore:
 
 
 @dataclass(frozen=True)
+class _BehaviorPreferenceProfile:
+    product_ids: tuple[int, ...]
+    category_scores: dict[str, float]
+    brand_scores: dict[str, float]
+    ingredient_scores: dict[str, float]
+    effect_scores: dict[str, float]
+    price_band_scores: dict[str, float]
+    total_weight: float
+
+
+@dataclass(frozen=True)
+class _BehaviorEvent:
+    product_db_id: int
+    source: str
+    occurred_at: datetime | None
+    weight: float
+
+
+@dataclass(frozen=True)
+class _BehaviorProductSignals:
+    product_db_id: int
+    category_code: str
+    brand_code: str
+    ingredient_codes: tuple[str, ...]
+    effect_codes: tuple[str, ...]
+    price_band: str | None
+
+
+@dataclass(frozen=True)
+class _BehaviorPersonalizationScore:
+    score: float
+    source_scores: dict[str, float]
+    affinity_components: dict[str, float]
+    matched_sources: tuple[str, ...]
+    negative_guard_score: float
+
+
+@dataclass(frozen=True)
 class _EffectContribution:
     ingredient: _IngredientEffectInfo
     decay: float
@@ -327,6 +425,57 @@ def load_skin_test_scoring_context(
     )
 
 
+def load_behavior_personalization_context(
+    session: Session,
+    user_id: int | None,
+) -> BehaviorPersonalizationContext | None:
+    if user_id is None:
+        return None
+
+    now = datetime.now(UTC)
+    positive_events, negative_events = _load_behavior_events(session, user_id, now)
+    if not positive_events and not negative_events:
+        return None
+
+    product_ids = sorted({
+        event.product_db_id
+        for event in (*positive_events, *negative_events)
+    })
+    signals_by_product = _load_behavior_product_signals(session, product_ids)
+    source_profiles: dict[str, _BehaviorPreferenceProfile] = {}
+    source_event_counts: dict[str, int] = {}
+    for source in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS:
+        source_events = [
+            event
+            for event in positive_events
+            if event.source == source and event.product_db_id in signals_by_product
+        ]
+        if not source_events:
+            continue
+        source_profiles[source] = _build_behavior_preference_profile(source_events, signals_by_product, now)
+        source_event_counts[source] = len(source_events)
+
+    negative_profile = None
+    valid_negative_events = [
+        event
+        for event in negative_events
+        if event.product_db_id in signals_by_product
+    ]
+    if valid_negative_events:
+        negative_profile = _build_behavior_preference_profile(valid_negative_events, signals_by_product, now)
+        source_event_counts["negative_feedback"] = len(valid_negative_events)
+
+    if not source_profiles and negative_profile is None:
+        return None
+
+    return BehaviorPersonalizationContext(
+        user_id=user_id,
+        source_profiles=source_profiles,
+        negative_profile=negative_profile,
+        source_event_counts=source_event_counts,
+    )
+
+
 def score_candidates(
     session: Session,
     intent: RecommendationIntent,
@@ -336,6 +485,7 @@ def score_candidates(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     skin_test_context: SkinTestScoringContext | None = None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None = None,
     manual_skin_type_explicit: bool = False,
     manual_sensitivity_explicit: bool = False,
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
@@ -354,12 +504,18 @@ def score_candidates(
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     market_signals_by_product = _load_market_signals(session, product_ids)
+    behavior_signals_by_product = (
+        _load_behavior_product_signals(session, product_ids)
+        if behavior_personalization_context is not None
+        else {}
+    )
     price_context = _build_price_score_context(candidates)
     matches_by_product_code = {match.product_id: match for match in matches}
     weight_resolution = _resolve_score_weights(
         intent,
         weights,
         skin_test_context=skin_test_context,
+        behavior_personalization_context=behavior_personalization_context,
     )
 
     scored_products = [
@@ -373,11 +529,13 @@ def score_candidates(
             skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
             market_signals_by_product.get(candidate.db_product_id),
+            behavior_signals_by_product.get(candidate.db_product_id),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
             skin_type=skin_type,
             sensitivity=sensitivity,
             skin_test_context=skin_test_context,
+            behavior_personalization_context=behavior_personalization_context,
             manual_skin_type_explicit=manual_skin_type_explicit,
             manual_sensitivity_explicit=manual_sensitivity_explicit,
             price_context=price_context,
@@ -419,12 +577,14 @@ def _score_candidate(
     skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
     market_signal: _MarketSignalInfo | None,
+    behavior_signal: _BehaviorProductSignals | None,
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
     *,
     skin_type: str | None,
     sensitivity: str | None,
     skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
     manual_skin_type_explicit: bool,
     manual_sensitivity_explicit: bool,
     price_context: _PriceScoreContext | None,
@@ -477,6 +637,10 @@ def _score_candidate(
         manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
     risk_penalty = _score_risk_penalty(sensitivity, risk_flags)
+    behavior_score = _score_behavior_personalization(
+        behavior_personalization_context,
+        behavior_signal,
+    )
     weights = weight_resolution.weights
 
     raw_score = (
@@ -489,6 +653,7 @@ def _score_candidate(
         + price_score * weights.price
         + market_signal_score * weights.market_signal
         + skin_test_score.score * weights.skin_test_context
+        + behavior_score.score * weights.behavior_personalization
     )
     total_score = _round_score(_clamp(raw_score) * 100 - risk_penalty)
     score_evidence = _build_score_evidence(contributions_by_effect)
@@ -522,6 +687,25 @@ def _score_candidate(
         "skin_test_context_query_conflict_axes": list(skin_test_score.query_conflict_axes),
         "skin_test_context_manual_conflict_axes": list(skin_test_score.manual_conflict_axes),
         "skin_test_context_type_code": skin_test_context.type_code if skin_test_context else None,
+        "behavior_personalization_score": _round_component(behavior_score.score),
+        "behavior_personalization_applied": behavior_personalization_context is not None,
+        "behavior_personalization_sources": list(behavior_score.matched_sources),
+        "behavior_personalization_source_scores": {
+            source: _round_component(score)
+            for source, score in behavior_score.source_scores.items()
+        },
+        "behavior_personalization_affinity_components": {
+            component: _round_component(score)
+            for component, score in behavior_score.affinity_components.items()
+        },
+        "behavior_personalization_negative_guard_score": _round_component(
+            behavior_score.negative_guard_score
+        ),
+        "behavior_personalization_event_counts": (
+            dict(behavior_personalization_context.source_event_counts)
+            if behavior_personalization_context is not None
+            else {}
+        ),
         "risk_penalty": risk_penalty,
         "risk_policy": "display_all_penalize_sensitive",
         "risk_flag_count": len(risk_flags),
@@ -537,6 +721,7 @@ def _score_candidate(
             "price": weights.price,
             "market_signal": weights.market_signal,
             "skin_test_context": weights.skin_test_context,
+            "behavior_personalization": weights.behavior_personalization,
         },
         "base_weights": _weights_to_dict(weight_resolution.base_weights),
         "applied_multipliers": _multipliers_to_dict(weight_resolution.multipliers),
@@ -584,6 +769,7 @@ def _resolve_score_weights(
     weights: ScoreWeights,
     *,
     skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
 ) -> ScoreWeightResolution:
     signals = _search_intent_signals(intent)
     if weights != DEFAULT_SCORE_WEIGHTS:
@@ -596,11 +782,11 @@ def _resolve_score_weights(
         base_weights = weights
         weight_profile = "default"
 
-    active_base_weights = (
-        base_weights
-        if skin_test_context is not None
-        else replace(base_weights, skin_test_context=0.0)
-    )
+    active_base_weights = base_weights
+    if skin_test_context is None:
+        active_base_weights = replace(active_base_weights, skin_test_context=0.0)
+    if behavior_personalization_context is None:
+        active_base_weights = replace(active_base_weights, behavior_personalization=0.0)
     multipliers = _build_weight_multipliers(skin_test_context)
     resolved_weights = _normalize_weights(active_base_weights, multipliers)
     return ScoreWeightResolution(
@@ -1022,6 +1208,408 @@ def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, 
     }
 
 
+def _load_behavior_events(
+    session: Session,
+    user_id: int,
+    now: datetime,
+) -> tuple[list[_BehaviorEvent], list[_BehaviorEvent]]:
+    cutoff = now - timedelta(days=BEHAVIOR_PERSONALIZATION_LOOKBACK_DAYS)
+    positive_events: list[_BehaviorEvent] = []
+    negative_events: list[_BehaviorEvent] = []
+
+    wishlist_rows = session.execute(
+        select(Wishlist.product_id, Wishlist.added_at)
+        .where(Wishlist.user_id == user_id)
+        .order_by(Wishlist.added_at.desc(), Wishlist.id.desc())
+        .limit(BEHAVIOR_PERSONALIZATION_RECENT_LIMIT)
+    ).all()
+    for product_id, occurred_at in wishlist_rows:
+        positive_events.append(
+            _BehaviorEvent(
+                product_db_id=int(product_id),
+                source="wishlist",
+                occurred_at=occurred_at,
+                weight=BEHAVIOR_ACTION_WEIGHTS["wishlist"],
+            )
+        )
+
+    cart_rows = session.execute(
+        select(CartItem.product_id, CartItem.updated_at)
+        .join(Cart, CartItem.cart_id == Cart.id)
+        .where(Cart.user_id == user_id, Cart.status == "ACTIVE")
+        .order_by(CartItem.updated_at.desc(), CartItem.id.desc())
+        .limit(BEHAVIOR_PERSONALIZATION_RECENT_LIMIT)
+    ).all()
+    for product_id, occurred_at in cart_rows:
+        positive_events.append(
+            _BehaviorEvent(
+                product_db_id=int(product_id),
+                source="cart",
+                occurred_at=occurred_at,
+                weight=BEHAVIOR_ACTION_WEIGHTS["cart"],
+            )
+        )
+
+    purchase_rows = session.execute(
+        select(OrderItem.product_id, Order.ordered_at)
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(
+            Order.user_id == user_id,
+            Order.status.in_(BEHAVIOR_POSITIVE_ORDER_STATUSES),
+            OrderItem.status.in_(BEHAVIOR_POSITIVE_ORDER_ITEM_STATUSES),
+        )
+        .order_by(Order.ordered_at.desc(), OrderItem.id.desc())
+        .limit(BEHAVIOR_PERSONALIZATION_RECENT_LIMIT)
+    ).all()
+    for product_id, occurred_at in purchase_rows:
+        positive_events.append(
+            _BehaviorEvent(
+                product_db_id=int(product_id),
+                source="purchase",
+                occurred_at=occurred_at,
+                weight=BEHAVIOR_ACTION_WEIGHTS["purchase"],
+            )
+        )
+
+    recent_view_rows = session.execute(
+        select(RecentView.product_id, RecentView.viewed_at)
+        .where(RecentView.user_id == user_id, RecentView.viewed_at >= cutoff)
+        .order_by(RecentView.viewed_at.desc(), RecentView.id.desc())
+        .limit(BEHAVIOR_PERSONALIZATION_RECENT_LIMIT)
+    ).all()
+    for product_id, occurred_at in recent_view_rows:
+        positive_events.append(
+            _BehaviorEvent(
+                product_db_id=int(product_id),
+                source="recent_view",
+                occurred_at=occurred_at,
+                weight=BEHAVIOR_ACTION_WEIGHTS["recent_view"],
+            )
+        )
+
+    event_rows = session.execute(
+        select(Product.id, EventLog.event_name, EventLog.occurred_at)
+        .select_from(EventLog)
+        .join(Product, Product.product_code == EventLog.product_id)
+        .where(
+            EventLog.user_id == user_id,
+            EventLog.product_id.is_not(None),
+            EventLog.occurred_at >= cutoff,
+            EventLog.event_name.in_(BEHAVIOR_POSITIVE_EVENT_NAMES | BEHAVIOR_NEGATIVE_EVENT_NAMES),
+        )
+        .order_by(EventLog.occurred_at.desc(), EventLog.id.desc())
+        .limit(BEHAVIOR_PERSONALIZATION_RECENT_LIMIT)
+    ).all()
+    for product_id, event_name, occurred_at in event_rows:
+        normalized_event_name = str(event_name)
+        if normalized_event_name in BEHAVIOR_POSITIVE_EVENT_NAMES:
+            positive_events.append(
+                _BehaviorEvent(
+                    product_db_id=int(product_id),
+                    source="click",
+                    occurred_at=occurred_at,
+                    weight=BEHAVIOR_ACTION_WEIGHTS["click"],
+                )
+            )
+            continue
+        negative_events.append(
+            _BehaviorEvent(
+                product_db_id=int(product_id),
+                source="negative_feedback",
+                occurred_at=occurred_at,
+                weight=BEHAVIOR_ACTION_WEIGHTS["negative_feedback"],
+            )
+        )
+
+    return positive_events, negative_events
+
+
+def _load_behavior_product_signals(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, _BehaviorProductSignals]:
+    normalized_product_ids = sorted({int(product_id) for product_id in product_ids})
+    if not normalized_product_ids:
+        return {}
+
+    base_rows = session.execute(
+        select(Product.id, Brand.brand_code, ProductCategory.category_code)
+        .join(Brand, Product.brand_id == Brand.id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .where(Product.id.in_(normalized_product_ids))
+    ).all()
+    prices_by_product = _load_lowest_prices(session, normalized_product_ids)
+    ingredient_codes_by_product: dict[int, list[str]] = {}
+    effect_scores_by_product: dict[int, dict[str, float]] = {}
+    rows = session.execute(
+        select(
+            ProductIngredient.product_id,
+            ProductIngredient.display_order,
+            Ingredient.ingredient_code,
+            Effect.effect_code,
+            IngredientEffect.effect_score,
+        )
+        .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
+        .outerjoin(IngredientEffect, IngredientEffect.ingredient_id == Ingredient.id)
+        .outerjoin(Effect, IngredientEffect.effect_id == Effect.id)
+        .where(ProductIngredient.product_id.in_(normalized_product_ids))
+        .order_by(ProductIngredient.product_id.asc(), ProductIngredient.display_order.asc(), ProductIngredient.id.asc())
+    ).all()
+    for product_id, _display_order, ingredient_code, effect_code, effect_score in rows:
+        normalized_product_id = int(product_id)
+        if ingredient_code:
+            _append_unique_limited(
+                ingredient_codes_by_product.setdefault(normalized_product_id, []),
+                str(ingredient_code),
+                limit=8,
+            )
+        if effect_code:
+            effect_scores = effect_scores_by_product.setdefault(normalized_product_id, {})
+            effect_scores[str(effect_code)] = max(
+                effect_scores.get(str(effect_code), 0.0),
+                _decimal_to_float(effect_score),
+            )
+
+    signals: dict[int, _BehaviorProductSignals] = {}
+    for product_id, brand_code, category_code in base_rows:
+        normalized_product_id = int(product_id)
+        effect_scores = effect_scores_by_product.get(normalized_product_id, {})
+        effect_codes = tuple(
+            effect_code
+            for effect_code, _score in sorted(
+                effect_scores.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:8]
+        )
+        signals[normalized_product_id] = _BehaviorProductSignals(
+            product_db_id=normalized_product_id,
+            category_code=str(category_code or ""),
+            brand_code=str(brand_code or ""),
+            ingredient_codes=tuple(ingredient_codes_by_product.get(normalized_product_id, [])),
+            effect_codes=effect_codes,
+            price_band=_price_band(prices_by_product.get(normalized_product_id)),
+        )
+    return signals
+
+
+def _load_lowest_prices(session: Session, product_ids: list[int]) -> dict[int, int]:
+    rows = session.execute(
+        select(ProductPrice.product_id, ProductPrice.price)
+        .where(ProductPrice.product_id.in_(product_ids))
+        .order_by(ProductPrice.product_id.asc(), ProductPrice.is_lowest.desc(), ProductPrice.price.asc())
+    ).all()
+    prices: dict[int, int] = {}
+    for product_id, price in rows:
+        prices.setdefault(int(product_id), int(price or 0))
+    return prices
+
+
+def _build_behavior_preference_profile(
+    events: list[_BehaviorEvent],
+    signals_by_product: dict[int, _BehaviorProductSignals],
+    now: datetime,
+) -> _BehaviorPreferenceProfile:
+    category_scores: dict[str, float] = {}
+    brand_scores: dict[str, float] = {}
+    ingredient_scores: dict[str, float] = {}
+    effect_scores: dict[str, float] = {}
+    price_band_scores: dict[str, float] = {}
+    product_scores: dict[int, float] = {}
+    total_weight = 0.0
+
+    for event in events:
+        signals = signals_by_product.get(event.product_db_id)
+        if signals is None:
+            continue
+        event_weight = max(0.0, event.weight) * _behavior_recency_weight(event.occurred_at, now)
+        if event_weight <= 0:
+            continue
+        total_weight += event_weight
+        product_scores[event.product_db_id] = product_scores.get(event.product_db_id, 0.0) + event_weight
+        _add_behavior_score(category_scores, signals.category_code, event_weight)
+        _add_behavior_score(brand_scores, signals.brand_code, event_weight)
+        if signals.price_band:
+            _add_behavior_score(price_band_scores, signals.price_band, event_weight)
+        for index, ingredient_code in enumerate(signals.ingredient_codes):
+            _add_behavior_score(ingredient_scores, ingredient_code, event_weight * _behavior_rank_decay(index))
+        for effect_code in signals.effect_codes:
+            _add_behavior_score(effect_scores, effect_code, event_weight)
+
+    return _BehaviorPreferenceProfile(
+        product_ids=tuple(product_id for product_id, _score in sorted(product_scores.items())),
+        category_scores=category_scores,
+        brand_scores=brand_scores,
+        ingredient_scores=ingredient_scores,
+        effect_scores=effect_scores,
+        price_band_scores=price_band_scores,
+        total_weight=total_weight,
+    )
+
+
+def _score_behavior_personalization(
+    context: BehaviorPersonalizationContext | None,
+    signals: _BehaviorProductSignals | None,
+) -> _BehaviorPersonalizationScore:
+    if context is None or signals is None:
+        return _BehaviorPersonalizationScore(
+            score=0.0,
+            source_scores={},
+            affinity_components={},
+            matched_sources=(),
+            negative_guard_score=1.0,
+        )
+
+    source_scores: dict[str, float] = {}
+    component_values: dict[str, list[tuple[float, float]]] = {}
+    for source, source_weight in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS.items():
+        profile = context.source_profiles.get(source)
+        if profile is None or profile.total_weight <= 0:
+            continue
+        source_score, components = _score_behavior_affinity(signals, profile)
+        source_scores[source] = source_score
+        for component, component_score in components.items():
+            component_values.setdefault(component, []).append((component_score, source_weight))
+
+    source_score_items = tuple(
+        (source_scores[source], BEHAVIOR_POSITIVE_SOURCE_WEIGHTS[source])
+        for source in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS
+        if source in source_scores
+    )
+    if source_score_items:
+        positive_score = _weighted_average(source_score_items)
+    elif context.negative_profile is not None:
+        positive_score = 0.5
+    else:
+        positive_score = 0.0
+
+    negative_guard_score = _score_behavior_negative_guard(signals, context.negative_profile)
+    final_score = _clamp(
+        positive_score * (1.0 - BEHAVIOR_NEGATIVE_GUARD_WEIGHT)
+        + negative_guard_score * BEHAVIOR_NEGATIVE_GUARD_WEIGHT
+    )
+    affinity_components = {
+        component: _weighted_average(tuple(scores))
+        for component, scores in component_values.items()
+    }
+    return _BehaviorPersonalizationScore(
+        score=final_score,
+        source_scores=source_scores,
+        affinity_components=affinity_components,
+        matched_sources=tuple(source for source, score in source_scores.items() if score > 0),
+        negative_guard_score=negative_guard_score,
+    )
+
+
+def _score_behavior_affinity(
+    signals: _BehaviorProductSignals,
+    profile: _BehaviorPreferenceProfile,
+) -> tuple[float, dict[str, float]]:
+    components = {
+        "effect": _profile_set_score(signals.effect_codes, profile.effect_scores, max_matches=3),
+        "ingredient": _profile_set_score(signals.ingredient_codes, profile.ingredient_scores, max_matches=5),
+        "category": _profile_value_score(signals.category_code, profile.category_scores),
+        "price_band": _profile_value_score(signals.price_band, profile.price_band_scores),
+        "brand": _profile_value_score(signals.brand_code, profile.brand_scores),
+    }
+    return (
+        _weighted_average(
+            tuple(
+                (components[component], weight)
+                for component, weight in BEHAVIOR_AFFINITY_COMPONENT_WEIGHTS.items()
+            )
+        ),
+        components,
+    )
+
+
+def _score_behavior_negative_guard(
+    signals: _BehaviorProductSignals,
+    negative_profile: _BehaviorPreferenceProfile | None,
+) -> float:
+    if negative_profile is None or negative_profile.total_weight <= 0:
+        return 1.0
+    if signals.product_db_id in set(negative_profile.product_ids):
+        return 0.0
+    negative_affinity, _components = _score_behavior_affinity(signals, negative_profile)
+    return _clamp(1.0 - negative_affinity * 0.70)
+
+
+def _profile_set_score(
+    candidate_values: tuple[str, ...],
+    profile_scores: dict[str, float],
+    *,
+    max_matches: int,
+) -> float:
+    if not candidate_values or not profile_scores:
+        return 0.0
+    values = tuple(dict.fromkeys(value for value in candidate_values if value))
+    matched_score = sum(profile_scores.get(value, 0.0) for value in values)
+    best_possible = sum(sorted(profile_scores.values(), reverse=True)[:max(1, max_matches)])
+    if best_possible <= 0:
+        return 0.0
+    return _clamp(matched_score / best_possible)
+
+
+def _profile_value_score(
+    candidate_value: str | None,
+    profile_scores: dict[str, float],
+) -> float:
+    if not candidate_value or not profile_scores:
+        return 0.0
+    max_score = max(profile_scores.values(), default=0.0)
+    if max_score <= 0:
+        return 0.0
+    return _clamp(profile_scores.get(candidate_value, 0.0) / max_score)
+
+
+def _add_behavior_score(scores: dict[str, float], key: str | None, value: float) -> None:
+    normalized_key = (key or "").strip()
+    if not normalized_key:
+        return
+    scores[normalized_key] = scores.get(normalized_key, 0.0) + value
+
+
+def _append_unique_limited(values: list[str], value: str, *, limit: int) -> None:
+    normalized_value = value.strip()
+    if not normalized_value or normalized_value in values or len(values) >= limit:
+        return
+    values.append(normalized_value)
+
+
+def _behavior_recency_weight(occurred_at: datetime | None, now: datetime) -> float:
+    if occurred_at is None:
+        return 0.15
+    normalized_occurred_at = occurred_at
+    if normalized_occurred_at.tzinfo is None:
+        normalized_occurred_at = normalized_occurred_at.replace(tzinfo=UTC)
+    days = max(0, (now - normalized_occurred_at).days)
+    if days <= 7:
+        return 1.0
+    if days <= 30:
+        return 0.70
+    if days <= 90:
+        return 0.40
+    return 0.15
+
+
+def _behavior_rank_decay(index: int) -> float:
+    return max(0.25, 1.0 - index * 0.10)
+
+
+def _price_band(price: int | None) -> str | None:
+    if price is None or price <= 0:
+        return None
+    if price <= 15_000:
+        return "under_15000"
+    if price <= 30_000:
+        return "15000_30000"
+    if price <= 50_000:
+        return "30000_50000"
+    if price <= 80_000:
+        return "50000_80000"
+    return "over_80000"
+
+
 def _build_price_score_context(candidates: list[ProductCandidate]) -> _PriceScoreContext | None:
     prices = [candidate.lowest_price for candidate in candidates if candidate.lowest_price > 0]
     if not prices:
@@ -1333,7 +1921,7 @@ def _score_sensitivity(
     risk_flags: tuple[RiskFlag, ...],
     skin_profile: _SkinProfileInfo | None,
 ) -> float:
-    normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
+    normalized_sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
     if skin_profile is not None:
         return _adjust_score_by_confidence(
             _sensitivity_profile_score(normalized_sensitivity, skin_profile),
@@ -1344,7 +1932,7 @@ def _score_sensitivity(
     normalized_tags.discard("")
     most_severe = _most_severe_risk(risk_flags)
 
-    if normalized_sensitivity in {"높음", "민감", "예민"}:
+    if normalized_sensitivity == "높음":
         if normalized_tags & {"민감", "저자극", "민감추천", "민감가능"}:
             return 1.0
         if most_severe == "high":
@@ -1396,8 +1984,8 @@ def _risk_warning_texts(risk_flags: tuple[RiskFlag, ...], *, limit: int = 3) -> 
 
 
 def _is_sensitive_user(sensitivity: str | None) -> bool:
-    normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
-    return normalized_sensitivity in {"높음", "민감", "예민"}
+    normalized_sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
+    return normalized_sensitivity == "높음"
 
 
 def _risk_applies_to_sensitive(flag: RiskFlag) -> bool:
@@ -1432,8 +2020,9 @@ def _skin_type_profile_score(skin_type: str, skin_profile: _SkinProfileInfo) -> 
 
 
 def _sensitivity_profile_score(sensitivity: str, skin_profile: _SkinProfileInfo) -> float:
+    sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
     sensitive_score = _clamp(skin_profile.sensitive_fit)
-    if sensitivity in {"높음", "민감", "예민"}:
+    if sensitivity == "높음":
         return sensitive_score
     if sensitivity == "낮음":
         return max(sensitive_score, 0.85)
@@ -1811,8 +2400,8 @@ def _has_manual_sensitivity_conflict(
     if not manual_sensitivity_explicit or not manual_sensitivity:
         return False
     return (
-        _normalize_profile_value(manual_sensitivity)
-        != _normalize_profile_value(skin_test_context.mapped_sensitivity)
+        _normalize_sensitivity_value(manual_sensitivity)
+        != _normalize_sensitivity_value(skin_test_context.mapped_sensitivity)
     )
 
 
@@ -1910,6 +2499,18 @@ def _normalize_profile_value(value: str | None) -> str:
         "oily": "지성",
         "combination": "복합성",
         "sensitive": "민감",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _normalize_sensitivity_value(value: str | None) -> str:
+    normalized = _normalize_profile_value(value)
+    aliases = {
+        "민감": "높음",
+        "민감성": "높음",
+        "예민": "높음",
+        "예민함": "높음",
+        "sensitive": "높음",
     }
     return aliases.get(normalized, normalized)
 

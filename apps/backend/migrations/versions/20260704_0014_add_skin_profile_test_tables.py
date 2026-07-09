@@ -46,7 +46,7 @@ def upgrade() -> None:
             name="ck_baumann_mapped_skin_type",
         ),
         sa.CheckConstraint(
-            "mapped_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "mapped_sensitivity in ('낮음', '보통', '높음')",
             name="ck_baumann_mapped_sensitivity",
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -144,13 +144,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.CheckConstraint("skin_type in ('건성', '지성', '복합성', '중성', '수부지')", name="ck_skin_profiles_skin_type"),
-        sa.CheckConstraint("sensitivity in ('낮음', '보통', '높음', '민감')", name="ck_skin_profiles_sensitivity"),
+        sa.CheckConstraint("sensitivity in ('낮음', '보통', '높음')", name="ck_skin_profiles_sensitivity"),
         sa.CheckConstraint(
             "explicit_skin_type is null or explicit_skin_type in ('건성', '지성', '복합성', '중성', '수부지')",
             name="ck_skin_profiles_explicit_skin_type",
         ),
         sa.CheckConstraint(
-            "explicit_sensitivity is null or explicit_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "explicit_sensitivity is null or explicit_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_profiles_explicit_sensitivity",
         ),
         sa.CheckConstraint(
@@ -158,7 +158,7 @@ def upgrade() -> None:
             name="ck_skin_profiles_baumann_skin_type",
         ),
         sa.CheckConstraint(
-            "baumann_inferred_sensitivity is null or baumann_inferred_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "baumann_inferred_sensitivity is null or baumann_inferred_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_profiles_baumann_sensitivity",
         ),
         sa.CheckConstraint("source in ('manual', 'skin_test', 'mixed', 'import')", name="ck_skin_profiles_source"),
@@ -202,7 +202,7 @@ def upgrade() -> None:
             name="ck_skin_test_results_mapped_skin_type",
         ),
         sa.CheckConstraint(
-            "mapped_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "mapped_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_test_results_mapped_sensitivity",
         ),
         sa.CheckConstraint(
