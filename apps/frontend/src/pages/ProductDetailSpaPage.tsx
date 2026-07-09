@@ -12,7 +12,7 @@ import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import { useProductReviews, type ProductReview } from "../hooks/useProductReviews";
+import { useProductReviews } from "../hooks/useProductReviews";
 import type {
   IngredientEvidence,
   ProductDetail,
@@ -503,10 +503,6 @@ function ProductDetailSpaPage() {
   }, [isReviewSkinPopoverOpen]);
 
   useEffect(() => {
-    setReviewPage(1);
-  }, [reviewTypeFilter, reviewSort, reviewSkinTypeFilter, isSkinFitOnly]);
-
-  useEffect(() => {
     const handleHashChange = () => {
       const hasHash = Boolean(window.location.hash);
       const normalizedHash = normalizeDetailHash(window.location.hash);
@@ -640,7 +636,6 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     if (!user) {
-      setReviewProfileSkinType(null);
       return;
     }
 
@@ -953,10 +948,12 @@ function ProductDetailSpaPage() {
     if (!user) {
       showToast("로그인 후 내 피부 맞춤 리뷰를 볼 수 있어요.");
       setIsSkinFitOnly(false);
+      setReviewPage(1);
       return;
     }
 
     setIsSkinFitOnly((current) => !current);
+    setReviewPage(1);
   };
 
   const toggleReviewLike = (reviewId: string) => {
@@ -1664,6 +1661,7 @@ function ProductDetailSpaPage() {
                               key={option.value}
                               onClick={() => {
                                 setReviewTypeFilter(option.value);
+                                setReviewPage(1);
                                 setIsReviewTypePopoverOpen(false);
                               }}
                             >
@@ -1692,6 +1690,7 @@ function ProductDetailSpaPage() {
                             type="button"
                             onClick={() => {
                               setReviewSkinTypeFilter("");
+                              setReviewPage(1);
                               setIsReviewSkinPopoverOpen(false);
                             }}
                           >
@@ -1704,6 +1703,7 @@ function ProductDetailSpaPage() {
                               key={option}
                               onClick={() => {
                                 setReviewSkinTypeFilter(option);
+                                setReviewPage(1);
                                 setIsReviewSkinPopoverOpen(false);
                               }}
                             >
@@ -1734,7 +1734,10 @@ function ProductDetailSpaPage() {
                           className={option.value === reviewSort ? "active" : ""}
                           type="button"
                           key={option.value}
-                          onClick={() => setReviewSort(option.value)}
+                          onClick={() => {
+                            setReviewSort(option.value);
+                            setReviewPage(1);
+                          }}
                         >
                           {option.label}
                         </button>

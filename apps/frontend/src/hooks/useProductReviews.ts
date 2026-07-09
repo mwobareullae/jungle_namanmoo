@@ -259,7 +259,9 @@ const buildReviewSummary = (reviews: ProductReview[]): ProductReviewSummary => {
   };
 };
 
-export const useProductReviews = (_productId: string | null | undefined) => {
+export const useProductReviews = (productId: string | null | undefined) => {
+  void productId;
+
   return useMemo(
     () => ({
       reviews: mockProductReviews,
