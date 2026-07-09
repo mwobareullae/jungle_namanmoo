@@ -57,9 +57,16 @@ const socialProviderLabels: Record<SocialProvider, string> = {
 const LOGIN_EMAIL_FORMAT_ERROR_MESSAGE = "아이디는 이메일 형식으로 입력해주세요.";
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const isSignupFlowPath = (value: string) => /^\/signup(?:[/?#]|$)/.test(value);
 
 const getRedirectPath = (from?: string) => {
-  if (!from || !from.startsWith("/") || from.startsWith("//") || from === "/login") {
+  if (
+    !from ||
+    !from.startsWith("/") ||
+    from.startsWith("//") ||
+    from === "/login" ||
+    isSignupFlowPath(from)
+  ) {
     return "/";
   }
 
