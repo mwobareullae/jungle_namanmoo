@@ -212,9 +212,9 @@ Seed는 입력 CSV에 있는 alias를 insert/update하지만, CSV에서 삭제�
 | `effect_id` | 효능 고유 ID |
 | `evidence_level` | 근거 등급: `high`, `medium`, `low` |
 | `evidence_score` | 성분근거점수 계산용 점수 |
-| `source_title` | 근거 출처명 (논문/식약처 고시 제목 등) |
+| `source_title` | 사용자에게 노출 가능한 근거 출처명. PMID만 단독으로 두지 않고 `PubMed 등재 연구 자료 (PMID 12345678)`처럼 표시 |
 | `source_url` | 근거 출처 URL (선택, 비어 있을 수 있음) |
-| `summary` | 근거 요약 |
+| `summary` | 상품 상세에 그대로 노출 가능한 사용자용 근거 문장. `role`, `tier`, `status`, `canonical`, `pmid` 같은 내부 관리용 표기는 포함하지 않음 |
 | `source_type` | 선택. `paper`, `mfds`, `official`, `manufacturer`, `commerce`, `unknown` |
 | `pmid` | 선택. PubMed PMID |
 | `doi` | 선택. 논문 DOI |
