@@ -163,7 +163,8 @@ const renderDefaultEmptyState = () => {
 
 const getHeaderBottom = () => {
   const header = document.querySelector(".home-header, .site-header, .auth-site-header, header");
-  return Math.max(64, Math.round(header?.getBoundingClientRect().bottom ?? 64));
+  const headerBottom = header?.getBoundingClientRect().bottom;
+  return typeof headerBottom === "number" ? Math.max(0, headerBottom - 1) : 64;
 };
 
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
