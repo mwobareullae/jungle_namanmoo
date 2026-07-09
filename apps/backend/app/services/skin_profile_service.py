@@ -18,7 +18,7 @@ from app.schemas.profile import (
 
 
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
-ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
+ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음"}
 SKIN_TYPE_ALIASES = {
     "dry": "건성",
     "oily": "지성",
@@ -33,7 +33,11 @@ SENSITIVITY_ALIASES = {
     "mid": "보통",
     "medium": "보통",
     "high": "높음",
-    "sensitive": "민감",
+    "sensitive": "높음",
+    "민감": "높음",
+    "민감성": "높음",
+    "예민": "높음",
+    "예민함": "높음",
 }
 MANUAL_CONFIDENCE = Decimal("1.0000")
 BAUMANN_SIGNAL_WEIGHT = Decimal("0.2500")
@@ -133,7 +137,8 @@ def _normalize_skin_type(value: str) -> str:
 
 
 def _normalize_sensitivity(value: str) -> str:
-    normalized = SENSITIVITY_ALIASES.get(value.strip(), value.strip())
+    stripped = value.strip()
+    normalized = SENSITIVITY_ALIASES.get(stripped.casefold().replace(" ", ""), stripped)
     if normalized not in ALLOWED_SENSITIVITIES:
         raise SkinServiceError(400, "INVALID_SENSITIVITY", "민감도 값이 올바르지 않습니다.")
     return normalized

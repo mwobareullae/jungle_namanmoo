@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductPrice
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -37,7 +38,12 @@ from app.services.recommendation_run_store import (
     ensure_recommendation_run_active,
     save_recommendation_run,
 )
-from app.services.scoring import SCORING_VERSION, score_candidates
+from app.services.scoring import (
+    SCORING_VERSION,
+    load_behavior_personalization_context,
+    load_skin_test_scoring_context,
+    score_candidates,
+)
 from app.services.search_candidate_store import save_search_candidates
 from app.services.search_matching import (
     SearchNoResultDiagnostics,
@@ -45,6 +51,7 @@ from app.services.search_matching import (
     count_join_product_search_documents,
     match_product_search_documents,
 )
+from app.services.skin_profile_service import load_skin_profile_for_user
 
 
 DEFAULT_RESULT_LIMIT = 50
@@ -53,7 +60,19 @@ DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
-ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
+ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음"}
+SENSITIVITY_ALIASES = {
+    "low": "낮음",
+    "normal": "보통",
+    "mid": "보통",
+    "medium": "보통",
+    "high": "높음",
+    "sensitive": "높음",
+    "민감": "높음",
+    "민감성": "높음",
+    "예민": "높음",
+    "예민함": "높음",
+}
 DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"
 SENSITIVE_INTENT_PATTERN = re.compile(r"(?:민감(?:성|한|하고|해서|해)?|예민(?:함|한|하고|해서|해)?)")
@@ -65,6 +84,8 @@ class NormalizedRecommendationRequest:
     skin_type: str
     sensitivity: str
     avoid_ingredients: list[str]
+    manual_skin_type_explicit: bool
+    manual_sensitivity_explicit: bool
 
 
 @dataclass(frozen=True)
@@ -97,6 +118,7 @@ def create_recommendation_response(
     session: Session,
     request: RecommendationRequest,
     *,
+    current_user: User | None = None,
     result_limit: int = DEFAULT_RESULT_LIMIT,
     candidate_pool_limit: int = DEFAULT_CANDIDATE_POOL_LIMIT,
     page: int = DEFAULT_PAGE,
@@ -106,7 +128,23 @@ def create_recommendation_response(
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
-    normalized_request = normalize_recommendation_request(request)
+    saved_skin_profile = (
+        load_skin_profile_for_user(session, current_user.id)
+        if current_user is not None
+        else None
+    )
+    normalized_request = normalize_recommendation_request(
+        request,
+        saved_skin_profile=saved_skin_profile,
+    )
+    skin_test_context = load_skin_test_scoring_context(
+        session,
+        current_user.id if current_user is not None else None,
+    )
+    behavior_personalization_context = load_behavior_personalization_context(
+        session,
+        current_user.id if current_user is not None else None,
+    )
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
@@ -166,6 +204,10 @@ def create_recommendation_response(
             matches,
             skin_type=normalized_request.skin_type,
             sensitivity=normalized_request.sensitivity,
+            skin_test_context=skin_test_context,
+            behavior_personalization_context=behavior_personalization_context,
+            manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
+            manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
 
@@ -231,6 +273,8 @@ def create_recommendation_response(
                 "expected_effect_count": len(intent.effects),
                 "unmatched_term_count": len(intent.unmatched_terms),
                 "avoid_ingredient_count": len(normalized_request.avoid_ingredients),
+                "skin_test_context_applied": skin_test_context is not None,
+                "behavior_personalization_applied": behavior_personalization_context is not None,
             },
         )
         return response
@@ -300,6 +344,8 @@ def _record_stage_duration(
 
 def normalize_recommendation_request(
     request: RecommendationRequest,
+    *,
+    saved_skin_profile: Any | None = None,
 ) -> NormalizedRecommendationRequest:
     concern_text = (request.concern_text or "").strip()
     if not concern_text:
@@ -307,19 +353,37 @@ def normalize_recommendation_request(
     if len(concern_text) > 100:
         raise ApiError(400, "INVALID_INPUT", "고민 텍스트는 100자 이하로 입력해 주세요.")
 
-    skin_type = _normalize_choice(
-        request.skin_type,
-        DEFAULT_SKIN_TYPE,
-        ALLOWED_SKIN_TYPES,
-        "피부 타입 값이 올바르지 않습니다.",
+    request_skin_type = _normalize_skin_type_or_none(request.skin_type)
+    saved_skin_type = _manual_skin_type_from_profile(saved_skin_profile)
+    skin_type = request_skin_type or saved_skin_type or DEFAULT_SKIN_TYPE
+
+    request_sensitivity = _normalize_sensitivity_or_none(request.sensitivity)
+    saved_sensitivity = _manual_sensitivity_from_profile(saved_skin_profile)
+    if request_sensitivity is not None:
+        sensitivity = request_sensitivity
+        manual_sensitivity_explicit = True
+    elif _has_sensitive_intent(concern_text):
+        sensitivity = "높음"
+        manual_sensitivity_explicit = False
+    elif saved_sensitivity is not None:
+        sensitivity = saved_sensitivity
+        manual_sensitivity_explicit = True
+    else:
+        sensitivity = DEFAULT_SENSITIVITY
+        manual_sensitivity_explicit = False
+
+    request_avoid_ingredients = _normalize_avoid_ingredients(request.avoid_ingredients)
+    saved_avoid_ingredients = _normalize_avoid_ingredients(
+        getattr(saved_skin_profile, "avoid_ingredients", None),
     )
-    sensitivity = _normalize_sensitivity(request.sensitivity, concern_text)
 
     return NormalizedRecommendationRequest(
         concern_text=concern_text,
         skin_type=skin_type,
         sensitivity=sensitivity,
-        avoid_ingredients=_normalize_avoid_ingredients(request.avoid_ingredients),
+        avoid_ingredients=_dedupe([*request_avoid_ingredients, *saved_avoid_ingredients]),
+        manual_skin_type_explicit=request_skin_type is not None or saved_skin_type is not None,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
 
 
@@ -598,6 +662,29 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
         keyword_score=_component_to_percent(raw.get("keyword_score")),
         vector_score=_component_to_percent(raw.get("vector_score")),
         search_match_score=_component_to_percent(raw.get("search_match_score")),
+        market_signal_score=_component_to_percent(raw.get("market_signal_score", 0.5)),
+        skin_test_context_score=_component_to_percent(raw.get("skin_test_context_score", 0.5)),
+        skin_test_context_applied=raw.get("skin_test_context_applied") is True,
+        skin_test_context_axes=_component_percent_dict(raw.get("skin_test_context_axes")),
+        skin_test_context_matched_axes=_string_list(raw.get("skin_test_context_matched_axes")),
+        skin_test_context_query_conflict_axes=_string_list(raw.get("skin_test_context_query_conflict_axes")),
+        skin_test_context_manual_conflict_axes=_string_list(raw.get("skin_test_context_manual_conflict_axes")),
+        behavior_personalization_score=_component_to_percent(raw.get("behavior_personalization_score")),
+        behavior_personalization_applied=raw.get("behavior_personalization_applied") is True,
+        behavior_personalization_sources=_string_list(raw.get("behavior_personalization_sources")),
+        behavior_personalization_source_scores=_component_percent_dict(
+            raw.get("behavior_personalization_source_scores")
+        ),
+        behavior_personalization_affinity_components=_component_percent_dict(
+            raw.get("behavior_personalization_affinity_components")
+        ),
+        behavior_personalization_negative_guard_score=_component_to_percent(
+            raw.get("behavior_personalization_negative_guard_score", 1.0)
+        ),
+        behavior_personalization_event_counts=_int_dict(raw.get("behavior_personalization_event_counts")),
+        base_weights=_float_dict(raw.get("base_weights")),
+        adjusted_weights=_float_dict(raw.get("weights")),
+        applied_multipliers=_float_dict(raw.get("applied_multipliers")),
         risk_penalty=_score_to_int(raw.get("risk_penalty", 0)),
         risk_flag_count=_optional_int(raw.get("risk_flag_count")) or 0,
         risk_warnings=_string_list(raw.get("risk_warnings")),
@@ -620,6 +707,36 @@ def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value if str(item).strip()]
+
+
+def _component_percent_dict(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): _component_to_percent(item)
+        for key, item in value.items()
+        if str(key).strip()
+    }
+
+
+def _float_dict(value: object) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): round(_to_float(item), 6)
+        for key, item in value.items()
+        if str(key).strip()
+    }
+
+
+def _int_dict(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): max(0, int(_to_float(item)))
+        for key, item in value.items()
+        if str(key).strip()
+    }
 
 
 def _to_float(value: object) -> float:
@@ -661,16 +778,53 @@ def _normalize_choice(
     return normalized
 
 
+def _normalize_skin_type_or_none(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip()
+    if normalized not in ALLOWED_SKIN_TYPES:
+        raise ApiError(400, "INVALID_INPUT", "피부 타입 값이 올바르지 않습니다.")
+    return normalized
+
+
+def _normalize_sensitivity_or_none(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    stripped = value.strip()
+    normalized = SENSITIVITY_ALIASES.get(stripped.casefold().replace(" ", ""), stripped)
+    if normalized not in ALLOWED_SENSITIVITIES:
+        raise ApiError(400, "INVALID_INPUT", "민감도 값이 올바르지 않습니다.")
+    return normalized
+
+
+def _manual_skin_type_from_profile(profile: Any | None) -> str | None:
+    if profile is None:
+        return None
+    explicit_skin_type = _normalize_skin_type_or_none(getattr(profile, "explicit_skin_type", None))
+    if explicit_skin_type is not None:
+        return explicit_skin_type
+    if getattr(profile, "skin_type_source", None) == "manual":
+        return _normalize_skin_type_or_none(getattr(profile, "skin_type", None))
+    return None
+
+
+def _manual_sensitivity_from_profile(profile: Any | None) -> str | None:
+    if profile is None:
+        return None
+    explicit_sensitivity = _normalize_sensitivity_or_none(getattr(profile, "explicit_sensitivity", None))
+    if explicit_sensitivity is not None:
+        return explicit_sensitivity
+    if getattr(profile, "sensitivity_source", None) == "manual":
+        return _normalize_sensitivity_or_none(getattr(profile, "sensitivity", None))
+    return None
+
+
 def _normalize_sensitivity(value: str | None, concern_text: str) -> str:
-    if value is not None and value.strip():
-        return _normalize_choice(
-            value,
-            DEFAULT_SENSITIVITY,
-            ALLOWED_SENSITIVITIES,
-            "민감도 값이 올바르지 않습니다.",
-        )
+    normalized = _normalize_sensitivity_or_none(value)
+    if normalized is not None:
+        return normalized
     if _has_sensitive_intent(concern_text):
-        return "민감"
+        return "높음"
     return DEFAULT_SENSITIVITY
 
 

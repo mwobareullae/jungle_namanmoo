@@ -61,7 +61,7 @@ Skin type argument mapping:
 - combination -> combination
 - normal -> normal
 - dehydrated oily -> dehydrated_oily
-- sensitive skin -> sensitivity=sensitive
+- sensitive skin -> sensitivity=높음
 
 Prefer one tool call per user turn unless the user explicitly asks for multiple
 actions. Keep the final answer short and suitable for a chat bubble.
