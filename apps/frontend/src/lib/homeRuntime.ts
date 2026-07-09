@@ -171,18 +171,10 @@ const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
 
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
-  const searchBox = document.getElementById("searchBox");
   const headerBottom = getHeaderBottom();
-  const searchRect = searchBox?.getBoundingClientRect();
-  const shouldAvoidSearchBox =
-    window.scrollY <= 4 &&
-    typeof searchRect?.bottom === "number" &&
-    searchRect.bottom > headerBottom + CATEGORY_PANEL_MIN_HEIGHT;
-  const heightToSearch = shouldAvoidSearchBox
-    ? searchRect.bottom - headerBottom + 10
-    : CATEGORY_PANEL_DEFAULT_HEIGHT;
+  const contentHeight = panel.scrollHeight;
   const availableHeight = Math.min(
-    heightToSearch,
+    Math.max(CATEGORY_PANEL_DEFAULT_HEIGHT, contentHeight),
     window.innerHeight - headerBottom - 24,
     CATEGORY_PANEL_MAX_HEIGHT
   );
