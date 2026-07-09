@@ -39,6 +39,12 @@ RESULT_ROOT="${RESULT_ROOT:-$REPO_DIR/perf-runs}"
 RUN_K6="${RUN_K6:-true}"
 SLACK_ENABLED="${SLACK_ENABLED:-false}"
 REPORT_TITLE="${REPORT_TITLE:-k6 Performance Run}"
+RDS_METRICS_ENABLED="${RDS_METRICS_ENABLED:-true}"
+RDS_DB_INSTANCE_IDENTIFIER="${RDS_DB_INSTANCE_IDENTIFIER:-mubarelle-db}"
+AWS_REGION="${AWS_REGION:-ap-northeast-2}"
+CLOUDWATCH_WAIT_SECONDS="${CLOUDWATCH_WAIT_SECONDS:-180}"
+CLOUDWATCH_PERIOD_SECONDS="${CLOUDWATCH_PERIOD_SECONDS:-60}"
+RDS_CPU_AVG_WARN_PCT="${RDS_CPU_AVG_WARN_PCT:-40}"
 
 case "$RESULT_ROOT" in
   /*) ;;
@@ -61,6 +67,8 @@ DATA_COUNTS="$RESULT_DIR/data-counts.txt"
 CONTAINER_HEALTH="$RESULT_DIR/container-health.txt"
 SLOW_QUERY_SAMPLE="$RESULT_DIR/slow-query-sample.log"
 NOTABLE_ERRORS="$RESULT_DIR/notable-errors.log"
+RDS_METRICS_JSON="$RESULT_DIR/rds-metrics.json"
+RDS_METRICS_LOG="$RESULT_DIR/rds-metrics.log"
 
 log() {
   echo "[$(date '+%H:%M:%S')] $*"
@@ -233,6 +241,42 @@ collect_container_health() {
   fi
 }
 
+collect_rds_metrics() {
+  if [ "$RDS_METRICS_ENABLED" != "true" ]; then
+    log "RDS metrics skipped"
+    printf '{"metadata":{"enabled":false},"metrics":{}}\n' >"$RDS_METRICS_JSON"
+    return
+  fi
+
+  log "collect RDS CloudWatch metrics: db=$RDS_DB_INSTANCE_IDENTIFIER region=$AWS_REGION"
+  ssh -o BatchMode=yes -i "$SSH_KEY" "${SSH_USER}@${SSH_HOST}" \
+    "AWS_REGION='$AWS_REGION' RDS_DB_INSTANCE_IDENTIFIER='$RDS_DB_INSTANCE_IDENTIFIER' CLOUDWATCH_PERIOD_SECONDS='$CLOUDWATCH_PERIOD_SECONDS' bash -s -- '$START_TIME_UTC' '$END_TIME_UTC'" \
+    <"$SCRIPT_DIR/collect_rds_metrics.sh" >"$RDS_METRICS_JSON" 2>"$RDS_METRICS_LOG" || {
+      log "RDS metrics collection failed. See $(basename "$RDS_METRICS_LOG")"
+      python3 - "$RDS_METRICS_JSON" "$RDS_METRICS_LOG" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+out_path = Path(sys.argv[1])
+log_path = Path(sys.argv[2])
+out_path.write_text(
+    json.dumps(
+        {
+            "metadata": {"enabled": True, "error": log_path.read_text(encoding="utf-8", errors="ignore")},
+            "metrics": {},
+        },
+        ensure_ascii=False,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+PY
+    }
+}
+
 run_k6() {
   log "k6 run: profile=$PROFILE base_url=$BASE_URL cart_writes=$CART_WRITES"
   set +e
@@ -293,6 +337,8 @@ generate_summary() {
     --backend-log "$BACKEND_LOG" \
     --data-counts "$DATA_COUNTS" \
     --container-health "$CONTAINER_HEALTH" \
+    --rds-metrics "$RDS_METRICS_JSON" \
+    --rds-cpu-avg-warn-pct "$RDS_CPU_AVG_WARN_PCT" \
     --sla-ms "$SLA_MS" \
     --out "$REPORT_MD"
 }
@@ -329,6 +375,11 @@ else
 fi
 
 collect_pg_snapshot
+if [ "$RUN_K6" = "true" ] && [ "$RDS_METRICS_ENABLED" = "true" ] && [ "${CLOUDWATCH_WAIT_SECONDS:-0}" -gt 0 ]; then
+  log "wait CloudWatch aggregation: ${CLOUDWATCH_WAIT_SECONDS}s"
+  sleep "$CLOUDWATCH_WAIT_SECONDS"
+fi
+collect_rds_metrics
 extract_backend_logs
 generate_summary
 

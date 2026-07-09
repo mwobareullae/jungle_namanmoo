@@ -109,6 +109,11 @@ CART_WRITES="false"
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
 HEAVY_PRODUCT_IDS=""
 SLA_MS=3000
+
+RDS_METRICS_ENABLED="true"
+RDS_DB_INSTANCE_IDENTIFIER="mubarelle-db"
+AWS_REGION="ap-northeast-2"
+CLOUDWATCH_WAIT_SECONDS=180
 ```
 
 `scripts/perf/config.env`는 `.gitignore`에 포함되어 있어야 합니다.
@@ -137,6 +142,13 @@ PY"
 ```
 
 여기서 SSH, docker compose, DB 접속 중 하나라도 실패하면 `run-loadtest.sh`도 로그/지표 수집이 비어 있을 수 있습니다.
+
+RDS CloudWatch 지표는 Dev 서버 EC2 IAM Role을 사용합니다. 서버에서 아래 명령이 동작하면 별도 AWS key 설정은 필요 없습니다.
+
+```bash
+ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> \
+  'START=$(date -u -d "10 minutes ago" +%Y-%m-%dT%H:%M:%S); END=$(date -u +%Y-%m-%dT%H:%M:%S); aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name CPUUtilization --dimensions Name=DBInstanceIdentifier,Value=mubarelle-db --start-time "$START" --end-time "$END" --period 60 --statistics Average Maximum --region ap-northeast-2 --output json'
+```
 
 ## 4. Smoke 실행
 
@@ -205,6 +217,8 @@ perf-runs/<timestamp>_<profile>_<data-label>/
 ├── notable-errors.log
 ├── pg-stat-activity.log
 ├── report.md
+├── rds-metrics.json
+├── rds-metrics.log
 └── slow-query-sample.log
 ```
 
@@ -246,6 +260,7 @@ server:
 - elasticsearch max cpu/mem:
 - redis max cpu/mem:
 - pg_stat_activity max:
+- RDS CPU/Memory/Connection/IOPS/Latency/Storage:
 
 result:
 - PASS/FAIL:
@@ -308,6 +323,17 @@ ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> "hostname"
 - `DB_MONITOR_MODE`가 현재 서버 구조와 다름
 - `BACKEND_CONTAINER`, `REDIS_CONTAINER`, `ELASTICSEARCH_CONTAINER` 이름이 compose와 다름
 - SSH 접속은 되지만 docker 권한이 없음
+
+### RDS 지표가 N/A일 때
+
+대부분 아래 중 하나입니다.
+
+- `RDS_METRICS_ENABLED=false`
+- `RDS_DB_INSTANCE_IDENTIFIER`가 실제 RDS identifier와 다름
+- Dev 서버에 AWS CLI가 없거나 EC2 IAM Role 권한이 부족함
+- CloudWatch 집계 지연 때문에 최근 datapoint가 아직 없음
+
+`smoke`는 실행 시간이 짧아 datapoint가 1~2개만 잡힐 수 있습니다. RDS 병목 판단은 `baseline` 이상에서 보는 것을 권장합니다.
 
 ### k6가 400/404를 많이 낼 때
 
