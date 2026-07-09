@@ -430,7 +430,7 @@ def test_create_recommendation_infers_sensitive_profile_from_concern_text(
     assert response.status_code == 200
 
     data = response.json()
-    assert data["summary"]["sensitivity"] == "민감"
+    assert data["summary"]["sensitivity"] == "높음"
     assert data["summary"]["matched_concerns"] == ["민감"]
     assert "진정" in data["summary"]["expected_effects"]
     assert data["unmatched_terms"] == []

@@ -101,7 +101,7 @@ adjusted_score = 0.5 + (raw_score - 0.5) * confidence_multiplier
 
 - 모든 사용자에게 risk 성분 주의 문구는 표시한다.
 - 일반 사용자에게는 점수 감점을 하지 않는다.
-- 민감도 입력이 `높음`, `민감`, `예민`이고, risk flag의 `applies_to`에 `sensitive`가 있으면 감점한다.
+- 민감도 입력이 `높음`이고, risk flag의 `applies_to`에 `sensitive`가 있으면 감점한다.
 - 같은 `risk_type`이 여러 번 나오면 가장 큰 감점만 사용한다.
 - 감점 총합 cap은 `8점`이다.
 

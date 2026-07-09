@@ -21,7 +21,7 @@ from app.db.types import big_integer_pk_type, jsonb_type
 
 
 SKIN_TYPE_CHECK = "skin_type in ('건성', '지성', '복합성', '중성', '수부지')"
-SENSITIVITY_CHECK = "sensitivity in ('낮음', '보통', '높음', '민감')"
+SENSITIVITY_CHECK = "sensitivity in ('낮음', '보통', '높음')"
 
 
 class BaumannTypeProfile(Base):
@@ -131,7 +131,7 @@ class SkinProfile(Base):
             name="ck_skin_profiles_explicit_skin_type",
         ),
         CheckConstraint(
-            "explicit_sensitivity is null or explicit_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "explicit_sensitivity is null or explicit_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_profiles_explicit_sensitivity",
         ),
         CheckConstraint(
@@ -139,7 +139,7 @@ class SkinProfile(Base):
             name="ck_skin_profiles_baumann_skin_type",
         ),
         CheckConstraint(
-            "baumann_inferred_sensitivity is null or baumann_inferred_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "baumann_inferred_sensitivity is null or baumann_inferred_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_profiles_baumann_sensitivity",
         ),
         CheckConstraint("source in ('manual', 'skin_test', 'mixed', 'import')", name="ck_skin_profiles_source"),
@@ -194,7 +194,7 @@ class SkinTestResult(Base):
             name="ck_skin_test_results_mapped_skin_type",
         ),
         CheckConstraint(
-            "mapped_sensitivity in ('낮음', '보통', '높음', '민감')",
+            "mapped_sensitivity in ('낮음', '보통', '높음')",
             name="ck_skin_test_results_mapped_sensitivity",
         ),
         CheckConstraint(

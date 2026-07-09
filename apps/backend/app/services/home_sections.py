@@ -449,7 +449,7 @@ def _skin_profile_score(
         "수부지": profile.dehydrated_oily_fit,
     }
     skin_score = skin_scores.get(skin_type, profile.normal_fit)
-    sensitivity_score = profile.sensitive_fit if sensitivity == "민감" else 0.75 + profile.sensitive_fit * 0.25
+    sensitivity_score = profile.sensitive_fit if sensitivity == "높음" else 0.75 + profile.sensitive_fit * 0.25
     return _clamp(skin_score * 0.75 + sensitivity_score * 0.25)
 
 
@@ -498,7 +498,15 @@ def _normalize_sensitivity(value: str | None) -> str:
         return "보통"
     normalized = value.strip()
     aliases = {
-        "sensitive": "민감",
+        "low": "낮음",
+        "medium": "보통",
+        "mid": "보통",
+        "high": "높음",
+        "sensitive": "높음",
+        "민감": "높음",
+        "민감성": "높음",
+        "예민": "높음",
+        "예민함": "높음",
         "normal": "보통",
     }
     return aliases.get(normalized.casefold(), normalized)

@@ -1921,7 +1921,7 @@ def _score_sensitivity(
     risk_flags: tuple[RiskFlag, ...],
     skin_profile: _SkinProfileInfo | None,
 ) -> float:
-    normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
+    normalized_sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
     if skin_profile is not None:
         return _adjust_score_by_confidence(
             _sensitivity_profile_score(normalized_sensitivity, skin_profile),
@@ -1932,7 +1932,7 @@ def _score_sensitivity(
     normalized_tags.discard("")
     most_severe = _most_severe_risk(risk_flags)
 
-    if normalized_sensitivity in {"높음", "민감", "예민"}:
+    if normalized_sensitivity == "높음":
         if normalized_tags & {"민감", "저자극", "민감추천", "민감가능"}:
             return 1.0
         if most_severe == "high":
@@ -1984,8 +1984,8 @@ def _risk_warning_texts(risk_flags: tuple[RiskFlag, ...], *, limit: int = 3) -> 
 
 
 def _is_sensitive_user(sensitivity: str | None) -> bool:
-    normalized_sensitivity = _normalize_profile_value(sensitivity) or "보통"
-    return normalized_sensitivity in {"높음", "민감", "예민"}
+    normalized_sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
+    return normalized_sensitivity == "높음"
 
 
 def _risk_applies_to_sensitive(flag: RiskFlag) -> bool:
@@ -2020,8 +2020,9 @@ def _skin_type_profile_score(skin_type: str, skin_profile: _SkinProfileInfo) -> 
 
 
 def _sensitivity_profile_score(sensitivity: str, skin_profile: _SkinProfileInfo) -> float:
+    sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
     sensitive_score = _clamp(skin_profile.sensitive_fit)
-    if sensitivity in {"높음", "민감", "예민"}:
+    if sensitivity == "높음":
         return sensitive_score
     if sensitivity == "낮음":
         return max(sensitive_score, 0.85)
@@ -2399,8 +2400,8 @@ def _has_manual_sensitivity_conflict(
     if not manual_sensitivity_explicit or not manual_sensitivity:
         return False
     return (
-        _normalize_profile_value(manual_sensitivity)
-        != _normalize_profile_value(skin_test_context.mapped_sensitivity)
+        _normalize_sensitivity_value(manual_sensitivity)
+        != _normalize_sensitivity_value(skin_test_context.mapped_sensitivity)
     )
 
 
@@ -2498,6 +2499,18 @@ def _normalize_profile_value(value: str | None) -> str:
         "oily": "지성",
         "combination": "복합성",
         "sensitive": "민감",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _normalize_sensitivity_value(value: str | None) -> str:
+    normalized = _normalize_profile_value(value)
+    aliases = {
+        "민감": "높음",
+        "민감성": "높음",
+        "예민": "높음",
+        "예민함": "높음",
+        "sensitive": "높음",
     }
     return aliases.get(normalized, normalized)
 

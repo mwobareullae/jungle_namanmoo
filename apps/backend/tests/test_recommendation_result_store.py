@@ -57,7 +57,7 @@ def test_save_recommendation_results_replaces_existing_run_results() -> None:
         session,
         "민감하고 진정 위주 추천",
         skin_type="지성",
-        sensitivity="민감",
+        sensitivity="높음",
     )
 
     save_recommendation_results(session, run_id, scored_products)
