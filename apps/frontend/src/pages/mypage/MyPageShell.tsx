@@ -125,6 +125,9 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const [toast, setToast] = useState<MypageToast | null>(null);
   const [hoveredNavLabel, setHoveredNavLabel] = useState<string | null>(null);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
+  const authUserId = authUser?.id;
+  const skinProfileUserId = skinProfile?.userId;
+  const latestSkinTestResultId = skinProfile?.latestSkinTestResultId;
   const user = useMemo(
     () => userOverride ?? buildUserSummary(authUser, skinProfile),
     [authUser, skinProfile, userOverride]
@@ -221,14 +224,14 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   }, [authUser]);
 
   useEffect(() => {
-    if (!authUser || !skinProfile || skinProfile.userId !== authUser.id || !skinProfile.latestSkinTestResultId) {
+    if (!authUserId || !skinProfileUserId || skinProfileUserId !== authUserId || !latestSkinTestResultId) {
       cachedSkinTestResult = null;
       const timerId = window.setTimeout(() => setSkinTestResult(null), 0);
       return () => window.clearTimeout(timerId);
     }
 
     let isMounted = true;
-    const resultId = skinProfile.latestSkinTestResultId;
+    const resultId = latestSkinTestResultId;
 
     if (cachedSkinTestResult?.result_id === resultId) {
       const timerId = window.setTimeout(() => {
@@ -260,7 +263,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     return () => {
       isMounted = false;
     };
-  }, [authUser, skinProfile?.latestSkinTestResultId, skinProfile?.userId]);
+  }, [authUserId, latestSkinTestResultId, skinProfileUserId]);
 
   return (
     <div style={styles.shell}>

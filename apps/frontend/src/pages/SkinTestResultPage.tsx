@@ -148,7 +148,11 @@ function SkinTestResultPage() {
     }
 
     sessionStorage.removeItem(PENDING_RECOMMENDATION_RESULT_KEY);
-    void applyResultAndRecommend(result);
+    const timerId = window.setTimeout(() => {
+      void applyResultAndRecommend(result);
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
   }, [applyResultAndRecommend, result, user]);
 
   const handleRecommendClick = () => {
