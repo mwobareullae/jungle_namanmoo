@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
-import { deleteCartItem, getCart, updateCartItem } from "../lib/cartApi";
+import { deleteCartItem, getCart, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
-import type { CartResponse } from "../types/cart";
+import type { CartResponse, CheckoutPreviewResponse } from "../types/cart";
 import type { CartItem } from "../types/cart";
 
 const TOTAL_DISCOUNT_AMOUNT = 0;
-const FREE_SHIPPING_THRESHOLD = 30000;
-const DEFAULT_SHIPPING_FEE = 3000;
 const unavailableStockStatuses = new Set(["LOW_STOCK", "OUT_OF_STOCK", "SOLD_OUT", "UNAVAILABLE"]);
 const unavailableSalesStatuses = new Set([
   "INACTIVE",
@@ -120,6 +119,9 @@ function CartPage() {
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [isDeletingUnavailable, setIsDeletingUnavailable] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreviewResponse | null>(null);
+  const [isCheckoutPreviewLoading, setIsCheckoutPreviewLoading] = useState(false);
+  const [checkoutPreviewErrorMessage, setCheckoutPreviewErrorMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -196,25 +198,108 @@ function CartPage() {
   const allItemsSelected = Boolean(
     purchasableItemIds.length > 0 && selectedItemIds.length === purchasableItemIds.length,
   );
-  const selectedItemIdSet = new Set(selectedItemIds);
-  const selectedItems = cart ? cart.items.filter((item) => selectedItemIdSet.has(item.id) && isPurchasableCartItem(item)) : [];
+  const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+  const selectedItems = useMemo(
+    () => cart ? cart.items.filter((item) => selectedItemIdSet.has(item.id) && isPurchasableCartItem(item)) : [],
+    [cart, selectedItemIdSet],
+  );
+  const selectedCheckoutItemIds = useMemo(() => selectedItems.map((item) => item.id), [selectedItems]);
+  const selectedCheckoutItemKey = useMemo(
+    () => selectedItems.map((item) => `${item.id}:${item.quantity}:${item.line_subtotal}`).join(","),
+    [selectedItems],
+  );
   const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.line_subtotal, 0);
-  const selectedShippingFee = selectedSubtotal <= 0
-    ? 0
-    : selectedSubtotal >= FREE_SHIPPING_THRESHOLD
-      ? 0
-      : DEFAULT_SHIPPING_FEE;
-  const selectedShippingFeeLabel = selectedShippingFee === 0 ? "무료" : `${selectedShippingFee.toLocaleString()}원`;
-  const selectedPaymentTotal = Math.max(0, selectedSubtotal - TOTAL_DISCOUNT_AMOUNT + selectedShippingFee);
+  const previewSubtotal = checkoutPreview?.subtotal ?? selectedSubtotal;
+  const selectedShippingFee = checkoutPreview?.shipping_fee ?? 0;
+  const selectedShippingFeeLabel = isCheckoutPreviewLoading
+    ? "확인 중"
+    : checkoutPreview
+      ? selectedShippingFee === 0
+        ? "무료"
+        : `${selectedShippingFee.toLocaleString()}원`
+      : selectedItems.length === 0
+        ? "0원"
+        : "확인 필요";
+  const selectedPaymentTotal = checkoutPreview
+    ? checkoutPreview.total
+    : Math.max(0, selectedSubtotal - TOTAL_DISCOUNT_AMOUNT);
+  const selectedPaymentTotalLabel = isCheckoutPreviewLoading
+    ? "확인 중"
+    : checkoutPreview || selectedItems.length === 0
+      ? `${selectedPaymentTotal.toLocaleString()}원`
+      : "확인 필요";
   const expectedPointAmount = Math.round(selectedSubtotal * 0.01);
-  const remainingFreeShippingAmount = Math.max(0, FREE_SHIPPING_THRESHOLD - selectedSubtotal);
-  const freeShippingProgress = Math.min(100, Math.round((selectedSubtotal / FREE_SHIPPING_THRESHOLD) * 100));
+  const freeShippingThreshold = checkoutPreview?.shipping_groups.find((group) => group.free_shipping_threshold !== null)
+    ?.free_shipping_threshold ?? null;
+  const remainingFreeShippingAmount = freeShippingThreshold === null
+    ? 0
+    : Math.max(0, freeShippingThreshold - previewSubtotal);
+  const freeShippingProgress = freeShippingThreshold === null
+    ? 0
+    : Math.min(100, Math.round((previewSubtotal / freeShippingThreshold) * 100));
   const unavailableItemIds = cart
     ? cart.items
         .filter((item) => !isPurchasableCartItem(item))
         .map((item) => item.id)
     : [];
   const hasUnavailableItems = unavailableItemIds.length > 0;
+  const deliveryPolicyLabel = isCheckoutPreviewLoading
+    ? "배송비 정책 확인 중"
+    : freeShippingThreshold !== null
+      ? `${freeShippingThreshold.toLocaleString()}원 이상 무료배송`
+      : checkoutPreview
+        ? "판매자 배송 정책 적용"
+        : "배송비는 주문서에서 확인됩니다";
+  const freeShippingMessage = selectedItems.length === 0
+    ? "구매할 상품을 선택해 주세요."
+    : isCheckoutPreviewLoading
+      ? "배송비를 확인하고 있어요."
+      : checkoutPreviewErrorMessage
+        ? "배송비를 확인하지 못했어요. 잠시 후 다시 시도해주세요."
+        : freeShippingThreshold === null
+          ? "배송비는 판매자 정책에 따라 계산돼요."
+          : selectedShippingFee === 0
+            ? "🎉 무료배송 조건을 충족했어요."
+            : `🚚 ${remainingFreeShippingAmount.toLocaleString()}원 더 담으면 무료배송이에요.`;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const previewTimer = window.setTimeout(() => {
+      if (!isMounted) return;
+
+      if (selectedCheckoutItemIds.length === 0) {
+        setCheckoutPreview(null);
+        setCheckoutPreviewErrorMessage("");
+        setIsCheckoutPreviewLoading(false);
+        return;
+      }
+
+      setIsCheckoutPreviewLoading(true);
+      setCheckoutPreviewErrorMessage("");
+
+      previewCheckout({ cart_item_ids: selectedCheckoutItemIds })
+        .then((preview) => {
+          if (!isMounted) return;
+          setCheckoutPreview(preview);
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          setCheckoutPreview(null);
+          setCheckoutPreviewErrorMessage(error instanceof Error ? error.message : "배송비를 확인하지 못했습니다.");
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsCheckoutPreviewLoading(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(previewTimer);
+    };
+  }, [selectedCheckoutItemIds, selectedCheckoutItemKey]);
 
   const handleGoToCheckout = () => {
     if (selectedItems.length === 0) {
@@ -319,25 +404,7 @@ function CartPage() {
       <HomeHeader />
       <main className="checkout-page cart-page">
         <section className="checkout-shell">
-          <header className="cart-page-template-header">
-            <h1>장바구니</h1>
-            <nav className="cart-page-stepper" aria-label="구매 진행 단계">
-              <span className="active">
-                <b>01</b>
-                장바구니
-              </span>
-              <i aria-hidden="true" />
-              <span>
-                <b>02</b>
-                주문서
-              </span>
-              <i aria-hidden="true" />
-              <span>
-                <b>03</b>
-                결제완료
-              </span>
-            </nav>
-          </header>
+          <CommercePageHeader currentStep="cart" title="장바구니" />
 
           {isLoading && (
             <div className="cart-page-layout" aria-label="장바구니 로딩 중">
@@ -436,7 +503,11 @@ function CartPage() {
                   </button>
                 )}
                 {user && (
-                  <button className="cart-page-empty-link" type="button">
+                  <button
+                    className="cart-page-empty-link"
+                    type="button"
+                    onClick={() => navigateWithinApp("/mypage/recent")}
+                  >
                     최근 본 상품 보기
                   </button>
                 )}
@@ -491,7 +562,7 @@ function CartPage() {
 
                 <div className="cart-page-delivery-group">
                   <strong>일반배송</strong>
-                  <span>30,000원 이상 무료배송</span>
+                  <span>{deliveryPolicyLabel}</span>
                 </div>
 
                 <div className="cart-page-list">
@@ -586,7 +657,7 @@ function CartPage() {
                 </div>
                 <div className="cart-page-summary-total">
                   <span>결제예정금액</span>
-                  <strong>{selectedPaymentTotal.toLocaleString()}원</strong>
+                  <strong>{selectedPaymentTotalLabel}</strong>
                 </div>
                 <p className="cart-page-point-note">
                   {selectedItems.length === 0
@@ -597,7 +668,12 @@ function CartPage() {
                 </p>
                 <button
                   className="checkout-btn-main"
-                  disabled={selectedItems.length === 0 || isAuthLoading}
+                  disabled={
+                    selectedItems.length === 0 ||
+                    isAuthLoading ||
+                    isCheckoutPreviewLoading ||
+                    Boolean(checkoutPreviewErrorMessage)
+                  }
                   type="button"
                   onClick={handleGoToCheckout}
                 >
@@ -607,13 +683,7 @@ function CartPage() {
                   <span>
                     <i style={{ width: `${freeShippingProgress}%` }} />
                   </span>
-                  <p>
-                    {selectedItems.length === 0
-                      ? "구매할 상품을 선택해 주세요."
-                      : selectedShippingFee === 0
-                        ? "🎉 무료배송 조건을 충족했어요."
-                        : `🚚 ${remainingFreeShippingAmount.toLocaleString()}원 더 담으면 무료배송이에요.`}
-                  </p>
+                  <p>{freeShippingMessage}</p>
                 </div>
               </aside>
             </div>
