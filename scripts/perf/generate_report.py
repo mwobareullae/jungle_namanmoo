@@ -119,7 +119,7 @@ def max_cpu_mem(stats: dict, alias: str) -> str:
     return f"{cpu:.2f}% / {mem}" if cpu is not None else f"N/A / {mem}"
 
 
-def endpoint_rows(k6: dict, *, limit: int = 12) -> str:
+def endpoint_rows(k6: dict, *, limit: int = 16) -> str:
     endpoints = k6.get("by_endpoint") or {}
     rows: list[str] = []
     sorted_items = sorted(
@@ -132,9 +132,9 @@ def endpoint_rows(k6: dict, *, limit: int = 12) -> str:
     )
     for endpoint, values in sorted_items[:limit]:
         rows.append(
-            f"| {endpoint} | {values.get('count')} | {format_ms(values.get('avg_ms'))} | {format_ms(values.get('p95_ms'))} |"
+            f"| {endpoint} | {values.get('count')} | {format_ms(values.get('avg_ms'))} | {format_ms(values.get('p50_ms'))} | {format_ms(values.get('p95_ms'))} | {format_ms(values.get('p99_ms'))} |"
         )
-    return "\n".join(rows) if rows else "| N/A | N/A | N/A | N/A |"
+    return "\n".join(rows) if rows else "| N/A | N/A | N/A | N/A | N/A | N/A |"
 
 
 def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, sla_ms: float) -> tuple[str, str, str]:
@@ -181,6 +181,7 @@ def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--title", default="k6 Performance Run")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--git-sha", required=True)
     parser.add_argument("--server", required=True)
@@ -229,7 +230,7 @@ def main() -> None:
         else None
     )
 
-    report = f"""# k6 Performance Run
+    report = f"""# {args.title}
 
 ## 어떤 테스트를 했는가
 
@@ -241,7 +242,10 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 - `GET /api/products/popular`
 - `GET /api/products/{{product_id}}`
 - `GET /api/products/search`
-- `GET /api/home/sections`
+- `GET /api/home/layout`
+- `GET /api/home/market-popular`
+- `GET /api/home/evidence-picks`
+- `GET /api/home/for-you`
 - `POST /api/recommendations`
 - `GET /api/recommendations/{{recommendation_id}}`
 - `GET /api/products/{{product_id}}?recommendation_id=...`
@@ -290,15 +294,18 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("http_reqs/s", reqs_per_sec_display)}
 {row("http_req_failed", failed_display)}
 {row("http_req_duration avg", format_ms(k6.get("http_req_duration_avg_ms")))}
+{row("http_req_duration p50", format_ms(k6.get("http_req_duration_p50_ms")))}
 {row("http_req_duration p95", format_ms(k6.get("http_req_duration_p95_ms")))}
+{row("http_req_duration p99", format_ms(k6.get("http_req_duration_p99_ms")))}
 {row("type=fast p95", format_ms((by_type.get("fast") or {}).get("p95_ms")))}
+{row("type=home p95", format_ms((by_type.get("home") or {}).get("p95_ms")))}
 {row("type=search p95", format_ms((by_type.get("search") or {}).get("p95_ms")))}
 {row("type=write p95", format_ms((by_type.get("write") or {}).get("p95_ms")))}
 
 ## Endpoint
 
-| endpoint | count | avg | p95 |
-| --- | --- | --- | --- |
+| endpoint | count | avg | p50 | p95 | p99 |
+| --- | --- | --- | --- | --- | --- |
 {endpoint_rows(k6)}
 
 ## Server

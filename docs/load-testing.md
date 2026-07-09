@@ -40,7 +40,10 @@ tests/k6/commerce-smoke.js
 - `GET /api/products/popular`
 - `GET /api/products/{product_id}`
 - `GET /api/products/search`
-- `GET /api/home/sections`
+- `GET /api/home/layout`
+- `GET /api/home/market-popular`
+- `GET /api/home/evidence-picks`
+- `GET /api/home/for-you`
 - `POST /api/recommendations`
 - `GET /api/recommendations/{recommendation_id}`
 - `POST /api/recommendations/{recommendation_id}/narrative`
@@ -49,6 +52,7 @@ tests/k6/commerce-smoke.js
 
 장바구니 쓰기 요청은 익명 cart row를 생성하므로 기본 비활성화입니다.
 추천 narrative 요청은 기본 활성화하되 `use_llm=false`로 실행합니다. OpenAI 비용과 외부 API 지연을 기준선에 섞지 않기 위한 설정입니다.
+로그인 사용자용 `/api/home/for-you`는 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정한 경우에만 추가 실행합니다.
 
 ## 사전 조건
 
@@ -206,6 +210,18 @@ PRODUCT_IDS=prod_oy_a000000163734,prod_oy_a000000250344 \
 k6 run tests/k6/commerce-smoke.js
 ```
 
+### 로그인 홈 추천 포함
+
+로그인 사용자 기준 `/api/home/for-you`를 포함하려면 브라우저에서 얻은 session cookie를 전달합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+AUTH_HOME_FOR_YOU=true \
+AUTH_COOKIE="mwbl_session=..." \
+k6 run tests/k6/commerce-smoke.js
+```
+
 ## 프로파일
 
 | PROFILE | 용도 | 부하 |
@@ -232,9 +248,15 @@ latency:
   - health
   - popular products
   - product detail
+- `type=home` p95 < 3000ms
+  - home layout
+  - home market popular
+  - home evidence picks
+  - home for-you fallback
+  - home for-you selected conditions
+  - home for-you auth
 - `type=search` p95 < 3000ms
   - product search
-  - home sections
   - recommendation create
   - recommendation page
   - recommendation narrative
@@ -303,8 +325,11 @@ cart writes:
 k6:
 - http_reqs/s:
 - http_req_failed:
+- http_req_duration p50:
 - http_req_duration p95:
+- http_req_duration p99:
 - type=fast p95:
+- type=home p95:
 - type=search p95:
 - type=write p95:
 
