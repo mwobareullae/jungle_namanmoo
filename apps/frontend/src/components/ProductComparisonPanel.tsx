@@ -43,9 +43,41 @@ type ProductComparisonTradeoffItem = {
 };
 
 type ProductComparisonScenarioGuideItem = {
-  label: string;
+  label: ProductScenarioTagLabel;
   productName: string;
   reason: string;
+  roleLabel: string;
+  tone?: "caution";
+};
+
+type ProductScenarioTagLabel =
+  | "성분 근거 우선"
+  | "핵심 성분 차이"
+  | "가격 부담 낮춤"
+  | "가성비 비교"
+  | "민감 피부 고려"
+  | "주의 성분 적음"
+  | "보습 집중"
+  | "진정 포인트"
+  | "장벽 성분"
+  | "산뜻한 사용감"
+  | "유분 부담 적음"
+  | "데일리로 무난"
+  | "전성분 확인"
+  | "종합 점수 우선";
+
+type ProductScenarioTag = {
+  label: ProductScenarioTagLabel;
+  tone?: "caution";
+};
+
+type ProductScenarioTagContext = {
+  lowestPrice: number | null;
+  maxEvidenceStrength: number;
+  maxRiskCount: number;
+  maxScore: number;
+  minRiskCount: number;
+  sensitivity?: string;
 };
 
 type ProductComparisonTableRow = {
@@ -326,63 +358,158 @@ const getDecisionSummary = (
 const hasAnyKeyword = (values: string[], keywords: string[]) =>
   values.some((value) => keywords.some((keyword) => value.includes(keyword)));
 
-const getProductScenarioGuideItems = (products: ProductDetail[]): ProductComparisonScenarioGuideItem[] => {
-  const guides: ProductComparisonScenarioGuideItem[] = [];
-  const usedProductIds = new Set<string>();
-  const cheapestProduct = getCheapestProduct(products);
-  const lowRiskProducts = products.filter((product) => product.risk_flags.length === 0);
-  const calmingProduct =
-    lowRiskProducts.find((product) => hasAnyKeyword(product.evidence_tags, ["진정", "보습"])) ||
-    products.find((product) => hasAnyKeyword(product.evidence_tags, ["진정", "보습"])) ||
-    cheapestProduct ||
-    products[0];
+const getScenarioProductRoleLabel = (index: number) => {
+  if (index === 0) return "보고 있는 상품";
+  return `비교 후보 ${index}`;
+};
 
-  if (calmingProduct) {
-    guides.push({
-      label: cheapestProduct?.product_id === calmingProduct.product_id ? "가성비·진정" : "진정 케어",
-      productName: getProductLabel(calmingProduct),
-      reason: cheapestProduct?.product_id === calmingProduct.product_id
-        ? "부담 없이 진정 위주라면"
-        : "진정 포인트를 우선하면",
-    });
-    usedProductIds.add(calmingProduct.product_id);
+const getProductEvidenceStrength = (product: ProductDetail) => {
+  const evidenceScore = product.score_breakdown?.ingredient_evidence_score ?? 0;
+  return product.evidence.length + product.sources.length + evidenceScore;
+};
+
+const getScenarioTagCandidates = (
+  product: ProductDetail,
+  products: ProductDetail[],
+  context: ProductScenarioTagContext,
+): ProductScenarioTag[] => {
+  const candidates: ProductScenarioTag[] = [];
+  const uniqueIngredients = getProductUniqueValues(product, products, "key_ingredients");
+  const uniqueEffects = getProductUniqueValues(product, products, "evidence_tags");
+  const relatedKeywords = [...product.evidence_tags, ...product.key_ingredients];
+  const isLowestPrice = product.lowest_price !== null && product.lowest_price === context.lowestPrice;
+  const hasRiskAdvantage = product.risk_flags.length === context.minRiskCount &&
+    context.minRiskCount < context.maxRiskCount;
+  const hasEvidenceAdvantage = getProductEvidenceStrength(product) === context.maxEvidenceStrength &&
+    context.maxEvidenceStrength > 0;
+  const hasTopScore = product.total_score === context.maxScore;
+
+  if (isSensitiveProfile(context.sensitivity) && hasRiskAdvantage) {
+    candidates.push({ label: "민감 피부 고려" });
   }
 
-  const barrierProduct =
-    products.find((product) => (
-      !usedProductIds.has(product.product_id) &&
-      (
-        hasAnyKeyword(product.evidence_tags, ["장벽", "보습"]) ||
-        hasAnyKeyword(product.key_ingredients, ["세라마이드", "판테놀", "베타-글루칸"])
-      )
-    )) ||
-    products.find((product) => !usedProductIds.has(product.product_id));
-
-  if (barrierProduct) {
-    guides.push({
-      label: hasAnyKeyword([...barrierProduct.evidence_tags, ...barrierProduct.key_ingredients], ["장벽", "세라마이드", "판테놀"])
-        ? "장벽 강화"
-        : "성분 비교",
-      productName: getProductLabel(barrierProduct),
-      reason: hasAnyKeyword(barrierProduct.key_ingredients, ["세라마이드", "판테놀", "베타-글루칸"])
-        ? "장벽 성분까지 챙기려면"
-        : "성분 차이를 보고 고르려면",
-    });
-    usedProductIds.add(barrierProduct.product_id);
+  if (hasRiskAdvantage && product.risk_flags.length === 0) {
+    candidates.push({ label: "주의 성분 적음" });
   }
 
-  if (guides.length < 2) {
-    const fallbackProduct = products.find((product) => !usedProductIds.has(product.product_id));
-    if (fallbackProduct) {
-      guides.push({
-        label: fallbackProduct.evidence_tags[0] || "선택 기준",
-        productName: getProductLabel(fallbackProduct),
-        reason: "다른 선택지도 함께 보려면",
-      });
-    }
+  if (isLowestPrice && hasTopScore) {
+    candidates.push({ label: "가성비 비교" });
   }
 
-  return guides.slice(0, 2);
+  if (isLowestPrice) {
+    candidates.push({ label: "가격 부담 낮춤" });
+  }
+
+  if (uniqueIngredients.length > 0 || uniqueEffects.length > 0) {
+    candidates.push({ label: "핵심 성분 차이" });
+  }
+
+  if (hasEvidenceAdvantage || hasTopScore) {
+    candidates.push({ label: "성분 근거 우선" });
+  }
+
+  if (hasAnyKeyword(product.evidence_tags, ["보습", "수분", "수분감"])) {
+    candidates.push({ label: "보습 집중" });
+  }
+
+  if (hasAnyKeyword(product.evidence_tags, ["진정", "민감"])) {
+    candidates.push({ label: "진정 포인트" });
+  }
+
+  if (hasAnyKeyword(relatedKeywords, ["장벽", "세라마이드", "판테놀", "베타-글루칸", "베타글루칸"])) {
+    candidates.push({ label: "장벽 성분" });
+  }
+
+  if (product.risk_flags.length > 0) {
+    candidates.push({ label: "전성분 확인", tone: "caution" });
+  }
+
+  if (hasTopScore) {
+    candidates.push({ label: "종합 점수 우선" });
+  }
+
+  candidates.push({ label: "데일리로 무난" });
+  candidates.push({ label: "종합 점수 우선" });
+
+  return candidates;
+};
+
+const getFallbackScenarioTag = (usedLabels: Set<ProductScenarioTagLabel>): ProductScenarioTag =>
+  ([
+    { label: "데일리로 무난" },
+    { label: "종합 점수 우선" },
+    { label: "성분 근거 우선" },
+  ] as ProductScenarioTag[]).find((tag) => !usedLabels.has(tag.label)) ?? { label: "데일리로 무난" };
+
+const getScenarioReason = (product: ProductDetail, tag: ProductScenarioTagLabel) => {
+  const productName = getProductLabel(product);
+
+  switch (tag) {
+    case "성분 근거 우선":
+      return `성분 근거를 먼저 보고 싶다면 ${productName}`;
+    case "핵심 성분 차이":
+      return `다른 성분 구성을 비교하려면 ${productName}`;
+    case "가격 부담 낮춤":
+      return `가격 부담을 낮추고 싶다면 ${productName}`;
+    case "가성비 비교":
+      return `가격과 성분 기준을 함께 보면 ${productName}`;
+    case "민감 피부 고려":
+      return `민감한 편이라면 ${productName}`;
+    case "주의 성분 적음":
+      return `성분 부담을 줄이고 싶다면 ${productName}`;
+    case "보습 집중":
+      return `보습 포인트를 우선하면 ${productName}`;
+    case "진정 포인트":
+      return `진정 포인트를 우선하면 ${productName}`;
+    case "장벽 성분":
+      return `장벽 성분까지 비교하려면 ${productName}`;
+    case "산뜻한 사용감":
+      return `가볍게 쓰는 사용감을 원하면 ${productName}`;
+    case "유분 부담 적음":
+      return `유분 부담을 줄이고 싶다면 ${productName}`;
+    case "데일리로 무난":
+      return `매일 쓰기 무난한 후보로 ${productName}`;
+    case "전성분 확인":
+      return `특정 성분에 민감했다면 ${productName} 전성분을 먼저 확인해보세요`;
+    case "종합 점수 우선":
+      return `종합 기준으로 먼저 보면 ${productName}`;
+    default:
+      return `비교 기준을 함께 보고 싶다면 ${productName}`;
+  }
+};
+
+const getProductScenarioGuideItems = (
+  products: ProductDetail[],
+  sensitivity?: string,
+): ProductComparisonScenarioGuideItem[] => {
+  const scenarioProducts = products.slice(0, MAX_SIMILAR_PRODUCTS + 1);
+  const riskCounts = scenarioProducts.map((product) => product.risk_flags.length);
+  const evidenceStrengths = scenarioProducts.map(getProductEvidenceStrength);
+  const context: ProductScenarioTagContext = {
+    lowestPrice: getLowestComparablePrice(scenarioProducts),
+    maxEvidenceStrength: Math.max(0, ...evidenceStrengths),
+    maxRiskCount: Math.max(0, ...riskCounts),
+    maxScore: Math.max(0, ...scenarioProducts.map((product) => product.total_score)),
+    minRiskCount: Math.min(...riskCounts),
+    sensitivity,
+  };
+
+  const usedLabels = new Set<ProductScenarioTagLabel>();
+
+  return scenarioProducts.map((product, index) => {
+    const tagCandidates = getScenarioTagCandidates(product, scenarioProducts, context);
+    const tag = tagCandidates.find((candidate) => !usedLabels.has(candidate.label)) ??
+      getFallbackScenarioTag(usedLabels);
+    usedLabels.add(tag.label);
+
+    return {
+      label: tag.label,
+      productName: getProductLabel(product),
+      reason: getScenarioReason(product, tag.label),
+      roleLabel: getScenarioProductRoleLabel(index),
+      tone: tag.tone,
+    };
+  });
 };
 
 const getComparisonTags = (product: ProductDetail) => (
@@ -559,11 +686,15 @@ function ProductComparisonScenarioGuide({
       </div>
       <div className="product-comparison-scenario-guide__grid">
         {items.map((item) => (
-          <article className="product-comparison-scenario-guide__item" key={`${item.label}-${item.productName}`}>
+          <article
+            className={`product-comparison-scenario-guide__item${item.tone === "caution" ? " caution" : ""}`}
+            key={`${item.label}-${item.productName}`}
+          >
             <span>{item.label}</span>
-            <p>
-              {item.reason} <strong>{item.productName}</strong>
-            </p>
+            <div className="product-comparison-scenario-guide__copy">
+              <em>{item.roleLabel}</em>
+              <p>{item.reason}</p>
+            </div>
           </article>
         ))}
       </div>
@@ -599,7 +730,7 @@ function ProductComparisonPanel({
     summary,
     recommendationReason,
   );
-  const scenarioGuideItems = getProductScenarioGuideItems(visibleProducts);
+  const scenarioGuideItems = getProductScenarioGuideItems(visibleProducts, sensitivity);
   const currentConcernSet = new Set(currentProduct?.evidence_tags ?? []);
   const lowestPrice = getLowestComparablePrice(visibleProducts);
   const comparisonRows: ProductComparisonTableRow[] = [{

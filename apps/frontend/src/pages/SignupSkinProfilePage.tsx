@@ -44,6 +44,8 @@ const concernOptions = [
 ];
 
 const avoidIngredientOptions = avoidIngredientCategories.map(({ id, label }) => ({ id, label }));
+const getAvoidIngredientLabels = (ids: string[]) =>
+  ids.map((id) => avoidIngredientOptions.find((option) => option.id === id)?.label ?? id);
 
 function SignupSkinProfilePage() {
   const navigate = useNavigate();
@@ -100,11 +102,16 @@ function SignupSkinProfilePage() {
     setErrorMessage("");
 
     try {
+      const signupSkinProfilePayload = {
+        ...form,
+        avoidIngredients: getAvoidIngredientLabels(form.avoidIngredients)
+      };
+
       const response = await fetch(`${API_BASE_URL}/skin-profile`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
+        body: JSON.stringify(signupSkinProfilePayload)
       });
 
       if (!response.ok) {
