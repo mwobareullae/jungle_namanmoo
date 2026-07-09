@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import {
+  clearLatestSkinTestResult,
   getLatestSkinTestResult,
   getSensitivityLabel,
   getSkinTestImageUrl,
@@ -15,6 +17,8 @@ import type { SkinTestResult } from "../types/skinTest";
 type SkinTestResultLocationState = {
   result?: SkinTestResult;
 };
+
+const PENDING_RECOMMENDATION_RESULT_KEY = "mwobareullae.skinTest.pendingRecommendationResultId";
 
 const getErrorMessage = (error: unknown) => {
   const apiError = error as Partial<ApiError>;
@@ -29,6 +33,7 @@ const getErrorMessage = (error: unknown) => {
 function SkinTestResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const locationState = location.state as SkinTestResultLocationState | null;
   const [result, setResult] = useState<SkinTestResult | null>(() => locationState?.result ?? getLatestSkinTestResult());
@@ -36,6 +41,7 @@ function SkinTestResultPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
 
   const resultId = useMemo(() => {
     const queryResultId = Number(searchParams.get("result_id"));
@@ -98,26 +104,85 @@ function SkinTestResultPage() {
   const recommendedEffects = result?.recommended_effects ?? [];
   const [shareMessage, setShareMessage] = useState("");
 
-  const handleApplyAndRecommend = async () => {
+  const navigateToRecommendations = useCallback(
+    (nextResult: SkinTestResult) => {
+      navigate(`/skin-test/recommendations?result_id=${nextResult.result_id}`, {
+        replace: false,
+        state: { result: nextResult },
+      });
+    },
+    [navigate]
+  );
+
+  const applyResultAndRecommend = useCallback(
+    async (nextResult: SkinTestResult) => {
+      setIsApplying(true);
+      setErrorMessage("");
+      let didApplyToProfile = false;
+
+      try {
+        await api.applySkinTestResult(nextResult.result_id);
+        didApplyToProfile = true;
+      } catch {
+        // Recommendation page can still use result_id even if profile persistence is not ready.
+      } finally {
+        if (didApplyToProfile) {
+          clearLatestSkinTestResult();
+        }
+        setIsApplying(false);
+        setIsRecommendModalOpen(false);
+        navigateToRecommendations(nextResult);
+      }
+    },
+    [navigateToRecommendations]
+  );
+
+  useEffect(() => {
+    if (!user || !result) {
+      return;
+    }
+
+    const pendingResultId = sessionStorage.getItem(PENDING_RECOMMENDATION_RESULT_KEY);
+    if (pendingResultId !== String(result.result_id)) {
+      return;
+    }
+
+    sessionStorage.removeItem(PENDING_RECOMMENDATION_RESULT_KEY);
+    void applyResultAndRecommend(result);
+  }, [applyResultAndRecommend, result, user]);
+
+  const handleRecommendClick = () => {
     if (!result) {
       navigate("/skin-test");
       return;
     }
 
-    setIsApplying(true);
-    setErrorMessage("");
+    setIsRecommendModalOpen(true);
+  };
 
-    try {
-      await api.applySkinTestResult(result.result_id);
-    } catch {
-      // Recommendation page can still use result_id even if profile persistence is not ready.
-    } finally {
-      setIsApplying(false);
-      navigate(`/skin-test/recommendations?result_id=${result.result_id}`, {
-        replace: false,
-        state: { result },
-      });
+  const handleConfirmRecommend = () => {
+    if (!result) {
+      return;
     }
+
+    if (user) {
+      void applyResultAndRecommend(result);
+      return;
+    }
+
+    sessionStorage.setItem(PENDING_RECOMMENDATION_RESULT_KEY, String(result.result_id));
+    navigate("/login", {
+      state: { from: `${location.pathname}${location.search}${location.hash}` }
+    });
+  };
+
+  const handleSkipSaveAndRecommend = () => {
+    if (!result) {
+      return;
+    }
+
+    setIsRecommendModalOpen(false);
+    navigateToRecommendations(result);
   };
 
   const handleShare = async () => {
@@ -199,10 +264,10 @@ function SkinTestResultPage() {
                 <button
                   className="skin-test-primary-button"
                   disabled={isApplying}
-                  onClick={handleApplyAndRecommend}
+                  onClick={handleRecommendClick}
                   type="button"
                 >
-                  {isApplying ? "추천 화면 준비 중" : "내 피부 맞춤 추천 보기"}
+                  {isApplying ? "추천 화면 준비 중" : "내 피부에 맞는 상품 보기"}
                 </button>
                 <button className="skin-test-secondary-button" onClick={handleShare} type="button">
                   결과 공유하기
@@ -218,6 +283,54 @@ function SkinTestResultPage() {
 
               {shareMessage && <p className="skin-test-result__share">{shareMessage}</p>}
               {errorMessage && <p className="skin-test-result__error">{errorMessage}</p>}
+              {isRecommendModalOpen ? (
+                <div
+                  aria-labelledby="skin-test-recommend-modal-title"
+                  aria-modal="true"
+                  className="skin-test-recommend-modal-backdrop"
+                  role="dialog"
+                >
+                  <section className="skin-test-recommend-modal">
+                    <h2 id="skin-test-recommend-modal-title">
+                      {user
+                        ? "이 테스트 결과를 피부 프로필에 반영할까요?"
+                        : "로그인하면 이 결과를 저장할 수 있어요"}
+                    </h2>
+                    <p>
+                      {user
+                        ? "반영하면 맞춤 추천 기준이 이 결과로 업데이트됩니다."
+                        : "로그인하면 테스트 결과를 마이페이지에 저장하고 다음 추천에도 활용할 수 있어요."}
+                    </p>
+                    <div className="skin-test-recommend-modal__actions">
+                      <button
+                        className="skin-test-primary-button"
+                        disabled={isApplying}
+                        onClick={handleConfirmRecommend}
+                        type="button"
+                      >
+                        {user ? "반영하고 추천 보기" : "로그인하고 추천 보기"}
+                      </button>
+                      <button
+                        className="skin-test-secondary-button"
+                        disabled={isApplying}
+                        onClick={handleSkipSaveAndRecommend}
+                        type="button"
+                      >
+                        {user ? "이번만 추천 보기" : "바로 추천 보기"}
+                      </button>
+                    </div>
+                    <button
+                      aria-label="추천 보기 확인 닫기"
+                      className="skin-test-recommend-modal__close"
+                      disabled={isApplying}
+                      onClick={() => setIsRecommendModalOpen(false)}
+                      type="button"
+                    >
+                      닫기
+                    </button>
+                  </section>
+                </div>
+              ) : null}
             </>
           )}
         </section>
