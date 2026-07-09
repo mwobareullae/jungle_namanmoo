@@ -4213,6 +4213,71 @@ body {
   font-weight: 500;
 }
 
+.skin-test-recommend-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 17, 23, 0.34);
+}
+
+.skin-test-recommend-modal {
+  position: relative;
+  display: grid;
+  gap: 22px;
+  width: min(520px, 100%);
+  padding: 38px 42px 34px;
+  border: 1px solid #e2e8ee;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(16, 28, 42, 0.18);
+  text-align: center;
+}
+
+.skin-test-recommend-modal h2 {
+  margin: 0;
+  color: var(--skin-ink);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.skin-test-recommend-modal p {
+  margin: 0;
+  color: var(--skin-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.skin-test-recommend-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.skin-test-recommend-modal__actions .skin-test-primary-button,
+.skin-test-recommend-modal__actions .skin-test-secondary-button {
+  min-height: 54px;
+}
+
+.skin-test-recommend-modal__close {
+  border: 0;
+  background: transparent;
+  color: var(--skin-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.skin-test-recommend-modal__close:hover,
+.skin-test-recommend-modal__close:focus-visible {
+  color: var(--skin-ink);
+  outline: none;
+}
+
 .skin-test-recommendation-main {
   min-height: calc(100vh - 64px);
   padding: 0 0 88px;
@@ -4611,6 +4676,23 @@ body {
   .skin-test-result {
     min-height: auto;
     padding: 22px;
+  }
+
+  .skin-test-recommend-modal {
+    width: min(100%, 420px);
+    padding: 26px 22px 24px;
+  }
+
+  .skin-test-recommend-modal h2 {
+    font-size: 20px;
+  }
+
+  .skin-test-recommend-modal p {
+    font-size: 14px;
+  }
+
+  .skin-test-recommend-modal__actions {
+    grid-template-columns: 1fr;
   }
 
   .skin-test-state--analysis {

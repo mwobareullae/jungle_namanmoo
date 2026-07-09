@@ -6,11 +6,7 @@ import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
 import { getOrders } from "../../lib/orderApi";
 import { getMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
-import {
-  getLatestSkinTestResult,
-  getSkinTestImageUrl,
-  saveLatestSkinTestResult
-} from "../../lib/skinTest";
+import { getSkinTestImageUrl } from "../../lib/skinTest";
 import type { SkinTestResult } from "../../types/skinTest";
 import type { OrderListItem } from "../../types/order";
 
@@ -57,8 +53,6 @@ type MyPageNavItem = {
 
 let cachedSkinProfile: SkinProfileData | null | undefined;
 let cachedSkinTestResult: SkinTestResult | null | undefined;
-
-const FALLBACK_SKIN_TEST_RESULT_ID = 1;
 
 const navItems: MyPageNavItem[] = [
   { path: "/mypage", label: "마이페이지 홈", group: 1 },
@@ -126,10 +120,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const authContext = useContext(AuthContext);
   const authUser = authContext?.user ?? null;
   const [skinProfile, setSkinProfile] = useState<SkinProfileData | null>(() => cachedSkinProfile ?? null);
-  const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(() => {
-    const latestResult = getLatestSkinTestResult();
-    return cachedSkinTestResult ?? latestResult;
-  });
+  const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(null);
   const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
   const [toast, setToast] = useState<MypageToast | null>(null);
   const [hoveredNavLabel, setHoveredNavLabel] = useState<string | null>(null);
@@ -230,41 +221,46 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   }, [authUser]);
 
   useEffect(() => {
-    let isMounted = true;
-    const latestResult = cachedSkinTestResult ?? getLatestSkinTestResult();
-    const resultId = latestResult?.result_id ?? FALLBACK_SKIN_TEST_RESULT_ID;
-    let latestResultTimerId: number | null = null;
+    if (!authUser || !skinProfile || skinProfile.userId !== authUser.id || !skinProfile.latestSkinTestResultId) {
+      cachedSkinTestResult = null;
+      const timerId = window.setTimeout(() => setSkinTestResult(null), 0);
+      return () => window.clearTimeout(timerId);
+    }
 
-    if (latestResult) {
-      latestResultTimerId = window.setTimeout(() => {
+    let isMounted = true;
+    const resultId = skinProfile.latestSkinTestResultId;
+
+    if (cachedSkinTestResult?.result_id === resultId) {
+      const timerId = window.setTimeout(() => {
         if (isMounted) {
-          setSkinTestResult(latestResult);
+          setSkinTestResult(cachedSkinTestResult ?? null);
         }
       }, 0);
+
+      return () => {
+        isMounted = false;
+        window.clearTimeout(timerId);
+      };
     }
 
     api.getSkinTestResult(resultId)
       .then(({ result }) => {
         cachedSkinTestResult = result;
-        saveLatestSkinTestResult(result);
         if (isMounted) {
           setSkinTestResult(result);
         }
       })
       .catch(() => {
-        cachedSkinTestResult = latestResult ?? null;
-        if (isMounted && latestResult) {
-          setSkinTestResult(latestResult);
+        cachedSkinTestResult = null;
+        if (isMounted) {
+          setSkinTestResult(null);
         }
       });
 
     return () => {
       isMounted = false;
-      if (latestResultTimerId !== null) {
-        window.clearTimeout(latestResultTimerId);
-      }
     };
-  }, []);
+  }, [authUser, skinProfile?.latestSkinTestResultId, skinProfile?.userId]);
 
   return (
     <div style={styles.shell}>
@@ -457,9 +453,11 @@ function UserSummaryCard({
       <section style={styles.summarySectionLast} aria-label="맞춤 추천 테스트 결과 섹션">
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.summarySectionTitle}>맞춤 추천 테스트 결과</h3>
-          <Link to="/skin-test" style={styles.sectionAction} aria-label="맞춤 추천 테스트 다시 검사하기">
-            다시 검사하기 <span aria-hidden="true">›</span>
-          </Link>
+          {skinTestResult ? (
+            <Link to="/skin-test" style={styles.sectionAction} aria-label="맞춤 추천 테스트 다시 검사하기">
+              다시 검사하기 <span aria-hidden="true">›</span>
+            </Link>
+          ) : null}
         </div>
         <BaumannResultPanel result={skinTestResult} />
       </section>
@@ -481,6 +479,22 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
     const timerId = window.setTimeout(() => setImageFailed(false), 0);
     return () => window.clearTimeout(timerId);
   }, [imageUrl]);
+
+  if (!result) {
+    return (
+      <section
+        style={styles.skinTestEmptyPanel}
+        aria-label="저장된 맞춤 추천 테스트 결과 없음"
+      >
+        <div style={styles.skinTestEmptyContent}>
+          <h3 style={styles.skinTestEmptyTitle}>아직 저장된 테스트 결과가 없어요</h3>
+          <Link to="/skin-test" style={styles.skinTestEmptyButton}>
+            피부 테스트 시작하기 <span aria-hidden="true">›</span>
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -889,6 +903,45 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 16,
     marginBottom: 24
+  },
+  skinTestEmptyPanel: {
+    display: "grid",
+    alignItems: "center",
+    justifyItems: "center",
+    minHeight: 168,
+    padding: "28px 30px",
+    border: "1px solid #e6e9ee",
+    borderRadius: 14,
+    background: "#fbfcfd",
+    color: "#222222"
+  },
+  skinTestEmptyContent: {
+    display: "grid",
+    justifyItems: "center",
+    minWidth: 0,
+    textAlign: "center"
+  },
+  skinTestEmptyTitle: {
+    margin: "0 0 16px",
+    color: "#0d2231",
+    fontFamily: "'GmarketSans', sans-serif",
+    fontSize: 19,
+    fontWeight: 500,
+    lineHeight: 1.35
+  },
+  skinTestEmptyButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minHeight: 38,
+    padding: "0 16px",
+    borderRadius: 999,
+    background: "#0c1117",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: 700,
+    textDecoration: "none"
   },
   baumannPanel: {
     display: "grid",

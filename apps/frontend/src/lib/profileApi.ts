@@ -10,6 +10,8 @@ type BackendSkinProfileData = {
   sensitivity_source?: string | null;
   avoid_ingredients?: unknown;
   concerns?: unknown;
+  latest_skin_test_result_id?: number | null;
+  latest_skin_test_result_code?: string | null;
   source?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -29,6 +31,8 @@ export type SkinProfileData = {
   sensitivitySource?: string | null;
   avoidIngredients: string[];
   concerns: string[];
+  latestSkinTestResultId?: number | null;
+  latestSkinTestResultCode?: string | null;
   source?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -71,6 +75,8 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
     sensitivity_source,
     avoid_ingredients,
     concerns,
+    latest_skin_test_result_id,
+    latest_skin_test_result_code,
     source,
     created_at,
     updated_at
@@ -88,6 +94,8 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
     sensitivitySource: sensitivity_source,
     avoidIngredients: normalizeAvoidIngredients(avoid_ingredients),
     concerns: normalizeStringList(concerns),
+    latestSkinTestResultId: latest_skin_test_result_id,
+    latestSkinTestResultCode: latest_skin_test_result_code,
     source,
     createdAt: created_at,
     updatedAt: updated_at
