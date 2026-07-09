@@ -1,10 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
+from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.skin import SkinProfile, SkinTestResult
 from app.db.models.taxonomy import (
     Effect,
     Ingredient,
@@ -19,7 +21,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v1_search_intent_boost"
+SCORING_VERSION = "v2_skin_test_context"
 EFFECT_CAP = 1.2
 TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
@@ -42,29 +44,101 @@ CONFIDENCE_MULTIPLIERS = {
     None: 0.0,
 }
 SENSITIVE_RISK_PENALTY_CAP = 8.0
+MARKET_SIGNAL_WINDOW_DAYS = 7
+SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS = {
+    "OD": 0.20,
+    "SR": 0.20,
+    "CATEGORY_PREF": 0.12,
+    "PN": 0.18,
+    "WT": 0.18,
+    "SENSITIVE_SAFETY": 0.12,
+}
+SKIN_TEST_AXIS_STRENGTH_MULTIPLIERS = {
+    "strong": 1.0,
+    "weak": 0.6,
+}
+WEIGHT_MULTIPLIER_CAPS = {
+    "ingredient_effect": (0.95, 1.12),
+    "ingredient_evidence": (0.95, 1.30),
+    "concentration_fit": (0.95, 1.25),
+    "functional_claim": (0.95, 1.30),
+    "price": (0.60, 1.80),
+    "market_signal": (1.00, 4.00),
+}
+SCORE_WEIGHT_FIELDS = (
+    "ingredient_effect",
+    "ingredient_evidence",
+    "skin_profile",
+    "concentration_fit",
+    "functional_claim",
+    "search_match",
+    "price",
+    "market_signal",
+    "skin_test_context",
+)
+VALUE_ORIENTED_BUYING_CRITERIA = {"value"}
+VALUE_ORIENTED_PRICE_INVESTMENTS = {"daily_repeat_value", "value_volume"}
+PIGMENT_EFFECT_CODES = ("effect_brightening",)
+WRINKLE_EFFECT_CODES = ("effect_wrinkle",)
 
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    ingredient_effect: float = 0.35
-    ingredient_evidence: float = 0.25
-    skin_profile: float = 0.15
+    ingredient_effect: float = 0.32
+    ingredient_evidence: float = 0.23
+    skin_profile: float = 0.14
     concentration_fit: float = 0.08
     functional_claim: float = 0.05
     search_match: float = 0.07
-    price: float = 0.05
+    price: float = 0.04
+    market_signal: float = 0.02
+    skin_test_context: float = 0.05
 
 
 DEFAULT_SCORE_WEIGHTS = ScoreWeights()
 SEARCH_INTENT_SCORE_WEIGHTS = ScoreWeights(
-    ingredient_effect=0.31,
-    ingredient_evidence=0.21,
-    skin_profile=0.15,
+    ingredient_effect=0.29,
+    ingredient_evidence=0.19,
+    skin_profile=0.14,
     concentration_fit=0.08,
     functional_claim=0.05,
     search_match=0.15,
-    price=0.05,
+    price=0.04,
+    market_signal=0.02,
+    skin_test_context=0.05,
 )
+
+
+@dataclass(frozen=True)
+class ScoreMultipliers:
+    ingredient_effect: float = 1.0
+    ingredient_evidence: float = 1.0
+    skin_profile: float = 1.0
+    concentration_fit: float = 1.0
+    functional_claim: float = 1.0
+    search_match: float = 1.0
+    price: float = 1.0
+    market_signal: float = 1.0
+    skin_test_context: float = 1.0
+
+
+@dataclass(frozen=True)
+class ScoreWeightResolution:
+    weights: ScoreWeights
+    base_weights: ScoreWeights
+    multipliers: ScoreMultipliers
+    weight_profile: str
+    search_intent_signals: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SkinTestScoringContext:
+    result_id: int
+    type_code: str
+    mapped_skin_type: str
+    mapped_sensitivity: str
+    axis_scores: dict
+    commerce_profile: dict
 
 
 @dataclass(frozen=True)
@@ -195,11 +269,62 @@ class _FunctionalInfo:
 
 
 @dataclass(frozen=True)
+class _MarketSignalInfo:
+    popularity_score: float
+    review_count: int
+    average_rating: float | None
+
+
+@dataclass(frozen=True)
+class _PriceScoreContext:
+    min_price: int
+    max_price: int
+
+
+@dataclass(frozen=True)
+class _SkinTestContextScore:
+    score: float
+    axis_scores: dict[str, float]
+    matched_axes: tuple[str, ...]
+    query_conflict_axes: tuple[str, ...]
+    manual_conflict_axes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class _EffectContribution:
     ingredient: _IngredientEffectInfo
     decay: float
     effect_component: float
     evidence_component: float
+
+
+def load_skin_test_scoring_context(
+    session: Session,
+    user_id: int | None,
+) -> SkinTestScoringContext | None:
+    if user_id is None:
+        return None
+
+    profile = session.execute(
+        select(SkinProfile).where(SkinProfile.user_id == user_id)
+    ).scalar_one_or_none()
+    if profile is None or profile.latest_skin_test_result_id is None:
+        return None
+
+    result = session.get(SkinTestResult, profile.latest_skin_test_result_id)
+    if result is None:
+        return None
+    if result.user_id is not None and result.user_id != user_id:
+        return None
+
+    return SkinTestScoringContext(
+        result_id=int(result.id),
+        type_code=result.type_code,
+        mapped_skin_type=result.mapped_skin_type,
+        mapped_sensitivity=result.mapped_sensitivity,
+        axis_scores=dict(result.axis_scores or {}),
+        commerce_profile=dict(result.commerce_profile or {}),
+    )
 
 
 def score_candidates(
@@ -210,6 +335,9 @@ def score_candidates(
     *,
     skin_type: str | None = None,
     sensitivity: str | None = None,
+    skin_test_context: SkinTestScoringContext | None = None,
+    manual_skin_type_explicit: bool = False,
+    manual_sensitivity_explicit: bool = False,
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
@@ -225,10 +353,13 @@ def score_candidates(
     skin_tags_by_product = _load_skin_tags(session, product_ids)
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
+    market_signals_by_product = _load_market_signals(session, product_ids)
+    price_context = _build_price_score_context(candidates)
     matches_by_product_code = {match.product_id: match for match in matches}
-    resolved_weights, weight_profile, search_intent_signals = _resolve_score_weights(
+    weight_resolution = _resolve_score_weights(
         intent,
         weights,
+        skin_test_context=skin_test_context,
     )
 
     scored_products = [
@@ -241,13 +372,16 @@ def score_candidates(
             skin_tags_by_product.get(candidate.db_product_id, ()),
             skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
+            market_signals_by_product.get(candidate.db_product_id),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
             skin_type=skin_type,
             sensitivity=sensitivity,
-            weights=resolved_weights,
-            weight_profile=weight_profile,
-            search_intent_signals=search_intent_signals,
+            skin_test_context=skin_test_context,
+            manual_skin_type_explicit=manual_skin_type_explicit,
+            manual_sensitivity_explicit=manual_sensitivity_explicit,
+            price_context=price_context,
+            weight_resolution=weight_resolution,
             concentration_policy=concentration_policy,
             skin_profile_weights=skin_profile_weights,
         )
@@ -284,14 +418,17 @@ def _score_candidate(
     skin_tags: tuple[str, ...],
     skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
+    market_signal: _MarketSignalInfo | None,
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
     *,
     skin_type: str | None,
     sensitivity: str | None,
-    weights: ScoreWeights,
-    weight_profile: str,
-    search_intent_signals: tuple[str, ...],
+    skin_test_context: SkinTestScoringContext | None,
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+    price_context: _PriceScoreContext | None,
+    weight_resolution: ScoreWeightResolution,
     concentration_policy: ConcentrationScorePolicy,
     skin_profile_weights: SkinProfileWeights,
 ) -> ScoredProduct:
@@ -319,8 +456,28 @@ def _score_candidate(
     search_match_score = match.search_match_score if match else 0.0
     keyword_score = match.keyword_score if match else 0.0
     vector_score = match.vector_score if match else 0.0
-    price_score = _score_price(candidate.lowest_price, purchase_conditions)
+    price_score = _score_price(
+        candidate.lowest_price,
+        purchase_conditions,
+        skin_test_context=skin_test_context,
+        price_context=price_context,
+    )
+    market_signal_score = _score_market_signal(market_signal)
+    skin_test_score = _score_skin_test_context(
+        skin_test_context,
+        intent_purchase_conditions=purchase_conditions,
+        candidate=candidate,
+        skin_profile=skin_profile,
+        risk_flags=risk_flags,
+        contributions_by_effect=contributions_by_effect,
+        functional_info=functional_info,
+        manual_skin_type=skin_type,
+        manual_sensitivity=sensitivity,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
     risk_penalty = _score_risk_penalty(sensitivity, risk_flags)
+    weights = weight_resolution.weights
 
     raw_score = (
         ingredient_effect_score * weights.ingredient_effect
@@ -330,6 +487,8 @@ def _score_candidate(
         + functional_claim_score * weights.functional_claim
         + search_match_score * weights.search_match
         + price_score * weights.price
+        + market_signal_score * weights.market_signal
+        + skin_test_score.score * weights.skin_test_context
     )
     total_score = _round_score(_clamp(raw_score) * 100 - risk_penalty)
     score_evidence = _build_score_evidence(contributions_by_effect)
@@ -352,6 +511,17 @@ def _score_candidate(
         "vector_score": _round_component(vector_score),
         "search_match_score": _round_component(search_match_score),
         "price_score": _round_component(price_score),
+        "market_signal_score": _round_component(market_signal_score),
+        "skin_test_context_score": _round_component(skin_test_score.score),
+        "skin_test_context_applied": skin_test_context is not None,
+        "skin_test_context_axes": {
+            axis: _round_component(score)
+            for axis, score in skin_test_score.axis_scores.items()
+        },
+        "skin_test_context_matched_axes": list(skin_test_score.matched_axes),
+        "skin_test_context_query_conflict_axes": list(skin_test_score.query_conflict_axes),
+        "skin_test_context_manual_conflict_axes": list(skin_test_score.manual_conflict_axes),
+        "skin_test_context_type_code": skin_test_context.type_code if skin_test_context else None,
         "risk_penalty": risk_penalty,
         "risk_policy": "display_all_penalize_sensitive",
         "risk_flag_count": len(risk_flags),
@@ -365,9 +535,13 @@ def _score_candidate(
             "functional_claim": weights.functional_claim,
             "search_match": weights.search_match,
             "price": weights.price,
+            "market_signal": weights.market_signal,
+            "skin_test_context": weights.skin_test_context,
         },
-        "weight_profile": weight_profile,
-        "search_intent_signals": list(search_intent_signals),
+        "base_weights": _weights_to_dict(weight_resolution.base_weights),
+        "applied_multipliers": _multipliers_to_dict(weight_resolution.multipliers),
+        "weight_profile": weight_resolution.weight_profile,
+        "search_intent_signals": list(weight_resolution.search_intent_signals),
         "skin_profile_weights": {
             "skin_type": skin_profile_weights.skin_type,
             "sensitivity": skin_profile_weights.sensitivity,
@@ -408,13 +582,120 @@ def _score_candidate(
 def _resolve_score_weights(
     intent: RecommendationIntent,
     weights: ScoreWeights,
-) -> tuple[ScoreWeights, str, tuple[str, ...]]:
+    *,
+    skin_test_context: SkinTestScoringContext | None,
+) -> ScoreWeightResolution:
     signals = _search_intent_signals(intent)
     if weights != DEFAULT_SCORE_WEIGHTS:
-        return weights, "custom", signals
-    if _has_strong_search_intent(intent, signals):
-        return SEARCH_INTENT_SCORE_WEIGHTS, "search_intent_boost", signals
-    return weights, "default", signals
+        base_weights = weights
+        weight_profile = "custom"
+    elif _has_strong_search_intent(intent, signals):
+        base_weights = SEARCH_INTENT_SCORE_WEIGHTS
+        weight_profile = "search_intent_boost"
+    else:
+        base_weights = weights
+        weight_profile = "default"
+
+    active_base_weights = (
+        base_weights
+        if skin_test_context is not None
+        else replace(base_weights, skin_test_context=0.0)
+    )
+    multipliers = _build_weight_multipliers(skin_test_context)
+    resolved_weights = _normalize_weights(active_base_weights, multipliers)
+    return ScoreWeightResolution(
+        weights=resolved_weights,
+        base_weights=active_base_weights,
+        multipliers=multipliers,
+        weight_profile=weight_profile,
+        search_intent_signals=signals,
+    )
+
+
+def _build_weight_multipliers(
+    skin_test_context: SkinTestScoringContext | None,
+) -> ScoreMultipliers:
+    values = {field: 1.0 for field in SCORE_WEIGHT_FIELDS}
+    if skin_test_context is None:
+        return ScoreMultipliers()
+
+    buying_criteria = _commerce_code(skin_test_context, "buying_criteria")
+    if buying_criteria == "ingredient":
+        values["ingredient_effect"] *= 1.04
+        values["ingredient_evidence"] *= 1.12
+    elif buying_criteria == "review":
+        values["market_signal"] *= 2.50
+    elif buying_criteria == "value":
+        values["price"] *= 1.60
+
+    price_investment = _commerce_code(skin_test_context, "price_investment")
+    if price_investment == "daily_repeat_value":
+        values["price"] *= 1.40
+    elif price_investment == "value_volume":
+        values["price"] *= 1.60
+    elif price_investment == "functional_investment":
+        values["ingredient_evidence"] *= 1.08
+        values["concentration_fit"] *= 1.15
+        values["functional_claim"] *= 1.20
+    elif price_investment == "premium_effect":
+        values["price"] *= 0.70
+        values["ingredient_evidence"] *= 1.10
+        values["functional_claim"] *= 1.15
+
+    decision_trigger = _commerce_code(skin_test_context, "decision_trigger")
+    if decision_trigger == "clinical_evidence":
+        values["ingredient_evidence"] *= 1.15
+        values["concentration_fit"] *= 1.12
+        values["functional_claim"] *= 1.15
+    elif decision_trigger == "similar_review":
+        values["market_signal"] *= 2.50
+
+    capped = {
+        field: _cap_weight_multiplier(field, multiplier)
+        for field, multiplier in values.items()
+    }
+    return ScoreMultipliers(**capped)
+
+
+def _normalize_weights(
+    base_weights: ScoreWeights,
+    multipliers: ScoreMultipliers,
+) -> ScoreWeights:
+    weighted_values = {
+        field: max(0.0, getattr(base_weights, field) * getattr(multipliers, field))
+        for field in SCORE_WEIGHT_FIELDS
+    }
+    total = sum(weighted_values.values())
+    if total <= 0:
+        return base_weights
+    return ScoreWeights(
+        **{
+            field: weighted_values[field] / total
+            for field in SCORE_WEIGHT_FIELDS
+        }
+    )
+
+
+def _cap_weight_multiplier(field: str, multiplier: float) -> float:
+    cap = WEIGHT_MULTIPLIER_CAPS.get(field)
+    if cap is None:
+        return multiplier
+    lower, upper = cap
+    return max(lower, min(upper, multiplier))
+
+
+def _weights_to_dict(weights: ScoreWeights) -> dict[str, float]:
+    return {
+        field: getattr(weights, field)
+        for field in SCORE_WEIGHT_FIELDS
+    }
+
+
+def _multipliers_to_dict(multipliers: ScoreMultipliers) -> dict[str, float]:
+    return {
+        field: getattr(multipliers, field)
+        for field in SCORE_WEIGHT_FIELDS
+    }
 
 
 def _has_strong_search_intent(
@@ -719,6 +1000,33 @@ def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tupl
         product_id: tuple(flags)
         for product_id, flags in flags_by_product.items()
     }
+
+
+def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, _MarketSignalInfo]:
+    if not product_ids:
+        return {}
+
+    rows = session.execute(
+        select(ProductPopularityMetric).where(
+            ProductPopularityMetric.product_id.in_(product_ids),
+            ProductPopularityMetric.window_days == MARKET_SIGNAL_WINDOW_DAYS,
+        )
+    ).scalars()
+    return {
+        int(row.product_id): _MarketSignalInfo(
+            popularity_score=_decimal_to_float(row.popularity_score),
+            review_count=int(row.review_count),
+            average_rating=_optional_decimal_to_float(row.average_rating),
+        )
+        for row in rows
+    }
+
+
+def _build_price_score_context(candidates: list[ProductCandidate]) -> _PriceScoreContext | None:
+    prices = [candidate.lowest_price for candidate in candidates if candidate.lowest_price > 0]
+    if not prices:
+        return None
+    return _PriceScoreContext(min_price=min(prices), max_price=max(prices))
 
 
 def _build_contributions_by_effect(
@@ -1140,18 +1448,372 @@ def _most_severe_risk(risk_flags: tuple[RiskFlag, ...]) -> str | None:
     return max(severities, key=lambda severity: severity_rank[severity])
 
 
-def _score_price(price: int, purchase_conditions: ParsedPurchaseConditions) -> float:
+def _score_price(
+    price: int,
+    purchase_conditions: ParsedPurchaseConditions,
+    *,
+    skin_test_context: SkinTestScoringContext | None,
+    price_context: _PriceScoreContext | None,
+) -> float:
     has_price_condition = (
         purchase_conditions.price_min is not None
         or purchase_conditions.price_max is not None
     )
-    if not has_price_condition:
+    if has_price_condition:
+        if purchase_conditions.price_min is not None and price < purchase_conditions.price_min:
+            return 0.0
+        if purchase_conditions.price_max is not None and price > purchase_conditions.price_max:
+            return 0.0
+        return 1.0
+
+    if _is_value_oriented(skin_test_context) and price_context is not None:
+        return _score_relative_affordability(price, price_context)
+    return DEFAULT_PROFILE_SCORE
+
+
+def _score_market_signal(market_signal: _MarketSignalInfo | None) -> float:
+    if market_signal is None:
         return DEFAULT_PROFILE_SCORE
-    if purchase_conditions.price_min is not None and price < purchase_conditions.price_min:
+    return _clamp(market_signal.popularity_score / 100)
+
+
+def _score_skin_test_context(
+    skin_test_context: SkinTestScoringContext | None,
+    *,
+    intent_purchase_conditions: ParsedPurchaseConditions,
+    candidate: ProductCandidate,
+    skin_profile: _SkinProfileInfo | None,
+    risk_flags: tuple[RiskFlag, ...],
+    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    functional_info: _FunctionalInfo | None,
+    manual_skin_type: str | None,
+    manual_sensitivity: str | None,
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+) -> _SkinTestContextScore:
+    if skin_test_context is None:
+        return _SkinTestContextScore(
+            score=DEFAULT_PROFILE_SCORE,
+            axis_scores={},
+            matched_axes=(),
+            query_conflict_axes=(),
+            manual_conflict_axes=(),
+        )
+
+    query_conflict_axes: list[str] = []
+    manual_conflict_axes: list[str] = []
+    components: list[tuple[float, float]] = []
+    axis_scores: dict[str, float] = {}
+
+    od_conflict = _has_manual_skin_type_conflict(
+        skin_test_context,
+        manual_skin_type,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+    )
+    if od_conflict:
+        manual_conflict_axes.append("OD")
+    od_score = _score_od_fit(skin_test_context, skin_profile, manual_conflict=od_conflict)
+    axis_scores["OD"] = od_score
+    components.append((od_score, SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["OD"]))
+
+    sr_conflict = _has_manual_sensitivity_conflict(
+        skin_test_context,
+        manual_sensitivity,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
+    if sr_conflict:
+        manual_conflict_axes.append("SR")
+    sr_score = _score_sr_fit(
+        skin_test_context,
+        skin_profile,
+        risk_flags,
+        manual_conflict=sr_conflict,
+    )
+    axis_scores["SR"] = sr_score
+    components.append((sr_score, SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["SR"]))
+
+    category_query_conflict = bool(intent_purchase_conditions.categories)
+    if category_query_conflict:
+        query_conflict_axes.append("CATEGORY_PREF")
+    category_score = _score_category_preference_fit(
+        skin_test_context,
+        candidate,
+        query_conflict=category_query_conflict,
+    )
+    axis_scores["CATEGORY_PREF"] = category_score
+    components.append((category_score, SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["CATEGORY_PREF"]))
+
+    pn_score = _score_pn_effect_fit(
+        skin_test_context,
+        contributions_by_effect,
+        functional_info,
+    )
+    axis_scores["PN"] = pn_score
+    components.append((pn_score, SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["PN"]))
+
+    wt_score = _score_wt_effect_fit(
+        skin_test_context,
+        contributions_by_effect,
+        functional_info,
+    )
+    axis_scores["WT"] = wt_score
+    components.append((wt_score, SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["WT"]))
+
+    sensitive_safety_score = _score_sensitive_safety_fit(skin_test_context, risk_flags)
+    axis_scores["SENSITIVE_SAFETY"] = sensitive_safety_score
+    components.append(
+        (
+            sensitive_safety_score,
+            SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["SENSITIVE_SAFETY"],
+        )
+    )
+
+    score = _clamp(_weighted_average(tuple(components)))
+    matched_axes = tuple(
+        axis
+        for axis, axis_score in axis_scores.items()
+        if axis_score > DEFAULT_PROFILE_SCORE
+    )
+    return _SkinTestContextScore(
+        score=score,
+        axis_scores=axis_scores,
+        matched_axes=matched_axes,
+        query_conflict_axes=tuple(query_conflict_axes),
+        manual_conflict_axes=tuple(manual_conflict_axes),
+    )
+
+
+def _score_od_fit(
+    skin_test_context: SkinTestScoringContext,
+    skin_profile: _SkinProfileInfo | None,
+    *,
+    manual_conflict: bool,
+) -> float:
+    winner = _axis_winner(skin_test_context, "OD")
+    if skin_profile is None or winner not in {"O", "D"}:
+        raw_score = DEFAULT_PROFILE_SCORE
+    elif winner == "O":
+        raw_score = skin_profile.oily_fit
+    else:
+        raw_score = skin_profile.dry_fit
+    return _adjust_skin_test_axis_score(
+        raw_score,
+        _axis_strength(skin_test_context, "OD"),
+        manual_conflict=manual_conflict,
+    )
+
+
+def _score_sr_fit(
+    skin_test_context: SkinTestScoringContext,
+    skin_profile: _SkinProfileInfo | None,
+    risk_flags: tuple[RiskFlag, ...],
+    *,
+    manual_conflict: bool,
+) -> float:
+    winner = _axis_winner(skin_test_context, "SR")
+    if winner == "S":
+        raw_score = skin_profile.sensitive_fit if skin_profile is not None else _sensitive_safety_score(risk_flags)
+    elif winner == "R":
+        raw_score = _resistant_safety_score(risk_flags)
+    else:
+        raw_score = DEFAULT_PROFILE_SCORE
+    return _adjust_skin_test_axis_score(
+        raw_score,
+        _axis_strength(skin_test_context, "SR"),
+        manual_conflict=manual_conflict,
+    )
+
+
+def _score_category_preference_fit(
+    skin_test_context: SkinTestScoringContext,
+    candidate: ProductCandidate,
+    *,
+    query_conflict: bool,
+) -> float:
+    preferred_code = _commerce_code(skin_test_context, "category_preference")
+    if preferred_code is None:
+        return DEFAULT_PROFILE_SCORE
+    if _category_matches_preference(candidate.category_code, preferred_code):
+        return 1.0
+    if query_conflict:
         return 0.0
-    if purchase_conditions.price_max is not None and price > purchase_conditions.price_max:
-        return 0.0
-    return 1.0
+    return DEFAULT_PROFILE_SCORE
+
+
+def _score_pn_effect_fit(
+    skin_test_context: SkinTestScoringContext,
+    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    functional_info: _FunctionalInfo | None,
+) -> float:
+    winner = _axis_winner(skin_test_context, "PN")
+    if winner != "P":
+        return DEFAULT_PROFILE_SCORE
+    raw_score = _score_effect_signal(PIGMENT_EFFECT_CODES, contributions_by_effect, functional_info)
+    return _adjust_skin_test_axis_score(raw_score, _axis_strength(skin_test_context, "PN"))
+
+
+def _score_wt_effect_fit(
+    skin_test_context: SkinTestScoringContext,
+    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    functional_info: _FunctionalInfo | None,
+) -> float:
+    winner = _axis_winner(skin_test_context, "WT")
+    if winner != "W":
+        return DEFAULT_PROFILE_SCORE
+    raw_score = _score_effect_signal(WRINKLE_EFFECT_CODES, contributions_by_effect, functional_info)
+    return _adjust_skin_test_axis_score(raw_score, _axis_strength(skin_test_context, "WT"))
+
+
+def _score_sensitive_safety_fit(
+    skin_test_context: SkinTestScoringContext,
+    risk_flags: tuple[RiskFlag, ...],
+) -> float:
+    if _axis_winner(skin_test_context, "SR") != "S":
+        return DEFAULT_PROFILE_SCORE
+    return _adjust_skin_test_axis_score(
+        _sensitive_safety_score(risk_flags),
+        _axis_strength(skin_test_context, "SR"),
+    )
+
+
+def _score_effect_signal(
+    effect_codes: tuple[str, ...],
+    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    functional_info: _FunctionalInfo | None,
+) -> float:
+    signal = 0.0
+    for effect_code in effect_codes:
+        contributions = contributions_by_effect.get(effect_code, ())
+        contribution_signal = min(
+            EFFECT_CAP,
+            sum(contribution.effect_component for contribution in contributions),
+        ) / EFFECT_CAP
+        signal = max(signal, contribution_signal)
+
+    if functional_info is not None and functional_info.status == FUNCTIONAL_CONFIRMED_STATUS:
+        claim_effect_codes = {
+            effect_code
+            for claim in functional_info.claims
+            for effect_code in (FUNCTIONAL_CLAIM_EFFECT_CODES.get(claim),)
+            if effect_code
+        }
+        if claim_effect_codes & set(effect_codes):
+            signal = max(signal, 0.9)
+
+    return _clamp(DEFAULT_PROFILE_SCORE + signal * 0.5)
+
+
+def _adjust_skin_test_axis_score(
+    score: float,
+    strength: str | None,
+    *,
+    manual_conflict: bool = False,
+) -> float:
+    strength_multiplier = SKIN_TEST_AXIS_STRENGTH_MULTIPLIERS.get(strength or "", 0.6)
+    adjusted = _adjust_score_by_multiplier(score, strength_multiplier)
+    if manual_conflict:
+        adjusted = _adjust_score_by_multiplier(adjusted, 0.5)
+    return adjusted
+
+
+def _sensitive_safety_score(risk_flags: tuple[RiskFlag, ...]) -> float:
+    most_severe = _most_severe_risk(risk_flags)
+    if most_severe == "high":
+        return 0.3
+    if most_severe == "medium":
+        return 0.55
+    if most_severe == "low":
+        return 0.75
+    return 0.85
+
+
+def _resistant_safety_score(risk_flags: tuple[RiskFlag, ...]) -> float:
+    most_severe = _most_severe_risk(risk_flags)
+    if most_severe == "high":
+        return 0.65
+    if most_severe == "medium":
+        return 0.8
+    if most_severe == "low":
+        return 0.9
+    return 0.95
+
+
+def _score_relative_affordability(price: int, price_context: _PriceScoreContext) -> float:
+    if price <= 0 or price_context.max_price <= price_context.min_price:
+        return DEFAULT_PROFILE_SCORE
+    ratio = (price - price_context.min_price) / (price_context.max_price - price_context.min_price)
+    return _clamp(1.0 - ratio)
+
+
+def _is_value_oriented(skin_test_context: SkinTestScoringContext | None) -> bool:
+    if skin_test_context is None:
+        return False
+    return (
+        _commerce_code(skin_test_context, "buying_criteria") in VALUE_ORIENTED_BUYING_CRITERIA
+        or _commerce_code(skin_test_context, "price_investment") in VALUE_ORIENTED_PRICE_INVESTMENTS
+    )
+
+
+def _axis_winner(skin_test_context: SkinTestScoringContext, axis: str) -> str | None:
+    axis_score = skin_test_context.axis_scores.get(axis, {})
+    if not isinstance(axis_score, dict):
+        return None
+    winner = axis_score.get("winner")
+    return str(winner) if winner else None
+
+
+def _axis_strength(skin_test_context: SkinTestScoringContext, axis: str) -> str | None:
+    axis_score = skin_test_context.axis_scores.get(axis, {})
+    if not isinstance(axis_score, dict):
+        return None
+    strength = axis_score.get("strength")
+    return str(strength) if strength else None
+
+
+def _commerce_code(skin_test_context: SkinTestScoringContext, key: str) -> str | None:
+    value = skin_test_context.commerce_profile.get(key)
+    if isinstance(value, dict):
+        code = value.get("code")
+        return str(code) if code else None
+    return None
+
+
+def _category_matches_preference(category_code: str, preferred_code: str) -> bool:
+    aliases = {
+        "toner_pad": {"toner", "pad", "toner_pad"},
+        "ampoule_serum_essence": {"ampoule", "serum", "essence"},
+        "lotion_cream": {"lotion", "cream"},
+        "suncare": {"suncare", "sun", "sunscreen"},
+    }
+    return category_code in aliases.get(preferred_code, {preferred_code})
+
+
+def _has_manual_skin_type_conflict(
+    skin_test_context: SkinTestScoringContext,
+    manual_skin_type: str | None,
+    *,
+    manual_skin_type_explicit: bool,
+) -> bool:
+    if not manual_skin_type_explicit or not manual_skin_type:
+        return False
+    return (
+        _normalize_profile_value(manual_skin_type)
+        != _normalize_profile_value(skin_test_context.mapped_skin_type)
+    )
+
+
+def _has_manual_sensitivity_conflict(
+    skin_test_context: SkinTestScoringContext,
+    manual_sensitivity: str | None,
+    *,
+    manual_sensitivity_explicit: bool,
+) -> bool:
+    if not manual_sensitivity_explicit or not manual_sensitivity:
+        return False
+    return (
+        _normalize_profile_value(manual_sensitivity)
+        != _normalize_profile_value(skin_test_context.mapped_sensitivity)
+    )
 
 
 def _build_score_evidence(

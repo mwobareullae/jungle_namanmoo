@@ -49,7 +49,13 @@ def post_recommendation(
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
     started_at = current_time()
-    response = create_recommendation_response(session, request, page=page, page_size=page_size)
+    response = create_recommendation_response(
+        session,
+        request,
+        page=page,
+        page_size=page_size,
+        current_user=current_user,
+    )
     _record_recommendation_event(
         session,
         http_request=http_request,
