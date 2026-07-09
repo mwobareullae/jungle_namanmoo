@@ -110,6 +110,18 @@ def row(label: str, value: str | int | float | None) -> str:
     return f"| {label} | {value if value not in (None, '') else 'N/A'} |"
 
 
+def truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def auth_home_for_you_summary(enabled: str, cookie_provided: str) -> str:
+    if truthy(enabled) and truthy(cookie_provided):
+        return "enabled, AUTH_COOKIE provided. home_for_you_auth 실행"
+    if truthy(enabled):
+        return "enabled, but AUTH_COOKIE empty. home_for_you_auth 미실행"
+    return "disabled. 비로그인/fallback for-you만 실행"
+
+
 def max_cpu_mem(stats: dict, alias: str) -> str:
     name = CONTAINER_ALIASES[alias]
     cpu = stats["max_cpu"].get(name)
@@ -119,7 +131,98 @@ def max_cpu_mem(stats: dict, alias: str) -> str:
     return f"{cpu:.2f}% / {mem}" if cpu is not None else f"N/A / {mem}"
 
 
-def endpoint_rows(k6: dict, *, limit: int = 12) -> str:
+def load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def format_rds_value(value: float | int | None, display_unit: str, *, stat: str, warn: bool = False) -> str:
+    if value is None:
+        return "-"
+
+    numeric = float(value)
+    if display_unit == "percent":
+        text = f"{numeric:.2f}%"
+    elif display_unit == "bytes_mb":
+        text = f"{numeric / 1024 / 1024:.2f} MB"
+    elif display_unit == "bytes_gb":
+        text = f"{numeric / 1024 / 1024 / 1024:.2f} GB"
+    elif display_unit == "seconds_ms":
+        text = f"{numeric * 1000:.2f} ms"
+    elif display_unit == "count":
+        text = f"{numeric:.0f}"
+    else:
+        text = f"{numeric:.2f}"
+
+    if warn and stat == "average":
+        text = f"⚠️ {text}"
+    return text
+
+
+def rds_metric_rows(rds: dict, *, cpu_avg_warn_pct: float) -> str:
+    metadata = rds.get("metadata") or {}
+    if metadata.get("enabled") is False:
+        return "| RDS CloudWatch | 비활성화 | - | - | - | - |"
+    if metadata.get("error"):
+        error = flatten_for_table_cell(str(metadata.get("error")), fallback="수집 실패")
+        return f"| RDS CloudWatch | {error} | - | - | - | - |"
+
+    metrics = rds.get("metrics") or {}
+    definitions = [
+        ("CPUUtilization", "CPU 사용률(%)"),
+        ("FreeableMemory", "남은 메모리(MB)"),
+        ("DatabaseConnections", "DB 연결 수"),
+        ("ReadIOPS", "Read IOPS"),
+        ("WriteIOPS", "Write IOPS"),
+        ("ReadLatency", "Read Latency(ms)"),
+        ("WriteLatency", "Write Latency(ms)"),
+        ("FreeStorageSpace", "남은 스토리지(GB)"),
+    ]
+
+    rows: list[str] = []
+    for metric_name, label in definitions:
+        metric = metrics.get(metric_name) or {}
+        display_unit = metric.get("display_unit") or ""
+        average = metric.get("average")
+        cpu_warn = metric_name == "CPUUtilization" and isinstance(average, (int, float)) and average > cpu_avg_warn_pct
+        rows.append(
+            "| {label} | {avg} | {max_} | {min_} | {count} | {error} |".format(
+                label=label,
+                avg=format_rds_value(average, display_unit, stat="average", warn=cpu_warn),
+                max_=format_rds_value(metric.get("maximum"), display_unit, stat="maximum"),
+                min_=format_rds_value(metric.get("minimum"), display_unit, stat="minimum"),
+                count=metric.get("datapoint_count", 0),
+                error=flatten_for_table_cell(str(metric.get("error") or ""), fallback="-"),
+            )
+        )
+    return "\n".join(rows)
+
+
+def rds_note(rds: dict) -> str:
+    metadata = rds.get("metadata") or {}
+    metrics = rds.get("metrics") or {}
+    datapoint_counts = [
+        metric.get("datapoint_count", 0)
+        for metric in metrics.values()
+        if isinstance(metric, dict)
+    ]
+    max_datapoints = max(datapoint_counts) if datapoint_counts else 0
+    if metadata.get("enabled") is False:
+        return "RDS CloudWatch 수집 비활성화"
+    if metadata.get("error"):
+        return "RDS CloudWatch 수집 실패"
+    if any(isinstance(metric, dict) and metric.get("error") for metric in metrics.values()):
+        return "일부 RDS 지표 수집 오류. note 열 또는 rds-metrics.log를 확인합니다."
+    if max_datapoints < 3:
+        return "데이터 포인트가 적어 smoke 결과는 참고용으로 봅니다."
+    return "-"
+
+
+def endpoint_rows(k6: dict, *, limit: int = 16) -> str:
     endpoints = k6.get("by_endpoint") or {}
     rows: list[str] = []
     sorted_items = sorted(
@@ -132,9 +235,9 @@ def endpoint_rows(k6: dict, *, limit: int = 12) -> str:
     )
     for endpoint, values in sorted_items[:limit]:
         rows.append(
-            f"| {endpoint} | {values.get('count')} | {format_ms(values.get('avg_ms'))} | {format_ms(values.get('p95_ms'))} |"
+            f"| {endpoint} | {values.get('count')} | {format_ms(values.get('avg_ms'))} | {format_ms(values.get('p50_ms'))} | {format_ms(values.get('p95_ms'))} | {format_ms(values.get('p99_ms'))} |"
         )
-    return "\n".join(rows) if rows else "| N/A | N/A | N/A | N/A |"
+    return "\n".join(rows) if rows else "| N/A | N/A | N/A | N/A | N/A | N/A |"
 
 
 def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, sla_ms: float) -> tuple[str, str, str]:
@@ -181,6 +284,7 @@ def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--title", default="k6 Performance Run")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--git-sha", required=True)
     parser.add_argument("--server", required=True)
@@ -188,6 +292,8 @@ def main() -> None:
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--data-label", required=True)
     parser.add_argument("--cart-writes", required=True)
+    parser.add_argument("--auth-home-for-you", default="false")
+    parser.add_argument("--auth-cookie-provided", default="false")
     parser.add_argument("--start-utc", required=True)
     parser.add_argument("--end-utc", required=True)
     parser.add_argument("--start-kst", required=True)
@@ -197,6 +303,8 @@ def main() -> None:
     parser.add_argument("--backend-log", required=True)
     parser.add_argument("--data-counts", required=True)
     parser.add_argument("--container-health", required=True)
+    parser.add_argument("--rds-metrics", required=True)
+    parser.add_argument("--rds-cpu-avg-warn-pct", type=float, default=40)
     parser.add_argument("--sla-ms", type=float, default=3000)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -205,6 +313,7 @@ def main() -> None:
     stats = parse_stats_log(Path(args.stats_log))
     data_counts = load_key_values(Path(args.data_counts))
     container_health = flatten_for_table_cell(read_text(Path(args.container_health)))
+    rds_metrics = load_json(Path(args.rds_metrics))
     backend_log_path = Path(args.backend_log)
     slow_query_count = count_slow_queries(backend_log_path)
     notable_error_count = count_notable_errors(backend_log_path)
@@ -229,7 +338,7 @@ def main() -> None:
         else None
     )
 
-    report = f"""# k6 Performance Run
+    report = f"""# {args.title}
 
 ## 어떤 테스트를 했는가
 
@@ -241,7 +350,11 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 - `GET /api/products/popular`
 - `GET /api/products/{{product_id}}`
 - `GET /api/products/search`
-- `GET /api/home/sections`
+- `GET /api/home/layout`
+- `GET /api/home/market-popular`
+- `GET /api/home/evidence-picks`
+- `GET /api/home/for-you` 비로그인/fallback 및 선택 조건
+- `GET /api/home/for-you` 로그인 사용자 선택 실행 (`AUTH_HOME_FOR_YOU=true` + `AUTH_COOKIE` 필요)
 - `POST /api/recommendations`
 - `GET /api/recommendations/{{recommendation_id}}`
 - `GET /api/products/{{product_id}}?recommendation_id=...`
@@ -260,6 +373,7 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("Data label", args.data_label)}
 {row("Profile", args.profile)}
 {row("Cart writes", args.cart_writes)}
+{row("Auth home for-you", auth_home_for_you_summary(args.auth_home_for_you, args.auth_cookie_provided))}
 {row("Started at UTC", args.start_utc)}
 {row("Ended at UTC", args.end_utc)}
 {row("Started at KST", args.start_kst)}
@@ -290,15 +404,18 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("http_reqs/s", reqs_per_sec_display)}
 {row("http_req_failed", failed_display)}
 {row("http_req_duration avg", format_ms(k6.get("http_req_duration_avg_ms")))}
+{row("http_req_duration p50", format_ms(k6.get("http_req_duration_p50_ms")))}
 {row("http_req_duration p95", format_ms(k6.get("http_req_duration_p95_ms")))}
+{row("http_req_duration p99", format_ms(k6.get("http_req_duration_p99_ms")))}
 {row("type=fast p95", format_ms((by_type.get("fast") or {}).get("p95_ms")))}
+{row("type=home p95", format_ms((by_type.get("home") or {}).get("p95_ms")))}
 {row("type=search p95", format_ms((by_type.get("search") or {}).get("p95_ms")))}
 {row("type=write p95", format_ms((by_type.get("write") or {}).get("p95_ms")))}
 
 ## Endpoint
 
-| endpoint | count | avg | p95 |
-| --- | --- | --- | --- |
+| endpoint | count | avg | p50 | p95 | p99 |
+| --- | --- | --- | --- | --- | --- |
 {endpoint_rows(k6)}
 
 ## Server
@@ -313,6 +430,14 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("max active", stats["max_conn"]["active"])}
 {row("max idle in transaction", stats["max_conn"]["idle in transaction"])}
 {row("container restart/OOM", container_health)}
+
+## RDS 지표
+
+| 지표 | Avg | Max | Min | datapoints | note |
+| --- | --- | --- | --- | --- | --- |
+{rds_metric_rows(rds_metrics, cpu_avg_warn_pct=args.rds_cpu_avg_warn_pct)}
+
+RDS note: {rds_note(rds_metrics)}
 
 ## Logs
 
