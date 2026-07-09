@@ -1,0 +1,8 @@
+rule_id,condition,issue_type,recommended_action,confidence,note
+R001,product_name starts with Numbuzin but current_brand is not Numbuzin/넘버즈인,brand_mismatch,fix_brand,0.95,Do not alias Numbuzin with the wrong current_brand.
+R002,product_name starts with 111SKIN but current_brand is not 111SKIN,brand_mismatch,fix_brand,0.95,Treat as source brand pollution.
+R003,product_name starts with Clé de Peau Beauté/Cle de Peau Beaute but current_brand differs,brand_mismatch,fix_brand,0.95,Accent-insensitive brand prefix match.
+R004,brand is Dr Dennis Gross or Dr. Dennis Gross Skincare,brand_alias_candidate,add_brand_alias,0.90,"Same brand family; keep as alias candidate, not product brand pollution."
+R005,brand is Numbuzin or 넘버즈인,brand_alias_candidate,add_brand_alias,0.90,Korean/English display alias only.
+R006,foreign-source product_name clearly starts with a catalog brand token and current_brand differs,brand_mismatch,fix_brand,0.82,Use broad catalog brand prefix only for foreign sources with known brand pollution.
+R007,same normalized product_name appears under multiple current_brand values and no reliable prefix brand is found,needs_manual_review,manual_review,0.55,Do not auto-fix when product_name does not strongly identify a brand.

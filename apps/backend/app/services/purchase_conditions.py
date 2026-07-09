@@ -327,7 +327,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _code_from_text(text: str) -> str:
-    return re.sub(r"[^0-9a-zA-Z가-힣]+", "", text.casefold())
+    return "".join(text.casefold().split())
 
 
 def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
@@ -339,3 +339,4 @@ def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
             aliases.append(value)
             seen.add(normalized)
     return tuple(aliases)
+
