@@ -241,6 +241,7 @@ k6 run tests/k6/commerce-smoke.js
 - backend 5xx 급증 없음
 - backend/Elasticsearch/Redis OOM 없음
 - RDS PostgreSQL connection 고갈 없음
+- RDS CloudWatch 지표에서 CPU/IOPS/latency 급증 없음
 
 latency:
 
@@ -300,6 +301,23 @@ with SessionLocal() as db:
 PY
 ```
 
+RDS CloudWatch:
+
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name CPUUtilization \
+  --dimensions Name=DBInstanceIdentifier,Value=mubarelle-db \
+  --start-time "<START_TIME_UTC>" \
+  --end-time "<END_TIME_UTC>" \
+  --period 60 \
+  --statistics Average Maximum \
+  --region ap-northeast-2 \
+  --output json
+```
+
+자동화 스크립트는 k6 종료 후 `CLOUDWATCH_WAIT_SECONDS`만큼 기다린 뒤 RDS 지표를 수집합니다. 기본값은 180초입니다.
+
 ES health:
 
 ```bash
@@ -336,6 +354,10 @@ k6:
 server:
 - backend max cpu/mem:
 - rds/postgres connection max:
+- rds cpu avg/max:
+- rds free memory min:
+- rds read/write iops:
+- rds read/write latency:
 - elasticsearch max cpu/mem:
 - redis max cpu/mem:
 - pg_stat_activity max:

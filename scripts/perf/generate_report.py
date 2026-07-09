@@ -119,6 +119,97 @@ def max_cpu_mem(stats: dict, alias: str) -> str:
     return f"{cpu:.2f}% / {mem}" if cpu is not None else f"N/A / {mem}"
 
 
+def load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def format_rds_value(value: float | int | None, display_unit: str, *, stat: str, warn: bool = False) -> str:
+    if value is None:
+        return "-"
+
+    numeric = float(value)
+    if display_unit == "percent":
+        text = f"{numeric:.2f}%"
+    elif display_unit == "bytes_mb":
+        text = f"{numeric / 1024 / 1024:.2f} MB"
+    elif display_unit == "bytes_gb":
+        text = f"{numeric / 1024 / 1024 / 1024:.2f} GB"
+    elif display_unit == "seconds_ms":
+        text = f"{numeric * 1000:.2f} ms"
+    elif display_unit == "count":
+        text = f"{numeric:.0f}"
+    else:
+        text = f"{numeric:.2f}"
+
+    if warn and stat == "average":
+        text = f"⚠️ {text}"
+    return text
+
+
+def rds_metric_rows(rds: dict, *, cpu_avg_warn_pct: float) -> str:
+    metadata = rds.get("metadata") or {}
+    if metadata.get("enabled") is False:
+        return "| RDS CloudWatch | 비활성화 | - | - | - | - |"
+    if metadata.get("error"):
+        error = flatten_for_table_cell(str(metadata.get("error")), fallback="수집 실패")
+        return f"| RDS CloudWatch | {error} | - | - | - | - |"
+
+    metrics = rds.get("metrics") or {}
+    definitions = [
+        ("CPUUtilization", "CPU 사용률(%)"),
+        ("FreeableMemory", "남은 메모리(MB)"),
+        ("DatabaseConnections", "DB 연결 수"),
+        ("ReadIOPS", "Read IOPS"),
+        ("WriteIOPS", "Write IOPS"),
+        ("ReadLatency", "Read Latency(ms)"),
+        ("WriteLatency", "Write Latency(ms)"),
+        ("FreeStorageSpace", "남은 스토리지(GB)"),
+    ]
+
+    rows: list[str] = []
+    for metric_name, label in definitions:
+        metric = metrics.get(metric_name) or {}
+        display_unit = metric.get("display_unit") or ""
+        average = metric.get("average")
+        cpu_warn = metric_name == "CPUUtilization" and isinstance(average, (int, float)) and average > cpu_avg_warn_pct
+        rows.append(
+            "| {label} | {avg} | {max_} | {min_} | {count} | {error} |".format(
+                label=label,
+                avg=format_rds_value(average, display_unit, stat="average", warn=cpu_warn),
+                max_=format_rds_value(metric.get("maximum"), display_unit, stat="maximum"),
+                min_=format_rds_value(metric.get("minimum"), display_unit, stat="minimum"),
+                count=metric.get("datapoint_count", 0),
+                error=flatten_for_table_cell(str(metric.get("error") or ""), fallback="-"),
+            )
+        )
+    return "\n".join(rows)
+
+
+def rds_note(rds: dict) -> str:
+    metadata = rds.get("metadata") or {}
+    metrics = rds.get("metrics") or {}
+    datapoint_counts = [
+        metric.get("datapoint_count", 0)
+        for metric in metrics.values()
+        if isinstance(metric, dict)
+    ]
+    max_datapoints = max(datapoint_counts) if datapoint_counts else 0
+    if metadata.get("enabled") is False:
+        return "RDS CloudWatch 수집 비활성화"
+    if metadata.get("error"):
+        return "RDS CloudWatch 수집 실패"
+    if any(isinstance(metric, dict) and metric.get("error") for metric in metrics.values()):
+        return "일부 RDS 지표 수집 오류. note 열 또는 rds-metrics.log를 확인합니다."
+    if max_datapoints < 3:
+        return "데이터 포인트가 적어 smoke 결과는 참고용으로 봅니다."
+    return "-"
+
+
 def endpoint_rows(k6: dict, *, limit: int = 16) -> str:
     endpoints = k6.get("by_endpoint") or {}
     rows: list[str] = []
@@ -198,6 +289,8 @@ def main() -> None:
     parser.add_argument("--backend-log", required=True)
     parser.add_argument("--data-counts", required=True)
     parser.add_argument("--container-health", required=True)
+    parser.add_argument("--rds-metrics", required=True)
+    parser.add_argument("--rds-cpu-avg-warn-pct", type=float, default=40)
     parser.add_argument("--sla-ms", type=float, default=3000)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -206,6 +299,7 @@ def main() -> None:
     stats = parse_stats_log(Path(args.stats_log))
     data_counts = load_key_values(Path(args.data_counts))
     container_health = flatten_for_table_cell(read_text(Path(args.container_health)))
+    rds_metrics = load_json(Path(args.rds_metrics))
     backend_log_path = Path(args.backend_log)
     slow_query_count = count_slow_queries(backend_log_path)
     notable_error_count = count_notable_errors(backend_log_path)
@@ -320,6 +414,14 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("max active", stats["max_conn"]["active"])}
 {row("max idle in transaction", stats["max_conn"]["idle in transaction"])}
 {row("container restart/OOM", container_health)}
+
+## RDS 지표
+
+| 지표 | Avg | Max | Min | datapoints | note |
+| --- | --- | --- | --- | --- | --- |
+{rds_metric_rows(rds_metrics, cpu_avg_warn_pct=args.rds_cpu_avg_warn_pct)}
+
+RDS note: {rds_note(rds_metrics)}
 
 ## Logs
 
