@@ -7,6 +7,10 @@ const PROFILE = __ENV.PROFILE || "smoke";
 const CART_WRITES_ENABLED =
   (__ENV.CART_WRITES || __ENV.ENABLE_CART_WRITES || "false").toLowerCase() === "true";
 const DEBUG_ERRORS = (__ENV.DEBUG_ERRORS || "false").toLowerCase() === "true";
+const SLA_MS = Number(__ENV.SLA_MS || "3000");
+const AUTH_COOKIE = __ENV.AUTH_COOKIE || "";
+const AUTH_HOME_FOR_YOU_ENABLED =
+  (__ENV.AUTH_HOME_FOR_YOU || __ENV.ENABLE_AUTH_HOME_FOR_YOU || "false").toLowerCase() === "true";
 const PRODUCT_IDS = (__ENV.PRODUCT_IDS || "")
   .split(",")
   .map((value) => value.trim())
@@ -19,6 +23,9 @@ const SEARCH_QUERIES = (__ENV.SEARCH_QUERIES || "세럼,수분 크림,나이아�
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const NARRATIVE_ENABLED =
+  (__ENV.NARRATIVE || __ENV.ENABLE_RECOMMENDATION_NARRATIVE || "true").toLowerCase() === "true";
+const NARRATIVE_USE_LLM = (__ENV.NARRATIVE_USE_LLM || "false").toLowerCase() === "true";
 
 const recommendationIds = new Counter("recommendation_ids_created");
 const cartWrites = new Counter("cart_writes_attempted");
@@ -69,14 +76,13 @@ export const options = {
   },
   thresholds: {
     http_req_failed: ["rate<0.01"],
-    "http_req_duration{type:fast}": ["p(95)<3000"],
-    "http_req_duration{type:search}": ["p(95)<3000"],
-    ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": ["p(95)<3000"] } : {}),
+    "http_req_duration{type:fast}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:home}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:search}": [`p(95)<${SLA_MS}`],
+    ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": [`p(95)<${SLA_MS}`] } : {}),
   },
 };
 
-const SKIN_TYPES = ["건성", "지성", "복합성", "중성", "수부지"];
-const SENSITIVITY = ["낮음", "보통", "높음", "민감"];
 const RECOMMENDATION_CASES = [
   {
     concern_text: "요즘 피부가 건조하고 각질이 일어나요",
@@ -99,7 +105,7 @@ const RECOMMENDATION_CASES = [
   {
     concern_text: "피부가 예민해서 자극 없는 진정 제품이 필요해요",
     skin_type: "수부지",
-    sensitivity: "민감",
+    sensitivity: "높음",
     avoid_ingredients: ["알코올"],
   },
   {
@@ -177,19 +183,66 @@ export function userJourney(data) {
     });
   });
 
-  group("home_sections", () => {
-    const skinType = pick(SKIN_TYPES);
-    const sensitivity = pick(SENSITIVITY);
-    const response = http.get(
-      `${BASE_URL}/home/sections?skin_type=${encodeURIComponent(skinType)}&sensitivity=${encodeURIComponent(sensitivity)}&limit_per_section=8`,
-      { tags: { endpoint: "home_sections", type: "search" } },
-    );
-    debugFailedResponse("home_sections", response);
-    check(response, {
-      "home sections 200": (res) => res.status === 200,
-      "home has sections": (res) => (parseJson(res)?.sections || []).length > 0,
+  group("home_layout", () => {
+    const response = http.get(`${BASE_URL}/home/layout`, {
+      tags: { endpoint: "home_layout", type: "home" },
     });
+    debugFailedResponse("home_layout", response);
+    check(response, { "home layout 200": (res) => res.status === 200 });
   });
+
+  group("home_market_popular", () => {
+    const response = http.get(`${BASE_URL}/home/market-popular?limit=12`, {
+      tags: { endpoint: "home_market_popular", type: "home" },
+    });
+    debugFailedResponse("home_market_popular", response);
+    check(response, { "home market popular 200": (res) => res.status === 200 });
+  });
+
+  group("home_evidence_picks", () => {
+    const response = http.get(`${BASE_URL}/home/evidence-picks?limit=12`, {
+      tags: { endpoint: "home_evidence_picks", type: "home" },
+    });
+    debugFailedResponse("home_evidence_picks", response);
+    check(response, { "home evidence picks 200": (res) => res.status === 200 });
+  });
+
+  group("home_for_you_fallback", () => {
+    const response = http.get(`${BASE_URL}/home/for-you?limit=12`, {
+      tags: { endpoint: "home_for_you_fallback", type: "home" },
+    });
+    debugFailedResponse("home_for_you_fallback", response);
+    check(response, { "home for you fallback 200": (res) => res.status === 200 });
+  });
+
+  group("home_for_you_selected_dry", () => {
+    const response = http.get(
+      `${BASE_URL}/home/for-you?skin_type=${encodeURIComponent("건성")}&sensitivity=${encodeURIComponent("높음")}&limit=12`,
+      { tags: { endpoint: "home_for_you_selected_dry", type: "home" } },
+    );
+    debugFailedResponse("home_for_you_selected_dry", response);
+    check(response, { "home for you selected dry 200": (res) => res.status === 200 });
+  });
+
+  group("home_for_you_selected_trouble", () => {
+    const response = http.get(
+      `${BASE_URL}/home/for-you?skin_type=${encodeURIComponent("지성")}&sensitivity=${encodeURIComponent("보통")}&concern=${encodeURIComponent("트러블")}&limit=12`,
+      { tags: { endpoint: "home_for_you_selected_trouble", type: "home" } },
+    );
+    debugFailedResponse("home_for_you_selected_trouble", response);
+    check(response, { "home for you selected trouble 200": (res) => res.status === 200 });
+  });
+
+  if (AUTH_HOME_FOR_YOU_ENABLED && AUTH_COOKIE) {
+    group("home_for_you_auth", () => {
+      const response = http.get(`${BASE_URL}/home/for-you?limit=12`, {
+        headers: { Cookie: AUTH_COOKIE },
+        tags: { endpoint: "home_for_you_auth", type: "home" },
+      });
+      debugFailedResponse("home_for_you_auth", response);
+      check(response, { "home for you auth 200": (res) => res.status === 200 });
+    });
+  }
 
   if (HEAVY_PRODUCT_IDS.length > 0) {
     group("heavy_product_detail", () => {
@@ -234,6 +287,30 @@ export function userJourney(data) {
       debugFailedResponse("recommendations_get", response);
       check(response, { "recommend get 200": (res) => res.status === 200 });
     });
+
+    if (NARRATIVE_ENABLED) {
+      group("recommendation_narrative", () => {
+        const payload = JSON.stringify({
+          view: "cards",
+          product_limit: 5,
+          use_llm: NARRATIVE_USE_LLM,
+        });
+        const response = http.post(
+          `${BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
+          payload,
+          {
+            headers: { "Content-Type": "application/json" },
+            tags: { endpoint: "recommendation_narrative", type: "search" },
+          },
+        );
+        const body = parseJson(response);
+        debugFailedResponse("recommendation_narrative", response);
+        check(response, {
+          "narrative 200": (res) => res.status === 200,
+          "narrative has products": () => (body?.narrative?.product_explanations || []).length > 0,
+        });
+      });
+    }
   }
 
   if (recommendationId && recommendedProductIds.length > 0) {
