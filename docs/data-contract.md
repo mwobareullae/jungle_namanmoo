@@ -335,7 +335,7 @@ skin_profile_score =
 + sensitive_fit * 0.4
 ```
 
-예를 들어 사용자가 `건성`, `민감`이고 상품의 `dry_fit=0.9`, `sensitive_fit=0.8`이면:
+예를 들어 사용자가 `건성`, `높음`이고 상품의 `dry_fit=0.9`, `sensitive_fit=0.8`이면:
 
 ```text
 skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
