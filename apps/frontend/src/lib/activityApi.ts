@@ -49,6 +49,7 @@ export type ActivityProductItem = {
   price: number;
   thumbnailUrl: string | null;
   dateLabel?: string;
+  rawDate?: string;
   tags: string[];
   isWished: boolean;
 };
@@ -90,6 +91,7 @@ const mapActivityProduct = (
   price: item.product.lowest_price,
   thumbnailUrl: getProductImageUrl(item.product.thumbnail_url, "w400") || null,
   dateLabel: options.dateText ? formatActivityDateLabel(options.dateText) : undefined,
+  rawDate: options.dateText,
   tags: mapProductTags(item.product),
   isWished: options.isWished
 });
@@ -99,7 +101,7 @@ export const getMyWishlist = async (limit = 50): Promise<ActivityProductItem[]> 
   const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist?${query}`);
   const data = await parseJson<BackendWishlistResponse>(response);
 
-  return data.items.map((item) => mapActivityProduct(item, { isWished: true }));
+  return data.items.map((item) => mapActivityProduct(item, { dateText: item.added_at, isWished: true }));
 };
 
 export const addMyWishlistItem = async (productId: string): Promise<ActivityProductItem> => {

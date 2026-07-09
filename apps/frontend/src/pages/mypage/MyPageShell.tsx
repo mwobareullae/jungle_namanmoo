@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { Fragment, useContext, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import HomeHeader from "../../components/HomeHeader";
@@ -123,7 +123,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(null);
   const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
   const [toast, setToast] = useState<MypageToast | null>(null);
-  const [hoveredNavLabel, setHoveredNavLabel] = useState<string | null>(null);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
   const authUserId = authUser?.id;
   const skinProfileUserId = skinProfile?.userId;
@@ -268,22 +267,26 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   return (
     <div style={styles.shell}>
       <HomeHeader />
-      <nav style={styles.mobileTabs} aria-label="마이페이지 모바일 메뉴">
+      <nav
+        aria-label="마이페이지 모바일 메뉴"
+        className="flex gap-1 overflow-x-auto border-b border-[#e0e0e0] md:hidden"
+      >
         {navItems.filter((item) => item.path).map((item) => (
           <Link
+            className={`inline-flex items-center whitespace-nowrap border-b-2 px-3.5 py-[11px] text-[13px] no-underline ${
+              currentPath === item.path
+                ? "border-[#0C1117] font-bold text-[#0C1117]"
+                : "border-transparent text-[#737b7a]"
+            }`}
             key={item.label}
             to={item.path}
-            style={{
-              ...styles.mobileTab,
-              ...(currentPath === item.path ? styles.mobileTabActive : {})
-            }}
           >
             {item.label}
           </Link>
         ))}
       </nav>
-      <main style={styles.page}>
-        <aside style={styles.sidebar} aria-label="마이페이지 메뉴">
+      <main className="mx-auto grid w-[calc(100%-40px)] items-start gap-12 py-9 pb-[72px] md:w-[min(1180px,calc(100%-80px))] md:grid-cols-[220px_minmax(0,1fr)]">
+        <aside aria-label="마이페이지 메뉴" className="sticky top-6 hidden md:block">
           <section style={styles.userBlock}>
             <ProfileAvatar size="small" />
             <div>
@@ -293,26 +296,28 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
               </p>
             </div>
           </section>
-          <nav style={styles.sidebarNav}>
+          <nav className="mt-3.5 overflow-hidden rounded-lg border border-[#e0e0e0]">
             {[1, 2, 3].map((group) => (
-              <div key={group} style={group === 1 ? styles.navGroup : styles.navGroupWithLine}>
+              <div
+                className={group === 1 ? "py-7" : "border-t border-[#e0e0e0] py-7"}
+                key={group}
+              >
                 {navItems.filter((item) => item.group === group).map((item) => (
                   item.path ? (
                     <Link
+                      className={`block px-8 py-3 text-[17px] leading-[1.5] no-underline hover:bg-black/[0.04] ${
+                        currentPath === item.path ? "font-bold text-[#0C1117]" : "font-normal text-[#444444]"
+                      }`}
                       key={item.label}
                       to={item.path}
-                      onMouseEnter={() => setHoveredNavLabel(item.label)}
-                      onMouseLeave={() => setHoveredNavLabel(null)}
-                      style={{
-                        ...styles.navItem,
-                        ...(hoveredNavLabel === item.label ? styles.navItemHover : {}),
-                        ...(currentPath === item.path ? styles.navItemActive : {})
-                      }}
                     >
                       {item.label}
                     </Link>
                   ) : (
-                    <span key={item.label} style={styles.navDisabled}>
+                    <span
+                      className="block px-8 py-3 text-[17px] font-normal leading-[1.5] text-[#444444]"
+                      key={item.label}
+                    >
                       {item.label}
                     </span>
                   )
@@ -321,7 +326,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
             ))}
           </nav>
         </aside>
-        <section style={styles.content}>
+        <section className="min-w-0">
           {children ?? (
             <MyPageOverview
               onToast={showMypageToast}
@@ -381,7 +386,7 @@ function UserSummaryCard({
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.summarySectionTitle}>기본 프로필</h3>
         </div>
-        <div style={styles.profileContentRow}>
+        <div className="flex flex-wrap items-center justify-between gap-6">
           <div style={styles.summaryHeader}>
             <ProfileAvatar size="large" />
             <div>
@@ -391,9 +396,9 @@ function UserSummaryCard({
           </div>
           <div style={styles.profileSideActions}>
             <button
-              type="button"
-              style={styles.profileEditButton}
+              className="min-h-[42px] min-w-[70px] rounded-full border border-[#e1e5e8] bg-white px-[22px] text-[15px] font-semibold text-[#333333] hover:bg-[#FAFAFA]"
               onClick={() => onToast("준비중입니다.")}
+              type="button"
             >
               설정
             </button>
@@ -405,19 +410,32 @@ function UserSummaryCard({
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.orderSectionTitle}>주문/배송 조회</h3>
           <Link
+            className="inline-flex items-center gap-[3px] text-[13px] font-semibold text-[#7b8794] no-underline hover:text-[#1A1A1A]"
             to="/mypage/orders"
-            style={styles.orderViewAllButton}
           >
             전체보기 <span aria-hidden="true">›</span>
           </Link>
         </div>
-        <section style={styles.orderStatusGrid} aria-label="주문 배송 단계">
+        <section
+          aria-label="주문 배송 단계"
+          className="flex items-center gap-1 overflow-x-auto pt-3 pb-0.5 sm:justify-between sm:gap-0 sm:overflow-visible"
+        >
           {orderStatusSummary.map((item, index) => (
-            <div key={item.label} style={styles.orderStatusItem}>
-              <strong style={styles.orderStatusCount}>{item.count}</strong>
-              <span style={styles.orderStatusLabel}>{item.label}</span>
-              {index < orderStatusSummary.length - 1 ? <span style={styles.orderStatusArrow}>›</span> : null}
-            </div>
+            <Fragment key={item.label}>
+              <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
+                <strong className="whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none text-[#d6dade] sm:text-[24px]">
+                  {item.count}
+                </strong>
+                <span className="text-center text-[11px] leading-tight font-semibold whitespace-nowrap text-[#aeb4ba] sm:text-[13px]">
+                  {item.label}
+                </span>
+              </div>
+              {index < orderStatusSummary.length - 1 ? (
+                <span aria-hidden="true" className="shrink-0 text-[16px] leading-none text-[#d7dce0] sm:text-[22px]">
+                  ›
+                </span>
+              ) : null}
+            </Fragment>
           ))}
         </section>
       </section>
@@ -425,7 +443,11 @@ function UserSummaryCard({
       <section style={styles.summarySection} aria-label="피부 관리 정보">
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.summarySectionTitle}>피부 관리 정보</h3>
-          <Link to="/mypage/skin-profile" style={styles.sectionAction} aria-label="피부 관리 정보 수정하기">
+          <Link
+            aria-label="피부 관리 정보 수정하기"
+            className="inline-flex items-center gap-[3px] text-[13px] font-semibold text-[#7b8794] no-underline hover:text-[#1A1A1A]"
+            to="/mypage/skin-profile"
+          >
             수정하기 <span aria-hidden="true">›</span>
           </Link>
         </div>
@@ -457,7 +479,11 @@ function UserSummaryCard({
         <div style={styles.summarySectionHeader}>
           <h3 style={styles.summarySectionTitle}>맞춤 추천 테스트 결과</h3>
           {skinTestResult ? (
-            <Link to="/skin-test" style={styles.sectionAction} aria-label="맞춤 추천 테스트 다시 검사하기">
+            <Link
+              aria-label="맞춤 추천 테스트 다시 검사하기"
+              className="inline-flex items-center gap-[3px] text-[13px] font-semibold text-[#7b8794] no-underline hover:text-[#1A1A1A]"
+              to="/skin-test"
+            >
               다시 검사하기 <span aria-hidden="true">›</span>
             </Link>
           ) : null}
@@ -491,7 +517,10 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
       >
         <div style={styles.skinTestEmptyContent}>
           <h3 style={styles.skinTestEmptyTitle}>아직 저장된 테스트 결과가 없어요</h3>
-          <Link to="/skin-test" style={styles.skinTestEmptyButton}>
+          <Link
+            className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-full bg-[#0C1117] px-4 text-[13px] font-bold text-white no-underline hover:bg-[#1A1A1A]"
+            to="/skin-test"
+          >
             피부 테스트 시작하기 <span aria-hidden="true">›</span>
           </Link>
         </div>
@@ -501,11 +530,11 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
 
   return (
     <section
+      aria-label="맞춤 추천 테스트 결과"
+      className="grid grid-cols-1 items-center gap-6 rounded-[14px] border border-[#e6e9ee] p-7 lg:grid-cols-[minmax(0,1fr)_210px]"
       style={{
-        ...styles.baumannPanel,
         background: `linear-gradient(135deg, #ffffff 0%, #ffffff 54%, ${accentColor} 100%)`
       }}
-      aria-label="맞춤 추천 테스트 결과"
     >
       <div style={styles.baumannContent}>
         <strong style={styles.baumannCode}>{typeCode}</strong>
@@ -523,7 +552,7 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
         ) : null}
       </div>
       {imageUrl && !imageFailed ? (
-        <div style={styles.baumannImageWrap} aria-hidden="true">
+        <div aria-hidden="true" className="justify-self-center lg:justify-self-end" style={styles.baumannImageWrap}>
           <img
             src={imageUrl}
             alt=""
@@ -538,7 +567,7 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
           />
         </div>
       ) : (
-        <div style={styles.baumannImageWrap} aria-hidden="true">
+        <div aria-hidden="true" className="justify-self-center lg:justify-self-end" style={styles.baumannImageWrap}>
           <span style={styles.baumannImageFallback}>{typeCode}</span>
         </div>
       )}
@@ -576,7 +605,7 @@ function getImageAccentColor(image: HTMLImageElement) {
   }
 }
 
-function MypageToastMessage({ message }: { message: string }) {
+export function MypageToastMessage({ message }: { message: string }) {
   return (
     <div style={styles.toast} role="status" aria-live="polite">
       <span style={styles.toastDot} />
@@ -623,19 +652,6 @@ const styles: Record<string, CSSProperties> = {
     color: "#222222",
     fontFamily: "'Pretendard Variable', 'Pretendard', 'Noto Sans KR', sans-serif"
   },
-  page: {
-    display: "grid",
-    gridTemplateColumns: "220px minmax(0, 1fr)",
-    gap: 48,
-    alignItems: "start",
-    width: "min(1180px, calc(100% - 80px))",
-    margin: "0 auto",
-    padding: "36px 0 72px"
-  },
-  sidebar: {
-    position: "sticky",
-    top: 24
-  },
   userBlock: {
     display: "flex",
     alignItems: "center",
@@ -663,66 +679,6 @@ const styles: Record<string, CSSProperties> = {
     margin: "2px 0 0",
     fontSize: 12,
     color: "#888888"
-  },
-  sidebarNav: {
-    marginTop: 14,
-    border: "1px solid #e0e0e0",
-    borderRadius: 8,
-    overflow: "hidden"
-  },
-  navGroup: {
-    padding: "28px 0"
-  },
-  navGroupWithLine: {
-    padding: "28px 0",
-    borderTop: "1px solid #e0e0e0"
-  },
-  navItem: {
-    display: "block",
-    padding: "12px 32px",
-    borderRadius: 0,
-    color: "#444444",
-    fontSize: 17,
-    fontWeight: 400,
-    lineHeight: 1.5,
-    textDecoration: "none"
-  },
-  navItemHover: {
-    background: "rgba(0,0,0,0.04)"
-  },
-  navItemActive: {
-    color: "#0c1117",
-    fontWeight: 700,
-    background: "transparent"
-  },
-  navDisabled: {
-    display: "block",
-    padding: "12px 32px",
-    color: "#444444",
-    fontSize: 17,
-    fontWeight: 400,
-    lineHeight: 1.5
-  },
-  mobileTabs: {
-    display: "none"
-  },
-  mobileTab: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "11px 14px",
-    color: "#737b7a",
-    fontSize: 13,
-    textDecoration: "none",
-    whiteSpace: "nowrap",
-    borderBottom: "2px solid transparent"
-  },
-  mobileTabActive: {
-    color: "#0c1117",
-    fontWeight: 700,
-    borderBottomColor: "#0c1117"
-  },
-  content: {
-    minWidth: 0
   },
   titleRow: {
     display: "flex",
@@ -769,16 +725,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     lineHeight: 1.35
   },
-  sectionAction: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 3,
-    color: "#7b8794",
-    fontSize: 13,
-    fontWeight: 600,
-    textDecoration: "none",
-    whiteSpace: "nowrap"
-  },
   skinInfoGroup: {
     display: "grid",
     gap: 22
@@ -794,31 +740,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     lineHeight: 1.35
   },
-  profileContentRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 24
-  },
   profileSideActions: {
     display: "flex",
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
     flex: "0 0 auto"
-  },
-  profileEditButton: {
-    minWidth: 70,
-    minHeight: 42,
-    padding: "0 22px",
-    border: "1px solid #e1e5e8",
-    borderRadius: 999,
-    background: "#ffffff",
-    color: "#333333",
-    fontFamily: "inherit",
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer"
   },
   summaryHeader: {
     display: "flex",
@@ -932,33 +859,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     lineHeight: 1.35
   },
-  skinTestEmptyButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    minHeight: 38,
-    padding: "0 16px",
-    borderRadius: 999,
-    background: "#0c1117",
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: 700,
-    textDecoration: "none"
-  },
-  baumannPanel: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 210px",
-    alignItems: "center",
-    gap: 24,
-    minHeight: 240,
-    margin: 0,
-    padding: "28px 34px",
-    borderRadius: 14,
-    border: "1px solid #e6e9ee",
-    color: "#222222",
-    overflow: "hidden"
-  },
   baumannContent: {
     maxWidth: 560
   },
@@ -1024,7 +924,6 @@ const styles: Record<string, CSSProperties> = {
   baumannImageWrap: {
     width: 190,
     height: 190,
-    justifySelf: "end",
     borderRadius: "50%",
     background: "#ffffff",
     border: "1px solid #eef0f3",
@@ -1074,55 +973,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     fontWeight: 700,
     lineHeight: 1.35
-  },
-  orderViewAllButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 3,
-    padding: 0,
-    border: "none",
-    background: "transparent",
-    color: "#7b8794",
-    fontFamily: "inherit",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer"
-  },
-  orderStatusGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-    gap: 0,
-    padding: "12px 0 2px"
-  },
-  orderStatusItem: {
-    position: "relative",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 8,
-    minWidth: 0
-  },
-  orderStatusCount: {
-    color: "#d6dade",
-    fontFamily: "'GmarketSans', sans-serif",
-    fontSize: 24,
-    fontWeight: 500,
-    lineHeight: 1
-  },
-  orderStatusLabel: {
-    color: "#aeb4ba",
-    fontSize: 13,
-    fontWeight: 600,
-    lineHeight: 1.3,
-    textAlign: "center"
-  },
-  orderStatusArrow: {
-    position: "absolute",
-    top: 3,
-    right: -7,
-    color: "#d7dce0",
-    fontSize: 22,
-    lineHeight: 1
   },
   toast: {
     position: "fixed",
