@@ -19,11 +19,11 @@
 - Dev infra profile: Redis, Elasticsearch 컨테이너를 `dev-infra` profile로 추가
 - Image assets: S3 + CloudFront 기준 운영 설계
 
-현재 백엔드는 `health`, `auth`, `home`, `recommendations`, `products` API를 포함합니다. 프론트는 홈, 추천/검색, 상품 상세, 로그인/회원가입, checkout/payment mock 화면을 포함하며, 커뮤니티 모드에서는 커머스 행동을 제한합니다.
+현재 백엔드는 `health`, `auth`, `skin`, `home`, `recommendations`, `products`, `user_activity`, `cart`, `addresses`, `orders`, `payments`, `events`, `agent` API를 포함합니다. 프론트는 홈, 추천/검색, 상품 상세, 로그인/회원가입, 피부 테스트, 마이페이지, 장바구니, checkout/payment mock 화면을 포함하며, 커뮤니티 모드에서는 커머스 행동을 제한합니다.
 
 ## 기준 문서
 
-- 작업 규칙과 역할 범위: `AGENTS.MD`
+- 작업 규칙과 역할 범위: `AGENTS.md`
 - 데이터 계약: `docs/data-contract.md`
 - 배포 결정 기록: `docs/deployment-summary.md`
 - 이벤트/GA4 로드맵: `docs/analytics-event-roadmap.md`
@@ -72,14 +72,21 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml config
 docker compose up --build
 ```
 
-루트 `.env`에 `COMPOSE_PROFILES=dev-infra`가 있으면 Redis와 Elasticsearch도 함께 실행됩니다. t3.xlarge Dev 서버는 이 profile을 켜고, 메모리가 부족한 로컬에서는 `COMPOSE_PROFILES=`로 비워서 app/postgres만 실행할 수 있습니다.
+기본 실행은 `backend`와 `postgres` 중심입니다. `frontend` 서비스는 Docker Compose에 남아 있지만 `frontend` profile 뒤에 두어 서버 기본 배포에서는 실행하지 않습니다. 프론트는 Vercel 배포 또는 로컬 frontend-only 모드로 확인합니다.
 
-- Frontend: <http://localhost:5173>
+루트 `.env`에 `COMPOSE_PROFILES=dev-infra`가 있으면 Redis와 Elasticsearch도 함께 실행됩니다. t3.xlarge Dev 서버는 이 profile을 켜고, 메모리가 부족한 로컬에서는 `COMPOSE_PROFILES=`로 비워서 backend/postgres만 실행할 수 있습니다.
+
 - Backend: <http://localhost:8000>
 - Backend health: <http://localhost:8000/api/health>
 - Postgres: `localhost:5432`
 - Redis: `127.0.0.1:6379`
 - Elasticsearch: <http://127.0.0.1:9200>
+
+기본 compose의 `frontend` 서비스를 직접 실행해야 할 때:
+
+```bash
+docker compose --profile frontend up --build frontend
+```
 
 DB만 실행할 때:
 
@@ -250,7 +257,6 @@ ELASTICSEARCH_INDEX_PREFIX=mubarelle_demo
 - backend health check
 - backend pytest
 - Alembic heads 확인
-- frontend page check
 
 로컬에서 PR 전 최소 확인:
 
@@ -260,23 +266,25 @@ docker compose up --build -d
 curl http://localhost:8000/api/health
 docker compose exec -T backend python -m pytest
 docker compose exec -T backend python -m alembic heads
-curl http://localhost:5173
 docker compose down
 ```
 
 ## Dev 서버 배포
 
-현재 production 자동 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버로 소스를 동기화한 뒤 Docker Compose를 재실행합니다.
+현재 별도 production 서버 자동 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버로 소스를 동기화한 뒤 backend/API 중심 Docker Compose를 재실행합니다. 프론트는 Vercel이 담당합니다.
 
 ```text
 dev push -> GitHub Actions checkout -> rsync to EC2 -> docker compose up --build -d
+dev push -> Vercel Production Branch(dev) -> frontend production deployment
+PR/feature push with apps/frontend changes -> Vercel Preview deployment
 ```
 
 ### EC2 구성 기준
 
 - AWS EC2 1대
 - Docker + Docker Compose
-- `frontend`, `backend`, `postgres` 컨테이너를 같은 EC2에서 실행
+- `backend`, `postgres`, `caddy` 컨테이너를 같은 EC2에서 실행
+- `frontend` 컨테이너는 로컬 개발용으로 compose에 남기지만 Dev 서버 CD에서는 실행하지 않음
 - `COMPOSE_PROFILES=dev-infra`일 때 `redis`, `elasticsearch` 컨테이너를 같은 EC2에서 실행
 - DB는 RDS가 아니라 EC2 내부 Postgres container로 시작
 - EC2에 repository clone은 필수 아님
@@ -318,8 +326,8 @@ SLACK_WEBHOOK_URL   선택: PR/댓글/dev 배포 완료 Slack 알림용 incoming
 
 ```text
 22    SSH, 관리자 IP 또는 GitHub Actions 접근 방식에 맞게 제한
-5173  frontend, 팀원 IP 또는 임시 공개
 8000  backend, 팀원 IP 또는 임시 공개
+5173  frontend, Dev 서버에서는 사용하지 않음. 로컬/Vercel 기준
 5432  postgres, 외부 공개 금지
 6379  redis, 외부 공개 금지
 9200  elasticsearch, 외부 공개 금지
@@ -380,6 +388,6 @@ docs(data): 자사몰 판매 구조 기준 정리
 - production Redis 운영 구성
 - Redis cache/rate limit 기능 연결
 - Elasticsearch 검색 ranking 기능 연결
-- event log 저장 API와 GA4 전체 매핑
+- GA4 전체 매핑
 
 이 항목들은 P2/P3 일정과 발표 전 안정화 기준에 맞춰 별도 이슈와 PR로 결정합니다.
