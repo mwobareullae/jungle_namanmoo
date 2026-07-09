@@ -163,7 +163,8 @@ const renderDefaultEmptyState = () => {
 
 const getHeaderBottom = () => {
   const header = document.querySelector(".home-header, .site-header, .auth-site-header, header");
-  return Math.max(64, Math.round(header?.getBoundingClientRect().bottom ?? 64));
+  const headerBottom = header?.getBoundingClientRect().bottom;
+  return typeof headerBottom === "number" ? Math.max(0, headerBottom - 1) : 64;
 };
 
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
@@ -171,18 +172,10 @@ const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
 
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
-  const searchBox = document.getElementById("searchBox");
   const headerBottom = getHeaderBottom();
-  const searchRect = searchBox?.getBoundingClientRect();
-  const shouldAvoidSearchBox =
-    window.scrollY <= 4 &&
-    typeof searchRect?.bottom === "number" &&
-    searchRect.bottom > headerBottom + CATEGORY_PANEL_MIN_HEIGHT;
-  const heightToSearch = shouldAvoidSearchBox
-    ? searchRect.bottom - headerBottom + 10
-    : CATEGORY_PANEL_DEFAULT_HEIGHT;
+  const contentHeight = panel.scrollHeight;
   const availableHeight = Math.min(
-    heightToSearch,
+    Math.max(CATEGORY_PANEL_DEFAULT_HEIGHT, contentHeight),
     window.innerHeight - headerBottom - 24,
     CATEGORY_PANEL_MAX_HEIGHT
   );
