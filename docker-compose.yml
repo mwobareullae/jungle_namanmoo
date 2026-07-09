@@ -12,6 +12,8 @@ services:
       context: ./apps/frontend
     container_name: mwobareullae-frontend
     restart: unless-stopped
+    profiles:
+      - frontend
     environment:
       VITE_APP_MODE: ${VITE_APP_MODE:-commerce}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
@@ -26,9 +28,6 @@ services:
     volumes:
       - ./apps/frontend:/app
       - frontend_node_modules:/app/node_modules
-    depends_on:
-      backend:
-        condition: service_healthy
     logging: *default-logging
     deploy:
       resources:
@@ -92,9 +91,6 @@ services:
     volumes:
       - ./apps/backend:/app
       - ./data:/data:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -117,6 +113,8 @@ services:
     image: pgvector/pgvector:pg16
     container_name: mwobareullae-postgres
     restart: unless-stopped
+    profiles:
+      - local-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mwobareullae}
       POSTGRES_USER: ${POSTGRES_USER:-mwobareullae}
@@ -144,7 +142,7 @@ services:
     container_name: mwobareullae-redis
     restart: unless-stopped
     profiles:
-      - dev-infra
+      - search-cache
     command:
       [
         "redis-server",
@@ -178,7 +176,7 @@ services:
     container_name: mwobareullae-elasticsearch
     restart: unless-stopped
     profiles:
-      - dev-infra
+      - search-cache
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"

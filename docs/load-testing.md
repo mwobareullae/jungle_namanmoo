@@ -9,7 +9,7 @@
 
 - FastAPI API p95 latency 측정
 - error rate 기준선 확보
-- EC2 t3.xlarge 단일 서버에서 backend/PostgreSQL/Elasticsearch/Redis 동시 구동 시 병목 확인
+- EC2 t3.large Dev API 서버에서 backend/Redis/Elasticsearch와 RDS PostgreSQL 조합의 병목 확인
 - 이후 #267 주문/결제 동시성 테스트와 #287 종합 부하테스트의 기준값 제공
 
 ## 진행 단계
@@ -39,11 +39,20 @@ tests/k6/commerce-smoke.js
 - `GET /api/health`
 - `GET /api/products/popular`
 - `GET /api/products/{product_id}`
+- `GET /api/products/search`
+- `GET /api/home/layout`
+- `GET /api/home/market-popular`
+- `GET /api/home/evidence-picks`
+- `GET /api/home/for-you`
 - `POST /api/recommendations`
 - `GET /api/recommendations/{recommendation_id}`
+- `POST /api/recommendations/{recommendation_id}/narrative`
 - 선택 실행: `POST /api/cart/items`
+- 선택 실행: `POST /api/checkout/preview`
 
 장바구니 쓰기 요청은 익명 cart row를 생성하므로 기본 비활성화입니다.
+추천 narrative 요청은 기본 활성화하되 `use_llm=false`로 실행합니다. OpenAI 비용과 외부 API 지연을 기준선에 섞지 않기 위한 설정입니다.
+로그인 사용자용 `/api/home/for-you`는 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정한 경우에만 추가 실행합니다.
 
 ## 사전 조건
 
@@ -53,13 +62,20 @@ dev 서버:
 cd ~/mwobareullae
 docker compose ps
 docker compose exec backend python -m alembic current
-docker compose exec postgres psql -U mwobareullae -d mwobareullae -c "select count(*) from products;"
+docker compose exec backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text("select current_database(), inet_server_addr(), inet_server_port()")).fetchone())
+    print(db.execute(text("select count(*) from products")).scalar())
+PY
 ```
 
 로컬에서 dev 서버 대상 실행 시:
 
 ```bash
-curl http://52.79.240.15:8000/api/health
+curl https://dev.api.mubarelle.com/api/health
 ```
 
 ## 실행 명령
@@ -111,7 +127,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 대상 smoke:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=smoke \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -121,7 +137,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 기준선:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=baseline \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -129,7 +145,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 목표 부하:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=target \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -137,7 +153,7 @@ k6 run tests/k6/commerce-smoke.js
 ### Stress test
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=stress \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -149,9 +165,37 @@ stress test는 팀 작업 시간에는 먼저 공유 후 실행합니다.
 익명 장바구니 쓰기 포함:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=baseline \
 ENABLE_CART_WRITES=true \
+k6 run tests/k6/commerce-smoke.js
+```
+
+### 추천 narrative 옵션
+
+기본값은 recommendation 생성/조회 뒤 rule-based narrative까지 확인합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+k6 run tests/k6/commerce-smoke.js
+```
+
+narrative API를 제외하고 추천 생성/조회만 보고 싶으면:
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+ENABLE_RECOMMENDATION_NARRATIVE=false \
+k6 run tests/k6/commerce-smoke.js
+```
+
+LLM narrative까지 포함하려면 비용과 외부 API 지연이 섞이므로 별도 공유 후 실행합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+NARRATIVE_USE_LLM=true \
 k6 run tests/k6/commerce-smoke.js
 ```
 
@@ -160,9 +204,23 @@ k6 run tests/k6/commerce-smoke.js
 인기상품 데이터가 비어 있으면 상품 ID를 직접 지정합니다.
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=smoke \
 PRODUCT_IDS=prod_oy_a000000163734,prod_oy_a000000250344 \
+k6 run tests/k6/commerce-smoke.js
+```
+
+### 로그인 홈 추천 포함
+
+로그인 사용자 기준 `/api/home/for-you`를 포함하려면 브라우저에서 얻은 session cookie를 전달합니다.
+기본 실행은 비로그인 fallback/선택 조건 for-you만 호출하고, 아래 두 값이 모두 있을 때만 로그인 `home_for_you_auth` 시나리오가 추가됩니다.
+실행 여부는 `report.md`의 `Auth home for-you` 행에서 확인합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+AUTH_HOME_FOR_YOU=true \
+AUTH_COOKIE="mwbl_session=..." \
 k6 run tests/k6/commerce-smoke.js
 ```
 
@@ -183,20 +241,31 @@ k6 run tests/k6/commerce-smoke.js
 
 - `http_req_failed < 1%`
 - backend 5xx 급증 없음
-- backend/PostgreSQL/Elasticsearch/Redis OOM 없음
-- Postgres connection 고갈 없음
+- backend/Elasticsearch/Redis OOM 없음
+- RDS PostgreSQL connection 고갈 없음
+- RDS CloudWatch 지표에서 CPU/IOPS/latency 급증 없음
 
 latency:
 
-- `type=fast` p95 < 500ms
+- `type=fast` p95 < 3000ms
   - health
   - popular products
   - product detail
-- `type=search` p95 < 1000ms
+- `type=home` p95 < 3000ms
+  - home layout
+  - home market popular
+  - home evidence picks
+  - home for-you fallback
+  - home for-you selected conditions
+  - home for-you auth
+- `type=search` p95 < 3000ms
+  - product search
   - recommendation create
   - recommendation page
-- `type=write` p95 < 1500ms
+  - recommendation narrative
+- `type=write` p95 < 3000ms
   - anonymous cart add
+  - checkout preview
 
 k6 threshold 실패 시 해당 run은 실패로 봅니다.
 
@@ -222,11 +291,34 @@ backend 로그:
 docker compose logs -f --tail=100 backend
 ```
 
-Postgres connection:
+RDS/Postgres connection:
 
 ```bash
-docker compose exec postgres psql -U mwobareullae -d mwobareullae -c "select count(*) from pg_stat_activity;"
+docker compose exec backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text("select count(*) from pg_stat_activity")).scalar())
+PY
 ```
+
+RDS CloudWatch:
+
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name CPUUtilization \
+  --dimensions Name=DBInstanceIdentifier,Value=mubarelle-db \
+  --start-time "<START_TIME_UTC>" \
+  --end-time "<END_TIME_UTC>" \
+  --period 60 \
+  --statistics Average Maximum \
+  --region ap-northeast-2 \
+  --output json
+```
+
+자동화 스크립트는 k6 종료 후 `CLOUDWATCH_WAIT_SECONDS`만큼 기다린 뒤 RDS 지표를 수집합니다. 기본값은 180초입니다.
 
 ES health:
 
@@ -253,14 +345,21 @@ cart writes:
 k6:
 - http_reqs/s:
 - http_req_failed:
+- http_req_duration p50:
 - http_req_duration p95:
+- http_req_duration p99:
 - type=fast p95:
+- type=home p95:
 - type=search p95:
 - type=write p95:
 
 server:
 - backend max cpu/mem:
-- postgres max cpu/mem:
+- rds/postgres connection max:
+- rds cpu avg/max:
+- rds free memory min:
+- rds read/write iops:
+- rds read/write latency:
 - elasticsearch max cpu/mem:
 - redis max cpu/mem:
 - pg_stat_activity max:

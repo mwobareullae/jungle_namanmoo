@@ -4,10 +4,21 @@ FastAPI 기반 백엔드입니다. 현재 기준 실행 환경은 **Docker Compo
 
 ## 현재 API
 
-- `GET /api/health`
-- `POST /api/recommendations`
-- `GET /api/recommendations/{id}`
-- `GET /api/products/{id}`
+현재 FastAPI 앱은 아래 라우트 그룹을 `/api` prefix 아래에 등록합니다.
+
+- `health`: health check
+- `auth`: email/nickname 중복 확인, signup, login, Google login, refresh, logout, password reset, `/me`
+- `skin`: skin profile, skin test questions/submit/result/apply
+- `home`: home sections
+- `recommendations`: recommendation create/detail/narrative
+- `products`: product detail/search/popular
+- `user_activity`: wishlist, recent views
+- `cart`: cart item CRUD, anonymous cart merge, checkout preview
+- `addresses`: saved address CRUD
+- `orders`: order create/list/detail/cancel
+- `payments`: mock payment confirm/fail, Toss confirm
+- `events`: single/batch event log collection
+- `agent`: chat, pending tool call confirmation
 
 ## 의존성 관리
 
@@ -99,27 +110,28 @@ postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae
 
 ## Alembic 명령
 
-첫 migration은 실제 ORM 모델이 들어간 뒤 생성합니다.
+새 DB 변경이 필요할 때만 별도 migration을 생성합니다.
 
 ```bash
-python -m alembic revision --autogenerate -m "create initial schema"
+python -m alembic revision --autogenerate -m "add feature schema"
 python -m alembic upgrade head
 ```
 
-현재 단계에서는 Alembic 환경만 준비되어 있고, 실제 테이블 migration은 아직 없습니다.
+현재 migration은 상품/성분/검색, 인증 세션, 피부 프로필/테스트, 이미지/판매자/재고, 장바구니/checkout, 주문/결제, 이벤트 로그, agent tool call까지 포함합니다.
 
 ## 현재 구현 상태
 
 - FastAPI 앱 구조, CORS, 공통 에러 응답이 있습니다.
-- 3개 MVP API는 Mock 응답 기반으로 동작합니다.
+- 주요 P2 API는 DB 모델, 서비스 계층, pytest 기반 계약 테스트와 함께 동작합니다.
 - `data/tags.json` 기반 고민 태그 파서가 추천 API에 연결되어 있습니다.
-- SQLAlchemy Base, DB engine/session, Alembic 환경이 준비되어 있습니다.
-- 아직 실제 DB 테이블, pgvector, seed/import, 실제 스코어링은 없습니다.
+- SQLAlchemy Base, DB engine/session, Alembic migration, CSV/JSON seed/import 구조가 있습니다.
+- 추천/검색은 후보 추출, scoring, pgvector 검색, Elasticsearch dev infra 연동 준비를 포함합니다.
+- Auth, Profile/Skin test, Cart/Checkout, Address, Order/Payment mock/Toss confirm, Event log, Agent API가 구현되어 있습니다.
 
 ## 다음 단계
 
-1. MVP v0 ERD 기준 ORM 모델 작성
-2. 첫 migration 생성 및 적용
-3. CSV/JSON seed/import 구조 추가
-4. Mock API를 DB 조회 기반으로 점진 교체
-5. 하이브리드 검색용 `search_documents` 생성
+1. P2 자사몰 API/화면 계약 안정화
+2. Dev 서버 migration/seed 운영 절차 점검
+3. Redis cache/rate limit 기능 연결
+4. Elasticsearch 검색 ranking 연결
+5. GA4/internal event 매핑 고도화
