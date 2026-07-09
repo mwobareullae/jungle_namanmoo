@@ -21,6 +21,7 @@ BACKEND_CONTAINER="${BACKEND_CONTAINER:-mwobareullae-backend}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-mwobareullae-postgres}"
 REDIS_CONTAINER="${REDIS_CONTAINER:-mwobareullae-redis}"
 ELASTICSEARCH_CONTAINER="${ELASTICSEARCH_CONTAINER:-mwobareullae-elasticsearch}"
+DB_MONITOR_MODE="${DB_MONITOR_MODE:-backend}"
 DB_NAME="${DB_NAME:-mwobareullae_small}"
 DB_USER="${DB_USER:-mwobareullae}"
 DATA_DIR="${DATA_DIR:-/data/dev-small}"
@@ -93,15 +94,34 @@ remote_collect_once() {
 start_monitoring() {
   log "remote monitoring start: interval=${SAMPLE_INTERVAL}s"
   ssh -o BatchMode=yes -i "$SSH_KEY" "${SSH_USER}@${SSH_HOST}" \
-    "REMOTE_APP_DIR='$REMOTE_APP_DIR' SAMPLE_INTERVAL='$SAMPLE_INTERVAL' DB_NAME='$DB_NAME' DB_USER='$DB_USER' POSTGRES_SERVICE='$POSTGRES_SERVICE' bash -s" \
+    "REMOTE_APP_DIR='$REMOTE_APP_DIR' SAMPLE_INTERVAL='$SAMPLE_INTERVAL' DB_MONITOR_MODE='$DB_MONITOR_MODE' DB_NAME='$DB_NAME' DB_USER='$DB_USER' BACKEND_SERVICE='$BACKEND_SERVICE' POSTGRES_SERVICE='$POSTGRES_SERVICE' bash -s" \
     >"$STATS_LOG" 2>&1 <<'REMOTE_SCRIPT' &
 cd "$REMOTE_APP_DIR"
 while true; do
   echo "=== $(date -u -Is) ==="
   docker stats --no-stream --format "{{.Name}} {{.CPUPerc}} {{.MemUsage}}" || true
   echo "--- pg_stat_activity ---"
-  docker compose exec -T "$POSTGRES_SERVICE" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
-    "select coalesce(state,'unknown'), count(*) from pg_stat_activity where datname='${DB_NAME}' group by state order by count(*) desc;" || true
+  if [ "$DB_MONITOR_MODE" = "backend" ]; then
+    docker compose exec -T "$BACKEND_SERVICE" python - <<'PY' || true
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    rows = db.execute(
+        text(
+            "select coalesce(state, 'unknown') as state, count(*) "
+            "from pg_stat_activity "
+            "where datname = current_database() "
+            "group by state order by count(*) desc"
+        )
+    ).fetchall()
+    for state, count in rows:
+        print(f"{state} | {count}")
+PY
+  else
+    docker compose exec -T "$POSTGRES_SERVICE" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
+      "select coalesce(state,'unknown'), count(*) from pg_stat_activity where datname='${DB_NAME}' group by state order by count(*) desc;" || true
+  fi
   sleep "$SAMPLE_INTERVAL"
 done
 REMOTE_SCRIPT
@@ -118,13 +138,61 @@ stop_monitoring() {
 }
 
 collect_pg_snapshot() {
-  remote_collect_once "docker compose exec -T '$POSTGRES_SERVICE' psql -U '$DB_USER' -d '$DB_NAME' -c \"select state, count(*) from pg_stat_activity where datname='$DB_NAME' group by state order by count(*) desc;\"" \
-    >>"$PG_LOG" 2>&1 || true
+  if [ "$DB_MONITOR_MODE" = "backend" ]; then
+    ssh -o BatchMode=yes -i "$SSH_KEY" "${SSH_USER}@${SSH_HOST}" \
+      "cd '$REMOTE_APP_DIR' && docker compose exec -T '$BACKEND_SERVICE' python -" \
+      >>"$PG_LOG" 2>&1 <<'PY' || true
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    rows = db.execute(
+        text(
+            "select coalesce(state, 'unknown') as state, count(*) "
+            "from pg_stat_activity "
+            "where datname = current_database() "
+            "group by state order by count(*) desc"
+        )
+    ).fetchall()
+    for state, count in rows:
+        print(f"{state} | {count}")
+PY
+  else
+    remote_collect_once "docker compose exec -T '$POSTGRES_SERVICE' psql -U '$DB_USER' -d '$DB_NAME' -c \"select state, count(*) from pg_stat_activity where datname='$DB_NAME' group by state order by count(*) desc;\"" \
+      >>"$PG_LOG" 2>&1 || true
+  fi
 }
 
 collect_data_counts() {
   log "collect data counts"
-  remote_collect_once "docker compose exec -T '$POSTGRES_SERVICE' psql -U '$DB_USER' -d '$DB_NAME' -At -F '=' -c \"
+  if [ "$DB_MONITOR_MODE" = "backend" ]; then
+    ssh -o BatchMode=yes -i "$SSH_KEY" "${SSH_USER}@${SSH_HOST}" \
+      "cd '$REMOTE_APP_DIR' && docker compose exec -T '$BACKEND_SERVICE' python -" \
+      >"$DATA_COUNTS" 2>&1 <<'PY' || true
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+queries = [
+    ("products", "select count(*) from products"),
+    ("product_images", "select count(*) from product_images"),
+    ("product_ingredients", "select count(*) from product_ingredients"),
+    ("ingredients", "select count(*) from ingredients"),
+    ("inventories", "select count(*) from inventories"),
+    ("brands", "select count(*) from brands"),
+    ("product_categories", "select count(*) from product_categories"),
+    ("product_prices", "select count(*) from product_prices"),
+    ("product_skin_profiles", "select count(*) from product_skin_profiles"),
+    ("search_documents", "select count(*) from search_documents"),
+    ("embedded_documents", "select count(*) from search_documents where embedding is not null"),
+    ("image_non_jpg", "select count(*) from product_images where storage_key not like '%.jpg'"),
+]
+
+with SessionLocal() as db:
+    for name, sql in queries:
+        print(f"{name}={db.execute(text(sql)).scalar()}")
+PY
+  else
+    remote_collect_once "docker compose exec -T '$POSTGRES_SERVICE' psql -U '$DB_USER' -d '$DB_NAME' -At -F '=' -c \"
 select 'products', count(*) from products
 union all
 select 'product_images', count(*) from product_images
@@ -150,12 +218,18 @@ union all
 select 'image_non_jpg', count(*) from product_images where storage_key not like '%.jpg'
 order by 1;
 \"" >"$DATA_COUNTS" 2>&1 || true
+  fi
 }
 
 collect_container_health() {
   log "collect container restart/OOM"
-  remote_collect_once "docker inspect '$BACKEND_CONTAINER' --format='backend restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$POSTGRES_CONTAINER' --format='postgres restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$ELASTICSEARCH_CONTAINER' --format='elasticsearch restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$REDIS_CONTAINER' --format='redis restart={{.RestartCount}} oom={{.State.OOMKilled}}'" \
-    >"$CONTAINER_HEALTH" 2>&1 || true
+  if [ "$DB_MONITOR_MODE" = "backend" ]; then
+    remote_collect_once "docker inspect '$BACKEND_CONTAINER' --format='backend restart={{.RestartCount}} oom={{.State.OOMKilled}}'; echo 'postgres external=RDS'; docker inspect '$ELASTICSEARCH_CONTAINER' --format='elasticsearch restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$REDIS_CONTAINER' --format='redis restart={{.RestartCount}} oom={{.State.OOMKilled}}'" \
+      >"$CONTAINER_HEALTH" 2>&1 || true
+  else
+    remote_collect_once "docker inspect '$BACKEND_CONTAINER' --format='backend restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$POSTGRES_CONTAINER' --format='postgres restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$ELASTICSEARCH_CONTAINER' --format='elasticsearch restart={{.RestartCount}} oom={{.State.OOMKilled}}'; docker inspect '$REDIS_CONTAINER' --format='redis restart={{.RestartCount}} oom={{.State.OOMKilled}}'" \
+      >"$CONTAINER_HEALTH" 2>&1 || true
+  fi
 }
 
 run_k6() {
@@ -200,7 +274,7 @@ generate_summary() {
   python3 "$SCRIPT_DIR/generate_report.py" \
     --profile "$PROFILE" \
     --git-sha "$GIT_SHA" \
-    --server "Dev EC2 t3.xlarge" \
+    --server "Dev EC2 t3.large" \
     --db-name "$DB_NAME" \
     --data-dir "$DATA_DIR" \
     --data-label "$DATA_LABEL" \
