@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductPrice
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -37,7 +38,11 @@ from app.services.recommendation_run_store import (
     ensure_recommendation_run_active,
     save_recommendation_run,
 )
-from app.services.scoring import SCORING_VERSION, score_candidates
+from app.services.scoring import (
+    SCORING_VERSION,
+    load_skin_test_scoring_context,
+    score_candidates,
+)
 from app.services.search_candidate_store import save_search_candidates
 from app.services.search_matching import (
     SearchNoResultDiagnostics,
@@ -65,6 +70,8 @@ class NormalizedRecommendationRequest:
     skin_type: str
     sensitivity: str
     avoid_ingredients: list[str]
+    manual_skin_type_explicit: bool
+    manual_sensitivity_explicit: bool
 
 
 @dataclass(frozen=True)
@@ -97,6 +104,7 @@ def create_recommendation_response(
     session: Session,
     request: RecommendationRequest,
     *,
+    current_user: User | None = None,
     result_limit: int = DEFAULT_RESULT_LIMIT,
     candidate_pool_limit: int = DEFAULT_CANDIDATE_POOL_LIMIT,
     page: int = DEFAULT_PAGE,
@@ -107,6 +115,10 @@ def create_recommendation_response(
     stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
     normalized_request = normalize_recommendation_request(request)
+    skin_test_context = load_skin_test_scoring_context(
+        session,
+        current_user.id if current_user is not None else None,
+    )
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
@@ -166,6 +178,9 @@ def create_recommendation_response(
             matches,
             skin_type=normalized_request.skin_type,
             sensitivity=normalized_request.sensitivity,
+            skin_test_context=skin_test_context,
+            manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
+            manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
 
@@ -231,6 +246,7 @@ def create_recommendation_response(
                 "expected_effect_count": len(intent.effects),
                 "unmatched_term_count": len(intent.unmatched_terms),
                 "avoid_ingredient_count": len(normalized_request.avoid_ingredients),
+                "skin_test_context_applied": skin_test_context is not None,
             },
         )
         return response
@@ -320,6 +336,8 @@ def normalize_recommendation_request(
         skin_type=skin_type,
         sensitivity=sensitivity,
         avoid_ingredients=_normalize_avoid_ingredients(request.avoid_ingredients),
+        manual_skin_type_explicit=bool(request.skin_type and request.skin_type.strip()),
+        manual_sensitivity_explicit=bool(request.sensitivity and request.sensitivity.strip()),
     )
 
 
@@ -598,6 +616,16 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
         keyword_score=_component_to_percent(raw.get("keyword_score")),
         vector_score=_component_to_percent(raw.get("vector_score")),
         search_match_score=_component_to_percent(raw.get("search_match_score")),
+        market_signal_score=_component_to_percent(raw.get("market_signal_score", 0.5)),
+        skin_test_context_score=_component_to_percent(raw.get("skin_test_context_score", 0.5)),
+        skin_test_context_applied=raw.get("skin_test_context_applied") is True,
+        skin_test_context_axes=_component_percent_dict(raw.get("skin_test_context_axes")),
+        skin_test_context_matched_axes=_string_list(raw.get("skin_test_context_matched_axes")),
+        skin_test_context_query_conflict_axes=_string_list(raw.get("skin_test_context_query_conflict_axes")),
+        skin_test_context_manual_conflict_axes=_string_list(raw.get("skin_test_context_manual_conflict_axes")),
+        base_weights=_float_dict(raw.get("base_weights")),
+        adjusted_weights=_float_dict(raw.get("weights")),
+        applied_multipliers=_float_dict(raw.get("applied_multipliers")),
         risk_penalty=_score_to_int(raw.get("risk_penalty", 0)),
         risk_flag_count=_optional_int(raw.get("risk_flag_count")) or 0,
         risk_warnings=_string_list(raw.get("risk_warnings")),
@@ -620,6 +648,26 @@ def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value if str(item).strip()]
+
+
+def _component_percent_dict(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): _component_to_percent(item)
+        for key, item in value.items()
+        if str(key).strip()
+    }
+
+
+def _float_dict(value: object) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): round(_to_float(item), 6)
+        for key, item in value.items()
+        if str(key).strip()
+    }
 
 
 def _to_float(value: object) -> float:

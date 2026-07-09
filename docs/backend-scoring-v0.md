@@ -129,6 +129,16 @@ price_score
 keyword_score
 vector_score
 search_match_score
+market_signal_score
+skin_test_context_score
+skin_test_context_applied
+skin_test_context_axes
+skin_test_context_matched_axes
+skin_test_context_query_conflict_axes
+skin_test_context_manual_conflict_axes
+base_weights
+adjusted_weights
+applied_multipliers
 risk_penalty
 risk_flag_count
 risk_warnings

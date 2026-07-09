@@ -12,7 +12,7 @@ from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_result_store import save_recommendation_results
 from app.services.recommendation_run_store import save_recommendation_run
 from app.services.repository import load_repository
-from app.services.scoring import ScoredProduct, score_candidates
+from app.services.scoring import SCORING_VERSION, ScoredProduct, score_candidates
 from app.services.search_index_builder import build_product_search_index_documents
 from app.services.search_matching import match_product_search_documents
 from tests.test_data_loader import EXAMPLES_DIR
@@ -35,8 +35,14 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
         scored_products[1].db_product_id,
     ]
     assert saved.results[0].total_score == _score_to_decimal(scored_products[0].total_score)
-    assert saved.results[0].score_breakdown["scoring_version"] == "v1_search_intent_boost"
-    assert "skin_profile_score" in saved.results[0].score_breakdown
+    breakdown = saved.results[0].score_breakdown
+    assert breakdown["scoring_version"] == SCORING_VERSION
+    assert "skin_profile_score" in breakdown
+    assert "market_signal_score" in breakdown
+    assert "skin_test_context_score" in breakdown
+    assert breakdown["skin_test_context_applied"] is False
+    assert "base_weights" in breakdown
+    assert "weights" in breakdown
     assert len(saved.evidence) > 0
     assert len(saved.evidence) <= len(saved.results) * 3
     assert saved.evidence[0].recommendation_result_id == saved.results[0].id
