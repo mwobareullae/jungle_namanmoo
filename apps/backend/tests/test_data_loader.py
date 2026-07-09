@@ -61,6 +61,23 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.search_documents[0].text
 
 
+def test_load_data_catalog_applies_brand_corrections_without_rewriting_products_csv(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    reconciliation_dir = data_dir / "reconciliation"
+    reconciliation_dir.mkdir()
+    (reconciliation_dir / "brand_corrections_recommendable.csv").write_text(
+        "product_code,source_prefix,current_brand,corrected_brand,product_name,confidence,basis,note\n"
+        "prod_001,example,라운드랩,정정브랜드,자작나무 수분 크림,0.95,test,test correction\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert catalog.products[0].brand == "정정브랜드"
+    assert catalog.products[1].brand == "아누아"
+    assert "prod_001,라운드랩" in (data_dir / "products.csv").read_text(encoding="utf-8")
+
 def test_load_data_catalog_reads_optional_ingredient_aliases(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     copytree(EXAMPLES_DIR, data_dir)
