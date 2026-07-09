@@ -246,6 +246,7 @@ run_k6() {
       -e HEAVY_PRODUCT_IDS="$HEAVY_PRODUCT_IDS" \
       -e SEARCH_QUERIES="$SEARCH_QUERIES" \
       -e DEBUG_ERRORS="$DEBUG_ERRORS" \
+      -e SLA_MS="$SLA_MS" \
       "$K6_SCRIPT"
   ) 2>&1 | tee "$K6_STDOUT"
   K6_EXIT="${PIPESTATUS[0]}"

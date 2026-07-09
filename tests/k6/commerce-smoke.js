@@ -7,6 +7,7 @@ const PROFILE = __ENV.PROFILE || "smoke";
 const CART_WRITES_ENABLED =
   (__ENV.CART_WRITES || __ENV.ENABLE_CART_WRITES || "false").toLowerCase() === "true";
 const DEBUG_ERRORS = (__ENV.DEBUG_ERRORS || "false").toLowerCase() === "true";
+const SLA_MS = Number(__ENV.SLA_MS || "3000");
 const PRODUCT_IDS = (__ENV.PRODUCT_IDS || "")
   .split(",")
   .map((value) => value.trim())
@@ -72,9 +73,9 @@ export const options = {
   },
   thresholds: {
     http_req_failed: ["rate<0.01"],
-    "http_req_duration{type:fast}": ["p(95)<3000"],
-    "http_req_duration{type:search}": ["p(95)<3000"],
-    ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": ["p(95)<3000"] } : {}),
+    "http_req_duration{type:fast}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:search}": [`p(95)<${SLA_MS}`],
+    ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": [`p(95)<${SLA_MS}`] } : {}),
   },
 };
 
