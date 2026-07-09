@@ -70,7 +70,7 @@ def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
         candidates,
         matches,
         skin_type="지성",
-        sensitivity="민감",
+        sensitivity="높음",
     )
 
     scored_by_id = {product.product_id: product for product in scored_products}
@@ -250,7 +250,7 @@ def test_score_candidates_penalizes_sensitive_user_only_for_sensitive_risk_flags
         candidates,
         matches,
         skin_type="지성",
-        sensitivity="민감",
+        sensitivity="높음",
     )
     normal_by_id = {product.product_id: product for product in normal_scores}
     sensitive_by_id = {product.product_id: product for product in sensitive_scores}
@@ -427,7 +427,7 @@ def _skin_test_context(
         result_id=1,
         type_code="OSPW",
         mapped_skin_type="oily",
-        mapped_sensitivity="sensitive",
+        mapped_sensitivity="높음",
         axis_scores=axis_scores or _axis_scores(),
         commerce_profile=commerce_profile or {},
     )

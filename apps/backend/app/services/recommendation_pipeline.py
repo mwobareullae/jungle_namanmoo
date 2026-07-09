@@ -59,7 +59,19 @@ DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
 ALLOWED_SKIN_TYPES = {"건성", "지성", "복합성", "중성", "수부지"}
-ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음", "민감"}
+ALLOWED_SENSITIVITIES = {"낮음", "보통", "높음"}
+SENSITIVITY_ALIASES = {
+    "low": "낮음",
+    "normal": "보통",
+    "mid": "보통",
+    "medium": "보통",
+    "high": "높음",
+    "sensitive": "높음",
+    "민감": "높음",
+    "민감성": "높음",
+    "예민": "높음",
+    "예민함": "높음",
+}
 DEFAULT_SKIN_TYPE = "중성"
 DEFAULT_SENSITIVITY = "보통"
 SENSITIVE_INTENT_PATTERN = re.compile(r"(?:민감(?:성|한|하고|해서|해)?|예민(?:함|한|하고|해서|해)?)")
@@ -742,13 +754,13 @@ def _normalize_choice(
 def _normalize_sensitivity(value: str | None, concern_text: str) -> str:
     if value is not None and value.strip():
         return _normalize_choice(
-            value,
+            SENSITIVITY_ALIASES.get(value.strip().casefold().replace(" ", ""), value.strip()),
             DEFAULT_SENSITIVITY,
             ALLOWED_SENSITIVITIES,
             "민감도 값이 올바르지 않습니다.",
         )
     if _has_sensitive_intent(concern_text):
-        return "민감"
+        return "높음"
     return DEFAULT_SENSITIVITY
 
 

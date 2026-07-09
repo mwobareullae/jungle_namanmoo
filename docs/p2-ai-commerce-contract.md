@@ -47,7 +47,7 @@ FastAPI는 P2에서 회원 DB를 직접 보지 않고, Spring 또는 프론트�
 | --- | --- | --- |
 | `concern_text` | Y | 사용자 자연어 고민. 100자 이하 |
 | `skin_type` | N | `건성`, `지성`, `복합성`, `중성`, `수부지` |
-| `sensitivity` | N | `낮음`, `보통`, `높음`, `민감` |
+| `sensitivity` | N | `낮음`, `보통`, `높음` |
 | `avoid_ingredients` | N | 사용자가 피하고 싶은 성분명 목록 |
 
 ## 추천 결과 응답
