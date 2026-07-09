@@ -40,6 +40,7 @@ from app.services.recommendation_run_store import (
 )
 from app.services.scoring import (
     SCORING_VERSION,
+    load_behavior_personalization_context,
     load_skin_test_scoring_context,
     score_candidates,
 )
@@ -119,6 +120,10 @@ def create_recommendation_response(
         session,
         current_user.id if current_user is not None else None,
     )
+    behavior_personalization_context = load_behavior_personalization_context(
+        session,
+        current_user.id if current_user is not None else None,
+    )
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
@@ -179,6 +184,7 @@ def create_recommendation_response(
             skin_type=normalized_request.skin_type,
             sensitivity=normalized_request.sensitivity,
             skin_test_context=skin_test_context,
+            behavior_personalization_context=behavior_personalization_context,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
         )
@@ -247,6 +253,7 @@ def create_recommendation_response(
                 "unmatched_term_count": len(intent.unmatched_terms),
                 "avoid_ingredient_count": len(normalized_request.avoid_ingredients),
                 "skin_test_context_applied": skin_test_context is not None,
+                "behavior_personalization_applied": behavior_personalization_context is not None,
             },
         )
         return response
@@ -623,6 +630,19 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
         skin_test_context_matched_axes=_string_list(raw.get("skin_test_context_matched_axes")),
         skin_test_context_query_conflict_axes=_string_list(raw.get("skin_test_context_query_conflict_axes")),
         skin_test_context_manual_conflict_axes=_string_list(raw.get("skin_test_context_manual_conflict_axes")),
+        behavior_personalization_score=_component_to_percent(raw.get("behavior_personalization_score")),
+        behavior_personalization_applied=raw.get("behavior_personalization_applied") is True,
+        behavior_personalization_sources=_string_list(raw.get("behavior_personalization_sources")),
+        behavior_personalization_source_scores=_component_percent_dict(
+            raw.get("behavior_personalization_source_scores")
+        ),
+        behavior_personalization_affinity_components=_component_percent_dict(
+            raw.get("behavior_personalization_affinity_components")
+        ),
+        behavior_personalization_negative_guard_score=_component_to_percent(
+            raw.get("behavior_personalization_negative_guard_score", 1.0)
+        ),
+        behavior_personalization_event_counts=_int_dict(raw.get("behavior_personalization_event_counts")),
         base_weights=_float_dict(raw.get("base_weights")),
         adjusted_weights=_float_dict(raw.get("weights")),
         applied_multipliers=_float_dict(raw.get("applied_multipliers")),
@@ -665,6 +685,16 @@ def _float_dict(value: object) -> dict[str, float]:
         return {}
     return {
         str(key): round(_to_float(item), 6)
+        for key, item in value.items()
+        if str(key).strip()
+    }
+
+
+def _int_dict(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): max(0, int(_to_float(item)))
         for key, item in value.items()
         if str(key).strip()
     }
