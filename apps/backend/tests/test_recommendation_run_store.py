@@ -40,7 +40,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
         session,
         intent,
         skin_type="수부지",
-        sensitivity="민감",
+        sensitivity="높음",
         avoid_ingredients=["향료"],
         recommendation_code="rec_store_test",
         now=now,
@@ -49,7 +49,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     assert saved.run.recommendation_code == "rec_store_test"
     assert saved.run.concern_text == "속건조 보습 세럼 2만원 이하 추천"
     assert saved.run.skin_type == "수부지"
-    assert saved.run.sensitivity == "민감"
+    assert saved.run.sensitivity == "높음"
     assert saved.run.avoid_ingredients == ["향료"]
     assert saved.run.expires_at == now + timedelta(hours=24)
     assert saved.run.scoring_version == "v0"

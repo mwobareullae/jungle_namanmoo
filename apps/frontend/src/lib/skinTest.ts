@@ -9,6 +9,10 @@ export const saveLatestSkinTestResult = (result: SkinTestResult) => {
   sessionStorage.setItem(SKIN_TEST_LATEST_RESULT_STORAGE_KEY, JSON.stringify(result));
 };
 
+export const clearLatestSkinTestResult = () => {
+  sessionStorage.removeItem(SKIN_TEST_LATEST_RESULT_STORAGE_KEY);
+};
+
 export const getLatestSkinTestResult = () => {
   const rawResult = sessionStorage.getItem(SKIN_TEST_LATEST_RESULT_STORAGE_KEY);
 

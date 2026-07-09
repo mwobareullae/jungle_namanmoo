@@ -59,7 +59,7 @@ DEFAULT_CASES: tuple[QualityCase, ...] = (
         label="민감 진정 크림",
         concern_text="민감성 피부 진정 크림 추천",
         skin_type="건성",
-        sensitivity="민감",
+        sensitivity="높음",
     ),
     QualityCase(
         label="피지 수부지 세럼",

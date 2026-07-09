@@ -636,10 +636,17 @@ def _matches_skin_filter(
         profile_key = _skin_type_to_profile_key(skin_type)
         if profile_key and snapshot.skin_profile.get(profile_key, 0.0) < 0.7:
             return False
-    if sensitivity and sensitivity.casefold() == "sensitive":
+    if _is_high_sensitivity(sensitivity):
         if snapshot.skin_profile.get("sensitive_fit", 0.0) < 0.7:
             return False
     return True
+
+
+def _is_high_sensitivity(sensitivity: str | None) -> bool:
+    if not sensitivity:
+        return False
+    normalized = sensitivity.strip().casefold().replace(" ", "")
+    return normalized in {"높음", "high", "sensitive", "민감", "민감성", "예민", "예민함"}
 
 
 def _matches_effect_filter(

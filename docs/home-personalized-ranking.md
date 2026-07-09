@@ -23,7 +23,7 @@ P2 1차에서는 행동 이력까지 쓰지 않고, 피부 프로필과 고민�
 |---|---|---|
 | `member_id` | Commerce/Auth | 로그인 사용자 식별. 추천 계산 자체에는 직접 사용하지 않음 |
 | `skin_type` | User profile | 건성, 지성, 복합성, 중성, 수부지 |
-| `sensitivity` | User profile | 보통, 민감 |
+| `sensitivity` | User profile | 낮음, 보통, 높음 |
 | `concern_effect_ids` | AI/Profile | 사용자의 고민을 6효능축으로 변환한 값 |
 | `avoid_ingredient_ids` | User profile | 사용자가 피하고 싶은 성분. P2에서는 hard exclude |
 
@@ -63,7 +63,7 @@ P2 1차에서는 행동 이력까지 쓰지 않고, 피부 프로필과 고민�
 | `sensitivity_fit_score` | `product_skin_profiles.csv`의 민감 피부 적합도 |
 | `price_score` | 홈 노출에 적합한 가격 접근성 |
 | `market_popularity_score` | 리뷰수, 평점, 판매량/판매랭킹, 최근 행동 신호를 결합한 인기 점수 |
-| `risk_penalty` | 민감 사용자는 risk flag 성분을 더 강하게 감점 |
+| `risk_penalty` | 민감도가 높은 사용자는 risk flag 성분을 더 강하게 감점 |
 
 ## 섹션별 점수식
 
@@ -204,10 +204,10 @@ product_id asc
 
 | 시나리오 | 피부 타입 | 민감도 | 주 고민축 |
 |---|---|---|---|
-| `dry_sensitive_barrier` | 건성 | 민감 | 보습·장벽 |
+| `dry_sensitive_barrier` | 건성 | 높음 | 보습·장벽 |
 | `oily_acne_sebum` | 지성 | 보통 | 여드름·피지 |
 | `dehydrated_oily_brightening` | 수부지 | 보통 | 미백·톤 |
-| `combination_sensitive_calming` | 복합성 | 민감 | 진정 |
+| `combination_sensitive_calming` | 복합성 | 높음 | 진정 |
 
 ## 재계산 방법
 

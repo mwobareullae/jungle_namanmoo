@@ -652,7 +652,7 @@ def _fallback_caution(
     warning = product.score_breakdown.concentration_warning
     if warning:
         return warning
-    if recommendation.summary.sensitivity == "민감":
+    if recommendation.summary.sensitivity == "높음":
         return "민감 피부라면 전성분 확인과 소량 테스트를 먼저 권장해요."
     if mode == "community_beta":
         return "개인 피부 상태에 따라 사용감은 다를 수 있어요. 구매 전 전성분을 한 번 더 확인해주세요."
