@@ -163,30 +163,43 @@ const renderDefaultEmptyState = () => {
 
 const getHeaderBottom = () => {
   const header = document.querySelector(".home-header, .site-header, .auth-site-header, header");
-  return Math.max(64, Math.round(header?.getBoundingClientRect().bottom ?? 64));
+  const headerBottom = header?.getBoundingClientRect().bottom;
+  return typeof headerBottom === "number" ? Math.max(0, headerBottom - 1) : 64;
 };
 
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
-const CATEGORY_PANEL_MAX_HEIGHT = 300;
-
-const getCategoryPanelInlineStart = () => {
-  const button = document.querySelector(".site-header .category-menu-btn, .category-menu-btn");
-  const buttonLeft = button?.getBoundingClientRect().left;
-  return Math.max(20, Math.round(buttonLeft ?? 64));
-};
+const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
+const CATEGORY_PANEL_MAX_HEIGHT = 520;
 
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
-  const searchBox = document.getElementById("searchBox");
   const headerBottom = getHeaderBottom();
-  const searchTop = searchBox?.getBoundingClientRect().top;
-  const shouldAvoidSearchBox =
-    window.scrollY <= 4 && typeof searchTop === "number" && searchTop > headerBottom + CATEGORY_PANEL_MIN_HEIGHT;
-  const heightToSearch = shouldAvoidSearchBox ? searchTop - headerBottom - 10 : CATEGORY_PANEL_MAX_HEIGHT;
-  const availableHeight = Math.min(heightToSearch, window.innerHeight - headerBottom - 24, CATEGORY_PANEL_MAX_HEIGHT);
+  const contentHeight = panel.scrollHeight;
+  const availableHeight = Math.min(
+    Math.max(CATEGORY_PANEL_DEFAULT_HEIGHT, contentHeight),
+    window.innerHeight - headerBottom - 24,
+    CATEGORY_PANEL_MAX_HEIGHT
+  );
 
   document.documentElement.style.setProperty("--category-panel-top", `${headerBottom}px`);
-  document.documentElement.style.setProperty("--category-panel-inline-start", `${getCategoryPanelInlineStart()}px`);
-  panel.style.setProperty("--category-panel-max-height", `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`);
+  document.documentElement.style.setProperty("--category-panel-left", "0px");
+  panel.style.setProperty("--category-panel-width", "100vw");
+  panel.style.setProperty(
+    "--category-panel-height",
+    `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`
+  );
+  panel.style.setProperty(
+    "--category-panel-max-height",
+    `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`
+  );
+};
+
+const isCategoryMenuArea = (target: EventTarget | null) => {
+  if (!(target instanceof Node)) return false;
+
+  const header = document.querySelector("header.site-header");
+  const panel = document.getElementById("categoryPanel");
+
+  return Boolean(header?.contains(target) || panel?.contains(target));
 };
 
 const installFunctions = () => {
@@ -202,18 +215,33 @@ const installFunctions = () => {
     document.body.classList.remove("category-menu-open");
     document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
   };
+  runtime.openCategoryMenu = () => {
+    const panel = document.getElementById("categoryPanel");
+    const backdrop = document.getElementById("categoryPanelBackdrop");
+    const button = document.querySelector(".category-menu-btn");
+
+    if (panel) updateCategoryPanelLayout(panel);
+
+    panel?.classList.add("active");
+    backdrop?.classList.add("active");
+    document.body.classList.add("category-menu-open");
+    button?.setAttribute("aria-expanded", "true");
+  };
   runtime.toggleCategoryMenu = () => {
     const panel = document.getElementById("categoryPanel");
     const backdrop = document.getElementById("categoryPanelBackdrop");
     const button = document.querySelector(".category-menu-btn");
     const willOpen = !panel?.classList.contains("active");
 
-    if (willOpen && panel) updateCategoryPanelLayout(panel);
+    if (willOpen) {
+      runtime.openCategoryMenu();
+      return;
+    }
 
-    panel?.classList.toggle("active", willOpen);
-    backdrop?.classList.toggle("active", willOpen);
-    document.body.classList.toggle("category-menu-open", willOpen);
-    button?.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    panel?.classList.remove("active");
+    backdrop?.classList.remove("active");
+    document.body.classList.remove("category-menu-open");
+    button?.setAttribute("aria-expanded", "false");
   };
   runtime.showToast = (message) => showToast(String(message));
   runtime.openSearchSuggestions = openSearchSuggestions;
@@ -283,12 +311,19 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
 
   const input = document.getElementById("searchInput");
   const searchContainer = document.querySelector(".search-container");
+  const categoryMenuTrigger = document.querySelector("header.site-header");
   const categoryPanel = document.getElementById("categoryPanel");
 
   const handleInputFocus = () => openSearchSuggestions();
   const handleDocumentClick = (event: Event) => {
     if (searchContainer && !searchContainer.contains(event.target as Node))
       closeSearchSuggestions();
+  };
+  const handleCategoryMenuEnter = () => getRuntime().openCategoryMenu();
+  const handleCategoryMenuLeave = (event: Event) => {
+    if (!isCategoryMenuArea((event as MouseEvent).relatedTarget)) {
+      getRuntime().closeCategoryMenu();
+    }
   };
   const handleDocumentKeydown = (event: Event) => {
     if ((event as KeyboardEvent).key === "Escape") {
@@ -322,6 +357,9 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
 
   input?.addEventListener("focus", handleInputFocus);
   input?.addEventListener("click", handleInputFocus);
+  categoryMenuTrigger?.addEventListener("mouseenter", handleCategoryMenuEnter);
+  categoryMenuTrigger?.addEventListener("mouseleave", handleCategoryMenuLeave);
+  categoryPanel?.addEventListener("mouseleave", handleCategoryMenuLeave);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
   window.addEventListener("resize", handleCategoryPanelViewportChange);
@@ -334,6 +372,9 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
   return () => {
     input?.removeEventListener("focus", handleInputFocus);
     input?.removeEventListener("click", handleInputFocus);
+    categoryMenuTrigger?.removeEventListener("mouseenter", handleCategoryMenuEnter);
+    categoryMenuTrigger?.removeEventListener("mouseleave", handleCategoryMenuLeave);
+    categoryPanel?.removeEventListener("mouseleave", handleCategoryMenuLeave);
     document.removeEventListener("click", handleDocumentClick);
     document.removeEventListener("keydown", handleDocumentKeydown);
     window.removeEventListener("resize", handleCategoryPanelViewportChange);

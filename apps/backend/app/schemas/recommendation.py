@@ -55,6 +55,23 @@ class ScoreBreakdown(BaseModel):
     keyword_score: int = 0
     vector_score: int = 0
     search_match_score: int
+    market_signal_score: int = 50
+    skin_test_context_score: int = 50
+    skin_test_context_applied: bool = False
+    skin_test_context_axes: dict[str, int] = Field(default_factory=dict)
+    skin_test_context_matched_axes: list[str] = Field(default_factory=list)
+    skin_test_context_query_conflict_axes: list[str] = Field(default_factory=list)
+    skin_test_context_manual_conflict_axes: list[str] = Field(default_factory=list)
+    behavior_personalization_score: int = 0
+    behavior_personalization_applied: bool = False
+    behavior_personalization_sources: list[str] = Field(default_factory=list)
+    behavior_personalization_source_scores: dict[str, int] = Field(default_factory=dict)
+    behavior_personalization_affinity_components: dict[str, int] = Field(default_factory=dict)
+    behavior_personalization_negative_guard_score: int = 100
+    behavior_personalization_event_counts: dict[str, int] = Field(default_factory=dict)
+    base_weights: dict[str, float] = Field(default_factory=dict)
+    adjusted_weights: dict[str, float] = Field(default_factory=dict)
+    applied_multipliers: dict[str, float] = Field(default_factory=dict)
     risk_penalty: int
     risk_flag_count: int = 0
     risk_warnings: list[str] = Field(default_factory=list)

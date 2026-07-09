@@ -47,7 +47,7 @@ FastAPI는 P2에서 회원 DB를 직접 보지 않고, Spring 또는 프론트�
 | --- | --- | --- |
 | `concern_text` | Y | 사용자 자연어 고민. 100자 이하 |
 | `skin_type` | N | `건성`, `지성`, `복합성`, `중성`, `수부지` |
-| `sensitivity` | N | `낮음`, `보통`, `높음`, `민감` |
+| `sensitivity` | N | `낮음`, `보통`, `높음` |
 | `avoid_ingredients` | N | 사용자가 피하고 싶은 성분명 목록 |
 
 ## 추천 결과 응답
@@ -83,6 +83,56 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
         "keyword_score": 10,
         "vector_score": 0,
         "search_match_score": 20,
+        "market_signal_score": 50,
+        "skin_test_context_score": 50,
+        "skin_test_context_applied": false,
+        "skin_test_context_axes": {},
+        "skin_test_context_matched_axes": [],
+        "skin_test_context_query_conflict_axes": [],
+        "skin_test_context_manual_conflict_axes": [],
+        "behavior_personalization_score": 0,
+        "behavior_personalization_applied": false,
+        "behavior_personalization_sources": [],
+        "behavior_personalization_source_scores": {},
+        "behavior_personalization_affinity_components": {},
+        "behavior_personalization_negative_guard_score": 100,
+        "behavior_personalization_event_counts": {},
+        "base_weights": {
+          "ingredient_effect": 0.32,
+          "ingredient_evidence": 0.23,
+          "skin_profile": 0.14,
+          "concentration_fit": 0.08,
+          "functional_claim": 0.05,
+          "search_match": 0.07,
+          "price": 0.04,
+          "market_signal": 0.02,
+          "skin_test_context": 0,
+          "behavior_personalization": 0
+        },
+        "adjusted_weights": {
+          "ingredient_effect": 0.336842,
+          "ingredient_evidence": 0.242105,
+          "skin_profile": 0.147368,
+          "concentration_fit": 0.084211,
+          "functional_claim": 0.052632,
+          "search_match": 0.073684,
+          "price": 0.042105,
+          "market_signal": 0.021053,
+          "skin_test_context": 0,
+          "behavior_personalization": 0
+        },
+        "applied_multipliers": {
+          "ingredient_effect": 1,
+          "ingredient_evidence": 1,
+          "skin_profile": 1,
+          "concentration_fit": 1,
+          "functional_claim": 1,
+          "search_match": 1,
+          "price": 1,
+          "market_signal": 1,
+          "skin_test_context": 1,
+          "behavior_personalization": 1
+        },
         "risk_penalty": 0,
         "risk_flag_count": 0,
         "risk_warnings": [],
