@@ -7754,17 +7754,18 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-scenario-guide__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
 .product-comparison-scenario-guide__item {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
-  min-height: 62px;
-  padding: 14px 18px;
+  min-height: 118px;
+  padding: 14px 16px;
   border: 1px solid rgba(0, 0, 0, 0.07);
   border-radius: 12px;
   background: #ffffff;
@@ -7772,6 +7773,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-scenario-guide__item span {
   flex: 0 0 auto;
+  max-width: 100%;
   padding: 6px 10px;
   border-radius: 9px;
   background: rgba(148, 224, 248, 0.22);
@@ -7782,13 +7784,32 @@ html[data-app-mode="community"] .search-results-shell {
   white-space: nowrap;
 }
 
-.product-comparison-scenario-guide__item p {
+.product-comparison-scenario-guide__item.caution span {
+  border: 1px solid rgba(255, 107, 82, 0.24);
+  background: rgba(255, 107, 82, 0.12);
+  color: #c74734;
+}
+
+.product-comparison-scenario-guide__copy {
+  display: grid;
+  gap: 4px;
   min-width: 0;
+}
+
+.product-comparison-scenario-guide__copy em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.product-comparison-scenario-guide__copy p {
   margin: 0;
   color: var(--ink);
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 650;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .product-comparison-scenario-guide__item strong {
@@ -12827,9 +12848,7 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .product-comparison-scenario-guide__item {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
+    min-height: auto;
   }
 }
 /* === admin shell step1: blueprint 2절 (메뉴 그룹·준비중·운영 범위 칩) === */
