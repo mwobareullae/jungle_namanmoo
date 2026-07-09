@@ -1280,7 +1280,7 @@ function ProductDetailSpaPage() {
                     className="ingredient-evidence-toggle"
                     type="button"
                     aria-expanded={isEvidenceExpanded}
-                    aria-controls="evidenceList sourceList"
+                    aria-controls="evidenceList"
                     onClick={() => setIsEvidenceExpanded((current) => !current)}
                   >
                     {isEvidenceExpanded ? "접기" : `성분 ${detailData.groupedEvidence.length}개 근거 보기`}
@@ -1329,13 +1329,13 @@ function ProductDetailSpaPage() {
                                     </span>
                                   </div>
                                   <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
-                                  {evidence.source_title ? (
+                                  {sourceUrl ? (
                                     <a
                                       className="ingredient-evidence-source-link"
-                                      href={sourceUrl || "#sourceList"}
-                                      target={sourceUrl ? "_blank" : undefined}
-                                      rel={sourceUrl ? "noopener noreferrer" : undefined}
-                                      title={evidence.source_title}
+                                      href={sourceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={evidence.source_title ?? undefined}
                                     >
                                       출처 보기 <span aria-hidden="true">↗</span>
                                     </a>
@@ -1348,29 +1348,6 @@ function ProductDetailSpaPage() {
                       ))
                     ) : (
                       <div className="ingredient-evidence-card"><p>표시할 성분 효능 근거가 없습니다.</p></div>
-                    )}
-                  </div>
-                  <div className="ingredient-source-list" id="sourceList" hidden={!isEvidenceExpanded}>
-                    {product.sources.length > 0 ? (
-                      <>
-                        <div className="ingredient-source-title">근거 출처</div>
-                        <div className="ingredient-source-items">
-                          {product.sources.map((source) => (
-                            <a
-                              className="ingredient-source-item"
-                              href={source.url || "#sourceList"}
-                              target={source.url ? "_blank" : undefined}
-                              rel={source.url ? "noopener noreferrer" : undefined}
-                              key={`${source.title}-${source.url}`}
-                            >
-                              <span>{source.source_type || "source"}</span>
-                              <strong>{source.title || "출처"}</strong>
-                            </a>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="ingredient-source-empty"><p>표시할 근거 출처 정보가 없습니다.</p></div>
                     )}
                   </div>
                 </div>
