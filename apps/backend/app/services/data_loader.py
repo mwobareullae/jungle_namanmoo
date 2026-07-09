@@ -1,6 +1,7 @@
 import csv
 import json
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
@@ -157,6 +158,7 @@ ALIAS_TYPE_VALUES = {"ko", "en", "inci", "abbrev", "typo", "synonym"}
 ALIAS_CONFIDENCE_VALUES = {"high", "medium", "low"}
 ALIAS_CONFIDENCE_ALIASES = {"med": "medium"}
 SALES_STATUS_VALUES = {"ON_SALE", "SOLD_OUT", "HIDDEN"}
+BRAND_CORRECTION_FILE = Path("reconciliation") / "brand_corrections_recommendable.csv"
 
 T = TypeVar("T")
 
@@ -165,6 +167,7 @@ def load_data_catalog(data_dir: str | Path) -> DataCatalog:
     base_path = Path(data_dir)
 
     products = _load_csv(base_path, "products.csv", _parse_product)
+    products = _apply_product_brand_corrections(base_path, products)
     product_prices = _load_csv(base_path, "product_prices.csv", _parse_product_price)
     product_image_assets = _load_optional_csv(
         base_path,
@@ -383,6 +386,63 @@ def _parse_product(row: dict[str, str], file_name: str, line_number: int) -> Pro
         functional_claim_confidence=_optional_text(row.get("functional_claim_confidence")),
         functional_claim_basis=_optional_text(row.get("functional_claim_basis")),
     )
+
+
+def _apply_product_brand_corrections(base_path: Path, products: tuple[Product, ...]) -> tuple[Product, ...]:
+    corrections = _load_product_brand_corrections(base_path)
+    if not corrections:
+        return products
+
+    product_ids = {product.product_id for product in products}
+    missing_product_ids = sorted(set(corrections) - product_ids)
+    if missing_product_ids:
+        logger.warning(
+            "브랜드 보정표에 현재 products 데이터에 없는 product_code가 있습니다: %s",
+            ", ".join(missing_product_ids[:10]),
+        )
+
+    corrected_products: list[Product] = []
+    applied_count = 0
+    for product in products:
+        corrected_brand = corrections.get(product.product_id)
+        if corrected_brand and corrected_brand != product.brand:
+            corrected_products.append(replace(product, brand=corrected_brand))
+            applied_count += 1
+        else:
+            corrected_products.append(product)
+
+    if applied_count:
+        logger.info("브랜드 보정표를 적용했습니다: %s개 상품", applied_count)
+    return tuple(corrected_products)
+
+
+def _load_product_brand_corrections(base_path: Path) -> dict[str, str]:
+    file_path = base_path / BRAND_CORRECTION_FILE
+    if not file_path.exists():
+        return {}
+
+    corrections: dict[str, str] = {}
+    with file_path.open(encoding="utf-8-sig", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        headers = set(reader.fieldnames or [])
+        required_headers = {"product_code", "corrected_brand"}
+        missing_headers = sorted(required_headers - headers)
+        if missing_headers:
+            missing = ", ".join(missing_headers)
+            raise DataLoadError(f"{BRAND_CORRECTION_FILE.as_posix()} 필수 컬럼이 없습니다: {missing}")
+
+        for line_number, row in enumerate(reader, 2):
+            product_code = _required_text(row, "product_code", BRAND_CORRECTION_FILE.as_posix(), line_number)
+            corrected_brand = _required_text(row, "corrected_brand", BRAND_CORRECTION_FILE.as_posix(), line_number)
+            existing_brand = corrections.get(product_code)
+            if existing_brand is not None and existing_brand != corrected_brand:
+                raise DataLoadError(
+                    f"{BRAND_CORRECTION_FILE.as_posix()}:{line_number} "
+                    f"{product_code}에 서로 다른 corrected_brand가 중복 지정되었습니다."
+                )
+            corrections[product_code] = corrected_brand
+
+    return corrections
 
 
 def _parse_product_price(row: dict[str, str], file_name: str, line_number: int) -> ProductPrice:
