@@ -1,28 +1,34 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
 import AppFooter from "./components/AppFooter";
 import { getSavedSkinProfile } from "./lib/profileApi";
-import { originalPages, type OriginalPageKey } from "./originalPages";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
-import CartPage from "./pages/CartPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import MyPageShell from "./pages/mypage/MyPageShell";
-import PaymentCompletePage from "./pages/PaymentCompletePage";
-import PasswordResetPage from "./pages/PasswordResetPage";
-import ProductDetailSpaPage from "./pages/ProductDetailSpaPage";
-import RecommendationGuidePage from "./pages/RecommendationGuidePage";
-import SearchPage from "./pages/SearchPage";
-import SkinProfile from "./pages/mypage/SkinProfile";
-import SkinTestPage from "./pages/SkinTestPage";
-import SkinTestRecommendationsPage from "./pages/SkinTestRecommendationsPage";
-import SkinTestResultPage from "./pages/SkinTestResultPage";
-import SignupInfoPage from "./pages/SignupInfoPage";
-import SignupSkinProfilePage from "./pages/SignupSkinProfilePage";
-import SignupTermsPage from "./pages/SignupTermsPage";
-import WishList, { RecentProducts } from "./pages/mypage/WishList";
+import type { OriginalPageKey } from "./originalPages";
+
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const CartPage = lazy(() => import("./pages/CartPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
+const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
+const OrderList = lazy(() => import("./pages/mypage/OrderList"));
+const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
+const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
+const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
+const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
+const SkinProfile = lazy(() => import("./pages/mypage/SkinProfile"));
+const SkinTestPage = lazy(() => import("./pages/SkinTestPage"));
+const SkinTestRecommendationsPage = lazy(() => import("./pages/SkinTestRecommendationsPage"));
+const SkinTestResultPage = lazy(() => import("./pages/SkinTestResultPage"));
+const SignupInfoPage = lazy(() => import("./pages/SignupInfoPage"));
+const SignupSkinProfilePage = lazy(() => import("./pages/SignupSkinProfilePage"));
+const SignupTermsPage = lazy(() => import("./pages/SignupTermsPage"));
+const WishList = lazy(() => import("./pages/mypage/WishList"));
+const RecentProducts = lazy(() =>
+  import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts })),
+);
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -58,6 +64,9 @@ const getCurrentPageKey = (): OriginalPageKey => { // 주소 보고 이름표 �
 // /login이 아닌 모든 경로를 처리하는 기존 로직. 별도 컴포넌트로 분리해서
 // 아래 훅들이 /login에서는 아예 실행되지 않게 함(불필요한 스타일/스크립트 주입 방지).
 function LegacyApp() {
+  const [originalPagesMap, setOriginalPagesMap] = useState<
+    typeof import("./originalPages").originalPages | null
+  >(null);
   const [pageKey, setPageKey] = useState<OriginalPageKey>(() => getCurrentPageKey());
   const visiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey)
     ? "home"
@@ -69,8 +78,22 @@ function LegacyApp() {
       : initialPageKey;
     return needsStyleGate(initialVisiblePageKey) ? null : initialVisiblePageKey;
   });
-  const page = useMemo(() => originalPages[visiblePageKey], [visiblePageKey]);
+  const page = useMemo(() => originalPagesMap?.[visiblePageKey] ?? null, [originalPagesMap, visiblePageKey]);
   const isPageStyleReady = !needsStyleGate(visiblePageKey) || styleReadyKey === visiblePageKey;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    import("./originalPages").then((module) => {
+      if (isMounted) {
+        setOriginalPagesMap(module.originalPages);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (appMode === "community" && visiblePageKey !== pageKey) {
@@ -86,6 +109,10 @@ function LegacyApp() {
   }, []);
 
   useLayoutEffect(() => {
+    if (!page) {
+      return;
+    }
+
     const injectedNodes: HTMLElement[] = [];
     const styleLoadPromises: Promise<void>[] = [];
     let isActive = true;
@@ -521,7 +548,7 @@ function LegacyApp() {
 
   return (
     <main className="spa-origin-shell">
-      {!isPageStyleReady ? null : visiblePageKey === "home" ? (
+      {!page || !isPageStyleReady ? null : visiblePageKey === "home" ? (
         <HomePage bodyHtml={page.bodyHtml} />
       ) : visiblePageKey === "search" ? (
         <SearchPage />
@@ -596,28 +623,36 @@ function GlobalFooter() {
   return <AppFooter />;
 }
 
+function RouteLoadingFallback() {
+  return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
     <>
-      <Routes>
-        {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
-        {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
-        {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
-        {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
-        {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
-        {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
-        {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
-        {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
-        {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
-        {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
-        {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
-        {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
-        {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
-        {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
-        <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
-        <Route path="*" element={<LegacyApp />} />
-      </Routes>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
+          {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
+          {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
+          {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
+          {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
+          {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
+          {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
+          {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
+          {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
+          {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
+          {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
+          {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
+          {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
+          {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+          {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
+          {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
+          <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
+          <Route path="*" element={<LegacyApp />} />
+        </Routes>
+      </Suspense>
       <GlobalFooter />
       <GlobalAgentEntry />
     </>

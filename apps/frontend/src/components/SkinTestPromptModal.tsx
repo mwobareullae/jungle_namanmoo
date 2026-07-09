@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { dismissSkinTestPromptPermanently } from "../lib/skinTestPrompt";
+import { dismissSkinTestPromptForSevenDays } from "../lib/skinTestPrompt";
 
 type SkinTestPromptModalProps = {
   onClose: () => void;
@@ -18,13 +18,13 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
   const titleId = useId();
   const questionId = useId();
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState<number | null>(null);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [hideForSevenDays, setHideForSevenDays] = useState(false);
 
   const rememberPreference = useCallback(() => {
-    if (dontShowAgain) {
-      dismissSkinTestPromptPermanently();
+    if (hideForSevenDays) {
+      dismissSkinTestPromptForSevenDays();
     }
-  }, [dontShowAgain]);
+  }, [hideForSevenDays]);
 
   const handleClose = useCallback(() => {
     rememberPreference();
@@ -36,6 +36,19 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
     onClose();
     navigate("/skin-test");
   };
+
+  const handleHideForSevenDaysChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const shouldHide = event.target.checked;
+      setHideForSevenDays(shouldHide);
+
+      if (shouldHide) {
+        dismissSkinTestPromptForSevenDays();
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -142,13 +155,13 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
 
         <label className="skin-test-prompt__dismiss">
           <input
-            checked={dontShowAgain}
+            checked={hideForSevenDays}
             className="skin-test-prompt__dismiss-input"
-            onChange={(event) => setDontShowAgain(event.target.checked)}
+            onChange={handleHideForSevenDaysChange}
             type="checkbox"
           />
           <span className="skin-test-prompt__checkbox" aria-hidden="true">
-            {dontShowAgain ? (
+            {hideForSevenDays ? (
               <svg
                 fill="none"
                 height="11"
@@ -163,7 +176,7 @@ function SkinTestPromptModal({ onClose }: SkinTestPromptModalProps) {
               </svg>
             ) : null}
           </span>
-          <span>다시 보지 않기</span>
+          <span>7일 동안 보지 않기</span>
         </label>
       </section>
     </div>
