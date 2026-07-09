@@ -269,6 +269,7 @@ result:
 ```
 
 팀 공유 시에는 `report.md` 내용을 노션에 붙이고, 필요하면 아래 파일을 같이 첨부합니다.
+Slack을 쓰는 경우 `SLACK_UPLOAD_FILES=false`로 두면 요약만 전송하고 파일은 로컬 `perf-runs/`에만 남깁니다.
 
 ```text
 backend.log
@@ -387,4 +388,5 @@ HEAVY_PRODUCT_IDS="prod_001,prod_002"
 - k6는 가능하면 Dev 서버가 아니라 로컬에서 실행합니다.
 - Dev 서버에서는 backend/postgres/elasticsearch/redis만 실행 중인 상태가 좋습니다.
 - Slack 전송은 기본 비활성화입니다. `SLACK_ENABLED=true`일 때만 실행됩니다.
+- Slack 파일 업로드는 기본 활성화입니다. 요약만 보내려면 `SLACK_UPLOAD_FILES=false`로 둡니다.
 - `.env`, `scripts/perf/config.env`, `perf-runs/`는 커밋하지 않습니다.

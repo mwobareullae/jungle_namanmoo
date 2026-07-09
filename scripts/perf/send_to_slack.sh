@@ -12,9 +12,11 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 if [ "${SLACK_ENABLED:-false}" != "true" ]; then
-  echo "Slack disabled. Set SLACK_ENABLED=true to send files."
+  echo "Slack disabled. Set SLACK_ENABLED=true to send summary/files."
   exit 0
 fi
+
+SLACK_UPLOAD_FILES="${SLACK_UPLOAD_FILES:-true}"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required for Slack delivery."
@@ -78,6 +80,12 @@ case "$PASS_FAIL" in
   *FAIL*) IS_FAIL=true ;;
 esac
 
+if [ "$SLACK_UPLOAD_FILES" = "true" ]; then
+  HANDOFF_FILE_NOTE="확인용 첨부: backend.log, slow-query-sample.log, docker-stats.log"
+else
+  HANDOFF_FILE_NOTE="확인용 파일: 로컬 perf-runs 결과 폴더의 backend.log, slow-query-sample.log, docker-stats.log"
+fi
+
 BACKEND_HANDOFF=""
 if [ "$IS_FAIL" = true ]; then
   BACKEND_HANDOFF="$(cat <<HANDOFF
@@ -87,7 +95,7 @@ if [ "$IS_FAIL" = true ]; then
 2. \`slow-query-sample.log\`에 반복되는 SQL 패턴이 있는지
 3. postgres \`idle in transaction\` 상태가 오래 유지되는 이유 (session commit/flush 타이밍, 응답 조립 시 transaction 유지 여부)
 4. 이번 profile(${PROFILE:-N/A}) 기준 search 계열 p95를 SLA 이내로 줄이기 위한 우선순위
-확인용 첨부: backend.log, slow-query-sample.log, docker-stats.log
+${HANDOFF_FILE_NOTE}
 HANDOFF
 )"
 fi
@@ -103,7 +111,11 @@ SUMMARY_TEXT="$(cat <<SUMMARY
 *Bottleneck*: ${BOTTLENECK:-N/A}
 *Reason*: ${FAIL_REASON:-N/A}
 *Next*: ${NEXT_ACTION:-N/A}${BACKEND_HANDOFF}
-(상세 표는 아래 첨부된 report.md 파일 참고 - Slack은 마크다운 표를 지원하지 않아 요약만 표시됩니다)
+$(if [ "$SLACK_UPLOAD_FILES" = "true" ]; then
+  echo "(상세 표는 아래 첨부된 report.md 파일 참고 - Slack은 마크다운 표를 지원하지 않아 요약만 표시됩니다)"
+else
+  echo "(파일 업로드는 SLACK_UPLOAD_FILES=false로 생략했습니다. 상세 파일은 로컬 perf-runs 결과 폴더에서 확인합니다.)"
+fi)
 SUMMARY
 )"
 
@@ -182,6 +194,11 @@ upload_file() {
 }
 
 UPLOAD_FAIL_COUNT=0
+
+if [ "$SLACK_UPLOAD_FILES" != "true" ]; then
+  echo "Slack file upload skipped. Set SLACK_UPLOAD_FILES=true to upload report/log files."
+  exit 0
+fi
 
 if ! upload_file "$REPORT_MD" "k6 report"; then
   UPLOAD_FAIL_COUNT=$((UPLOAD_FAIL_COUNT + 1))
