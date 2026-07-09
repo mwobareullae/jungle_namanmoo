@@ -97,15 +97,23 @@ SSH_KEY="<ssh-key-path>"
 
 REMOTE_APP_DIR="/home/ubuntu/mwobareullae"
 
+DB_MONITOR_MODE="backend"
 DB_NAME="mwobareullae"
 DB_USER="mwobareullae"
 DATA_DIR="/data"
 DATA_LABEL="full-36000"
 
 BASE_URL="https://dev.api.mubarelle.com/api"
+REPORT_TITLE="Dev API k6 Performance Run"
 CART_WRITES="false"
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
 HEAVY_PRODUCT_IDS=""
+SLA_MS=3000
+
+RDS_METRICS_ENABLED="true"
+RDS_DB_INSTANCE_IDENTIFIER="mubarelle-db"
+AWS_REGION="ap-northeast-2"
+CLOUDWATCH_WAIT_SECONDS=180
 ```
 
 `scripts/perf/config.env`는 `.gitignore`에 포함되어 있어야 합니다.
@@ -123,10 +131,24 @@ curl -fsS https://dev.api.mubarelle.com/api/health
 
 ```bash
 ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> \
-  "cd /home/ubuntu/mwobareullae && docker compose exec -T postgres psql -U mwobareullae -d mwobareullae -c 'select count(*) from products;'"
+  "cd /home/ubuntu/mwobareullae && docker compose exec -T backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text('select current_database()')).scalar())
+    print(db.execute(text('select count(*) from products')).scalar())
+PY"
 ```
 
 여기서 SSH, docker compose, DB 접속 중 하나라도 실패하면 `run-loadtest.sh`도 로그/지표 수집이 비어 있을 수 있습니다.
+
+RDS CloudWatch 지표는 Dev 서버 EC2 IAM Role을 사용합니다. 서버에서 아래 명령이 동작하면 별도 AWS key 설정은 필요 없습니다.
+
+```bash
+ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> \
+  'START=$(date -u -d "10 minutes ago" +%Y-%m-%dT%H:%M:%S); END=$(date -u +%Y-%m-%dT%H:%M:%S); aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name CPUUtilization --dimensions Name=DBInstanceIdentifier,Value=mubarelle-db --start-time "$START" --end-time "$END" --period 60 --statistics Average Maximum --region ap-northeast-2 --output json'
+```
 
 ## 4. Smoke 실행
 
@@ -195,6 +217,8 @@ perf-runs/<timestamp>_<profile>_<data-label>/
 ├── notable-errors.log
 ├── pg-stat-activity.log
 ├── report.md
+├── rds-metrics.json
+├── rds-metrics.log
 └── slow-query-sample.log
 ```
 
@@ -236,6 +260,7 @@ server:
 - elasticsearch max cpu/mem:
 - redis max cpu/mem:
 - pg_stat_activity max:
+- RDS CPU/Memory/Connection/IOPS/Latency/Storage:
 
 result:
 - PASS/FAIL:
@@ -244,6 +269,7 @@ result:
 ```
 
 팀 공유 시에는 `report.md` 내용을 노션에 붙이고, 필요하면 아래 파일을 같이 첨부합니다.
+Slack을 쓰는 경우 `SLACK_UPLOAD_FILES=false`로 두면 요약만 전송하고 파일은 로컬 `perf-runs/`에만 남깁니다.
 
 ```text
 backend.log
@@ -295,8 +321,20 @@ ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> "hostname"
 
 - `REMOTE_APP_DIR`가 실제 서버 compose 경로와 다름
 - `DB_NAME`이 실제 DB 이름과 다름
-- `BACKEND_CONTAINER`, `POSTGRES_CONTAINER`, `REDIS_CONTAINER`, `ELASTICSEARCH_CONTAINER` 이름이 compose와 다름
+- `DB_MONITOR_MODE`가 현재 서버 구조와 다름
+- `BACKEND_CONTAINER`, `REDIS_CONTAINER`, `ELASTICSEARCH_CONTAINER` 이름이 compose와 다름
 - SSH 접속은 되지만 docker 권한이 없음
+
+### RDS 지표가 N/A일 때
+
+대부분 아래 중 하나입니다.
+
+- `RDS_METRICS_ENABLED=false`
+- `RDS_DB_INSTANCE_IDENTIFIER`가 실제 RDS identifier와 다름
+- Dev 서버에 AWS CLI가 없거나 EC2 IAM Role 권한이 부족함
+- CloudWatch 집계 지연 때문에 최근 datapoint가 아직 없음
+
+`smoke`는 실행 시간이 짧아 datapoint가 1~2개만 잡힐 수 있습니다. RDS 병목 판단은 `baseline` 이상에서 보는 것을 권장합니다.
 
 ### k6가 400/404를 많이 낼 때
 
@@ -317,7 +355,10 @@ GET  /api/health
 GET  /api/products/popular
 GET  /api/products/{product_id}
 GET  /api/products/search
-GET  /api/home/sections
+GET  /api/home/layout
+GET  /api/home/market-popular
+GET  /api/home/evidence-picks
+GET  /api/home/for-you
 POST /api/recommendations
 GET  /api/recommendations/{recommendation_id}
 GET  /api/products/{product_id}?recommendation_id=...
@@ -326,6 +367,9 @@ POST /api/checkout/preview    # CART_WRITES=true 일 때만
 ```
 
 검색어는 `SEARCH_QUERIES`로 조절합니다.
+로그인 사용자 홈 추천은 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정했을 때만 추가 실행합니다.
+기본 실행은 비로그인/fallback for-you만 포함하며, 로그인 시나리오 포함 여부는 `report.md`의 `Auth home for-you` 행과 Slack 요약에 표시됩니다.
+리포트 제목은 `REPORT_TITLE`로 조절합니다.
 
 ```env
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
@@ -344,4 +388,5 @@ HEAVY_PRODUCT_IDS="prod_001,prod_002"
 - k6는 가능하면 Dev 서버가 아니라 로컬에서 실행합니다.
 - Dev 서버에서는 backend/postgres/elasticsearch/redis만 실행 중인 상태가 좋습니다.
 - Slack 전송은 기본 비활성화입니다. `SLACK_ENABLED=true`일 때만 실행됩니다.
+- Slack 파일 업로드는 기본 활성화입니다. 요약만 보내려면 `SLACK_UPLOAD_FILES=false`로 둡니다.
 - `.env`, `scripts/perf/config.env`, `perf-runs/`는 커밋하지 않습니다.
