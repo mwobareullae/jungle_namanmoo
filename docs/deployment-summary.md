@@ -14,6 +14,8 @@ dev branch push
 ```
 
 - Dev 서버는 `dev` 브랜치 merge/push 기준으로 GitHub Actions가 자동 배포합니다.
+- Dev 서버 CD는 frontend container를 실행하지 않습니다. 프론트는 Vercel Production Branch `dev` 기준으로 배포합니다.
+- `dev` 외 PR/feature 브랜치는 `apps/frontend` 변경이 있을 때 Vercel Preview 배포를 생성합니다.
 - GitHub Actions는 서버 `.env`를 덮어쓰지 않습니다.
 - DB migration은 CD에 포함하지 않습니다. 스키마 변경 PR merge 후 R6 인프라 담당이 Dev 서버에서 수동 실행합니다.
 - Seed는 배포 파이프라인에서 자동 실행하지 않습니다. 필요 시 데이터/백엔드 담당 판단으로 수동 실행합니다.
@@ -26,7 +28,8 @@ dev branch push
 - 목적: 팀원 6명 통합 개발/확인
 - 인스턴스 기준: `t3.xlarge` 4vCPU / 16GB
 - 배포: `dev` 브랜치 push 시 GitHub Actions 자동 배포
-- 현재 기본 구성: `frontend`, `backend`, `postgres`
+- 현재 기본 구성: `backend`, `postgres`, `caddy`
+- Frontend: Vercel 배포 사용. Docker Compose의 `frontend` 서비스는 로컬 명시 실행용으로만 유지
 - Dev infra profile 구성: `redis`, `elasticsearch`
 - DB: EC2 내부 Docker PostgreSQL 유지
 - RDS: Dev에는 사용하지 않음
@@ -94,7 +97,6 @@ Docker Postgres volume snapshot 또는 pg_dump 확보
 ```text
 postgres
 backend
-frontend
 ```
 
 Dev infra profile 포함 서비스:
@@ -102,9 +104,20 @@ Dev infra profile 포함 서비스:
 ```text
 postgres
 backend
-frontend
 redis
 elasticsearch
+```
+
+Frontend 명시 실행 profile:
+
+```text
+frontend
+```
+
+`frontend` 서비스는 Docker Compose에 남아 있지만 `frontend` profile 뒤에 둡니다. 따라서 `docker compose up --build`나 Dev 서버 CD에서는 자동 실행되지 않고, 로컬에서 필요할 때만 아래처럼 명시 실행합니다.
+
+```bash
+docker compose --profile frontend up --build frontend
 ```
 
 Redis/Elasticsearch는 Dev 인프라만 먼저 제공합니다. 실제 cache/rate limit 적용, ES 검색 ranking 연결은 기능 담당 PR에서 별도로 진행합니다.
@@ -220,12 +233,18 @@ VITE_API_BASE_URL=http://<dev-server-host>:8000/api
 
 이 프로젝트는 Vite 기반이므로 `NEXT_PUBLIC_API_URL`은 사용하지 않습니다.
 
-현재 기본 `docker-compose.yml`은 `frontend -> backend -> postgres` 의존성이 있습니다. 프론트만 실행할 때는 역할 분리용 `docker-compose.dev-modes.yml`의 `frontend-only` 서비스를 사용합니다.
+기본 `docker-compose.yml`의 `frontend` 서비스는 `frontend` profile 뒤에 있어 기본 서버 실행에는 포함되지 않습니다. 프론트만 실행할 때는 기존 역할 분리용 `frontend-only` 서비스를 사용하거나, 기본 compose의 `frontend` 서비스를 명시 실행합니다.
 
 역할 분리 compose를 사용할 때:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-modes.yml --profile frontend-only up --build frontend-only
+```
+
+기본 compose의 frontend 서비스를 직접 사용할 때:
+
+```bash
+docker compose --profile frontend up --build frontend
 ```
 
 ### Backend 작업자 기본 모드
@@ -467,8 +486,8 @@ P2 상품 이미지 적재와 공개 서빙은 EC2 로컬 디스크가 아니라
 
 ```text
 22    SSH, 관리자 IP 또는 GitHub Actions 접근 방식에 맞게 제한
-5173  frontend, 팀원 IP 또는 임시 공개
 8000  backend, 팀원 IP 또는 임시 공개
+5173  frontend, Dev 서버에서는 사용하지 않음. 로컬/Vercel 기준
 5432  postgres, 외부 공개 금지
 6379  redis, 외부 공개 금지
 9200  elasticsearch, 외부 공개 금지

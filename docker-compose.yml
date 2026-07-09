@@ -12,6 +12,8 @@ services:
       context: ./apps/frontend
     container_name: mwobareullae-frontend
     restart: unless-stopped
+    profiles:
+      - frontend
     environment:
       VITE_APP_MODE: ${VITE_APP_MODE:-commerce}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
