@@ -110,6 +110,18 @@ def row(label: str, value: str | int | float | None) -> str:
     return f"| {label} | {value if value not in (None, '') else 'N/A'} |"
 
 
+def truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def auth_home_for_you_summary(enabled: str, cookie_provided: str) -> str:
+    if truthy(enabled) and truthy(cookie_provided):
+        return "enabled, AUTH_COOKIE provided. home_for_you_auth 실행"
+    if truthy(enabled):
+        return "enabled, but AUTH_COOKIE empty. home_for_you_auth 미실행"
+    return "disabled. 비로그인/fallback for-you만 실행"
+
+
 def max_cpu_mem(stats: dict, alias: str) -> str:
     name = CONTAINER_ALIASES[alias]
     cpu = stats["max_cpu"].get(name)
@@ -280,6 +292,8 @@ def main() -> None:
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--data-label", required=True)
     parser.add_argument("--cart-writes", required=True)
+    parser.add_argument("--auth-home-for-you", default="false")
+    parser.add_argument("--auth-cookie-provided", default="false")
     parser.add_argument("--start-utc", required=True)
     parser.add_argument("--end-utc", required=True)
     parser.add_argument("--start-kst", required=True)
@@ -339,7 +353,8 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 - `GET /api/home/layout`
 - `GET /api/home/market-popular`
 - `GET /api/home/evidence-picks`
-- `GET /api/home/for-you`
+- `GET /api/home/for-you` 비로그인/fallback 및 선택 조건
+- `GET /api/home/for-you` 로그인 사용자 선택 실행 (`AUTH_HOME_FOR_YOU=true` + `AUTH_COOKIE` 필요)
 - `POST /api/recommendations`
 - `GET /api/recommendations/{{recommendation_id}}`
 - `GET /api/products/{{product_id}}?recommendation_id=...`
@@ -358,6 +373,7 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("Data label", args.data_label)}
 {row("Profile", args.profile)}
 {row("Cart writes", args.cart_writes)}
+{row("Auth home for-you", auth_home_for_you_summary(args.auth_home_for_you, args.auth_cookie_provided))}
 {row("Started at UTC", args.start_utc)}
 {row("Ended at UTC", args.end_utc)}
 {row("Started at KST", args.start_kst)}

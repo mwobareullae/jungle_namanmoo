@@ -213,6 +213,8 @@ k6 run tests/k6/commerce-smoke.js
 ### 로그인 홈 추천 포함
 
 로그인 사용자 기준 `/api/home/for-you`를 포함하려면 브라우저에서 얻은 session cookie를 전달합니다.
+기본 실행은 비로그인 fallback/선택 조건 for-you만 호출하고, 아래 두 값이 모두 있을 때만 로그인 `home_for_you_auth` 시나리오가 추가됩니다.
+실행 여부는 `report.md`의 `Auth home for-you` 행에서 확인합니다.
 
 ```bash
 BASE_URL=https://dev.api.mubarelle.com/api \

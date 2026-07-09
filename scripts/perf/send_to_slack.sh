@@ -57,6 +57,7 @@ table_value() {
 PROFILE="$(table_value "Profile")"
 DATA_LABEL="$(table_value "Data label")"
 CART_WRITES="$(table_value "Cart writes")"
+AUTH_HOME_FOR_YOU="$(table_value "Auth home for-you")"
 PASS_FAIL="$(table_value "PASS / FAIL")"
 FAIL_REASON="$(table_value "실패 이유")"
 BOTTLENECK="$(table_value "Bottleneck 후보")"
@@ -94,6 +95,7 @@ fi
 SUMMARY_TEXT="$(cat <<SUMMARY
 *k6 ${PASS_FAIL:-Result}*
 *Profile*: ${PROFILE:-N/A} / *Data*: ${DATA_LABEL:-N/A} / *Cart writes*: ${CART_WRITES:-N/A}
+*Auth home for-you*: ${AUTH_HOME_FOR_YOU:-N/A}
 *k6*: ${REQS_PER_SEC:-N/A}, failed ${FAILED_RATE:-N/A}
 *p95*: fast ${FAST_P95:-N/A}, search ${SEARCH_P95:-N/A}, write ${WRITE_P95:-N/A}
 *Server*: backend ${BACKEND_CPU_MEM:-N/A}, postgres ${POSTGRES_CPU_MEM:-N/A}, es ${ES_CPU_MEM:-N/A}

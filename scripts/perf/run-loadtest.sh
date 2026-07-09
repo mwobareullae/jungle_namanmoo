@@ -39,6 +39,8 @@ RESULT_ROOT="${RESULT_ROOT:-$REPO_DIR/perf-runs}"
 RUN_K6="${RUN_K6:-true}"
 SLACK_ENABLED="${SLACK_ENABLED:-false}"
 REPORT_TITLE="${REPORT_TITLE:-k6 Performance Run}"
+AUTH_HOME_FOR_YOU="${AUTH_HOME_FOR_YOU:-false}"
+AUTH_COOKIE="${AUTH_COOKIE:-}"
 RDS_METRICS_ENABLED="${RDS_METRICS_ENABLED:-true}"
 RDS_DB_INSTANCE_IDENTIFIER="${RDS_DB_INSTANCE_IDENTIFIER:-mubarelle-db}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
@@ -292,8 +294,8 @@ run_k6() {
       -e SEARCH_QUERIES="$SEARCH_QUERIES" \
       -e DEBUG_ERRORS="$DEBUG_ERRORS" \
       -e SLA_MS="$SLA_MS" \
-      -e AUTH_HOME_FOR_YOU="${AUTH_HOME_FOR_YOU:-false}" \
-      -e AUTH_COOKIE="${AUTH_COOKIE:-}" \
+      -e AUTH_HOME_FOR_YOU="$AUTH_HOME_FOR_YOU" \
+      -e AUTH_COOKIE="$AUTH_COOKIE" \
       "$K6_SCRIPT"
   ) 2>&1 | tee "$K6_STDOUT"
   K6_EXIT="${PIPESTATUS[0]}"
@@ -319,6 +321,10 @@ generate_summary() {
   fi
 
   log "generate report"
+  local auth_cookie_provided="false"
+  if [ -n "$AUTH_COOKIE" ]; then
+    auth_cookie_provided="true"
+  fi
   python3 "$SCRIPT_DIR/generate_report.py" \
     --title "$REPORT_TITLE" \
     --profile "$PROFILE" \
@@ -328,6 +334,8 @@ generate_summary() {
     --data-dir "$DATA_DIR" \
     --data-label "$DATA_LABEL" \
     --cart-writes "$CART_WRITES" \
+    --auth-home-for-you "$AUTH_HOME_FOR_YOU" \
+    --auth-cookie-provided "$auth_cookie_provided" \
     --start-utc "$START_TIME_UTC" \
     --end-utc "$END_TIME_UTC" \
     --start-kst "$START_TIME_KST" \
