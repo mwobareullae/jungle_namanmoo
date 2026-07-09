@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import type { MouseEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { addCartItem } from "../lib/cartApi";
+import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
 import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
+import { getSavedSkinProfile } from "../lib/profileApi";
 import type {
   IngredientEvidence,
   ProductDetail,
@@ -25,6 +28,44 @@ const evidenceLevelLabel: Record<IngredientEvidence["evidence_level"], string> =
   low: "근거 낮음",
 };
 
+const evidenceLevelBadgeClass: Record<IngredientEvidence["evidence_level"], string> = {
+  high: "evidence-badge-high",
+  medium: "evidence-badge-medium",
+  low: "evidence-badge-low",
+};
+
+// 백엔드 성분 데이터에 PMID·tier·canonical 같은 내부 리서치 원본 텍스트가 섞여 들어오는 경우가 있어,
+// 소비자 화면에 노출되지 않도록 방어적으로 걸러낸다.
+const INTERNAL_NOTE_PATTERN = /pmid|canonical|\b(role|tier|status)\s*=|\bcfr\b/i;
+const isInternalNoteText = (value: string | null | undefined) => {
+  if (!value) return false;
+  const normalized = value.trim();
+  if (!normalized) return false;
+  if (/^(high|medium|low)$/i.test(normalized)) return true;
+  return INTERNAL_NOTE_PATTERN.test(normalized);
+};
+
+const getAvoidIngredientMatchSet = (avoidValues: string[]) => {
+  const matchSet = new Set<string>();
+  avoidValues.forEach((value) => {
+    const category = avoidIngredientCategories.find(
+      (item) =>
+        item.id === value ||
+        item.label === value ||
+        (item.mappedIngredients as readonly string[]).includes(value),
+    );
+
+    if (category) {
+      category.mappedIngredients.forEach((name) => matchSet.add(name));
+      return;
+    }
+
+    matchSet.add(value);
+  });
+  return matchSet;
+};
+const EMPTY_AVOID_INGREDIENT_MATCH_SET = new Set<string>();
+
 const getDetailParams = () => {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -35,13 +76,53 @@ const getDetailParams = () => {
   };
 };
 
-const getEffectIcon = (effect: string) => {
-  if (effect.includes("미백") || effect.includes("톤")) return "!";
-  if (effect.includes("주름") || effect.includes("탄력")) return "↻";
-  if (effect.includes("여드름") || effect.includes("피지") || effect.includes("모공")) return "●";
-  if (effect.includes("보습") || effect.includes("장벽")) return "◆";
-  return "•";
+type EffectIconKey = "brighten" | "wrinkle" | "acne" | "moisture" | "soothe";
+
+const getEffectIcon = (effect: string): EffectIconKey => {
+  if (effect.includes("미백") || effect.includes("톤")) return "brighten";
+  if (effect.includes("주름") || effect.includes("탄력")) return "wrinkle";
+  if (effect.includes("여드름") || effect.includes("피지") || effect.includes("모공")) return "acne";
+  if (effect.includes("보습") || effect.includes("장벽")) return "moisture";
+  return "soothe";
 };
+
+const EFFECT_ICON_SVG: Record<EffectIconKey, JSX.Element> = {
+  moisture: (
+    <path d="M12 2.5c4 5 7 8.5 7 12a7 7 0 1 1-14 0c0-3.5 3-7 7-12z" />
+  ),
+  soothe: (
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />
+  ),
+  brighten: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+    </>
+  ),
+  wrinkle: (
+    <>
+      <path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" />
+      <path d="M18 3v4h-4M6 21v-4h4" />
+    </>
+  ),
+  acne: <path d="M12 3l7 3.5v5c0 5-3 8.5-7 9.5-4-1-7-4.5-7-9.5v-5L12 3z" />,
+};
+
+const EffectIcon = ({ iconKey }: { iconKey: EffectIconKey }) => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {EFFECT_ICON_SVG[iconKey]}
+  </svg>
+);
 
 const getEffectLabel = (effect: string) => {
   if (effect.includes("미백") || effect.includes("톤")) return "피부 미백에 도움되는 기능성 성분";
@@ -51,6 +132,8 @@ const getEffectLabel = (effect: string) => {
   if (effect.includes("보습")) return "보습에 도움되는 성분";
   return `${effect} 효능과 연결된 성분`;
 };
+
+const getEffectTagLabel = (effect: string) => effect.trim() || "효능";
 
 const normalizeNarrativeTitle = (title: string) => {
   if (/내 피부 고민 기준 추천 근거|추천\s*근거|왜\s*추천/.test(title)) return "왜 추천했나요";
@@ -73,6 +156,7 @@ const parseRiskFlag = (riskFlag: string) => {
 };
 
 const DETAIL_TAB_HASHES = ["#description", "#ingredients", "#reviews", "#qna"] as const;
+type DetailTabHash = typeof DETAIL_TAB_HASHES[number];
 const STICKY_TAB_TOP_PX = 66;
 const DETAIL_ACTIVE_OFFSET_PX = STICKY_TAB_TOP_PX + 72;
 const CORE_INGREDIENT_COUNT = 4;
@@ -81,6 +165,12 @@ const normalizeDetailHash = (hash: string) =>
   DETAIL_TAB_HASHES.includes(hash as typeof DETAIL_TAB_HASHES[number])
     ? hash
     : "#description";
+const scrollToDetailHash = (hash: string, behavior: ScrollBehavior = "auto") => {
+  const normalizedHash = normalizeDetailHash(hash);
+  const section = document.getElementById(normalizedHash.slice(1));
+
+  section?.scrollIntoView({ block: "start", behavior });
+};
 const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
 
 type ProductComparisonRequest = {
@@ -265,6 +355,10 @@ function ProductDetailSpaPage() {
   const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [avoidIngredientMatchState, setAvoidIngredientMatchState] = useState<{
+    matchSet: Set<string>;
+    userId: number | null;
+  }>({ matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET, userId: null });
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
@@ -281,15 +375,14 @@ function ProductDetailSpaPage() {
   const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [isIngredientExpanded, setIsIngredientExpanded] = useState(false);
-  const [selectedEffect, setSelectedEffect] = useState<{
-    icon: string;
-    label: string;
-    items: IngredientEvidence[];
-  } | null>(null);
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(
+    () => !window.matchMedia("(max-width: 900px)").matches,
+  );
   const [comparisonRequest, setComparisonRequest] = useState<ProductComparisonRequest | null>(null);
   const [comparisonProducts, setComparisonProducts] = useState<ProductDetail[]>([]);
   const [isComparisonLoading, setIsComparisonLoading] = useState(false);
   const [comparisonErrorMessage, setComparisonErrorMessage] = useState("");
+  const restoredHashProductRef = useRef<string | null>(null);
 
   useEffect(() => installHomeRuntime(), []);
 
@@ -309,7 +402,11 @@ function ProductDetailSpaPage() {
     };
     handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    window.addEventListener("popstate", handleHashChange);
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("popstate", handleHashChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -335,15 +432,6 @@ function ProductDetailSpaPage() {
       window.removeEventListener("resize", handleScroll);
     };
   }, [product]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedEffect(null);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   useEffect(() => {
     const resetTimer = window.setTimeout(() => {
@@ -395,7 +483,6 @@ function ProductDetailSpaPage() {
     let isMounted = true;
 
     const loadProduct = async () => {
-      setSelectedEffect(null);
       setIsLoading(true);
 
       try {
@@ -454,6 +541,37 @@ function ProductDetailSpaPage() {
   }, [productId, user]);
 
   const displayedIsWished = Boolean(user && isWished);
+  const brandPagePath = product?.brand ? `/brand/${encodeURIComponent(product.brand)}` : "";
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let isMounted = true;
+    const currentUserId = user.id;
+
+    getSavedSkinProfile()
+      .then((profile) => {
+        if (!isMounted) return;
+        setAvoidIngredientMatchState({
+          matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
+          userId: currentUserId,
+        });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAvoidIngredientMatchState({
+            matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET,
+            userId: currentUserId,
+          });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!comparisonRequest) {
@@ -555,7 +673,11 @@ function ProductDetailSpaPage() {
       product.related_ingredients.length > 0 ? product.related_ingredients : product.key_ingredients;
     const coreIngredients = product.ingredients
       .filter((ingredient) => ingredient.name)
-      .slice(0, CORE_INGREDIENT_COUNT);
+      .slice(0, CORE_INGREDIENT_COUNT)
+      .map((ingredient) => ({
+        ...ingredient,
+        purpose: isInternalNoteText(ingredient.purpose) ? "" : ingredient.purpose,
+      }));
     const allIngredients =
       product.ingredients.length > 0
         ? product.ingredients.map((ingredient) => ingredient.name).filter(Boolean)
@@ -564,25 +686,122 @@ function ProductDetailSpaPage() {
       ? allIngredients
       : allIngredients.slice(0, INITIAL_VISIBLE_INGREDIENT_COUNT);
     const hasMoreIngredients = allIngredients.length > INITIAL_VISIBLE_INGREDIENT_COUNT;
-    const effectGroups = Array.from(new Set(product.evidence.map((item) => item.effect_name).filter(Boolean)))
+    const sanitizedEvidence = product.evidence.map((item) => ({
+      ...item,
+      evidence_text: isInternalNoteText(item.evidence_text) ? "" : item.evidence_text,
+      source_title: isInternalNoteText(item.source_title) ? null : item.source_title,
+    }));
+    const effectGroups = Array.from(new Set(sanitizedEvidence.map((item) => item.effect_name).filter(Boolean)))
       .map((effect) => ({
         effect,
         icon: getEffectIcon(effect),
         label: getEffectLabel(effect),
-        items: product.evidence.filter((item) => item.effect_name === effect),
+        items: sanitizedEvidence.filter((item) => item.effect_name === effect),
       }))
       .filter((group) => group.items.length > 0);
+    const groupedEvidence: { ingredientName: string; effectNames: string[]; items: typeof sanitizedEvidence }[] = [];
+    sanitizedEvidence.forEach((item) => {
+      const ingredientName = item.ingredient_name || "성분";
+      const effectName = getEffectTagLabel(item.effect_name);
+      const existingGroup = groupedEvidence.find((group) => group.ingredientName === ingredientName);
+      if (existingGroup) {
+        existingGroup.items.push(item);
+        if (item.effect_name && !existingGroup.effectNames.includes(effectName)) {
+          existingGroup.effectNames.push(effectName);
+        }
+      } else {
+        groupedEvidence.push({
+          ingredientName,
+          effectNames: item.effect_name ? [effectName] : [],
+          items: [item],
+        });
+      }
+    });
 
     return {
       relatedIngredients,
       coreIngredients,
+      allIngredients,
       visibleIngredients,
       hasMoreIngredients,
+      sanitizedEvidence,
       effectGroups,
+      groupedEvidence,
     };
   }, [isIngredientExpanded, product]);
 
+  const avoidIngredientMatchSet =
+    user && avoidIngredientMatchState.userId === user.id
+      ? avoidIngredientMatchState.matchSet
+      : EMPTY_AVOID_INGREDIENT_MATCH_SET;
+  const avoidIngredientMatchCount = detailData
+    ? detailData.allIngredients.filter((name) => avoidIngredientMatchSet.has(name)).length
+    : 0;
+
+  useEffect(() => {
+    if (!product?.product_id || !detailData) {
+      return;
+    }
+
+    const normalizedHash = normalizeDetailHash(window.location.hash);
+    const restoreKey = `${product.product_id}:${normalizedHash}`;
+    if (restoredHashProductRef.current === restoreKey) {
+      return;
+    }
+
+    restoredHashProductRef.current = restoreKey;
+    setActiveTab(normalizedHash);
+
+    if (normalizedHash === "#description") {
+      return;
+    }
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      scrollToDetailHash(normalizedHash);
+      secondFrame = window.requestAnimationFrame(() => scrollToDetailHash(normalizedHash));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) {
+        window.cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [detailData, product?.product_id]);
+
   const tabClassName = (hash: string) => `detail-tab${activeTab === hash ? " active" : ""}`;
+  const handleTabClick = (hash: DetailTabHash) => (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const normalizedHash = normalizeDetailHash(hash);
+
+    setActiveTab(normalizedHash);
+    if (window.location.hash !== normalizedHash) {
+      window.history.pushState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}${normalizedHash}`,
+      );
+    }
+
+    window.requestAnimationFrame(() => scrollToDetailHash(normalizedHash, "smooth"));
+  };
+  const handleDescriptionImageLoad = () => {
+    const normalizedHash = normalizeDetailHash(window.location.hash);
+
+    if (normalizedHash !== "#description" && activeTab === normalizedHash) {
+      scrollToDetailHash(normalizedHash);
+    }
+  };
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigateWithinApp("/");
+  };
+
   const addCurrentProductToCart = async () => {
     if (!productId) {
       throw new Error("상품 정보를 찾을 수 없습니다.");
@@ -732,6 +951,9 @@ function ProductDetailSpaPage() {
       <HomeHeader />
       <main className="detail-page">
         <section className="detail-shell">
+          <button className="detail-mobile-back-button" type="button" aria-label="이전 화면으로 이동" onClick={handleGoBack}>
+            <span aria-hidden="true">‹</span>
+          </button>
           <div className="detail-breadcrumb">
             <a href="/">홈</a>
             <span>&gt;</span>
@@ -759,7 +981,14 @@ function ProductDetailSpaPage() {
 
               <div className="detail-summary">
                 <div className="detail-brand-row">
-                  <div className="detail-brand" id="productBrand">{product.brand}</div>
+                  {brandPagePath ? (
+                    <Link className="detail-brand detail-brand-link" id="productBrand" to={brandPagePath}>
+                      {product.brand}
+                      <span aria-hidden="true">&gt;</span>
+                    </Link>
+                  ) : (
+                    <div className="detail-brand" id="productBrand">{product.brand}</div>
+                  )}
                   <div className="detail-actions">
                     <button className="detail-icon-btn" type="button" aria-label="공유">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -893,16 +1122,14 @@ function ProductDetailSpaPage() {
         {product && detailData ? (
           <>
             <nav className="detail-tabs" aria-label="상품 상세 탭">
-              <a className={tabClassName("#description")} href="#description">상품 설명</a>
-              <a className={tabClassName("#ingredients")} href="#ingredients">성분</a>
-              <a className={tabClassName("#reviews")} href="#reviews">리뷰</a>
-              <a className={tabClassName("#qna")} href="#qna">QnA</a>
+              <a className={tabClassName("#description")} href="#description" onClick={handleTabClick("#description")}>상품 설명</a>
+              <a className={tabClassName("#ingredients")} href="#ingredients" onClick={handleTabClick("#ingredients")}>성분</a>
+              <a className={tabClassName("#reviews")} href="#reviews" onClick={handleTabClick("#reviews")}>리뷰</a>
+              <a className={tabClassName("#qna")} href="#qna" onClick={handleTabClick("#qna")}>QnA</a>
             </nav>
 
             <section className="detail-sections">
               <section className="detail-section" id="description">
-                <div className="section-kicker">Product Description</div>
-                <h2>상품 상세 이미지</h2>
                 {descriptionImageUrls.length > 0 ? (
                   <div className="product-description-images">
                     {descriptionImageUrls.map((imageUrl, index) => (
@@ -910,6 +1137,7 @@ function ProductDetailSpaPage() {
                         src={imageUrl}
                         alt={`${product.name} 상세 이미지 ${index + 2}`}
                         loading="lazy"
+                        onLoad={handleDescriptionImageLoad}
                         key={imageUrl}
                       />
                     ))}
@@ -966,7 +1194,6 @@ function ProductDetailSpaPage() {
               </section>
 
               <section className="detail-section" id="ingredients">
-                <div className="section-kicker">Ingredients</div>
                 <h2>성분 정보</h2>
                 <div className="review-ingredient-layout ingredients-only">
                   <div className="ingredient-panel">
@@ -976,9 +1203,12 @@ function ProductDetailSpaPage() {
                         <div className="core-ingredient-list">
                           {detailData.coreIngredients.length > 0 ? (
                             detailData.coreIngredients.map((ingredient) => (
-                              <article className="core-ingredient-item" key={ingredient.name}>
+                              <article
+                                className={`core-ingredient-item${avoidIngredientMatchSet.has(ingredient.name) ? " ingredient-avoid-card" : ""}`}
+                                key={ingredient.name}
+                              >
                                 <strong>{ingredient.name}</strong>
-                                <p>{ingredient.purpose || "성분 목적 정보가 준비 중입니다."}</p>
+                                <p>{ingredient.purpose || "성분 정보 준비 중"}</p>
                               </article>
                             ))
                           ) : (
@@ -987,113 +1217,143 @@ function ProductDetailSpaPage() {
                         </div>
                       </div>
                     </div>
-                    {detailData.effectGroups.length > 0 ? (
-                      <div className="effect-toggle-list" id="effectToggleList">
-                          <div className="effect-toggle-title">효능별 핵심 성분</div>
-                          {detailData.effectGroups.map((group) => (
-                            <button
-                              className="effect-toggle-row"
-                              type="button"
-                              onClick={() => setSelectedEffect(group)}
-                              key={group.effect}
-                            >
-                              <span className="effect-toggle-icon">{group.icon}</span>
-                              <span className="effect-toggle-copy">
-                                <span className="effect-toggle-label">{group.label}</span>
-                                <span className="effect-toggle-meta">관련 성분 {group.items.length}개</span>
-                              </span>
-                              <span className="effect-toggle-caret">⌄</span>
-                            </button>
-                          ))}
-                      </div>
-                    ) : null}
                     <div className="ingredient-copy" id="ingredientCopy">
-                      <div className="ingredient-copy-label">전성분</div>
-                      <p className="ingredient-copy-text">
-                        {detailData.visibleIngredients.length > 0
-                          ? detailData.visibleIngredients.join(", ")
-                          : "성분 정보가 준비 중입니다."}
-                      </p>
-                      {detailData.hasMoreIngredients ? (
-                        <div className="ingredient-copy-actions">
+                      <div className="ingredient-copy-label-row">
+                        <div className="ingredient-copy-label-group">
+                          <div className="ingredient-copy-label">전성분</div>
+                          {avoidIngredientMatchCount > 0 ? (
+                            <span className="ingredient-avoid-badge">
+                              회피 성분 {avoidIngredientMatchCount}개 포함
+                            </span>
+                          ) : null}
+                        </div>
+                        {detailData.hasMoreIngredients ? (
                           <button
                             className="ingredient-copy-toggle"
                             type="button"
                             aria-expanded={isIngredientExpanded}
-                            aria-controls="ingredientCopy"
+                            aria-controls="ingredientCopyText"
                             onClick={() => setIsIngredientExpanded((current) => !current)}
                           >
-                            {isIngredientExpanded ? "접기" : "전성분 전체 보기"}
+                            {isIngredientExpanded ? "접기" : `전체 ${detailData.allIngredients.length}개 보기`}
+                            <span aria-hidden="true">{isIngredientExpanded ? "⌃" : "⌄"}</span>
                           </button>
-                        </div>
-                      ) : null}
+                        ) : null}
+                      </div>
+                      <p className="ingredient-copy-text" id="ingredientCopyText">
+                        {detailData.visibleIngredients.length > 0
+                          ? detailData.visibleIngredients.map((ingredientName, index) => (
+                              <span key={`${ingredientName}-${index}`}>
+                                {avoidIngredientMatchSet.has(ingredientName) ? (
+                                  <span className="ingredient-avoid-match">{ingredientName}</span>
+                                ) : (
+                                  ingredientName
+                                )}
+                                {index < detailData.visibleIngredients.length - 1 ? ", " : ""}
+                              </span>
+                            ))
+                          : "성분 정보가 준비 중입니다."}
+                        {!isIngredientExpanded && detailData.hasMoreIngredients ? (
+                          <span className="ingredient-copy-ellipsis" aria-hidden="true"> ...</span>
+                        ) : null}
+                      </p>
                     </div>
+                    <p className="ingredient-name-basis-note">
+                      해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.
+                    </p>
                   </div>
                 </div>
                 <div className="detail-subsection ingredient-evidence-section" id="ingredientEvidence">
                   <div className="detail-subsection-head">
                     <h3>성분 근거</h3>
-                    <p>성분명, 기대 효능, 근거 수준, 출처를 한곳에서 확인할 수 있습니다.</p>
+                    {detailData.effectGroups.length > 0 ? (
+                      <div className="ingredient-evidence-summary-chips" aria-label="효능별 성분 근거 요약">
+                        {detailData.effectGroups.map((group) => (
+                          <span className="ingredient-evidence-summary-chip" key={group.effect}>
+                            {getEffectTagLabel(group.effect)} <strong>{group.items.length}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="ingredient-evidence-list" id="evidenceList">
-                    {product.evidence.length > 0 ? (
-                      product.evidence.map((evidence) => {
-                        const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
-                        return (
-                          <article
-                            className="ingredient-evidence-card"
-                            key={`${evidence.ingredient_name}-${evidence.effect_name}-${evidence.source_title}`}
-                          >
-                            <div className="ingredient-evidence-card-head">
-                              <strong>{evidence.ingredient_name || "성분"}</strong>
-                              <span>{evidenceLevelLabel[evidence.evidence_level]}</span>
-                            </div>
-                            <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
-                            {evidence.source_title ? (
-                              <a
-                                className="ingredient-evidence-source-link"
-                                href={sourceUrl || "#sourceList"}
-                                target={sourceUrl ? "_blank" : undefined}
-                                rel={sourceUrl ? "noopener noreferrer" : undefined}
+                  <button
+                    className="ingredient-evidence-toggle"
+                    type="button"
+                    aria-expanded={isEvidenceExpanded}
+                    aria-controls="evidenceList"
+                    onClick={() => setIsEvidenceExpanded((current) => !current)}
+                  >
+                    {isEvidenceExpanded ? "접기" : `성분 ${detailData.groupedEvidence.length}개 근거 보기`}
+                    <span className="ingredient-evidence-toggle-caret" aria-hidden="true">
+                      {isEvidenceExpanded ? "⌃" : "⌄"}
+                    </span>
+                  </button>
+                  <div
+                    className="ingredient-evidence-list"
+                    id="evidenceList"
+                    hidden={!isEvidenceExpanded}
+                  >
+                    {detailData.groupedEvidence.length > 0 ? (
+                      detailData.groupedEvidence.map((group) => (
+                        <article className="ingredient-evidence-card" key={group.ingredientName}>
+                          <div className="ingredient-evidence-card-headline">
+                            <strong className="ingredient-evidence-card-title">{group.ingredientName}</strong>
+                            {group.effectNames.length > 0 ? (
+                              <div
+                                className="ingredient-evidence-card-tags"
+                                aria-label={`${group.ingredientName} 관련 효능`}
                               >
-                                {evidence.source_title}
-                              </a>
+                                {group.effectNames.map((effectName) => (
+                                  <span key={effectName}>{effectName}</span>
+                                ))}
+                              </div>
                             ) : null}
-                          </article>
-                        );
-                      })
+                          </div>
+                          <div className="ingredient-evidence-effect-list">
+                            {group.items.map((evidence) => {
+                              const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
+                              return (
+                                <div
+                                  className="ingredient-evidence-effect-row"
+                                  key={`${evidence.effect_name}-${evidence.source_title}`}
+                                >
+                                  <div className="ingredient-evidence-effect-head">
+                                    <span className="ingredient-evidence-effect-label">
+                                      <span className="ingredient-evidence-effect-icon" aria-hidden="true">
+                                        <EffectIcon iconKey={getEffectIcon(evidence.effect_name)} />
+                                      </span>
+                                      {evidence.effect_name}
+                                    </span>
+                                    <span className={evidenceLevelBadgeClass[evidence.evidence_level]}>
+                                      {evidenceLevelLabel[evidence.evidence_level]}
+                                    </span>
+                                  </div>
+                                  <p>{evidence.evidence_text || `${evidence.effect_name} 효능 근거를 확인했습니다.`}</p>
+                                  {sourceUrl ? (
+                                    <a
+                                      className="ingredient-evidence-source-link"
+                                      href={sourceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={evidence.source_title ?? undefined}
+                                    >
+                                      출처 보기 <span aria-hidden="true">↗</span>
+                                    </a>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </article>
+                      ))
                     ) : (
                       <div className="ingredient-evidence-card"><p>표시할 성분 효능 근거가 없습니다.</p></div>
-                    )}
-                  </div>
-                  <div className="ingredient-source-list" id="sourceList">
-                    {product.sources.length > 0 ? (
-                      <>
-                        <div className="ingredient-source-title">근거 출처</div>
-                        <div className="ingredient-source-items">
-                          {product.sources.map((source) => (
-                            <a
-                              className="ingredient-source-item"
-                              href={source.url || "#sourceList"}
-                              target={source.url ? "_blank" : undefined}
-                              rel={source.url ? "noopener noreferrer" : undefined}
-                              key={`${source.title}-${source.url}`}
-                            >
-                              <span>{source.source_type || "source"}</span>
-                              <strong>{source.title || "출처"}</strong>
-                            </a>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="ingredient-source-empty"><p>표시할 근거 출처 정보가 없습니다.</p></div>
                     )}
                   </div>
                 </div>
               </section>
 
               <section className="detail-section" id="reviews">
-                <div className="section-kicker">Reviews</div>
                 <h2>리뷰</h2>
                 <div className="detail-empty-state">
                   <strong>리뷰 기능을 준비 중입니다.</strong>
@@ -1102,7 +1362,6 @@ function ProductDetailSpaPage() {
               </section>
 
               <section className="detail-section" id="qna">
-                <div className="section-kicker">QnA</div>
                 <h2>QnA</h2>
                 <div className="detail-empty-state">
                   <strong>상품 문의 기능을 준비 중입니다.</strong>
@@ -1121,46 +1380,6 @@ function ProductDetailSpaPage() {
         </div>
       ) : null}
 
-      {selectedEffect ? (
-        <>
-          <div
-            className="ingredient-sheet-backdrop open"
-            id="ingredientSheetBackdrop"
-            onClick={() => setSelectedEffect(null)}
-          />
-          <aside
-            className="ingredient-sheet open"
-            id="ingredientSheet"
-            aria-hidden="false"
-            aria-labelledby="ingredientSheetTitle"
-            role="dialog"
-          >
-            <button className="ingredient-sheet-close" type="button" aria-label="닫기" onClick={() => setSelectedEffect(null)}>
-              ×
-            </button>
-            <div className="ingredient-sheet-handle" />
-            <div className="ingredient-sheet-head">
-              <div className="ingredient-sheet-icon" id="ingredientSheetIcon">{selectedEffect.icon}</div>
-              <div>
-                <h3 id="ingredientSheetTitle">{selectedEffect.label}</h3>
-                <p id="ingredientSheetDescription">해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.</p>
-              </div>
-              <strong id="ingredientSheetCount">{selectedEffect.items.length}</strong>
-            </div>
-            <div className="ingredient-sheet-list" id="ingredientSheetList">
-              {selectedEffect.items.map((item, index) => (
-                <div className="ingredient-sheet-item" key={`${item.ingredient_name}-${item.source_title}-${index}`}>
-                  <span>{index + 1}</span>
-                  <div>
-                    <strong>{item.ingredient_name || "성분"}</strong>
-                    <p>{item.evidence_text || item.source_title || "성분 효능 근거를 확인했습니다."}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </>
-      ) : null}
     </>
   );
 }
