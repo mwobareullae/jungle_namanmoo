@@ -97,6 +97,7 @@ SSH_KEY="<ssh-key-path>"
 
 REMOTE_APP_DIR="/home/ubuntu/mwobareullae"
 
+DB_MONITOR_MODE="backend"
 DB_NAME="mwobareullae"
 DB_USER="mwobareullae"
 DATA_DIR="/data"
@@ -123,7 +124,14 @@ curl -fsS https://dev.api.mubarelle.com/api/health
 
 ```bash
 ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> \
-  "cd /home/ubuntu/mwobareullae && docker compose exec -T postgres psql -U mwobareullae -d mwobareullae -c 'select count(*) from products;'"
+  "cd /home/ubuntu/mwobareullae && docker compose exec -T backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text('select current_database()')).scalar())
+    print(db.execute(text('select count(*) from products')).scalar())
+PY"
 ```
 
 여기서 SSH, docker compose, DB 접속 중 하나라도 실패하면 `run-loadtest.sh`도 로그/지표 수집이 비어 있을 수 있습니다.
@@ -295,7 +303,8 @@ ssh -i "<ssh-key-path>" ubuntu@<dev-server-host-or-ip> "hostname"
 
 - `REMOTE_APP_DIR`가 실제 서버 compose 경로와 다름
 - `DB_NAME`이 실제 DB 이름과 다름
-- `BACKEND_CONTAINER`, `POSTGRES_CONTAINER`, `REDIS_CONTAINER`, `ELASTICSEARCH_CONTAINER` 이름이 compose와 다름
+- `DB_MONITOR_MODE`가 현재 서버 구조와 다름
+- `BACKEND_CONTAINER`, `REDIS_CONTAINER`, `ELASTICSEARCH_CONTAINER` 이름이 compose와 다름
 - SSH 접속은 되지만 docker 권한이 없음
 
 ### k6가 400/404를 많이 낼 때
