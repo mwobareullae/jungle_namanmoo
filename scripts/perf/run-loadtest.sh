@@ -38,6 +38,7 @@ SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-10}"
 RESULT_ROOT="${RESULT_ROOT:-$REPO_DIR/perf-runs}"
 RUN_K6="${RUN_K6:-true}"
 SLACK_ENABLED="${SLACK_ENABLED:-false}"
+REPORT_TITLE="${REPORT_TITLE:-k6 Performance Run}"
 
 case "$RESULT_ROOT" in
   /*) ;;
@@ -247,6 +248,8 @@ run_k6() {
       -e SEARCH_QUERIES="$SEARCH_QUERIES" \
       -e DEBUG_ERRORS="$DEBUG_ERRORS" \
       -e SLA_MS="$SLA_MS" \
+      -e AUTH_HOME_FOR_YOU="${AUTH_HOME_FOR_YOU:-false}" \
+      -e AUTH_COOKIE="${AUTH_COOKIE:-}" \
       "$K6_SCRIPT"
   ) 2>&1 | tee "$K6_STDOUT"
   K6_EXIT="${PIPESTATUS[0]}"
@@ -273,6 +276,7 @@ generate_summary() {
 
   log "generate report"
   python3 "$SCRIPT_DIR/generate_report.py" \
+    --title "$REPORT_TITLE" \
     --profile "$PROFILE" \
     --git-sha "$GIT_SHA" \
     --server "Dev EC2 t3.large" \

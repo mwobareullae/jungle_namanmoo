@@ -104,9 +104,11 @@ DATA_DIR="/data"
 DATA_LABEL="full-36000"
 
 BASE_URL="https://dev.api.mubarelle.com/api"
+REPORT_TITLE="Dev API k6 Performance Run"
 CART_WRITES="false"
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
 HEAVY_PRODUCT_IDS=""
+SLA_MS=3000
 ```
 
 `scripts/perf/config.env`는 `.gitignore`에 포함되어 있어야 합니다.
@@ -326,7 +328,10 @@ GET  /api/health
 GET  /api/products/popular
 GET  /api/products/{product_id}
 GET  /api/products/search
-GET  /api/home/sections
+GET  /api/home/layout
+GET  /api/home/market-popular
+GET  /api/home/evidence-picks
+GET  /api/home/for-you
 POST /api/recommendations
 GET  /api/recommendations/{recommendation_id}
 GET  /api/products/{product_id}?recommendation_id=...
@@ -335,6 +340,8 @@ POST /api/checkout/preview    # CART_WRITES=true 일 때만
 ```
 
 검색어는 `SEARCH_QUERIES`로 조절합니다.
+로그인 사용자 홈 추천은 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정했을 때만 추가 실행합니다.
+리포트 제목은 `REPORT_TITLE`로 조절합니다.
 
 ```env
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"

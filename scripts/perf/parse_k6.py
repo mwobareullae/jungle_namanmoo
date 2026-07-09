@@ -105,7 +105,9 @@ def main() -> None:
         "failed_total": failed_total,
         "failed_rate_pct": round(failed_rate, 2),
         "http_req_duration_avg_ms": round(average(durations_all), 2) if durations_all else None,
+        "http_req_duration_p50_ms": round(percentile(durations_all, 50), 2) if durations_all else None,
         "http_req_duration_p95_ms": round(percentile(durations_all, 95), 2) if durations_all else None,
+        "http_req_duration_p99_ms": round(percentile(durations_all, 99), 2) if durations_all else None,
         "by_type": {},
         "by_endpoint": {},
     }
@@ -114,14 +116,18 @@ def main() -> None:
         summary["by_type"][request_type] = {
             "count": len(values),
             "avg_ms": round(average(values), 2) if values else None,
+            "p50_ms": round(percentile(values, 50), 2) if values else None,
             "p95_ms": round(percentile(values, 95), 2) if values else None,
+            "p99_ms": round(percentile(values, 99), 2) if values else None,
         }
 
     for endpoint, values in sorted(durations_by_endpoint.items()):
         summary["by_endpoint"][endpoint] = {
             "count": len(values),
             "avg_ms": round(average(values), 2) if values else None,
+            "p50_ms": round(percentile(values, 50), 2) if values else None,
             "p95_ms": round(percentile(values, 95), 2) if values else None,
+            "p99_ms": round(percentile(values, 99), 2) if values else None,
         }
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
