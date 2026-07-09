@@ -436,6 +436,110 @@ def test_create_recommendation_infers_sensitive_profile_from_concern_text(
     assert data["unmatched_terms"] == []
 
 
+def test_create_recommendation_applies_saved_manual_skin_profile(
+    client: TestClient,
+) -> None:
+    _signup_api_user(client, email="recommendation-profile@example.com", nickname="추천프로필")
+    profile_response = client.post(
+        "/api/skin-profile",
+        json={
+            "skinType": "dry",
+            "sensitivity": "high",
+            "concerns": [],
+            "avoidIngredients": ["향료", "향료"],
+        },
+    )
+    assert profile_response.status_code == 200
+
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "속건조 보습 추천"},
+    )
+
+    assert response.status_code == 200
+    summary = response.json()["summary"]
+    assert summary["skin_type"] == "건성"
+    assert summary["sensitivity"] == "높음"
+    assert summary["avoid_ingredients"] == ["향료"]
+
+
+def test_create_recommendation_request_values_override_saved_skin_profile(
+    client: TestClient,
+) -> None:
+    _signup_api_user(client, email="recommendation-override@example.com", nickname="추천오버라이드")
+    profile_response = client.post(
+        "/api/skin-profile",
+        json={
+            "skinType": "dry",
+            "sensitivity": "high",
+            "concerns": [],
+            "avoidIngredients": ["향료"],
+        },
+    )
+    assert profile_response.status_code == 200
+
+    response = client.post(
+        "/api/recommendations",
+        json={
+            "concern_text": "피지랑 모공 추천",
+            "skin_type": "지성",
+            "sensitivity": "낮음",
+            "avoid_ingredients": ["나이아신아마이드", "향료"],
+        },
+    )
+
+    assert response.status_code == 200
+    summary = response.json()["summary"]
+    assert summary["skin_type"] == "지성"
+    assert summary["sensitivity"] == "낮음"
+    assert summary["avoid_ingredients"] == ["나이아신아마이드", "향료"]
+
+
+def test_create_recommendation_keeps_skin_test_profile_as_soft_context(
+    client: TestClient,
+) -> None:
+    _signup_api_user(client, email="recommendation-skin-test@example.com", nickname="테스트추천")
+    question_response = client.get("/api/skin-test/questions")
+    assert question_response.status_code == 200
+    question_set = question_response.json()
+    submit_response = client.post(
+        "/api/skin-test/submit",
+        json={
+            "version": question_set["version"],
+            "answers": _skin_test_answers_for_type(
+                question_set["questions"],
+                od="O",
+                sr="S",
+                pn="N",
+                wt="T",
+            ),
+        },
+    )
+    assert submit_response.status_code == 200
+    apply_response = client.post(
+        "/api/skin-test/apply-to-profile",
+        json={"result_id": submit_response.json()["result_id"]},
+    )
+    assert apply_response.status_code == 200
+    profile = apply_response.json()["skin_profile"]
+    assert profile["skin_type"] == "지성"
+    assert profile["sensitivity"] == "높음"
+    assert profile["skin_type_source"] == "skin_test"
+    assert profile["sensitivity_source"] == "skin_test"
+
+    response = client.post(
+        "/api/recommendations",
+        json={"concern_text": "보습 장벽 추천"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["summary"]["skin_type"] == "중성"
+    assert data["summary"]["sensitivity"] == "보통"
+    assert data["products"]
+    assert data["products"][0]["score_breakdown"]["skin_test_context_applied"] is True
+
+
 def test_create_recommendation_includes_purchase_constraints(client: TestClient) -> None:
     response = client.post(
         "/api/recommendations",
@@ -916,6 +1020,51 @@ def _capture_performance_logs():
     handler = _PerformanceLogCaptureHandler()
     logger.addHandler(handler)
     return handler
+
+
+def _signup_api_user(client: TestClient, *, email: str, nickname: str) -> dict:
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": email,
+            "password": "password123",
+            "nickname": nickname,
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _skin_test_answers_for_type(
+    questions: list[dict],
+    *,
+    od: str,
+    sr: str,
+    pn: str,
+    wt: str,
+) -> list[dict[str, int]]:
+    choice_by_sequence = {
+        1: 0 if od == "O" else 3,
+        2: 0 if sr == "S" else 3,
+        3: 0,
+        4: 0 if pn == "P" else 3,
+        5: 0,
+        6: 0 if wt == "W" else 3,
+        7: 0,
+        8: 0,
+    }
+    answers: list[dict[str, int]] = []
+    for index, question in enumerate(questions, start=1):
+        option_index = choice_by_sequence[index]
+        option = question["options"][option_index]
+        answers.append({"question_id": question["id"], "option_id": option["id"]})
+    return answers
 
 
 class _RequestLogCaptureHandler(logging.Handler):

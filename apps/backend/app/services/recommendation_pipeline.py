@@ -51,6 +51,7 @@ from app.services.search_matching import (
     count_join_product_search_documents,
     match_product_search_documents,
 )
+from app.services.skin_profile_service import load_skin_profile_for_user
 
 
 DEFAULT_RESULT_LIMIT = 50
@@ -127,7 +128,15 @@ def create_recommendation_response(
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
-    normalized_request = normalize_recommendation_request(request)
+    saved_skin_profile = (
+        load_skin_profile_for_user(session, current_user.id)
+        if current_user is not None
+        else None
+    )
+    normalized_request = normalize_recommendation_request(
+        request,
+        saved_skin_profile=saved_skin_profile,
+    )
     skin_test_context = load_skin_test_scoring_context(
         session,
         current_user.id if current_user is not None else None,
@@ -335,6 +344,8 @@ def _record_stage_duration(
 
 def normalize_recommendation_request(
     request: RecommendationRequest,
+    *,
+    saved_skin_profile: Any | None = None,
 ) -> NormalizedRecommendationRequest:
     concern_text = (request.concern_text or "").strip()
     if not concern_text:
@@ -342,21 +353,37 @@ def normalize_recommendation_request(
     if len(concern_text) > 100:
         raise ApiError(400, "INVALID_INPUT", "고민 텍스트는 100자 이하로 입력해 주세요.")
 
-    skin_type = _normalize_choice(
-        request.skin_type,
-        DEFAULT_SKIN_TYPE,
-        ALLOWED_SKIN_TYPES,
-        "피부 타입 값이 올바르지 않습니다.",
+    request_skin_type = _normalize_skin_type_or_none(request.skin_type)
+    saved_skin_type = _manual_skin_type_from_profile(saved_skin_profile)
+    skin_type = request_skin_type or saved_skin_type or DEFAULT_SKIN_TYPE
+
+    request_sensitivity = _normalize_sensitivity_or_none(request.sensitivity)
+    saved_sensitivity = _manual_sensitivity_from_profile(saved_skin_profile)
+    if request_sensitivity is not None:
+        sensitivity = request_sensitivity
+        manual_sensitivity_explicit = True
+    elif _has_sensitive_intent(concern_text):
+        sensitivity = "높음"
+        manual_sensitivity_explicit = False
+    elif saved_sensitivity is not None:
+        sensitivity = saved_sensitivity
+        manual_sensitivity_explicit = True
+    else:
+        sensitivity = DEFAULT_SENSITIVITY
+        manual_sensitivity_explicit = False
+
+    request_avoid_ingredients = _normalize_avoid_ingredients(request.avoid_ingredients)
+    saved_avoid_ingredients = _normalize_avoid_ingredients(
+        getattr(saved_skin_profile, "avoid_ingredients", None),
     )
-    sensitivity = _normalize_sensitivity(request.sensitivity, concern_text)
 
     return NormalizedRecommendationRequest(
         concern_text=concern_text,
         skin_type=skin_type,
         sensitivity=sensitivity,
-        avoid_ingredients=_normalize_avoid_ingredients(request.avoid_ingredients),
-        manual_skin_type_explicit=bool(request.skin_type and request.skin_type.strip()),
-        manual_sensitivity_explicit=bool(request.sensitivity and request.sensitivity.strip()),
+        avoid_ingredients=_dedupe([*request_avoid_ingredients, *saved_avoid_ingredients]),
+        manual_skin_type_explicit=request_skin_type is not None or saved_skin_type is not None,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
 
 
@@ -751,14 +778,51 @@ def _normalize_choice(
     return normalized
 
 
+def _normalize_skin_type_or_none(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip()
+    if normalized not in ALLOWED_SKIN_TYPES:
+        raise ApiError(400, "INVALID_INPUT", "피부 타입 값이 올바르지 않습니다.")
+    return normalized
+
+
+def _normalize_sensitivity_or_none(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    stripped = value.strip()
+    normalized = SENSITIVITY_ALIASES.get(stripped.casefold().replace(" ", ""), stripped)
+    if normalized not in ALLOWED_SENSITIVITIES:
+        raise ApiError(400, "INVALID_INPUT", "민감도 값이 올바르지 않습니다.")
+    return normalized
+
+
+def _manual_skin_type_from_profile(profile: Any | None) -> str | None:
+    if profile is None:
+        return None
+    explicit_skin_type = _normalize_skin_type_or_none(getattr(profile, "explicit_skin_type", None))
+    if explicit_skin_type is not None:
+        return explicit_skin_type
+    if getattr(profile, "skin_type_source", None) == "manual":
+        return _normalize_skin_type_or_none(getattr(profile, "skin_type", None))
+    return None
+
+
+def _manual_sensitivity_from_profile(profile: Any | None) -> str | None:
+    if profile is None:
+        return None
+    explicit_sensitivity = _normalize_sensitivity_or_none(getattr(profile, "explicit_sensitivity", None))
+    if explicit_sensitivity is not None:
+        return explicit_sensitivity
+    if getattr(profile, "sensitivity_source", None) == "manual":
+        return _normalize_sensitivity_or_none(getattr(profile, "sensitivity", None))
+    return None
+
+
 def _normalize_sensitivity(value: str | None, concern_text: str) -> str:
-    if value is not None and value.strip():
-        return _normalize_choice(
-            SENSITIVITY_ALIASES.get(value.strip().casefold().replace(" ", ""), value.strip()),
-            DEFAULT_SENSITIVITY,
-            ALLOWED_SENSITIVITIES,
-            "민감도 값이 올바르지 않습니다.",
-        )
+    normalized = _normalize_sensitivity_or_none(value)
+    if normalized is not None:
+        return normalized
     if _has_sensitive_intent(concern_text):
         return "높음"
     return DEFAULT_SENSITIVITY
