@@ -19,6 +19,9 @@ const SEARCH_QUERIES = (__ENV.SEARCH_QUERIES || "세럼,수분 크림,나이아�
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const NARRATIVE_ENABLED =
+  (__ENV.NARRATIVE || __ENV.ENABLE_RECOMMENDATION_NARRATIVE || "true").toLowerCase() === "true";
+const NARRATIVE_USE_LLM = (__ENV.NARRATIVE_USE_LLM || "false").toLowerCase() === "true";
 
 const recommendationIds = new Counter("recommendation_ids_created");
 const cartWrites = new Counter("cart_writes_attempted");
@@ -76,7 +79,7 @@ export const options = {
 };
 
 const SKIN_TYPES = ["건성", "지성", "복합성", "중성", "수부지"];
-const SENSITIVITY = ["낮음", "보통", "높음", "민감"];
+const SENSITIVITY = ["낮음", "보통", "높음"];
 const RECOMMENDATION_CASES = [
   {
     concern_text: "요즘 피부가 건조하고 각질이 일어나요",
@@ -99,7 +102,7 @@ const RECOMMENDATION_CASES = [
   {
     concern_text: "피부가 예민해서 자극 없는 진정 제품이 필요해요",
     skin_type: "수부지",
-    sensitivity: "민감",
+    sensitivity: "높음",
     avoid_ingredients: ["알코올"],
   },
   {
@@ -234,6 +237,30 @@ export function userJourney(data) {
       debugFailedResponse("recommendations_get", response);
       check(response, { "recommend get 200": (res) => res.status === 200 });
     });
+
+    if (NARRATIVE_ENABLED) {
+      group("recommendation_narrative", () => {
+        const payload = JSON.stringify({
+          view: "cards",
+          product_limit: 5,
+          use_llm: NARRATIVE_USE_LLM,
+        });
+        const response = http.post(
+          `${BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}/narrative`,
+          payload,
+          {
+            headers: { "Content-Type": "application/json" },
+            tags: { endpoint: "recommendation_narrative", type: "search" },
+          },
+        );
+        const body = parseJson(response);
+        debugFailedResponse("recommendation_narrative", response);
+        check(response, {
+          "narrative 200": (res) => res.status === 200,
+          "narrative has products": () => (body?.narrative?.product_explanations || []).length > 0,
+        });
+      });
+    }
   }
 
   if (recommendationId && recommendedProductIds.length > 0) {
