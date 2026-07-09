@@ -62,6 +62,13 @@ class ScoreBreakdown(BaseModel):
     skin_test_context_matched_axes: list[str] = Field(default_factory=list)
     skin_test_context_query_conflict_axes: list[str] = Field(default_factory=list)
     skin_test_context_manual_conflict_axes: list[str] = Field(default_factory=list)
+    behavior_personalization_score: int = 0
+    behavior_personalization_applied: bool = False
+    behavior_personalization_sources: list[str] = Field(default_factory=list)
+    behavior_personalization_source_scores: dict[str, int] = Field(default_factory=dict)
+    behavior_personalization_affinity_components: dict[str, int] = Field(default_factory=dict)
+    behavior_personalization_negative_guard_score: int = 100
+    behavior_personalization_event_counts: dict[str, int] = Field(default_factory=dict)
     base_weights: dict[str, float] = Field(default_factory=dict)
     adjusted_weights: dict[str, float] = Field(default_factory=dict)
     applied_multipliers: dict[str, float] = Field(default_factory=dict)
