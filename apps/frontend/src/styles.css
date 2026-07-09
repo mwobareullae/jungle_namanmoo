@@ -8208,45 +8208,6 @@ html[data-app-mode="community"] .search-results-shell {
   transform: translateY(-2px);
 }
 
-.signup-terms-checkbox {
-  appearance: none;
-  display: inline-grid;
-  place-content: center;
-  width: 16px;
-  height: 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 5px;
-  background: #ffffff;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.signup-terms-checkbox::after {
-  content: "";
-  width: 5px;
-  height: 9px;
-  border: solid #ffffff;
-  border-width: 0 2px 2px 0;
-  opacity: 0;
-  transform: rotate(45deg) translate(-1px, -1px);
-}
-
-.signup-terms-checkbox:checked {
-  border-color: #94e0f8;
-  background: #94e0f8;
-}
-
-.signup-terms-checkbox:checked::after {
-  opacity: 1;
-}
-
-.signup-terms-checkbox:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(148, 224, 248, 0.35);
-}
-
 .agent-floating-entry__icon {
   width: 31px;
   height: 31px;

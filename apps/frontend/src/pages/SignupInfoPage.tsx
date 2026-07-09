@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
@@ -418,12 +420,8 @@ function SignupInfoPage() {
           </div>
           <form className="grid gap-3" noValidate onSubmit={handleSubmit}>
             <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  emailErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(emailErrorMessage)}
                 onBlur={() => {
                   setEmailTouched(true);
                   if (!isValidEmail(email)) {
@@ -440,14 +438,14 @@ function SignupInfoPage() {
                 type="email"
                 value={email}
               />
-              <button
-                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white px-3 py-3 text-[14px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+              <Button
+                className="px-3 py-3 text-[14px] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting || emailCheckState.isChecking}
                 onClick={handleCheckEmail}
-                type="button"
+                variant="outline"
               >
                 중복 확인
-              </button>
+              </Button>
             </div>
             {emailErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
@@ -459,12 +457,8 @@ function SignupInfoPage() {
                 {emailCheckSuccessMessage}
               </p>
             )}
-            <input
-              className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                passwordErrorMessage
-                  ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                  : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-              }`}
+            <Input
+              invalid={Boolean(passwordErrorMessage)}
               onBlur={() => {
                 setPasswordTouched(true);
                 if (!isValidPassword(password)) {
@@ -484,12 +478,8 @@ function SignupInfoPage() {
                 {passwordErrorMessage}
               </p>
             )}
-            <input
-              className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                passwordConfirmErrorMessage
-                  ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                  : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-              }`}
+            <Input
+              invalid={Boolean(passwordConfirmErrorMessage)}
               onBlur={() => {
                 setPasswordConfirmTouched(true);
                 if (
@@ -514,12 +504,8 @@ function SignupInfoPage() {
               </p>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  nicknameErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(nicknameErrorMessage)}
                 onBlur={() => {
                   setNicknameTouched(true);
                   if (!isValidNickname(nickname)) {
@@ -536,14 +522,14 @@ function SignupInfoPage() {
                 type="text"
                 value={nickname}
               />
-              <button
-                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white px-3 py-3 text-[14px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+              <Button
+                className="px-3 py-3 text-[14px] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting || nicknameCheckState.isChecking}
                 onClick={handleCheckNickname}
-                type="button"
+                variant="outline"
               >
                 중복 확인
-              </button>
+              </Button>
             </div>
             {nicknameErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
@@ -556,21 +542,21 @@ function SignupInfoPage() {
               </p>
             )}
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button
-                className="cursor-pointer rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white py-3.5 text-[15px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:opacity-50"
+              <Button
+                className="disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting}
                 onClick={() => navigate("/signup")}
-                type="button"
+                variant="outline"
               >
                 이전으로
-              </button>
-              <button
-                className="cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+              </Button>
+              <Button
+                className="disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
                 type="submit"
               >
                 가입 완료
-              </button>
+              </Button>
             </div>
           </form>
           {errorMessage && (
