@@ -9,7 +9,7 @@
 
 - FastAPI API p95 latency 측정
 - error rate 기준선 확보
-- EC2 t3.xlarge 단일 서버에서 backend/PostgreSQL/Elasticsearch/Redis 동시 구동 시 병목 확인
+- EC2 t3.large Dev API 서버에서 backend/Redis/Elasticsearch와 RDS PostgreSQL 조합의 병목 확인
 - 이후 #267 주문/결제 동시성 테스트와 #287 종합 부하테스트의 기준값 제공
 
 ## 진행 단계
@@ -53,7 +53,14 @@ dev 서버:
 cd ~/mwobareullae
 docker compose ps
 docker compose exec backend python -m alembic current
-docker compose exec postgres psql -U mwobareullae -d mwobareullae -c "select count(*) from products;"
+docker compose exec backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text("select current_database(), inet_server_addr(), inet_server_port()")).fetchone())
+    print(db.execute(text("select count(*) from products")).scalar())
+PY
 ```
 
 로컬에서 dev 서버 대상 실행 시:
@@ -183,8 +190,8 @@ k6 run tests/k6/commerce-smoke.js
 
 - `http_req_failed < 1%`
 - backend 5xx 급증 없음
-- backend/PostgreSQL/Elasticsearch/Redis OOM 없음
-- Postgres connection 고갈 없음
+- backend/Elasticsearch/Redis OOM 없음
+- RDS PostgreSQL connection 고갈 없음
 
 latency:
 
@@ -222,10 +229,16 @@ backend 로그:
 docker compose logs -f --tail=100 backend
 ```
 
-Postgres connection:
+RDS/Postgres connection:
 
 ```bash
-docker compose exec postgres psql -U mwobareullae -d mwobareullae -c "select count(*) from pg_stat_activity;"
+docker compose exec backend python - <<'PY'
+from app.db.session import SessionLocal
+from sqlalchemy import text
+
+with SessionLocal() as db:
+    print(db.execute(text("select count(*) from pg_stat_activity")).scalar())
+PY
 ```
 
 ES health:
@@ -260,7 +273,7 @@ k6:
 
 server:
 - backend max cpu/mem:
-- postgres max cpu/mem:
+- rds/postgres connection max:
 - elasticsearch max cpu/mem:
 - redis max cpu/mem:
 - pg_stat_activity max:
