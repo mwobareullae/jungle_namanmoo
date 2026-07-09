@@ -379,6 +379,17 @@ def test_create_recommendation_applies_request_defaults(client: TestClient) -> N
         "score_breakdown",
         "cart_handoff",
     }.issubset(product)
+    assert {
+        "market_signal_score",
+        "skin_test_context_score",
+        "skin_test_context_applied",
+        "skin_test_context_axes",
+        "skin_test_context_matched_axes",
+        "base_weights",
+        "adjusted_weights",
+        "applied_multipliers",
+    }.issubset(product["score_breakdown"])
+    assert product["score_breakdown"]["skin_test_context_applied"] is False
     assert product["thumbnail_url"].startswith("products/")
     assert not product["thumbnail_url"].startswith("http")
     assert product["cart_handoff"] == {
