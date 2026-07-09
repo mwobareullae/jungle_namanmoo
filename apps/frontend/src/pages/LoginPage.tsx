@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import { Button } from "../components/ui/button";
+import { buttonVariantClassName } from "../components/ui/button-variants";
 import { Input } from "../components/ui/input";
 import type { AuthUser } from "../contexts/authContextValue";
 import { useAuth } from "../contexts/useAuth";
@@ -436,14 +437,14 @@ function LoginPage() {
           {message && (
             <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{message}</p>
           )}
-          <div className="mt-5 text-center text-[13px] font-medium">
-            <Link className="text-[#3D3D3D] no-underline hover:underline" to="/password-reset">
+          <div className="mt-5 text-center text-[13px]">
+            <Link className={buttonVariantClassName.link} to="/password-reset">
               비밀번호 재설정
             </Link>
             <span className="mx-2.5 text-black/[0.15]">|</span>
-            <a className="text-[#3D3D3D] no-underline hover:underline" href="/signup">
+            <Link className={buttonVariantClassName.link} to="/signup">
               회원가입
-            </a>
+            </Link>
           </div>
           <div className="mt-7 flex items-center gap-3">
             <div className="h-px flex-1 bg-black/[0.07]" />
