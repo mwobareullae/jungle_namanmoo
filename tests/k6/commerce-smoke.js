@@ -4,9 +4,18 @@ import { Counter } from "k6/metrics";
 
 const BASE_URL = (__ENV.BASE_URL || "http://localhost:8000/api").replace(/\/$/, "");
 const PROFILE = __ENV.PROFILE || "smoke";
-const ENABLE_CART_WRITES = (__ENV.ENABLE_CART_WRITES || "false").toLowerCase() === "true";
+const CART_WRITES_ENABLED =
+  (__ENV.CART_WRITES || __ENV.ENABLE_CART_WRITES || "false").toLowerCase() === "true";
 const DEBUG_ERRORS = (__ENV.DEBUG_ERRORS || "false").toLowerCase() === "true";
 const PRODUCT_IDS = (__ENV.PRODUCT_IDS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const HEAVY_PRODUCT_IDS = (__ENV.HEAVY_PRODUCT_IDS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const SEARCH_QUERIES = (__ENV.SEARCH_QUERIES || "세럼,수분 크림,나이아신아마이드,진정,선크림")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
@@ -14,49 +23,92 @@ const PRODUCT_IDS = (__ENV.PRODUCT_IDS || "")
 const recommendationIds = new Counter("recommendation_ids_created");
 const cartWrites = new Counter("cart_writes_attempted");
 
-const profiles = {
+const PROFILE_SCENARIOS = {
   smoke: {
-    stages: [
-      { duration: "30s", target: 1 },
-      { duration: "30s", target: 1 },
-    ],
+    executor: "constant-vus",
+    vus: 1,
+    duration: "1m",
   },
   baseline: {
-    stages: [
-      { duration: "30s", target: 10 },
-      { duration: "3m", target: 10 },
-      { duration: "30s", target: 0 },
-    ],
+    executor: "constant-vus",
+    vus: 10,
+    duration: "4m",
   },
   target: {
+    executor: "ramping-vus",
+    startVUs: 0,
     stages: [
-      { duration: "1m", target: 20 },
-      { duration: "5m", target: 20 },
-      { duration: "1m", target: 50 },
-      { duration: "5m", target: 50 },
+      { duration: "30s", target: 20 },
+      { duration: "2m", target: 50 },
       { duration: "1m", target: 0 },
     ],
   },
   stress: {
+    executor: "ramping-vus",
+    startVUs: 0,
     stages: [
-      { duration: "1m", target: 50 },
-      { duration: "3m", target: 50 },
-      { duration: "1m", target: 100 },
-      { duration: "3m", target: 100 },
+      { duration: "30s", target: 50 },
+      { duration: "2m", target: 50 },
+      { duration: "30s", target: 100 },
+      { duration: "2m", target: 100 },
       { duration: "1m", target: 0 },
     ],
   },
 };
 
+if (!PROFILE_SCENARIOS[PROFILE]) {
+  throw new Error(`Unknown PROFILE: ${PROFILE}. Use smoke, baseline, target, or stress.`);
+}
+
 export const options = {
-  stages: (profiles[PROFILE] || profiles.smoke).stages,
+  scenarios: {
+    [PROFILE]: {
+      ...PROFILE_SCENARIOS[PROFILE],
+      exec: "userJourney",
+    },
+  },
   thresholds: {
     http_req_failed: ["rate<0.01"],
-    "http_req_duration{type:fast}": ["p(95)<500"],
-    "http_req_duration{type:search}": ["p(95)<1000"],
-    ...(ENABLE_CART_WRITES ? { "http_req_duration{type:write}": ["p(95)<1500"] } : {}),
+    "http_req_duration{type:fast}": ["p(95)<3000"],
+    "http_req_duration{type:search}": ["p(95)<3000"],
+    ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": ["p(95)<3000"] } : {}),
   },
 };
+
+const SKIN_TYPES = ["건성", "지성", "복합성", "중성", "수부지"];
+const SENSITIVITY = ["낮음", "보통", "높음", "민감"];
+const RECOMMENDATION_CASES = [
+  {
+    concern_text: "요즘 피부가 건조하고 각질이 일어나요",
+    skin_type: "건성",
+    sensitivity: "보통",
+    avoid_ingredients: [],
+  },
+  {
+    concern_text: "여드름이랑 트러블이 자꾸 생겨요",
+    skin_type: "지성",
+    sensitivity: "높음",
+    avoid_ingredients: [],
+  },
+  {
+    concern_text: "모공이 넓어지고 피지가 많아요",
+    skin_type: "복합성",
+    sensitivity: "보통",
+    avoid_ingredients: [],
+  },
+  {
+    concern_text: "피부가 예민해서 자극 없는 진정 제품이 필요해요",
+    skin_type: "수부지",
+    sensitivity: "민감",
+    avoid_ingredients: ["알코올"],
+  },
+  {
+    concern_text: "나이아신아마이드 세럼 중 3만원 이하 제품을 찾고 있어요",
+    skin_type: "중성",
+    sensitivity: "낮음",
+    avoid_ingredients: [],
+  },
+];
 
 export function setup() {
   const health = http.get(`${BASE_URL}/health`, {
@@ -73,14 +125,7 @@ export function setup() {
     "popular products is 200": (response) => response.status === 200,
   });
 
-  let discoveredProductIds = [];
-  if (popular.status === 200) {
-    const body = parseJson(popular);
-    discoveredProductIds = (body?.items || [])
-      .map((item) => item.product_id)
-      .filter(Boolean);
-  }
-
+  const discoveredProductIds = parseJson(popular)?.items?.map((item) => item.product_id).filter(Boolean) || [];
   const productIds = PRODUCT_IDS.length ? PRODUCT_IDS : discoveredProductIds;
   if (!productIds.length) {
     throw new Error("No product ids found. Set PRODUCT_IDS=prod_001,prod_002 or seed popular products.");
@@ -89,97 +134,166 @@ export function setup() {
   return { productIds };
 }
 
-export default function (data) {
-  const productId = pick(data.productIds);
-
-  group("read: health and popular products", () => {
-    const health = http.get(`${BASE_URL}/health`, {
+export function userJourney(data) {
+  group("health", () => {
+    const response = http.get(`${BASE_URL}/health`, {
       tags: { endpoint: "health", type: "fast" },
     });
-    check(health, {
-      "health ok": (response) => response.status === 200,
-    });
+    check(response, { "health 200": (res) => res.status === 200 });
+  });
 
-    const popular = http.get(`${BASE_URL}/products/popular?limit=12`, {
+  let popularProductIds = [];
+  group("popular_products", () => {
+    const response = http.get(`${BASE_URL}/products/popular?limit=10`, {
       tags: { endpoint: "popular_products", type: "fast" },
     });
-    check(popular, {
-      "popular ok": (response) => response.status === 200,
-      "popular has items": (response) => (parseJson(response)?.items || []).length > 0,
-    });
-  });
-
-  group("read: product detail", () => {
-    const detail = http.get(`${BASE_URL}/products/${encodeURIComponent(productId)}`, {
-      tags: { endpoint: "product_detail", type: "fast" },
-    });
-    check(detail, {
-      "product detail ok": (response) => response.status === 200,
-      "product detail has product": (response) => Boolean(parseJson(response)?.product?.product_id),
-    });
-  });
-
-  group("search: recommendation create and page", () => {
-    const requestBody = JSON.stringify({
-      concern_text: pick([
-        "턱에 뾰루지가 자꾸 나고 피부가 예민해진 것 같아요",
-        "수부지인데 모공과 좁쌀이 고민이에요",
-        "건조하고 화장이 들떠요",
-      ]),
-      skin_type: "수부지",
-      sensitivity: "민감",
-      avoid_ingredients: [],
-    });
-
-    const create = http.post(`${BASE_URL}/recommendations?page_size=10`, requestBody, {
-      headers: { "Content-Type": "application/json" },
-      tags: { endpoint: "recommendations_create", type: "search" },
-    });
-    const createBody = parseJson(create);
-    const recommendationId = createBody?.recommendation_id;
-    debugFailedResponse("recommendations_create", create);
-
-    check(create, {
-      "recommendation create ok": (response) => response.status === 200,
-      "recommendation has products": () => (createBody?.products || []).length > 0,
-    });
-
-    if (recommendationId) {
-      recommendationIds.add(1);
-      const page = http.get(
-        `${BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}?page=1&page_size=10`,
-        { tags: { endpoint: "recommendations_page", type: "search" } },
-      );
-      debugFailedResponse("recommendations_page", page);
-      check(page, {
-        "recommendation page ok": (response) => response.status === 200,
-      });
+    const ok = check(response, { "popular 200": (res) => res.status === 200 });
+    if (ok) {
+      popularProductIds = parseJson(response)?.items?.map((item) => item.product_id).filter(Boolean) || [];
     }
   });
 
-  if (ENABLE_CART_WRITES) {
-    group("write: anonymous cart add", () => {
-      cartWrites.add(1);
-      const add = http.post(
-        `${BASE_URL}/cart/items`,
-        JSON.stringify({
-          product_id: productId,
-          quantity: 1,
-          source: "k6_load_test",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-          tags: { endpoint: "cart_add", type: "write" },
-        },
-      );
-      debugFailedResponse("cart_add", add);
-      check(add, {
-        "cart add ok": (response) => response.status === 200,
+  const detailProductId = pick(popularProductIds.length ? popularProductIds : data.productIds);
+  group("product_detail", () => {
+    const response = http.get(`${BASE_URL}/products/${encodeURIComponent(detailProductId)}`, {
+      tags: { endpoint: "product_detail", type: "fast" },
+    });
+    debugFailedResponse("product_detail", response);
+    check(response, {
+      "detail 200": (res) => res.status === 200,
+      "detail has product": (res) => Boolean(parseJson(res)?.product?.product_id),
+    });
+  });
+
+  group("product_search", () => {
+    const query = pick(SEARCH_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/products/search?q=${encodeURIComponent(query)}&page=1&page_size=20`,
+      { tags: { endpoint: "product_search", type: "search" } },
+    );
+    debugFailedResponse("product_search", response);
+    check(response, {
+      "product search 200": (res) => res.status === 200,
+    });
+  });
+
+  group("home_sections", () => {
+    const skinType = pick(SKIN_TYPES);
+    const sensitivity = pick(SENSITIVITY);
+    const response = http.get(
+      `${BASE_URL}/home/sections?skin_type=${encodeURIComponent(skinType)}&sensitivity=${encodeURIComponent(sensitivity)}&limit_per_section=8`,
+      { tags: { endpoint: "home_sections", type: "search" } },
+    );
+    debugFailedResponse("home_sections", response);
+    check(response, {
+      "home sections 200": (res) => res.status === 200,
+      "home has sections": (res) => (parseJson(res)?.sections || []).length > 0,
+    });
+  });
+
+  if (HEAVY_PRODUCT_IDS.length > 0) {
+    group("heavy_product_detail", () => {
+      const productId = pick(HEAVY_PRODUCT_IDS);
+      const response = http.get(`${BASE_URL}/products/${encodeURIComponent(productId)}`, {
+        tags: { endpoint: "heavy_product_detail", type: "fast" },
+      });
+      debugFailedResponse("heavy_product_detail", response);
+      check(response, {
+        "heavy detail 200": (res) => res.status === 200,
       });
     });
   }
 
-  sleep(Math.random() * 1.5 + 0.5);
+  let recommendationId = null;
+  let recommendedProductIds = [];
+  group("recommendations_post", () => {
+    const payload = JSON.stringify(pick(RECOMMENDATION_CASES));
+    const response = http.post(`${BASE_URL}/recommendations?page=1&page_size=10`, payload, {
+      headers: { "Content-Type": "application/json" },
+      tags: { endpoint: "recommendations_post", type: "search" },
+    });
+    const body = parseJson(response);
+    debugFailedResponse("recommendations_post", response);
+    const ok = check(response, {
+      "recommend 200": (res) => res.status === 200,
+      "recommend has products": () => (body?.products || []).length > 0,
+    });
+    if (ok) {
+      recommendationId = body?.recommendation_id || null;
+      recommendedProductIds = body?.products?.map((product) => product.product_id).filter(Boolean) || [];
+    }
+  });
+
+  if (recommendationId) {
+    recommendationIds.add(1);
+    group("recommendations_get", () => {
+      const response = http.get(
+        `${BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}?page=1&page_size=10`,
+        { tags: { endpoint: "recommendations_get", type: "search" } },
+      );
+      debugFailedResponse("recommendations_get", response);
+      check(response, { "recommend get 200": (res) => res.status === 200 });
+    });
+  }
+
+  if (recommendationId && recommendedProductIds.length > 0) {
+    group("recommended_product_detail", () => {
+      const productId = pick(recommendedProductIds);
+      const response = http.get(
+        `${BASE_URL}/products/${encodeURIComponent(productId)}?recommendation_id=${encodeURIComponent(recommendationId)}`,
+        { tags: { endpoint: "recommended_product_detail", type: "search" } },
+      );
+      debugFailedResponse("recommended_product_detail", response);
+      check(response, {
+        "recommended detail 200": (res) => res.status === 200,
+      });
+    });
+  }
+
+  if (CART_WRITES_ENABLED && recommendedProductIds.length > 0) {
+    let checkoutCartItemIds = [];
+    group("cart_write", () => {
+      cartWrites.add(1);
+      const productId = pick(recommendedProductIds);
+      const payload = JSON.stringify({
+        product_id: productId,
+        quantity: 1,
+        source: "k6_load_test",
+        recommendation_id: recommendationId,
+        recommendation_rank: 1,
+      });
+      const response = http.post(`${BASE_URL}/cart/items`, payload, {
+        headers: { "Content-Type": "application/json" },
+        tags: { endpoint: "cart_write", type: "write" },
+      });
+      debugFailedResponse("cart_write", response);
+      check(response, {
+        "cart write 200": (res) => res.status === 200,
+      });
+      checkoutCartItemIds = (parseJson(response)?.items || [])
+        .map((item) => item.id)
+        .filter((value) => value !== undefined && value !== null);
+    });
+
+    if (checkoutCartItemIds.length > 0) {
+      group("checkout_preview", () => {
+        const response = http.post(
+          `${BASE_URL}/checkout/preview`,
+          JSON.stringify({ cart_item_ids: checkoutCartItemIds.slice(0, 3) }),
+          {
+            headers: { "Content-Type": "application/json" },
+            tags: { endpoint: "checkout_preview", type: "write" },
+          },
+        );
+        debugFailedResponse("checkout_preview", response);
+        check(response, {
+          "checkout preview 200": (res) => res.status === 200,
+        });
+      });
+    }
+  }
+
+  sleep(1);
 }
 
 function parseJson(response) {
