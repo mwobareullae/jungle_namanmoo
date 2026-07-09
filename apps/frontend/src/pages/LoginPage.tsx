@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import type { AuthUser } from "../contexts/authContextValue";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
@@ -355,12 +357,8 @@ function LoginPage() {
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
               </svg>
-              <input
-                className={`w-full rounded-[14px] border py-3 pr-4 pl-11 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  emailErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(emailErrorMessage)}
                 onBlur={() => {
                   setEmailTouched(true);
                   if (!isValidEmail(email)) {
@@ -372,6 +370,7 @@ function LoginPage() {
                   setMessage("");
                 }}
                 placeholder="이메일"
+                style={{ paddingLeft: "2.75rem", paddingRight: "1rem" }}
                 type="email"
                 value={email}
               />
@@ -396,12 +395,8 @@ function LoginPage() {
                 <rect height="10" rx="2" width="14" x="5" y="11" />
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
-              <input
-                className={`w-full rounded-[14px] border py-3 pr-14 pl-11 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  passwordErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(passwordErrorMessage)}
                 onBlur={() => {
                   setPasswordTouched(true);
                   if (password.length === 0) {
@@ -413,29 +408,30 @@ function LoginPage() {
                   setMessage("");
                 }}
                 placeholder="비밀번호"
+                style={{ paddingLeft: "2.75rem", paddingRight: "6rem" }}
                 type={showPassword ? "text" : "password"}
                 value={password}
               />
-              <button
-                className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
+              <Button
+                className="absolute top-1/2 right-4 -translate-y-1/2 p-0"
                 onClick={() => setShowPassword((prev) => !prev)}
-                type="button"
+                variant="link"
               >
                 {showPassword ? "숨김" : "비밀번호 표시"}
-              </button>
+              </Button>
             </div>
             {passwordErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
                 {passwordErrorMessage}
               </p>
             )}
-            <button
-              className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+            <Button
+              className="mt-3 w-full disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting}
               type="submit"
             >
               로그인
-            </button>
+            </Button>
           </form>
           {message && (
             <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{message}</p>
@@ -456,11 +452,9 @@ function LoginPage() {
           </div>
           <div className="mt-4 flex justify-center gap-3">
             <div className="relative flex h-11 w-11 items-center justify-center">
-              <button
+              <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.07] bg-white"
-                tabIndex={-1}
-                type="button"
               >
                 <svg height="20" viewBox="0 0 48 48" width="20">
                   <path
@@ -485,7 +479,7 @@ function LoginPage() {
                     fill="#1976D2"
                   />
                 </svg>
-              </button>
+              </div>
               <div
                 ref={googleButtonRef}
                 className={`absolute inset-0 z-20 overflow-hidden rounded-full ${
@@ -493,9 +487,9 @@ function LoginPage() {
                 }`}
               />
               {(!googleClientId || !isGoogleReady) && (
-                <button
+                <Button
                   aria-label="구글로 로그인"
-                  className="absolute inset-0 z-30 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-black/[0.07] bg-white hover:bg-gray-100"
+                  className="absolute inset-0 z-30"
                   disabled={isGoogleSubmitting}
                   onClick={() => {
                     setMessage(
@@ -504,7 +498,7 @@ function LoginPage() {
                         : "Google Client ID가 설정되지 않았습니다."
                     );
                   }}
-                  type="button"
+                  variant="icon"
                 >
                   <svg height="20" viewBox="0 0 48 48" width="20">
                     <path
@@ -529,14 +523,14 @@ function LoginPage() {
                       fill="#1976D2"
                     />
                   </svg>
-                </button>
+                </Button>
               )}
             </div>
-            <button
+            <Button
               aria-label="카카오로 로그인"
-              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-[#fee500] bg-[#fee500] hover:bg-[#fada00]"
               onClick={() => handleSocialLogin("kakao")}
-              type="button"
+              style={{ backgroundColor: "#fee500", borderColor: "#fee500" }}
+              variant="icon"
             >
               <svg height="20" viewBox="0 0 24 24" width="20">
                 <path
@@ -544,17 +538,17 @@ function LoginPage() {
                   fill="#000000"
                 />
               </svg>
-            </button>
-            <button
+            </Button>
+            <Button
               aria-label="네이버로 로그인"
-              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-[#03c75a] bg-[#03c75a] hover:bg-[#02b350]"
               onClick={() => handleSocialLogin("naver")}
-              type="button"
+              style={{ backgroundColor: "#03c75a", borderColor: "#03c75a" }}
+              variant="icon"
             >
               <svg height="16" viewBox="0 0 20 20" width="16">
                 <path d="M11.4 10.6L6.6 4H3v12h4.6V9.4l4.8 6.6H16V4h-4.6v6.6z" fill="#FFFFFF" />
               </svg>
-            </button>
+            </Button>
           </div>
         </div>
       </main>
