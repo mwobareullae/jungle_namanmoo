@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { getCart } from "../lib/cartApi";
 import { navigateWithinApp } from "../lib/navigation";
 import { callOriginal } from "../lib/originalRuntime";
+import CategoryPanelOverlay from "./CategoryPanelOverlay";
 
 function HomeHeader() {
   const defaultSectionHref = "/#defaultSection";
@@ -13,6 +14,19 @@ function HomeHeader() {
   const [cartCount, setCartCount] = useState(0);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
+  const isCategoryHoverArea = (target: EventTarget | null) => {
+    if (!(target instanceof Node)) return false;
+
+    const panel = document.getElementById("categoryPanel");
+    const header = document.querySelector("header.site-header");
+
+    return Boolean(header?.contains(target) || panel?.contains(target));
+  };
+  const handleCategoryAreaLeave = (event: MouseEvent<HTMLElement>) => {
+    if (!isCategoryHoverArea(event.relatedTarget)) {
+      callOriginal("closeCategoryMenu");
+    }
+  };
   const handleWishlistClick = () => {
     if (user) {
       navigate("/mypage/wishlist");
@@ -65,172 +79,179 @@ function HomeHeader() {
   };
 
   return (
-    <header className="site-header">
-      <div className="header-inner">
-        <div className="header-brand">
-          <button
-            aria-controls="categoryPanel"
-            aria-expanded="false"
-            aria-label="카테고리 메뉴 열기"
-            className="category-menu-btn"
-            onClick={() => callOriginal("toggleCategoryMenu")}
-            type="button"
-          >
-            <svg
-              fill="none"
-              height="22"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="22"
+    <>
+      <CategoryPanelOverlay />
+      <header
+        className="site-header"
+        onMouseEnter={() => callOriginal("openCategoryMenu")}
+        onMouseLeave={handleCategoryAreaLeave}
+      >
+        <div className="header-inner">
+          <div className="header-brand">
+            <button
+              aria-controls="categoryPanel"
+              aria-expanded="false"
+              aria-label="카테고리 메뉴 열기"
+              className="category-menu-btn"
+              onClick={() => callOriginal("openCategoryMenu")}
+              type="button"
             >
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-          <a className="logo" href="/">
-            뭐바를래
-          </a>
-        </div>
-        <nav>
-          <a href={defaultSectionHref}>신상품</a>
-          <a href={defaultSectionHref}>베스트</a>
-          <a href={defaultSectionHref}>브랜드</a>
-          <a href={defaultSectionHref}>쿠폰</a>
-          <a className="nav-ai" href="/skin-test">
-            맞춤 추천
-          </a>
-        </nav>
-        <div className="header-actions">
-          <button className="icon-btn" onClick={() => callOriginal("focusSearch")} type="button">
-            <svg
-              fill="none"
-              height="18"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="18"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
-          <button
-            className="icon-btn"
-            data-commerce-only
-            onClick={handleWishlistClick}
-            type="button"
-          >
-            <svg
-              fill="none"
-              height="18"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="18"
-            >
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          </button>
-          <button
-            className="icon-btn"
-            data-commerce-only
-            aria-label="장바구니로 이동"
-            onClick={() => navigate("/cart")}
-            type="button"
-          >
-            <svg
-              fill="none"
-              height="18"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="18"
-            >
-              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-              <line x1="3" x2="21" y1="6" y2="6" />
-              <path d="M16 10a4 4 0 0 1-8 0" />
-            </svg>
-            <span className="badge" id="headerCartBadge">
-              {cartCount}
-            </span>
-          </button>
-          {user ? (
-            <>
-              <a className="btn-login header-user-link" data-commerce-only href="/mypage">
-                <span className="header-user-icon" aria-hidden="true">
-                  <svg
-                    fill="none"
-                    height="18"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="18"
-                  >
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </span>
-                {displayName}님
-              </a>
-              <span aria-hidden="true" className="header-action-divider">
-                |
-              </span>
-              <button
-                className="btn-login header-logout-button"
-                data-auth-state="authenticated"
-                data-commerce-only
-                onClick={handleLogout}
-                type="button"
+              <svg
+                fill="none"
+                height="22"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="22"
               >
-                <span className="header-logout-icon" aria-hidden="true">
-                  <svg
-                    fill="none"
-                    height="18"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="18"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <path d="M16 17l5-5-5-5" />
-                    <path d="M21 12H9" />
-                  </svg>
-                </span>
-                로그아웃
-              </button>
-            </>
-          ) : (
-            <a
-              className="btn-login"
-              data-auth-state="guest"
-              data-commerce-only
-              href="#"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/login", {
-                  state: {
-                    from: currentPath,
-                  },
-                });
-              }}
-            >
-              로그인
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+            <a className="logo" href="/">
+              뭐바를래
             </a>
-          )}
+          </div>
+          <nav>
+            <a href={defaultSectionHref}>신상품</a>
+            <a href={defaultSectionHref}>베스트</a>
+            <a href={defaultSectionHref}>브랜드</a>
+            <a href={defaultSectionHref}>쿠폰</a>
+            <a className="nav-ai" href="/skin-test">
+              맞춤 추천
+            </a>
+          </nav>
+          <div className="header-actions">
+            <button className="icon-btn" onClick={() => callOriginal("focusSearch")} type="button">
+              <svg
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="18"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </button>
+            <button
+              className="icon-btn"
+              data-commerce-only
+              onClick={handleWishlistClick}
+              type="button"
+            >
+              <svg
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="18"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
+            <button
+              className="icon-btn"
+              data-commerce-only
+              aria-label="장바구니로 이동"
+              onClick={() => navigate("/cart")}
+              type="button"
+            >
+              <svg
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="18"
+              >
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                <line x1="3" x2="21" y1="6" y2="6" />
+                <path d="M16 10a4 4 0 0 1-8 0" />
+              </svg>
+              <span className="badge" id="headerCartBadge">
+                {cartCount}
+              </span>
+            </button>
+            {user ? (
+              <>
+                <a className="btn-login header-user-link" data-commerce-only href="/mypage">
+                  <span className="header-user-icon" aria-hidden="true">
+                    <svg
+                      fill="none"
+                      height="18"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="18"
+                    >
+                      <path d="M20 21a8 8 0 0 0-16 0" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </span>
+                  {displayName}님
+                </a>
+                <span aria-hidden="true" className="header-action-divider">
+                  |
+                </span>
+                <button
+                  className="btn-login header-logout-button"
+                  data-auth-state="authenticated"
+                  data-commerce-only
+                  onClick={handleLogout}
+                  type="button"
+                >
+                  <span className="header-logout-icon" aria-hidden="true">
+                    <svg
+                      fill="none"
+                      height="18"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="18"
+                    >
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <path d="M16 17l5-5-5-5" />
+                      <path d="M21 12H9" />
+                    </svg>
+                  </span>
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <a
+                className="btn-login"
+                data-auth-state="guest"
+                data-commerce-only
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate("/login", {
+                    state: {
+                      from: currentPath
+                    }
+                  });
+                }}
+              >
+                로그인
+              </a>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
 
