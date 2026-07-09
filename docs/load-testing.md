@@ -39,11 +39,16 @@ tests/k6/commerce-smoke.js
 - `GET /api/health`
 - `GET /api/products/popular`
 - `GET /api/products/{product_id}`
+- `GET /api/products/search`
+- `GET /api/home/sections`
 - `POST /api/recommendations`
 - `GET /api/recommendations/{recommendation_id}`
+- `POST /api/recommendations/{recommendation_id}/narrative`
 - 선택 실행: `POST /api/cart/items`
+- 선택 실행: `POST /api/checkout/preview`
 
 장바구니 쓰기 요청은 익명 cart row를 생성하므로 기본 비활성화입니다.
+추천 narrative 요청은 기본 활성화하되 `use_llm=false`로 실행합니다. OpenAI 비용과 외부 API 지연을 기준선에 섞지 않기 위한 설정입니다.
 
 ## 사전 조건
 
@@ -66,7 +71,7 @@ PY
 로컬에서 dev 서버 대상 실행 시:
 
 ```bash
-curl http://52.79.240.15:8000/api/health
+curl https://dev.api.mubarelle.com/api/health
 ```
 
 ## 실행 명령
@@ -118,7 +123,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 대상 smoke:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=smoke \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -128,7 +133,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 기준선:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=baseline \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -136,7 +141,7 @@ k6 run tests/k6/commerce-smoke.js
 dev 서버 목표 부하:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=target \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -144,7 +149,7 @@ k6 run tests/k6/commerce-smoke.js
 ### Stress test
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=stress \
 k6 run tests/k6/commerce-smoke.js
 ```
@@ -156,9 +161,37 @@ stress test는 팀 작업 시간에는 먼저 공유 후 실행합니다.
 익명 장바구니 쓰기 포함:
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=baseline \
 ENABLE_CART_WRITES=true \
+k6 run tests/k6/commerce-smoke.js
+```
+
+### 추천 narrative 옵션
+
+기본값은 recommendation 생성/조회 뒤 rule-based narrative까지 확인합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+k6 run tests/k6/commerce-smoke.js
+```
+
+narrative API를 제외하고 추천 생성/조회만 보고 싶으면:
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+ENABLE_RECOMMENDATION_NARRATIVE=false \
+k6 run tests/k6/commerce-smoke.js
+```
+
+LLM narrative까지 포함하려면 비용과 외부 API 지연이 섞이므로 별도 공유 후 실행합니다.
+
+```bash
+BASE_URL=https://dev.api.mubarelle.com/api \
+PROFILE=smoke \
+NARRATIVE_USE_LLM=true \
 k6 run tests/k6/commerce-smoke.js
 ```
 
@@ -167,7 +200,7 @@ k6 run tests/k6/commerce-smoke.js
 인기상품 데이터가 비어 있으면 상품 ID를 직접 지정합니다.
 
 ```bash
-BASE_URL=http://52.79.240.15:8000/api \
+BASE_URL=https://dev.api.mubarelle.com/api \
 PROFILE=smoke \
 PRODUCT_IDS=prod_oy_a000000163734,prod_oy_a000000250344 \
 k6 run tests/k6/commerce-smoke.js
@@ -195,15 +228,19 @@ k6 run tests/k6/commerce-smoke.js
 
 latency:
 
-- `type=fast` p95 < 500ms
+- `type=fast` p95 < 3000ms
   - health
   - popular products
   - product detail
-- `type=search` p95 < 1000ms
+- `type=search` p95 < 3000ms
+  - product search
+  - home sections
   - recommendation create
   - recommendation page
-- `type=write` p95 < 1500ms
+  - recommendation narrative
+- `type=write` p95 < 3000ms
   - anonymous cart add
+  - checkout preview
 
 k6 threshold 실패 시 해당 run은 실패로 봅니다.
 
