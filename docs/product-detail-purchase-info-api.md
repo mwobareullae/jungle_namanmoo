@@ -13,6 +13,10 @@ purchase button state. It does not replace cart/order transaction checks.
 `purchase_info` is additive. Existing fields such as `product`, `images`, `prices`, `ingredients`,
 `evidence`, and `sources` remain unchanged.
 
+When `recommendation_id` is provided, `product.recommended_key_ingredients` contains the
+recommendation score-evidence ingredients in recommendation priority order. Without recommendation
+context it is an empty array. `ingredients` continues to represent the product ingredient list.
+
 ```json
 {
   "purchase_info": {
