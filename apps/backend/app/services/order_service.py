@@ -39,6 +39,7 @@ CART_STATUS_ORDERED = "ORDERED"
 DEFAULT_CURRENCY = "KRW"
 DEFAULT_BASE_SHIPPING_FEE = 3000
 PAYMENT_EXPIRY_MINUTES = 15
+SUPPORTED_PAYMENT_PROVIDERS = {"MOCK", "TOSS"}
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ def create_order(
     started_at = current_time()
     requested_item_count = len(request.cart_item_ids)
     try:
+        _validate_payment_provider(request.payment_provider)
         normalized_key = _normalize_idempotency_key(idempotency_key)
         existing_order = _load_order_by_idempotency_key(session, user.id, normalized_key)
         if existing_order is not None:
@@ -167,6 +169,15 @@ def create_order(
             payment_provider=request.payment_provider,
         )
         raise
+
+
+def _validate_payment_provider(payment_provider: str) -> None:
+    if payment_provider not in SUPPORTED_PAYMENT_PROVIDERS:
+        raise ApiError(
+            400,
+            "UNSUPPORTED_PAYMENT_PROVIDER",
+            "Only MOCK and TOSS payment providers are supported.",
+        )
 
 
 def _normalize_idempotency_key(idempotency_key: str | None) -> str:
