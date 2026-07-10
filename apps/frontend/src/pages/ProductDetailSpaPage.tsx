@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
+import ProductDetailHero from "../components/product-detail/ProductDetailHero";
+import ProductDetailStatus from "../components/product-detail/ProductDetailStatus";
+import ProductDetailToast from "../components/product-detail/ProductDetailToast";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
@@ -1124,140 +1127,35 @@ function ProductDetailSpaPage() {
             <span id="breadcrumbProduct">{product?.name ?? "상품 상세"}</span>
           </div>
 
-          {isLoading ? (
-            <div className="detail-loading">상품 상세 정보를 불러오는 중입니다.</div>
-          ) : errorMessage ? (
-            <div className="detail-loading">{errorMessage}</div>
+          {isLoading || errorMessage ? (
+            <ProductDetailStatus errorMessage={errorMessage} isLoading={isLoading} />
           ) : product ? (
-            <div className="detail-hero">
-              <div className="detail-media">
-                <div className="detail-image-box">
-                  {mainImageUrl ? (
-                    <img id="productImage" src={mainImageUrl} alt={product.name} />
-                  ) : null}
-                  {!mainImageUrl ? (
-                    <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="detail-summary">
-                <div className="detail-brand-row">
-                  {brandPagePath ? (
-                    <Link className="detail-brand detail-brand-link" id="productBrand" to={brandPagePath}>
-                      {product.brand}
-                      <span aria-hidden="true">&gt;</span>
-                    </Link>
-                  ) : (
-                    <div className="detail-brand" id="productBrand">{product.brand}</div>
-                  )}
-                  <div className="detail-actions">
-                    <button className="detail-icon-btn" type="button" aria-label="공유">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="18" cy="5" r="3" />
-                        <circle cx="6" cy="12" r="3" />
-                        <circle cx="18" cy="19" r="3" />
-                        <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
-                      </svg>
-                    </button>
-                    <button
-                      aria-label={displayedIsWished ? "찜 해제" : "찜"}
-                      aria-pressed={displayedIsWished}
-                      className={`detail-icon-btn${displayedIsWished ? " is-wished" : ""}`}
-                      data-commerce-only
-                      disabled={isWishlistPending}
-                      onClick={handleToggleWishlist}
-                      type="button"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill={displayedIsWished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <h1 className="detail-title" id="productName">{product.name}</h1>
-                <div className="detail-price-panel">
-                  <div className="detail-price-row">
-                    <span className="detail-price" id="productPrice">{formatPrice(product.lowest_price)}</span>
-                  </div>
-                </div>
-                <div className="detail-tags" id="productTags">
-                  {product.evidence_tags.map((tag) => (
-                    <span className="detail-tag" key={tag}>{tag}</span>
-                  ))}
-                </div>
-                <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
-                  <div className="ai-narrative-head">
-                    <strong>AI 추천 요약</strong>
-                    <span aria-label="추천 문구는 성분 근거와 매칭 점수를 바탕으로 생성됩니다">i</span>
-                  </div>
-                  <div className="ai-narrative-body">
-                    {narrativeRole ? (
-                      <div className="ai-narrative-role">{narrativeRole}</div>
-                    ) : null}
-                    <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : narrativeHeadline}</strong>
-                    <p id="matchReason">
-                      <span aria-hidden="true">◆</span>
-                      {narrativeReason}
-                    </p>
-                    {narrativeSummaryText ? (
-                      <p className="ai-narrative-summary">{narrativeSummaryText}</p>
-                    ) : null}
-                    <div className="ai-narrative-chip-list">
-                      {narrativeChips.map((chip) => (
-                        <span key={chip}>{chip}</span>
-                      ))}
-                      <span className="score-chip" id="matchScore">추천 점수 {product.total_score}</span>
-                    </div>
-                    {narrativeKeyPoints.length > 0 ? (
-                      <div className="ai-narrative-keypoints">
-                        {narrativeKeyPoints.slice(0, 3).map((point) => (
-                          <span key={point}>{point}</span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ai-narrative-detail-list">
-                      {narrativeDetailSections.map((section) => (
-                        <div className="ai-narrative-detail-item" key={section.title}>
-                          <strong>{section.title}</strong>
-                          <p>{section.body}</p>
-                        </div>
-                      ))}
-                    </div>
-                    {narrativeCaution ? (
-                      <div className="ai-narrative-caution">{narrativeCaution}</div>
-                    ) : null}
-                    {narrativeSelectionGuide ? (
-                      <div className="ai-narrative-guide">{narrativeSelectionGuide}</div>
-                    ) : null}
-                  </div>
-                </div>
-                <div
-                  className="detail-selectors"
-                  id="profileSelectors"
-                  style={{ display: skinType || sensitivity ? undefined : "none" }}
-                >
-                  <div className="detail-select-row" id="skinTypeRow" style={{ display: skinType ? undefined : "none" }}>
-                    <span>피부 타입</span>
-                    <strong id="skinTypeValue">{skinType}</strong>
-                  </div>
-                  <div className="detail-select-row" id="sensitivityRow" style={{ display: sensitivity ? undefined : "none" }}>
-                    <span>민감성</span>
-                    <strong id="sensitivityValue">{sensitivity}</strong>
-                  </div>
-                </div>
-                <div data-commerce-only className="detail-cta-row">
-                  <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={handleAddToCart}>
-                    {isAddingToCart ? "담는 중..." : "장바구니"}
-                  </button>
-                  <button className="detail-btn primary" disabled={isAddingToCart} type="button" onClick={handleBuyNow}>
-                    구매하기
-                  </button>
-                </div>
-                {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
-                {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
-              </div>
-            </div>
+            <ProductDetailHero
+              brandPagePath={brandPagePath}
+              cartErrorMessage={cartErrorMessage}
+              cartMessage={cartMessage}
+              displayedIsWished={displayedIsWished}
+              isAddingToCart={isAddingToCart}
+              isNarrativeLoading={isNarrativeLoading}
+              isWishlistPending={isWishlistPending}
+              mainImageUrl={mainImageUrl}
+              narrativeCaution={narrativeCaution}
+              narrativeChips={narrativeChips}
+              narrativeDetailSections={narrativeDetailSections}
+              narrativeHeadline={narrativeHeadline}
+              narrativeKeyPoints={narrativeKeyPoints}
+              narrativeReason={narrativeReason}
+              narrativeRole={narrativeRole}
+              narrativeSelectionGuide={narrativeSelectionGuide}
+              narrativeSummaryText={narrativeSummaryText}
+              onAddToCart={handleAddToCart}
+              onBuyNow={handleBuyNow}
+              onToggleWishlist={handleToggleWishlist}
+              priceLabel={formatPrice(product.lowest_price)}
+              product={product}
+              sensitivity={sensitivity}
+              skinType={skinType}
+            />
           ) : null}
         </section>
 
@@ -1879,12 +1777,7 @@ function ProductDetailSpaPage() {
         ) : null}
       </main>
 
-      {toastMessage ? (
-        <div className="activity-toast" role="status" aria-live="polite">
-          <span className="activity-toast__dot" />
-          {toastMessage}
-        </div>
-      ) : null}
+      <ProductDetailToast message={toastMessage} />
 
     </>
   );
