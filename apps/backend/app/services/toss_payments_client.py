@@ -68,3 +68,70 @@ class TossPaymentsClient:
                 "TossPayments confirm response is invalid.",
             )
         return response_payload
+
+    def get_payment(self, *, payment_key: str) -> dict[str, Any]:
+        auth_token = base64.b64encode(f"{self.secret_key}:".encode("utf-8")).decode("ascii")
+        try:
+            response = requests.get(
+                f"{self.api_base_url.rstrip('/')}/v1/payments/{payment_key}",
+                headers={
+                    "Authorization": f"Basic {auth_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise TossPaymentsClientError(
+                "TOSS_PAYMENT_QUERY_REQUEST_FAILED",
+                "TossPayments payment query request failed.",
+            ) from exc
+
+        try:
+            response_payload = response.json()
+        except ValueError:
+            response_payload = {}
+        if response.status_code >= 400:
+            raise TossPaymentsClientError(
+                str(response_payload.get("code") or "TOSS_PAYMENT_QUERY_FAILED"),
+                str(response_payload.get("message") or "TossPayments payment query failed."),
+            )
+        if not isinstance(response_payload, dict):
+            raise TossPaymentsClientError(
+                "TOSS_PAYMENT_QUERY_INVALID_RESPONSE",
+                "TossPayments payment query response is invalid.",
+            )
+        return response_payload
+
+    def cancel_payment(self, *, payment_key: str, cancel_reason: str) -> dict[str, Any]:
+        auth_token = base64.b64encode(f"{self.secret_key}:".encode("utf-8")).decode("ascii")
+        try:
+            response = requests.post(
+                f"{self.api_base_url.rstrip('/')}/v1/payments/{payment_key}/cancel",
+                json={"cancelReason": cancel_reason},
+                headers={
+                    "Authorization": f"Basic {auth_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise TossPaymentsClientError(
+                "TOSS_CANCEL_REQUEST_FAILED",
+                "TossPayments cancel request failed.",
+            ) from exc
+
+        try:
+            response_payload = response.json()
+        except ValueError:
+            response_payload = {}
+        if response.status_code >= 400:
+            raise TossPaymentsClientError(
+                str(response_payload.get("code") or "TOSS_CANCEL_FAILED"),
+                str(response_payload.get("message") or "TossPayments cancel failed."),
+            )
+        if not isinstance(response_payload, dict):
+            raise TossPaymentsClientError(
+                "TOSS_CANCEL_INVALID_RESPONSE",
+                "TossPayments cancel response is invalid.",
+            )
+        return response_payload
