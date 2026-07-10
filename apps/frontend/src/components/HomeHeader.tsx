@@ -81,11 +81,7 @@ function HomeHeader() {
   return (
     <>
       <CategoryPanelOverlay />
-      <header
-        className="site-header"
-        onMouseEnter={() => callOriginal("openCategoryMenu")}
-        onMouseLeave={handleCategoryAreaLeave}
-      >
+      <header className="site-header" onMouseLeave={handleCategoryAreaLeave}>
         <div className="header-inner">
           <div className="header-brand">
             <button
@@ -94,6 +90,7 @@ function HomeHeader() {
               aria-label="카테고리 메뉴 열기"
               className="category-menu-btn"
               onClick={() => callOriginal("openCategoryMenu")}
+              onMouseEnter={() => callOriginal("openCategoryMenu")}
               type="button"
             >
               <svg
@@ -122,21 +119,6 @@ function HomeHeader() {
             </a>
           </nav>
           <div className="header-actions">
-            <button className="icon-btn" onClick={() => callOriginal("focusSearch")} type="button">
-              <svg
-                fill="none"
-                height="18"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                width="18"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </button>
             <button
               className="icon-btn"
               data-commerce-only

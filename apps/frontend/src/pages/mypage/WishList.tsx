@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
+import { ToggleGroup, ToggleGroupTabItem } from "../../components/ui/toggle-group";
 import {
   deleteMyRecentProduct,
   deleteMyWishlistItem,
@@ -11,7 +13,7 @@ import {
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
 
 type ProductListMode = "wishlist" | "recent";
-type WishlistSort = "all" | "skin" | "recent";
+type WishlistSort = "recent";
 
 export type MypageProductListItem = {
   id: string;
@@ -24,6 +26,7 @@ export type MypageProductListItem = {
   deliveryLabel?: string;
   thumbnailUrl: string | null;
   dateLabel?: string;
+  addedAt?: string;
   tags?: string[];
   isWished?: boolean;
   eventContext?: MypageEventContext;
@@ -83,8 +86,6 @@ const recommendedItems: MypageProductListItem[] = [
 ];
 
 const sortTabs: { id: WishlistSort; label: string }[] = [
-  { id: "all", label: "전체" },
-  { id: "skin", label: "피부 맞춤" },
   { id: "recent", label: "최근순" }
 ];
 
@@ -102,6 +103,7 @@ const mapActivityItem = (
   price: item.price,
   thumbnailUrl: item.thumbnailUrl,
   dateLabel: item.dateLabel,
+  addedAt: item.rawDate,
   tags: item.tags,
   isWished: item.isWished,
   eventContext: {
@@ -142,7 +144,8 @@ function MypageProductList({
   onRemoveItem,
   onSortChange
 }: ProductListProps) {
-  const [sort, setSort] = useState<WishlistSort>("all");
+  const navigate = useNavigate();
+  const [sort, setSort] = useState<WishlistSort>("recent");
   const isRecent = mode === "recent";
   const [listItems, setListItems] = useState<MypageProductListItem[]>(() =>
     items ?? []
@@ -156,12 +159,12 @@ function MypageProductList({
   const emptyDescription = isRecent ? "상품을 둘러보면 최근 본 상품이 여기에 모여요." : "피부 타입에 맞는 제품을 찾아 찜해보세요.";
   const todayDateLabel = getTodayDateLabel();
   const displayItems = useMemo(() => {
-    if (sort === "skin") {
-      return [...listItems].sort((a, b) => (b.tags?.length ?? 0) - (a.tags?.length ?? 0));
-    }
-
-    return listItems;
-  }, [listItems, sort]);
+    return [...listItems].sort((a, b) => {
+      const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+      const bTime = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [listItems]);
 
   useEffect(() => {
     if (items) {
@@ -196,7 +199,7 @@ function MypageProductList({
         }
 
         setListItems([]);
-        setLoadError(`${title}을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.`);
+        setLoadError(null);
       })
       .finally(() => {
         if (isMounted) {
@@ -208,7 +211,7 @@ function MypageProductList({
       isMounted = false;
       window.clearTimeout(loadingTimerId);
     };
-  }, [items, mode, title]);
+  }, [isRecent, items, mode, title]);
 
   const updateSort = (nextSort: WishlistSort) => {
     setSort(nextSort);
@@ -233,7 +236,12 @@ function MypageProductList({
   };
 
   const openProduct = (item: MypageProductListItem) => {
-    onOpenProduct?.(item);
+    if (onOpenProduct) {
+      onOpenProduct(item);
+      return;
+    }
+
+    navigate(`/product-detail?id=${encodeURIComponent(item.productId)}`);
   };
 
   if (isLoading || (!loadError && displayItems.length === 0)) {
@@ -276,11 +284,9 @@ function MypageProductList({
               <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
               <p style={styles.emptyDescription}>{emptyDescription}</p>
               <button
+                className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-extrabold text-white hover:bg-[#1A1A1A]"
+                onClick={() => navigate("/")}
                 type="button"
-                style={styles.emptyActionButton}
-                onClick={() => {
-                  window.location.href = "/";
-                }}
               >
                 상품 둘러보러 가기
               </button>
@@ -320,32 +326,25 @@ function MypageProductList({
       <header style={styles.singleTitleRow}>
         <h1 style={styles.singleTitle}>{title}</h1>
       </header>
-      <section style={styles.pageHeader}>
-        <div style={styles.locationBar}>
-          <span style={styles.locationIcon} aria-hidden="true">●</span>
-          <strong style={styles.locationText}>집</strong>
-          <span style={styles.locationDetail}>서울특별시 관악구 도착기준</span>
-          <button type="button" style={styles.locationButton}>변경 <span aria-hidden="true">›</span></button>
-        </div>
-        <p style={styles.guideText}>{guideText}</p>
-      </section>
 
       {!isRecent ? (
-        <nav style={styles.tabs} aria-label="찜한 상품 필터">
+        <ToggleGroup
+          aria-label="찜한 상품 필터"
+          className="flex flex-wrap gap-[34px] border-b border-[#e6e6e6]"
+          onValueChange={(value) => {
+            if (value) {
+              updateSort(value as WishlistSort);
+            }
+          }}
+          type="single"
+          value={sort}
+        >
           {sortTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => updateSort(tab.id)}
-              style={{
-                ...styles.tab,
-                ...(sort === tab.id ? styles.tabActive : {})
-              }}
-              type="button"
-            >
+            <ToggleGroupTabItem key={tab.id} value={tab.id}>
               {tab.label}
-            </button>
+            </ToggleGroupTabItem>
           ))}
-        </nav>
+        </ToggleGroup>
       ) : null}
 
       {isRecent ? (
@@ -364,11 +363,9 @@ function MypageProductList({
           <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
           <p style={styles.emptyDescription}>{emptyDescription}</p>
           <button
+            className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-extrabold text-white hover:bg-[#1A1A1A]"
+            onClick={() => navigate("/")}
             type="button"
-            style={styles.emptyActionButton}
-            onClick={() => {
-              window.location.href = "/";
-            }}
           >
             상품 둘러보기
           </button>
@@ -385,7 +382,12 @@ function MypageProductList({
                   <div style={isTodayDivider ? styles.dateDividerToday : styles.dateDivider}>{item.dateLabel}</div>
                 ) : null}
                 <article style={styles.row}>
-                  <button type="button" onClick={() => openProduct(item)} style={styles.rowButton}>
+                  <button
+                    className="bg-transparent hover:bg-[#FAFAFA]"
+                    onClick={() => openProduct(item)}
+                    style={styles.rowButton}
+                    type="button"
+                  >
                     <div style={styles.imageWrap}>
                       <ProductThumbnail
                         src={item.thumbnailUrl}
@@ -413,10 +415,11 @@ function MypageProductList({
                     </span>
                   </button>
                   <button
-                    type="button"
                     aria-label={`${item.name} 목록에서 제거`}
+                    className="text-[#c8cdd2] hover:text-[#4b5563]"
                     onClick={() => removeItem(item)}
                     style={styles.removeButton}
+                    type="button"
                   >
                     ×
                   </button>
@@ -426,6 +429,7 @@ function MypageProductList({
           })}
         </section>
       )}
+      <p style={styles.guideText}>{guideText}</p>
     </MyPageLayout>
   );
 }
@@ -438,8 +442,11 @@ function RecommendedProductCard({
   onOpenProduct?: (item: MypageProductListItem) => void;
 }) {
   return (
-    <article style={styles.recommendCard}>
-      <button type="button" style={styles.recommendCardButton} onClick={() => onOpenProduct?.(item)}>
+    <article
+      className="border border-[#e0e0e0] transition-colors hover:border-[#94E0F8]"
+      style={styles.recommendCard}
+    >
+      <button onClick={() => onOpenProduct?.(item)} style={styles.recommendCardButton} type="button">
         <div style={styles.recommendImageWrap}>
           <ProductThumbnail
             src={item.thumbnailUrl}
@@ -478,82 +485,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 24,
     fontWeight: 500
   },
-  pageHeader: {
-    padding: "0 0 26px",
-    borderBottom: "1px solid #eef0f2"
-  },
-  locationBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    minHeight: 46,
-    padding: "0 18px",
-    borderRadius: 6,
-    border: "1px solid rgba(148,224,248,0.36)",
-    background: "rgba(148,224,248,0.10)",
-    color: "#222222"
-  },
-  locationIcon: {
-    color: "#2aa6d1",
-    fontSize: 14,
-    lineHeight: 1
-  },
-  locationText: {
-    fontSize: 14,
-    fontWeight: 700
-  },
-  locationDetail: {
-    color: "#555555",
-    fontSize: 14,
-    fontWeight: 500
-  },
-  locationButton: {
-    marginLeft: "auto",
-    border: 0,
-    background: "transparent",
-    color: "#7b8794",
-    fontFamily: "inherit",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer"
-  },
   guideText: {
     margin: "18px 0 0",
     color: "#9ca3af",
     fontSize: 13,
     fontWeight: 600
-  },
-  tabs: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 34,
-    padding: "0 0 0",
-    borderBottom: "1px solid #e6e6e6"
-  },
-  tab: {
-    position: "relative",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 54,
-    padding: "0 0",
-    border: 0,
-    borderBottom: "3px solid transparent",
-    borderRadius: 0,
-    background: "transparent",
-    color: "#777777",
-    fontFamily: "inherit",
-    fontSize: 16,
-    fontWeight: 800,
-    lineHeight: 1,
-    outline: "none",
-    cursor: "pointer"
-  },
-  tabActive: {
-    borderBottom: "3px solid #94e0f8",
-    background: "transparent",
-    color: "#063445",
-    fontWeight: 800
   },
   countRow: {
     padding: "17px 0",
@@ -605,7 +541,6 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 136,
     padding: "18px 44px 18px 0",
     border: 0,
-    background: "transparent",
     color: "inherit",
     fontFamily: "inherit",
     textAlign: "left",
@@ -715,7 +650,6 @@ const styles: Record<string, CSSProperties> = {
     height: 32,
     border: 0,
     background: "transparent",
-    color: "#c8cdd2",
     fontFamily: "inherit",
     fontSize: 28,
     fontWeight: 300,
@@ -765,22 +699,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     fontWeight: 500
   },
-  emptyActionButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 196,
-    minHeight: 54,
-    padding: "0 26px",
-    border: 0,
-    borderRadius: 10,
-    background: "#0c1117",
-    color: "#ffffff",
-    fontFamily: "inherit",
-    fontSize: 15,
-    fontWeight: 800,
-    cursor: "pointer"
-  },
   recommendSection: {
     paddingTop: 38
   },
@@ -797,7 +715,6 @@ const styles: Record<string, CSSProperties> = {
   },
   recommendCard: {
     overflow: "hidden",
-    border: "1px solid #e0e0e0",
     borderRadius: 8,
     background: "#ffffff"
   },

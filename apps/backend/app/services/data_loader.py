@@ -419,6 +419,14 @@ def _parse_product(row: dict[str, str], file_name: str, line_number: int) -> Pro
         functional_cosmetic_claims=_split_values(row.get("functional_cosmetic_claims", "")),
         functional_claim_confidence=_optional_text(row.get("functional_claim_confidence")),
         functional_claim_basis=_optional_text(row.get("functional_claim_basis")),
+        is_recommendable=_optional_bool(
+            row.get("is_recommendable"),
+            "is_recommendable",
+            file_name,
+            line_number,
+            default=True,
+        ),
+        recommend_exclude_reason=_optional_text(row.get("recommend_exclude_reason")),
     )
 
 
@@ -937,6 +945,25 @@ def _required_bool(row: dict[str, str], key: str, file_name: str, line_number: i
     if value == "true":
         return True
     if value == "false":
+        return False
+    raise DataLoadError(f"{file_name}:{line_number} {key} 값은 true 또는 false여야 합니다.")
+
+
+def _optional_bool(
+    value: object,
+    key: str,
+    file_name: str,
+    line_number: int,
+    *,
+    default: bool | None = None,
+) -> bool | None:
+    text = _optional_text(value)
+    if text is None:
+        return default
+    normalized = text.casefold()
+    if normalized == "true":
+        return True
+    if normalized == "false":
         return False
     raise DataLoadError(f"{file_name}:{line_number} {key} 값은 true 또는 false여야 합니다.")
 

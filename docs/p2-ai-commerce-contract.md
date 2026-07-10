@@ -19,7 +19,10 @@
 | 추천 조회 | `GET /api/recommendations/{recommendation_id}` | 생성된 추천 결과 재조회 |
 | 추천 서사 | `POST /api/recommendations/{recommendation_id}/narrative` | `cards`, `detail`, `full` 뷰별 AI 설명 생성 |
 | 상품 상세 | `GET /api/products/{product_id}?recommendation_id={recommendation_id}` | 추천 맥락이 포함된 상품 상세 근거 조회 |
-| 홈 섹션 | `GET /api/home/sections` | P2 홈/탐색용 상품 섹션 |
+| 홈 레이아웃 | `GET /api/home/layout` | P2 홈 섹션 endpoint 목록 |
+| 홈 인기 상품 | `GET /api/home/market-popular` | 기존 market_popular 로직을 분리한 인기 상품 섹션 |
+| 홈 근거 추천 | `GET /api/home/evidence-picks` | 기존 evidence_picks 로직을 분리한 성분 근거 섹션 |
+| 홈 너를 위한 추천 | `GET /api/home/for-you` | 저장 프로필, 스킨테스트 soft context, 행동 데이터를 반영한 개인화 섹션 |
 
 ## 공통 ID 계약
 
@@ -169,7 +172,9 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
 GET /api/products/{product_id}?recommendation_id={recommendation_id}
 ```
 
-FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `score_breakdown`, `cart_handoff`, `recommendation_reason`을 포함한다. 추천 맥락이 없는 일반 상품 상세에서는 `cart_handoff`를 `null`로 둔다.
+FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `recommended_key_ingredients`, `score_breakdown`, `cart_handoff`, `recommendation_reason`을 포함한다. 추천 맥락이 없는 일반 상품 상세에서는 `cart_handoff`를 `null`로 두고 `recommended_key_ingredients`는 빈 배열로 둔다.
+
+`recommended_key_ingredients`는 전성분 표시 순서가 아니라 해당 추천 결과의 점수 근거 성분 순서다. 프론트 상품 상세의 AI 추천 요약은 이 값을 먼저 사용하고, 값이 없을 때만 상품 근거 성분으로 fallback한다. 전성분 영역은 별도로 `ingredients` 전체 목록을 사용한다.
 
 ## AI 설명 연결
 

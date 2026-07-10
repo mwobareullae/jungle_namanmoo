@@ -1,12 +1,14 @@
+import hashlib
+import json
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Body, Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.models.auth import User
-from app.db.models.commerce import Order, Payment
+from app.db.models.commerce import Order, Payment, PaymentEvent
 from app.db.session import get_db
 from app.schemas.common import ApiError, ErrorResponse
 from app.schemas.event import EventLogCreateRequest
@@ -14,6 +16,7 @@ from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
 from app.services.event_service import create_event_log
 from app.services.event_tracking import anonymous_user_id_from_request, request_id_from_request, session_id_from_request
 from app.services.payment_service import confirm_mock_payment, confirm_toss_payment, fail_mock_payment
+from app.services.payment_reconciliation_service import reconcile_pending_payments
 from app.services.toss_payments_client import TossPaymentsClient, TossPaymentsClientError
 
 
@@ -155,6 +158,98 @@ def post_toss_payment_confirm(
         fallback_session_id=fallback_session_id,
     )
     return response
+
+
+@router.post(
+    "/payments/toss/webhook",
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def post_toss_payment_webhook(
+    payload: dict[str, object] = Body(...),
+    webhook_id: str | None = Header(default=None, alias="X-Toss-Webhook-Id"),
+    session: Session = Depends(get_db),
+    toss_client: TossPaymentsClient = Depends(get_toss_payments_client),
+) -> dict[str, object]:
+    payment_key = _webhook_text(payload.get("paymentKey"))
+    order_code = _webhook_text(payload.get("orderId"))
+    if not payment_key and not order_code:
+        raise ApiError(400, "INVALID_TOSS_WEBHOOK", "paymentKey or orderId is required.")
+
+    event_id = _webhook_event_id(webhook_id, payload)
+    row = session.execute(
+        select(Payment, Order)
+        .join(Order, Payment.order_id == Order.id)
+        .where(
+            Payment.provider == "TOSS",
+            (Payment.provider_payment_key == payment_key) if payment_key else (Order.order_code == order_code),
+        )
+    ).one_or_none()
+    if row is None:
+        return {"accepted": True, "matched": False, "duplicate": False}
+
+    payment, order = row
+    duplicate = session.execute(
+        select(PaymentEvent.id).where(
+            PaymentEvent.provider == "TOSS",
+            PaymentEvent.event_id == event_id,
+        )
+    ).scalar_one_or_none()
+    if duplicate is not None:
+        return {"accepted": True, "matched": True, "duplicate": True}
+
+    if payment.provider_payment_key is None and payment_key:
+        payment.provider_payment_key = payment_key
+    session.add(
+        PaymentEvent(
+            payment_id=payment.id,
+            order_id=order.id,
+            event_type="TOSS_WEBHOOK_RECEIVED",
+            event_id=event_id,
+            provider="TOSS",
+            provider_payment_key=payment_key,
+            provider_order_id=order_code,
+            amount=payment.amount,
+            currency=payment.currency,
+            status_before=payment.status,
+            status_after=payment.status,
+            raw_payload_json=_webhook_summary(payload),
+        )
+    )
+    session.commit()
+    result = reconcile_pending_payments(session, toss_client=toss_client, limit=1)
+    session.commit()
+    return {
+        "accepted": True,
+        "matched": True,
+        "duplicate": False,
+        "reconciled": result.approved_count + result.failed_count,
+        "unknown": result.unknown_count,
+    }
+
+
+def _webhook_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _webhook_event_id(webhook_id: str | None, payload: dict[str, object]) -> str:
+    normalized = _webhook_text(webhook_id) or _webhook_text(payload.get("eventId"))
+    if normalized:
+        return normalized[:128]
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return f"webhook:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
+
+
+def _webhook_summary(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "event_type": payload.get("eventType"),
+        "event_id": payload.get("eventId"),
+        "payment_key": payload.get("paymentKey"),
+        "order_id": payload.get("orderId"),
+        "status": payload.get("status"),
+    }
 
 
 def _record_payment_started_event_log(
