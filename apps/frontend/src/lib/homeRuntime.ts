@@ -311,7 +311,8 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
 
   const input = document.getElementById("searchInput");
   const searchContainer = document.querySelector(".search-container");
-  const categoryMenuTrigger = document.querySelector("header.site-header");
+  const categoryMenuTrigger = document.querySelector(".category-menu-btn");
+  const categoryMenuHoverArea = document.querySelector("header.site-header");
   const categoryPanel = document.getElementById("categoryPanel");
 
   const handleInputFocus = () => openSearchSuggestions();
@@ -358,7 +359,7 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
   input?.addEventListener("focus", handleInputFocus);
   input?.addEventListener("click", handleInputFocus);
   categoryMenuTrigger?.addEventListener("mouseenter", handleCategoryMenuEnter);
-  categoryMenuTrigger?.addEventListener("mouseleave", handleCategoryMenuLeave);
+  categoryMenuHoverArea?.addEventListener("mouseleave", handleCategoryMenuLeave);
   categoryPanel?.addEventListener("mouseleave", handleCategoryMenuLeave);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
@@ -373,7 +374,7 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
     input?.removeEventListener("focus", handleInputFocus);
     input?.removeEventListener("click", handleInputFocus);
     categoryMenuTrigger?.removeEventListener("mouseenter", handleCategoryMenuEnter);
-    categoryMenuTrigger?.removeEventListener("mouseleave", handleCategoryMenuLeave);
+    categoryMenuHoverArea?.removeEventListener("mouseleave", handleCategoryMenuLeave);
     categoryPanel?.removeEventListener("mouseleave", handleCategoryMenuLeave);
     document.removeEventListener("click", handleDocumentClick);
     document.removeEventListener("keydown", handleDocumentKeydown);

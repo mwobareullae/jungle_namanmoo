@@ -1290,7 +1290,6 @@ function ProductDetailSpaPage() {
                       onClick={() => setIsNarrativeDetailOpen((current) => !current)}
                     >
                       {isNarrativeDetailOpen ? "왜 추천했는지 접기" : "왜 추천했는지 보기"}
-                      <span aria-hidden="true">{isNarrativeDetailOpen ? "⌃" : "⌄"}</span>
                     </button>
                     {isNarrativeDetailOpen ? (
                       <div className="ai-narrative-detail-list" id="aiNarrativeDetailList">
@@ -1302,20 +1301,6 @@ function ProductDetailSpaPage() {
                         ))}
                       </div>
                     ) : null}
-                  </div>
-                </div>
-                <div
-                  className="detail-selectors"
-                  id="profileSelectors"
-                  style={{ display: skinType || sensitivity ? undefined : "none" }}
-                >
-                  <div className="detail-select-row" id="skinTypeRow" style={{ display: skinType ? undefined : "none" }}>
-                    <span>피부 타입</span>
-                    <strong id="skinTypeValue">{skinType}</strong>
-                  </div>
-                  <div className="detail-select-row" id="sensitivityRow" style={{ display: sensitivity ? undefined : "none" }}>
-                    <span>민감성</span>
-                    <strong id="sensitivityValue">{sensitivity}</strong>
                   </div>
                 </div>
                 <div data-commerce-only className="detail-cta-row">
