@@ -52,7 +52,7 @@ export default function OrderList() {
       setOrders((current) => (isFirstPage ? response.items : [...current, ...response.items]));
       setNextCursor(response.next_cursor ?? null);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "주문내역을 불러오지 못했습니다.");
+      setErrorMessage(error instanceof Error ? error.message : "주문/배송 조회를 불러오지 못했습니다.");
       if (isFirstPage) {
         setOrders([]);
         setNextCursor(null);
@@ -73,23 +73,30 @@ export default function OrderList() {
 
   return (
     <MyPageLayout activePath="/mypage/orders">
-      <PageTitle title="주문내역" />
-      <section style={styles.card} aria-label="주문내역 목록">
+      <PageTitle title="주문/배송 조회" />
+      <section style={styles.card} aria-label="주문/배송 조회 목록">
         {isLoading ? (
-          <div style={styles.stateBox}>주문내역을 불러오는 중입니다.</div>
+          <div style={styles.stateBox}>주문/배송 조회를 불러오는 중입니다.</div>
         ) : errorMessage ? (
           <div style={styles.stateBox} role="alert">
-            <strong style={styles.stateTitle}>주문내역을 불러오지 못했어요</strong>
+            <strong style={styles.stateTitle}>주문/배송 조회를 불러오지 못했어요</strong>
             <p style={styles.stateText}>{errorMessage}</p>
-            <button type="button" style={styles.retryButton} onClick={() => void loadOrders()}>
+            <button
+              className="bg-white hover:bg-[#FAFAFA]"
+              onClick={() => void loadOrders()}
+              style={styles.retryButton}
+              type="button"
+            >
               다시 불러오기
             </button>
           </div>
         ) : orders.length === 0 ? (
           <div style={styles.stateBox}>
-            <strong style={styles.stateTitle}>아직 주문내역이 없어요</strong>
+            <strong style={styles.stateTitle}>아직 주문/배송 조회 내역이 없어요</strong>
             <p style={styles.stateText}>추천받은 상품을 장바구니에 담고 첫 주문을 진행해보세요.</p>
-            <Link to="/" style={styles.primaryLink}>추천 상품 보러가기</Link>
+            <Link className="bg-[#0C1117] hover:bg-[#1A1A1A]" style={styles.primaryLink} to="/">
+              추천 상품 보러가기
+            </Link>
           </div>
         ) : (
           <>
@@ -118,8 +125,9 @@ export default function OrderList() {
                     <div style={styles.itemAside}>
                       <strong style={styles.price}>{formatWon(order.total)}</strong>
                       <Link
-                        to={`/mypage/orders/${encodeURIComponent(order.order_code)}`}
+                        className="hover:bg-[#FAFAFA]"
                         style={styles.detailLink}
+                        to={`/mypage/orders/${encodeURIComponent(order.order_code)}`}
                       >
                         상세보기
                       </Link>
@@ -130,10 +138,11 @@ export default function OrderList() {
             </div>
             {nextCursor ? (
               <button
-                type="button"
-                style={styles.moreButton}
-                onClick={() => void loadOrders(nextCursor)}
+                className="bg-white text-[#1a1a1a] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:bg-[#F5F5F5] disabled:text-[#9CA3AF]"
                 disabled={isLoadingMore}
+                onClick={() => void loadOrders(nextCursor)}
+                style={styles.moreButton}
+                type="button"
               >
                 {isLoadingMore ? "불러오는 중" : "더 보기"}
               </button>
@@ -177,7 +186,6 @@ const styles: Record<string, CSSProperties> = {
     padding: "0 18px",
     border: "1px solid #dddddd",
     borderRadius: 10,
-    background: "#ffffff",
     color: "#1a1a1a",
     fontSize: 14,
     fontWeight: 700,
@@ -190,7 +198,6 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 44,
     padding: "0 20px",
     borderRadius: 12,
-    background: "#0C1117",
     color: "#ffffff",
     fontSize: 14,
     fontWeight: 800,
@@ -284,8 +291,6 @@ const styles: Record<string, CSSProperties> = {
     margin: "20px 24px 24px",
     border: "1px solid #dddddd",
     borderRadius: 12,
-    background: "#ffffff",
-    color: "#1a1a1a",
     fontSize: 14,
     fontWeight: 800,
     cursor: "pointer"
