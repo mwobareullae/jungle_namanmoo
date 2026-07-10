@@ -38,8 +38,13 @@
 | 추천 생성 p95 | 52.17초 |
 | 상품 검색 p95 | 32.29초 |
 | slow query | 870건 |
+| backend 최대 메모리 | 2.78GiB |
+| 당시 backend limit | 6GiB |
+| Elasticsearch 최대 메모리 | 1.447GiB / 2GiB limit |
 
-이 결과는 정상 baseline이 아니라 이미 timeout과 5xx가 발생한 실패 상태다. 또한 현재 운영 예정 사양인 t3.large와 인스턴스가 다르므로, 개선 전후의 절대 비교 기준으로 단독 사용하지 않는다.
+이 결과는 정상 baseline이 아니라 이미 timeout과 5xx가 발생한 실패 상태다. 당시 환경은 t3.xlarge에서 backend limit 6GiB, Docker PostgreSQL과 frontend container까지 포함했다. 현재 목표 환경은 t3.large에서 RDS와 Vercel을 외부로 분리한 구성이므로 개선 전후의 절대 비교 기준으로 단독 사용하지 않는다.
+
+다만 backend가 실제로 2.78GiB까지 사용한 실행에 2GiB 제한을 적용하면 OOM 가능성이 있다. Compose 기본값 `BACKEND_MEMORY_LIMIT=2g`를 실제 운영 적정값으로 간주하지 않고, 서버의 `docker inspect` 결과와 새 t3.large baseline을 기준으로 재산정한다.
 
 ### 2.2 1천 건 smoke: KPI 기준에서 제외
 
@@ -111,6 +116,29 @@
 | RDS | idle in transaction | 2회 연속 샘플에서 1개 이상이면 FAIL |
 | RDS | slow query | API 요청당 0.2건 이하, 1초 초과 쿼리 0건 |
 | 전체 | OOM/restart | 0건 |
+
+### 3.4.1 P2 컨테이너 메모리 1차 설정
+
+최적화 전 t3.large 검증에서는 다음 값을 1차 설정으로 사용한다.
+
+```text
+BACKEND_MEMORY_LIMIT=3584m
+ELASTICSEARCH_MEMORY_LIMIT=2g
+ELASTICSEARCH_HEAP_SIZE=1g
+REDIS_MEMORY_LIMIT=512m
+REDIS_MAXMEMORY=256mb
+```
+
+backend 3584MiB는 기존 2.78GiB peak가 약 80%가 되는 임시 안전값이다. 최종 설정은 전체 hydrate 제거와 검색 경로 정상화 후 다시 측정한다.
+
+| 최적화 후 backend peak | 판단 |
+| --- | --- |
+| 2.4GiB 이하 | 3GiB limit 검토 |
+| 2.4~2.8GiB | 3584MiB 유지 |
+| 2.8GiB 이상 지속 | t3.large 단일 구성 한계 검토 |
+| OOM 또는 3GiB 이상 증가 | 인스턴스 상향 또는 ES 분리 실험 |
+
+Compose 선언값만으로 적용을 가정하지 않는다. 각 run의 manifest에 `docker inspect`로 확인한 실제 memory limit을 기록한다.
 
 ### 3.5 검색·추천 경로 KPI
 
@@ -316,6 +344,15 @@ offline evaluator가 수집할 최소 지표:
 ```
 
 PgBouncer와 read replica는 단일 요청의 느린 쿼리를 직접 해결하는 수단으로 간주하지 않는다. connection 또는 읽기 처리량 병목이 측정된 경우에만 별도 실험한다.
+
+### P2 인프라 분리 판단
+
+발표 전에는 FastAPI·Elasticsearch·Redis를 t3.large 한 대에 유지하고, 자동화·관측·쿼리 최적화를 먼저 완료한다. 다른 일반 EC2로 ES·Redis를 옮기면 서버·보안·스토리지·배포·장애 복구 대상이 늘고 기존 baseline도 다시 측정해야 한다.
+
+- Redis는 활성 cache 경로와 실제 memory/eviction이 확인되기 전에는 분리하지 않는다.
+- 공유 CPU·메모리 부족이면 단일 EC2 사양 상향을 먼저 비교한다.
+- ES heap 75% 이상 지속, rejected request, ES indexing과 backend p95의 상관, CPU credit 고갈이 반복될 때 ES만 별도 분리한다.
+- 관리형 OpenSearch/ElastiCache 이전은 호환성과 비용을 검증한 뒤 P3 확장으로 다룬다.
 
 ### 1차: 홈 전체 hydrate 제거
 
