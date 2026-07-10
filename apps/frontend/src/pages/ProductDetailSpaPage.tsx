@@ -733,6 +733,8 @@ function ProductDetailSpaPage() {
       try {
         const response = await api.createRecommendationNarrative(recommendationId, {
           mode: "community_beta",
+          view: "detail",
+          product_id: productId,
           product_limit: 5,
           use_llm: true,
         });
