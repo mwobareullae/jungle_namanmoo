@@ -57,9 +57,9 @@
 /api/home/for-you
 ```
 
-홈 API는 기존 묶음형 `/api/home/sections`를 제거하고 위 섹션별 endpoint로 전환할 계획이다. 당시 backend에는 아직 `/api/home/sections`만 구현돼 있었고 k6는 신규 계약을 선반영한 상태였다. 따라서 이는 오래된 k6 스크립트 문제가 아니라 backend·frontend·부하테스트가 서로 다른 계약 버전에 있던 전환 구간이다.
+홈 API는 기존 묶음형 `/api/home/sections`를 제거하고 위 섹션별 endpoint로 전환했다. 당시 backend에는 아직 `/api/home/sections`만 구현돼 있었고 k6는 신규 계약을 선반영한 상태였다. 최신 `dev`에는 신규 endpoint와 contract test가 구현되어 있지만, 당시 실행은 backend·frontend·부하테스트가 서로 다른 계약 버전에 있던 전환 구간이다.
 
-404 응답시간이 10~30ms라서 신규 홈 API가 빠른 것처럼 보이므로 해당 실행의 홈 latency와 전체 처리량은 성능 근거로 사용하지 않는다. k6 endpoint를 다시 `/api/home/sections`로 되돌리지 않고, 신규 API 구현과 최신 계약 테스트가 합쳐진 뒤 preflight부터 재실행한다.
+404 응답시간이 10~30ms라서 신규 홈 API가 빠른 것처럼 보이므로 해당 실행의 홈 latency와 전체 처리량은 성능 근거로 사용하지 않는다. k6 endpoint를 다시 `/api/home/sections`로 되돌리지 않고, 최신 `dev`를 배포한 뒤 migration·seed·preflight부터 재실행한다.
 
 ## 3. P2 성능 KPI 제안
 
@@ -150,6 +150,9 @@ Compose 선언값만으로 적용을 가정하지 않는다. 각 run의 manifest
 | pgvector embedding coverage | 99% 이상 |
 | 검색 요청의 DB fallback 비율 | 1% 미만 |
 | 추천 요청의 `legacy_id_order` 단독 fallback 비율 | 1% 미만 |
+| 추천 가능 상품 filter 위반 | 0건 |
+| 전체/추천 가능/추천 제외 상품 수 | run manifest에 100% 기록 |
+| 추천 제외 사유 분포 | 사유별 건수 100% 기록 |
 | 대표 검색어 5종의 정상 응답 | 100% |
 | 추천 결과 1개 이상 반환 | 99% 이상 |
 | 추천 `intent_parse_ms` p95 | 외부 LLM 제외 300ms 이하 |
@@ -160,7 +163,7 @@ LLM 호출을 포함한 `intent_parse_ms`는 외부 서비스 지연이 섞인�
 
 ### 3.6 신규 홈 섹션 API KPI
 
-다음 endpoint는 backend 구현 완료 후 각각 별도 metric tag로 측정한다.
+최신 `dev`에 구현된 다음 endpoint를 배포한 뒤 각각 별도 metric tag로 측정한다.
 
 ```text
 GET /api/home/layout
@@ -189,7 +192,7 @@ GET /api/home/for-you?limit=12  # 로그인 사용자
 - `/home/for-you`: shared cache 금지, 적용 시 사용자·profile·scoring version 경계 필요
 - `/home/skin-rankings`: 구현 후 segment별 공개 cache 후보
 
-신규 endpoint가 backend router와 API contract test에 존재하지 않으면 contract preflight를 FAIL로 종료하고 baseline을 실행하지 않는다.
+신규 endpoint가 backend router와 API contract test에 존재하지 않거나 배포 버전에서 응답하지 않으면 contract preflight를 FAIL로 종료하고 baseline을 실행하지 않는다.
 
 ## 4. 테스트 매트릭스
 
@@ -225,12 +228,13 @@ GET /api/home/for-you?limit=12  # 로그인 사용자
 
 ### P0. 유효한 baseline을 만들기 위한 필수 보완
 
-1. k6 홈 endpoint와 실제 API 계약을 일치시킨다.
-2. 부하 시작 전 대상 route를 한 번씩 호출하고 예상 status가 아니면 즉시 종료한다.
-3. t3.large와 8만 건 데이터로 smoke를 먼저 통과시킨다.
-4. smoke 통과 전에는 baseline/target/stress 결과를 성능 개선 수치로 사용하지 않는다.
+1. 최신 `dev`를 배포하고 migration `20260710_0029`를 적용한 뒤 seed를 다시 실행한다.
+2. 전체·추천 가능·추천 제외 상품 수와 `recommend_exclude_reason` 분포를 기록한다.
+3. 부하 시작 전 대상 route를 한 번씩 호출하고 예상 status가 아니면 즉시 종료한다.
+4. t3.large와 8만 건 데이터로 smoke를 먼저 통과시킨다.
+5. smoke 통과 전에는 baseline/target/stress 결과를 성능 개선 수치로 사용하지 않는다.
 
-홈 route 구조 변경 여부는 API 계약에 영향을 주므로 구현 전에 확인이 필요하다.
+이번 추천 가능 여부 컬럼 추가만으로 상품 검색 문서 내용이 바뀌지는 않는다. ES mapping이나 candidate filter를 함께 변경하지 않는다면 embedding·reindex를 baseline 선행조건으로 두지 않고, 실제 index schema 변경 시에만 별도 수행한다.
 
 ### P1. KPI 계산에 필요한 수집 항목
 
@@ -242,6 +246,7 @@ GET /api/home/for-you?limit=12  # 로그인 사용자
 - endpoint별 요청 수와 req/s
 - status code별 요청 수
 - endpoint별 p50/p95/p99와 timeout 수
+- 전체·추천 가능·추천 제외 상품 수와 제외 사유 분포
 - 단계별 VU/arrival-rate와 실제 처리량
 - 추천 stage duration p95
 - 검색 backend별 성공/실패/fallback 비율
@@ -452,11 +457,12 @@ PgBouncer와 read replica는 단일 요청의 느린 쿼리를 직접 해결하�
 
 ## 9. 다음 실행 순서
 
-1. 신규 홈 API 계약을 backend·frontend·contract test에 반영하고 k6 선반영 endpoint와 같은 버전인지 확인한다.
-2. 8만 건/t3.large smoke를 실행해 모든 check가 100%인지 확인한다.
-3. 10 VU, 10분의 새 baseline을 3회 실행한다.
-4. baseline 중앙값을 이 문서의 1차 목표와 비교해 KPI를 보정한다.
-5. query 수와 `EXPLAIN (ANALYZE, BUFFERS)`로 쿼리·인덱스 병목을 먼저 확정한다.
-6. 홈 API부터 한 번에 하나의 가설만 적용해 Before/After를 측정한다.
-7. 반복 read에는 Redis를 검증하고, connection 병목이 있을 때만 PgBouncer를 검토한다.
-8. target 50 VU를 통과하면 endpoint별 arrival-rate로 최대 지속 RPS를 산출한다.
+1. 최신 `dev`를 배포하고 배포 Git SHA를 기록한다.
+2. migration `20260710_0029` 적용과 seed 재실행 후 전체·추천 가능·추천 제외 상품 수를 확인한다.
+3. contract preflight와 8만 건/t3.large smoke를 실행해 모든 check가 100%인지 확인한다.
+4. 10 VU, 10분의 새 baseline을 3회 실행한다.
+5. baseline 중앙값을 이 문서의 1차 목표와 비교해 KPI를 보정한다.
+6. query 수와 `EXPLAIN (ANALYZE, BUFFERS)`로 쿼리·인덱스 병목을 먼저 확정한다.
+7. 홈 API부터 한 번에 하나의 가설만 적용해 Before/After를 측정한다.
+8. 반복 read에는 Redis를 검증하고, connection 병목이 있을 때만 PgBouncer를 검토한다.
+9. target 50 VU를 통과하면 endpoint별 arrival-rate로 최대 지속 RPS를 산출한다.

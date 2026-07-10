@@ -177,11 +177,14 @@ LLM은 입력을 구조화하는 역할을 하며 최종 상품 순위를 직접
 - Elasticsearch keyword search
 - PostgreSQL pgvector semantic search
 - 구매 조건 hard filter
+- `products.is_recommendable = true` 추천 가능 상품 filter
 - retrieval 장애 시 제한된 fallback
 
 후보 추출의 목표는 최종 정답을 만드는 것이 아니라, 적합 상품을 놓치지 않으면서 scoring 대상 수를 줄이는 것이다.
 
-추천 후보 품질은 `Recall@50`으로 평가한다.
+추천 후보 품질은 추천 가능 상품 카탈로그를 분모로 한 `Recall@50`으로 평가한다. `is_recommendable = false`인 상품은 정답 레이블에서 제외하거나 별도 제외 사례로 분류하고, 제외 사유 분포를 함께 기록한다.
+
+추천 가능 여부 컬럼과 seed 값만 바뀐 경우 embedding을 다시 만들 필요는 없다. Elasticsearch mapping이나 candidate filter schema를 함께 변경할 때만 reindex 필요 여부를 별도로 판단한다.
 
 ## 2.3 현재 ranking 축
 
@@ -196,10 +199,13 @@ LLM은 입력을 구조화하는 역할을 하며 최종 상품 순위를 직접
 | 기능성 근거 | 0.05 | 기능성 화장품 claim과 confidence |
 | 검색 일치도 | 0.07 | keyword/vector 검색 관련성 |
 | 가격 적합도 | 0.04 | 사용자의 구매 가격 조건 |
+| 시장 신호 | 0.02 | 조회·장바구니·구매·리뷰 등 상품 시장 신호 |
+| 최근 피부 테스트 | 0.05 | 최신 피부 테스트 결과와의 적합도 |
+| 행동 개인화 | 0.08 | 인증 사용자의 유효한 행동 affinity |
 
 민감 피부 위험 성분은 별도의 penalty로 최종 점수에서 차감한다.
 
-검색 의도가 강한 요청은 별도 weight profile을 적용해 search match 비중을 높인다. 결과에는 어떤 weight profile을 사용했는지 함께 저장한다.
+검색 의도가 강한 요청은 별도 weight profile을 적용해 search match 비중을 높인다. 피부 테스트 또는 행동 맥락이 없으면 해당 weight를 0으로 만들고 나머지 weight를 다시 정규화한다. 결과에는 어떤 weight profile을 사용했는지 함께 저장한다.
 
 ## 2.4 함량 평가
 
@@ -227,14 +233,17 @@ excessive
 - functional claim score
 - keyword/vector/search match score
 - price score
+- market signal score
+- skin-test context score
+- behavior personalization score
 - risk penalty와 warning
 - scoring version과 weight profile
 
 ## 2.6 현재 구현과 다음 확장 구분
 
-현재 코드에서 실제 ranking에 반영되는 개인화는 피부 타입과 민감도다.
+현재 scoring version은 `v3_behavior_personalization`이다. 피부 타입·민감도·최신 피부 테스트와 함께, 인증 사용자에게 유효한 행동 데이터가 있으면 행동 affinity를 ranking에 조건부 반영한다. 행동 데이터가 없으면 행동 weight를 0으로 만들고 나머지 축을 재정규화하므로 기본 추천으로 fallback한다.
 
-조회, 클릭, 찜, 장바구니, 구매, 부정 행동 데이터는 향후 행동 개인화 score로 연결할 수 있지만, 현재 활성 ranking에 반영된 것으로 발표하지 않는다.
+이는 구현 상태에 대한 설명이며 효과가 검증됐다는 뜻은 아니다. 동일 test set에서 행동 축을 끈 결과와 비교하는 ablation으로 품질 개선과 latency 비용을 확인한 뒤 발표 수치에 포함한다.
 
 Redis도 인프라와 설정은 준비되어 있으나 실제 cache 경로가 구현·검증된 뒤에만 성능 개선 결과로 포함한다.
 
@@ -310,8 +319,9 @@ split
 | Human agreement | 두 검수자의 레이블 일치도 | Cohen's κ 0.70 이상 |
 | Label coverage | 전체 리뷰 중 relevance grade를 부여할 수 있는 비율 | 측정값과 제외 사유 공개 |
 | Grade distribution | `-1~3` 레이블 분포 | 구간별 건수 공개 |
+| Eligibility mapping rate | 레이블 상품의 추천 가능 여부를 판정한 비율 | 100% |
 
-`Label coverage`를 무리하게 높이지 않는다. 모호한 리뷰를 억지로 레이블링하는 것보다 제외 사유를 남기고 precision을 지키는 편이 추천 평가에 유리하다.
+`Label coverage`를 무리하게 높이지 않는다. 모호한 리뷰를 억지로 레이블링하는 것보다 제외 사유를 남기고 precision을 지키는 편이 추천 평가에 유리하다. 평가 시점에 추천 불가 상품으로 판정된 리뷰는 ranking 실패로 계산하지 않고 `recommend_exclude_reason`과 함께 별도 집계한다.
 
 ## 3.3 리뷰 replay KPI
 
@@ -479,7 +489,7 @@ backend가 실제로 2.78GiB까지 사용한 실행에 2GiB limit을 적용하�
 
 핵심 문제는 “최종 10~20개를 보여주기 위해 전체 상품을 hydrate”한 것이다.
 
-기존 `/api/home/sections`는 호환용으로 유지하지 않고 다음 섹션별 API로 전환할 계획이다.
+최신 `dev`에는 기존 `/api/home/sections`를 제거하고 다음 섹션별 API와 contract test가 구현되어 있다.
 
 ```text
 /api/home/layout
@@ -488,7 +498,7 @@ backend가 실제로 2.78GiB까지 사용한 실행에 2GiB limit을 적용하�
 /api/home/for-you
 ```
 
-목적은 느린 섹션의 장애 전파를 막고, 섹션별 관측·lazy loading·skeleton·cache 정책을 분리하는 것이다. k6는 신규 endpoint를 backend 구현보다 먼저 반영했기 때문에 2026-07-10 smoke의 404는 오래된 테스트가 아니라 계약 전환 순서에서 발생했다.
+목적은 느린 섹션의 장애 전파를 막고, 섹션별 관측·lazy loading·skeleton·cache 정책을 분리하는 것이다. k6가 신규 endpoint를 backend보다 먼저 반영했기 때문에 2026-07-10 smoke의 404는 계약 전환 순서에서 발생했다. 최신 `dev` 배포 후에는 migration·seed와 contract preflight를 통과한 새 실행으로 성능을 다시 측정한다.
 
 신규 구조의 효과는 endpoint latency만 따로 보는 것으로 끝내지 않는다. 브라우저 병렬 호출의 홈 준비시간, 섹션별 error 격리, 전체 요청 수·CPU·DB query time 합계와 기존 묶음형 문제 상태를 함께 비교한다.
 
@@ -710,7 +720,7 @@ HNSW/IVFFlat은 pgvector가 실제 candidate retrieval 경로이고 vector full 
 
 각 Before/After는 동일 조건으로 3회 측정하고 p95 중앙값을 대표값으로 사용한다. 세 결과의 편차가 10%를 넘으면 원인을 확인한 뒤 다시 실행한다.
 
-2026-07-10의 1천 건 smoke는 신규 홈 API 계약을 선반영한 k6와 아직 기존 `/api/home/sections`만 제공하던 backend 사이에서 404가 119건 발생했으므로 성능 근거에서 제외한다. 신규 backend 구현·frontend 연동·contract test가 같은 계약 버전으로 정렬되고 preflight를 통과하기 전에는 latency가 빠르더라도 결과로 사용하지 않는다.
+2026-07-10의 1천 건 smoke는 신규 홈 API 계약을 선반영한 k6와 당시 기존 `/api/home/sections`만 제공하던 backend 사이에서 404가 119건 발생했으므로 성능 근거에서 제외한다. 최신 `dev`에는 신규 backend와 contract test가 반영됐지만, 이를 배포하고 migration `20260710_0029`·seed·contract preflight를 통과한 새 실행만 성능 결과로 사용한다.
 
 ---
 
@@ -936,7 +946,7 @@ S3 / CloudFront
 - [ ] 최초 t3.xlarge 실패 수치와 최종 t3.large 결과를 직접 비교하지 않음
 - [ ] 개선되지 않은 값은 `측정 중`으로 표시
 - [ ] 모든 결과에 Git SHA와 report 경로 연결
-- [ ] 행동 개인화와 Redis cache를 구현 완료로 과장하지 않음
+- [ ] 행동 개인화 효과를 검증 완료로 과장하지 않고 Redis cache는 미구현으로 구분
 - [ ] 논문 근거를 제품 자체 임상 검증으로 표현하지 않음
 
 ---

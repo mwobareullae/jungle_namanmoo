@@ -234,6 +234,8 @@ Score breakdown 표현:
 - 리뷰
 - Q&A
 
+현재 프론트 리뷰 탭은 mock 데이터 기반이다. 실제 리뷰 수집·저장·조회 API와 평가 데이터셋은 연결되지 않았으므로 데모와 발표에서 운영 기능처럼 설명하지 않는다.
+
 하단 고정 CTA:
 
 - 찜
@@ -427,10 +429,11 @@ fallback 여부
 2. Label QA
 3. Ablation 비교
 4. Failed case 상세
+5. 행동 개인화 적용 여부와 fallback 설명
 
 ### P2 — 확장
 
-1. 행동 개인화 결과 표시
+1. 행동 개인화 효과 비교 화면
 2. cache 적용 상태 관측
 3. online experiment 비교
 
