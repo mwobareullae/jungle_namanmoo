@@ -272,7 +272,6 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
   const evidenceTags = Array.from(
     new Set(response.evidence.ingredient_evidence.map((item) => item.effect))
   );
-  const ingredientNames = uniqueStrings(response.ingredients.map((ingredient) => ingredient.name));
   const recommendedKeyIngredients = uniqueStrings(response.product.recommended_key_ingredients ?? []);
   const evidenceKeyIngredients = uniqueStrings(
     response.evidence.ingredient_evidence.map((item) => item.ingredient)
@@ -280,9 +279,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
   const keyIngredients =
     recommendedKeyIngredients.length > 0
       ? recommendedKeyIngredients
-      : evidenceKeyIngredients.length > 0
-        ? evidenceKeyIngredients
-        : ingredientNames;
+      : evidenceKeyIngredients;
   const riskFlags = response.ingredients
     .filter((ingredient) => ingredient.risk_note)
     .map((ingredient) => `${ingredient.name}: ${ingredient.risk_note}`);
