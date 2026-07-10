@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import (
@@ -12,7 +12,7 @@ from app.db.models.catalog import (
     ProductPrice as ProductPriceRow,
 )
 from app.db.models.commerce import Inventory, Seller
-from app.db.models.recommendation import RecommendationResult
+from app.db.models.recommendation import RecommendationResult, RecommendationScoreEvidence
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEvidence, RiskFlag
 from app.schemas.common import ApiError
 from app.schemas.product import (
@@ -70,6 +70,10 @@ def get_product_detail_response(
             lowest_price=product_row.lowest_price,
             total_score=_result_total_score(recommendation_result),
             reason_summary=recommendation_result.reason_summary if recommendation_result else None,
+            recommended_key_ingredients=_load_recommendation_key_ingredients(
+                session,
+                recommendation_result,
+            ),
             score_breakdown=(
                 score_breakdown_to_api(recommendation_result.score_breakdown)
                 if recommendation_result
@@ -161,6 +165,40 @@ def _load_recommendation_result(
             RecommendationResult.product_id == product_db_id,
         )
     ).scalar_one_or_none()
+
+
+def _load_recommendation_key_ingredients(
+    session: Session,
+    recommendation_result: RecommendationResult | None,
+) -> list[str]:
+    if recommendation_result is None:
+        return []
+
+    rows = session.execute(
+        select(
+            ProductIngredientRow.ingredient_name,
+            Ingredient.name_ko,
+        )
+        .select_from(RecommendationScoreEvidence)
+        .join(Ingredient, RecommendationScoreEvidence.ingredient_id == Ingredient.id)
+        .outerjoin(
+            ProductIngredientRow,
+            and_(
+                ProductIngredientRow.product_id == recommendation_result.product_id,
+                ProductIngredientRow.ingredient_id == RecommendationScoreEvidence.ingredient_id,
+            ),
+        )
+        .where(RecommendationScoreEvidence.recommendation_result_id == recommendation_result.id)
+        .order_by(RecommendationScoreEvidence.id.asc())
+    ).all()
+
+    return _dedupe(
+        [
+            product_ingredient_name or ingredient_name
+            for product_ingredient_name, ingredient_name in rows
+            if product_ingredient_name or ingredient_name
+        ]
+    )
 
 
 def _load_product_images(session: Session, product_db_id: Product) -> list[ProductImage]:
@@ -380,3 +418,14 @@ def _result_total_score(result: RecommendationResult | None) -> int | None:
     if isinstance(value, Decimal):
         value = float(value)
     return int(round(float(value)))
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        normalized = value.strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return result

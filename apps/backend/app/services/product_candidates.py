@@ -25,8 +25,12 @@ def list_product_candidates(
     purchase_conditions: ParsedPurchaseConditions,
     *,
     limit: int = 50,
+    recommendable_only: bool = True,
 ) -> list[ProductCandidate]:
-    statement, _ = _build_product_candidate_statement(purchase_conditions)
+    statement, _ = _build_product_candidate_statement(
+        purchase_conditions,
+        recommendable_only=recommendable_only,
+    )
 
     rows = session.execute(
         statement
@@ -42,12 +46,16 @@ def list_product_candidates_by_db_ids(
     product_db_ids: list[int],
     *,
     limit: int = 50,
+    recommendable_only: bool = True,
 ) -> list[ProductCandidate]:
     ordered_product_ids = _dedupe_ints(product_db_ids)
     if not ordered_product_ids:
         return []
 
-    statement, _ = _build_product_candidate_statement(purchase_conditions)
+    statement, _ = _build_product_candidate_statement(
+        purchase_conditions,
+        recommendable_only=recommendable_only,
+    )
     rows = session.execute(statement.where(Product.id.in_(ordered_product_ids))).all()
     candidates_by_db_id = {
         candidate.db_product_id: candidate
@@ -63,6 +71,8 @@ def list_product_candidates_by_db_ids(
 
 def _build_product_candidate_statement(
     purchase_conditions: ParsedPurchaseConditions,
+    *,
+    recommendable_only: bool,
 ):
     lowest_price = func.min(ProductPrice.price)
 
@@ -93,6 +103,8 @@ def _build_product_candidate_statement(
             Product.product_name,
         )
     )
+    if recommendable_only:
+        statement = statement.where(Product.is_recommendable.is_(True))
 
     if purchase_conditions.categories:
         statement = statement.where(

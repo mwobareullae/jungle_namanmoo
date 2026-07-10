@@ -141,6 +141,7 @@ type BackendProductDetailResponse = {
     lowest_price: number;
     total_score?: number | null;
     reason_summary?: string | null;
+    recommended_key_ingredients?: string[];
     score_breakdown?: BackendScoreBreakdown | null;
   };
   images: {
@@ -154,6 +155,18 @@ type BackendProductDetailResponse = {
     product_url: string;
     is_lowest: boolean;
   }[];
+  purchase_info: {
+    seller_code: string;
+    seller_name: string;
+    seller_type: string;
+    price: number | null;
+    currency: string | null;
+    purchase_url: string | null;
+    can_purchase: boolean;
+    sales_status: string;
+    stock_status: string;
+    available_quantity: number | null;
+  };
   ingredients: {
     name: string;
     purpose: string;
@@ -263,12 +276,22 @@ const mapProductIngredient = (
   risk_note: ingredient.risk_note ?? null
 });
 
+const uniqueStrings = (values: string[]) =>
+  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+
 const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail => {
   const lowestPrice = response.prices.find((price) => price.is_lowest) ?? response.prices[0];
   const evidenceTags = Array.from(
     new Set(response.evidence.ingredient_evidence.map((item) => item.effect))
   );
-  const keyIngredients = response.ingredients.map((ingredient) => ingredient.name);
+  const recommendedKeyIngredients = uniqueStrings(response.product.recommended_key_ingredients ?? []);
+  const evidenceKeyIngredients = uniqueStrings(
+    response.evidence.ingredient_evidence.map((item) => item.ingredient)
+  );
+  const keyIngredients =
+    recommendedKeyIngredients.length > 0
+      ? recommendedKeyIngredients
+      : evidenceKeyIngredients;
   const riskFlags = response.ingredients
     .filter((ingredient) => ingredient.risk_note)
     .map((ingredient) => `${ingredient.name}: ${ingredient.risk_note}`);
@@ -308,6 +331,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     related_ingredients: keyIngredients,
     ingredients: response.ingredients.map(mapProductIngredient),
     purchase_url: lowestPrice?.product_url ?? null,
+    purchase_info: response.purchase_info,
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,

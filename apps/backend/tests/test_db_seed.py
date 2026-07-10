@@ -77,6 +77,33 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert image_row.storage_key == "products/prod_001/thumbnail.jpg"
     product_row = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
     assert product_row.seller_id is not None
+    assert product_row.is_recommendable is True
+    assert product_row.recommend_exclude_reason is None
+
+
+def test_seed_catalog_persists_product_recommendation_eligibility() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    catalog_with_excluded_product = replace(
+        catalog,
+        products=(
+            replace(
+                catalog.products[0],
+                is_recommendable=False,
+                recommend_exclude_reason="missing_ingredients",
+            ),
+            catalog.products[1],
+        ),
+    )
+
+    seed_catalog(session, catalog_with_excluded_product)
+
+    excluded_product = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
+    included_product = session.execute(select(Product).where(Product.product_code == "prod_002")).scalar_one()
+    assert excluded_product.is_recommendable is False
+    assert excluded_product.recommend_exclude_reason == "missing_ingredients"
+    assert included_product.is_recommendable is True
+    assert included_product.recommend_exclude_reason is None
 
 
 def test_seed_database_emits_seed_performance_log() -> None:

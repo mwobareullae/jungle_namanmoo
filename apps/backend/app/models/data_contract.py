@@ -15,6 +15,8 @@ class Product:
     functional_cosmetic_claims: tuple[str, ...]
     functional_claim_confidence: str | None
     functional_claim_basis: str | None
+    is_recommendable: bool = True
+    recommend_exclude_reason: str | None = None
 
 
 @dataclass(frozen=True)

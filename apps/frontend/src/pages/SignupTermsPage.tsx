@@ -2,6 +2,17 @@ import { type ReactNode, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
+import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
+import {
+  Dialog,
+  DialogBody,
+  DialogCloseButton,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "../components/ui/dialog";
 import { privacyPolicy, termsOfService } from "../content/terms";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
@@ -373,75 +384,48 @@ function SignupTermsPage() {
           </div>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <label className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-[rgba(148,224,248,0.44)] bg-[rgba(148,224,248,0.16)] px-4 py-4">
-              <input
-                checked={allChecked}
-                className="signup-terms-checkbox h-4 w-4 cursor-pointer"
-                onChange={handleToggleAll}
-                type="checkbox"
-              />
+              <Checkbox checked={allChecked} onCheckedChange={handleToggleAll} />
               <span className="text-[15px] font-semibold text-[#1A1A1A]">전체 동의합니다</span>
             </label>
             <div className="grid overflow-hidden rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white">
               <div className="flex items-center justify-between gap-3 border-b border-[rgba(0,0,0,0.07)] px-4 py-4">
                 <label className="flex min-w-0 cursor-pointer items-center gap-3">
-                  <input
-                    checked={agreements.tos}
-                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
-                    onChange={() => handleChange("tos")}
-                    type="checkbox"
-                  />
+                  <Checkbox checked={agreements.tos} onCheckedChange={() => handleChange("tos")} />
                   <span className="text-[14px] font-medium text-[#1A1A1A]">
                     [필수] 이용약관 동의
                   </span>
                 </label>
                 {/* 실제 문서가 있는 항목이라 "보기" 링크 있음 */}
-                <button
-                  className="shrink-0 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
-                  onClick={() => handleViewTerm("tos")}
-                  type="button"
-                >
+                <Button className="shrink-0" onClick={() => handleViewTerm("tos")} variant="link">
                   보기 &gt;
-                </button>
+                </Button>
               </div>
               <div className="flex items-center justify-between gap-3 border-b border-[rgba(0,0,0,0.07)] px-4 py-4">
                 <label className="flex min-w-0 cursor-pointer items-center gap-3">
-                  <input
+                  <Checkbox
                     checked={agreements.privacy}
-                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
-                    onChange={() => handleChange("privacy")}
-                    type="checkbox"
+                    onCheckedChange={() => handleChange("privacy")}
                   />
                   <span className="text-[14px] font-medium text-[#1A1A1A]">
                     [필수] 개인정보처리방침 동의
                   </span>
                 </label>
-                <button
-                  className="shrink-0 cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A]"
-                  onClick={() => handleViewTerm("privacy")}
-                  type="button"
-                >
+                <Button className="shrink-0" onClick={() => handleViewTerm("privacy")} variant="link">
                   보기 &gt;
-                </button>
+                </Button>
               </div>
               {/* 이 아래 둘은 문서가 따로 없는 자기 확인/동의라 "보기" 링크 없음 */}
               <label className="flex cursor-pointer items-center gap-3 border-b border-[rgba(0,0,0,0.07)] px-4 py-4">
-                <input
-                  checked={agreements.age14}
-                  className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
-                  onChange={() => handleChange("age14")}
-                  type="checkbox"
-                />
+                <Checkbox checked={agreements.age14} onCheckedChange={() => handleChange("age14")} />
                 <span className="text-[14px] font-medium text-[#1A1A1A]">
                   [필수] 만 14세 이상입니다
                 </span>
               </label>
               <div className="px-4 py-4">
                 <label className="flex cursor-pointer items-center gap-3">
-                  <input
+                  <Checkbox
                     checked={agreements.marketing}
-                    className="signup-terms-checkbox h-4 w-4 shrink-0 cursor-pointer"
-                    onChange={() => handleChange("marketing")}
-                    type="checkbox"
+                    onCheckedChange={() => handleChange("marketing")}
                   />
                   <span className="text-[14px] font-medium text-[#1A1A1A]">
                     [선택] 마케팅 정보 수신 동의
@@ -453,72 +437,43 @@ function SignupTermsPage() {
               고객은 동의를 거부할 권리가 있으며 동의를 거부할 경우, 사이트 가입 또는 일부 서비스
               이용이 제한됩니다.
             </p>
-            <button
-              className="mt-2 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
-              disabled={isSubmitting}
-              type="submit"
-            >
+            <Button className="mt-2 w-full" disabled={isSubmitting} type="submit">
               {isGoogleSignup ? "Google 가입 완료" : "다음"}
-            </button>
+            </Button>
           </form>
           {noticeMessage && (
             <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{noticeMessage}</p>
           )}
           {isGoogleCredentialExpired && (
-            <button
-              className="mt-3 w-full cursor-pointer rounded-[14px] border border-black/[0.07] bg-white py-3 text-[14px] font-semibold text-[#1A1A1A] hover:bg-[#FAFAFA]"
-              onClick={handleRetryGoogleLogin}
-              type="button"
-            >
+            <Button className="mt-3 w-full" onClick={handleRetryGoogleLogin} variant="outline">
               Google 로그인 다시 하기
-            </button>
+            </Button>
           )}
         </div>
       </div>
-      {selectedTerm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5 py-8"
-          onClick={() => setSelectedTerm(null)}
-          role="presentation"
-        >
-          <div
-            aria-modal="true"
-            aria-labelledby="terms-modal-title"
-            className="flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-black/[0.07] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.24)]"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 sm:px-8 sm:pt-8">
-              <h2
-                className="text-[24px] font-semibold leading-[1.3] text-[#1A1A1A]"
-                id="terms-modal-title"
-              >
-                {termContent[selectedTerm].title}
-              </h2>
-              <button
-                aria-label="약관 모달 닫기"
-                className="cursor-pointer border-0 bg-transparent text-[28px] leading-none text-[#6B7280] hover:text-[#1A1A1A]"
-                onClick={() => setSelectedTerm(null)}
-                type="button"
-              >
-                ×
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto border-y border-black/[0.07] px-6 py-5 sm:px-8">
-              {renderTermBody(termContent[selectedTerm].body)}
-            </div>
-            <div className="px-6 py-4 sm:px-8">
-              <button
-                className="w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
-                onClick={() => setSelectedTerm(null)}
-                type="button"
-              >
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTerm(null);
+          }
+        }}
+        open={selectedTerm !== null}
+      >
+        {selectedTerm && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{termContent[selectedTerm].title}</DialogTitle>
+              <DialogCloseButton />
+            </DialogHeader>
+            <DialogBody>{renderTermBody(termContent[selectedTerm].body)}</DialogBody>
+            <DialogFooter>
+              <Button className="w-full" onClick={() => setSelectedTerm(null)}>
                 확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

@@ -33,7 +33,7 @@ ORDER_ITEM_STATUS_VALUES = (
 )
 PAYMENT_PROVIDER_VALUES = "'MOCK', 'TOSS', 'KAKAO_PAY', 'NAVER_PAY'"
 PAYMENT_STATUS_VALUES = (
-    "'READY', 'APPROVED', 'FAILED', 'CANCELED', 'EXPIRED', "
+    "'READY', 'CONFIRMING', 'UNKNOWN', 'APPROVED', 'FAILED', 'CANCELED', 'EXPIRED', "
     "'REFUND_REQUESTED', 'REFUNDED', 'PARTIALLY_REFUNDED'"
 )
 
@@ -437,3 +437,37 @@ class PaymentEvent(Base):
     status_after: Mapped[str | None] = mapped_column(String(40), nullable=True)
     raw_payload_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PaymentAttempt(Base):
+    __tablename__ = "payment_attempts"
+    __table_args__ = (
+        CheckConstraint("operation in ('CONFIRM', 'CANCEL')", name="ck_payment_attempts_operation"),
+        CheckConstraint("status <> ''", name="ck_payment_attempts_status_not_blank"),
+        CheckConstraint("provider in ('MOCK', 'TOSS')", name="ck_payment_attempts_provider"),
+        UniqueConstraint("payment_id", "attempt_code", name="uq_payment_attempts_payment_attempt_code"),
+        UniqueConstraint(
+            "provider",
+            "provider_idempotency_key",
+            name="uq_payment_attempts_provider_idempotency_key",
+        ),
+        Index("ix_payment_attempts_payment_requested_at", "payment_id", "requested_at"),
+        Index("ix_payment_attempts_status_requested_at", "status", "requested_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False, index=True)
+    attempt_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_payment_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_summary_json: Mapped[dict | None] = mapped_column(jsonb_type(), nullable=True)
+    response_summary_json: Mapped[dict | None] = mapped_column(jsonb_type(), nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

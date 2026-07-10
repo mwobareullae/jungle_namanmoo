@@ -12,6 +12,7 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
+const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
@@ -229,7 +230,7 @@ function LegacyApp() {
         transform: translateY(0) !important;
       }
 
-      body:has(header.site-header:hover) .category-panel,
+      body:has(header.site-header .category-menu-btn:hover) .category-panel,
       body:has(.category-panel:hover) .category-panel {
         opacity: 1 !important;
         pointer-events: auto !important;
@@ -880,6 +881,7 @@ function App() {
           {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
           {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
           {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
+          {appMode !== "community" && <Route path="/mypage/settings" element={<MyPageSettings />} />}
           {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
           {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
           {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}

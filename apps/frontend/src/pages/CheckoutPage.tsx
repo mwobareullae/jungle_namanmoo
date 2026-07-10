@@ -3,6 +3,7 @@ import { ANONYMOUS, loadTossPayments, type TossPaymentsSDK } from "@tosspayments
 import { useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
+import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { createAddress, deleteAddress, getAddresses, updateAddress } from "../lib/addressApi";
@@ -1043,6 +1044,7 @@ function CheckoutPage() {
                 <div className="payment-options">
                   {["간편결제", "신용카드", "무통장입금"].map((method) => (
                     <button
+                      aria-pressed={paymentMethod === method}
                       className={`payment-option${paymentMethod === method ? " active" : ""}`}
                       onClick={() => setPaymentMethod(method)}
                       type="button"
@@ -1299,6 +1301,7 @@ function CheckoutPage() {
                 <p className="summary-note" role="alert">{orderErrorMessage}</p>
               ) : null}
               <button
+                aria-pressed={hasAgreedPayment}
                 className={`checkout-agree-button${hasAgreedPayment ? " active" : ""}`}
                 type="button"
                 onClick={() => setHasAgreedPayment((current) => !current)}
@@ -1314,22 +1317,26 @@ function CheckoutPage() {
         </section>
       </main>
 
-      {isAddressManagerOpen ? (
-        <div className="checkout-address-modal-backdrop" role="presentation">
-          <section
-            className="checkout-address-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="checkoutAddressModalTitle"
-          >
+      <Dialog onOpenChange={(open) => { if (!open) closeAddressManager(); }} open={isAddressManagerOpen}>
+        <DialogRawContent
+          aria-labelledby="checkoutAddressModalTitle"
+          className="checkout-address-modal-content-wrap"
+          overlayClassName="checkout-address-modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeAddressManager();
+            }
+          }}
+        >
+          <section className="checkout-address-modal">
             <div className="checkout-address-modal-head">
               <div>
                 <h2 id="checkoutAddressModalTitle">배송지 관리</h2>
                 <p>주문에 사용할 배송지를 선택하거나 새 배송지를 추가해주세요.</p>
               </div>
-              <button type="button" onClick={closeAddressManager} aria-label="배송지 관리 닫기">
-                ×
-              </button>
+              <DialogClose aria-label="배송지 관리 닫기" asChild>
+                <button type="button">×</button>
+              </DialogClose>
             </div>
 
             <div className="checkout-address-modal-body">
@@ -1499,31 +1506,26 @@ function CheckoutPage() {
               ) : null}
             </div>
           </section>
-        </div>
-      ) : null}
+        </DialogRawContent>
+      </Dialog>
 
-      {isCashReceiptGuideOpen ? (
-        <div
-          className="checkout-modal-backdrop"
-          role="presentation"
-          onClick={() => setIsCashReceiptGuideOpen(false)}
+      <Dialog onOpenChange={setIsCashReceiptGuideOpen} open={isCashReceiptGuideOpen}>
+        <DialogRawContent
+          aria-labelledby="cashReceiptGuideTitle"
+          className="checkout-cash-receipt-modal-content-wrap"
+          overlayClassName="checkout-modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsCashReceiptGuideOpen(false);
+            }
+          }}
         >
-          <section
-            className="checkout-cash-receipt-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cashReceiptGuideTitle"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <section className="checkout-cash-receipt-modal">
             <div className="checkout-cash-receipt-modal-head">
               <h2 id="cashReceiptGuideTitle">현금영수증 안내</h2>
-              <button
-                type="button"
-                aria-label="현금영수증 안내 닫기"
-                onClick={() => setIsCashReceiptGuideOpen(false)}
-              >
-                ×
-              </button>
+              <DialogClose aria-label="현금영수증 안내 닫기" asChild>
+                <button type="button">×</button>
+              </DialogClose>
             </div>
             <div className="checkout-cash-receipt-modal-body">
               <ul>
@@ -1538,8 +1540,8 @@ function CheckoutPage() {
               </ul>
             </div>
           </section>
-        </div>
-      ) : null}
+        </DialogRawContent>
+      </Dialog>
 
       <div className="mobile-pay-bar">
         <div className="mobile-pay-total">

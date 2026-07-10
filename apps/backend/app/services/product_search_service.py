@@ -91,6 +91,7 @@ def get_product_search_response(
             intent.purchase_conditions,
             list(es_result.product_db_ids),
             limit=pagination.page_size,
+            recommendable_only=False,
         )
         vector_candidates: list[ProductCandidate] = []
         if len(es_candidates) < pagination.page_size and pagination.page == 1:
@@ -114,6 +115,7 @@ def get_product_search_response(
                     intent.purchase_conditions,
                     vector_product_db_ids,
                     limit=max(0, pagination.page_size - len(es_candidates)),
+                    recommendable_only=False,
                 )
         combined_candidates = [*es_candidates, *vector_candidates]
         es_total_items = (
@@ -171,6 +173,7 @@ def get_product_search_response(
             intent.purchase_conditions,
             list(vector_result.product_db_ids),
             limit=pagination.page_size,
+            recommendable_only=False,
         )
         total_items = (
             vector_result.total_hit_count
@@ -212,6 +215,7 @@ def get_product_search_response(
         intent.purchase_conditions,
         [hit.product_db_id for hit in db_hits.page_hits],
         limit=pagination.page_size,
+        recommendable_only=False,
     )
     scores_by_product_id = {
         hit.product_db_id: hit.score

@@ -86,6 +86,14 @@ class Product(Base):
     functional_cosmetic_claims: Mapped[str | None] = mapped_column(Text, nullable=True)
     functional_claim_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
     functional_claim_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_recommendable: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+        index=True,
+    )
+    recommend_exclude_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
