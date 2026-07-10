@@ -704,22 +704,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     fontWeight: 500
   },
-  emptyActionButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 196,
-    minHeight: 54,
-    padding: "0 26px",
-    border: 0,
-    borderRadius: 10,
-    background: "#0c1117",
-    color: "#ffffff",
-    fontFamily: "inherit",
-    fontSize: 15,
-    fontWeight: 800,
-    cursor: "pointer"
-  },
   recommendSection: {
     paddingTop: 38
   },
