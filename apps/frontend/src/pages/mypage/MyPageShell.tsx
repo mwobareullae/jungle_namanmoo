@@ -59,7 +59,7 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/skin-profile", label: "피부 프로필", group: 1 },
   { path: "/mypage/wishlist", label: "찜한 상품", group: 2 },
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
-  { path: "/mypage/orders", label: "주문내역", group: 3 },
+  { path: "/mypage/orders", label: "주문/배송 조회", group: 3 },
   { path: "", label: "배송지 관리", group: 3 },
   { path: "", label: "개인정보 설정", group: 3 }
 ] as const;
