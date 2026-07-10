@@ -46,9 +46,9 @@
 
 다만 backend가 실제로 2.78GiB까지 사용한 실행에 2GiB 제한을 적용하면 OOM 가능성이 있다. Compose 기본값 `BACKEND_MEMORY_LIMIT=2g`를 실제 운영 적정값으로 간주하지 않고, 서버의 `docker inspect` 결과와 새 t3.large baseline을 기준으로 재산정한다.
 
-### 2.2 1천 건 smoke: KPI 기준에서 제외
+### 2.2 1천 건 smoke: 홈 API 계약 전환 중 실행으로 KPI에서 제외
 
-`perf-runs/20260710-023115_smoke_small-1000`은 실패율이 46.3%지만, 119건의 실패가 구현되지 않은 홈 경로의 404 응답이다.
+`perf-runs/20260710-023115_smoke_small-1000`은 실패율이 46.3%지만, 119건의 실패가 신규 홈 API 계약을 백엔드보다 먼저 반영한 k6 endpoint의 404 응답이다.
 
 ```text
 /api/home/layout
@@ -57,7 +57,9 @@
 /api/home/for-you
 ```
 
-현재 backend에는 `/api/home/sections`가 구현되어 있어 k6 시나리오와 API route가 일치하지 않는다. 404 응답시간이 10~30ms라서 홈 API가 빠른 것처럼 보이므로, 해당 실행의 홈 latency와 전체 처리량은 성능 근거로 사용하지 않는다.
+홈 API는 기존 묶음형 `/api/home/sections`를 제거하고 위 섹션별 endpoint로 전환할 계획이다. 당시 backend에는 아직 `/api/home/sections`만 구현돼 있었고 k6는 신규 계약을 선반영한 상태였다. 따라서 이는 오래된 k6 스크립트 문제가 아니라 backend·frontend·부하테스트가 서로 다른 계약 버전에 있던 전환 구간이다.
+
+404 응답시간이 10~30ms라서 신규 홈 API가 빠른 것처럼 보이므로 해당 실행의 홈 latency와 전체 처리량은 성능 근거로 사용하지 않는다. k6 endpoint를 다시 `/api/home/sections`로 되돌리지 않고, 신규 API 구현과 최신 계약 테스트가 합쳐진 뒤 preflight부터 재실행한다.
 
 ## 3. P2 성능 KPI 제안
 
@@ -155,6 +157,39 @@ Compose 선언값만으로 적용을 가정하지 않는다. 각 run의 manifest
 | 추천 `scoring_ms` p95 | 1초 이하 |
 
 LLM 호출을 포함한 `intent_parse_ms`는 외부 서비스 지연이 섞인다. 내부 추천 엔진 KPI와 LLM 포함 E2E KPI를 별도 프로파일로 측정해야 한다.
+
+### 3.6 신규 홈 섹션 API KPI
+
+다음 endpoint는 backend 구현 완료 후 각각 별도 metric tag로 측정한다.
+
+```text
+GET /api/home/layout
+GET /api/home/market-popular?limit=12
+GET /api/home/evidence-picks?limit=12
+GET /api/home/for-you?limit=12
+GET /api/home/for-you?skin_type=건성&sensitivity=높음&limit=12
+GET /api/home/for-you?skin_type=지성&sensitivity=보통&concern=트러블&limit=12
+GET /api/home/for-you?limit=12  # 로그인 사용자
+```
+
+필수 측정:
+
+- endpoint별 요청 수, error rate, p50/p95/p99
+- 비로그인 fallback, 비회원 선택 조건, 로그인 개인화 latency
+- 행동 데이터가 있는 사용자와 없는 사용자의 latency 차이
+- 브라우저 병렬 호출 시 홈 핵심 섹션 준비시간: critical endpoint latency의 최댓값
+- 서버 전체 처리비용: 섹션별 요청 수·CPU time·DB query time 합계
+- 기존 `/api/home/sections` 문제 상태와 신규 구조의 서버 자원·실패 전파 비교
+
+캐시 경계:
+
+- `/home/layout`: 짧은 TTL 공개 cache 후보
+- `/home/market-popular`: 공개 cache 후보
+- `/home/evidence-picks`: 공개 cache 후보
+- `/home/for-you`: shared cache 금지, 적용 시 사용자·profile·scoring version 경계 필요
+- `/home/skin-rankings`: 구현 후 segment별 공개 cache 후보
+
+신규 endpoint가 backend router와 API contract test에 존재하지 않으면 contract preflight를 FAIL로 종료하고 baseline을 실행하지 않는다.
 
 ## 4. 테스트 매트릭스
 
@@ -417,7 +452,7 @@ PgBouncer와 read replica는 단일 요청의 느린 쿼리를 직접 해결하�
 
 ## 9. 다음 실행 순서
 
-1. 홈 API 계약과 k6 endpoint 불일치를 먼저 해소한다.
+1. 신규 홈 API 계약을 backend·frontend·contract test에 반영하고 k6 선반영 endpoint와 같은 버전인지 확인한다.
 2. 8만 건/t3.large smoke를 실행해 모든 check가 100%인지 확인한다.
 3. 10 VU, 10분의 새 baseline을 3회 실행한다.
 4. baseline 중앙값을 이 문서의 1차 목표와 비교해 KPI를 보정한다.
