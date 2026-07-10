@@ -39,6 +39,7 @@ class PendingPaymentTerminationSpec:
     event_source: str
     event_reason: str
     inventory_reason: str
+    allow_in_flight_payment: bool = False
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,9 @@ def terminate_pending_payment(
 ) -> PendingPaymentTerminationResult:
     if order.status != ORDER_STATUS_PENDING_PAYMENT:
         raise ApiError(409, "ORDER_NOT_PENDING_PAYMENT", "Order is not pending payment.")
-    if payment.status != PAYMENT_STATUS_READY:
+    if payment.status != PAYMENT_STATUS_READY and not (
+        spec.allow_in_flight_payment and payment.status in {"CONFIRMING", "UNKNOWN"}
+    ):
         raise ApiError(409, "PAYMENT_NOT_READY", "Payment is not ready.")
 
     order_items = _load_order_items(session, order.id)
