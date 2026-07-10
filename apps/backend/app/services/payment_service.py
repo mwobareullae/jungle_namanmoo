@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
+from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentAttempt, PaymentEvent
 from app.schemas.common import ApiError
 from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
 from app.services.pending_payment_terminal_service import (
@@ -21,6 +21,8 @@ ORDER_STATUS_PENDING_PAYMENT = "PENDING_PAYMENT"
 ORDER_STATUS_PAID = "PAID"
 ORDER_STATUS_PAYMENT_FAILED = "PAYMENT_FAILED"
 PAYMENT_STATUS_READY = "READY"
+PAYMENT_STATUS_CONFIRMING = "CONFIRMING"
+PAYMENT_STATUS_UNKNOWN = "UNKNOWN"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_STATUS_FAILED = "FAILED"
 PAYMENT_PROVIDER_MOCK = "MOCK"
@@ -116,6 +118,9 @@ def confirm_toss_payment(
             return response
         _require_toss_confirmable(payment, order, request.amount, now)
 
+        attempt = _start_toss_confirm_attempt(session, payment, request, now)
+        session.commit()
+
         try:
             toss_response = toss_client.confirm_payment(
                 payment_key=payment_key,
@@ -123,8 +128,28 @@ def confirm_toss_payment(
                 amount=request.amount,
             )
         except TossPaymentsClientError as exc:
+            _finish_toss_confirm_attempt(
+                session,
+                attempt_code=attempt.attempt_code,
+                payment_id=payment.id,
+                status=PAYMENT_STATUS_UNKNOWN if exc.code == "TOSS_CONFIRM_REQUEST_FAILED" else PAYMENT_STATUS_FAILED,
+                error_code=exc.code,
+                error_message=exc.message,
+            )
             raise ApiError(502, "TOSS_CONFIRM_FAILED", exc.message) from exc
-        _validate_toss_confirm_response(toss_response, payment_key, order_code, request.amount)
+        try:
+            _validate_toss_confirm_response(toss_response, payment_key, order_code, request.amount)
+        except ApiError as exc:
+            _finish_toss_confirm_attempt(
+                session,
+                attempt_code=attempt.attempt_code,
+                payment_id=payment.id,
+                status=PAYMENT_STATUS_FAILED,
+                error_code=exc.code,
+                error_message=exc.message,
+                response_summary=_build_toss_event_payload(toss_response),
+            )
+            raise
 
         session.expire_all()
         payment, order = _load_user_payment_by_order_code(session, user.id, order_code, for_update=True)
@@ -140,11 +165,11 @@ def confirm_toss_payment(
                 idempotent_replay=True,
             )
             return response
-        _require_toss_confirmable(payment, order, request.amount, now)
+        _require_toss_confirmable(payment, order, request.amount, now, allow_confirming=True)
 
         payment.provider_payment_key = payment_key
         payment.provider_order_id = order_code
-        return _approve_payment(
+        response = _approve_payment(
             session,
             payment=payment,
             order=order,
@@ -154,6 +179,14 @@ def confirm_toss_payment(
             now=now,
             started_at=started_at,
         )
+        _finish_toss_confirm_attempt(
+            session,
+            attempt_code=attempt.attempt_code,
+            payment_id=payment.id,
+            status=PAYMENT_STATUS_APPROVED,
+            response_summary=_build_toss_event_payload(toss_response),
+        )
+        return response
     except ApiError as exc:
         _log_payment_confirm_failed(
             started_at,
@@ -299,7 +332,14 @@ def _require_same_provider_payment_key(payment: Payment, payment_key: str) -> No
         raise ApiError(409, "PAYMENT_KEY_CONFLICT", "Payment was already approved with another payment key.")
 
 
-def _require_toss_confirmable(payment: Payment, order: Order, amount: int, now: datetime) -> None:
+def _require_toss_confirmable(
+    payment: Payment,
+    order: Order,
+    amount: int,
+    now: datetime,
+    *,
+    allow_confirming: bool = False,
+) -> None:
     _require_status(
         payment.provider == PAYMENT_PROVIDER_TOSS,
         "PAYMENT_PROVIDER_MISMATCH",
@@ -311,7 +351,7 @@ def _require_toss_confirmable(payment: Payment, order: Order, amount: int, now: 
         "Order is not pending payment.",
     )
     _require_status(
-        payment.status == PAYMENT_STATUS_READY,
+        payment.status == PAYMENT_STATUS_READY or (allow_confirming and payment.status == PAYMENT_STATUS_CONFIRMING),
         "PAYMENT_NOT_READY",
         "Payment is not ready.",
     )
@@ -322,6 +362,86 @@ def _require_toss_confirmable(payment: Payment, order: Order, amount: int, now: 
     )
     if order.payment_expires_at is not None and _as_utc(order.payment_expires_at) <= now:
         raise ApiError(409, "PAYMENT_EXPIRED", "Payment window has expired.")
+
+
+def _start_toss_confirm_attempt(
+    session: Session,
+    payment: Payment,
+    request: TossPaymentConfirmRequest,
+    now: datetime,
+) -> PaymentAttempt:
+    attempt_code = _build_toss_attempt_code(request)
+    existing = session.execute(
+        select(PaymentAttempt).where(
+            PaymentAttempt.payment_id == payment.id,
+            PaymentAttempt.attempt_code == attempt_code,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ApiError(409, "PAYMENT_CONFIRMATION_REPLAY", "This payment confirmation request was already processed.")
+
+    payment.status = PAYMENT_STATUS_CONFIRMING
+    payment.updated_at = now
+    attempt = PaymentAttempt(
+        payment_id=payment.id,
+        attempt_code=attempt_code,
+        operation="CONFIRM",
+        provider=PAYMENT_PROVIDER_TOSS,
+        status=PAYMENT_STATUS_CONFIRMING,
+        provider_payment_key=request.payment_key.strip(),
+        provider_idempotency_key=attempt_code,
+        request_summary_json={
+            "order_code": request.order_code.strip(),
+            "amount": request.amount,
+        },
+        requested_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(attempt)
+    session.flush()
+    return attempt
+
+
+def _finish_toss_confirm_attempt(
+    session: Session,
+    *,
+    attempt_code: str,
+    payment_id: int,
+    status: str,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    response_summary: dict[str, Any] | None = None,
+) -> None:
+    attempt = session.execute(
+        select(PaymentAttempt)
+        .where(
+            PaymentAttempt.payment_id == payment_id,
+            PaymentAttempt.attempt_code == attempt_code,
+        )
+        .with_for_update()
+    ).scalar_one()
+    payment = session.execute(
+        select(Payment).where(Payment.id == payment_id).with_for_update()
+    ).scalar_one()
+    now = datetime.now(UTC)
+    attempt.status = status
+    attempt.provider_error_code = error_code
+    attempt.provider_error_message = error_message
+    attempt.response_summary_json = response_summary
+    attempt.completed_at = now
+    attempt.updated_at = now
+    if status in {PAYMENT_STATUS_FAILED, PAYMENT_STATUS_UNKNOWN}:
+        payment.status = status
+        payment.updated_at = now
+        payment.failed_at = now if status == PAYMENT_STATUS_FAILED else payment.failed_at
+    session.commit()
+
+
+def _build_toss_attempt_code(request: TossPaymentConfirmRequest) -> str:
+    raw = f"{request.order_code.strip()}:{request.payment_key.strip()}:{request.amount}"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return f"toss_confirm:{digest}"
 
 
 def _validate_toss_confirm_response(
