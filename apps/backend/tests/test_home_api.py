@@ -125,6 +125,61 @@ def test_home_market_popular_preserves_metric_ranking(
     assert [product["display_score"] for product in data["products"]] == [92, 70]
 
 
+def test_home_recommendation_sections_exclude_non_recommendable_products(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        first_product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        second_product = session.execute(
+            select(Product).where(Product.product_code == "prod_002")
+        ).scalar_one()
+        second_product.is_recommendable = False
+        second_product.recommend_exclude_reason = "missing_ingredients"
+        session.add_all(
+            [
+                ProductPopularityMetric(
+                    product_id=first_product.id,
+                    window_days=7,
+                    view_count=100,
+                    click_count=30,
+                    cart_add_count=10,
+                    order_count=5,
+                    units_sold=6,
+                    review_count=20,
+                    average_rating=4.5,
+                    popularity_score=70,
+                ),
+                ProductPopularityMetric(
+                    product_id=second_product.id,
+                    window_days=7,
+                    view_count=200,
+                    click_count=60,
+                    cart_add_count=20,
+                    order_count=9,
+                    units_sold=12,
+                    review_count=40,
+                    average_rating=4.7,
+                    popularity_score=92,
+                ),
+            ]
+        )
+        session.commit()
+
+    market_response = client.get("/api/home/market-popular", params={"limit": 2})
+    evidence_response = client.get("/api/home/evidence-picks", params={"limit": 4})
+    for_you_response = client.get("/api/home/for-you", params={"limit": 4})
+
+    assert market_response.status_code == 200
+    assert evidence_response.status_code == 200
+    assert for_you_response.status_code == 200
+    assert _product_ids(market_response.json()["products"]) == ["prod_001"]
+    assert "prod_002" not in _product_ids(evidence_response.json()["products"])
+    assert "prod_002" not in _product_ids(for_you_response.json()["products"])
+
+
 def test_home_evidence_picks_returns_sorted_section(client: TestClient) -> None:
     response = client.get("/api/home/evidence-picks", params={"limit": 4})
 
@@ -251,6 +306,10 @@ def _assert_home_product_contract(product: dict) -> None:
     assert product["thumbnail_url"].startswith("products/")
     assert not product["thumbnail_url"].startswith("http")
     assert 0 <= product["display_score"] <= 100
+
+
+def _product_ids(products: list[dict]) -> list[str]:
+    return [product["product_id"] for product in products]
 
 
 def _signup(client: TestClient, *, email: str, nickname: str) -> dict:

@@ -105,7 +105,7 @@ DATA_DIR=/data
 
 ## 주의
 
-- `is_recommendable`은 현재 CSV subset 생성 기준이다.
-- 현 시점 백엔드 DB 모델에는 `is_recommendable` 컬럼이 없다.
-- 추천 후보에서 `is_recommendable=true`만 쓰도록 DB 레벨까지 강제할지는 별도 결정이 필요하다.
+- `is_recommendable`은 CSV subset 생성 기준이자 백엔드 DB의 기본 추천 후보 필터 기준이다.
+- 백엔드 `products` 테이블은 `is_recommendable`, `recommend_exclude_reason`을 저장한다.
+- 기본 추천 후보와 홈 추천 섹션은 `is_recommendable=true` 상품만 사용한다.
 - 10만 데이터 성능 최적화는 small DB에서 기능이 안정된 뒤 full DB 수치로 판단한다.

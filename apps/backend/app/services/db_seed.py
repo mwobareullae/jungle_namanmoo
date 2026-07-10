@@ -812,6 +812,8 @@ def _seed_products(
                 functional_cosmetic_claims=functional_claims,
                 functional_claim_confidence=product.functional_claim_confidence,
                 functional_claim_basis=product.functional_claim_basis,
+                is_recommendable=product.is_recommendable,
+                recommend_exclude_reason=product.recommend_exclude_reason,
             )
             session.add(row)
         else:
@@ -826,6 +828,8 @@ def _seed_products(
             row.functional_cosmetic_claims = functional_claims
             row.functional_claim_confidence = product.functional_claim_confidence
             row.functional_claim_basis = product.functional_claim_basis
+            row.is_recommendable = product.is_recommendable
+            row.recommend_exclude_reason = product.recommend_exclude_reason
             row.is_active = True
         products_by_code[product.product_id] = row
 
