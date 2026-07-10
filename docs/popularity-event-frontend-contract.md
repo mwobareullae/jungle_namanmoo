@@ -149,4 +149,4 @@ Backend rollup maps events as follows:
 The rollup result affects `product_popularity_metrics.popularity_score`, which is used by:
 
 - `GET /api/products/popular`
-- `GET /api/home/sections` when the `market_popular` section exists
+- `GET /api/home/market-popular`

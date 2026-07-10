@@ -13,7 +13,7 @@ event_logs + order_items
 -> rollup_product_popularity
 -> product_popularity_metrics
 -> GET /api/products/popular
--> GET /api/home/sections market_popular
+-> GET /api/home/market-popular
 ```
 
 ## Manual Command
@@ -106,7 +106,7 @@ After running rollup:
 1. Check `product_popularity_metrics` rows for `score_version = behavior_popularity_v1`.
 2. Call `GET /api/products/popular?window_days=7&limit=10`.
 3. Confirm `metrics.home_product_impression_count`, `metrics.home_product_click_count`, and `popularity_score` changed from event data.
-4. Confirm `GET /api/home/sections` includes `market_popular` when metric rows exist.
+4. Confirm `GET /api/home/market-popular` returns the `market_popular` section when metric rows exist.
 
 ## Current Limitations
 
