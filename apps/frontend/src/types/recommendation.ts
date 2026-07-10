@@ -201,12 +201,26 @@ export type ProductIngredient = {
   risk_note: string | null;
 };
 
+export type ProductPurchaseInfo = {
+  seller_code: string;
+  seller_name: string;
+  seller_type: string;
+  price: number | null;
+  currency: string | null;
+  purchase_url: string | null;
+  can_purchase: boolean;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+};
+
 export type ProductDetail = ProductCardItem & {
   image_urls: string[];
   content_confidence: ContentConfidence;
   related_ingredients: string[];
   ingredients: ProductIngredient[];
   purchase_url: string | null;
+  purchase_info?: ProductPurchaseInfo;
   evidence: IngredientEvidence[];
   prices: ProductPrice[];
   sources: ProductSource[];

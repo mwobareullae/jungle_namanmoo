@@ -155,6 +155,18 @@ type BackendProductDetailResponse = {
     product_url: string;
     is_lowest: boolean;
   }[];
+  purchase_info: {
+    seller_code: string;
+    seller_name: string;
+    seller_type: string;
+    price: number | null;
+    currency: string | null;
+    purchase_url: string | null;
+    can_purchase: boolean;
+    sales_status: string;
+    stock_status: string;
+    available_quantity: number | null;
+  };
   ingredients: {
     name: string;
     purpose: string;
@@ -319,6 +331,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     related_ingredients: keyIngredients,
     ingredients: response.ingredients.map(mapProductIngredient),
     purchase_url: lowestPrice?.product_url ?? null,
+    purchase_info: response.purchase_info,
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,
