@@ -4,40 +4,40 @@ import ProductPurchasePanel from "./ProductPurchasePanel";
 import type { ProductDetailHeroProps } from "./types";
 
 function ProductDetailHero({
+  aiNarrativeCautionText,
+  aiNarrativeDetailItems,
+  aiNarrativeProfileChips,
+  aiNarrativeReason,
+  aiNarrativeTitle,
   brandPagePath,
   cartErrorMessage,
   cartMessage,
   displayedIsWished,
   isAddingToCart,
+  isNarrativeDetailOpen,
   isNarrativeLoading,
+  isProductSoldOut,
   isWishlistPending,
   mainImageUrl,
-  narrativeCaution,
-  narrativeChips,
-  narrativeDetailSections,
-  narrativeHeadline,
-  narrativeKeyPoints,
-  narrativeReason,
-  narrativeRole,
-  narrativeSelectionGuide,
-  narrativeSummaryText,
   onAddToCart,
   onBuyNow,
+  onToggleNarrativeDetail,
   onToggleWishlist,
   priceLabel,
   product,
-  sensitivity,
-  skinType,
 }: ProductDetailHeroProps) {
   return (
     <div className="detail-hero">
       <div className="detail-media">
-        <div className="detail-image-box">
+        <div className={`detail-image-box${isProductSoldOut ? " is-sold-out" : ""}`}>
           {mainImageUrl ? (
             <img id="productImage" src={mainImageUrl} alt={product.name} />
           ) : null}
           {!mainImageUrl ? (
             <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
+          ) : null}
+          {isProductSoldOut ? (
+            <span className="detail-sold-out-overlay">일시품절</span>
           ) : null}
         </div>
       </div>
@@ -71,68 +71,79 @@ function ProductDetailHero({
         </div>
         <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
           <div className="ai-narrative-head">
+            <span className="ai-narrative-head-icon" aria-hidden="true">
+              <svg height="18" viewBox="0 0 18 18" width="18">
+                <defs>
+                  <filter
+                    colorInterpolationFilters="sRGB"
+                    filterUnits="userSpaceOnUse"
+                    height="18"
+                    id="aiRecommendationIconTint"
+                    width="18"
+                    x="0"
+                    y="0"
+                  >
+                    <feColorMatrix
+                      type="matrix"
+                      values="0 0 0 0 0.290196 0 0 0 0 0.65098 0 0 0 0 0.721569 0 0 0 1 0"
+                    />
+                  </filter>
+                </defs>
+                <image
+                  filter="url(#aiRecommendationIconTint)"
+                  height="18"
+                  href="/spa-assets/ai-recommendation-summary-icon.png"
+                  width="18"
+                />
+              </svg>
+            </span>
             <strong>AI 추천 요약</strong>
-            <span aria-label="추천 문구는 성분 근거와 매칭 점수를 바탕으로 생성됩니다">i</span>
           </div>
           <div className="ai-narrative-body">
-            {narrativeRole ? (
-              <div className="ai-narrative-role">{narrativeRole}</div>
-            ) : null}
-            <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : narrativeHeadline}</strong>
-            <p id="matchReason">
-              <span aria-hidden="true">◆</span>
-              {narrativeReason}
-            </p>
-            {narrativeSummaryText ? (
-              <p className="ai-narrative-summary">{narrativeSummaryText}</p>
-            ) : null}
-            <div className="ai-narrative-chip-list">
-              {narrativeChips.map((chip) => (
-                <span key={chip}>{chip}</span>
-              ))}
-              <span className="score-chip" id="matchScore">추천 점수 {product.total_score}</span>
+            <div className="ai-narrative-title-row">
+              <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : aiNarrativeTitle}</strong>
+              <span className="ai-narrative-score" id="matchScore">
+                <strong>{Math.round(product.total_score)}</strong>점
+              </span>
             </div>
-            {narrativeKeyPoints.length > 0 ? (
-              <div className="ai-narrative-keypoints">
-                {narrativeKeyPoints.slice(0, 3).map((point) => (
-                  <span key={point}>{point}</span>
+            <p className="ai-narrative-reason" id="matchReason">{aiNarrativeReason}</p>
+            {aiNarrativeProfileChips.length > 0 ? (
+              <div className="ai-narrative-profile-chips">
+                {aiNarrativeProfileChips.map((chip) => (
+                  <span key={chip}>{chip}</span>
                 ))}
               </div>
             ) : null}
-            <div className="ai-narrative-detail-list">
-              {narrativeDetailSections.map((section) => (
-                <div className="ai-narrative-detail-item" key={section.title}>
-                  <strong>{section.title}</strong>
-                  <p>{section.body}</p>
-                </div>
-              ))}
+            <div className="ai-narrative-caution-row">
+              <span className="ai-narrative-caution-icon" aria-hidden="true">i</span>
+              <span>{aiNarrativeCautionText}</span>
             </div>
-            {narrativeCaution ? (
-              <div className="ai-narrative-caution">{narrativeCaution}</div>
+            <button
+              className="ai-narrative-detail-toggle"
+              type="button"
+              aria-expanded={isNarrativeDetailOpen}
+              aria-controls="aiNarrativeDetailList"
+              onClick={onToggleNarrativeDetail}
+            >
+              {isNarrativeDetailOpen ? "왜 추천했는지 접기" : "왜 추천했는지 보기"}
+            </button>
+            {isNarrativeDetailOpen ? (
+              <div className="ai-narrative-detail-list" id="aiNarrativeDetailList">
+                {aiNarrativeDetailItems.map((section) => (
+                  <div className="ai-narrative-detail-item" key={section.title}>
+                    <strong>{section.title}</strong>
+                    <p>{section.body}</p>
+                  </div>
+                ))}
+              </div>
             ) : null}
-            {narrativeSelectionGuide ? (
-              <div className="ai-narrative-guide">{narrativeSelectionGuide}</div>
-            ) : null}
-          </div>
-        </div>
-        <div
-          className="detail-selectors"
-          id="profileSelectors"
-          style={{ display: skinType || sensitivity ? undefined : "none" }}
-        >
-          <div className="detail-select-row" id="skinTypeRow" style={{ display: skinType ? undefined : "none" }}>
-            <span>피부 타입</span>
-            <strong id="skinTypeValue">{skinType}</strong>
-          </div>
-          <div className="detail-select-row" id="sensitivityRow" style={{ display: sensitivity ? undefined : "none" }}>
-            <span>민감성</span>
-            <strong id="sensitivityValue">{sensitivity}</strong>
           </div>
         </div>
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}
           cartMessage={cartMessage}
           isAddingToCart={isAddingToCart}
+          isProductSoldOut={isProductSoldOut}
           onAddToCart={onAddToCart}
           onBuyNow={onBuyNow}
         />

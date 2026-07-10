@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
+import ProductDetailHero from "../components/product-detail/ProductDetailHero";
 import ProductDetailStatus from "../components/product-detail/ProductDetailStatus";
 import ProductDetailToast from "../components/product-detail/ProductDetailToast";
+import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
@@ -1200,148 +1202,29 @@ function ProductDetailSpaPage() {
           {isLoading || errorMessage ? (
             <ProductDetailStatus errorMessage={errorMessage} isLoading={isLoading} />
           ) : product ? (
-            <div className="detail-hero">
-              <div className="detail-media">
-                <div className={`detail-image-box${isProductSoldOut ? " is-sold-out" : ""}`}>
-                  {mainImageUrl ? (
-                    <img id="productImage" src={mainImageUrl} alt={product.name} />
-                  ) : null}
-                  {!mainImageUrl ? (
-                    <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
-                  ) : null}
-                  {isProductSoldOut ? (
-                    <span className="detail-sold-out-overlay">일시품절</span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="detail-summary">
-                <div className="detail-brand-row">
-                  {brandPagePath ? (
-                    <Link className="detail-brand detail-brand-link" id="productBrand" to={brandPagePath}>
-                      {product.brand}
-                      <span aria-hidden="true">&gt;</span>
-                    </Link>
-                  ) : (
-                    <div className="detail-brand" id="productBrand">{product.brand}</div>
-                  )}
-                  <div className="detail-actions">
-                    <button className="detail-icon-btn" type="button" aria-label="공유">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="18" cy="5" r="3" />
-                        <circle cx="6" cy="12" r="3" />
-                        <circle cx="18" cy="19" r="3" />
-                        <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
-                      </svg>
-                    </button>
-                    <button
-                      aria-label={displayedIsWished ? "찜 해제" : "찜"}
-                      aria-pressed={displayedIsWished}
-                      className={`detail-icon-btn${displayedIsWished ? " is-wished" : ""}`}
-                      data-commerce-only
-                      disabled={isWishlistPending}
-                      onClick={handleToggleWishlist}
-                      type="button"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill={displayedIsWished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <h1 className="detail-title" id="productName">{product.name}</h1>
-                <div className="detail-price-panel">
-                  <div className="detail-price-row">
-                    <span className="detail-price" id="productPrice">{formatPrice(product.lowest_price)}</span>
-                  </div>
-                </div>
-                <div className="detail-tags" id="productTags">
-                  {product.evidence_tags.map((tag) => (
-                    <span className="detail-tag" key={tag}>{tag}</span>
-                  ))}
-                </div>
-                <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
-                  <div className="ai-narrative-head">
-                    <span className="ai-narrative-head-icon" aria-hidden="true">
-                      <svg height="18" viewBox="0 0 18 18" width="18">
-                        <defs>
-                          <filter
-                            colorInterpolationFilters="sRGB"
-                            filterUnits="userSpaceOnUse"
-                            height="18"
-                            id="aiRecommendationIconTint"
-                            width="18"
-                            x="0"
-                            y="0"
-                          >
-                            <feColorMatrix
-                              type="matrix"
-                              values="0 0 0 0 0.290196 0 0 0 0 0.65098 0 0 0 0 0.721569 0 0 0 1 0"
-                            />
-                          </filter>
-                        </defs>
-                        <image
-                          filter="url(#aiRecommendationIconTint)"
-                          height="18"
-                          href="/spa-assets/ai-recommendation-summary-icon.png"
-                          width="18"
-                        />
-                      </svg>
-                    </span>
-                    <strong>AI 추천 요약</strong>
-                  </div>
-                  <div className="ai-narrative-body">
-                    <div className="ai-narrative-title-row">
-                      <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : aiNarrativeTitle}</strong>
-                      <span className="ai-narrative-score" id="matchScore">
-                        <strong>{Math.round(product.total_score)}</strong>점
-                      </span>
-                    </div>
-                    <p className="ai-narrative-reason" id="matchReason">{aiNarrativeReason}</p>
-                    {aiNarrativeProfileChips.length > 0 ? (
-                      <div className="ai-narrative-profile-chips">
-                        {aiNarrativeProfileChips.map((chip) => (
-                          <span key={chip}>{chip}</span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ai-narrative-caution-row">
-                      <span className="ai-narrative-caution-icon" aria-hidden="true">i</span>
-                      <span>{aiNarrativeCautionText}</span>
-                    </div>
-                    <button
-                      className="ai-narrative-detail-toggle"
-                      type="button"
-                      aria-expanded={isNarrativeDetailOpen}
-                      aria-controls="aiNarrativeDetailList"
-                      onClick={() => setIsNarrativeDetailOpen((current) => !current)}
-                    >
-                      {isNarrativeDetailOpen ? "왜 추천했는지 접기" : "왜 추천했는지 보기"}
-                    </button>
-                    {isNarrativeDetailOpen ? (
-                      <div className="ai-narrative-detail-list" id="aiNarrativeDetailList">
-                        {aiNarrativeDetailItems.map((section) => (
-                          <div className="ai-narrative-detail-item" key={section.title}>
-                            <strong>{section.title}</strong>
-                            <p>{section.body}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div data-commerce-only className="detail-cta-row">
-                  <button className="detail-btn" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleAddToCart}>
-                    {isAddingToCart ? "담는 중..." : "장바구니"}
-                  </button>
-                  <button className="detail-btn primary" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleBuyNow}>
-                    {isProductSoldOut ? "일시품절" : "구매하기"}
-                  </button>
-                </div>
-                {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
-                {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
-              </div>
-            </div>
+            <ProductDetailHero
+              aiNarrativeCautionText={aiNarrativeCautionText}
+              aiNarrativeDetailItems={aiNarrativeDetailItems}
+              aiNarrativeProfileChips={aiNarrativeProfileChips}
+              aiNarrativeReason={aiNarrativeReason}
+              aiNarrativeTitle={aiNarrativeTitle}
+              brandPagePath={brandPagePath}
+              cartErrorMessage={cartErrorMessage}
+              cartMessage={cartMessage}
+              displayedIsWished={displayedIsWished}
+              isAddingToCart={isAddingToCart}
+              isNarrativeDetailOpen={isNarrativeDetailOpen}
+              isNarrativeLoading={isNarrativeLoading}
+              isProductSoldOut={isProductSoldOut}
+              isWishlistPending={isWishlistPending}
+              mainImageUrl={mainImageUrl}
+              onAddToCart={handleAddToCart}
+              onBuyNow={handleBuyNow}
+              onToggleNarrativeDetail={() => setIsNarrativeDetailOpen((current) => !current)}
+              onToggleWishlist={handleToggleWishlist}
+              priceLabel={formatPrice(product.lowest_price)}
+              product={product}
+            />
           ) : null}
         </section>
 
@@ -1556,73 +1439,71 @@ function ProductDetailSpaPage() {
                     )}
                   </div>
                   {activeEvidenceGroup ? (
-                    <div
-                      className="ingredient-evidence-modal-backdrop"
-                      role="presentation"
-                      onClick={closeEvidenceModal}
-                    >
-                      <div
-                        className="ingredient-evidence-modal"
-                        role="dialog"
-                        aria-modal="true"
+                    <Dialog onOpenChange={(open) => !open && closeEvidenceModal()} open>
+                      <DialogRawContent
                         aria-label={`${getEffectTagLabel(activeEvidenceGroup.effectName)} 성분 근거`}
-                        onClick={(event) => event.stopPropagation()}
+                        className="ingredient-evidence-modal-backdrop"
+                        onClick={(event) => {
+                          if (event.target === event.currentTarget) {
+                            closeEvidenceModal();
+                          }
+                        }}
+                        overlayClassName="ingredient-evidence-modal-overlay"
                       >
-                        <div className="ingredient-evidence-modal-head">
-                          <span className="ingredient-evidence-card-title-wrap">
-                            <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                              <EffectIcon iconKey={activeEvidenceGroup.icon} />
+                        <div className="ingredient-evidence-modal">
+                          <div className="ingredient-evidence-modal-head">
+                            <span className="ingredient-evidence-card-title-wrap">
+                              <span className="ingredient-evidence-card-icon" aria-hidden="true">
+                                <EffectIcon iconKey={activeEvidenceGroup.icon} />
+                              </span>
+                              <strong className="ingredient-evidence-card-title">
+                                {getEffectTagLabel(activeEvidenceGroup.effectName)}
+                              </strong>
                             </span>
-                            <strong className="ingredient-evidence-card-title">
-                              {getEffectTagLabel(activeEvidenceGroup.effectName)}
-                            </strong>
-                          </span>
-                          <button
-                            className="ingredient-evidence-modal-close"
-                            type="button"
-                            aria-label="닫기"
-                            onClick={closeEvidenceModal}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="ingredient-evidence-modal-body">
-                          {activeEvidenceGroup.items.map((evidence, index) => {
-                            const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
-                            const effectLabel = getEffectTagLabel(activeEvidenceGroup.effectName);
-                            return (
-                              <div
-                                className="ingredient-evidence-effect-row"
-                                key={`${evidence.ingredient_name}-${evidence.source_title}-${index}`}
-                              >
-                                <div className="ingredient-evidence-effect-head">
-                                  <strong className="ingredient-evidence-effect-label">
-                                    {evidence.ingredient_name || "성분"}
-                                  </strong>
-                                  <span className={evidenceLevelBadgeClass[evidence.evidence_level]}>
-                                    {evidenceLevelLabel[evidence.evidence_level]}
-                                  </span>
+                            <DialogClose asChild>
+                              <button className="ingredient-evidence-modal-close" type="button" aria-label="닫기">
+                                ×
+                              </button>
+                            </DialogClose>
+                          </div>
+                          <div className="ingredient-evidence-modal-body">
+                            {activeEvidenceGroup.items.map((evidence, index) => {
+                              const sourceUrl = getSourceUrlForEvidence(product, evidence.source_title);
+                              const effectLabel = getEffectTagLabel(activeEvidenceGroup.effectName);
+                              return (
+                                <div
+                                  className="ingredient-evidence-effect-row"
+                                  key={`${evidence.ingredient_name}-${evidence.source_title}-${index}`}
+                                >
+                                  <div className="ingredient-evidence-effect-head">
+                                    <strong className="ingredient-evidence-effect-label">
+                                      {evidence.ingredient_name || "성분"}
+                                    </strong>
+                                    <span className={evidenceLevelBadgeClass[evidence.evidence_level]}>
+                                      {evidenceLevelLabel[evidence.evidence_level]}
+                                    </span>
+                                  </div>
+                                  <p className="ingredient-evidence-effect-text">
+                                    {getIngredientEvidenceDisplayText(evidence, effectLabel)}
+                                  </p>
+                                  {sourceUrl ? (
+                                    <a
+                                      className="ingredient-evidence-source-link"
+                                      href={sourceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={evidence.source_title ?? undefined}
+                                    >
+                                      출처 보기 <span aria-hidden="true">↗</span>
+                                    </a>
+                                  ) : null}
                                 </div>
-                                <p className="ingredient-evidence-effect-text">
-                                  {getIngredientEvidenceDisplayText(evidence, effectLabel)}
-                                </p>
-                                {sourceUrl ? (
-                                  <a
-                                    className="ingredient-evidence-source-link"
-                                    href={sourceUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title={evidence.source_title ?? undefined}
-                                  >
-                                    출처 보기 <span aria-hidden="true">↗</span>
-                                  </a>
-                                ) : null}
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </DialogRawContent>
+                    </Dialog>
                   ) : null}
                 </div>
               </section>
