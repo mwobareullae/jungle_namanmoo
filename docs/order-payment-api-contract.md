@@ -27,6 +27,7 @@ Included in this stage:
 - Toss payment attempt tracking and uncertain-state recovery.
 - Toss webhook receipt with duplicate-event protection.
 - Toss payment lookup reconciliation.
+- Full Toss/Mock cancellation processing for `CANCEL_REQUESTED` orders.
 - Payment expiration handling through service logic and confirm-time checks.
 - Order list/detail.
 - Pre-payment cancel.
@@ -795,7 +796,27 @@ MVP automation boundary:
 - Payment fail/expiry releases reserved inventory.
 - Mock payment success deducts inventory.
 - Paid order cancellation/refund/return/exchange requests are stored as statuses only.
-- Real refund, partial refund, return pickup, and exchange reshipment are later admin/PG/shipment work.
+- Partial refund, return pickup, and exchange reshipment are later admin/PG/shipment work.
+
+## Cancellation processing
+
+`POST /api/orders/{order_code}/cancel` does not call an external payment
+provider. For a paid order it records `CANCEL_REQUESTED` and returns. The
+operational processor then handles full cancellation:
+
+```text
+python -m app.cli.cancel_requested_orders --limit 100
+python -m app.cli.cancel_requested_orders --limit 100 --reason "customer requested cancellation"
+python -m app.cli.cancel_requested_orders --limit 100 --dry-run
+```
+
+`MOCK` payments are completed locally. `TOSS` payments call the Toss cancel
+API and are finalized only when the response has `status = CANCELED`. A
+network failure, provider error, missing payment key, or invalid response
+keeps the order at `CANCEL_REQUESTED` and records an `UNKNOWN` cancel attempt
+for a later retry. Full cancellation marks the order and order items as
+`CANCELED`, marks the payment as `CANCELED`, and restores the sold quantity to
+inventory with a `SALE_CANCEL` movement.
 
 ## Frontend Responsibilities
 
