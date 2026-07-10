@@ -458,8 +458,13 @@ evaluation-runs/<timestamp>_<dataset-version>_<scoring-version>/
 | 추천 생성 p95 | 52.17초 |
 | 상품 검색 p95 | 32.29초 |
 | slow query | 870건 |
+| backend 최대 메모리 | 2.78GiB |
+| 당시 backend limit | 6GiB |
+| Elasticsearch 최대 메모리 | 1.447GiB / 2GiB limit |
 
-이 수치는 최초 문제 상태를 설명하는 자료로만 사용한다. 현재 목표 환경인 t3.large와 사양이 다르므로 최종 Before/After는 동일 환경에서 다시 측정한다.
+이 수치는 최초 문제 상태를 설명하는 자료로만 사용한다. 당시 환경은 t3.xlarge에서 backend limit 6GiB, Docker PostgreSQL과 frontend container까지 포함했다. 현재 목표 환경은 t3.large에서 외부 RDS와 Vercel을 사용하는 구성이므로 최종 Before/After는 동일 환경에서 다시 측정한다.
+
+backend가 실제로 2.78GiB까지 사용한 실행에 2GiB limit을 적용하면 OOM 가능성이 있다. 따라서 Compose 기본값 2GiB를 실제 적정값으로 확정하지 않고, t3.large의 1차 검증값을 3584MiB로 둔 뒤 최적화 후 다시 산정한다.
 
 ## 4.2 확인된 병목
 
@@ -534,6 +539,32 @@ Elasticsearch 사용률이 낮고 DB fallback에서 다음 작업이 발생했�
 | RDS | connection | 최대 연결 수의 70% 미만 |
 | RDS | idle in transaction | 2회 연속 샘플에서 1개 이상이면 FAIL |
 | RDS | slow query | API 요청당 0.2건 이하, 1초 초과 0건 |
+
+## 4.6 컨테이너 메모리와 인프라 분리 결정
+
+P2의 t3.large 1차 설정은 다음과 같다.
+
+```text
+FastAPI limit       3584MiB
+Elasticsearch limit 2GiB
+Elasticsearch heap  1GiB
+Redis limit         512MiB
+Redis maxmemory     256MiB
+```
+
+이 값은 최종 적정값이 아니라 기존 2.78GiB peak를 OOM 없이 다시 검증하기 위한 임시값이다. 전체 hydrate 제거와 검색 경로 정상화 후 backend peak가 2.4GiB 이하이면 3GiB로 낮추고, 2.8GiB 이상이 지속되면 t3.large 단일 구성의 한계로 판단한다.
+
+발표 전에는 FastAPI·Elasticsearch·Redis를 한 EC2에 유지한다. 인프라 분리는 다음 순서로 판단한다.
+
+```text
+현재 구성 관측
+→ 쿼리·후보군 최적화
+→ 필요하면 단일 EC2 상향
+→ ES가 독립 병목일 때 ES만 분리
+→ Redis/관리형 서비스는 실제 사용량 확인 후 P3 검토
+```
+
+Redis는 cache 경로와 eviction이 확인되기 전에는 분리하지 않는다. ES는 heap 75% 이상 지속, rejected request, indexing 시 backend p95 급증, CPU credit 고갈이 반복될 때 분리 실험 대상으로 올린다.
 
 ---
 
@@ -712,6 +743,13 @@ S3 / CloudFront
 
 - 반복되는 홈/검색/추천 응답 비용을 줄이기 위한 인프라
 - 현재 활성 cache 경로는 구현·검증 후 결과에 포함
+
+### P2 배포 경계
+
+- EC2 t3.large 한 대에 Caddy·FastAPI·Elasticsearch·Redis를 유지한다.
+- RDS PostgreSQL+pgvector와 S3/CloudFront는 외부 AWS 서비스, frontend는 Vercel을 사용한다.
+- ES·Redis를 다른 일반 EC2로 분리하는 작업은 P2 필수 최적화에 포함하지 않는다.
+- 자원 경합이 측정되면 먼저 단일 인스턴스 상향을 비교하고, ES만 독립 병목일 때 분리를 검토한다.
 
 ### S3/CloudFront
 
