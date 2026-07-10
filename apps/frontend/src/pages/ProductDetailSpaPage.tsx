@@ -228,8 +228,6 @@ const DETAIL_TAB_HASHES = ["#description", "#ingredients", "#reviews", "#qna"] a
 type DetailTabHash = typeof DETAIL_TAB_HASHES[number];
 const DETAIL_TAB_SCROLL_OFFSET_PX = 66;
 const REVIEW_PAGE_SCROLL_OFFSET_PX = 168;
-const CORE_INGREDIENT_COUNT = 4;
-const INITIAL_VISIBLE_INGREDIENT_COUNT = 12;
 const normalizeDetailHash = (hash: string) =>
   DETAIL_TAB_HASHES.includes(hash as typeof DETAIL_TAB_HASHES[number])
     ? hash
@@ -448,7 +446,6 @@ function ProductDetailSpaPage() {
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
-  const [isIngredientExpanded, setIsIngredientExpanded] = useState(false);
   const [activeEvidenceEffectName, setActiveEvidenceEffectName] = useState<string | null>(null);
   const [comparisonRequest, setComparisonRequest] = useState<ProductComparisonRequest | null>(null);
   const [comparisonProducts, setComparisonProducts] = useState<ProductDetail[]>([]);
@@ -525,7 +522,6 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     const resetTimer = window.setTimeout(() => {
-      setIsIngredientExpanded(false);
       setActiveEvidenceEffectName(null);
     }, 0);
     return () => window.clearTimeout(resetTimer);
@@ -766,21 +762,10 @@ function ProductDetailSpaPage() {
 
     const relatedIngredients =
       product.related_ingredients.length > 0 ? product.related_ingredients : product.key_ingredients;
-    const coreIngredients = product.ingredients
-      .filter((ingredient) => ingredient.name)
-      .slice(0, CORE_INGREDIENT_COUNT)
-      .map((ingredient) => ({
-        ...ingredient,
-        purpose: isInternalNoteText(ingredient.purpose) ? "" : ingredient.purpose,
-      }));
     const allIngredients =
       product.ingredients.length > 0
         ? product.ingredients.map((ingredient) => ingredient.name).filter(Boolean)
         : relatedIngredients;
-    const visibleIngredients = isIngredientExpanded
-      ? allIngredients
-      : allIngredients.slice(0, INITIAL_VISIBLE_INGREDIENT_COUNT);
-    const hasMoreIngredients = allIngredients.length > INITIAL_VISIBLE_INGREDIENT_COUNT;
     const sanitizedEvidence = product.evidence.map((item) => ({
       ...item,
       evidence_text: isInternalNoteText(item.evidence_text) ? "" : item.evidence_text,
@@ -811,15 +796,12 @@ function ProductDetailSpaPage() {
 
     return {
       relatedIngredients,
-      coreIngredients,
       allIngredients,
-      visibleIngredients,
-      hasMoreIngredients,
       sanitizedEvidence,
       effectGroups,
       groupedEvidence,
     };
-  }, [isIngredientExpanded, product]);
+  }, [product]);
 
   const avoidIngredientMatchSet =
     user && avoidIngredientMatchState.userId === user.id
@@ -1407,88 +1389,31 @@ function ProductDetailSpaPage() {
 
               <section className={panelClassName("#ingredients")} id="ingredients">
                 <h2>성분 정보</h2>
-                <div className="review-ingredient-layout ingredients-only">
-                  <div className="ingredient-panel">
-                    <div className="ingredient-tags" id="ingredientTags">
-                      <div className="ingredient-tag-group">
-                        <div className="ingredient-evidence-card-headline">
-                          <span className="ingredient-evidence-card-title-wrap">
-                            <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9 2h6M10 2v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 8.5V2" />
-                                <path d="M7.5 14h9" />
-                              </svg>
-                            </span>
-                            <strong className="ingredient-evidence-card-title">대표 성분</strong>
-                          </span>
-                        </div>
-                        <div className="core-ingredient-list">
-                          {detailData.coreIngredients.length > 0 ? (
-                            detailData.coreIngredients.map((ingredient) => (
-                              <article
-                                className={`core-ingredient-item${avoidIngredientMatchSet.has(ingredient.name) ? " ingredient-avoid-card" : ""}`}
-                                key={ingredient.name}
-                              >
-                                <strong>{ingredient.name}</strong>
-                                <p>{ingredient.purpose || "성분 정보 준비 중"}</p>
-                              </article>
-                            ))
-                          ) : (
-                            <span className="ingredient-tag empty">대표 성분 정보 없음</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 <div className="detail-subsection">
-                  <div className="ingredient-copy" id="ingredientCopy">
-                    <div className="ingredient-copy-label-row ingredient-evidence-card-headline">
-                      <div className="ingredient-copy-label-group">
-                        <span className="ingredient-evidence-card-title-wrap">
-                          <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M8 6h13M8 12h13M8 18h13" />
-                              <path d="M3 6h.01M3 12h.01M3 18h.01" strokeWidth="2.5" />
-                            </svg>
-                          </span>
-                          <strong className="ingredient-evidence-card-title">전성분</strong>
+                  <div className="detail-subsection-head ingredient-copy-head">
+                    <div className="ingredient-copy-title-row">
+                      <h3>전성분</h3>
+                      {avoidIngredientMatchCount > 0 ? (
+                        <span className="ingredient-avoid-badge">
+                          회피 성분 {avoidIngredientMatchCount}개 포함
                         </span>
-                        {avoidIngredientMatchCount > 0 ? (
-                          <span className="ingredient-avoid-badge">
-                            회피 성분 {avoidIngredientMatchCount}개 포함
-                          </span>
-                        ) : null}
-                      </div>
-                      {detailData.hasMoreIngredients ? (
-                        <button
-                          className="ingredient-copy-toggle"
-                          type="button"
-                          aria-expanded={isIngredientExpanded}
-                          aria-controls="ingredientCopyText"
-                          onClick={() => setIsIngredientExpanded((current) => !current)}
-                        >
-                          {isIngredientExpanded ? "접기" : `전체 ${detailData.allIngredients.length}개 보기`}
-                          <span aria-hidden="true">{isIngredientExpanded ? "⌃" : "⌄"}</span>
-                        </button>
                       ) : null}
                     </div>
+                  </div>
+                  <div className="ingredient-copy" id="ingredientCopy">
                     <p className="ingredient-copy-text" id="ingredientCopyText">
-                      {detailData.visibleIngredients.length > 0
-                        ? detailData.visibleIngredients.map((ingredientName, index) => (
+                      {detailData.allIngredients.length > 0
+                        ? detailData.allIngredients.map((ingredientName, index) => (
                             <span key={`${ingredientName}-${index}`}>
                               {avoidIngredientMatchSet.has(ingredientName) ? (
                                 <span className="ingredient-avoid-match">{ingredientName}</span>
                               ) : (
                                 ingredientName
                               )}
-                              {index < detailData.visibleIngredients.length - 1 ? ", " : ""}
+                              {index < detailData.allIngredients.length - 1 ? ", " : ""}
                             </span>
                           ))
                         : "성분 정보가 준비 중입니다."}
-                      {!isIngredientExpanded && detailData.hasMoreIngredients ? (
-                        <span className="ingredient-copy-ellipsis" aria-hidden="true"> ...</span>
-                      ) : null}
                     </p>
                   </div>
                   <p className="ingredient-name-basis-note">
