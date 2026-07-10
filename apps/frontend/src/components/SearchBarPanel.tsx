@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
-import type { RecommendationProfile } from "../types/recommendation";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import type { RecommendationProfile, Sensitivity, SkinType } from "../types/recommendation";
 
 type SearchBarPanelProps = {
   initialQuery?: string;
@@ -113,48 +114,54 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
                   <div className="profile-picker-grid">
                     <div className="profile-picker-group">
                       <span className="profile-picker-label">피부 타입</span>
-                      <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
+                      <RadioGroup
+                        aria-label="피부 타입"
+                        className="profile-segments skin"
+                        onValueChange={(value) => {
+                          const skinType = value as SkinType;
+                          setProfile((current) => ({ ...current, skin: skinType }));
+                          callOriginal("selectProfileOption", "skin", skinType);
+                        }}
+                        value={profile.skin}
+                      >
                         {skinTypes.map((skinType) => (
-                          <button
+                          <RadioGroupItem
                             className={`profile-option${skinType === profile.skin ? " active" : ""}`}
                             data-profile="skin"
                             data-value={skinType}
                             key={skinType}
-                            onClick={() => {
-                              setProfile((current) => ({ ...current, skin: skinType }));
-                              callOriginal("selectProfileOption", "skin", skinType);
-                            }}
-                            type="button"
+                            value={skinType}
                           >
                             {skinType}
-                          </button>
+                          </RadioGroupItem>
                         ))}
-                      </div>
+                      </RadioGroup>
                     </div>
 
                     <div className="profile-picker-group">
                       <span className="profile-picker-label">민감도</span>
-                      <div
+                      <RadioGroup
                         aria-label="민감도"
                         className="profile-segments sensitivity"
-                        role="radiogroup"
+                        onValueChange={(value) => {
+                          const sensitivity = value as Sensitivity;
+                          setProfile((current) => ({ ...current, sensitivity }));
+                          callOriginal("selectProfileOption", "sensitivity", sensitivity);
+                        }}
+                        value={profile.sensitivity}
                       >
                         {sensitivities.map((sensitivity) => (
-                          <button
+                          <RadioGroupItem
                             className={`profile-option${sensitivity === profile.sensitivity ? " active" : ""}`}
                             data-profile="sensitivity"
                             data-value={sensitivity}
                             key={sensitivity}
-                            onClick={() => {
-                              setProfile((current) => ({ ...current, sensitivity }));
-                              callOriginal("selectProfileOption", "sensitivity", sensitivity);
-                            }}
-                            type="button"
+                            value={sensitivity}
                           >
                             {sensitivity}
-                          </button>
+                          </RadioGroupItem>
                         ))}
-                      </div>
+                      </RadioGroup>
                     </div>
                   </div>
 

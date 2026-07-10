@@ -3197,12 +3197,14 @@ body {
 }
 
 .skin-test-prompt__backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  border: 0;
   background: rgba(11, 42, 58, 0.52);
   backdrop-filter: blur(2px);
-  cursor: pointer;
+}
+
+.skin-test-prompt:focus-visible {
+  outline: none;
 }
 
 .skin-test-prompt__dialog {
@@ -11222,10 +11224,16 @@ html[data-app-mode="community"] .search-results-shell {
   position: fixed;
   inset: 0;
   z-index: 80;
+  background: rgba(12, 17, 23, 0.42);
+}
+
+.checkout-cash-receipt-modal-content-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(12, 17, 23, 0.42);
 }
 
 .checkout-cash-receipt-modal {
@@ -11383,10 +11391,16 @@ html[data-app-mode="community"] .search-results-shell {
   position: fixed;
   inset: 0;
   z-index: 1200;
+  background: rgba(12, 17, 23, 0.42);
+}
+
+.checkout-address-modal-content-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
   display: grid;
   place-items: center;
   padding: 28px;
-  background: rgba(12, 17, 23, 0.42);
 }
 
 .checkout-address-modal {
@@ -13403,7 +13417,7 @@ html[data-app-mode="community"] .search-results-shell {
     justify-content: flex-start;
   }
 
-  .checkout-address-modal-backdrop {
+  .checkout-address-modal-content-wrap {
     align-items: end;
     padding: 14px;
   }
