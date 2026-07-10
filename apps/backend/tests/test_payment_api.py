@@ -20,6 +20,7 @@ from app.main import app
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 from app.services.toss_payments_client import TossPaymentsClientError
+from app.services.payment_reconciliation_service import reconcile_pending_payments
 
 
 @pytest.fixture()
@@ -595,6 +596,100 @@ def test_toss_confirm_records_unknown_when_provider_request_is_uncertain(
     assert inventory.reserved_quantity == 1
 
 
+def test_reconcile_done_payment_approves_and_deducts_reserved_stock(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="reconcile-done@example.com",
+        nickname="reconcile-done",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_query_key"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:reconcile-done",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_query_key",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+
+        result = reconcile_pending_payments(
+            session,
+            toss_client=_FakeTossQueryClient(
+                {"paymentKey": "toss_query_key", "orderId": pending["order_code"], "totalAmount": pending["amount"], "status": "DONE"}
+            ),
+        )
+        session.commit()
+
+    assert result.approved_count == 1
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        attempt = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+    assert payment.status == "APPROVED"
+    assert order.status == "PAID"
+    assert attempt.status == "APPROVED"
+    assert inventory.stock_quantity == 9
+    assert inventory.reserved_quantity == 0
+
+
+def test_reconcile_query_error_keeps_payment_unknown(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="reconcile-unknown@example.com",
+        nickname="reconcile-unknown",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_query_unknown"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:reconcile-unknown",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_query_unknown",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+        result = reconcile_pending_payments(
+            session,
+            toss_client=_FakeTossQueryClient(error=TossPaymentsClientError("QUERY_FAILED", "temporary")),
+        )
+        session.commit()
+
+    assert result.unknown_count == 1
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+    assert payment.status == "UNKNOWN"
+
+
 def test_toss_confirm_hashes_long_payment_key_for_event_id(
     client: TestClient,
     db_engine: Engine,
@@ -825,3 +920,14 @@ class _FakeTossPaymentsClient:
         for field in self.omitted_fields:
             response.pop(field, None)
         return response
+
+
+class _FakeTossQueryClient:
+    def __init__(self, response: dict | None = None, error: TossPaymentsClientError | None = None) -> None:
+        self.response = response or {}
+        self.error = error
+
+    def get_payment(self, *, payment_key: str) -> dict:
+        if self.error is not None:
+            raise self.error
+        return self.response
