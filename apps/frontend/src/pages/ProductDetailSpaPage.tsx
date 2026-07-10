@@ -1095,7 +1095,9 @@ function ProductDetailSpaPage() {
   const narrativeRole = narrativeProduct?.role;
   const narrativeCaution = narrativeProduct?.caution;
   const candidateTotal =
-    candidateTotalState?.recommendationId === recommendationId ? candidateTotalState.total : null;
+    candidateTotalState && candidateTotalState.recommendationId === recommendationId
+      ? candidateTotalState.total
+      : null;
   const primaryIngredients = (product?.key_ingredients ?? []).slice(0, 2).filter(Boolean);
   const primaryIngredientText = joinIngredientNames(primaryIngredients);
   const primaryConcernText =
