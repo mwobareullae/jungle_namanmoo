@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import {
@@ -287,12 +288,19 @@ function SkinTestResultPage() {
 
               {shareMessage && <p className="skin-test-result__share">{shareMessage}</p>}
               {errorMessage && <p className="skin-test-result__error">{errorMessage}</p>}
-              {isRecommendModalOpen ? (
-                <div
+              <Dialog
+                onOpenChange={(open) => {
+                  if (!open && isApplying) {
+                    return;
+                  }
+                  setIsRecommendModalOpen(open);
+                }}
+                open={isRecommendModalOpen}
+              >
+                <DialogRawContent
                   aria-labelledby="skin-test-recommend-modal-title"
-                  aria-modal="true"
-                  className="skin-test-recommend-modal-backdrop"
-                  role="dialog"
+                  className="skin-test-recommend-modal-content-wrap"
+                  overlayClassName="skin-test-recommend-modal-backdrop"
                 >
                   <section className="skin-test-recommend-modal">
                     <h2 id="skin-test-recommend-modal-title">
@@ -323,18 +331,18 @@ function SkinTestResultPage() {
                         {user ? "이번만 추천 보기" : "바로 추천 보기"}
                       </button>
                     </div>
-                    <button
-                      aria-label="추천 보기 확인 닫기"
-                      className="skin-test-recommend-modal__close"
-                      disabled={isApplying}
-                      onClick={() => setIsRecommendModalOpen(false)}
-                      type="button"
-                    >
-                      닫기
-                    </button>
+                    <DialogClose asChild disabled={isApplying}>
+                      <button
+                        aria-label="추천 보기 확인 닫기"
+                        className="skin-test-recommend-modal__close"
+                        type="button"
+                      >
+                        닫기
+                      </button>
+                    </DialogClose>
                   </section>
-                </div>
-              ) : null}
+                </DialogRawContent>
+              </Dialog>
             </>
           )}
         </section>
