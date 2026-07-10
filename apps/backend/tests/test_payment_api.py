@@ -690,6 +690,71 @@ def test_reconcile_query_error_keeps_payment_unknown(
     assert payment.status == "UNKNOWN"
 
 
+def test_toss_webhook_records_event_and_reconciles_once(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-webhook@example.com",
+        nickname="toss-webhook",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_webhook_key"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:webhook",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_webhook_key",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+
+    fake_toss = _FakeTossPaymentsClient(
+        query_response={
+            "paymentKey": "toss_webhook_key",
+            "orderId": pending["order_code"],
+            "totalAmount": pending["amount"],
+            "status": "DONE",
+        }
+    )
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    payload = {
+        "eventType": "PAYMENT_STATUS_CHANGED",
+        "paymentKey": "toss_webhook_key",
+        "orderId": pending["order_code"],
+        "status": "DONE",
+    }
+    first = client.post("/api/payments/toss/webhook", headers={"X-Toss-Webhook-Id": "webhook-1"}, json=payload)
+    second = client.post("/api/payments/toss/webhook", headers={"X-Toss-Webhook-Id": "webhook-1"}, json=payload)
+
+    assert first.status_code == 200
+    assert first.json()["reconciled"] == 1
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        webhook_events = session.execute(
+            select(PaymentEvent).where(
+                PaymentEvent.payment_id == payment.id,
+                PaymentEvent.event_type == "TOSS_WEBHOOK_RECEIVED",
+            )
+        ).scalars().all()
+    assert payment.status == "APPROVED"
+    assert len(webhook_events) == 1
+
+
 def test_toss_confirm_hashes_long_payment_key_for_event_id(
     client: TestClient,
     db_engine: Engine,
@@ -892,11 +957,13 @@ class _FakeTossPaymentsClient:
         omitted_fields: set[str] | None = None,
         response_overrides: dict | None = None,
         error: TossPaymentsClientError | None = None,
+        query_response: dict | None = None,
     ) -> None:
         self.calls: list[dict] = []
         self.omitted_fields = omitted_fields or set()
         self.response_overrides = response_overrides or {}
         self.error = error
+        self.query_response = query_response
 
     def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
         self.calls.append(
@@ -920,6 +987,11 @@ class _FakeTossPaymentsClient:
         for field in self.omitted_fields:
             response.pop(field, None)
         return response
+
+    def get_payment(self, *, payment_key: str) -> dict:
+        if self.error is not None:
+            raise self.error
+        return self.query_response or {"paymentKey": payment_key, "status": "UNKNOWN"}
 
 
 class _FakeTossQueryClient:
