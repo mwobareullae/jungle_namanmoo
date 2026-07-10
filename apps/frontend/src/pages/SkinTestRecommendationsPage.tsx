@@ -533,6 +533,11 @@ function SkinTestRecommendationsPage() {
                                   event.stopPropagation();
                                   void toggleWishlist(product.product_id);
                                 }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.stopPropagation();
+                                  }
+                                }}
                                 type="button"
                               >
                                 <svg

@@ -14,8 +14,6 @@ import type {
 import HomeProductCard from "./HomeProductCard";
 import ProductThumbnail from "./ProductThumbnail";
 
-const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
-
 const createFallbackPagination = (productCount: number): RecommendationPagination => ({
   page: 1,
   page_size: productCount,
@@ -277,6 +275,12 @@ function HomeRankingSection({
                         className="home-ranking-card"
                         key={product.product_id}
                         onClick={() => openProductDetail(product)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openProductDetail(product);
+                          }
+                        }}
                         role="link"
                         tabIndex={0}
                       >
@@ -351,6 +355,12 @@ function HomeDealSection({
                 className="home-deal-card"
                 key={product.product_id}
                 onClick={() => openProductDetail(product)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openProductDetail(product);
+                  }
+                }}
                 role="link"
                 tabIndex={0}
               >
@@ -739,22 +749,6 @@ function HomeMainContent({
                 <span className="api-summary-chip warning" key={term}>
                   추가 확인 필요: {term}
                 </span>
-              ))}
-            </div>
-            <div aria-label="결과 유형" className="search-result-tabs" data-commerce-only>
-              {resultTabs.map((tab) => (
-                <button
-                  className={`search-result-tab${tab === "전체" ? " active" : ""}`}
-                  key={tab}
-                  onClick={
-                    tab === "전체"
-                      ? undefined
-                      : () => callOriginal("showToast", "필터 기능은 준비 중입니다")
-                  }
-                  type="button"
-                >
-                  {tab}
-                </button>
               ))}
             </div>
             <div className="product-grid" id="searchResultsGrid">
