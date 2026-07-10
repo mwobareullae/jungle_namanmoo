@@ -15,6 +15,14 @@ export type ProductDetailActionButtonsProps = {
   onToggleWishlist: () => void;
 };
 
+export type ProductPurchasePanelProps = {
+  cartErrorMessage: string;
+  cartMessage: string;
+  isAddingToCart: boolean;
+  onAddToCart: () => void;
+  onBuyNow: () => void;
+};
+
 export type ProductDetailHeroProps = {
   brandPagePath: string;
   cartErrorMessage: string;
