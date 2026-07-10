@@ -1441,6 +1441,60 @@ function ProductDetailSpaPage() {
                     </div>
                   </div>
                 </div>
+                <div className="detail-subsection">
+                  <div className="ingredient-copy" id="ingredientCopy">
+                    <div className="ingredient-copy-label-row ingredient-evidence-card-headline">
+                      <div className="ingredient-copy-label-group">
+                        <span className="ingredient-evidence-card-title-wrap">
+                          <span className="ingredient-evidence-card-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M8 6h13M8 12h13M8 18h13" />
+                              <path d="M3 6h.01M3 12h.01M3 18h.01" strokeWidth="2.5" />
+                            </svg>
+                          </span>
+                          <strong className="ingredient-evidence-card-title">전성분</strong>
+                        </span>
+                        {avoidIngredientMatchCount > 0 ? (
+                          <span className="ingredient-avoid-badge">
+                            회피 성분 {avoidIngredientMatchCount}개 포함
+                          </span>
+                        ) : null}
+                      </div>
+                      {detailData.hasMoreIngredients ? (
+                        <button
+                          className="ingredient-copy-toggle"
+                          type="button"
+                          aria-expanded={isIngredientExpanded}
+                          aria-controls="ingredientCopyText"
+                          onClick={() => setIsIngredientExpanded((current) => !current)}
+                        >
+                          {isIngredientExpanded ? "접기" : `전체 ${detailData.allIngredients.length}개 보기`}
+                          <span aria-hidden="true">{isIngredientExpanded ? "⌃" : "⌄"}</span>
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="ingredient-copy-text" id="ingredientCopyText">
+                      {detailData.visibleIngredients.length > 0
+                        ? detailData.visibleIngredients.map((ingredientName, index) => (
+                            <span key={`${ingredientName}-${index}`}>
+                              {avoidIngredientMatchSet.has(ingredientName) ? (
+                                <span className="ingredient-avoid-match">{ingredientName}</span>
+                              ) : (
+                                ingredientName
+                              )}
+                              {index < detailData.visibleIngredients.length - 1 ? ", " : ""}
+                            </span>
+                          ))
+                        : "성분 정보가 준비 중입니다."}
+                      {!isIngredientExpanded && detailData.hasMoreIngredients ? (
+                        <span className="ingredient-copy-ellipsis" aria-hidden="true"> ...</span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <p className="ingredient-name-basis-note">
+                    해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.
+                  </p>
+                </div>
                 <div className="detail-subsection ingredient-evidence-section" id="ingredientEvidence">
                   <div className="detail-subsection-head">
                     <h3>성분 근거</h3>
@@ -1543,60 +1597,6 @@ function ProductDetailSpaPage() {
                       </div>
                     </div>
                   ) : null}
-                </div>
-                <div className="detail-subsection">
-                <div className="ingredient-copy" id="ingredientCopy">
-                  <div className="ingredient-copy-label-row ingredient-evidence-card-headline">
-                    <div className="ingredient-copy-label-group">
-                      <span className="ingredient-evidence-card-title-wrap">
-                        <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 6h13M8 12h13M8 18h13" />
-                            <path d="M3 6h.01M3 12h.01M3 18h.01" strokeWidth="2.5" />
-                          </svg>
-                        </span>
-                        <strong className="ingredient-evidence-card-title">전성분</strong>
-                      </span>
-                      {avoidIngredientMatchCount > 0 ? (
-                        <span className="ingredient-avoid-badge">
-                          회피 성분 {avoidIngredientMatchCount}개 포함
-                        </span>
-                      ) : null}
-                    </div>
-                    {detailData.hasMoreIngredients ? (
-                      <button
-                        className="ingredient-copy-toggle"
-                        type="button"
-                        aria-expanded={isIngredientExpanded}
-                        aria-controls="ingredientCopyText"
-                        onClick={() => setIsIngredientExpanded((current) => !current)}
-                      >
-                        {isIngredientExpanded ? "접기" : `전체 ${detailData.allIngredients.length}개 보기`}
-                        <span aria-hidden="true">{isIngredientExpanded ? "⌃" : "⌄"}</span>
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="ingredient-copy-text" id="ingredientCopyText">
-                    {detailData.visibleIngredients.length > 0
-                      ? detailData.visibleIngredients.map((ingredientName, index) => (
-                          <span key={`${ingredientName}-${index}`}>
-                            {avoidIngredientMatchSet.has(ingredientName) ? (
-                              <span className="ingredient-avoid-match">{ingredientName}</span>
-                            ) : (
-                              ingredientName
-                            )}
-                            {index < detailData.visibleIngredients.length - 1 ? ", " : ""}
-                          </span>
-                        ))
-                      : "성분 정보가 준비 중입니다."}
-                    {!isIngredientExpanded && detailData.hasMoreIngredients ? (
-                      <span className="ingredient-copy-ellipsis" aria-hidden="true"> ...</span>
-                    ) : null}
-                  </p>
-                </div>
-                <p className="ingredient-name-basis-note">
-                  해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.
-                </p>
                 </div>
               </section>
               <section className={panelClassName("#reviews")} id="reviews">
