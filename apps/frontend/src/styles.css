@@ -3484,9 +3484,9 @@ body {
   --skin-accent: #94e0f8;
   --skin-accent-hover: #5ec6e8;
   --skin-accent-soft: #eafaff;
-  --skin-ink: #0b2a3a;
+  --skin-ink: #1a1a1a;
   --skin-text: #25313f;
-  --skin-muted: #8a93a0;
+  --skin-muted: #6b7280;
   --skin-line: #e6e9ee;
   --skin-bg: #eceff3;
   --skin-soft: #f5f6f8;
@@ -4218,10 +4218,20 @@ body {
   position: fixed;
   inset: 0;
   z-index: 260;
+  background: rgba(12, 17, 23, 0.34);
+}
+
+.skin-test-recommend-modal-content-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(12, 17, 23, 0.34);
+}
+
+.skin-test-recommend-modal-content-wrap:focus-visible {
+  outline: none;
 }
 
 .skin-test-recommend-modal {
