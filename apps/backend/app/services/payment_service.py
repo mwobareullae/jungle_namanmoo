@@ -10,6 +10,10 @@ from app.db.models.auth import User
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentEvent
 from app.schemas.common import ApiError
 from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
+from app.services.pending_payment_terminal_service import (
+    PendingPaymentTerminationSpec,
+    terminate_pending_payment,
+)
 from app.services.toss_payments_client import TossPaymentsClientError
 
 
@@ -176,6 +180,8 @@ def fail_mock_payment(
                 payment=payment,
                 order=order,
                 released_quantity_total=0,
+                restored_quantity_total=0,
+                restore_overflow_quantity_total=0,
                 idempotent_replay=True,
             )
             return response
@@ -192,26 +198,21 @@ def fail_mock_payment(
         )
 
         now = datetime.now(UTC)
-        order_items = _load_order_items(session, order.id)
-        inventories = _load_inventories_for_update(session, [item.product_id for item in order_items])
-        released_quantity_total = _quantity_total(order_items)
-        _release_reserved_inventory(session, order, order_items, inventories, now, "payment failed reservation release")
-
-        old_payment_status = payment.status
-        payment.status = PAYMENT_STATUS_FAILED
-        payment.failed_at = now
-        payment.updated_at = now
-        order.status = ORDER_STATUS_PAYMENT_FAILED
-        order.updated_at = now
-        _record_payment_event(
+        termination = terminate_pending_payment(
             session,
             payment=payment,
             order=order,
-            event_type="MOCK_PAYMENT_FAILED",
-            event_id=f"mock_fail:{payment.payment_code}",
-            status_before=old_payment_status,
-            status_after=payment.status,
-            payload={"source": "mock_fail"},
+            spec=PendingPaymentTerminationSpec(
+                order_status=ORDER_STATUS_PAYMENT_FAILED,
+                payment_status=PAYMENT_STATUS_FAILED,
+                payment_timestamp_field="failed_at",
+                order_timestamp_field=None,
+                event_type="MOCK_PAYMENT_FAILED",
+                event_id=f"mock_fail:{payment.payment_code}",
+                event_source="mock_fail",
+                event_reason="payment_failed",
+                inventory_reason="payment failed reservation release",
+            ),
             now=now,
         )
         session.flush()
@@ -220,7 +221,9 @@ def fail_mock_payment(
             started_at,
             payment=payment,
             order=order,
-            released_quantity_total=released_quantity_total,
+            released_quantity_total=termination.released_quantity_total,
+            restored_quantity_total=termination.restored_quantity_total,
+            restore_overflow_quantity_total=termination.restore_overflow_quantity_total,
             idempotent_replay=False,
         )
         return response
@@ -462,34 +465,6 @@ def _confirm_reserved_inventory(
         )
 
 
-def _release_reserved_inventory(
-    session: Session,
-    order: Order,
-    order_items: list[OrderItem],
-    inventories: dict[int, Inventory],
-    now: datetime,
-    reason: str,
-) -> None:
-    for item in order_items:
-        inventory = inventories[int(item.product_id)]
-        _require_inventory_can_release(inventory, item.quantity)
-        inventory.reserved_quantity -= item.quantity
-        inventory.updated_at = now
-        session.add(
-            InventoryMovement(
-                inventory_id=inventory.id,
-                product_id=item.product_id,
-                movement_type="RELEASE_RESERVATION",
-                quantity_delta=-item.quantity,
-                stock_after=inventory.stock_quantity,
-                reason=reason,
-                reference_type="order",
-                reference_id=order.order_code,
-                created_at=now,
-            )
-        )
-
-
 def _require_inventory_can_release(inventory: Inventory, quantity: int) -> None:
     if inventory.reserved_quantity < quantity:
         raise ApiError(409, "INVENTORY_RESERVATION_INVALID", "Reserved inventory is lower than order quantity.")
@@ -593,6 +568,8 @@ def _log_payment_fail_completed(
     payment: Payment,
     order: Order,
     released_quantity_total: int,
+    restored_quantity_total: int,
+    restore_overflow_quantity_total: int,
     idempotent_replay: bool,
 ) -> None:
     log_performance_event(
@@ -603,6 +580,8 @@ def _log_payment_fail_completed(
             "payment_status": payment.status,
             "order_status": order.status,
             "released_quantity_total": released_quantity_total,
+            "restored_quantity_total": restored_quantity_total,
+            "restore_overflow_quantity_total": restore_overflow_quantity_total,
             "idempotent_replay": idempotent_replay,
         },
     )
