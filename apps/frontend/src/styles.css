@@ -13082,3 +13082,37 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 /* admin polish 보강: 업로드 결과 표 상태 열 간격 */
 .admin-main .admin-import-panel table th:nth-child(5),
 .admin-main .admin-import-panel table td:nth-child(5) { padding-left: 36px !important; }
+
+/* admin polish 보강: 셀러 관리 화면 */
+.admin-main .admin-seller-table tbody tr { cursor: pointer; }
+.admin-main .admin-seller-table tbody tr:hover { background: #f4f6f8; }
+.admin-main .admin-seller-table tbody tr.is-selected { background: #f0fbfe; }
+.admin-main .admin-seller-table tbody tr:focus-visible { outline: 2px solid #1b6f8c; outline-offset: -2px; }
+.admin-main .admin-seller-detail { min-width: 300px; padding: 20px 28px; box-sizing: border-box; }
+.admin-main .admin-detail-list { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.admin-main .admin-detail-list > div {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; padding: 9px 0; border-bottom: 1px solid #eef1f4;
+}
+.admin-main .admin-detail-list > div:last-child { border-bottom: none; }
+.admin-main .admin-detail-list dt { color: #55585d; font-size: 13px; flex: 0 0 auto; }
+.admin-main .admin-detail-list dd { color: #222; font-size: 13px; font-weight: 500; margin: 0; text-align: right; word-break: keep-all; }
+
+
+.admin-main .admin-seller-stats { gap: 12px; margin-bottom: 18px; }
+
+/* 셀러 요약 카드 강제 v4 */
+.admin-main .admin-seller-layout .admin-seller-stats .admin-stat { padding: 12px 16px !important; min-height: 0 !important; }
+.admin-main .admin-seller-layout .admin-seller-stats .admin-stat span { font-size: 12px !important; }
+.admin-main .admin-seller-layout .admin-seller-stats .admin-stat strong { font-size: 22px !important; }
+
+/* 셀러 패널 좌우 정렬 v6 */
+.admin-main .admin-seller-layout .admin-panel-header { padding: 16px 18px 14px 18px !important; }
+.admin-main .admin-seller-layout .admin-seller-stats { margin-left: 18px !important; margin-right: 18px !important; }
+.admin-main .admin-seller-layout .admin-product-panel .admin-table-wrap { padding-left: 18px !important; padding-right: 18px !important; }
+
+/* 셀러 정렬 마감 v7 */
+.admin-main .admin-seller-layout .admin-panel-header { padding: 16px 18px 14px 18px !important; }
+.admin-main .admin-seller-layout .admin-seller-stats { margin-left: 18px !important; margin-right: 18px !important; }
+.admin-main .admin-seller-layout .admin-product-panel .admin-table-wrap { padding-left: 18px !important; padding-right: 18px !important; }
+.admin-main .admin-seller-detail .admin-panel-header { padding-left: 0 !important; padding-right: 0 !important; }
