@@ -561,6 +561,11 @@ function ProductDetailSpaPage() {
 
   const mainImageUrl = productImageUrls[0] ?? "";
   const descriptionImageUrls = productImageUrls.slice(1);
+  const isProductSoldOut = Boolean(
+    product?.purchase_info?.stock_status === "SOLD_OUT" ||
+    product?.purchase_info?.sales_status === "SOLD_OUT" ||
+    product?.purchase_info?.available_quantity === 0
+  );
 
   useEffect(() => {
     const handleComparisonEvent = (event: Event) => {
@@ -1197,12 +1202,15 @@ function ProductDetailSpaPage() {
           ) : product ? (
             <div className="detail-hero">
               <div className="detail-media">
-                <div className="detail-image-box">
+                <div className={`detail-image-box${isProductSoldOut ? " is-sold-out" : ""}`}>
                   {mainImageUrl ? (
                     <img id="productImage" src={mainImageUrl} alt={product.name} />
                   ) : null}
                   {!mainImageUrl ? (
                     <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
+                  ) : null}
+                  {isProductSoldOut ? (
+                    <span className="detail-sold-out-overlay">일시품절</span>
                   ) : null}
                 </div>
               </div>
@@ -1255,10 +1263,29 @@ function ProductDetailSpaPage() {
                 <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
                   <div className="ai-narrative-head">
                     <span className="ai-narrative-head-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z" />
-                        <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14z" />
-                        <path d="M18 14l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6L18 14z" />
+                      <svg height="18" viewBox="0 0 18 18" width="18">
+                        <defs>
+                          <filter
+                            colorInterpolationFilters="sRGB"
+                            filterUnits="userSpaceOnUse"
+                            height="18"
+                            id="aiRecommendationIconTint"
+                            width="18"
+                            x="0"
+                            y="0"
+                          >
+                            <feColorMatrix
+                              type="matrix"
+                              values="0 0 0 0 0.290196 0 0 0 0 0.65098 0 0 0 0 0.721569 0 0 0 1 0"
+                            />
+                          </filter>
+                        </defs>
+                        <image
+                          filter="url(#aiRecommendationIconTint)"
+                          height="18"
+                          href="/spa-assets/ai-recommendation-summary-icon.png"
+                          width="18"
+                        />
                       </svg>
                     </span>
                     <strong>AI 추천 요약</strong>
@@ -1290,7 +1317,6 @@ function ProductDetailSpaPage() {
                       onClick={() => setIsNarrativeDetailOpen((current) => !current)}
                     >
                       {isNarrativeDetailOpen ? "왜 추천했는지 접기" : "왜 추천했는지 보기"}
-                      <span aria-hidden="true">{isNarrativeDetailOpen ? "⌃" : "⌄"}</span>
                     </button>
                     {isNarrativeDetailOpen ? (
                       <div className="ai-narrative-detail-list" id="aiNarrativeDetailList">
@@ -1304,26 +1330,12 @@ function ProductDetailSpaPage() {
                     ) : null}
                   </div>
                 </div>
-                <div
-                  className="detail-selectors"
-                  id="profileSelectors"
-                  style={{ display: skinType || sensitivity ? undefined : "none" }}
-                >
-                  <div className="detail-select-row" id="skinTypeRow" style={{ display: skinType ? undefined : "none" }}>
-                    <span>피부 타입</span>
-                    <strong id="skinTypeValue">{skinType}</strong>
-                  </div>
-                  <div className="detail-select-row" id="sensitivityRow" style={{ display: sensitivity ? undefined : "none" }}>
-                    <span>민감성</span>
-                    <strong id="sensitivityValue">{sensitivity}</strong>
-                  </div>
-                </div>
                 <div data-commerce-only className="detail-cta-row">
-                  <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={handleAddToCart}>
+                  <button className="detail-btn" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleAddToCart}>
                     {isAddingToCart ? "담는 중..." : "장바구니"}
                   </button>
-                  <button className="detail-btn primary" disabled={isAddingToCart} type="button" onClick={handleBuyNow}>
-                    구매하기
+                  <button className="detail-btn primary" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleBuyNow}>
+                    {isProductSoldOut ? "일시품절" : "구매하기"}
                   </button>
                 </div>
                 {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
