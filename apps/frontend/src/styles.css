@@ -7917,7 +7917,34 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .detail-page .detail-image-box {
+  position: relative;
+  overflow: hidden;
   padding: 24px;
+}
+
+.detail-page .detail-image-box.is-sold-out > img {
+  filter: blur(4px);
+  transform: scale(1.025);
+}
+
+.detail-page .detail-sold-out-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.detail-page .detail-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .detail-page .detail-mobile-carousel {

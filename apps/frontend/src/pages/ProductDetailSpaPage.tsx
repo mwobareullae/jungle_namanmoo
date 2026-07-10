@@ -561,6 +561,11 @@ function ProductDetailSpaPage() {
 
   const mainImageUrl = productImageUrls[0] ?? "";
   const descriptionImageUrls = productImageUrls.slice(1);
+  const isProductSoldOut = Boolean(
+    product?.purchase_info?.stock_status === "SOLD_OUT" ||
+    product?.purchase_info?.sales_status === "SOLD_OUT" ||
+    product?.purchase_info?.available_quantity === 0
+  );
 
   useEffect(() => {
     const handleComparisonEvent = (event: Event) => {
@@ -1197,12 +1202,15 @@ function ProductDetailSpaPage() {
           ) : product ? (
             <div className="detail-hero">
               <div className="detail-media">
-                <div className="detail-image-box">
+                <div className={`detail-image-box${isProductSoldOut ? " is-sold-out" : ""}`}>
                   {mainImageUrl ? (
                     <img id="productImage" src={mainImageUrl} alt={product.name} />
                   ) : null}
                   {!mainImageUrl ? (
                     <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
+                  ) : null}
+                  {isProductSoldOut ? (
+                    <span className="detail-sold-out-overlay">일시품절</span>
                   ) : null}
                 </div>
               </div>
@@ -1323,11 +1331,11 @@ function ProductDetailSpaPage() {
                   </div>
                 </div>
                 <div data-commerce-only className="detail-cta-row">
-                  <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={handleAddToCart}>
+                  <button className="detail-btn" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleAddToCart}>
                     {isAddingToCart ? "담는 중..." : "장바구니"}
                   </button>
-                  <button className="detail-btn primary" disabled={isAddingToCart} type="button" onClick={handleBuyNow}>
-                    구매하기
+                  <button className="detail-btn primary" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleBuyNow}>
+                    {isProductSoldOut ? "일시품절" : "구매하기"}
                   </button>
                 </div>
                 {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
