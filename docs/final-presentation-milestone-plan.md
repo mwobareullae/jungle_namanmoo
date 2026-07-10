@@ -33,7 +33,7 @@
 ### 현재 결과 사용 시 주의
 
 - 기존 8만 건 실패 실행은 t3.xlarge, 10 VU, 4분 결과이므로 최종 t3.large Before/After의 기준으로 직접 비교하지 않는다.
-- 1천 건 smoke는 존재하지 않는 홈 route의 404가 포함되어 성능 근거에서 제외한다.
+- 1천 건 smoke는 신규 홈 API를 선반영한 k6와 기존 `/api/home/sections` backend 사이의 계약 전환 404가 포함되어 성능 근거에서 제외한다.
 - Redis cache와 행동 개인화는 현재 활성 추천 경로에서 검증되지 않았으므로 구현 완료 기능으로 발표하지 않는다.
 - 문서의 목표값과 예시 점수는 실측 결과가 아니다.
 
@@ -302,7 +302,7 @@ KPI:
 
 - 원우 백엔드: 일반 API stage latency와 query 관측 추가
 - 규태 AI: 추천 pipeline stage latency와 후보 수 관측 추가
-- 지운 인프라/로그: route 불일치 확인, 실행 환경·명령 표준화, preflight·smoke
+- 지운 인프라/로그: 신규 홈 API의 backend·frontend·k6 계약 버전 정렬 확인, 실행 환경·명령 표준화, preflight·smoke
 - 세민 측정 운영: 표준 명령으로 baseline 3회 실행·집계
 
 통과 조건:

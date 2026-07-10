@@ -479,6 +479,19 @@ backend가 실제로 2.78GiB까지 사용한 실행에 2GiB limit을 적용하�
 
 핵심 문제는 “최종 10~20개를 보여주기 위해 전체 상품을 hydrate”한 것이다.
 
+기존 `/api/home/sections`는 호환용으로 유지하지 않고 다음 섹션별 API로 전환할 계획이다.
+
+```text
+/api/home/layout
+/api/home/market-popular
+/api/home/evidence-picks
+/api/home/for-you
+```
+
+목적은 느린 섹션의 장애 전파를 막고, 섹션별 관측·lazy loading·skeleton·cache 정책을 분리하는 것이다. k6는 신규 endpoint를 backend 구현보다 먼저 반영했기 때문에 2026-07-10 smoke의 404는 오래된 테스트가 아니라 계약 전환 순서에서 발생했다.
+
+신규 구조의 효과는 endpoint latency만 따로 보는 것으로 끝내지 않는다. 브라우저 병렬 호출의 홈 준비시간, 섹션별 error 격리, 전체 요청 수·CPU·DB query time 합계와 기존 묶음형 문제 상태를 함께 비교한다.
+
 ### 추천 API
 
 추천 생성은 다음 stage에서 지연됐다.
@@ -697,7 +710,7 @@ HNSW/IVFFlat은 pgvector가 실제 candidate retrieval 경로이고 vector full 
 
 각 Before/After는 동일 조건으로 3회 측정하고 p95 중앙값을 대표값으로 사용한다. 세 결과의 편차가 10%를 넘으면 원인을 확인한 뒤 다시 실행한다.
 
-2026-07-10의 1천 건 smoke는 구현되지 않은 홈 route에 대한 404가 119건 발생했으므로 성능 근거에서 제외한다. contract preflight를 통과하지 못한 실행은 latency가 빠르더라도 결과로 사용하지 않는다.
+2026-07-10의 1천 건 smoke는 신규 홈 API 계약을 선반영한 k6와 아직 기존 `/api/home/sections`만 제공하던 backend 사이에서 404가 119건 발생했으므로 성능 근거에서 제외한다. 신규 backend 구현·frontend 연동·contract test가 같은 계약 버전으로 정렬되고 preflight를 통과하기 전에는 latency가 빠르더라도 결과로 사용하지 않는다.
 
 ---
 
