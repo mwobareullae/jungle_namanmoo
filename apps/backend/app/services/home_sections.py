@@ -124,6 +124,7 @@ def get_market_popular_response(
         window_days=DEFAULT_POPULAR_WINDOW_DAYS,
         limit=normalized_limit,
         category_code=category_code,
+        recommendable_only=True,
     )
     return _section_to_response(
         _build_popular_section(popular_products),
@@ -565,6 +566,7 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
         .join(ProductPrice, ProductPrice.product_id == Product.id)
         .where(
             Product.is_active.is_(True),
+            Product.is_recommendable.is_(True),
             Brand.is_active.is_(True),
             ProductCategory.is_active.is_(True),
         )

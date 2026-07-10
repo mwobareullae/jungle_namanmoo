@@ -18,6 +18,7 @@ def get_popular_products_response(
     window_days: int = DEFAULT_POPULAR_WINDOW_DAYS,
     limit: int = DEFAULT_POPULAR_LIMIT,
     category_code: str | None = None,
+    recommendable_only: bool = False,
 ) -> PopularProductsResponse:
     normalized_window_days = max(0, window_days)
     normalized_limit = max(1, min(MAX_POPULAR_LIMIT, limit))
@@ -26,6 +27,7 @@ def get_popular_products_response(
         window_days=normalized_window_days,
         limit=normalized_limit,
         category_code=category_code,
+        recommendable_only=recommendable_only,
     )
     return PopularProductsResponse(window_days=normalized_window_days, items=items)
 
@@ -36,6 +38,7 @@ def get_popular_product_items(
     window_days: int,
     limit: int,
     category_code: str | None = None,
+    recommendable_only: bool = False,
 ) -> list[PopularProductItem]:
     price_subquery = (
         select(
@@ -99,6 +102,8 @@ def get_popular_product_items(
         )
         .limit(limit)
     )
+    if recommendable_only:
+        statement = statement.where(Product.is_recommendable.is_(True))
     if category_code:
         statement = statement.where(ProductCategory.category_code == category_code)
 
