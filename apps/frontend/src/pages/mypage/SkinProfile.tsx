@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { avoidIngredientCategories } from "../../constants/avoidIngredientCategories";
+import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { getMySkinProfile, updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
 import type { Sensitivity, SkinType } from "../../types/recommendation";
-import { MyPageLayout, PageTitle, type MypageEventContext } from "./MyPageShell";
+import { MyPageLayout, MypageToastMessage, PageTitle, type MypageEventContext } from "./MyPageShell";
 
 type SkinTypeId = "dry" | "oily" | "combination" | "dehydrated_oily" | "normal";
 type SensitivityId = "low" | "normal" | "high";
@@ -243,86 +244,114 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
       {isLoadingProfile ? <p style={styles.statusMessage}>저장된 피부 프로필을 불러오는 중입니다.</p> : null}
       {statusMessage ? <p style={styles.statusMessage}>{statusMessage}</p> : null}
       <ProfileSection title="피부 타입">
-        <div style={styles.skinGrid}>
+        <ToggleGroup
+          className="flex flex-wrap gap-[12px_10px]"
+          onValueChange={(value) => {
+            if (value) {
+              setProfile((prev) => ({ ...prev, skinType: value as SkinTypeId }));
+            }
+          }}
+          type="single"
+          value={profile.skinType}
+        >
           {skinTypeOptions.map((option) => (
-            <ChoiceButton
-              active={profile.skinType === option.id}
-              key={option.id}
-              label={option.label}
-              onClick={() => setProfile((prev) => ({ ...prev, skinType: option.id }))}
-            />
+            <ToggleGroupItem className="min-w-[78px]" key={option.id} pill size="lg" tone="mint" value={option.id}>
+              {option.label}
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </ProfileSection>
       <ProfileSection title="민감도">
-        <div style={styles.sensitivityGrid}>
+        <ToggleGroup
+          className="flex flex-wrap gap-[12px_10px]"
+          onValueChange={(value) => {
+            if (value) {
+              setProfile((prev) => ({ ...prev, sensitivity: value as SensitivityId }));
+            }
+          }}
+          type="single"
+          value={profile.sensitivity}
+        >
           {sensitivityOptions.map((option) => (
-            <ChoiceButton
-              active={profile.sensitivity === option.id}
-              key={option.id}
-              label={option.label}
-              onClick={() => setProfile((prev) => ({ ...prev, sensitivity: option.id }))}
-            />
+            <ToggleGroupItem className="min-w-[78px]" key={option.id} pill size="lg" tone="mint" value={option.id}>
+              {option.label}
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </ProfileSection>
-      <ProfileSection title="피부 고민" suffix="복수 선택">
-        <div style={styles.chipGrid}>
+      <ProfileSection suffix="복수 선택" title="피부 고민">
+        <ToggleGroup
+          className="flex flex-wrap gap-[12px_10px]"
+          onValueChange={(nextValues) => {
+            const changed =
+              nextValues.find((value) => !profile.concerns.includes(value as ConcernId)) ??
+              profile.concerns.find((value) => !nextValues.includes(value));
+
+            if (changed) {
+              setProfile((prev) => ({
+                ...prev,
+                concerns: toggleMultiValue(prev.concerns, changed as ConcernId)
+              }));
+            }
+          }}
+          type="multiple"
+          value={profile.concerns}
+        >
           {concernOptions.map((option) => (
-            <ChoiceButton
-              active={profile.concerns.includes(option.id)}
-              compact
+            <ToggleGroupItem
               key={option.id}
-              label={option.label}
-              tone={option.id === "none" ? "neutral" : "default"}
-              onClick={() =>
-                setProfile((prev) => ({
-                  ...prev,
-                  concerns: toggleMultiValue(prev.concerns, option.id)
-                }))
-              }
-            />
+              pill
+              size="lg"
+              tone={option.id === "none" ? "neutral" : "mint"}
+              value={option.id}
+            >
+              {option.label}
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </ProfileSection>
-      <ProfileSection title="피해야 할 성분" suffix="복수 선택">
-        <div style={styles.chipGrid}>
+      <ProfileSection suffix="복수 선택" title="피해야 할 성분">
+        <ToggleGroup
+          className="flex flex-wrap gap-[12px_10px]"
+          onValueChange={(nextValues) => {
+            const changed =
+              nextValues.find((value) => !profile.avoidIngredients.includes(value as AvoidIngredientId)) ??
+              profile.avoidIngredients.find((value) => !nextValues.includes(value));
+
+            if (changed) {
+              setProfile((prev) => ({
+                ...prev,
+                avoidIngredients: toggleMultiValue(prev.avoidIngredients, changed as AvoidIngredientId)
+              }));
+            }
+          }}
+          type="multiple"
+          value={profile.avoidIngredients}
+        >
           {avoidOptions.map((option) => (
-            <ChoiceButton
-              active={profile.avoidIngredients.includes(option.id)}
-              compact
-              tone={option.id === "none" ? "neutral" : "danger"}
+            <ToggleGroupItem
               key={option.id}
-              label={option.label}
-              onClick={() =>
-                setProfile((prev) => ({
-                  ...prev,
-                  avoidIngredients: toggleMultiValue(prev.avoidIngredients, option.id)
-                }))
-              }
-            />
+              pill
+              size="lg"
+              tone={option.id === "none" ? "neutral" : "danger"}
+              value={option.id}
+            >
+              {option.label}
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </ProfileSection>
-      <div style={styles.actions}>
+      <div className="flex items-center justify-end gap-3.5">
         <button
-          type="button"
+          className="inline-flex min-h-[46px] w-[180px] items-center justify-center rounded-[10px] text-[14px] font-semibold disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#9CA3AF] enabled:cursor-pointer enabled:bg-[#0C1117] enabled:text-white enabled:hover:bg-[#1A1A1A]"
           disabled={!canSave || isSaving}
           onClick={saveProfile}
-          style={{
-            ...styles.saveButton,
-            ...(canSave && !isSaving ? styles.saveButtonEnabled : styles.saveButtonDisabled)
-          }}
+          type="button"
         >
           {isSaving ? "저장 중" : "저장하기"}
         </button>
       </div>
-      {showSaveToast ? (
-        <div style={styles.toast} role="status" aria-live="polite">
-          <span style={styles.toastDot} />
-          <span>저장되었습니다</span>
-        </div>
-      ) : null}
+      {showSaveToast ? <MypageToastMessage message="저장되었습니다" /> : null}
     </MyPageLayout>
   );
 }
@@ -336,47 +365,6 @@ function ProfileSection({ title, suffix, children }: { title: string; suffix?: s
       </h2>
       {children}
     </section>
-  );
-}
-
-function ChoiceButton({
-  active,
-  compact = false,
-  label,
-  onClick,
-  tone = "default"
-}: {
-  active: boolean;
-  compact?: boolean;
-  label: string;
-  onClick: () => void;
-  tone?: "default" | "danger" | "neutral";
-}) {
-  const defaultStyle =
-    tone === "danger"
-      ? styles.choiceButtonDangerDefault
-      : tone === "neutral"
-        ? styles.choiceButtonNeutralDefault
-        : styles.choiceButtonDefault;
-  const activeStyle =
-    tone === "danger"
-      ? styles.choiceButtonDangerActive
-      : tone === "neutral"
-        ? styles.choiceButtonNeutralActive
-        : styles.choiceButtonActive;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        ...styles.choiceButton,
-        ...(compact ? styles.choiceButtonCompact : {}),
-        ...(active ? activeStyle : defaultStyle)
-      }}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -437,131 +425,4 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 500
   },
-  skinGrid: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px 10px"
-  },
-  sensitivityGrid: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px 10px"
-  },
-  chipGrid: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px 10px"
-  },
-  choiceButton: {
-    minHeight: 42,
-    minWidth: 78,
-    borderRadius: 999,
-    padding: "0 18px",
-    fontSize: 14,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    lineHeight: 1,
-    transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease"
-  },
-  choiceButtonCompact: {
-    minHeight: 42,
-    minWidth: "auto",
-    padding: "0 18px",
-    fontSize: 14
-  },
-  choiceButtonActive: {
-    border: "1px solid rgba(148,224,248,0.95)",
-    background: "rgba(148,224,248,0.22)",
-    color: "#063445",
-    fontWeight: 700
-  },
-  choiceButtonDefault: {
-    border: "1px solid #e1e5e8",
-    background: "#ffffff",
-    color: "#4b5563",
-    fontWeight: 500
-  },
-  choiceButtonDangerActive: {
-    border: "1px solid rgba(239,68,68,0.34)",
-    background: "rgba(239,68,68,0.12)",
-    color: "#9f2c2c",
-    fontWeight: 600
-  },
-  choiceButtonDangerDefault: {
-    border: "1px solid #e1e5e8",
-    background: "#ffffff",
-    color: "#4b5563",
-    fontWeight: 500
-  },
-  choiceButtonNeutralActive: {
-    border: "1px solid #4b5563",
-    background: "#4b5563",
-    color: "#ffffff",
-    fontWeight: 600
-  },
-  choiceButtonNeutralDefault: {
-    border: "1px solid #e1e5e8",
-    background: "#ffffff",
-    color: "#4b5563",
-    fontWeight: 500
-  },
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 14
-  },
-  saveButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 180,
-    minHeight: 46,
-    padding: "0 30px",
-    borderRadius: 10,
-    border: "none",
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: "inherit"
-  },
-  saveButtonEnabled: {
-    background: "#0c1117",
-    color: "#ffffff",
-    cursor: "pointer"
-  },
-  saveButtonDisabled: {
-    background: "#e5e7eb",
-    color: "#9ca3af",
-    cursor: "not-allowed"
-  },
-  toast: {
-    position: "fixed",
-    left: "50%",
-    bottom: 40,
-    zIndex: 1000,
-    transform: "translateX(-50%)",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 48,
-    padding: "0 18px",
-    borderRadius: 999,
-    border: "1px solid rgba(148, 224, 248, 0.42)",
-    background: "rgba(255, 255, 255, 0.96)",
-    color: "#1f2a32",
-    boxShadow: "0 12px 32px rgba(16, 28, 42, 0.12)",
-    fontSize: 14,
-    fontWeight: 500,
-    lineHeight: 1.45
-  },
-  toastDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#94e0f8",
-    flex: "0 0 auto"
-  }
 };

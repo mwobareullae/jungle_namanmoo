@@ -47,6 +47,14 @@ const formatAddress = (order: OrderDetailResponse) => {
   return [address.address1, address.address2].filter(Boolean).join(" ");
 };
 
+const buildProductDetailPath = (item: OrderDetailResponse["items"][number]) => {
+  const params = new URLSearchParams({ id: item.product_id });
+  if (item.recommendation_id) {
+    params.set("recommendation_id", item.recommendation_id);
+  }
+  return `/product-detail?${params.toString()}`;
+};
+
 export default function OrderDetail() {
   const { orderCode = "" } = useParams();
   const [order, setOrder] = useState<OrderDetailResponse | null>(null);
@@ -85,8 +93,12 @@ export default function OrderDetail() {
   return (
     <MyPageLayout activePath="/mypage/orders">
       <PageTitle
+        rightSlot={
+          <Link className="text-[#2aa6d1] hover:text-[#1A1A1A]" style={styles.backLink} to="/mypage/orders">
+            목록으로
+          </Link>
+        }
         title="주문 상세"
-        rightSlot={<Link to="/mypage/orders" style={styles.backLink}>목록으로</Link>}
       />
 
       {isLoading ? (
@@ -95,7 +107,12 @@ export default function OrderDetail() {
         <section style={styles.stateCard} role="alert">
           <strong style={styles.stateTitle}>주문 상세를 불러오지 못했어요</strong>
           <p style={styles.stateText}>{errorMessage}</p>
-          <button type="button" style={styles.retryButton} onClick={() => void loadOrderDetail()}>
+          <button
+            className="bg-white hover:bg-[#FAFAFA]"
+            onClick={() => void loadOrderDetail()}
+            style={styles.retryButton}
+            type="button"
+          >
             다시 불러오기
           </button>
         </section>
@@ -144,8 +161,16 @@ export default function OrderDetail() {
             <div style={styles.itemList}>
               {order.items.map((item) => {
                 const thumbnailUrl = getProductImageUrl(item.thumbnail_storage_key, "w400");
+                const productDetailPath = buildProductDetailPath(item);
                 return (
-                  <article style={styles.item} key={item.id}>
+                  <Link
+                    aria-label={`${item.product_name} 상품 상세 보기`}
+                    className="hover:bg-[#FAFAFA]"
+                    key={item.id}
+                    style={styles.itemLink}
+                    to={productDetailPath}
+                  >
+                    <article style={styles.item}>
                     <div style={styles.thumbnail}>
                       {thumbnailUrl ? (
                         <img src={thumbnailUrl} alt="" style={styles.thumbnailImage} />
@@ -161,7 +186,8 @@ export default function OrderDetail() {
                       </p>
                     </div>
                     <strong style={styles.itemPrice}>{formatWon(item.line_total)}</strong>
-                  </article>
+                    </article>
+                  </Link>
                 );
               })}
             </div>
@@ -195,7 +221,6 @@ function InfoRow({
 
 const styles: Record<string, CSSProperties> = {
   backLink: {
-    color: "#2aa6d1",
     fontSize: 14,
     fontWeight: 800,
     textDecoration: "none"
@@ -228,7 +253,6 @@ const styles: Record<string, CSSProperties> = {
     padding: "0 18px",
     border: "1px solid #dddddd",
     borderRadius: 10,
-    background: "#ffffff",
     color: "#1a1a1a",
     fontSize: 14,
     fontWeight: 700,
@@ -296,6 +320,11 @@ const styles: Record<string, CSSProperties> = {
   },
   itemList: {
     display: "grid"
+  },
+  itemLink: {
+    display: "block",
+    color: "inherit",
+    textDecoration: "none"
   },
   item: {
     display: "grid",
