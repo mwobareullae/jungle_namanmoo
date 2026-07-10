@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.recommendation import CartHandoff, ScoreBreakdown
 
@@ -13,6 +13,7 @@ class ProductInfo(BaseModel):
     lowest_price: int
     total_score: int | None = None
     reason_summary: str | None = None
+    recommended_key_ingredients: list[str] = Field(default_factory=list)
     score_breakdown: ScoreBreakdown | None = None
     cart_handoff: CartHandoff | None = None
 

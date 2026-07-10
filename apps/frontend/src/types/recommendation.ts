@@ -122,6 +122,8 @@ export type RecommendationResponse = {
 
 export type RecommendationNarrativeRequest = {
   mode?: string;
+  view?: "cards" | "detail" | "full";
+  product_id?: string;
   product_limit?: number;
   use_llm?: boolean;
 };
