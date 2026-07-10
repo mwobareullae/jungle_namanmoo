@@ -277,6 +277,12 @@ function HomeRankingSection({
                         className="home-ranking-card"
                         key={product.product_id}
                         onClick={() => openProductDetail(product)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openProductDetail(product);
+                          }
+                        }}
                         role="link"
                         tabIndex={0}
                       >
@@ -351,6 +357,12 @@ function HomeDealSection({
                 className="home-deal-card"
                 key={product.product_id}
                 onClick={() => openProductDetail(product)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openProductDetail(product);
+                  }
+                }}
                 role="link"
                 tabIndex={0}
               >
@@ -743,18 +755,9 @@ function HomeMainContent({
             </div>
             <div aria-label="결과 유형" className="search-result-tabs" data-commerce-only>
               {resultTabs.map((tab) => (
-                <button
-                  className={`search-result-tab${tab === "전체" ? " active" : ""}`}
-                  key={tab}
-                  onClick={
-                    tab === "전체"
-                      ? undefined
-                      : () => callOriginal("showToast", "필터 기능은 준비 중입니다")
-                  }
-                  type="button"
-                >
+                <span className={`search-result-tab${tab === "전체" ? " active" : ""}`} key={tab}>
                   {tab}
-                </button>
+                </span>
               ))}
             </div>
             <div className="product-grid" id="searchResultsGrid">
