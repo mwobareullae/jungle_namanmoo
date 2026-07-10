@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
 import ProductDetailHero from "../components/product-detail/ProductDetailHero";
 import ProductDetailStatus from "../components/product-detail/ProductDetailStatus";
@@ -465,6 +466,7 @@ function ProductDetailSpaPage() {
   const [cartMessage, setCartMessage] = useState("");
   const [cartErrorMessage, setCartErrorMessage] = useState("");
   const [toastMessage, setToastMessage] = useState("");
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [isNarrativeDetailOpen, setIsNarrativeDetailOpen] = useState(false);
@@ -1073,7 +1075,7 @@ function ProductDetailSpaPage() {
     }
 
     if (!user) {
-      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      setIsLoginDialogOpen(true);
       return;
     }
 
@@ -1788,6 +1790,11 @@ function ProductDetailSpaPage() {
       </main>
 
       <ProductDetailToast message={toastMessage} />
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
 
     </>
   );
