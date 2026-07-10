@@ -3,16 +3,28 @@ import json
 from dataclasses import asdict
 
 from app.db.session import SessionLocal
-from app.services.payment_cancel_service import cancel_requested_orders
-from app.services.toss_payments_client import TossPaymentsClient
+from app.services.payment_cancel_service import TossPaymentCancelClient, cancel_requested_orders
+from app.services.toss_payments_client import TossPaymentsClient, TossPaymentsClientError
+
+
+class _UnavailableTossCancelClient:
+    def cancel_payment(self, *, payment_key: str, cancel_reason: str) -> dict:
+        raise TossPaymentsClientError(
+            "TOSS_SECRET_KEY_MISSING",
+            "TossPayments secret key is not configured.",
+        )
 
 
 def main() -> None:
     args = _parse_args()
+    try:
+        toss_client: TossPaymentCancelClient = TossPaymentsClient.from_settings()
+    except TossPaymentsClientError:
+        toss_client = _UnavailableTossCancelClient()
     with SessionLocal() as session:
         result = cancel_requested_orders(
             session,
-            toss_client=TossPaymentsClient.from_settings(),
+            toss_client=toss_client,
             limit=args.limit,
             cancel_reason=args.reason,
         )
