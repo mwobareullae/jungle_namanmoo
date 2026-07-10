@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import { Button } from "../components/ui/button";
+import { buttonVariantClassName } from "../components/ui/button-variants";
+import { Input } from "../components/ui/input";
 import { API_BASE_URL } from "../lib/api";
 
 type PasswordResetStep = "request" | "confirm" | "complete";
@@ -141,12 +144,8 @@ function PasswordResetPage() {
           </div>
           {step === "request" && (
             <form className="grid gap-3" noValidate onSubmit={handleSubmit}>
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  emailErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(emailErrorMessage)}
                 onBlur={() => setEmailTouched(true)}
                 onChange={(event) => {
                   setEmail(event.target.value);
@@ -161,23 +160,19 @@ function PasswordResetPage() {
                   {emailErrorMessage}
                 </p>
               )}
-              <button
-                className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+              <Button
+                className="mt-3 w-full disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
                 type="submit"
               >
                 재설정 링크 받기
-              </button>
+              </Button>
             </form>
           )}
           {step === "confirm" && (
             <form className="grid gap-3" noValidate onSubmit={handleConfirmSubmit}>
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  codeErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(codeErrorMessage)}
                 inputMode="numeric"
                 maxLength={6}
                 onBlur={() => setCodeTouched(true)}
@@ -193,12 +188,8 @@ function PasswordResetPage() {
                   {codeErrorMessage}
                 </p>
               )}
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  newPasswordErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(newPasswordErrorMessage)}
                 onBlur={() => setNewPasswordTouched(true)}
                 onChange={(event) => {
                   setNewPassword(event.target.value);
@@ -213,12 +204,8 @@ function PasswordResetPage() {
                   {newPasswordErrorMessage}
                 </p>
               )}
-              <input
-                className={`w-full rounded-[14px] border px-4 py-3 text-[15px] text-[#1A1A1A] focus:outline-none ${
-                  newPasswordConfirmErrorMessage
-                    ? "border-[#ff2b2b] focus:border-[#ff2b2b]"
-                    : "border-[rgba(0,0,0,0.07)] focus:border-[rgba(148,224,248,0.44)]"
-                }`}
+              <Input
+                invalid={Boolean(newPasswordConfirmErrorMessage)}
                 onBlur={() => setNewPasswordConfirmTouched(true)}
                 onChange={(event) => {
                   setNewPasswordConfirm(event.target.value);
@@ -233,13 +220,13 @@ function PasswordResetPage() {
                   {newPasswordConfirmErrorMessage}
                 </p>
               )}
-              <button
-                className="mt-3 w-full cursor-pointer rounded-[14px] bg-[#0C1117] py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A] disabled:cursor-not-allowed disabled:opacity-60"
+              <Button
+                className="mt-3 w-full disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
                 type="submit"
               >
                 비밀번호 변경
-              </button>
+              </Button>
             </form>
           )}
           {step === "complete" && (
@@ -256,7 +243,7 @@ function PasswordResetPage() {
                 </p>
               </div>
               <Link
-                className="mt-3 w-full rounded-[14px] bg-[#0C1117] py-3.5 text-center text-[15px] font-semibold text-white shadow-[0_2px_24px_rgba(0,0,0,0.06)] hover:bg-[#1A1A1A]"
+                className={`${buttonVariantClassName.solid} mt-3 w-full text-center`}
                 to="/login"
               >
                 로그인으로 돌아가기
@@ -270,7 +257,7 @@ function PasswordResetPage() {
             <div className="mt-5 text-center">
             <Link
               aria-disabled={isSubmitting}
-              className={`text-[13px] font-semibold text-[#6B7280] hover:text-[#1A1A1A] ${
+              className={`${buttonVariantClassName.link} ${
                 isSubmitting ? "pointer-events-none opacity-60" : ""
               }`}
               tabIndex={isSubmitting ? -1 : undefined}

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
+import { Button } from "../components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
@@ -145,120 +147,108 @@ function SignupSkinProfilePage() {
           <form className="grid gap-7">
             <section>
               <h2 className="text-[15px] font-semibold text-[#1A1A1A]">피부 타입</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {skinTypeOptions.map((option) => {
-                  const isSelected = form.skinType === option.id;
-
-                  return (
-                    <button
-                      className={`min-h-11 rounded-[14px] border px-3 py-2 text-[14px] font-semibold ${
-                        isSelected
-                          ? "border-[#0096C6] bg-[rgba(0,150,198,0.12)] text-[#005F7E]"
-                          : "border-[rgba(0,0,0,0.07)] bg-white text-[#3D3D3D]"
-                      }`}
-                      key={option.id}
-                      onClick={() => handleSingleSelect("skinType", option.id)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <ToggleGroup
+                className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
+                onValueChange={(value) => {
+                  if (value) {
+                    handleSingleSelect("skinType", value);
+                  }
+                }}
+                type="single"
+                value={form.skinType}
+              >
+                {skinTypeOptions.map((option) => (
+                  <ToggleGroupItem key={option.id} value={option.id}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             </section>
 
             <section>
               <h2 className="text-[15px] font-semibold text-[#1A1A1A]">민감도</h2>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {sensitivityOptions.map((option) => {
-                  const isSelected = form.sensitivity === option.id;
-
-                  return (
-                    <button
-                      className={`min-h-11 rounded-[14px] border px-3 py-2 text-[14px] font-semibold ${
-                        isSelected
-                          ? "border-[#0096C6] bg-[rgba(0,150,198,0.12)] text-[#005F7E]"
-                          : "border-[rgba(0,0,0,0.07)] bg-white text-[#3D3D3D]"
-                      }`}
-                      key={option.id}
-                      onClick={() => handleSingleSelect("sensitivity", option.id)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <ToggleGroup
+                className="mt-3 grid grid-cols-3 gap-2"
+                onValueChange={(value) => {
+                  if (value) {
+                    handleSingleSelect("sensitivity", value);
+                  }
+                }}
+                type="single"
+                value={form.sensitivity}
+              >
+                {sensitivityOptions.map((option) => (
+                  <ToggleGroupItem key={option.id} value={option.id}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             </section>
 
             <section>
               <h2 className="text-[15px] font-semibold text-[#1A1A1A]">피부 고민</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {concernOptions.map((option) => {
-                  const isSelected = form.concerns.includes(option.id);
+              <ToggleGroup
+                className="mt-3 flex flex-wrap gap-2"
+                onValueChange={(nextValues) => {
+                  const changed =
+                    nextValues.find((value) => !form.concerns.includes(value)) ??
+                    form.concerns.find((value) => !nextValues.includes(value));
 
-                  return (
-                    <button
-                      className={`min-h-10 rounded-[14px] border px-3.5 py-2 text-[13px] font-semibold ${
-                        isSelected
-                          ? "border-[#0096C6] bg-[rgba(0,150,198,0.12)] text-[#005F7E]"
-                          : "border-[rgba(0,0,0,0.07)] bg-white text-[#3D3D3D]"
-                      }`}
-                      key={option.id}
-                      onClick={() => handleMultiSelect("concerns", option.id)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+                  if (changed) {
+                    handleMultiSelect("concerns", changed);
+                  }
+                }}
+                type="multiple"
+                value={form.concerns}
+              >
+                {concernOptions.map((option) => (
+                  <ToggleGroupItem key={option.id} size="sm" value={option.id}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             </section>
 
             <section>
               <h2 className="text-[15px] font-semibold text-[#1A1A1A]">
                 피하고 싶은 성분
               </h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {avoidIngredientOptions.map((option) => {
-                  const isSelected = form.avoidIngredients.includes(option.id);
+              <ToggleGroup
+                className="mt-3 flex flex-wrap gap-2"
+                onValueChange={(nextValues) => {
+                  const changed =
+                    nextValues.find((value) => !form.avoidIngredients.includes(value)) ??
+                    form.avoidIngredients.find((value) => !nextValues.includes(value));
 
-                  return (
-                    <button
-                      className={`min-h-10 rounded-[14px] border px-3.5 py-2 text-[13px] font-semibold ${
-                        isSelected
-                          ? "border-[#0096C6] bg-[rgba(0,150,198,0.12)] text-[#005F7E]"
-                          : "border-[rgba(0,0,0,0.07)] bg-white text-[#3D3D3D]"
-                      }`}
-                      key={option.id}
-                      onClick={() => handleMultiSelect("avoidIngredients", option.id)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+                  if (changed) {
+                    handleMultiSelect("avoidIngredients", changed);
+                  }
+                }}
+                type="multiple"
+                value={form.avoidIngredients}
+              >
+                {avoidIngredientOptions.map((option) => (
+                  <ToggleGroupItem key={option.id} size="sm" value={option.id}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             </section>
 
             <div className="mt-1 grid grid-cols-2 gap-2">
-              <button
-                className="rounded-[14px] border border-[rgba(0,0,0,0.07)] bg-white py-3.5 text-[15px] font-semibold text-[#3D3D3D] hover:bg-[#FAFAFA]"
+              <Button
                 onClick={() => navigate("/", { replace: true })}
-                type="button"
+                variant="outline"
               >
                 건너뛰기
-              </button>
-              <button
-                className={`rounded-[14px] border-0 bg-[#111820] py-3.5 text-[15px] font-semibold text-white ${
-                  canSubmit && !isSubmitting ? "cursor-pointer opacity-100" : "cursor-not-allowed opacity-50"
-                }`}
+              </Button>
+              <Button
+                className="disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canSubmit || isSubmitting}
                 onClick={handleSubmit}
-                type="button"
               >
                 완료
-              </button>
+              </Button>
             </div>
             {errorMessage && (
               <p className="text-center text-[13px] font-medium text-[#ff2b2b]">
