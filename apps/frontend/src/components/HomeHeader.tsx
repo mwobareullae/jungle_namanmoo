@@ -122,21 +122,6 @@ function HomeHeader() {
             </a>
           </nav>
           <div className="header-actions">
-            <button className="icon-btn" onClick={() => callOriginal("focusSearch")} type="button">
-              <svg
-                fill="none"
-                height="18"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                width="18"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </button>
             <button
               className="icon-btn"
               data-commerce-only
