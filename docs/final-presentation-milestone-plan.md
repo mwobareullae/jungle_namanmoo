@@ -34,7 +34,7 @@
 
 - 기존 8만 건 실패 실행은 t3.xlarge, 10 VU, 4분 결과이므로 최종 t3.large Before/After의 기준으로 직접 비교하지 않는다.
 - 1천 건 smoke는 신규 홈 API를 선반영한 k6와 기존 `/api/home/sections` backend 사이의 계약 전환 404가 포함되어 성능 근거에서 제외한다.
-- Redis cache와 행동 개인화는 현재 활성 추천 경로에서 검증되지 않았으므로 구현 완료 기능으로 발표하지 않는다.
+- 행동 개인화는 조건부 활성 경로가 구현되어 있지만 효과는 아직 검증되지 않았다. 구현 여부와 ablation 결과를 구분하고, Redis cache는 활성 경로가 없으므로 구현 완료 기능으로 발표하지 않는다.
 - 문서의 목표값과 예시 점수는 실측 결과가 아니다.
 
 ## 2. 7월 19일 완료 정의
@@ -158,6 +158,7 @@ KPI:
 주 산출물:
 
 - review silver-label dataset v1, mapping·누수 제거·label QA
+- 추천 가능 상품 기준을 적용한 평가 대상과 제외 사유 집계
 - 팀 분담 검수 결과를 취합한 human gold set
 - 고정 명령으로 실행한 offline evaluator·k6 반복 run
 - Before/After 비교표와 그래프용 원본 CSV
@@ -166,6 +167,7 @@ KPI:
 KPI:
 
 - Product mapping rate 95% 이상
+- Eligibility mapping rate 100%
 - Concern/Effect precision 90% 이상, Leakage 0%
 - Human agreement Cohen's kappa 0.70 이상
 - gold set 최소 100건, dataset version·제외 사유 기록률 100%
@@ -302,13 +304,14 @@ KPI:
 
 - 원우 백엔드: 일반 API stage latency와 query 관측 추가
 - 규태 AI: 추천 pipeline stage latency와 후보 수 관측 추가
-- 지운 인프라/로그: 신규 홈 API의 backend·frontend·k6 계약 버전 정렬 확인, 실행 환경·명령 표준화, preflight·smoke
+- 지운 인프라/로그: 최신 `dev` 배포, migration `20260710_0029`·seed 적용 확인, 실행 환경·명령 표준화, preflight·smoke
 - 세민 측정 운영: 표준 명령으로 baseline 3회 실행·집계
 
 통과 조건:
 
 - contract preflight 100%
 - smoke 오류 0건
+- 전체·추천 가능·추천 제외 상품 수와 제외 사유 분포 기록
 - t3.large·8만 상품·10 VU·10분 baseline 3회
 - run별 Git SHA와 환경 manifest 기록
 
