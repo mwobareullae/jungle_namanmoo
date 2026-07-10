@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import ProductDetailActionButtons from "./ProductDetailActionButtons";
+import ProductPurchasePanel from "./ProductPurchasePanel";
 import type { ProductDetailHeroProps } from "./types";
 
 function ProductDetailHero({
@@ -128,16 +129,13 @@ function ProductDetailHero({
             <strong id="sensitivityValue">{sensitivity}</strong>
           </div>
         </div>
-        <div data-commerce-only className="detail-cta-row">
-          <button className="detail-btn" disabled={isAddingToCart} type="button" onClick={onAddToCart}>
-            {isAddingToCart ? "담는 중..." : "장바구니"}
-          </button>
-          <button className="detail-btn primary" disabled={isAddingToCart} type="button" onClick={onBuyNow}>
-            구매하기
-          </button>
-        </div>
-        {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
-        {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
+        <ProductPurchasePanel
+          cartErrorMessage={cartErrorMessage}
+          cartMessage={cartMessage}
+          isAddingToCart={isAddingToCart}
+          onAddToCart={onAddToCart}
+          onBuyNow={onBuyNow}
+        />
       </div>
     </div>
   );
