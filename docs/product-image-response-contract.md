@@ -36,7 +36,9 @@ Do not return:
 
 ## Applied Endpoints
 
-- `GET /api/home/sections`
+- `GET /api/home/market-popular`
+- `GET /api/home/evidence-picks`
+- `GET /api/home/for-you`
 - `POST /api/recommendations`
 - `GET /api/recommendations/{recommendation_id}`
 - `GET /api/products/{product_id}`
