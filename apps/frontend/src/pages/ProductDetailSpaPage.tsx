@@ -214,6 +214,24 @@ const normalizeNarrativeTitle = (title: string) => {
   return title;
 };
 
+const polishNarrativeRole = (value: string) =>
+  value
+    .trim()
+    .replace(/미백톤/g, "미백·톤")
+    .replace(/\s+/g, " ");
+
+const toNarrativeTitle = (role: string | undefined, headline: string) => {
+  const base = polishNarrativeRole(role || headline || "추천 근거");
+  if (/(이에요|예요|입니다|해요|좋아요|맞아요)$/.test(base)) return base;
+  return `${base}이에요`;
+};
+
+const joinIngredientNames = (ingredients: string[]) => {
+  if (ingredients.length === 0) return "";
+  if (ingredients.length === 1) return ingredients[0];
+  return `${ingredients.slice(0, -1).join(", ")}와 ${ingredients[ingredients.length - 1]}`;
+};
+
 const getSourceUrlForEvidence = (product: ProductDetail, sourceTitle: string | null) => {
   if (!sourceTitle) return "";
   return product.sources.find((source) => source.title === sourceTitle)?.url ?? "";
@@ -231,8 +249,6 @@ const DETAIL_TAB_HASHES = ["#description", "#ingredients", "#reviews", "#qna"] a
 type DetailTabHash = typeof DETAIL_TAB_HASHES[number];
 const DETAIL_TAB_SCROLL_OFFSET_PX = 66;
 const REVIEW_PAGE_SCROLL_OFFSET_PX = 168;
-const CORE_INGREDIENT_COUNT = 4;
-const INITIAL_VISIBLE_INGREDIENT_COUNT = 12;
 const normalizeDetailHash = (hash: string) =>
   DETAIL_TAB_HASHES.includes(hash as typeof DETAIL_TAB_HASHES[number])
     ? hash
@@ -439,7 +455,6 @@ function ProductDetailSpaPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
-  const [narrativeSelectionGuide, setNarrativeSelectionGuide] = useState<string | null>(null);
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState(() => productId ? "" : "상품 정보를 찾을 수 없습니다.");
@@ -451,7 +466,11 @@ function ProductDetailSpaPage() {
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
-  const [isIngredientExpanded, setIsIngredientExpanded] = useState(false);
+  const [isNarrativeDetailOpen, setIsNarrativeDetailOpen] = useState(false);
+  const [candidateTotalState, setCandidateTotalState] = useState<{
+    recommendationId: string;
+    total: number;
+  } | null>(null);
   const [activeEvidenceEffectName, setActiveEvidenceEffectName] = useState<string | null>(null);
   const [comparisonRequest, setComparisonRequest] = useState<ProductComparisonRequest | null>(null);
   const [comparisonProducts, setComparisonProducts] = useState<ProductDetail[]>([]);
@@ -528,7 +547,7 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     const resetTimer = window.setTimeout(() => {
-      setIsIngredientExpanded(false);
+      setIsNarrativeDetailOpen(false);
       setActiveEvidenceEffectName(null);
     }, 0);
     return () => window.clearTimeout(resetTimer);
@@ -545,6 +564,11 @@ function ProductDetailSpaPage() {
 
   const mainImageUrl = productImageUrls[0] ?? "";
   const descriptionImageUrls = productImageUrls.slice(1);
+  const isProductSoldOut = Boolean(
+    product?.purchase_info?.stock_status === "SOLD_OUT" ||
+    product?.purchase_info?.sales_status === "SOLD_OUT" ||
+    product?.purchase_info?.available_quantity === 0
+  );
 
   useEffect(() => {
     const handleComparisonEvent = (event: Event) => {
@@ -730,7 +754,6 @@ function ProductDetailSpaPage() {
     const loadNarrative = async () => {
       setNarrativeProduct(null);
       setNarrativeOverview(null);
-      setNarrativeSelectionGuide(null);
       setIsNarrativeLoading(true);
 
       try {
@@ -746,12 +769,10 @@ function ProductDetailSpaPage() {
           response.narrative.product_explanations.find((item) => item.product_id === productId) ?? null;
         setNarrativeProduct(productNarrative);
         setNarrativeOverview(response.narrative.overview);
-        setNarrativeSelectionGuide(response.narrative.selection_guide);
       } catch {
         if (!isMounted) return;
         setNarrativeProduct(null);
         setNarrativeOverview(null);
-        setNarrativeSelectionGuide(null);
       } finally {
         if (isMounted) setIsNarrativeLoading(false);
       }
@@ -764,26 +785,40 @@ function ProductDetailSpaPage() {
     };
   }, [productId, recommendationId]);
 
+  useEffect(() => {
+    if (!recommendationId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    api.getRecommendation(recommendationId, { page: 1, pageSize: 1 })
+      .then((response) => {
+        if (isMounted) {
+          setCandidateTotalState({
+            recommendationId,
+            total: response.pagination.total_items,
+          });
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCandidateTotalState(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [recommendationId]);
+
   const detailData = useMemo(() => {
     if (!product) return null;
 
     const relatedIngredients =
       product.related_ingredients.length > 0 ? product.related_ingredients : product.key_ingredients;
-    const coreIngredients = product.ingredients
-      .filter((ingredient) => ingredient.name)
-      .slice(0, CORE_INGREDIENT_COUNT)
-      .map((ingredient) => ({
-        ...ingredient,
-        purpose: isInternalNoteText(ingredient.purpose) ? "" : ingredient.purpose,
-      }));
     const allIngredients =
       product.ingredients.length > 0
         ? product.ingredients.map((ingredient) => ingredient.name).filter(Boolean)
         : relatedIngredients;
-    const visibleIngredients = isIngredientExpanded
-      ? allIngredients
-      : allIngredients.slice(0, INITIAL_VISIBLE_INGREDIENT_COUNT);
-    const hasMoreIngredients = allIngredients.length > INITIAL_VISIBLE_INGREDIENT_COUNT;
     const sanitizedEvidence = product.evidence.map((item) => ({
       ...item,
       evidence_text: isInternalNoteText(item.evidence_text) ? "" : item.evidence_text,
@@ -814,15 +849,12 @@ function ProductDetailSpaPage() {
 
     return {
       relatedIngredients,
-      coreIngredients,
       allIngredients,
-      visibleIngredients,
-      hasMoreIngredients,
       sanitizedEvidence,
       effectGroups,
       groupedEvidence,
     };
-  }, [isIngredientExpanded, product]);
+  }, [product]);
 
   const avoidIngredientMatchSet =
     user && avoidIngredientMatchState.userId === user.id
@@ -1069,18 +1101,17 @@ function ProductDetailSpaPage() {
     narrativeCard?.headline || narrativeOverview?.headline || "내 피부 고민 기준 추천 근거";
   const narrativeReason = narrativeCard?.reason || product?.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다.";
   const narrativeRole = narrativeProduct?.role;
-  const narrativeOverviewSummary = narrativeOverview?.summary;
-  const narrativeKeyPoints = narrativeOverview?.key_points ?? [];
   const narrativeCaution = narrativeProduct?.caution;
-  const narrativeSummaryText = narrativeOverviewSummary || null;
-  const narrativeChips = narrativeCard?.chips?.length
-    ? narrativeCard.chips
-    : [
-      ...new Set([
-        ...(product?.evidence_tags ?? []),
-        ...(product?.key_ingredients ?? []),
-      ]),
-    ].slice(0, 5);
+  const candidateTotal =
+    candidateTotalState && candidateTotalState.recommendationId === recommendationId
+      ? candidateTotalState.total
+      : null;
+  const primaryIngredients = (product?.key_ingredients ?? []).slice(0, 2).filter(Boolean);
+  const primaryIngredientText = joinIngredientNames(primaryIngredients);
+  const primaryConcernText =
+    (product?.evidence_tags ?? [])[0] ||
+    polishNarrativeRole(narrativeRole ?? "").replace(/집중형.*$/, "").trim() ||
+    "피부 고민";
   const baseNarrativeDetailSections = narrativeProduct?.detail_sections?.length
     ? narrativeProduct.detail_sections
     : [
@@ -1110,6 +1141,46 @@ function ProductDetailSpaPage() {
       return sections.findIndex((item) => item.title === section.title && item.body.trim() === body) === index;
     })
     .slice(0, 4);
+  const ingredientDetailSection = narrativeDetailSections.find((section) => /성분|핵심/.test(section.title));
+  const aiNarrativeTitle = toNarrativeTitle(narrativeRole, narrativeHeadline);
+  const aiNarrativeReason =
+    narrativeReason ||
+    (primaryIngredientText
+      ? `${primaryIngredientText} 성분이 ${primaryConcernText} 고민에 잘 맞아요.`
+      : "피부 고민과 성분 근거를 함께 확인했어요.");
+  const aiNarrativeProfileChips = [
+    skinType,
+    sensitivity ? `${sensitivity} 민감도` : "",
+  ].filter(Boolean);
+  const aiNarrativeCautionText =
+    narrativeCaution ||
+    (product?.risk_flags?.length
+      ? parseRiskFlag(product.risk_flags[0]).note || product.risk_flags[0]
+      : "특이한 주의사항은 확인되지 않았어요.");
+  const aiNarrativeDetailItems = [
+    {
+      title: "성분 근거",
+      body:
+        ingredientDetailSection?.body ||
+        (primaryIngredientText
+          ? `${primaryIngredientText}가 주요 성분으로 확인됩니다.`
+          : "주요 성분과 추천 근거를 함께 확인했습니다."),
+    },
+    {
+      title: "피부 타입 적합도",
+      body:
+        skinType || sensitivity
+          ? `${skinType || "피부 타입"}, ${sensitivity || "민감도"} 조건을 함께 반영했어요.`
+          : "피부 타입 조건을 함께 반영했어요.",
+    },
+    {
+      title: "비교 대상",
+      body:
+        candidateTotal !== null
+          ? `총 ${candidateTotal}개 후보 중 상위 상품이에요.`
+          : "추천 후보를 비교해 상위 상품으로 확인했어요.",
+    },
+  ];
 
   return (
     <>
@@ -1130,32 +1201,148 @@ function ProductDetailSpaPage() {
           {isLoading || errorMessage ? (
             <ProductDetailStatus errorMessage={errorMessage} isLoading={isLoading} />
           ) : product ? (
-            <ProductDetailHero
-              brandPagePath={brandPagePath}
-              cartErrorMessage={cartErrorMessage}
-              cartMessage={cartMessage}
-              displayedIsWished={displayedIsWished}
-              isAddingToCart={isAddingToCart}
-              isNarrativeLoading={isNarrativeLoading}
-              isWishlistPending={isWishlistPending}
-              mainImageUrl={mainImageUrl}
-              narrativeCaution={narrativeCaution}
-              narrativeChips={narrativeChips}
-              narrativeDetailSections={narrativeDetailSections}
-              narrativeHeadline={narrativeHeadline}
-              narrativeKeyPoints={narrativeKeyPoints}
-              narrativeReason={narrativeReason}
-              narrativeRole={narrativeRole}
-              narrativeSelectionGuide={narrativeSelectionGuide}
-              narrativeSummaryText={narrativeSummaryText}
-              onAddToCart={handleAddToCart}
-              onBuyNow={handleBuyNow}
-              onToggleWishlist={handleToggleWishlist}
-              priceLabel={formatPrice(product.lowest_price)}
-              product={product}
-              sensitivity={sensitivity}
-              skinType={skinType}
-            />
+            <div className="detail-hero">
+              <div className="detail-media">
+                <div className={`detail-image-box${isProductSoldOut ? " is-sold-out" : ""}`}>
+                  {mainImageUrl ? (
+                    <img id="productImage" src={mainImageUrl} alt={product.name} />
+                  ) : null}
+                  {!mainImageUrl ? (
+                    <div className="detail-image-empty" id="productImageEmpty">이미지 준비중</div>
+                  ) : null}
+                  {isProductSoldOut ? (
+                    <span className="detail-sold-out-overlay">일시품절</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="detail-summary">
+                <div className="detail-brand-row">
+                  {brandPagePath ? (
+                    <Link className="detail-brand detail-brand-link" id="productBrand" to={brandPagePath}>
+                      {product.brand}
+                      <span aria-hidden="true">&gt;</span>
+                    </Link>
+                  ) : (
+                    <div className="detail-brand" id="productBrand">{product.brand}</div>
+                  )}
+                  <div className="detail-actions">
+                    <button className="detail-icon-btn" type="button" aria-label="공유">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
+                      </svg>
+                    </button>
+                    <button
+                      aria-label={displayedIsWished ? "찜 해제" : "찜"}
+                      aria-pressed={displayedIsWished}
+                      className={`detail-icon-btn${displayedIsWished ? " is-wished" : ""}`}
+                      data-commerce-only
+                      disabled={isWishlistPending}
+                      onClick={handleToggleWishlist}
+                      type="button"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill={displayedIsWished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-8.84a5.5 5.5 0 0 0 1.06-7.78z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <h1 className="detail-title" id="productName">{product.name}</h1>
+                <div className="detail-price-panel">
+                  <div className="detail-price-row">
+                    <span className="detail-price" id="productPrice">{formatPrice(product.lowest_price)}</span>
+                  </div>
+                </div>
+                <div className="detail-tags" id="productTags">
+                  {product.evidence_tags.map((tag) => (
+                    <span className="detail-tag" key={tag}>{tag}</span>
+                  ))}
+                </div>
+                <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
+                  <div className="ai-narrative-head">
+                    <span className="ai-narrative-head-icon" aria-hidden="true">
+                      <svg height="18" viewBox="0 0 18 18" width="18">
+                        <defs>
+                          <filter
+                            colorInterpolationFilters="sRGB"
+                            filterUnits="userSpaceOnUse"
+                            height="18"
+                            id="aiRecommendationIconTint"
+                            width="18"
+                            x="0"
+                            y="0"
+                          >
+                            <feColorMatrix
+                              type="matrix"
+                              values="0 0 0 0 0.290196 0 0 0 0 0.65098 0 0 0 0 0.721569 0 0 0 1 0"
+                            />
+                          </filter>
+                        </defs>
+                        <image
+                          filter="url(#aiRecommendationIconTint)"
+                          height="18"
+                          href="/spa-assets/ai-recommendation-summary-icon.png"
+                          width="18"
+                        />
+                      </svg>
+                    </span>
+                    <strong>AI 추천 요약</strong>
+                  </div>
+                  <div className="ai-narrative-body">
+                    <div className="ai-narrative-title-row">
+                      <strong>{isNarrativeLoading ? "추천 문구를 정리하는 중입니다." : aiNarrativeTitle}</strong>
+                      <span className="ai-narrative-score" id="matchScore">
+                        <strong>{Math.round(product.total_score)}</strong>점
+                      </span>
+                    </div>
+                    <p className="ai-narrative-reason" id="matchReason">{aiNarrativeReason}</p>
+                    {aiNarrativeProfileChips.length > 0 ? (
+                      <div className="ai-narrative-profile-chips">
+                        {aiNarrativeProfileChips.map((chip) => (
+                          <span key={chip}>{chip}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="ai-narrative-caution-row">
+                      <span className="ai-narrative-caution-icon" aria-hidden="true">i</span>
+                      <span>{aiNarrativeCautionText}</span>
+                    </div>
+                    <button
+                      className="ai-narrative-detail-toggle"
+                      type="button"
+                      aria-expanded={isNarrativeDetailOpen}
+                      aria-controls="aiNarrativeDetailList"
+                      onClick={() => setIsNarrativeDetailOpen((current) => !current)}
+                    >
+                      {isNarrativeDetailOpen ? "왜 추천했는지 접기" : "왜 추천했는지 보기"}
+                    </button>
+                    {isNarrativeDetailOpen ? (
+                      <div className="ai-narrative-detail-list" id="aiNarrativeDetailList">
+                        {aiNarrativeDetailItems.map((section) => (
+                          <div className="ai-narrative-detail-item" key={section.title}>
+                            <strong>{section.title}</strong>
+                            <p>{section.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div data-commerce-only className="detail-cta-row">
+                  <button className="detail-btn" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleAddToCart}>
+                    {isAddingToCart ? "담는 중..." : "장바구니"}
+                  </button>
+                  <button className="detail-btn primary" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={handleBuyNow}>
+                    {isProductSoldOut ? "일시품절" : "구매하기"}
+                  </button>
+                </div>
+                {cartMessage ? <p className="detail-cart-message">{cartMessage}</p> : null}
+                {cartErrorMessage ? <p className="detail-cart-message error">{cartErrorMessage}</p> : null}
+              </div>
+            </div>
           ) : null}
         </section>
 
@@ -1305,88 +1492,31 @@ function ProductDetailSpaPage() {
 
               <section className={panelClassName("#ingredients")} id="ingredients">
                 <h2>성분 정보</h2>
-                <div className="review-ingredient-layout ingredients-only">
-                  <div className="ingredient-panel">
-                    <div className="ingredient-tags" id="ingredientTags">
-                      <div className="ingredient-tag-group">
-                        <div className="ingredient-evidence-card-headline">
-                          <span className="ingredient-evidence-card-title-wrap">
-                            <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9 2h6M10 2v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 8.5V2" />
-                                <path d="M7.5 14h9" />
-                              </svg>
-                            </span>
-                            <strong className="ingredient-evidence-card-title">대표 성분</strong>
-                          </span>
-                        </div>
-                        <div className="core-ingredient-list">
-                          {detailData.coreIngredients.length > 0 ? (
-                            detailData.coreIngredients.map((ingredient) => (
-                              <article
-                                className={`core-ingredient-item${avoidIngredientMatchSet.has(ingredient.name) ? " ingredient-avoid-card" : ""}`}
-                                key={ingredient.name}
-                              >
-                                <strong>{ingredient.name}</strong>
-                                <p>{ingredient.purpose || "성분 정보 준비 중"}</p>
-                              </article>
-                            ))
-                          ) : (
-                            <span className="ingredient-tag empty">대표 성분 정보 없음</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 <div className="detail-subsection">
-                  <div className="ingredient-copy" id="ingredientCopy">
-                    <div className="ingredient-copy-label-row ingredient-evidence-card-headline">
-                      <div className="ingredient-copy-label-group">
-                        <span className="ingredient-evidence-card-title-wrap">
-                          <span className="ingredient-evidence-card-icon" aria-hidden="true">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M8 6h13M8 12h13M8 18h13" />
-                              <path d="M3 6h.01M3 12h.01M3 18h.01" strokeWidth="2.5" />
-                            </svg>
-                          </span>
-                          <strong className="ingredient-evidence-card-title">전성분</strong>
+                  <div className="detail-subsection-head ingredient-copy-head">
+                    <div className="ingredient-copy-title-row">
+                      <h3>전성분</h3>
+                      {avoidIngredientMatchCount > 0 ? (
+                        <span className="ingredient-avoid-badge">
+                          회피 성분 {avoidIngredientMatchCount}개 포함
                         </span>
-                        {avoidIngredientMatchCount > 0 ? (
-                          <span className="ingredient-avoid-badge">
-                            회피 성분 {avoidIngredientMatchCount}개 포함
-                          </span>
-                        ) : null}
-                      </div>
-                      {detailData.hasMoreIngredients ? (
-                        <button
-                          className="ingredient-copy-toggle"
-                          type="button"
-                          aria-expanded={isIngredientExpanded}
-                          aria-controls="ingredientCopyText"
-                          onClick={() => setIsIngredientExpanded((current) => !current)}
-                        >
-                          {isIngredientExpanded ? "접기" : `전체 ${detailData.allIngredients.length}개 보기`}
-                          <span aria-hidden="true">{isIngredientExpanded ? "⌃" : "⌄"}</span>
-                        </button>
                       ) : null}
                     </div>
+                  </div>
+                  <div className="ingredient-copy" id="ingredientCopy">
                     <p className="ingredient-copy-text" id="ingredientCopyText">
-                      {detailData.visibleIngredients.length > 0
-                        ? detailData.visibleIngredients.map((ingredientName, index) => (
+                      {detailData.allIngredients.length > 0
+                        ? detailData.allIngredients.map((ingredientName, index) => (
                             <span key={`${ingredientName}-${index}`}>
                               {avoidIngredientMatchSet.has(ingredientName) ? (
                                 <span className="ingredient-avoid-match">{ingredientName}</span>
                               ) : (
                                 ingredientName
                               )}
-                              {index < detailData.visibleIngredients.length - 1 ? ", " : ""}
+                              {index < detailData.allIngredients.length - 1 ? ", " : ""}
                             </span>
                           ))
                         : "성분 정보가 준비 중입니다."}
-                      {!isIngredientExpanded && detailData.hasMoreIngredients ? (
-                        <span className="ingredient-copy-ellipsis" aria-hidden="true"> ...</span>
-                      ) : null}
                     </p>
                   </div>
                   <p className="ingredient-name-basis-note">

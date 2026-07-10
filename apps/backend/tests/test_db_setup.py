@@ -55,8 +55,9 @@ def test_declarative_base_metadata_is_available() -> None:
         "order_shipping_groups",
         "orders",
         "password_reset_tokens",
-        "payment_events",
-        "payments",
+            "payment_events",
+            "payment_attempts",
+            "payments",
         "product_categories",
         "product_category_aliases",
         "product_images",
@@ -137,6 +138,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "functional_cosmetic_claims",
         "functional_claim_confidence",
         "functional_claim_basis",
+        "is_recommendable",
+        "recommend_exclude_reason",
     }.issubset(products.columns.keys())
     assert {"brand_id", "category_id", "numeric_value", "is_hard"}.issubset(
         recommendation_run_constraints.columns.keys()

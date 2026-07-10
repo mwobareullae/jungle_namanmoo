@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HomeSectionProduct(BaseModel):
@@ -27,8 +27,28 @@ class HomeSection(BaseModel):
     products: list[HomeSectionProduct]
 
 
-class HomeSectionsResponse(BaseModel):
-    skin_type: str
-    sensitivity: str
+class HomeLayoutSection(BaseModel):
+    section_id: str
+    title: str
+    subtitle: str
+    section_type: str
+    endpoint: str
+    lazy_load: bool = True
+
+
+class HomeLayoutResponse(BaseModel):
+    sections: list[HomeLayoutSection]
+
+
+class HomeProductSectionResponse(BaseModel):
+    section_id: str
+    title: str
+    subtitle: str
+    section_type: str
+    algorithm: str
     category_code: str | None = None
-    sections: list[HomeSection]
+    limit: int
+    products: list[HomeSectionProduct]
+    skin_type: str | None = None
+    sensitivity: str | None = None
+    personalization_sources: list[str] = Field(default_factory=list)

@@ -168,57 +168,31 @@ def test_performance_log_utility_writes_json_line() -> None:
     assert payload["timestamp"].endswith("Z")
 
 
-def test_get_home_sections_returns_main_page_products(client: TestClient) -> None:
-    response = client.get(
-        "/api/home/sections",
-        params={
-            "skin_type": "건성",
-            "sensitivity": "보통",
-            "limit_per_section": 2,
-        },
-    )
+def test_get_home_layout_returns_section_endpoints(client: TestClient) -> None:
+    response = client.get("/api/home/layout")
 
     assert response.status_code == 200
 
     data = response.json()
-    assert data["skin_type"] == "건성"
-    assert data["sensitivity"] == "보통"
     assert [section["section_id"] for section in data["sections"]] == [
+        "market_popular",
         "evidence_picks",
-        "recommended_for_you",
+        "for_you",
     ]
-
-    first_section = data["sections"][0]
-    assert first_section["algorithm"]
-    assert 0 < len(first_section["products"]) <= 2
-
-    product = first_section["products"][0]
-    assert {
-        "product_id",
-        "brand",
-        "name",
-        "category_code",
-        "category_name",
-        "thumbnail_url",
-        "lowest_price",
-        "purchase_url",
-        "badges",
-        "tags",
-        "reason_summary",
-        "display_score",
-    }.issubset(product)
-    assert product["thumbnail_url"].startswith("products/")
-    assert not product["thumbnail_url"].startswith("http")
-    assert product["badges"]
-    assert 0 <= product["display_score"] <= 100
+    assert [section["endpoint"] for section in data["sections"]] == [
+        "/api/home/market-popular",
+        "/api/home/evidence-picks",
+        "/api/home/for-you",
+    ]
+    assert all(section["lazy_load"] is True for section in data["sections"])
 
 
-def test_get_home_sections_emits_performance_log(client: TestClient) -> None:
+def test_get_home_for_you_emits_performance_log(client: TestClient) -> None:
     logs = _capture_performance_logs()
     try:
         response = client.get(
-            "/api/home/sections",
-            params={"limit_per_section": 2},
+            "/api/home/for-you",
+            params={"limit": 2},
             headers={"X-Request-ID": "home-performance-request"},
         )
     finally:
@@ -226,11 +200,11 @@ def test_get_home_sections_emits_performance_log(client: TestClient) -> None:
 
     assert response.status_code == 200
     payload = logs.json_lines[-1]
-    assert payload["event"] == "home_sections_completed"
+    assert payload["event"] == "home_for_you_completed"
     assert payload["request_id"] == "home-performance-request"
     assert payload["duration_ms"] >= 0
-    assert payload["section_count"] >= 1
     assert payload["product_count"] >= 1
+    assert payload["limit"] == 2
 
 
 def test_get_popular_products_returns_metric_ranked_products(
@@ -310,7 +284,7 @@ def test_get_popular_products_returns_metric_ranked_products(
     }
 
 
-def test_get_home_sections_includes_market_popular_when_metrics_exist(
+def test_get_home_market_popular_returns_metric_section_when_metrics_exist(
     client: TestClient,
     db_engine: Engine,
 ) -> None:
@@ -334,15 +308,15 @@ def test_get_home_sections_includes_market_popular_when_metrics_exist(
         )
         session.commit()
 
-    response = client.get("/api/home/sections", params={"limit_per_section": 2})
+    response = client.get("/api/home/market-popular", params={"limit": 2})
 
     assert response.status_code == 200
 
     data = response.json()
-    assert data["sections"][0]["section_id"] == "market_popular"
-    assert data["sections"][0]["algorithm"] == "product_popularity_metrics_v1"
-    assert data["sections"][0]["products"][0]["product_id"] == "prod_001"
-    assert data["sections"][0]["products"][0]["display_score"] == 88
+    assert data["section_id"] == "market_popular"
+    assert data["algorithm"] == "product_popularity_metrics_v1"
+    assert data["products"][0]["product_id"] == "prod_001"
+    assert data["products"][0]["display_score"] == 88
 
 
 def test_create_recommendation_applies_request_defaults(client: TestClient) -> None:

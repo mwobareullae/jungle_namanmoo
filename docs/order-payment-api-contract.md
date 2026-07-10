@@ -23,6 +23,11 @@ Included in this stage:
 - Order creation.
 - Inventory reservation on order creation.
 - Mock payment success/failure.
+- Toss payment confirm request/response boundary validation.
+- Toss payment attempt tracking and uncertain-state recovery.
+- Toss webhook receipt with duplicate-event protection.
+- Toss payment lookup reconciliation.
+- Full Toss/Mock cancellation processing for `CANCEL_REQUESTED` orders.
 - Payment expiration handling through service logic and confirm-time checks.
 - Order list/detail.
 - Pre-payment cancel.
@@ -30,9 +35,8 @@ Included in this stage:
 
 Deferred / advanced:
 
-- Toss/Kakao production-grade recovery.
-- Payment webhook reconciliation.
-- External PG success but DB update failure recovery.
+- Toss production webhook registration and provider-side signature configuration.
+- Partial refund automation.
 - Partial refund automation.
 - Return pickup and exchange shipment automation.
 - Scheduler/worker for automatic payment expiry sweep.
@@ -50,7 +54,10 @@ Deferred / advanced:
 - Inventory is reserved when the order is created.
 - Inventory is actually deducted only after payment approval.
 - Failed, expired, or canceled pending payments release reserved inventory.
-- External PG recovery strategy is a later hardening item.
+- New orders accept only `MOCK` and `TOSS` providers.
+- Mock confirm/fail APIs can change only `MOCK` payments.
+- Toss webhook payloads never directly finalize payment; the backend verifies the payment through the Toss lookup API.
+- `CONFIRMING` and `UNKNOWN` payments retain inventory reservations until lookup reconciliation confirms a terminal result.
 
 ## Order Flow
 
@@ -107,6 +114,8 @@ REFUNDED
 
 ```text
 READY
+CONFIRMING
+UNKNOWN
 APPROVED
 FAILED
 CANCELED
@@ -121,6 +130,11 @@ PARTIALLY_REFUNDED
 ```text
 MOCK
 TOSS
+```
+
+The following values remain reserved in the current database enum for compatibility, but new order requests reject them with `UNSUPPORTED_PAYMENT_PROVIDER`:
+
+```text
 KAKAO_PAY
 NAVER_PAY
 ```
@@ -355,6 +369,7 @@ Behavior:
 - Records inventory reservation in `inventory_movements`.
 - Returns existing order if the same user sends the same `Idempotency-Key` again.
 - Payment must be completed before `payment_expires_at`.
+- Rejects `KAKAO_PAY` and `NAVER_PAY` with `UNSUPPORTED_PAYMENT_PROVIDER`.
 
 Response:
 
@@ -557,6 +572,7 @@ Requires:
 
 Behavior:
 
+- Verifies the payment provider is `MOCK`.
 - Verifies order is `PENDING_PAYMENT`.
 - Verifies payment is `READY`.
 - Verifies current time is before `payment_expires_at`.
@@ -585,6 +601,7 @@ Fails mock payment.
 
 Behavior:
 
+- Verifies the payment provider is `MOCK`.
 - Changes payment to `FAILED`.
 - Changes order to `PAYMENT_FAILED`.
 - Releases reserved inventory.
@@ -624,19 +641,71 @@ Request:
 Behavior:
 
 - Verifies current user owns the order.
+- Verifies the payment provider is `TOSS`.
 - Verifies order/payment status.
 - Verifies amount equals backend order total.
 - Verifies order is not expired.
+- Accepts a `payment_key` of at most 200 characters and an `order_code` of at most 64 characters.
 - Calls Toss confirm API.
+- Requires the Toss response to contain matching `paymentKey`, `orderId`, and integer `totalAmount`, with `status = DONE`.
 - Stores `provider_payment_key`.
-- Stores payment event.
+- Stores a payment event with a deterministic SHA-256-based event id so provider key length cannot exceed the DB event-id limit.
 - Applies the same successful-payment DB transition as mock confirm.
 
 Hardening deferred:
 
-- Webhook reconciliation.
-- External PG success but DB update failure recovery.
+- Toss webhook URL registration and provider-side delivery configuration.
 - Manual/admin payment repair flow.
+
+## `POST /api/payments/toss/webhook`
+
+The endpoint accepts a Toss payment-status notification and uses it only as a
+reconciliation trigger. The request must contain `paymentKey` or `orderId`.
+The optional `X-Toss-Webhook-Id` header, or the payload `eventId`, is used for
+duplicate protection. If neither exists, the backend derives a deterministic
+event id from the payload.
+
+The payload is reduced to a non-sensitive summary and stored in
+`payment_events` as `TOSS_WEBHOOK_RECEIVED`. The backend then calls the Toss
+payment lookup API and applies the same reconciliation rules as the scheduled
+service. A duplicate event returns success without repeating the lookup.
+
+Example request:
+
+```json
+{
+  "eventType": "PAYMENT_STATUS_CHANGED",
+  "paymentKey": "tosspayments_payment_key",
+  "orderId": "ord_20260705_k7x9q2m4",
+  "status": "DONE"
+}
+```
+
+Example response:
+
+```json
+{
+  "accepted": true,
+  "matched": true,
+  "duplicate": false,
+  "reconciled": 1,
+  "unknown": 0
+}
+```
+
+The webhook body alone is never treated as proof of payment success.
+
+## Payment reconciliation CLI
+
+```text
+python -m app.cli.reconcile_pending_payments --limit 100
+python -m app.cli.reconcile_pending_payments --limit 100 --dry-run
+```
+
+`DONE` changes the payment to `APPROVED`, the order to `PAID`, and confirms
+reserved inventory. `ABORTED` and `EXPIRED` release the reservation and mark
+the payment as failed. Query failures, mismatched order/amount, and unknown
+provider statuses keep the payment in `UNKNOWN`.
 
 ## Payment Expiration
 
@@ -727,7 +796,27 @@ MVP automation boundary:
 - Payment fail/expiry releases reserved inventory.
 - Mock payment success deducts inventory.
 - Paid order cancellation/refund/return/exchange requests are stored as statuses only.
-- Real refund, partial refund, return pickup, and exchange reshipment are later admin/PG/shipment work.
+- Partial refund, return pickup, and exchange reshipment are later admin/PG/shipment work.
+
+## Cancellation processing
+
+`POST /api/orders/{order_code}/cancel` does not call an external payment
+provider. For a paid order it records `CANCEL_REQUESTED` and returns. The
+operational processor then handles full cancellation:
+
+```text
+python -m app.cli.cancel_requested_orders --limit 100
+python -m app.cli.cancel_requested_orders --limit 100 --reason "customer requested cancellation"
+python -m app.cli.cancel_requested_orders --limit 100 --dry-run
+```
+
+`MOCK` payments are completed locally. `TOSS` payments call the Toss cancel
+API and are finalized only when the response has `status = CANCELED`. A
+network failure, provider error, missing payment key, or invalid response
+keeps the order at `CANCEL_REQUESTED` and records an `UNKNOWN` cancel attempt
+for a later retry. Full cancellation marks the order and order items as
+`CANCELED`, marks the payment as `CANCELED`, and restores the sold quantity to
+inventory with a `SALE_CANCEL` movement.
 
 ## Frontend Responsibilities
 
@@ -746,8 +835,6 @@ MVP automation boundary:
 Revisit these after mock payment and core order/inventory flow are stable:
 
 - Toss/Kakao external API transaction boundary.
-- Webhook and duplicated event handling.
-- Provider payment lookup reconciliation.
 - External payment success but DB transition failure recovery.
 - Scheduler/worker for expired orders.
 - Partial cancel and partial refund.

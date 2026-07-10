@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
+from app.db.models.catalog import Product
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
 from app.services.product_candidates import list_product_candidates, list_product_candidates_by_db_ids
@@ -18,6 +19,22 @@ def test_list_product_candidates_returns_seed_products_without_constraints() -> 
     assert [candidate.lowest_price for candidate in candidates] == [19900, 22900]
     assert candidates[0].thumbnail_url == "products/prod_001/thumbnail.jpg"
     assert not candidates[0].thumbnail_url.startswith("http")
+
+
+def test_list_product_candidates_excludes_non_recommendable_products_by_default() -> None:
+    session = _seed_example_session()
+    product = session.query(Product).filter(Product.product_code == "prod_002").one()
+    product.is_recommendable = False
+    product.recommend_exclude_reason = "missing_ingredients"
+    conditions = parse_purchase_conditions("")
+
+    candidates = list_product_candidates(session, conditions)
+    candidates_by_ids = list_product_candidates_by_db_ids(session, conditions, [2, 1, 2])
+    catalog_candidates = list_product_candidates(session, conditions, recommendable_only=False)
+
+    assert [candidate.product_id for candidate in candidates] == ["prod_001"]
+    assert [candidate.product_id for candidate in candidates_by_ids] == ["prod_001"]
+    assert [candidate.product_id for candidate in catalog_candidates] == ["prod_001", "prod_002"]
 
 
 def test_list_product_candidates_applies_brand_category_and_price_max_filters() -> None:

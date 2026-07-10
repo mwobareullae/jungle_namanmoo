@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class TossPaymentConfirmRequest(BaseModel):
-    payment_key: str = Field(..., min_length=1)
-    order_code: str = Field(..., min_length=1)
+    payment_key: str = Field(..., min_length=1, max_length=200)
+    order_code: str = Field(..., min_length=1, max_length=64)
     amount: int = Field(..., ge=0)
 
 

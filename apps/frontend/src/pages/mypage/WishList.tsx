@@ -236,7 +236,11 @@ function MypageProductList({
   };
 
   const openProduct = (item: MypageProductListItem) => {
-    onOpenProduct?.(item);
+    if (onOpenProduct) {
+      onOpenProduct(item);
+      return;
+    }
+
     navigate(`/product-detail?id=${encodeURIComponent(item.productId)}`);
   };
 
