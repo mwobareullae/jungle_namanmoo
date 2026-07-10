@@ -137,6 +137,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "functional_cosmetic_claims",
         "functional_claim_confidence",
         "functional_claim_basis",
+        "is_recommendable",
+        "recommend_exclude_reason",
     }.issubset(products.columns.keys())
     assert {"brand_id", "category_id", "numeric_value", "is_hard"}.issubset(
         recommendation_run_constraints.columns.keys()

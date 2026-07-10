@@ -1,3 +1,4 @@
+import csv
 import os
 from pathlib import Path
 from shutil import copytree
@@ -31,6 +32,8 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.products[0].skin_type_tags == ("건성", "중성", "수부지")
     assert catalog.products[0].functional_cosmetic_status == "NOT_FUNCTIONAL"
     assert catalog.products[0].functional_claim_confidence == "not_applicable"
+    assert catalog.products[0].is_recommendable is True
+    assert catalog.products[0].recommend_exclude_reason is None
     assert catalog.products[1].functional_cosmetic_status == "FUNCTIONAL_CONFIRMED"
     assert catalog.products[1].functional_claim_confidence == "unknown"
     assert catalog.product_prices[0].price == 19900
@@ -59,6 +62,37 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.concern_tags[0].synonyms
     assert catalog.concern_effects[0].weight == 1.0
     assert catalog.search_documents[0].text
+
+
+def test_load_data_catalog_reads_product_recommendation_eligibility(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    products_csv = data_dir / "products.csv"
+    with products_csv.open(encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+
+    extended_fieldnames: list[str] = []
+    for fieldname in fieldnames:
+        extended_fieldnames.append(fieldname)
+        if fieldname == "category":
+            extended_fieldnames.extend(["is_recommendable", "recommend_exclude_reason"])
+    rows[0]["is_recommendable"] = "false"
+    rows[0]["recommend_exclude_reason"] = "missing_ingredients"
+    rows[1]["is_recommendable"] = "true"
+    rows[1]["recommend_exclude_reason"] = ""
+    with products_csv.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=extended_fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    catalog = load_data_catalog(data_dir)
+
+    assert catalog.products[0].is_recommendable is False
+    assert catalog.products[0].recommend_exclude_reason == "missing_ingredients"
+    assert catalog.products[1].is_recommendable is True
+    assert catalog.products[1].recommend_exclude_reason is None
 
 
 def test_load_data_catalog_applies_brand_corrections_without_rewriting_products_csv(tmp_path: Path) -> None:
