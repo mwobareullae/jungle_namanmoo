@@ -169,7 +169,9 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
 GET /api/products/{product_id}?recommendation_id={recommendation_id}
 ```
 
-FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `score_breakdown`, `cart_handoff`, `recommendation_reason`을 포함한다. 추천 맥락이 없는 일반 상품 상세에서는 `cart_handoff`를 `null`로 둔다.
+FastAPI는 같은 상품이라도 추천 맥락이 있으면 `total_score`, `reason_summary`, `recommended_key_ingredients`, `score_breakdown`, `cart_handoff`, `recommendation_reason`을 포함한다. 추천 맥락이 없는 일반 상품 상세에서는 `cart_handoff`를 `null`로 두고 `recommended_key_ingredients`는 빈 배열로 둔다.
+
+`recommended_key_ingredients`는 전성분 표시 순서가 아니라 해당 추천 결과의 점수 근거 성분 순서다. 프론트 상품 상세의 AI 추천 요약은 이 값을 먼저 사용하고, 값이 없을 때만 상품 근거 성분이나 전성분 목록으로 fallback한다.
 
 ## AI 설명 연결
 
