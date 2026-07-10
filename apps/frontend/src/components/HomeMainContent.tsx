@@ -14,8 +14,6 @@ import type {
 import HomeProductCard from "./HomeProductCard";
 import ProductThumbnail from "./ProductThumbnail";
 
-const resultTabs = ["전체", "성분 근거", "피부 타입", "가격"];
-
 const createFallbackPagination = (productCount: number): RecommendationPagination => ({
   page: 1,
   page_size: productCount,
@@ -750,13 +748,6 @@ function HomeMainContent({
               {recommendation?.unmatched_terms.map((term) => (
                 <span className="api-summary-chip warning" key={term}>
                   추가 확인 필요: {term}
-                </span>
-              ))}
-            </div>
-            <div aria-label="결과 유형" className="search-result-tabs" data-commerce-only>
-              {resultTabs.map((tab) => (
-                <span className={`search-result-tab${tab === "전체" ? " active" : ""}`} key={tab}>
-                  {tab}
                 </span>
               ))}
             </div>
