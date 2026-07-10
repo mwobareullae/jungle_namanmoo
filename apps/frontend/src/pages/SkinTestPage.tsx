@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import SkinTestProgress from "../components/SkinTestProgress";
@@ -29,6 +29,15 @@ function SkinTestPage() {
   const [hasStarted, setHasStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const advanceTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current !== null) {
+        window.clearTimeout(advanceTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -114,7 +123,18 @@ function SkinTestPage() {
     }
   };
 
-  const handleSelectOption = (optionId: SkinTestOption["id"]) => {
+  const advanceToNext = (nextAnswers: AnswerMap) => {
+    if (!isLastQuestion) {
+      setCurrentIndex((index) => index + 1);
+      return;
+    }
+
+    void submitAnswers(nextAnswers);
+  };
+
+  // commit === false: 화살표 키로 훑어보는 중(Radix가 포커스 이동 시 자동으로 클릭 처리함).
+  // 선택 표시/카운터만 갱신하고 자동 진행은 하지 않는다 — 그래야 3번 문항까지 화살표로 이동 가능.
+  const handleSelectOption = (optionId: SkinTestOption["id"], commit: boolean) => {
     if (!currentQuestion || isSubmitting) {
       return;
     }
@@ -127,14 +147,41 @@ function SkinTestPage() {
     setAnswers(nextAnswers);
     setErrorMessage("");
 
-    window.setTimeout(() => {
-      if (!isLastQuestion) {
-        setCurrentIndex((index) => index + 1);
-        return;
-      }
+    if (advanceTimerRef.current !== null) {
+      window.clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
 
-      void submitAnswers(nextAnswers);
+    if (!commit) {
+      return;
+    }
+
+    advanceTimerRef.current = window.setTimeout(() => {
+      advanceTimerRef.current = null;
+      advanceToNext(nextAnswers);
     }, 180);
+  };
+
+  // 화살표로 훑어보다 Enter로 확정할 때 호출. Radix의 자동 클릭이 타이밍상 안 걸릴 때가 많아서,
+  // answers 상태가 아니라 "지금 포커스가 가 있는 항목"을 카드 쪽에서 직접 넘겨받아 그걸로 확정한다.
+  const handleConfirmSelection = (optionId: SkinTestOption["id"] | null) => {
+    if (!currentQuestion || isSubmitting || optionId === null) {
+      return;
+    }
+
+    if (advanceTimerRef.current !== null) {
+      window.clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+
+    const nextAnswers = {
+      ...answers,
+      [String(currentQuestion.id)]: optionId,
+    };
+
+    setAnswers(nextAnswers);
+    setErrorMessage("");
+    advanceToNext(nextAnswers);
   };
 
   const handlePrevious = () => {
@@ -184,7 +231,6 @@ function SkinTestPage() {
                   몇 가지 질문에 답하면 피부 타입과 고민을 바탕으로 맞춤 추천을 준비해드려요.
                 </p>
                 <div className="skin-test-intro-card" aria-hidden="true">
-                  <span>CleanPick boarding pass</span>
                   <strong>뭐바를래 피부 체크인</strong>
                   <em>내 피부에 맞는 추천 여정의 시작</em>
                 </div>
@@ -199,6 +245,7 @@ function SkinTestPage() {
                   question={currentQuestion}
                   selectedOptionId={selectedOptionId}
                   onSelect={handleSelectOption}
+                  onConfirm={handleConfirmSelection}
                 />
                 <div className="skin-test-footnote">
                   <span>
