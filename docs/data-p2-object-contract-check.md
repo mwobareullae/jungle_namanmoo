@@ -4,7 +4,7 @@
 
 | 객체 | 엑셀/P2 요구 | 현재 파일 | 현재 상태 | 판단 | 남은 합의/리스크 |
 |---|---|---|---|---|---|
-| Product | canonical 상품 master. 브랜드, 상품명, 카테고리, 추천 가능 여부, 기능성 정보 | `data/products.csv` | 2,206개. `product_id`, `brand`, `name`, `category`, `is_recommendable`, 기능성 컬럼 존재 | 대체로 적합 | `is_recommendable`, `recommend_exclude_reason`은 CSV/문서에는 있으나 현재 백엔드 `Product` dataclass/load 파싱에는 반영되지 않음. R3와 반영 여부 합의 필요 |
+| Product | canonical 상품 master. 브랜드, 상품명, 카테고리, 추천 가능 여부, 기능성 정보 | `data/products.csv` | 2,206개. `product_id`, `brand`, `name`, `category`, `is_recommendable`, 기능성 컬럼 존재 | 적합 | `is_recommendable`, `recommend_exclude_reason`은 백엔드 `Product` dataclass/load/seed/DB에 반영됨. 기본 추천 후보는 `is_recommendable=true`만 사용 |
 | Offer | 실제 판매 단위. `seller_id + product_id + price + status` | `data/product_prices.csv` | 2,206개. 현재는 `product_id`, `mall_name`, `price`, `product_url`, `is_lowest`, `currency` | P2 단일 셀러 seed로는 사용 가능 | 명시적 `offer_id`, `seller_id`, `offer_status`는 없음. 현재 문서대로 백엔드가 `product_id` 기준 기본 offer를 생성/매핑해야 함 |
 | Inventory | offer별 재고와 품절/판매 상태 | `data/product_inventory.csv` | 2,206개. `stock_quantity`, `sales_status`, `safety_stock` 존재 | P2 단일 offer 기준 적합 | 마켓/다중 셀러 확장 전에는 충분. 다만 DB에서는 offer 기준으로 연결되어야 함 |
 | Image | 대표/상세 이미지 자산. 서버가 저장소로 이관할 작업 큐 | `data/product_image_assets.csv` | 54,933개. `thumbnail/detail`, `source_image_url`, `storage_key`, `public_url` 존재 | 적합 | 현재는 파일 직접 저장이 아니라 매니페스트. R6/백엔드가 서버에서 다운로드 후 storage 업로드 처리 필요 |
@@ -15,5 +15,5 @@
 
 - 현재 CSV는 P2 자사몰 seed와 10만 feed dry-run의 기준 데이터로 사용할 수 있습니다.
 - 세민 담당 범위에서 바로 고칠 수 있는 핵심은 `data-contract.md`와 CSV 산출물입니다.
-- 백엔드가 실제 API/DB에서 `is_recommendable`, `recommend_exclude_reason`, 기본 offer 매핑을 어떻게 반영할지는 R3 원우와 계약 확인이 필요합니다.
+- 백엔드는 `is_recommendable`, `recommend_exclude_reason`을 DB에 저장하고 기본 추천 후보 필터로 사용합니다. 기본 offer 매핑은 R3 원우와 별도 계약 확인이 필요합니다.
 - R5가 API 응답 구조를 임의 변경하면 역할 침범이므로, 필요한 변경은 문서/검증표로 먼저 제안하는 방식이 맞습니다.

@@ -156,7 +156,10 @@ event:
 
 | event | 붙은 API | 주요 필드 |
 |---|---|---|
-| `home_sections_completed` | `GET /api/home/sections` | `section_count`, `product_count`, `category_code`, `limit_per_section`, `skin_type`, `sensitivity`, `section_ids` |
+| `home_layout_completed` | `GET /api/home/layout` | `section_count`, `section_ids` |
+| `home_market_popular_completed` | `GET /api/home/market-popular` | `product_count`, `category_code`, `limit` |
+| `home_evidence_picks_completed` | `GET /api/home/evidence-picks` | `product_count`, `category_code`, `limit` |
+| `home_for_you_completed` | `GET /api/home/for-you` | `product_count`, `category_code`, `skin_type`, `sensitivity`, `has_user`, `limit`, `personalization_sources` |
 
 ### 상품
 

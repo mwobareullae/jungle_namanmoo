@@ -112,7 +112,7 @@ UNIQUE(product_id, window_days)
 
 ## Home Integration
 
-`GET /api/home/sections` uses the same popularity service.
+`GET /api/home/market-popular` uses the same popularity service.
 
 When metric rows exist, home may include:
 

@@ -19,7 +19,10 @@
 | 추천 조회 | `GET /api/recommendations/{recommendation_id}` | 생성된 추천 결과 재조회 |
 | 추천 서사 | `POST /api/recommendations/{recommendation_id}/narrative` | `cards`, `detail`, `full` 뷰별 AI 설명 생성 |
 | 상품 상세 | `GET /api/products/{product_id}?recommendation_id={recommendation_id}` | 추천 맥락이 포함된 상품 상세 근거 조회 |
-| 홈 섹션 | `GET /api/home/sections` | P2 홈/탐색용 상품 섹션 |
+| 홈 레이아웃 | `GET /api/home/layout` | P2 홈 섹션 endpoint 목록 |
+| 홈 인기 상품 | `GET /api/home/market-popular` | 기존 market_popular 로직을 분리한 인기 상품 섹션 |
+| 홈 근거 추천 | `GET /api/home/evidence-picks` | 기존 evidence_picks 로직을 분리한 성분 근거 섹션 |
+| 홈 너를 위한 추천 | `GET /api/home/for-you` | 저장 프로필, 스킨테스트 soft context, 행동 데이터를 반영한 개인화 섹션 |
 
 ## 공통 ID 계약
 
