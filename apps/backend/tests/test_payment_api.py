@@ -1,4 +1,5 @@
 from collections.abc import Generator
+import hashlib
 import json
 import logging
 
@@ -12,12 +13,14 @@ from sqlalchemy.pool import StaticPool
 from app.api.routes.payments import get_toss_payments_client
 from app.db.base import Base
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory, InventoryMovement, Order, Payment, PaymentEvent
+from app.db.models.commerce import Inventory, InventoryMovement, Order, Payment, PaymentAttempt, PaymentEvent
 from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
+from app.services.toss_payments_client import TossPaymentsClientError
+from app.services.payment_reconciliation_service import reconcile_pending_payments
 
 
 @pytest.fixture()
@@ -242,6 +245,72 @@ def test_mock_payment_ownership_is_enforced(
     assert inventory.reserved_quantity == 1
 
 
+@pytest.mark.parametrize("endpoint", ["confirm", "fail"])
+def test_mock_payment_endpoint_rejects_toss_payment(
+    client: TestClient,
+    db_engine: Engine,
+    endpoint: str,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email=f"mock-provider-{endpoint}@example.com",
+        nickname=f"mock-provider-{endpoint}",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(f"/api/payments/{pending['payment_code']}/mock/{endpoint}")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PAYMENT_PROVIDER_MISMATCH"
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+        events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        attempts = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalars().all()
+
+    assert order.status == "PENDING_PAYMENT"
+    assert payment.status == "READY"
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 1
+    assert events == []
+
+
+@pytest.mark.parametrize("payment_provider", ["KAKAO_PAY", "NAVER_PAY"])
+def test_order_rejects_unsupported_payment_provider(
+    client: TestClient,
+    db_engine: Engine,
+    payment_provider: str,
+) -> None:
+    email = f"unsupported-{payment_provider.lower()}@example.com"
+    _signup(client, email=email, nickname=f"unsupported-{payment_provider.lower()}")
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
+    item_id = add_response.json()["items"][0]["id"]
+    address_id = _create_address(client)["id"]
+
+    response = client.post(
+        "/api/orders",
+        headers={"Idempotency-Key": f"unsupported-{payment_provider.lower()}"},
+        json={
+            "cart_item_ids": [item_id],
+            "address_id": address_id,
+            "payment_provider": payment_provider,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "UNSUPPORTED_PAYMENT_PROVIDER"
+    with Session(db_engine) as session:
+        assert session.execute(select(Order)).scalars().all() == []
+        assert session.execute(select(Payment)).scalars().all() == []
+        inventory = _load_inventory(session, "prod_001")
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 0
+
+
 def test_toss_confirm_approves_payment_and_records_provider_key(
     client: TestClient,
     db_engine: Engine,
@@ -281,6 +350,7 @@ def test_toss_confirm_approves_payment_and_records_provider_key(
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         inventory = _load_inventory(session, "prod_001")
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        attempts = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalars().all()
         event_logs = session.execute(
             select(EventLog).where(EventLog.event_name == "order_completed", EventLog.order_id == order.id)
         ).scalars().all()
@@ -291,6 +361,10 @@ def test_toss_confirm_approves_payment_and_records_provider_key(
     assert inventory.stock_quantity == 8
     assert inventory.reserved_quantity == 0
     assert len(events) == 1
+    assert len(attempts) == 1
+    assert attempts[0].operation == "CONFIRM"
+    assert attempts[0].status == "APPROVED"
+    assert attempts[0].provider_payment_key == "toss_payment_key_confirm"
     assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert events[0].provider_payment_key == "toss_payment_key_confirm"
     assert events[0].raw_payload_json["status"] == "DONE"
@@ -349,6 +423,370 @@ def test_toss_confirm_rejects_amount_mismatch_before_provider_call(
     assert failed_logs[0].source == "toss_payment_confirm"
     assert failed_logs[0].metadata_json["error_code"] == "PAYMENT_AMOUNT_MISMATCH"
     assert "payment_key" not in failed_logs[0].metadata_json
+
+
+def test_toss_confirm_rejects_mock_payment_before_provider_call(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-provider-mismatch@example.com",
+        nickname="toss-provider-mismatch",
+        quantity=1,
+        payment_provider="MOCK",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_payment_key_provider_mismatch",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PAYMENT_PROVIDER_MISMATCH"
+    assert fake_toss.calls == []
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+    assert order.status == "PENDING_PAYMENT"
+    assert payment.status == "READY"
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 1
+
+
+@pytest.mark.parametrize(
+    ("case", "omitted_fields", "response_overrides", "expected_error_code"),
+    [
+        ("missing-key", {"paymentKey"}, {}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("missing-order", {"orderId"}, {}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("missing-amount", {"totalAmount"}, {}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("missing-status", {"status"}, {}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("wrong-key", set(), {"paymentKey": "different"}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("wrong-order", set(), {"orderId": "different"}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("wrong-amount", set(), {"totalAmount": -1}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("string-amount", set(), {"totalAmount": "19000"}, "TOSS_CONFIRM_INVALID_RESPONSE"),
+        ("not-done", set(), {"status": "IN_PROGRESS"}, "TOSS_CONFIRM_NOT_DONE"),
+    ],
+)
+def test_toss_confirm_rejects_invalid_provider_response(
+    client: TestClient,
+    db_engine: Engine,
+    case: str,
+    omitted_fields: set[str],
+    response_overrides: dict,
+    expected_error_code: str,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient(
+        omitted_fields=omitted_fields,
+        response_overrides=response_overrides,
+    )
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email=f"toss-response-{case}@example.com",
+        nickname=f"toss-response-{case}",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": f"toss_payment_key_{case}",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == expected_error_code
+    assert len(fake_toss.calls) == 1
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+        events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
+        attempts = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalars().all()
+    assert order.status == "PENDING_PAYMENT"
+    assert payment.status == "FAILED"
+    assert payment.provider_payment_key is None
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 1
+    assert events == []
+    assert len(attempts) == 1
+    assert attempts[0].operation == "CONFIRM"
+    assert attempts[0].status == "FAILED"
+    assert attempts[0].provider_error_code == expected_error_code
+
+
+def test_toss_confirm_rejects_payment_key_over_provider_limit(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-key-too-long@example.com",
+        nickname="toss-key-too-long",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "k" * 201,
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
+    assert fake_toss.calls == []
+
+
+def test_toss_confirm_records_unknown_when_provider_request_is_uncertain(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient(error=TossPaymentsClientError(
+        "TOSS_CONFIRM_REQUEST_FAILED",
+        "provider request failed",
+    ))
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-unknown@example.com",
+        nickname="toss-unknown",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_payment_key_unknown",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 502
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        attempt = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+    assert payment.status == "UNKNOWN"
+    assert attempt.status == "UNKNOWN"
+    assert attempt.provider_error_code == "TOSS_CONFIRM_REQUEST_FAILED"
+    assert inventory.stock_quantity == 10
+    assert inventory.reserved_quantity == 1
+
+
+def test_reconcile_done_payment_approves_and_deducts_reserved_stock(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="reconcile-done@example.com",
+        nickname="reconcile-done",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_query_key"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:reconcile-done",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_query_key",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+
+        result = reconcile_pending_payments(
+            session,
+            toss_client=_FakeTossQueryClient(
+                {"paymentKey": "toss_query_key", "orderId": pending["order_code"], "totalAmount": pending["amount"], "status": "DONE"}
+            ),
+        )
+        session.commit()
+
+    assert result.approved_count == 1
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        attempt = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+    assert payment.status == "APPROVED"
+    assert order.status == "PAID"
+    assert attempt.status == "APPROVED"
+    assert inventory.stock_quantity == 9
+    assert inventory.reserved_quantity == 0
+
+
+def test_reconcile_query_error_keeps_payment_unknown(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="reconcile-unknown@example.com",
+        nickname="reconcile-unknown",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_query_unknown"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:reconcile-unknown",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_query_unknown",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+        result = reconcile_pending_payments(
+            session,
+            toss_client=_FakeTossQueryClient(error=TossPaymentsClientError("QUERY_FAILED", "temporary")),
+        )
+        session.commit()
+
+    assert result.unknown_count == 1
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+    assert payment.status == "UNKNOWN"
+
+
+def test_toss_webhook_records_event_and_reconciles_once(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-webhook@example.com",
+        nickname="toss-webhook",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.status = "UNKNOWN"
+        payment.provider_payment_key = "toss_webhook_key"
+        session.add(
+            PaymentAttempt(
+                payment_id=payment.id,
+                attempt_code="toss_confirm:webhook",
+                operation="CONFIRM",
+                provider="TOSS",
+                status="UNKNOWN",
+                provider_payment_key="toss_webhook_key",
+                requested_at=payment.created_at,
+                created_at=payment.created_at,
+                updated_at=payment.created_at,
+            )
+        )
+        session.commit()
+
+    fake_toss = _FakeTossPaymentsClient(
+        query_response={
+            "paymentKey": "toss_webhook_key",
+            "orderId": pending["order_code"],
+            "totalAmount": pending["amount"],
+            "status": "DONE",
+        }
+    )
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    payload = {
+        "eventType": "PAYMENT_STATUS_CHANGED",
+        "paymentKey": "toss_webhook_key",
+        "orderId": pending["order_code"],
+        "status": "DONE",
+    }
+    first = client.post("/api/payments/toss/webhook", headers={"X-Toss-Webhook-Id": "webhook-1"}, json=payload)
+    second = client.post("/api/payments/toss/webhook", headers={"X-Toss-Webhook-Id": "webhook-1"}, json=payload)
+
+    assert first.status_code == 200
+    assert first.json()["reconciled"] == 1
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        webhook_events = session.execute(
+            select(PaymentEvent).where(
+                PaymentEvent.payment_id == payment.id,
+                PaymentEvent.event_type == "TOSS_WEBHOOK_RECEIVED",
+            )
+        ).scalars().all()
+    assert payment.status == "APPROVED"
+    assert len(webhook_events) == 1
+
+
+def test_toss_confirm_hashes_long_payment_key_for_event_id(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    fake_toss = _FakeTossPaymentsClient()
+    app.dependency_overrides[get_toss_payments_client] = lambda: fake_toss
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="toss-long-key@example.com",
+        nickname="toss-long-key",
+        quantity=1,
+        payment_provider="TOSS",
+    )
+    payment_key = "k" * 200
+
+    response = client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": payment_key,
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+    assert response.status_code == 200
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        event = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalar_one()
+    expected_event_id = f"toss_confirm:{hashlib.sha256(payment_key.encode('utf-8')).hexdigest()}"
+    assert event.event_id == expected_event_id
+    assert len(event.event_id) <= 128
 
 
 def test_toss_confirm_is_idempotent_for_same_payment_key(
@@ -513,8 +951,19 @@ def _capture_performance_logs() -> _PerformanceLogCaptureHandler:
 
 
 class _FakeTossPaymentsClient:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        omitted_fields: set[str] | None = None,
+        response_overrides: dict | None = None,
+        error: TossPaymentsClientError | None = None,
+        query_response: dict | None = None,
+    ) -> None:
         self.calls: list[dict] = []
+        self.omitted_fields = omitted_fields or set()
+        self.response_overrides = response_overrides or {}
+        self.error = error
+        self.query_response = query_response
 
     def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
         self.calls.append(
@@ -524,7 +973,9 @@ class _FakeTossPaymentsClient:
                 "amount": amount,
             }
         )
-        return {
+        if self.error is not None:
+            raise self.error
+        response = {
             "paymentKey": payment_key,
             "orderId": order_code,
             "totalAmount": amount,
@@ -532,3 +983,23 @@ class _FakeTossPaymentsClient:
             "method": "카드",
             "approvedAt": "2026-07-05T12:00:00+09:00",
         }
+        response.update(self.response_overrides)
+        for field in self.omitted_fields:
+            response.pop(field, None)
+        return response
+
+    def get_payment(self, *, payment_key: str) -> dict:
+        if self.error is not None:
+            raise self.error
+        return self.query_response or {"paymentKey": payment_key, "status": "UNKNOWN"}
+
+
+class _FakeTossQueryClient:
+    def __init__(self, response: dict | None = None, error: TossPaymentsClientError | None = None) -> None:
+        self.response = response or {}
+        self.error = error
+
+    def get_payment(self, *, payment_key: str) -> dict:
+        if self.error is not None:
+            raise self.error
+        return self.response
