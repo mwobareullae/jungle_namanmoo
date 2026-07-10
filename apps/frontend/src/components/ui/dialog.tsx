@@ -70,12 +70,34 @@ function DialogFooter({ className = "", ...props }: ComponentProps<"div">) {
   return <div className={`px-6 py-4 sm:px-8 ${className}`} {...props} />;
 }
 
+// 완전히 커스텀 CSS 클래스로 짜인 화면(예: skin-test)용 — 스타일을 전혀 얹지 않고
+// 포커스 트랩/Escape/포털만 가져다 쓴다. className/overlayClassName은 호출부가 채운다.
+function DialogRawContent({
+  children,
+  className = "",
+  overlayClassName = "",
+  ...props
+}: ComponentProps<typeof DialogPrimitive.Content> & { overlayClassName?: string }) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className={overlayClassName} />
+      <DialogPrimitive.Content className={className} {...props}>
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  );
+}
+
+const DialogClose = DialogPrimitive.Close;
+
 export {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogCloseButton,
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogRawContent,
   DialogTitle
 };
