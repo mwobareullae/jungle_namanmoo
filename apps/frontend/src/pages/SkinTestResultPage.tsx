@@ -301,6 +301,11 @@ function SkinTestResultPage() {
                   aria-labelledby="skin-test-recommend-modal-title"
                   className="skin-test-recommend-modal-content-wrap"
                   overlayClassName="skin-test-recommend-modal-backdrop"
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget && !isApplying) {
+                      setIsRecommendModalOpen(false);
+                    }
+                  }}
                 >
                   <section className="skin-test-recommend-modal">
                     <h2 id="skin-test-recommend-modal-title">
