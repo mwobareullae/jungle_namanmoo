@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import { useAuth } from "../contexts/useAuth";
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
@@ -265,6 +266,7 @@ function SkinTestRecommendationsPage() {
   const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
   const [toastMessage, setToastMessage] = useState("");
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const resultId = getResultIdFromSearchParams(searchParams) ?? result?.result_id ?? null;
 
@@ -414,7 +416,7 @@ function SkinTestRecommendationsPage() {
     }
 
     if (!user) {
-      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      setIsLoginDialogOpen(true);
       return;
     }
 
@@ -586,6 +588,11 @@ function SkinTestRecommendationsPage() {
           {toastMessage}
         </div>
       ) : null}
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
     </div>
   );
 }

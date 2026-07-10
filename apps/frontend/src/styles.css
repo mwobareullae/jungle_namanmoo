@@ -4518,6 +4518,79 @@ body {
   flex: 0 0 auto;
 }
 
+.login-required-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.54);
+}
+
+.login-required-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 1101;
+  width: min(390px, calc(100vw - 40px));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0;
+  background: #ffffff;
+  color: #222222;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  outline: none;
+}
+
+.login-required-dialog__body {
+  padding: 30px 24px 28px;
+  text-align: center;
+}
+
+.login-required-dialog__body h2,
+.login-required-dialog__body p {
+  margin: 0;
+  color: #1f2933;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.login-required-dialog__body p {
+  margin-top: 2px;
+}
+
+.login-required-dialog__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #e6e9ed;
+}
+
+.login-required-dialog__button {
+  min-height: 58px;
+  border: 0;
+  border-right: 1px solid #e6e9ed;
+  background: #ffffff;
+  color: #333333;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.login-required-dialog__button:last-child {
+  border-right: 0;
+}
+
+.login-required-dialog__button:hover,
+.login-required-dialog__button:focus-visible {
+  background: #f7f9fa;
+}
+
+.login-required-dialog__button--primary {
+  color: #6d4cff;
+  font-weight: 600;
+}
+
 .skin-test-recommendation-card__image {
   position: relative;
   display: flex;
