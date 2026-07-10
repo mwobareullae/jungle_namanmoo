@@ -1,3 +1,4 @@
+import hashlib
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -18,6 +19,7 @@ ORDER_STATUS_PAYMENT_FAILED = "PAYMENT_FAILED"
 PAYMENT_STATUS_READY = "READY"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_STATUS_FAILED = "FAILED"
+PAYMENT_PROVIDER_MOCK = "MOCK"
 PAYMENT_PROVIDER_TOSS = "TOSS"
 
 
@@ -34,6 +36,7 @@ def confirm_mock_payment(
     started_at = current_time()
     try:
         payment, order = _load_user_payment(session, user.id, payment_code)
+        _require_payment_provider(payment, PAYMENT_PROVIDER_MOCK)
         if payment.status == PAYMENT_STATUS_APPROVED and order.status == ORDER_STATUS_PAID:
             response = _to_response(order, payment)
             _log_payment_confirm_completed(
@@ -142,7 +145,7 @@ def confirm_toss_payment(
             payment=payment,
             order=order,
             event_type="TOSS_PAYMENT_APPROVED",
-            event_id=f"toss_confirm:{payment_key}",
+            event_id=_build_provider_event_id("toss_confirm", payment_key),
             payload=_build_toss_event_payload(toss_response),
             now=now,
             started_at=started_at,
@@ -165,6 +168,7 @@ def fail_mock_payment(
     started_at = current_time()
     try:
         payment, order = _load_user_payment(session, user.id, payment_code)
+        _require_payment_provider(payment, PAYMENT_PROVIDER_MOCK)
         if payment.status == PAYMENT_STATUS_FAILED and order.status == ORDER_STATUS_PAYMENT_FAILED:
             response = _to_response(order, payment)
             _log_payment_fail_completed(
@@ -275,6 +279,14 @@ def _require_status(condition: bool, code: str, message: str) -> None:
         raise ApiError(409, code, message)
 
 
+def _require_payment_provider(payment: Payment, expected_provider: str) -> None:
+    _require_status(
+        payment.provider == expected_provider,
+        "PAYMENT_PROVIDER_MISMATCH",
+        f"Payment provider is not {expected_provider}.",
+    )
+
+
 def _is_approved_payment(payment: Payment, order: Order) -> bool:
     return payment.status == PAYMENT_STATUS_APPROVED and order.status == ORDER_STATUS_PAID
 
@@ -315,19 +327,27 @@ def _validate_toss_confirm_response(
     order_code: str,
     amount: int,
 ) -> None:
-    if payload.get("paymentKey") not in (None, payment_key):
+    if not isinstance(payload, dict):
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss confirm response is invalid.")
+    required_fields = {"paymentKey", "orderId", "totalAmount", "status"}
+    if not required_fields.issubset(payload):
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss confirm response is incomplete.")
+    if payload["paymentKey"] != payment_key:
         raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss payment key mismatch.")
-    if payload.get("orderId") not in (None, order_code):
+    if payload["orderId"] != order_code:
         raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss order id mismatch.")
-    if "totalAmount" in payload:
-        try:
-            provider_amount = int(payload["totalAmount"])
-        except (TypeError, ValueError) as exc:
-            raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount is invalid.") from exc
-        if provider_amount != amount:
-            raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount mismatch.")
-    if payload.get("status") not in (None, "DONE"):
+    provider_amount = payload["totalAmount"]
+    if type(provider_amount) is not int:
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount is invalid.")
+    if provider_amount != amount:
+        raise ApiError(502, "TOSS_CONFIRM_INVALID_RESPONSE", "Toss amount mismatch.")
+    if payload["status"] != "DONE":
         raise ApiError(502, "TOSS_CONFIRM_NOT_DONE", "Toss payment was not completed.")
+
+
+def _build_provider_event_id(event_type: str, provider_identifier: str) -> str:
+    identifier_hash = hashlib.sha256(provider_identifier.encode("utf-8")).hexdigest()
+    return f"{event_type}:{identifier_hash}"
 
 
 def _build_toss_event_payload(payload: dict[str, Any]) -> dict[str, Any]:

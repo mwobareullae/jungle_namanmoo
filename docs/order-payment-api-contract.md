@@ -23,6 +23,7 @@ Included in this stage:
 - Order creation.
 - Inventory reservation on order creation.
 - Mock payment success/failure.
+- Toss payment confirm request/response boundary validation.
 - Payment expiration handling through service logic and confirm-time checks.
 - Order list/detail.
 - Pre-payment cancel.
@@ -50,6 +51,8 @@ Deferred / advanced:
 - Inventory is reserved when the order is created.
 - Inventory is actually deducted only after payment approval.
 - Failed, expired, or canceled pending payments release reserved inventory.
+- New orders accept only `MOCK` and `TOSS` providers.
+- Mock confirm/fail APIs can change only `MOCK` payments.
 - External PG recovery strategy is a later hardening item.
 
 ## Order Flow
@@ -121,6 +124,11 @@ PARTIALLY_REFUNDED
 ```text
 MOCK
 TOSS
+```
+
+The following values remain reserved in the current database enum for compatibility, but new order requests reject them with `UNSUPPORTED_PAYMENT_PROVIDER`:
+
+```text
 KAKAO_PAY
 NAVER_PAY
 ```
@@ -355,6 +363,7 @@ Behavior:
 - Records inventory reservation in `inventory_movements`.
 - Returns existing order if the same user sends the same `Idempotency-Key` again.
 - Payment must be completed before `payment_expires_at`.
+- Rejects `KAKAO_PAY` and `NAVER_PAY` with `UNSUPPORTED_PAYMENT_PROVIDER`.
 
 Response:
 
@@ -557,6 +566,7 @@ Requires:
 
 Behavior:
 
+- Verifies the payment provider is `MOCK`.
 - Verifies order is `PENDING_PAYMENT`.
 - Verifies payment is `READY`.
 - Verifies current time is before `payment_expires_at`.
@@ -585,6 +595,7 @@ Fails mock payment.
 
 Behavior:
 
+- Verifies the payment provider is `MOCK`.
 - Changes payment to `FAILED`.
 - Changes order to `PAYMENT_FAILED`.
 - Releases reserved inventory.
@@ -624,12 +635,15 @@ Request:
 Behavior:
 
 - Verifies current user owns the order.
+- Verifies the payment provider is `TOSS`.
 - Verifies order/payment status.
 - Verifies amount equals backend order total.
 - Verifies order is not expired.
+- Accepts a `payment_key` of at most 200 characters and an `order_code` of at most 64 characters.
 - Calls Toss confirm API.
+- Requires the Toss response to contain matching `paymentKey`, `orderId`, and integer `totalAmount`, with `status = DONE`.
 - Stores `provider_payment_key`.
-- Stores payment event.
+- Stores a payment event with a deterministic SHA-256-based event id so provider key length cannot exceed the DB event-id limit.
 - Applies the same successful-payment DB transition as mock confirm.
 
 Hardening deferred:
