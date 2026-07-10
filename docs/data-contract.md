@@ -55,6 +55,10 @@
 | `data/product_inventory.csv` | CSV | P2 자사몰 재고와 판매 상태 |
 | `data/product_image_assets.csv` | CSV | P2 자사몰 대표/상세 이미지 자산 |
 | `data/vector_docs.csv` | CSV | 추후 검색/임베딩 인덱싱용 문서 |
+| `data/storefront_product_reviews/*.csv` | CSV | 상품 상세에 노출할 리뷰 원문 split 데이터 |
+| `data/product_review_summary.csv` | CSV | 상품별 리뷰 요약 통계 |
+| `data/product_review_profile_stats.csv` | CSV | 상품별 피부 프로필 기준 리뷰 통계 |
+| `data/product_review_signals.csv` | CSV | 리뷰 기반 추천 보조 신호. 실제 scoring 반영은 R4 확인 후 별도 적용 |
 
 팀원5는 P2 자사몰 seed 기준 상품, 가격, 재고, 이미지, 성분, 검색 문서를 함께 제공합니다.
 
@@ -434,6 +438,117 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 - 평점은 리뷰 수 50개를 신뢰 기준으로 둔 Bayesian 보정을 사용합니다.
 - 판매량이 없고 판매 랭킹만 있으면 log 기반 역순 랭킹 점수를 사용합니다.
 
+### `data/storefront_product_reviews/*.csv`
+
+P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 데이터입니다. 파일 크기를 줄이기 위해 `data/storefront_product_reviews/` 디렉터리에 같은 헤더의 CSV 조각을 나눠 둘 수 있습니다.
+
+현재 리뷰 데이터는 올리브영 공개 리뷰를 기준으로 수집한 리뷰 seed이며, 리뷰 이미지 URL은 포함하지 않습니다. 한 행은 리뷰 1개를 의미합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `review_id` | 자사몰 리뷰 seed 기준 고유 ID |
+| `product_id` | 리뷰가 연결되는 상품 ID. `products.csv` 또는 `products/*.csv`의 `product_id`를 참조 |
+| `source` | 리뷰 출처. 예: `oliveyoung` |
+| `source_review_id` | 원본 출처의 리뷰 식별자. 중복 제거와 재수집 대조용 |
+| `rating` | 별점. 0~5 스케일 |
+| `review_text` | 리뷰 본문 |
+| `review_date` | 리뷰 작성일. 원본에서 확인 가능한 경우 입력 |
+| `option_text` | 리뷰 작성자가 구매한 옵션/구성 원문 |
+| `helpful_count` | 도움이 됐어요 수 |
+| `review_type` | 리뷰 구분. 예: `month_use`, `general` |
+| `is_month_use_review` | 한달사용 리뷰 여부. `true` 또는 `false` |
+| `is_repurchase` | 재구매 리뷰 여부. `true` 또는 `false` |
+| `has_photo` | 사진 리뷰 여부. 사진 URL은 저장하지 않고 존재 여부만 저장 |
+| `review_badge_labels` | 원본 리뷰에 붙은 배지 문구. 예: `한달이상사용;재구매` |
+| `reviewer_skin_type_label_ko` | 작성자 피부 타입 라벨. 예: `건성`, `지성`, `복합성`, `민감성` |
+| `reviewer_skin_tone_label_ko` | 작성자 피부 톤 라벨. 예: `봄웜톤`, `여름쿨톤` |
+| `reviewer_skin_trouble_labels_ko` | 작성자 피부 고민 라벨. 여러 값은 `;`로 구분 |
+| `reviewer_profile_labels_ko` | 피부 타입, 톤, 고민을 합친 사용자 노출용 프로필 라벨. 여러 값은 `;`로 구분 |
+| `collected_at` | 리뷰 수집 시각 |
+
+운영 원칙:
+
+- 리뷰 원문은 상품 상세 노출용 seed 데이터입니다.
+- 리뷰 작성자의 닉네임, 프로필 이미지, 리뷰 첨부 이미지는 저장하지 않습니다.
+- `review_id`는 전체 split 파일에서 중복되면 안 됩니다.
+- 같은 `source_review_id`가 다시 수집되면 기존 리뷰 갱신 또는 중복 제거 대상으로 처리합니다.
+- 이 파일은 리뷰 목록 노출을 위한 데이터이며, 추천 점수 반영 여부를 직접 확정하지 않습니다.
+
+### `data/product_review_summary.csv`
+
+상품별 리뷰 요약 통계입니다. 상품 카드, 상품 상세 리뷰 요약, 관리자 QA에서 사용할 수 있는 집계 데이터입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 ID |
+| `brand` | 브랜드명 |
+| `product_name` | 상품명 |
+| `category` | 상품 카테고리 |
+| `is_recommendable` | 기본 추천 후보 포함 여부 |
+| `review_count` | 전체 리뷰 수 |
+| `avg_rating` | 평균 별점. 0~5 스케일 |
+| `month_review_count` | 한달사용 리뷰 수 |
+| `month_review_rate` | 전체 리뷰 중 한달사용 리뷰 비율. 0.0~1.0 |
+| `repurchase_count` | 재구매 리뷰 수 |
+| `repurchase_rate` | 전체 리뷰 중 재구매 리뷰 비율. 0.0~1.0 |
+| `photo_review_count` | 사진 리뷰 수 |
+| `photo_review_rate` | 전체 리뷰 중 사진 리뷰 비율. 0.0~1.0 |
+| `profile_review_count` | 피부 프로필 라벨이 있는 리뷰 수 |
+| `profile_review_rate` | 전체 리뷰 중 피부 프로필 라벨이 있는 리뷰 비율. 0.0~1.0 |
+| `avg_helpful_count` | 리뷰 1개당 평균 도움이 됐어요 수 |
+| `top_skin_types` | 많이 등장한 피부 타입 요약. 예: `건성:120;복합성:80` |
+| `top_skin_tones` | 많이 등장한 피부 톤 요약 |
+| `top_skin_troubles` | 많이 등장한 피부 고민 요약 |
+| `review_confidence` | 리뷰 통계 신뢰도. `high`, `medium`, `low` |
+
+### `data/product_review_profile_stats.csv`
+
+상품별로 피부 타입, 피부 톤, 피부 고민 라벨에 따른 리뷰 반응을 집계한 데이터입니다. 한 행은 `product_id + profile_group + profile_label_ko` 조합을 의미합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 ID |
+| `brand` | 브랜드명 |
+| `product_name` | 상품명 |
+| `category` | 상품 카테고리 |
+| `profile_group` | 프로필 그룹. 예: `skin_type`, `skin_tone`, `skin_trouble` |
+| `profile_label_ko` | 프로필 라벨. 예: `건성`, `트러블`, `블랙헤드` |
+| `review_count` | 해당 프로필 라벨이 붙은 리뷰 수 |
+| `avg_rating` | 해당 프로필 라벨 리뷰의 평균 별점 |
+| `repurchase_count` | 해당 프로필 라벨 리뷰 중 재구매 리뷰 수 |
+| `repurchase_rate` | 해당 프로필 라벨 리뷰 중 재구매 리뷰 비율 |
+| `photo_review_count` | 해당 프로필 라벨 리뷰 중 사진 리뷰 수 |
+| `photo_review_rate` | 해당 프로필 라벨 리뷰 중 사진 리뷰 비율 |
+| `avg_helpful_count` | 해당 프로필 라벨 리뷰의 평균 도움이 됐어요 수 |
+| `profile_confidence` | 프로필별 통계 신뢰도. `high`, `medium`, `low` |
+
+### `data/product_review_signals.csv` (선택)
+
+리뷰 데이터를 추천에 활용할 수 있도록 만든 보조 신호 데이터입니다. 이 파일은 추천 점수 공식을 변경하는 파일이 아니며, 실제 scoring 반영 여부와 반영 방식은 R4 추천/검색 담당자가 별도로 결정합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `product_id` | 상품 ID |
+| `brand` | 브랜드명 |
+| `product_name` | 상품명 |
+| `category` | 상품 카테고리 |
+| `review_count` | 전체 리뷰 수 |
+| `avg_rating` | 평균 별점 |
+| `repurchase_rate` | 재구매 리뷰 비율 |
+| `photo_review_rate` | 사진 리뷰 비율 |
+| `profile_review_rate` | 피부 프로필 라벨이 있는 리뷰 비율 |
+| `review_confidence` | 리뷰 통계 신뢰도 |
+| `review_signal_score` | 리뷰 기반 보조 신호 종합 점수. 0.0~1.0 |
+| `rating_signal_score` | 평균 별점 기반 보조 점수. 0.0~1.0 |
+| `repurchase_signal_score` | 재구매 비율 기반 보조 점수. 0.0~1.0 |
+| `confidence_signal_score` | 리뷰 수와 프로필 라벨 충분성 기반 보조 점수. 0.0~1.0 |
+| `review_signal_reason` | 보조 신호 산출 이유 요약 |
+
+운영 원칙:
+
+- 이 파일은 추천 후보 품질을 설명하기 위한 데이터 후보입니다.
+- R5는 데이터 산출과 QA를 담당하고, 실제 추천 점수 반영은 R4가 결정합니다.
+- MVP에서 리뷰매칭점수는 기본 추천 점수에 자동 반영하지 않습니다.
 ### `data/product_image_assets.csv`
 
 P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광고 이미지를 서버가 저장하기 위한 작업 큐입니다.

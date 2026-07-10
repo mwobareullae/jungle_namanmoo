@@ -229,7 +229,7 @@ function LegacyApp() {
         transform: translateY(0) !important;
       }
 
-      body:has(header.site-header:hover) .category-panel,
+      body:has(header.site-header .category-menu-btn:hover) .category-panel,
       body:has(.category-panel:hover) .category-panel {
         opacity: 1 !important;
         pointer-events: auto !important;
