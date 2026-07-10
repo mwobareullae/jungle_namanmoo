@@ -34,19 +34,14 @@ export type MypageUserSummary = {
   eventContext?: MypageEventContext;
 };
 
-type MypageToast = {
-  id: number;
-  message: string;
-};
-
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/settings";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/settings" | "";
   label: string;
   group: 1 | 2 | 3;
 };
@@ -61,7 +56,7 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
   { path: "/mypage/orders", label: "주문/배송 조회", group: 3 },
   { path: "", label: "배송지 관리", group: 3 },
-  { path: "", label: "개인정보 설정", group: 3 }
+  { path: "/mypage/settings", label: "개인정보 설정", group: 3 }
 ] as const;
 
 const orderStatusItems = [
@@ -122,7 +117,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const [skinProfile, setSkinProfile] = useState<SkinProfileData | null>(() => cachedSkinProfile ?? null);
   const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(null);
   const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
-  const [toast, setToast] = useState<MypageToast | null>(null);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
   const authUserId = authUser?.id;
   const skinProfileUserId = skinProfile?.userId;
@@ -131,19 +125,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     () => userOverride ?? buildUserSummary(authUser, skinProfile),
     [authUser, skinProfile, userOverride]
   );
-
-  const showMypageToast = (message: string) => {
-    setToast({ id: Date.now(), message });
-  };
-
-  useEffect(() => {
-    if (!toast) {
-      return;
-    }
-
-    const timerId = window.setTimeout(() => setToast(null), 2500);
-    return () => window.clearTimeout(timerId);
-  }, [toast]);
 
   useEffect(() => {
     if (userOverride || !authUser) {
@@ -329,7 +310,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
         <section className="min-w-0">
           {children ?? (
             <MyPageOverview
-              onToast={showMypageToast}
               orderStatusSummary={orderStatusSummary}
               skinTestResult={skinTestResult}
               user={user}
@@ -337,18 +317,15 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
           )}
         </section>
       </main>
-      {toast ? <MypageToastMessage key={toast.id} message={toast.message} /> : null}
     </div>
   );
 }
 
 function MyPageOverview({
-  onToast,
   orderStatusSummary,
   skinTestResult,
   user
 }: {
-  onToast: (message: string) => void;
   orderStatusSummary: OrderStatusSummaryItem[];
   skinTestResult: SkinTestResult | null;
   user: MypageUserSummary;
@@ -357,7 +334,6 @@ function MyPageOverview({
     <div>
       <PageTitle title="마이페이지 홈" />
       <UserSummaryCard
-        onToast={onToast}
         orderStatusSummary={orderStatusSummary}
         skinTestResult={skinTestResult}
         user={user}
@@ -367,12 +343,10 @@ function MyPageOverview({
 }
 
 function UserSummaryCard({
-  onToast,
   orderStatusSummary,
   skinTestResult,
   user
 }: {
-  onToast: (message: string) => void;
   orderStatusSummary: OrderStatusSummaryItem[];
   skinTestResult: SkinTestResult | null;
   user: MypageUserSummary;
@@ -395,13 +369,13 @@ function UserSummaryCard({
             </div>
           </div>
           <div style={styles.profileSideActions}>
-            <button
+            <Link
               className="min-h-[42px] min-w-[70px] rounded-full border border-[#e1e5e8] bg-white px-[22px] text-[15px] font-semibold text-[#333333] hover:bg-[#FAFAFA]"
-              onClick={() => onToast("준비중입니다.")}
-              type="button"
+              style={styles.profileSettingsLink}
+              to="/mypage/settings"
             >
               설정
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -420,23 +394,31 @@ function UserSummaryCard({
           aria-label="주문 배송 단계"
           className="flex items-center gap-1 overflow-x-auto pt-3 pb-0.5 sm:justify-between sm:gap-0 sm:overflow-visible"
         >
-          {orderStatusSummary.map((item, index) => (
-            <Fragment key={item.label}>
-              <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
-                <strong className="whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none text-[#d6dade] sm:text-[24px]">
-                  {item.count}
-                </strong>
-                <span className="text-center text-[11px] leading-tight font-semibold whitespace-nowrap text-[#aeb4ba] sm:text-[13px]">
-                  {item.label}
-                </span>
-              </div>
-              {index < orderStatusSummary.length - 1 ? (
-                <span aria-hidden="true" className="shrink-0 text-[16px] leading-none text-[#d7dce0] sm:text-[22px]">
-                  ›
-                </span>
-              ) : null}
-            </Fragment>
-          ))}
+          {orderStatusSummary.map((item, index) => {
+            const isActive = item.count > 0;
+
+            return (
+              <Fragment key={item.label}>
+                <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
+                  <strong
+                    className={`whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none sm:text-[24px] ${isActive ? "text-[#2AA6D1]" : "text-[#d6dade]"}`}
+                  >
+                    {item.count}
+                  </strong>
+                  <span
+                    className={`text-center text-[11px] leading-tight font-semibold whitespace-nowrap sm:text-[13px] ${isActive ? "text-[#1A1A1A]" : "text-[#aeb4ba]"}`}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+                {index < orderStatusSummary.length - 1 ? (
+                  <span aria-hidden="true" className="shrink-0 text-[16px] leading-none text-[#d7dce0] sm:text-[22px]">
+                    ›
+                  </span>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </section>
       </section>
 
@@ -655,12 +637,16 @@ const styles: Record<string, CSSProperties> = {
   userBlock: {
     display: "flex",
     alignItems: "center",
-    gap: 11,
-    paddingBottom: 18
+    gap: 12,
+    padding: "16px 18px",
+    marginBottom: 18,
+    borderRadius: 14,
+    background: "rgba(148, 224, 248, 0.16)",
+    border: "1px solid rgba(148, 224, 248, 0.4)"
   },
   avatarSmall: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: "50%",
     background: "#94e0f8",
     color: "#0c6f8f",
@@ -671,14 +657,15 @@ const styles: Record<string, CSSProperties> = {
   },
   userName: {
     display: "block",
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#222222"
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#0C1117"
   },
   userMeta: {
-    margin: "2px 0 0",
+    margin: "3px 0 0",
     fontSize: 12,
-    color: "#888888"
+    fontWeight: 600,
+    color: "#2aa6d1"
   },
   titleRow: {
     display: "flex",
@@ -746,6 +733,12 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-end",
     gap: 8,
     flex: "0 0 auto"
+  },
+  profileSettingsLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none"
   },
   summaryHeader: {
     display: "flex",

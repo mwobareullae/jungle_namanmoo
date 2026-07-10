@@ -13,7 +13,7 @@ import {
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
 
 type ProductListMode = "wishlist" | "recent";
-type WishlistSort = "all" | "skin" | "recent";
+type WishlistSort = "recent";
 
 export type MypageProductListItem = {
   id: string;
@@ -86,8 +86,6 @@ const recommendedItems: MypageProductListItem[] = [
 ];
 
 const sortTabs: { id: WishlistSort; label: string }[] = [
-  { id: "all", label: "전체" },
-  { id: "skin", label: "피부 맞춤" },
   { id: "recent", label: "최근순" }
 ];
 
@@ -147,7 +145,7 @@ function MypageProductList({
   onSortChange
 }: ProductListProps) {
   const navigate = useNavigate();
-  const [sort, setSort] = useState<WishlistSort>("all");
+  const [sort, setSort] = useState<WishlistSort>("recent");
   const isRecent = mode === "recent";
   const [listItems, setListItems] = useState<MypageProductListItem[]>(() =>
     items ?? []
@@ -161,20 +159,12 @@ function MypageProductList({
   const emptyDescription = isRecent ? "상품을 둘러보면 최근 본 상품이 여기에 모여요." : "피부 타입에 맞는 제품을 찾아 찜해보세요.";
   const todayDateLabel = getTodayDateLabel();
   const displayItems = useMemo(() => {
-    if (sort === "skin") {
-      return [...listItems].sort((a, b) => (b.tags?.length ?? 0) - (a.tags?.length ?? 0));
-    }
-
-    if (sort === "recent") {
-      return [...listItems].sort((a, b) => {
-        const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
-        const bTime = b.addedAt ? new Date(b.addedAt).getTime() : 0;
-        return bTime - aTime;
-      });
-    }
-
-    return listItems;
-  }, [listItems, sort]);
+    return [...listItems].sort((a, b) => {
+      const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+      const bTime = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [listItems]);
 
   useEffect(() => {
     if (items) {
@@ -209,7 +199,7 @@ function MypageProductList({
         }
 
         setListItems([]);
-        setLoadError(`${title}을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.`);
+        setLoadError(null);
       })
       .finally(() => {
         if (isMounted) {
@@ -221,7 +211,7 @@ function MypageProductList({
       isMounted = false;
       window.clearTimeout(loadingTimerId);
     };
-  }, [items, mode, title]);
+  }, [isRecent, items, mode, title]);
 
   const updateSort = (nextSort: WishlistSort) => {
     setSort(nextSort);
@@ -247,6 +237,7 @@ function MypageProductList({
 
   const openProduct = (item: MypageProductListItem) => {
     onOpenProduct?.(item);
+    navigate(`/product-detail?id=${encodeURIComponent(item.productId)}`);
   };
 
   if (isLoading || (!loadError && displayItems.length === 0)) {
