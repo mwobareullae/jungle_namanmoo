@@ -115,6 +115,7 @@ class Settings(BaseModel):
     kakao_client_id: str = os.getenv("KAKAO_CLIENT_ID", "")
     kakao_client_secret: str = os.getenv("KAKAO_CLIENT_SECRET", "")
     toss_secret_key: str = os.getenv("TOSS_SECRET_KEY", "")
+    evidence_ingest_token: str = os.getenv("EVIDENCE_INGEST_TOKEN", "")
 
 
 settings = Settings()

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models.auth import User
 from app.db.session import get_db
+from app.schemas.common import ApiError
 from app.services.auth_service import AuthServiceError, get_user_from_session_token
 
 
@@ -30,3 +31,9 @@ def get_optional_current_user(
         return user
     except AuthServiceError:
         return None
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "ADMIN":
+        raise ApiError(403, "ADMIN_REQUIRED", "관리자 권한이 필요합니다.")
+    return current_user

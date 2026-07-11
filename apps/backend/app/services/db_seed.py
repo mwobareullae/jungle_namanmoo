@@ -33,6 +33,7 @@ from app.db.models.taxonomy import (
     ConcernAlias as ConcernAliasRow,
     ConcernEffect as ConcernEffectRow,
     Effect as EffectRow,
+    EvidenceDiscoveryCandidate as EvidenceDiscoveryCandidateRow,
     Ingredient as IngredientRow,
     IngredientAlias as IngredientAliasRow,
     IngredientEffect as IngredientEffectRow,
@@ -570,6 +571,13 @@ def _seed_ingredient_evidence(
 ) -> dict[tuple[str, str], IngredientEvidenceRow]:
     evidence_rows: dict[tuple[str, str], IngredientEvidenceRow] = {}
     existing_rows = list(session.execute(select(IngredientEvidenceRow)).scalars())
+    promoted_evidence_ids = set(
+        session.execute(
+            select(EvidenceDiscoveryCandidateRow.promoted_evidence_id).where(
+                EvidenceDiscoveryCandidateRow.promoted_evidence_id.is_not(None)
+            )
+        ).scalars()
+    )
     seeded_rows: set[IngredientEvidenceRow] = set()
     for record in catalog.ingredient_evidence:
         ingredient = ingredients_by_code[record.ingredient_id]
@@ -625,7 +633,7 @@ def _seed_ingredient_evidence(
         evidence_rows[(record.ingredient_id, record.effect_id)] = row
 
     for row in existing_rows:
-        if row not in seeded_rows:
+        if row not in seeded_rows and row.id not in promoted_evidence_ids:
             row.is_current = False
 
     session.flush()
