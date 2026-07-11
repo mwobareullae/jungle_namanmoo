@@ -30,7 +30,7 @@ function AuthHeader() {
           <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
             신상품
           </a>
-          <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
+          <a className="no-underline hover:text-[#1A1A1A]" href="/products/popular">
             베스트
           </a>
           <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>

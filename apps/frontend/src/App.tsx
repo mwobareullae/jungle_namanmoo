@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "r
 import { Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
 import AppFooter from "./components/AppFooter";
+import HomeHeader from "./components/HomeHeader";
+import PopularProductsHeader from "./components/PopularProductsHeader";
+import Skeleton from "./components/ui/Skeleton";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
 
@@ -865,6 +868,31 @@ function RouteLoadingFallback() {
   return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
 }
 
+function PopularProductsRouteFallback() {
+  return (
+    <>
+      <HomeHeader />
+      <main className="popular-products-page popular-products-route-fallback" aria-label="인기상품 페이지 불러오는 중">
+        <section className="popular-products-shell">
+          <PopularProductsHeader category="" windowDays={7} />
+          <div className="popular-products-grid" aria-hidden="true">
+            {Array.from({ length: 10 }, (_, index) => (
+              <article className="popular-product-card popular-product-card--skeleton" key={index}>
+                <Skeleton className="popular-product-card__image" />
+                <div className="popular-product-card__skeleton-body">
+                  <Skeleton className="popular-product-card__brand" />
+                  <Skeleton className="popular-product-card__name" />
+                  <Skeleton className="popular-product-card__price" />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
+  );
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
@@ -889,7 +917,14 @@ function App() {
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
-          <Route path="/products/popular" element={<PopularProductsPage />} />
+          <Route
+            path="/products/popular"
+            element={(
+              <Suspense fallback={<PopularProductsRouteFallback />}>
+                <PopularProductsPage />
+              </Suspense>
+            )}
+          />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>
