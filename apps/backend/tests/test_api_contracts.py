@@ -861,7 +861,7 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
 
 
 def test_search_products_returns_product_cards(client: TestClient) -> None:
-    response = client.get("/api/products/search", params={"q": "수분 크림", "page_size": 2})
+    response = client.get("/api/search/products", params={"q": "수분 크림", "page_size": 2})
 
     assert response.status_code == 200
     data = response.json()
@@ -869,8 +869,9 @@ def test_search_products_returns_product_cards(client: TestClient) -> None:
     assert data["pagination"]["page"] == 1
     assert data["pagination"]["page_size"] == 2
     assert data["pagination"]["total_items"] >= len(data["items"])
-    assert data["diagnostics"]["backend"] == "database"
-    assert data["diagnostics"]["es_attempted"] is False
+    assert data["corrected_query"] is None
+    assert data["facets"]["price_ranges"]
+    assert data["applied_filters"]["categories"] == ["cream"]
     assert data["items"]
     first_item = data["items"][0]
     assert {
@@ -881,8 +882,14 @@ def test_search_products_returns_product_cards(client: TestClient) -> None:
         "category_name",
         "thumbnail_url",
         "lowest_price",
-        "match_source",
+        "sales_status",
     }.issubset(first_item)
+
+
+def test_legacy_product_search_endpoint_is_removed(client: TestClient) -> None:
+    response = client.get("/api/products/search", params={"q": "수분 크림"})
+
+    assert response.status_code == 404
 
 
 def test_get_product_detail_includes_purchase_stock_info(

@@ -1,0 +1,87 @@
+from sqlalchemy.orm import Session
+
+from app.db.base import Base
+from app.db.session import make_engine
+from app.services.catalog_search_service import get_catalog_search_response
+from app.services.db_seed import seed_database
+from app.services.elasticsearch_catalog_search import ElasticsearchCatalogSearchResult
+from tests.test_data_loader import EXAMPLES_DIR
+
+
+def test_catalog_search_hydrates_elasticsearch_order_from_database() -> None:
+    session = _seed_example_session()
+
+    execution = get_catalog_search_response(
+        session,
+        query="세럼",
+        page=1,
+        page_size=2,
+        elasticsearch_search=_fake_es_search([2, 1], total=2),
+    )
+
+    assert execution.backend == "elasticsearch"
+    assert execution.fallback_used is False
+    assert [item.product_id for item in execution.response.items] == ["prod_002"]
+    assert execution.response.pagination.total_items == 1
+    assert execution.response.items[0].lowest_price == 22900
+    assert execution.response.items[0].sales_status == "UNKNOWN"
+
+
+def test_catalog_search_uses_only_bounded_database_fallback_when_es_fails() -> None:
+    session = _seed_example_session()
+
+    execution = get_catalog_search_response(
+        session,
+        query="수분 크림",
+        page=1,
+        page_size=20,
+        elasticsearch_search=_fake_es_search([], failure_reason="index missing"),
+    )
+
+    assert execution.backend == "database"
+    assert execution.fallback_used is True
+    assert [item.product_id for item in execution.response.items] == ["prod_001"]
+    assert execution.response.applied_filters.categories == ["cream"]
+
+
+def test_catalog_search_does_not_fill_successful_empty_es_result() -> None:
+    session = _seed_example_session()
+
+    execution = get_catalog_search_response(
+        session,
+        query="존재하지 않는 상품",
+        elasticsearch_search=_fake_es_search([], total=0),
+    )
+
+    assert execution.backend == "elasticsearch"
+    assert execution.fallback_used is False
+    assert execution.response.items == []
+    assert execution.response.pagination.total_items == 0
+
+
+def _fake_es_search(
+    product_db_ids: list[int],
+    *,
+    total: int | None = None,
+    failure_reason: str | None = None,
+):
+    def search(*args, **kwargs) -> ElasticsearchCatalogSearchResult:
+        return ElasticsearchCatalogSearchResult(
+            product_db_ids=tuple(product_db_ids),
+            total_hit_count=len(product_db_ids) if total is None else total,
+            aggregations={},
+            attempted=True,
+            duration_ms=3,
+            index_alias="test_catalog_products_current",
+            failure_reason=failure_reason,
+        )
+
+    return search
+
+
+def _seed_example_session() -> Session:
+    engine = make_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    seed_database(session, EXAMPLES_DIR)
+    return session

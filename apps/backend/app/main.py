@@ -15,6 +15,7 @@ from app.api.routes import (
     payments,
     products,
     recommendations,
+    search,
     skin,
     user_activity,
 )
@@ -46,6 +47,7 @@ app.include_router(skin.router, prefix=settings.api_base_path)
 app.include_router(home.router, prefix=settings.api_base_path)
 app.include_router(recommendations.router, prefix=settings.api_base_path)
 app.include_router(products.router, prefix=settings.api_base_path)
+app.include_router(search.router, prefix=settings.api_base_path)
 app.include_router(user_activity.router, prefix=settings.api_base_path)
 app.include_router(cart.router, prefix=settings.api_base_path)
 app.include_router(addresses.router, prefix=settings.api_base_path)
