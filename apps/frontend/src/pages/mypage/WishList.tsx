@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
 import LoginRequiredDialog from "../../components/LoginRequiredDialog";
+import Skeleton from "../../components/ui/Skeleton";
 import { ToggleGroup, ToggleGroupTabItem } from "../../components/ui/toggle-group";
 import { useAuth } from "../../contexts/useAuth";
 import {
@@ -183,6 +184,8 @@ function MypageProductList({
     }
 
     let isMounted = true;
+    const loadingStartedAt = Date.now();
+    const minimumLoadingDuration = 600;
     const loadingTimerId = window.setTimeout(() => {
       if (isMounted) {
         setIsLoading(true);
@@ -213,9 +216,10 @@ function MypageProductList({
         setLoadError(null);
       })
       .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        const remainingDuration = Math.max(0, minimumLoadingDuration - (Date.now() - loadingStartedAt));
+        window.setTimeout(() => {
+          if (isMounted) setIsLoading(false);
+        }, remainingDuration);
       });
 
     return () => {
@@ -287,7 +291,7 @@ function MypageProductList({
     navigate(`/product-detail?id=${encodeURIComponent(item.productId)}`);
   };
 
-  if (isLoading || (!loadError && displayItems.length === 0)) {
+  if (!isLoading && (!loadError && displayItems.length === 0)) {
     return (
       <MyPageLayout activePath={activePath}>
         <style>{`
@@ -308,7 +312,7 @@ function MypageProductList({
           <h1 style={styles.singleTitle}>{title}</h1>
         </header>
         <section style={styles.emptyWishlistPanel} aria-label={`${title} 빈 상태`}>
-          <div style={styles.emptyIconCircle} aria-hidden="true">
+          {!isLoading ? <div style={styles.emptyIconCircle} aria-hidden="true">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               {isRecent ? (
                 <>
@@ -319,9 +323,21 @@ function MypageProductList({
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z" />
               )}
             </svg>
-          </div>
+          </div> : null}
           {isLoading ? (
-            <div style={styles.emptyLoadingSpacer} aria-label={`${title} 불러오는 중`} />
+            <div style={styles.loadingList} aria-label={`${title} 불러오는 중`}>
+              {Array.from({ length: 5 }, (_, index) => (
+                <div aria-hidden="true" key={index} style={styles.loadingRow}>
+                  <span style={styles.loadingImage} />
+                  <span style={styles.loadingBody}>
+                    <span style={styles.loadingLineWide} />
+                    <span style={styles.loadingLineMedium} />
+                    <span style={styles.loadingLineShort} />
+                    <span style={styles.loadingLineShort} />
+                  </span>
+                </div>
+              ))}
+            </div>
           ) : (
             <>
               <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
@@ -394,9 +410,19 @@ function MypageProductList({
 
       {loadError ? <p style={styles.statusMessage}>{loadError}</p> : null}
       {isLoading ? (
-        <div style={styles.emptyWrap}>
-          <p style={styles.emptyDescription}>{title}을 불러오는 중입니다.</p>
-        </div>
+        <section style={styles.loadingList} aria-label={`${title} 불러오는 중`}>
+          {isRecent ? <Skeleton className="mypage-loading-date" style={styles.loadingDateBlock} /> : null}
+          {Array.from({ length: 5 }, (_, index) => (
+            <div aria-hidden="true" key={index} style={styles.loadingRow}>
+              <Skeleton className="mypage-loading-image" style={styles.loadingImage} />
+              <span style={styles.loadingBody}>
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineWide} />
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineMedium} />
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineShort} />
+              </span>
+            </div>
+          ))}
+        </section>
       ) : displayItems.length === 0 ? (
         <div style={styles.emptyWrap}>
           <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
@@ -440,31 +466,33 @@ function MypageProductList({
                         alt={`${item.brand} ${item.name}`}
                         className="mypage-product-list-thumbnail"
                       />
-                      <button
-                        aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
-                        className={`mypage-product-list-heart-button${item.isWished ? " is-wished" : ""}`}
-                        disabled={pendingWishlistProductIds.has(item.productId)}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void toggleWishlist(item);
-                        }}
-                        type="button"
-                      >
-                        <svg
-                          aria-hidden="true"
-                          className={item.isWished ? "mypage-product-list-heart-icon is-wished" : "mypage-product-list-heart-icon"}
-                          fill="none"
-                          height="12"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          width="12"
+                      {isRecent ? (
+                        <button
+                          aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
+                          className={`mypage-product-list-heart-button${item.isWished ? " is-wished" : ""}`}
+                          disabled={pendingWishlistProductIds.has(item.productId)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleWishlist(item);
+                          }}
+                          type="button"
                         >
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                      </button>
+                          <svg
+                            aria-hidden="true"
+                            className={item.isWished ? "mypage-product-list-heart-icon is-wished" : "mypage-product-list-heart-icon"}
+                            fill="none"
+                            height="12"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            width="12"
+                          >
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                          </svg>
+                        </button>
+                      ) : null}
                     </div>
                     <span style={styles.body}>
                       <strong style={styles.name}>{item.name}</strong>
@@ -715,6 +743,59 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyLoadingSpacer: {
     minHeight: 120
+  },
+  loadingList: {
+    display: "grid",
+    width: "100%",
+    gap: 0,
+    textAlign: "left"
+  },
+  loadingRow: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    gap: 16,
+    minHeight: 136,
+    padding: "18px 0",
+    borderBottom: "1px solid #eef0f2"
+  },
+  loadingImage: {
+    display: "block",
+    width: 92,
+    height: 92,
+    borderRadius: 6,
+  },
+  loadingDateBlock: {
+    display: "block",
+    width: "100%",
+    height: 42,
+    marginBottom: 0,
+    borderRadius: 0,
+  },
+  loadingBody: {
+    display: "grid",
+    alignContent: "start",
+    gap: 7,
+    paddingTop: 2
+  },
+  loadingLineWide: {
+    display: "block",
+    width: "100%",
+    height: 15,
+    borderRadius: 5,
+  },
+  loadingLineMedium: {
+    display: "block",
+    width: "82%",
+    height: 15,
+    borderRadius: 5,
+  },
+  loadingLineShort: {
+    display: "block",
+    width: 220,
+    maxWidth: "60%",
+    height: 15,
+    borderRadius: 5,
   },
   emptyTitle: {
     margin: 0,

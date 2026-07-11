@@ -98,7 +98,7 @@
   padding: 13px 14px;
   border: 0;
   border-radius: 6px;
-  background: #9ca3af;
+  background: rgba(0, 0, 0, 0.3);
   color: rgba(255, 255, 255, 0.72);
   font-family: inherit;
   font-size: 14px;
@@ -2467,7 +2467,7 @@ body {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.3);
   color: #ffffff;
   cursor: pointer;
   line-height: 1;
@@ -5761,8 +5761,8 @@ body.search-results-page #searchResultsGrid .product-info {
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #f3f7f8 0%, #edf8fb 44%, #f3f7f8 88%);
-  background-size: 220% 100%;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0.05));
+  background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s ease-in-out infinite;
 }
 
