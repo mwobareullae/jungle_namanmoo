@@ -18,6 +18,12 @@ const getCurrentDateLabel = () => {
   return `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}.`;
 };
 
+const getWindowLabel = (windowDays: number) => {
+  if (windowDays === 1) return "오늘";
+  if (windowDays === 30) return "최근 30일간";
+  return "최근 7일간";
+};
+
 type PopularProductsHeaderProps = {
   category: string;
   windowDays: number;
@@ -57,6 +63,7 @@ function PopularProductsHeader({
         <div className="popular-period-tabs" role="tablist" aria-label="인기 기간">
           <button className={windowDays === 1 ? "is-active" : ""} onClick={() => onWindowDaysChange?.(1)} type="button">일간</button>
           <button className={windowDays === 7 ? "is-active" : ""} onClick={() => onWindowDaysChange?.(7)} type="button">주간</button>
+          <button className={windowDays === 30 ? "is-active" : ""} onClick={() => onWindowDaysChange?.(30)} type="button">월간</button>
         </div>
         <span className="popular-ranking-info">
           <span>인기 기준</span>
@@ -68,7 +75,7 @@ function PopularProductsHeader({
             </svg>
           </button>
           <span className="popular-ranking-info__tooltip" role="tooltip">
-            {getCurrentDateLabel()} 기준, {windowDays === 1 ? "오늘" : "최근 7일간"} 고객들의 다양한 상품 활동을 종합해 인기상품 순위를 제공하고 있습니다.
+            {getCurrentDateLabel()} 기준, {getWindowLabel(windowDays)} 고객들의 다양한 상품 활동을 종합해 인기상품 순위를 제공하고 있습니다.
           </span>
         </span>
       </div>
