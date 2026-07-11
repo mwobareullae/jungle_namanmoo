@@ -11985,6 +11985,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 700;
 }
 
+.complete-product-toggle > button:hover {
+  background: rgba(148, 224, 248, 0.12);
+}
+
 .complete-actions {
   display: flex;
   gap: 10px;
@@ -12010,6 +12014,10 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-raised-surface);
+}
+
+.complete-btn:hover {
+  opacity: 0.88;
 }
 
 .complete-product-link {
