@@ -55,6 +55,13 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.ingredient_evidence[0].evidence_level == "high"
     assert catalog.ingredient_evidence[0].source_type == "paper"
     assert catalog.ingredient_evidence[0].source_authority_score == pytest.approx(0.9)
+    assert catalog.ingredient_evidence[0].canonical_evidence_key
+    assert catalog.ingredient_evidence[0].review_status == "candidate_unverified"
+    assert catalog.ingredient_evidence[0].result_direction == "unclear"
+    assert catalog.ingredient_evidence[0].score_use_level == "reference_only"
+    assert catalog.ingredient_evidence[0].is_representative is False
+    assert catalog.ingredient_evidence[0].representative_rank is None
+    assert catalog.ingredient_evidence[0].is_current is True
     assert catalog.ingredient_evidence[0].summary
     assert catalog.risk_flags[0].severity == "medium"
     assert catalog.risk_flags[0].severity_score == pytest.approx(0.6)
@@ -62,6 +69,42 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.concern_tags[0].synonyms
     assert catalog.concern_effects[0].weight == 1.0
     assert catalog.search_documents[0].text
+
+
+def test_load_data_catalog_rejects_invalid_evidence_review_status(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    evidence_csv = data_dir / "ingredient_evidence.csv"
+    with evidence_csv.open(encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+    rows[0]["review_status"] = "approved"
+    with evidence_csv.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    with pytest.raises(DataLoadError, match="review_status"):
+        load_data_catalog(data_dir)
+
+
+def test_load_data_catalog_rejects_duplicate_active_evidence_key(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    evidence_csv = data_dir / "ingredient_evidence.csv"
+    with evidence_csv.open(encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+    rows.append(dict(rows[0]))
+    with evidence_csv.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    with pytest.raises(DataLoadError, match="canonical_evidence_key"):
+        load_data_catalog(data_dir)
 
 
 def test_load_data_catalog_reads_product_recommendation_eligibility(tmp_path: Path) -> None:

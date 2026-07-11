@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
@@ -134,6 +135,16 @@ CSV_HEADERS = {
         "pmid",
         "doi",
         "source_authority_score",
+        "canonical_evidence_key",
+        "review_status",
+        "result_direction",
+        "score_use_level",
+        "is_representative",
+        "representative_rank",
+        "is_current",
+        "review_note",
+        "reviewed_by",
+        "reviewed_at",
     },
     "risk_flags.csv": {
         "ingredient_id",
@@ -154,6 +165,9 @@ CONCENTRATION_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 PROFILE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 RANGE_CONFIDENCE_VALUES = {"high", "medium", "low", "unknown"}
 EVIDENCE_LEVEL_VALUES = {"high", "medium", "low"}
+EVIDENCE_REVIEW_STATUS_VALUES = {"candidate_unverified", "accepted", "rejected"}
+EVIDENCE_RESULT_DIRECTION_VALUES = {"positive", "negative", "null", "unclear"}
+EVIDENCE_SCORE_USE_LEVEL_VALUES = {"primary", "supporting", "reference_only"}
 ALIAS_TYPE_VALUES = {"ko", "en", "inci", "abbrev", "typo", "synonym"}
 ALIAS_CONFIDENCE_VALUES = {"high", "medium", "low"}
 ALIAS_CONFIDENCE_ALIASES = {"med": "medium"}
@@ -696,6 +710,49 @@ def _parse_ingredient_evidence(
         allowed = ", ".join(sorted(EVIDENCE_LEVEL_VALUES))
         raise DataLoadError(f"{file_name}:{line_number} evidence_level은 {allowed} 중 하나여야 합니다.")
 
+    review_status = _required_text(row, "review_status", file_name, line_number)
+    if review_status not in EVIDENCE_REVIEW_STATUS_VALUES:
+        allowed = ", ".join(sorted(EVIDENCE_REVIEW_STATUS_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} review_status는 {allowed} 중 하나여야 합니다.")
+
+    result_direction = _required_text(row, "result_direction", file_name, line_number)
+    if result_direction not in EVIDENCE_RESULT_DIRECTION_VALUES:
+        allowed = ", ".join(sorted(EVIDENCE_RESULT_DIRECTION_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} result_direction은 {allowed} 중 하나여야 합니다.")
+
+    score_use_level = _required_text(row, "score_use_level", file_name, line_number)
+    if score_use_level not in EVIDENCE_SCORE_USE_LEVEL_VALUES:
+        allowed = ", ".join(sorted(EVIDENCE_SCORE_USE_LEVEL_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} score_use_level은 {allowed} 중 하나여야 합니다.")
+
+    is_representative = _required_bool(row, "is_representative", file_name, line_number)
+    representative_rank = _optional_int(
+        row.get("representative_rank"),
+        "representative_rank",
+        file_name,
+        line_number,
+    )
+    is_current = _required_bool(row, "is_current", file_name, line_number)
+    reviewed_by = _optional_text(row.get("reviewed_by"))
+    reviewed_at = _optional_datetime(row.get("reviewed_at"), "reviewed_at", file_name, line_number)
+
+    if representative_rank is not None and representative_rank not in {1, 2, 3}:
+        raise DataLoadError(f"{file_name}:{line_number} representative_rank는 1~3 또는 빈 값이어야 합니다.")
+    if is_representative and (
+        review_status != "accepted" or not is_current or representative_rank is None
+    ):
+        raise DataLoadError(
+            f"{file_name}:{line_number} 대표 근거는 accepted + is_current=true + 대표 순위가 필요합니다."
+        )
+    if not is_representative and representative_rank is not None:
+        raise DataLoadError(
+            f"{file_name}:{line_number} is_representative=false이면 representative_rank는 비워야 합니다."
+        )
+    if review_status in {"accepted", "rejected"} and (reviewed_by is None or reviewed_at is None):
+        raise DataLoadError(
+            f"{file_name}:{line_number} accepted/rejected 근거에는 reviewed_by와 reviewed_at이 필요합니다."
+        )
+
     return IngredientEvidence(
         ingredient_id=_required_text(row, "ingredient_id", file_name, line_number),
         effect_id=_required_text(row, "effect_id", file_name, line_number),
@@ -713,6 +770,21 @@ def _parse_ingredient_evidence(
             file_name,
             line_number,
         ),
+        canonical_evidence_key=_required_text(
+            row,
+            "canonical_evidence_key",
+            file_name,
+            line_number,
+        ),
+        review_status=review_status,
+        result_direction=result_direction,
+        score_use_level=score_use_level,
+        is_representative=is_representative,
+        representative_rank=representative_rank,
+        is_current=is_current,
+        review_note=_optional_text(row.get("review_note")),
+        reviewed_by=reviewed_by,
+        reviewed_at=reviewed_at,
     )
 
 
@@ -830,6 +902,7 @@ def _validate_catalog(catalog: DataCatalog, *, validate_product_ingredients: boo
         (evidence.effect_id for evidence in catalog.ingredient_evidence),
         effect_ids,
     )
+    _validate_ingredient_evidence_contract(catalog.ingredient_evidence)
     _validate_references(
         "risk_flags.csv",
         "ingredient_id",
@@ -867,6 +940,39 @@ def _validate_alias_conflicts(ingredient_aliases: tuple[IngredientAlias, ...]) -
                 f"{alias.alias}"
             )
         owners_by_alias[normalized_alias] = alias.ingredient_id
+
+
+def _validate_ingredient_evidence_contract(
+    evidence_rows: tuple[IngredientEvidence, ...],
+) -> None:
+    active_keys: set[tuple[str, str, str]] = set()
+    representative_ranks: set[tuple[str, str, int]] = set()
+    for evidence in evidence_rows:
+        if evidence.is_current:
+            active_key = (
+                evidence.ingredient_id,
+                evidence.effect_id,
+                evidence.canonical_evidence_key,
+            )
+            if active_key in active_keys:
+                raise DataLoadError(
+                    "ingredient_evidence.csv에 동일한 활성 canonical_evidence_key 연결이 중복됩니다: "
+                    f"{evidence.ingredient_id}/{evidence.effect_id}/{evidence.canonical_evidence_key}"
+                )
+            active_keys.add(active_key)
+
+        if evidence.is_representative and evidence.representative_rank is not None:
+            rank_key = (
+                evidence.ingredient_id,
+                evidence.effect_id,
+                evidence.representative_rank,
+            )
+            if rank_key in representative_ranks:
+                raise DataLoadError(
+                    "ingredient_evidence.csv에 동일한 성분×효능 대표 순위가 중복됩니다: "
+                    f"{evidence.ingredient_id}/{evidence.effect_id}/{evidence.representative_rank}"
+                )
+            representative_ranks.add(rank_key)
 
 
 def _normalize_alias(value: str) -> str:
@@ -976,6 +1082,24 @@ def _optional_int(value: object, key: str, file_name: str, line_number: int) -> 
         return int(text)
     except ValueError as exc:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값은 정수여야 합니다.") from exc
+
+
+def _optional_datetime(
+    value: object,
+    key: str,
+    file_name: str,
+    line_number: int,
+) -> datetime | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값은 ISO 8601 datetime이어야 합니다.") from exc
+    if parsed.utcoffset() is None:
+        raise DataLoadError(f"{file_name}:{line_number} {key} 값에는 timezone이 필요합니다.")
+    return parsed
 
 
 def _optional_float(value: object, key: str, file_name: str, line_number: int) -> float | None:

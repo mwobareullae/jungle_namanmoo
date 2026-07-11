@@ -569,6 +569,8 @@ def _seed_ingredient_evidence(
     effects_by_code: dict[str, EffectRow],
 ) -> dict[tuple[str, str], IngredientEvidenceRow]:
     evidence_rows: dict[tuple[str, str], IngredientEvidenceRow] = {}
+    existing_rows = list(session.execute(select(IngredientEvidenceRow)).scalars())
+    seeded_rows: set[IngredientEvidenceRow] = set()
     for record in catalog.ingredient_evidence:
         ingredient = ingredients_by_code[record.ingredient_id]
         effect = effects_by_code[record.effect_id]
@@ -577,33 +579,54 @@ def _seed_ingredient_evidence(
             IngredientEvidenceRow,
             IngredientEvidenceRow.ingredient_id == ingredient.id,
             IngredientEvidenceRow.effect_id == effect.id,
-            IngredientEvidenceRow.source_title == record.source_title,
+            IngredientEvidenceRow.canonical_evidence_key == record.canonical_evidence_key,
         )
+        if row is None:
+            row = _one_or_none(
+                session,
+                IngredientEvidenceRow,
+                IngredientEvidenceRow.ingredient_id == ingredient.id,
+                IngredientEvidenceRow.effect_id == effect.id,
+                IngredientEvidenceRow.source_title == record.source_title,
+            )
+
+        values = {
+            "evidence_level": record.evidence_level,
+            "evidence_score": Decimal(str(record.evidence_score)),
+            "source_title": record.source_title,
+            "source_url": record.source_url,
+            "summary": record.summary,
+            "source_type": record.source_type,
+            "pmid": record.pmid,
+            "doi": record.doi,
+            "source_authority_score": _decimal_or_none(record.source_authority_score),
+            "canonical_evidence_key": record.canonical_evidence_key,
+            "review_status": record.review_status,
+            "result_direction": record.result_direction,
+            "score_use_level": record.score_use_level,
+            "is_representative": record.is_representative,
+            "representative_rank": record.representative_rank,
+            "is_current": record.is_current,
+            "review_note": record.review_note,
+            "reviewed_by": record.reviewed_by,
+            "reviewed_at": record.reviewed_at,
+        }
         if row is None:
             row = IngredientEvidenceRow(
                 ingredient_id=ingredient.id,
                 effect_id=effect.id,
-                evidence_level=record.evidence_level,
-                evidence_score=Decimal(str(record.evidence_score)),
-                source_title=record.source_title,
-                source_url=record.source_url,
-                summary=record.summary,
-                source_type=record.source_type,
-                pmid=record.pmid,
-                doi=record.doi,
-                source_authority_score=_decimal_or_none(record.source_authority_score),
+                **values,
             )
             session.add(row)
         else:
-            row.evidence_level = record.evidence_level
-            row.evidence_score = Decimal(str(record.evidence_score))
-            row.source_url = record.source_url
-            row.summary = record.summary
-            row.source_type = record.source_type
-            row.pmid = record.pmid
-            row.doi = record.doi
-            row.source_authority_score = _decimal_or_none(record.source_authority_score)
+            for key, value in values.items():
+                setattr(row, key, value)
+        seeded_rows.add(row)
         evidence_rows[(record.ingredient_id, record.effect_id)] = row
+
+    for row in existing_rows:
+        if row not in seeded_rows:
+            row.is_current = False
 
     session.flush()
     return evidence_rows

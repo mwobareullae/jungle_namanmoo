@@ -202,7 +202,22 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "recommendation_id",
         "recommendation_rank",
     }.issubset(cart_items.columns.keys())
-    assert {"source_type", "pmid", "doi", "source_authority_score"}.issubset(
+    assert {
+        "source_type",
+        "pmid",
+        "doi",
+        "source_authority_score",
+        "canonical_evidence_key",
+        "review_status",
+        "result_direction",
+        "score_use_level",
+        "is_representative",
+        "representative_rank",
+        "is_current",
+        "review_note",
+        "reviewed_by",
+        "reviewed_at",
+    }.issubset(
         ingredient_evidence.columns.keys()
     )
     assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
