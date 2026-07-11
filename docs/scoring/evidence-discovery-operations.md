@@ -1,6 +1,6 @@
 # 신규 논문 자동 수집 운영
 
-> 상태: 후보 수집 자동화. 논문 승인과 추천 점수 반영은 자동화하지 않는다.
+> 상태: 후보 수집·영구 보관 자동화. 논문 승인과 추천 점수 반영은 사람이 결정한다.
 
 ## 목적
 
@@ -10,8 +10,8 @@
 
 1. 매주 새 논문 후보를 자동 검색한다.
 2. 같은 성분×효능에 이미 등록된 PMID·DOI는 제외한다.
-3. 새 결과를 `candidate_unverified` CSV와 Actions 요약으로 남긴다.
-4. 사람이 원문을 검수해 별도 변경으로 승인하기 전에는 점수에 넣지 않는다.
+3. 새 결과를 `candidate_unverified` 후보 DB와 CSV·Actions 요약으로 남긴다.
+4. 관리자가 원문을 검수해 승인하면 그때만 `ingredient_evidence`와 연결한다.
 
 기존 논문 전체를 다시 수집하거나 4~18위 논문을 일괄 보강하는 작업이 아니다. 자동 수집을 시작한 이후 새로 등록된 논문을 놓치지 않는 것이 목적이다.
 
@@ -24,7 +24,10 @@
 - `data/ingredient_aliases.csv`: 신뢰도 `high`인 영문 INCI·동의어
 - `data/ingredient_evidence.csv`: 동일 pair의 기존 PMID·DOI 중복 기준
 
-실행 결과 artifact:
+실행 결과:
+
+- `evidence_discovery_candidates`: 영구 검수 후보 DB
+- `evidence_discovery_reviews`: 승인·기각 판정 이력 DB
 
 - `new_evidence_candidates.csv`: 논문×성분×효능 검수 후보
 - `summary.md`: Actions 화면에서 바로 읽는 요약
@@ -37,7 +40,8 @@ review_status = candidate_unverified
 score_eligible = false
 ```
 
-수집기는 `ingredient_evidence.csv`, DB, 대표 논문, 추천 점수를 수정하지 않는다.
+수집기는 후보 DB만 insert/update합니다. `ingredient_evidence.csv`, 기존 `ingredient_evidence`,
+대표 논문, 추천 점수는 수정하지 않습니다. 승인 API만 `ingredient_evidence`를 생성·갱신할 수 있습니다.
 
 ## 자동 실행
 
@@ -47,7 +51,18 @@ score_eligible = false
 - 이 저장소의 기본 브랜치는 `main`이므로 주간 예약은 workflow가 정상적인 `dev`→`main` 배포 흐름으로 `main`에 도달한 뒤 시작된다.
 - 주간 예약을 켜기 위한 별도 기능 PR은 만들지 않는다.
 
-Actions의 `weekly evidence discovery`에서 수동 실행도 가능하다. 결과는 실행 요약과 `evidence-candidates-<run_id>` artifact에 90일간 보관한다.
+Actions의 `weekly evidence discovery`에서 수동 실행도 가능하다. 결과는 후보 DB에 영구 보관하고,
+실행 요약과 `evidence-candidates-<run_id>` artifact도 90일간 백업으로 남긴다.
+
+DB 적재를 위해 다음 값을 설정한다.
+
+- GitHub Actions variable `EVIDENCE_INGEST_URL`: 배포 API의
+  `/api/internal/evidence-candidates/import` 전체 URL
+- GitHub Actions secret `EVIDENCE_INGEST_TOKEN`: 백엔드 `EVIDENCE_INGEST_TOKEN`과 같은 값
+
+둘 중 하나라도 없거나 DB import가 실패하면 workflow를 실패 처리한다. `always()`로 실행되는
+artifact 업로드는 장애 복구용 백업으로 남지만, artifact 생성만으로 운영 성공으로 보지 않는다.
+운영 완료 조건은 두 값 설정 후 실제 후보 import 성공을 확인하는 것이다.
 
 저장소 변수 `NCBI_EMAIL`을 설정하면 NCBI 요청에 프로젝트 연락처를 함께 보낸다. `NCBI_API_KEY`는 선택 사항이며, 기본 수집기는 키 없이도 NCBI 공개 한도보다 낮은 초당 2회 이하로 요청한다. 유료 AI API는 사용하지 않는다.
 
@@ -59,6 +74,15 @@ Actions의 `weekly evidence discovery`에서 수동 실행도 가능하다. 결�
 python data/scripts/discover_new_evidence.py \
   --days 8 \
   --output-dir artifacts/evidence-discovery
+```
+
+로컬 후보 CSV를 배포 후보함에 적재한다.
+
+```bash
+EVIDENCE_INGEST_URL=https://api.example.com/api/internal/evidence-candidates/import \
+EVIDENCE_INGEST_TOKEN='<secret>' \
+python data/scripts/publish_evidence_candidates.py \
+  --input artifacts/evidence-discovery/new_evidence_candidates.csv
 ```
 
 한 쌍만 연결 시험할 수 있다.
@@ -79,14 +103,15 @@ python -m unittest discover -s data/scripts/tests -p "test_*.py" -v
 
 ## 검수 흐름
 
-1. Actions 요약에서 새 후보 수와 효능축을 확인한다.
-2. CSV의 PubMed 링크로 성분 형태·효능 측정·단일성분 분리 여부를 검수한다.
-3. 채택할 논문만 기존 3중 검수 절차를 거쳐 `ingredient_evidence.csv`에 반영한다.
-4. 기각·무효·상충 논문도 정책에 따라 판정 이력을 보존한다.
+1. 관리자 `논문 근거 관리`에서 검수 대기 후보를 연다.
+2. PubMed 링크로 성분 형태·효능 측정·단일성분 분리 여부를 검수한다.
+3. 결과 방향·근거 등급·점수 사용 등급·요약·검수 메모를 입력해 승인하거나 기각한다.
+4. 승인 시에만 `ingredient_evidence`가 생성되고, 기각·무효·상충 판정도 이력에 보존된다.
 
 한 논문이 다른 효능쌍에 이미 있어도 새로운 pair 근거 후보라면 다시 출력한다. 반대로 동일 성분×효능에 같은 PMID 또는 DOI가 있으면 제외한다.
 
-검색 기간은 누락 방지를 위해 8일로 두어 주간 실행 사이 하루가 겹친다. 아직 정본 CSV에 반영되지 않은 후보가 인접한 두 보고서에 다시 나타날 수 있는데, 후보를 조용히 잃는 것보다 재노출하는 쪽을 택한 의도된 동작이다.
+검색 기간은 누락 방지를 위해 8일로 두어 주간 실행 사이 하루가 겹친다. 인접한 두 보고서에
+같은 후보가 다시 나타나도 DB 자연키로 중복 생성하지 않고 `last_seen_at`만 갱신한다.
 
 ## 외부 서비스 기준
 
