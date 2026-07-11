@@ -223,6 +223,22 @@ Seed는 입력 CSV에 있는 alias를 insert/update하지만, CSV에서 삭제�
 | `pmid` | 선택. PubMed PMID |
 | `doi` | 선택. 논문 DOI |
 | `source_authority_score` | 선택. 출처 신뢰도 보정값 `0.0~1.0` |
+| `canonical_evidence_key` | 근거 식별키. `PMID:<id>` 우선, PMID가 없으면 `DOI:<normalized-doi>`, 둘 다 없으면 검수된 내부 키 |
+| `review_status` | 검수 상태: `candidate_unverified`, `accepted`, `rejected` |
+| `result_direction` | 결과 방향: `positive`, `negative`, `null`, `unclear` |
+| `score_use_level` | 점수 사용 등급: `primary`, `supporting`, `reference_only` |
+| `is_representative` | 고객·관리자 화면의 대표 근거 여부. 현재 백필에서는 모두 `false` |
+| `representative_rank` | 대표 순서 `1`~`3`. 대표가 아니면 빈 값 |
+| `is_current` | 현재 근거 연결의 활성 여부. 입력에서 사라진 기존 DB 행은 삭제하지 않고 `false`로 전환 |
+| `review_note` | 보류·기각·상충·전문 미확보 등 검수 근거 (선택) |
+| `reviewed_by` | 검수자 식별자 (선택) |
+| `reviewed_at` | timezone이 포함된 ISO 8601 검수 시각 (선택) |
+
+`accepted` 또는 `rejected` 행에는 `reviewed_by`와 `reviewed_at`이 필요합니다. 대표 근거는
+`accepted + is_current=true`인 행만 지정할 수 있으며, `representative_rank`는 1~3만 허용합니다.
+
+이 상태 컬럼은 근거 검수 이력을 저장하기 위한 계약입니다. `accepted`만 점수에 반영하는 게이트는
+별도 scoring 변경으로 적용하며, 상태 구조를 추가하는 단계에서는 기존 `evidence_score` 계산을 유지합니다.
 
 `source_authority_score`는 추후 아래처럼 근거 점수 보정에 사용할 수 있습니다.
 

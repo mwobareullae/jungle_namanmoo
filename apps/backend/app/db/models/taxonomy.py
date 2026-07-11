@@ -1,7 +1,21 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -133,6 +147,44 @@ class IngredientEffectRange(Base):
 
 class IngredientEvidence(Base):
     __tablename__ = "ingredient_evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status in ('candidate_unverified', 'accepted', 'rejected')",
+            name="ck_ingredient_evidence_review_status",
+        ),
+        CheckConstraint(
+            "result_direction in ('positive', 'negative', 'null', 'unclear')",
+            name="ck_ingredient_evidence_result_direction",
+        ),
+        CheckConstraint(
+            "score_use_level in ('primary', 'supporting', 'reference_only')",
+            name="ck_ingredient_evidence_score_use_level",
+        ),
+        CheckConstraint(
+            "representative_rank is null or representative_rank between 1 and 3",
+            name="ck_ingredient_evidence_representative_rank",
+        ),
+        CheckConstraint(
+            "is_representative = true or representative_rank is null",
+            name="ck_ingredient_evidence_rank_requires_representative",
+        ),
+        CheckConstraint(
+            "is_representative = false or "
+            "(review_status = 'accepted' and is_current = true and representative_rank is not null)",
+            name="ck_ingredient_evidence_representative_eligible",
+        ),
+        Index(
+            "ix_ingredient_evidence_canonical_pair",
+            "ingredient_id",
+            "effect_id",
+            "canonical_evidence_key",
+        ),
+        Index(
+            "ix_ingredient_evidence_review_current",
+            "review_status",
+            "is_current",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
@@ -147,6 +199,36 @@ class IngredientEvidence(Base):
     pmid: Mapped[str | None] = mapped_column(String(40), nullable=True)
     doi: Mapped[str | None] = mapped_column(String(120), nullable=True)
     source_authority_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    canonical_evidence_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    review_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="candidate_unverified",
+        server_default="candidate_unverified",
+    )
+    result_direction: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="unclear",
+        server_default="unclear",
+    )
+    score_use_level: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="reference_only",
+        server_default="reference_only",
+    )
+    is_representative: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    representative_rank: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class RiskFlag(Base):
