@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.main import app
 from app.middleware.request_logging import request_logging_middleware
 from app.services.db_seed import seed_database
+from app.services.elasticsearch_client import default_elasticsearch_client_provider
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -41,11 +42,12 @@ def db_engine() -> Engine:
 
 
 @pytest.fixture()
-def client(db_engine: Engine) -> TestClient:
+def client(db_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     def override_get_db():
         with Session(db_engine) as session:
             yield session
 
+    monkeypatch.setattr(default_elasticsearch_client_provider, "mode", "postgres")
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client

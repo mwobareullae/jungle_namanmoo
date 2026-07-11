@@ -132,3 +132,18 @@ def test_quality_metrics_and_markdown_apply_fixed_thresholds() -> None:
     markdown = render_catalog_quality_markdown(report)
     assert "일반 상품 검색 품질 보고서" in markdown
     assert "typo_recovery_rate" in markdown
+
+
+def test_spacing_only_correction_is_not_counted_as_wrong() -> None:
+    result = evaluate_catalog_search_case(
+        _FakeClient({"corrected_query": "선크림", "items": []}),
+        {
+            "id": "spacing-test",
+            "type": "no_result",
+            "status": "ready",
+            "query": "선 크림",
+            "expected": {"outcome": "no_results", "allow_popular_fallback": False},
+        },
+    )
+
+    assert result.checks["wrong_correction"] is False

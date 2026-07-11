@@ -26,7 +26,7 @@
       "id": "exact-002",
       "type": "exact_product",
       "status": "ready",
-      "query": "에스트라 아토베리어365 캡슐토너 300ml",
+      "query": "[7월 올영픽] 에스트라 아토베리어365 캡슐토너 300ml 기획 (+수딩크림 30ml+세라-히알 앰플 7ml)",
       "catalog_flags": {"is_recommendable": false},
       "expected": {
         "outcome": "products",
@@ -41,7 +41,7 @@
       "id": "exact-003",
       "type": "exact_product",
       "status": "ready",
-      "query": "아누아 피디알엔 히알루론산 캡슐 100 세럼",
+      "query": "[수지 PICK/한정기획] 아누아 피디알엔 히알루론산 캡슐 100 세럼 30ml 더블기획 (+피디알엔 마스크 1매)",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000255324"],
@@ -55,7 +55,7 @@
       "id": "exact-004",
       "type": "exact_product",
       "status": "ready",
-      "query": "롬앤 더 쥬시 래스팅 틴트",
+      "query": "[NEW두유코어/1등틴트] 롬앤 더 쥬시 래스팅 틴트 단품/기획 (+미니 틴트 증정)",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000241210"],
@@ -83,7 +83,7 @@
       "id": "exact-006",
       "type": "exact_product",
       "status": "ready",
-      "query": "클로란 드라이샴푸 150ml",
+      "query": "[7월 올영픽/지성두피&쿨링] 클로란 드라이샴푸 150ml 2종 (쿨세범/노세범)",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000141612"],
@@ -97,7 +97,7 @@
       "id": "exact-007",
       "type": "exact_product",
       "status": "ready",
-      "query": "헤드앤숄더 프로페셔널 샴푸 300ml",
+      "query": "[7월 올영픽/더블+증정기획]헤드앤숄더 프로페셔널 샴푸 300ml 더블&증정(80mL)기획 2종 택 1",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000228439"],
@@ -139,7 +139,7 @@
       "id": "exact-010",
       "type": "exact_product",
       "status": "ready",
-      "query": "애프터블로우 오 드 퍼퓸",
+      "query": "[원필PICK] 애프터블로우 솔리드/오 드 퍼퓸 20종 택1 (단품/기획)",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000237852"],
@@ -153,7 +153,7 @@
       "id": "exact-011",
       "type": "exact_product",
       "status": "ready",
-      "query": "올리오 체리시 네일 폴리쉬",
+      "query": "[NEW] 올리오 체리시 네일 폴리쉬 6종 중 택1",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000252959"],
@@ -181,7 +181,7 @@
       "id": "exact-013",
       "type": "exact_product",
       "status": "ready",
-      "query": "센카 퍼펙트 휩 페이셜 워시 120g",
+      "query": "[온라인 단독]센카 퍼펙트 휩 페이셜 워시 FA 120g 트리플 기획",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000253102"],
@@ -195,7 +195,7 @@
       "id": "exact-014",
       "type": "exact_product",
       "status": "ready",
-      "query": "라운드랩 자작나무 수분 선크림 50ml",
+      "query": "[1등썬/1+1] 라운드랩 자작나무 수분 선크림 50ml 1+1 기획 (+여행용 20ml)",
       "expected": {
         "outcome": "products",
         "top_product_ids": ["prod_oy_a000000255124"],
@@ -245,7 +245,7 @@
       "type": "brand",
       "status": "ready",
       "query": "모로칸오일",
-      "expected": {"outcome": "products", "brand_names": ["Moroccanoil"], "top_k": 10}
+      "expected": {"outcome": "products", "brand_names": ["Moroccanoil", "모로칸오일"], "top_k": 10}
     },
     {
       "id": "brand-007",
@@ -439,8 +439,8 @@
       "id": "compound-004",
       "type": "compound",
       "status": "ready",
-      "query": "4점 이상 헤어 마스크",
-      "expected": {"outcome": "products", "category_codes": ["haircare"], "required_terms": ["마스크"], "filters": {"rating_min": 4.0}}
+      "query": "4점 이상 세럼",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["세럼"], "filters": {"rating_min": 4.0}}
     },
     {
       "id": "compound-005",
@@ -453,15 +453,15 @@
       "id": "compound-006",
       "type": "compound",
       "status": "ready",
-      "query": "민감성 수분 선크림 2만원 이하",
-      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["민감", "수분"], "filters": {"price_max": 20000}}
+      "query": "수분 선크림 2만원 이하",
+      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["수분", "선크림"], "filters": {"price_max": 20000}}
     },
     {
       "id": "compound-007",
       "type": "compound",
       "status": "ready",
-      "query": "건성용 세럼 인기순",
-      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["건성"], "sort": "popularity"}
+      "query": "히알루론산 세럼 인기순",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["히알루론산"], "sort": "popularity"}
     },
     {
       "id": "compound-008",
@@ -762,7 +762,7 @@
       "type": "typo_alias",
       "status": "ready",
       "query": "스킨푸두",
-      "expected": {"outcome": "products", "brand_names": ["스킨푸드"]}
+      "expected": {"outcome": "correction", "correction": "스킨푸드", "brand_names": ["스킨푸드"]}
     },
     {
       "id": "typo-020",

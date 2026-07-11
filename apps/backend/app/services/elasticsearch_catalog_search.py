@@ -463,6 +463,7 @@ def _build_base_query(
                     "effect_aliases^1.5",
                     "brand_aliases^1.5",
                     "aliases^1.5",
+                    "all_text^1",
                 ],
             }
         },

@@ -31,6 +31,7 @@ class CatalogSearchRecoveryPlan:
     fuzzy_enabled: bool
     keyboard_conversion_used: bool
     choseong_used: bool
+    confident_correction: bool
 
     @property
     def should_search(self) -> bool:
@@ -48,20 +49,27 @@ def build_catalog_search_recovery_plan(
             fuzzy_enabled=False,
             keyboard_conversion_used=False,
             choseong_used=True,
+            confident_correction=False,
         )
 
     variants: list[str] = []
     corrected_query = known_query_correction(parsed_query.text_query)
+    confident_correction = corrected_query is not None
     if corrected_query is not None:
         variants.append(corrected_query)
 
     variants.extend(brand_query_variants(parsed_query.text_query))
+    brand_corrections = _brand_correction_candidates(session, parsed_query.text_query)
+    variants.extend(brand_corrections)
+    if corrected_query is None and len(brand_corrections) == 1:
+        corrected_query = brand_corrections[0]
 
     compact_variant = compact_search_text(parsed_query.text_query)
     if (
         " " in parsed_query.text_query
         and compact_variant
         and compact_variant != parsed_query.text_query
+        and not _dictionary_contains(session, parsed_query.text_query)
         and _dictionary_contains(session, compact_variant)
     ):
         variants.append(compact_variant)
@@ -92,9 +100,10 @@ def build_catalog_search_recovery_plan(
     return CatalogSearchRecoveryPlan(
         variants=tuple(deduped_variants),
         corrected_query=normalize_query_text(corrected_query) if corrected_query else None,
-        fuzzy_enabled=len(parsed_query.compact_query) >= 3,
+        fuzzy_enabled=_fuzzy_allowed(parsed_query.text_query),
         keyboard_conversion_used=keyboard_conversion_used,
         choseong_used=False,
+        confident_correction=confident_correction,
     )
 
 
@@ -104,6 +113,60 @@ def _keyboard_variant(query: str) -> str | None:
     if _HANGUL_KEY_QUERY.fullmatch(query):
         return normalize_query_text(hangul_to_english_keys(query))
     return None
+
+
+def _fuzzy_allowed(query: str) -> bool:
+    tokens = [compact_search_text(token) for token in normalize_query_text(query).split()]
+    return len(tokens) == 1 and len(tokens[0]) >= 3
+
+
+def _brand_correction_candidates(session: Session, query: str) -> tuple[str, ...]:
+    compact_query = compact_search_text(query)
+    if len(compact_query) < 3:
+        return ()
+    rows = session.execute(
+        select(Brand.name, Brand.brand_code, BrandAlias.alias)
+        .outerjoin(BrandAlias, BrandAlias.brand_id == Brand.id)
+        .where(Brand.is_active.is_(True))
+    ).all()
+    candidates: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for brand_name, brand_code, alias in rows:
+        for value in (brand_name, brand_code, alias):
+            if not value:
+                continue
+            compact_value = compact_search_text(str(value))
+            if compact_value in seen or abs(len(compact_value) - len(compact_query)) > 1:
+                continue
+            if not _is_edit_distance_at_most_one(compact_query, compact_value):
+                continue
+            seen.add(compact_value)
+            candidates.append((compact_value, str(brand_name)))
+    candidates.sort(key=lambda item: (abs(len(item[0]) - len(compact_query)), item[1]))
+    return tuple(dict.fromkeys(name for _, name in candidates[:MAX_RECOVERY_VARIANTS]))
+
+
+def _is_edit_distance_at_most_one(left: str, right: str) -> bool:
+    if left == right:
+        return False
+    if abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) == len(right):
+        return sum(a != b for a, b in zip(left, right, strict=True)) == 1
+    shorter, longer = (left, right) if len(left) < len(right) else (right, left)
+    short_index = 0
+    long_index = 0
+    skipped = False
+    while short_index < len(shorter) and long_index < len(longer):
+        if shorter[short_index] == longer[long_index]:
+            short_index += 1
+            long_index += 1
+            continue
+        if skipped:
+            return False
+        skipped = True
+        long_index += 1
+    return True
 
 
 def _dictionary_contains(session: Session, value: str) -> bool:

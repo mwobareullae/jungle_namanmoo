@@ -26,6 +26,7 @@ from app.services.catalog_search_query import (
     CatalogSearchQuery,
     parse_catalog_search_query,
 )
+from app.services.catalog_search_aliases import known_query_correction
 from app.services.catalog_search_recovery import (
     CatalogSearchRecoveryPlan,
     build_catalog_search_recovery_plan,
@@ -120,7 +121,11 @@ def get_catalog_search_response(
     )
     if es_result.successful:
         try:
-            recovery_plan = build_catalog_search_recovery_plan(session, parsed_query)
+            recovery_plan = _build_recovery_plan_for_result(
+                session,
+                parsed_query,
+                normal_result=es_result,
+            )
             selected_result, recovery_used, search_duration_ms = _recover_low_result_search(
                 parsed_query,
                 normal_result=es_result,
@@ -129,8 +134,12 @@ def get_catalog_search_response(
                 page_size=page_size,
                 elasticsearch_search=elasticsearch_search,
             )
-            corrected_query = recovery_plan.corrected_query
-            if corrected_query is None and selected_result.suggested_queries:
+            corrected_query = (
+                recovery_plan.corrected_query
+                if recovery_used or recovery_plan.confident_correction
+                else None
+            )
+            if recovery_used and corrected_query is None and selected_result.suggested_queries:
                 corrected_query = selected_result.suggested_queries[0]
 
             rows = _load_catalog_rows(session, selected_result.product_db_ids)
@@ -196,6 +205,26 @@ def get_catalog_search_response(
         elasticsearch_attempted=es_result.attempted,
         elasticsearch_duration_ms=es_result.duration_ms,
         choseong_used=is_all_chosung_query(parsed_query.text_query),
+    )
+
+
+def _build_recovery_plan_for_result(
+    session: Session,
+    parsed_query: CatalogSearchQuery,
+    *,
+    normal_result: ElasticsearchCatalogSearchResult,
+) -> CatalogSearchRecoveryPlan:
+    if normal_result.total_hit_count < 3:
+        return build_catalog_search_recovery_plan(session, parsed_query)
+
+    corrected_query = known_query_correction(parsed_query.text_query)
+    return CatalogSearchRecoveryPlan(
+        variants=(),
+        corrected_query=corrected_query,
+        fuzzy_enabled=False,
+        keyboard_conversion_used=False,
+        choseong_used=is_all_chosung_query(parsed_query.text_query),
+        confident_correction=corrected_query is not None,
     )
 
 
@@ -267,7 +296,7 @@ def _dedupe_product_ids(product_db_ids: Sequence[int]) -> tuple[int, ...]:
 def _load_catalog_rows(session: Session, product_db_ids: Sequence[int]) -> list[Any]:
     if not product_db_ids:
         return []
-    statement = _catalog_row_statement().where(
+    statement = _catalog_row_statement(price_product_db_ids=product_db_ids).where(
         Product.id.in_(product_db_ids),
         *_catalog_eligibility(),
     )
@@ -300,15 +329,22 @@ def _search_catalog_rows_with_database(
     return list(session.execute(statement.limit(max(1, limit))).all())
 
 
-def _catalog_row_statement() -> Any:
-    lowest_price = (
+def _catalog_row_statement(
+    *,
+    price_product_db_ids: Sequence[int] = (),
+) -> Any:
+    lowest_price_statement = (
         select(
             ProductPrice.product_id.label("product_id"),
             func.min(ProductPrice.price).label("lowest_price"),
         )
         .group_by(ProductPrice.product_id)
-        .subquery()
     )
+    if price_product_db_ids:
+        lowest_price_statement = lowest_price_statement.where(
+            ProductPrice.product_id.in_(price_product_db_ids)
+        )
+    lowest_price = lowest_price_statement.subquery()
     return (
         select(
             Product.id.label("product_db_id"),
