@@ -18,6 +18,7 @@ from app.api.routes import (
     skin,
     user_activity,
 )
+from app.api.routes.admin import admin_router
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.middleware.request_logging import request_logging_middleware
@@ -53,6 +54,7 @@ app.include_router(orders.router, prefix=settings.api_base_path)
 app.include_router(payments.router, prefix=settings.api_base_path)
 app.include_router(events.router, prefix=settings.api_base_path)
 app.include_router(agent.router, prefix=settings.api_base_path)
+app.include_router(admin_router, prefix=settings.api_base_path)
 
 
 @app.exception_handler(ApiError)
