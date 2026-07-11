@@ -3337,8 +3337,6 @@ body {
 .product-card-loading .product-img {
   aspect-ratio: 1;
   border-radius: 8px;
-  background: linear-gradient(135deg, #eef2f5 0%, #dfe5ea 48%, #f6f8fa 100%);
-  animation: none;
 }
 
 .product-card-loading .product-info {
@@ -3421,11 +3419,6 @@ body {
   pointer-events: none;
 }
 
-.home-loading-stack .skeleton-shimmer {
-  background: linear-gradient(135deg, #eef2f5 0%, #dfe5ea 48%, #f6f8fa 100%);
-  animation: none;
-}
-
 .home-loading-section .home-loading-head .home-section-kicker {
   width: 118px;
   height: 24px;
@@ -3497,8 +3490,7 @@ body {
 }
 
 .home-deal-loading-card .home-deal-media {
-  background: linear-gradient(135deg, #eef2f5 0%, #dfe5ea 48%, #f6f8fa 100%);
-  animation: none;
+  border-radius: 8px;
 }
 
 .home-deal-loading-card .home-ranking-brand,
@@ -6119,6 +6111,33 @@ body.search-results-page #searchResultsGrid .product-info {
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0.05));
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-component {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: #eef2f5;
+  background-image: none;
+  animation: none;
+}
+
+.skeleton-component::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.58) 48%, transparent 100%);
+  content: "";
+  transform: translateX(-100%);
+  animation: skeleton-component-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-component-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes skeleton-shimmer {
