@@ -73,11 +73,11 @@ const avoidOptions = avoidIngredientCategories.map(({ id, label, mappedIngredien
   mappedIngredients
 }));
 
-const defaultProfile: SkinProfileDraft = {
-  skinType: "dehydrated_oily",
-  sensitivity: "normal",
-  concerns: ["concern_acne", "concern_dry_barrier"],
-  avoidIngredients: ["fragrance"],
+const emptyProfile: SkinProfileDraft = {
+  skinType: "" as SkinTypeId,
+  sensitivity: "" as SensitivityId,
+  concerns: [],
+  avoidIngredients: [],
   eventContext: {
     page: "mypage_skin_profile",
     source: "mypage_skin_profile_form",
@@ -85,13 +85,10 @@ const defaultProfile: SkinProfileDraft = {
   }
 };
 
+const SAVE_INDICATOR_MIN_DURATION_MS = 600;
+
 const labelOf = <T extends string>(options: { id: T; label: string }[], id: T) =>
   options.find((option) => option.id === id)?.label ?? "-";
-
-const labelsOf = <T extends string>(options: { id: T; label: string }[], ids: T[]) =>
-  ids.map((id) => labelOf(options, id)).filter(Boolean);
-
-const formatSensitivityLabel = (label: string) => `민감 ${label}`;
 
 const toggleMultiValue = <T extends string>(values: T[], value: T) => {
   if (value === "none") {
@@ -116,6 +113,15 @@ const labelsFromIds = <T extends string>(options: { id: T; label: string }[], id
 const idsFromLabels = <T extends string>(options: { id: T; label: string }[], labels: string[]) =>
   labels.map((label) => idFromLabel(options, label)).filter((id): id is T => Boolean(id));
 
+const sameValues = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const isSameProfileDraft = (left: SkinProfileDraft, right: SkinProfileDraft) =>
+  left.skinType === right.skinType &&
+  left.sensitivity === right.sensitivity &&
+  sameValues(left.concerns, right.concerns) &&
+  sameValues(left.avoidIngredients, right.avoidIngredients);
+
 const avoidIdFromStoredValue = (value: string) =>
   avoidOptions.find(
     (option) =>
@@ -136,22 +142,21 @@ const draftFromSkinProfile = (profile: SkinProfileData, fallback: SkinProfileDra
     skinType: idFromLabel(skinTypeOptions, profile.skinType) ?? fallback.skinType,
     sensitivity: idFromLabel(sensitivityOptions, profile.sensitivity) ?? fallback.sensitivity,
     concerns: concerns.length > 0 ? concerns : fallback.concerns,
-    avoidIngredients: avoidIngredients.length > 0 ? avoidIngredients : ["none"]
+    avoidIngredients: avoidIngredients.length > 0 ? avoidIngredients : []
   };
 };
 
-export default function SkinProfile({ initialProfile = defaultProfile, onSubmitDraft }: SkinProfileProps) {
+export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDraft }: SkinProfileProps) {
   const [profile, setProfile] = useState<SkinProfileDraft>(initialProfile);
+  const [savedProfile, setSavedProfile] = useState<SkinProfileDraft>(initialProfile);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const saveToastTimerRef = useRef<number | null>(null);
   const canSave =
-    profile.skinType &&
-    profile.sensitivity &&
-    profile.concerns.length > 0 &&
-    profile.avoidIngredients.length > 0;
+    Boolean(profile.skinType && profile.sensitivity) &&
+    !isSameProfileDraft(profile, savedProfile);
 
   useEffect(() => {
     let isActive = true;
@@ -163,13 +168,15 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
         }
 
         if (savedProfile) {
-          setProfile((current) => draftFromSkinProfile(savedProfile, current));
+          const nextProfile = draftFromSkinProfile(savedProfile, emptyProfile);
+          setProfile(nextProfile);
+          setSavedProfile(nextProfile);
           setStatusMessage(null);
         }
       })
       .catch(() => {
         if (isActive) {
-          setStatusMessage("저장된 피부 프로필을 불러오지 못해 기본값으로 표시 중입니다.");
+          setStatusMessage("저장된 피부 프로필을 불러오지 못했습니다.");
         }
       })
       .finally(() => {
@@ -198,6 +205,7 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
 
     setIsSaving(true);
     setStatusMessage(null);
+    const savingStartedAt = Date.now();
 
     try {
       const savedProfile = await updateMySkinProfile({
@@ -208,7 +216,9 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
       });
 
       if (savedProfile) {
-        setProfile((current) => draftFromSkinProfile(savedProfile, current));
+        const nextProfile = draftFromSkinProfile(savedProfile, emptyProfile);
+        setProfile(nextProfile);
+        setSavedProfile(nextProfile);
       }
 
       onSubmitDraft?.(profile);
@@ -223,7 +233,8 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
     } catch {
       setStatusMessage("피부 프로필 저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
-      setIsSaving(false);
+      const remainingDuration = Math.max(0, SAVE_INDICATOR_MIN_DURATION_MS - (Date.now() - savingStartedAt));
+      window.setTimeout(() => setIsSaving(false), remainingDuration);
     }
   };
 
@@ -231,15 +242,6 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
     <MyPageLayout activePath="/mypage/skin-profile">
       <PageTitle
         title="피부 프로필 관리"
-        rightSlot={
-          <div style={styles.titleTags}>
-            <span style={styles.primaryTag}>{labelOf(skinTypeOptions, profile.skinType)}</span>
-            <span style={styles.tag}>{formatSensitivityLabel(labelOf(sensitivityOptions, profile.sensitivity))}</span>
-            {labelsOf(concernOptions, profile.concerns).slice(0, 2).map((label) => (
-              <span style={styles.tag} key={label}>{label}</span>
-            ))}
-          </div>
-        }
       />
       {isLoadingProfile ? <p style={styles.statusMessage}>저장된 피부 프로필을 불러오는 중입니다.</p> : null}
       {statusMessage ? <p style={styles.statusMessage}>{statusMessage}</p> : null}
@@ -343,12 +345,23 @@ export default function SkinProfile({ initialProfile = defaultProfile, onSubmitD
       </ProfileSection>
       <div className="flex items-center justify-end gap-3.5">
         <button
-          className="inline-flex min-h-[46px] w-[180px] items-center justify-center rounded-[10px] text-[14px] font-semibold disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#9CA3AF] enabled:cursor-pointer enabled:bg-[#0C1117] enabled:text-white enabled:hover:bg-[#1A1A1A]"
+          className={`inline-flex min-h-[46px] w-[180px] items-center justify-center rounded-[10px] text-[14px] font-semibold ${
+            isSaving
+              ? "cursor-wait bg-[#0C1117] text-white"
+              : canSave
+                ? "cursor-pointer bg-[#0C1117] text-white hover:bg-[#1A1A1A]"
+                : "cursor-not-allowed bg-[#E5E7EB] text-[#9CA3AF]"
+          }`}
           disabled={!canSave || isSaving}
           onClick={saveProfile}
           type="button"
         >
-          {isSaving ? "저장 중" : "저장하기"}
+          {isSaving ? (
+            <>
+              <span aria-hidden="true" className="skin-profile-save-spinner" />
+              저장 중
+            </>
+          ) : canSave ? "저장하기" : "저장완료"}
         </button>
       </div>
       {showSaveToast ? <MypageToastMessage message="저장되었습니다" /> : null}
@@ -369,33 +382,6 @@ function ProfileSection({ title, suffix, children }: { title: string; suffix?: s
 }
 
 const styles: Record<string, CSSProperties> = {
-  titleTags: {
-    display: "flex",
-    gap: 5,
-    flexWrap: "wrap"
-  },
-  primaryTag: {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: 22,
-    padding: "0 9px",
-    borderRadius: 999,
-    background: "rgba(148,224,248,0.18)",
-    border: "1px solid rgba(148,224,248,0.5)",
-    color: "#063445",
-    fontSize: 12,
-    fontWeight: 600
-  },
-  tag: {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: 22,
-    padding: "0 9px",
-    borderRadius: 999,
-    border: "1px solid #e0e0e0",
-    color: "#555555",
-    fontSize: 12
-  },
   statusMessage: {
     margin: "0 0 18px",
     color: "#6b7280",
