@@ -5,6 +5,7 @@ import ProductThumbnail from "../components/ProductThumbnail";
 import Skeleton from "../components/ui/Skeleton";
 import HeartIcon from "../components/ui/HeartIcon";
 import ActivityToast from "../components/ui/ActivityToast";
+import PopularProductsHeader from "../components/PopularProductsHeader";
 import { useAuth } from "../contexts/useAuth";
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "../lib/api";
@@ -24,30 +25,7 @@ type PopularItem = {
 
 type PopularResponse = { items: PopularItem[]; window_days: number };
 
-const categories = [
-  { code: "", label: "전체" },
-  { code: "toner", label: "토너", icon: "/category-icons/toner.png" },
-  { code: "serum", label: "세럼", icon: "/category-icons/serum.png" },
-  { code: "cream", label: "크림", icon: "/category-icons/cream.png" },
-  { code: "sunscreen", label: "선크림", icon: "/category-icons/sunscreen.png" }
-];
-
 const formatPrice = (value: number) => `${value.toLocaleString("ko-KR")}원`;
-
-const getCurrentMonthWeekLabel = () => {
-  const today = new Date();
-  const month = today.getMonth() + 1;
-  const weekOfMonth = Math.ceil(today.getDate() / 7);
-  return `${month}월 ${weekOfMonth}주차`;
-};
-
-const getCurrentDateLabel = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}.${month}.${day}.`;
-};
 
 function PopularProductsPage() {
   const { user } = useAuth();
@@ -160,51 +138,7 @@ function PopularProductsPage() {
       <HomeHeader />
       <main className="popular-products-page">
         <section className="popular-products-shell">
-          <div className="popular-products-kicker">{getCurrentMonthWeekLabel()}</div>
-          <h1>많이 본 BEST</h1>
-          <div className="popular-category-tabs" role="tablist" aria-label="상품 카테고리">
-            {categories.map((item) => (
-              <button
-                className={category === item.code ? "is-active" : ""}
-                key={item.code || "all"}
-                onClick={() => setCategory(item.code)}
-                role="tab"
-                type="button"
-              >
-                <span className="popular-category-icon">
-                  {item.icon ? (
-                    <img
-                      alt=""
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-                      }}
-                      src={item.icon}
-                    />
-                  ) : item.code ? "✦" : "ALL"}
-                </span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="popular-products-toolbar">
-            <div className="popular-period-tabs" role="tablist" aria-label="인기 기간">
-              <button className={windowDays === 1 ? "is-active" : ""} onClick={() => setWindowDays(1)} type="button">일간</button>
-              <button className={windowDays === 7 ? "is-active" : ""} onClick={() => setWindowDays(7)} type="button">주간</button>
-            </div>
-            <span className="popular-ranking-info">
-              <span>인기 기준</span>
-              <button aria-label="인기상품 순위 기준 안내" className="popular-ranking-info__trigger" type="button">
-                <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="9.5" />
-                  <path d="M12 10.5v5" />
-                  <circle cx="12" cy="7.2" r="0.8" fill="currentColor" stroke="none" />
-                </svg>
-              </button>
-              <span className="popular-ranking-info__tooltip" role="tooltip">
-                {getCurrentDateLabel()} 기준, {windowDays === 1 ? "오늘" : "최근 7일간"} 고객들의 다양한 상품 활동을 종합해 인기상품 순위를 제공하고 있습니다.
-              </span>
-            </span>
-          </div>
+          <PopularProductsHeader category={category} onCategoryChange={setCategory} onWindowDaysChange={setWindowDays} windowDays={windowDays} />
           {errorMessage ? <p className="popular-products-error">{errorMessage}</p> : null}
           <section className="popular-products-grid" aria-label="인기상품 목록">
             {isLoading

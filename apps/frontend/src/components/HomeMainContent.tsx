@@ -240,7 +240,7 @@ function HomeRankingSection({
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href="/products/popular">
           전체보기
           <span aria-hidden="true">→</span>
         </a>
