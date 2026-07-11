@@ -234,6 +234,14 @@ class ElasticsearchCatalogIndexResult:
         )
 
 
+@dataclass(frozen=True)
+class ElasticsearchCatalogProductSyncResult:
+    product_id: str
+    action: str
+    index_alias: str
+
+
+
 def build_catalog_products_index_name(index_suffix: str | None = None) -> str:
     suffix = index_suffix or datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     normalized_suffix = suffix.strip().removeprefix("_")
@@ -415,6 +423,59 @@ def rollback_catalog_products_alias(
     _swap_alias(client, index_name=target_index_name, alias_name=alias_name)
 
 
+def reindex_catalog_product_to_elasticsearch(
+    session: Session,
+    *,
+    product_id: str,
+    client_provider: ElasticsearchClientProvider = default_elasticsearch_client_provider,
+    index_alias: str = settings.elasticsearch_catalog_products_alias,
+    refresh: bool = False,
+) -> ElasticsearchCatalogProductSyncResult:
+    normalized_product_id = product_id.strip()
+    if not normalized_product_id:
+        raise ElasticsearchCatalogIndexError("product_id is required.")
+    client = client_provider.get_client()
+    if client is None:
+        raise ElasticsearchCatalogIndexError("Elasticsearch client is unavailable.")
+
+    try:
+        row = session.execute(
+            _base_product_row_statement().where(
+                Product.product_code == normalized_product_id,
+                *_catalog_product_eligibility(),
+            )
+        ).first()
+        if row is None:
+            _delete_catalog_product_document(
+                client,
+                index_alias=index_alias,
+                product_id=normalized_product_id,
+                refresh=refresh,
+            )
+            action = "DELETED_OR_MISSING"
+        else:
+            product_db_id = int(row.product_db_id)
+            context = _load_batch_context(session, [row], [product_db_id])
+            document = _build_catalog_document(row, context)
+            client.index(
+                index=index_alias,
+                id=normalized_product_id,
+                document=document,
+                refresh="wait_for" if refresh else False,
+            )
+            action = "INDEXED"
+        client_provider.mark_success()
+    except Exception as exc:
+        client_provider.mark_failure(str(exc))
+        raise ElasticsearchCatalogIndexError(str(exc)) from exc
+
+    return ElasticsearchCatalogProductSyncResult(
+        product_id=normalized_product_id,
+        action=action,
+        index_alias=index_alias,
+    )
+
+
 def _catalog_product_eligibility() -> tuple[Any, ...]:
     return (
         Product.is_active.is_(True),
@@ -432,6 +493,16 @@ def _load_base_product_rows(
     limit: int,
 ) -> list[Any]:
     statement = (
+        _base_product_row_statement()
+        .where(Product.id > after_product_db_id, *_catalog_product_eligibility())
+        .order_by(Product.id.asc())
+        .limit(limit)
+    )
+    return list(session.execute(statement).all())
+
+
+def _base_product_row_statement() -> Any:
+    return (
         select(
             Product.id.label("product_db_id"),
             Product.product_code,
@@ -456,11 +527,7 @@ def _load_base_product_rows(
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .join(Seller, Product.seller_id == Seller.id)
         .outerjoin(Inventory, Inventory.product_id == Product.id)
-        .where(Product.id > after_product_db_id, *_catalog_product_eligibility())
-        .order_by(Product.id.asc())
-        .limit(limit)
     )
-    return list(session.execute(statement).all())
 
 
 @dataclass(frozen=True)
@@ -712,6 +779,27 @@ def _bulk_index_documents(
         request_timeout=request_timeout_seconds,
     )
     return int(success_count), list(errors)
+
+
+def _delete_catalog_product_document(
+    client: Any,
+    *,
+    index_alias: str,
+    product_id: str,
+    refresh: bool,
+) -> None:
+    try:
+        client.delete(
+            index=index_alias,
+            id=product_id,
+            refresh="wait_for" if refresh else False,
+        )
+    except Exception as exc:
+        status_code = getattr(exc, "status_code", None)
+        if status_code is None:
+            status_code = getattr(getattr(exc, "meta", None), "status", None)
+        if status_code != 404:
+            raise
 
 
 def _index_document_count(client: Any, index_name: str) -> int:

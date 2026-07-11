@@ -12,6 +12,7 @@ from app.services.elasticsearch_catalog_index import (
     count_catalog_search_products,
     index_catalog_products_to_elasticsearch,
     iter_catalog_product_document_batches,
+    reindex_catalog_product_to_elasticsearch,
 )
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -169,6 +170,53 @@ def test_catalog_index_does_not_swap_alias_when_bulk_validation_fails(monkeypatc
     assert client.alias_actions == []
 
 
+def test_single_catalog_product_reindex_updates_alias_document() -> None:
+    session = _seed_example_session()
+    client = _FakeElasticsearchClient()
+    provider = _FakeClientProvider(client)
+    client.documents["test_catalog_current"] = {}
+
+    result = reindex_catalog_product_to_elasticsearch(
+        session,
+        product_id="prod_001",
+        client_provider=provider,
+        index_alias="test_catalog_current",
+        refresh=True,
+    )
+
+    assert result.action == "INDEXED"
+    assert client.documents["test_catalog_current"]["prod_001"]["lowest_price"] == 19900
+    assert client.index_refreshes[-1] == "wait_for"
+
+
+def test_single_catalog_product_reindex_removes_hidden_document() -> None:
+    session = _seed_example_session()
+    product = session.execute(select(Product).where(Product.product_code == "prod_001")).scalar_one()
+    session.add(
+        Inventory(
+            product_id=product.id,
+            stock_quantity=0,
+            reserved_quantity=0,
+            safety_stock=0,
+            sales_status="HIDDEN",
+        )
+    )
+    session.commit()
+    client = _FakeElasticsearchClient()
+    client.documents["test_catalog_current"] = {"prod_001": {"product_id": "prod_001"}}
+    provider = _FakeClientProvider(client)
+
+    result = reindex_catalog_product_to_elasticsearch(
+        session,
+        product_id="prod_001",
+        client_provider=provider,
+        index_alias="test_catalog_current",
+    )
+
+    assert result.action == "DELETED_OR_MISSING"
+    assert "prod_001" not in client.documents["test_catalog_current"]
+
+
 class _FakeIndicesClient:
     def __init__(self, parent) -> None:
         self.parent = parent
@@ -207,7 +255,21 @@ class _FakeElasticsearchClient:
         self.documents: dict[str, dict[str, dict]] = {}
         self.alias_actions: list[dict] = []
         self.alias_indices: set[str] = set()
+        self.index_refreshes: list[object] = []
         self.indices = _FakeIndicesClient(self)
+
+    def index(self, *, index: str, id: str, document: dict, refresh=False):
+        self.documents[index][id] = document
+        self.index_refreshes.append(refresh)
+        return {"result": "updated"}
+
+    def delete(self, *, index: str, id: str, refresh=False):
+        if id not in self.documents[index]:
+            error = RuntimeError("not found")
+            error.status_code = 404
+            raise error
+        del self.documents[index][id]
+        return {"result": "deleted"}
 
     def count(self, *, index: str):
         return {"count": len(self.documents[index])}
