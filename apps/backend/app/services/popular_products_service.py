@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
 from app.db.models.commerce import Inventory, ProductPopularityMetric
+from app.db.models.review import ProductReviewMetric
 from app.schemas.product import PopularProductItem, PopularProductsResponse, ProductPopularityMetrics
 from app.services.product_image_service import load_thumbnail_storage_keys
 
@@ -75,8 +76,8 @@ def get_popular_product_items(
             ProductPopularityMetric.cart_quantity_change_count,
             ProductPopularityMetric.payment_failed_count,
             ProductPopularityMetric.order_cancel_count,
-            ProductPopularityMetric.review_count,
-            ProductPopularityMetric.average_rating,
+            ProductReviewMetric.review_count.label("review_count"),
+            ProductReviewMetric.average_rating.label("average_rating"),
             ProductPopularityMetric.popularity_score,
             ProductPopularityMetric.score_version,
             ProductPopularityMetric.computed_at,
@@ -86,6 +87,7 @@ def get_popular_product_items(
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .join(price_subquery, price_subquery.c.product_id == Product.id)
         .outerjoin(Inventory, Inventory.product_id == Product.id)
+        .outerjoin(ProductReviewMetric, ProductReviewMetric.product_id == Product.id)
         .where(
             ProductPopularityMetric.window_days == window_days,
             Product.is_active.is_(True),
@@ -97,7 +99,7 @@ def get_popular_product_items(
             ProductPopularityMetric.popularity_score.desc(),
             ProductPopularityMetric.order_count.desc(),
             ProductPopularityMetric.units_sold.desc(),
-            ProductPopularityMetric.review_count.desc(),
+            ProductReviewMetric.review_count.desc().nulls_last(),
             Product.product_code.asc(),
         )
         .limit(limit)
@@ -143,7 +145,7 @@ def get_popular_product_items(
                 cart_quantity_change_count=int(row.cart_quantity_change_count),
                 payment_failed_count=int(row.payment_failed_count),
                 order_cancel_count=int(row.order_cancel_count),
-                review_count=int(row.review_count),
+                review_count=int(row.review_count or 0),
                 average_rating=float(row.average_rating) if row.average_rating is not None else None,
             ),
         )

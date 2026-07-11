@@ -30,3 +30,10 @@ docker compose exec -T backend \
 ```
 
 상품 품질은 카테고리 prior strength 20으로 보정합니다. 프로필 segment는 상품 전체 점수를 prior로 사용하며, effective sample size가 5보다 작은 segment도 저장합니다. 추천 단계에서는 이 작은 segment를 중립 0.5로 처리합니다. 원본의 사진 존재 표식은 통계 count에만 남고 점수에는 사용하지 않습니다.
+
+일반 검색 ES 문서의 평점·리뷰 수도 갱신해야 하면 rollup 커밋 후 아래 full reindex를 실행합니다. 이 명령은 catalog 문서만 다시 만들며 embedding은 재생성하지 않습니다.
+
+```bash
+docker compose exec -T backend \
+  python -m app.cli.index_catalog_products_to_elasticsearch --full
+```

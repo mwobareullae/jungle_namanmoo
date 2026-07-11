@@ -1,6 +1,10 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
+from app.db.models.catalog import Product
+from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.review import ProductReviewMetric
 from app.db.session import make_engine
 from app.services.catalog_search_service import get_catalog_search_response
 from app.services.db_seed import seed_database
@@ -140,6 +144,39 @@ def test_catalog_search_exposes_confident_correction_without_extra_recovery() ->
     assert len(calls) == 1
     assert execution.recovery_used is False
     assert execution.response.corrected_query == "히알루론산"
+
+
+def test_catalog_search_hydrates_rating_from_review_metrics() -> None:
+    session = _seed_example_session()
+    product = session.scalar(select(Product).where(Product.product_code == "prod_001"))
+    assert product is not None
+    session.add_all(
+        [
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                review_count=999,
+                average_rating=1.0,
+                popularity_score=70,
+            ),
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=12,
+                rating_count=12,
+                average_rating=4.8,
+            ),
+        ]
+    )
+    session.flush()
+
+    execution = get_catalog_search_response(
+        session,
+        query="수분 크림",
+        elasticsearch_search=_fake_es_search([product.id], total=1),
+    )
+
+    assert execution.response.items[0].rating == 4.8
+    assert execution.response.items[0].review_count == 12
 
 
 def _fake_es_search(

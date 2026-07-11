@@ -349,8 +349,6 @@ class _FunctionalInfo:
 @dataclass(frozen=True)
 class _MarketSignalInfo:
     popularity_score: float
-    review_count: int
-    average_rating: float | None
 
 
 @dataclass(frozen=True)
@@ -1353,8 +1351,6 @@ def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, 
     return {
         int(row.product_id): _MarketSignalInfo(
             popularity_score=_decimal_to_float(row.popularity_score),
-            review_count=int(row.review_count),
-            average_rating=_optional_decimal_to_float(row.average_rating),
         )
         for row in rows
     }

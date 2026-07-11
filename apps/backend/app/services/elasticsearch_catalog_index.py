@@ -20,6 +20,7 @@ from app.db.models.catalog import (
     ProductPrice,
 )
 from app.db.models.commerce import Inventory, ProductPopularityMetric, Seller
+from app.db.models.review import ProductReviewMetric
 from app.db.models.taxonomy import (
     Effect,
     EffectAlias,
@@ -533,7 +534,8 @@ def _base_product_row_statement() -> Any:
 @dataclass(frozen=True)
 class _BatchContext:
     prices: dict[int, int]
-    popularity: dict[int, tuple[float | None, int, float]]
+    popularity: dict[int, float]
+    reviews: dict[int, tuple[float | None, int]]
     brand_aliases: dict[int, tuple[str, ...]]
     category_aliases: dict[int, tuple[str, ...]]
     ingredient_names: dict[int, tuple[str, ...]]
@@ -558,15 +560,22 @@ def _load_batch_context(
         ).all()
     }
     popularity = {
-        int(row.product_id): (
-            float(row.average_rating) if row.average_rating is not None else None,
-            int(row.review_count),
-            float(row.popularity_score),
-        )
+        int(row.product_id): float(row.popularity_score)
         for row in session.execute(
             select(ProductPopularityMetric).where(
                 ProductPopularityMetric.product_id.in_(product_db_ids),
                 ProductPopularityMetric.window_days == DEFAULT_POPULARITY_WINDOW_DAYS,
+            )
+        ).scalars()
+    }
+    reviews = {
+        int(row.product_id): (
+            float(row.average_rating) if row.average_rating is not None else None,
+            int(row.review_count),
+        )
+        for row in session.execute(
+            select(ProductReviewMetric).where(
+                ProductReviewMetric.product_id.in_(product_db_ids)
             )
         ).scalars()
     }
@@ -647,6 +656,7 @@ def _load_batch_context(
     return _BatchContext(
         prices=prices,
         popularity=popularity,
+        reviews=reviews,
         brand_aliases=brand_aliases,
         category_aliases=category_aliases,
         ingredient_names=_freeze_values(ingredient_names_by_product),
@@ -675,7 +685,8 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
     effect_names = context.effect_names.get(product_db_id, ())
     effect_aliases = context.effect_aliases.get(product_db_id, ())
     aliases = tuple(sorted(set((*brand_aliases, *category_aliases, *ingredient_aliases, *effect_aliases))))
-    rating, review_count, popularity_score = context.popularity.get(product_db_id, (None, 0, 0.0))
+    rating, review_count = context.reviews.get(product_db_id, (None, 0))
+    popularity_score = context.popularity.get(product_db_id, 0.0)
     if row.inventory_id is None:
         available_quantity = None
         sales_status = "UNKNOWN"
