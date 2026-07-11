@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 
 COSING_APP_CONFIG_URL = (
@@ -465,6 +465,16 @@ def load_current_effects(path: Path) -> dict[str, dict[str, str]]:
     return effects
 
 
+def load_candidate_selections(path: Path) -> dict[tuple[str, str], str]:
+    selected: dict[tuple[str, str], str] = {}
+    for row in read_csv(path):
+        if row.get("selected_for_paper_review") != "Y":
+            continue
+        key = (row["ingredient_id"], row["effect_id"])
+        selected[key] = row.get("screening_status", "selected")
+    return selected
+
+
 def load_current_risks(
     path: Path,
     wildcard_mapping: dict[str, str] | None = None,
@@ -523,6 +533,7 @@ def build_rows(
     current_effects: dict[str, dict[str, str]],
     current_risks: dict[str, set[str]],
     fetched_on: str,
+    candidate_selections: Mapping[tuple[str, str], str] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     role_rows: list[dict[str, object]] = []
     watch_rows: list[dict[str, object]] = []
@@ -530,7 +541,16 @@ def build_rows(
         ingredient_id = ingredient["ingredient_id"]
         match_status, record = match_cosing_record(ingredient["name_en"], records)
         functions = record.functions if record else ()
-        signals = effect_signals(functions)
+        raw_signals = effect_signals(functions)
+        signals = (
+            raw_signals
+            if candidate_selections is None
+            else {
+                effect_id: value
+                for effect_id, value in raw_signals.items()
+                if (ingredient_id, effect_id) in candidate_selections
+            }
+        )
         existing_effects = current_effects.get(ingredient_id, {})
         signal_ids = sorted(set(existing_effects) | set(signals))
         risk_types = current_risks.get(ingredient_id, set())
@@ -543,9 +563,18 @@ def build_rows(
         )
         role_unresolved = record is None and not existing_effects and not risk_types
         role_general = not role_effect and not role_formulation and not role_risk
+        direct_priority = (
+            any(strength == "high" for strength, _ in signals.values())
+            if candidate_selections is None
+            else any(
+                candidate_selections.get((ingredient_id, effect_id))
+                == "direct_cosing_signal"
+                for effect_id in signals
+            )
+        )
         if existing_effects:
             priority = "current_runtime"
-        elif any(strength == "high" for strength, _ in signals.values()):
+        elif direct_priority:
             priority = "P1_initial_evidence"
         elif signals:
             priority = "P2_initial_evidence"
@@ -557,6 +586,23 @@ def build_rows(
             signal_basis.append(f"{effect_id}:{strength}:{'+'.join(matched_functions)}")
         for effect_id in sorted(existing_effects):
             signal_basis.append(f"{effect_id}:current_runtime")
+
+        if existing_effects:
+            classification_status = "existing_runtime"
+            classification_note = "기존 ingredient_effect 런타임 조합"
+        elif signals:
+            classification_status = "candidate_unverified"
+            classification_note = (
+                "CosIng 직접 신호 또는 인체 국소 PubMed 사전검사 통과 후보이며 "
+                "논문 근거나 점수 승인은 아님"
+            )
+        else:
+            classification_status = "not_selected"
+            classification_note = (
+                "인체 국소 PubMed 사전검사 미통과"
+                if raw_signals and candidate_selections is not None
+                else "6축 효능 후보 신호 없음"
+            )
 
         role_rows.append(
             {
@@ -580,12 +626,8 @@ def build_rows(
                 "role_general_other": "Y" if role_general else "N",
                 "role_unresolved": "Y" if role_unresolved else "N",
                 "research_priority": priority,
-                "classification_status": (
-                    "existing_runtime" if existing_effects else "candidate_unverified"
-                ),
-                "classification_note": (
-                    "CosIng 기능은 후보 선별 신호일 뿐 논문 근거나 점수 승인 아님"
-                ),
+                "classification_status": classification_status,
+                "classification_note": classification_note,
                 "source_url": COSING_PUBLIC_URL if record else "",
                 "source_fetched_on": fetched_on if record else "",
             }
@@ -602,11 +644,20 @@ def build_rows(
                 rationale = "기존 ingredient_effect 점수쌍"
             else:
                 strength, matched_functions = signals[effect_id]
+                selection_status = (
+                    candidate_selections.get((ingredient_id, effect_id), "")
+                    if candidate_selections is not None
+                    else ""
+                )
                 pair_status = "new_watchlist_proposal"
                 search_action = "initial_evidence_search_then_watch"
                 review_status = "candidate_unverified"
                 score_change = "none"
-                rationale = "CosIng 기능 기반 검색 후보이며 근거 승인 전 점수 사용 금지"
+                rationale = (
+                    "CosIng 직접 기능 검색 후보이며 근거 승인 전 점수 사용 금지"
+                    if selection_status == "direct_cosing_signal"
+                    else "인체 국소 PubMed 사전검사 통과 후보이며 원문 검수 전 점수 사용 금지"
+                )
             watch_rows.append(
                 {
                     "priority_rank": 0,
@@ -666,6 +717,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("data/reconciliation/ingredient_cosing_function_snapshot.csv"),
     )
+    parser.add_argument(
+        "--pubmed-screening",
+        type=Path,
+        default=Path("data/reconciliation/ingredient_effect_pubmed_screening.csv"),
+    )
     parser.add_argument("--refresh-cosing", action="store_true")
     return parser.parse_args()
 
@@ -701,6 +757,7 @@ def main() -> None:
         current_effects,
         load_current_risks(args.data_dir / "risk_flags.csv", wildcard_mapping),
         fetched_on,
+        load_candidate_selections(args.pubmed_screening),
     )
     validate_generated_rows(
         role_rows,

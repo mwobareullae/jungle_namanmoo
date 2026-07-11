@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from collections import Counter
 from pathlib import Path
 
 
@@ -11,6 +12,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from build_ingredient_role_inventory import (  # noqa: E402
     CosingRecord,
     apply_mapping,
+    build_rows,
     candidate_query_names,
     effect_signals,
     load_current_risks,
@@ -148,6 +150,37 @@ class BuildIngredientRoleInventoryTests(unittest.TestCase):
         self.assertEqual(loaded["TEST INCI"].functions, ("SKIN CONDITIONING",))
         self.assertEqual(loaded["TEST INCI"].restrictions, ("III/61 restricted",))
         self.assertEqual(loaded["TEST INCI"].substance_ids, ("123",))
+
+    def test_pubmed_screening_filters_unselected_cosing_signal(self):
+        ingredients = [
+            {"ingredient_id": "selected", "name_ko": "선택", "name_en": "Selected"},
+            {"ingredient_id": "rejected", "name_ko": "제외", "name_en": "Rejected"},
+        ]
+        records = {
+            "SELECTED": CosingRecord("SELECTED", ("HUMECTANT",), (), (), ()),
+            "REJECTED": CosingRecord("REJECTED", ("HUMECTANT",), (), (), ()),
+        }
+
+        roles, watch = build_rows(
+            ingredients,
+            records,
+            Counter({"selected": 2, "rejected": 1}),
+            {"selected": 2, "rejected": 1},
+            {},
+            {},
+            "2026-07-12",
+            {("selected", "effect_moisture_barrier"): "human_topical_pubmed_candidate"},
+        )
+
+        by_id = {row["ingredient_id"]: row for row in roles}
+        self.assertEqual(by_id["selected"]["role_effect_candidate"], "Y")
+        self.assertEqual(by_id["selected"]["classification_status"], "candidate_unverified")
+        self.assertEqual(by_id["rejected"]["role_effect_candidate"], "N")
+        self.assertEqual(by_id["rejected"]["classification_status"], "not_selected")
+        self.assertEqual(
+            [(row["ingredient_id"], row["effect_id"]) for row in watch],
+            [("selected", "effect_moisture_barrier")],
+        )
 
 
 if __name__ == "__main__":

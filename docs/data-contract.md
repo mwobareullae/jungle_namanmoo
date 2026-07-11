@@ -217,6 +217,22 @@ Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredien
 
 이 파일은 검수 완료 매핑만 담는 append-oriented 정본입니다. 기존 매핑을 제거하거나 대상을 바꿀 때는 과거 canonical 연결 정리가 필요하므로 별도 데이터 정리와 검증을 수행해야 합니다.
 
+### `data/reconciliation/ingredient_effect_pubmed_screening.csv`
+
+canonical 성분을 실제 논문 원문 검토 대상으로 보낼지 결정하는 재현용 사전검사 산출물입니다.
+런타임 seed 정본이 아니며 점수와 근거 승인을 만들지 않습니다.
+
+- 기존 `ingredient_effect.csv` 조합은 그대로 유지합니다.
+- `BLEACHING`, `SOOTHING`처럼 직접적인 CosIng 기능은 초기 검색 후보로 유지합니다.
+- 보습 기능과 `ANTI-SEBORRHEIC`, `KERATOLYTIC`은 성분명이 논문 제목에 명시되고 인체·국소 적용 신호가 있는 PubMed 논문 후보가 최소 1편 있을 때만 원문 검토 대상으로 선택합니다.
+- 검색 결과는 `candidate_unverified`보다 앞선 사전 선별이며, 사람의 원문 검수 전에는 근거나 점수로 사용하지 않습니다.
+- 후보 수를 목표 숫자에 맞추지 않고 위 기준을 통과한 수만 보존합니다.
+
+`ingredient_role_review.csv`와 `ingredient_effect_watchlist_proposal.csv`는 이 파일에서
+`selected_for_paper_review=Y`인 조합만 후보로 표시합니다. `score_change`는 항상 `none`입니다.
+`ingredient_canonical_expansion_proposals_initial.csv`는 canonical 인식 범위를 넓힐 때 사용한
+과포함 초기 산출물이며 최종 논문 검토 명단으로 사용하지 않습니다.
+
 ### `data/ingredient_effect.csv`
 
 | 컬럼 | 설명 |

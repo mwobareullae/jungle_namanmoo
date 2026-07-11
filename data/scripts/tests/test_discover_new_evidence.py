@@ -23,6 +23,7 @@ from discover_new_evidence import (  # noqa: E402
     normalize_doi,
     parse_pubmed_xml,
     read_csv_rows,
+    split_english_name,
     write_candidates,
 )
 
@@ -254,6 +255,16 @@ class EvidenceDiscoveryTests(unittest.TestCase):
         )
         self.assertIn("자동 점수 반영: **0건**", summary)
         self.assertIn("새 후보가 없습니다", summary)
+
+    def test_slash_in_exact_inci_name_is_not_split_into_generic_terms(self):
+        self.assertEqual(
+            split_english_name("Jasminum Officinale Flower/Leaf Extract"),
+            ["Jasminum Officinale Flower/Leaf Extract"],
+        )
+        self.assertEqual(
+            split_english_name("Capsicum Annuum Extract|Capsicum Frutescens Extract"),
+            ["Capsicum Annuum Extract", "Capsicum Frutescens Extract"],
+        )
 
 
 if __name__ == "__main__":

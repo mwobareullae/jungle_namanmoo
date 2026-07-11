@@ -372,7 +372,11 @@ def load_ingredient_terms(
 
 
 def split_english_name(name: str) -> list[str]:
-    values = [part.strip() for part in name.split("/")]
+    # A slash is often part of one exact INCI name (for example Flower/Leaf
+    # Extract or a copolymer). Splitting on it creates broad false terms such
+    # as "Leaf Extract". A pipe is the explicit alternative-name separator
+    # used by this dataset.
+    values = [part.strip() for part in name.split("|")]
     return [value for value in values if is_usable_english_term(value)]
 
 

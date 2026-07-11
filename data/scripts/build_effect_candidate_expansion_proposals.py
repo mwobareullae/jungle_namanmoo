@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Select exact canonical ingredients until effect-review candidates reach a target.
+"""Build an intentionally broad initial canonical-expansion screen.
 
-The output remains a review proposal. CosIng functions are discovery signals,
-not scientific evidence, approval, or runtime scores.
+The historical target count controls only which exact ingredients are added to
+the canonical recognition layer. The final paper-review list is decided by
+``ingredient_effect_pubmed_screening.csv``. CosIng functions are not scientific
+evidence, approval, or runtime scores.
 """
 
 from __future__ import annotations
@@ -193,7 +195,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/reconciliation/ingredient_effect_candidate_expansion_proposals.csv"),
+        default=Path("data/reconciliation/ingredient_canonical_expansion_proposals_initial.csv"),
     )
     parser.add_argument("--target-effect-candidates", type=int, default=500)
     parser.add_argument("--cosing-cache", type=Path, default=Path("/tmp/cosing_effect_expansion.csv"))
