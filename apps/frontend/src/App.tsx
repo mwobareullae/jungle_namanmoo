@@ -11,6 +11,7 @@ import type { OriginalPageKey } from "./originalPages";
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const BrandPage = lazy(() => import("./pages/BrandPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
+const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -916,6 +917,7 @@ function App() {
           {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
+          {appMode !== "community" && <Route path="/category/:categoryTitle" element={<CategoryPage />} />}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
           <Route
             path="/products/popular"
