@@ -81,7 +81,7 @@ const styles: Record<string, CSSProperties> = {
   },
   messageCompact: {
     padding: "28px 24px",
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 1.45
   },
   actions: {

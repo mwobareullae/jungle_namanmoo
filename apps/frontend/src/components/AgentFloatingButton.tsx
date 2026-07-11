@@ -14,7 +14,7 @@ import type { ApiError } from "../types/recommendation";
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
   skinProfileStatus?: "empty" | "saved" | "temporary";
-  surface?: "home" | "productDetail";
+  surface?: "home" | "productDetail" | "context" | "minimal";
 };
 
 type AgentChatBaseMessage = {
@@ -837,6 +837,8 @@ function AgentFloatingButton({
   const [activeView, setActiveView] = useState<AgentChatView>("home");
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
+  const [isChatMounted, setIsChatMounted] = useState(false);
+  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home" && surface !== "minimal");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
@@ -844,6 +846,10 @@ function AgentFloatingButton({
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const teaserTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasDismissedTeaserRef = useRef(false);
+  const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
     () => (surface === "productDetail" ? productQuickQuestions : homeQuickQuestions),
     [surface],
@@ -857,6 +863,82 @@ function AgentFloatingButton({
       ? "현재 선택한 피부 타입 적용 중"
       : "피부 정보를 추가하면 더 정확히 답변해드려요";
 
+  const openChat = () => {
+    setIsTeaserVisible(false);
+    if (closeTimerRef.current !== null && typeof window !== "undefined") {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsChatMounted(true);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => setIsOpen(true));
+    } else {
+      setIsOpen(true);
+    }
+  };
+
+  const closeChat = () => {
+    setIsOpen(false);
+    hasDismissedTeaserRef.current = true;
+    setIsTeaserVisible(false);
+    if (typeof window !== "undefined") {
+      closeTimerRef.current = window.setTimeout(() => {
+        setIsChatMounted(false);
+        closeTimerRef.current = null;
+      }, 400);
+    } else {
+      setIsChatMounted(false);
+    }
+  };
+
+  const handleTeaserClick = (question: string) => {
+    openChat();
+    void sendMessage(question);
+  };
+
+  useEffect(() => {
+    if (previousSurfaceRef.current !== surface) {
+      previousSurfaceRef.current = surface;
+      hasDismissedTeaserRef.current = false;
+      setIsTeaserVisible(surface !== "home" && surface !== "minimal");
+    }
+
+    if (surface === "minimal" || hasDismissedTeaserRef.current) {
+      setIsTeaserVisible(false);
+      return undefined;
+    }
+
+    const showAfterIdle = () => {
+      if (!hasDismissedTeaserRef.current && !isOpen) {
+        setIsTeaserVisible(true);
+      }
+    };
+
+    const scheduleIdle = () => {
+      if (teaserTimerRef.current !== null) {
+        window.clearTimeout(teaserTimerRef.current);
+      }
+      teaserTimerRef.current = window.setTimeout(showAfterIdle, 2500);
+    };
+
+    const handleScroll = () => {
+      setIsTeaserVisible(false);
+      scheduleIdle();
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    if (surface === "home") {
+      scheduleIdle();
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (teaserTimerRef.current !== null) {
+        window.clearTimeout(teaserTimerRef.current);
+      }
+    };
+  }, [isOpen, surface]);
+
   useEffect(() => {
     if (!isOpen) {
       return undefined;
@@ -864,7 +946,7 @@ function AgentFloatingButton({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsOpen(false);
+        closeChat();
       }
     };
 
@@ -982,10 +1064,15 @@ function AgentFloatingButton({
       });
       const responseTimestamp = Date.now();
       setConversationId(response.conversation_id);
+      const isRecommendationResponse = response.ui_action.type === "show_products"
+        || response.ui_action.type === "show_product_comparison"
+        || response.items.some((item) => item.item_type === "product");
       setMessages((currentMessages) =>
         [
-          ...currentMessages.map((currentMessage) =>
-            currentMessage.id === statusId ? createStatusMessage(statusId) : currentMessage,
+          ...currentMessages.flatMap((currentMessage) =>
+            currentMessage.id === statusId
+              ? (isRecommendationResponse ? [createStatusMessage(statusId)] : [])
+              : [currentMessage],
           ),
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
@@ -1024,6 +1111,8 @@ function AgentFloatingButton({
     try {
       const response = await api.confirmAgentToolCall(approvalMessage.toolCallId, { action });
       const timestamp = Date.now();
+      const isRecommendationResponse = response.ui_action.type === "show_products"
+        || response.ui_action.type === "show_product_comparison";
       setMessages((currentMessages) =>
         [
           ...currentMessages
@@ -1033,7 +1122,7 @@ function AgentFloatingButton({
                 ? { ...message, resolved: action === "confirm" ? "approved" as const : "cancelled" as const }
                 : message,
             ),
-          createStatusMessage(`status-confirmed-${timestamp}`),
+          ...(isRecommendationResponse ? [createStatusMessage(`status-confirmed-${timestamp}`)] : []),
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
@@ -1068,20 +1157,27 @@ function AgentFloatingButton({
   };
 
   const renderStatusMessage = (message: AgentChatStatusMessage) => (
-    <div className="agent-chat-status-card" key={message.id}>
-      <div className="agent-chat-status-head">
-        <span className="agent-chat-status-badge" aria-hidden="true">✓</span>
-        <strong>{message.title}</strong>
+    message.steps.some((step) => step.status === "active") ? (
+      <div className="agent-chat-typing" key={message.id} aria-label="답변을 준비하고 있어요">
+        <img alt="" src="/mwobareullae-rabbit-chat.png" />
+        <span className="agent-chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
       </div>
-      <div className="agent-chat-status-steps">
-        {message.steps.map((step) => (
-          <div className={`agent-chat-status-step ${step.status}`} key={step.label}>
-            <span aria-hidden="true" />
-            <span>{step.label}</span>
-          </div>
-        ))}
+    ) : (
+      <div className="agent-chat-status-card" key={message.id}>
+        <div className="agent-chat-status-head">
+          <span className="agent-chat-status-badge" aria-hidden="true">✓</span>
+          <strong>{message.title}</strong>
+        </div>
+        <div className="agent-chat-status-steps">
+          {message.steps.map((step) => (
+            <div className={`agent-chat-status-step ${step.status}`} key={step.label}>
+              <span aria-hidden="true" />
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    )
   );
 
   const renderApprovalMessage = (message: AgentChatApprovalMessage) => {
@@ -1201,14 +1297,25 @@ function AgentFloatingButton({
 
   const renderTextMessage = (message: AgentChatTextMessage) => (
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
-      <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
+      <div className={`agent-chat-message-line ${message.role}`}>
+        {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat.png" /> : null}
+        <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
+      </div>
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button aria-label="좋아요" type="button">좋아요</button>
-            <button aria-label="별로예요" type="button">별로예요</button>
-            <button onClick={handleRegenerate} type="button">다시 생성</button>
-            <button onClick={() => handleCopyAnswer(message.content)} type="button">복사</button>
+            <button aria-label="좋아요" type="button">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 14v13H6V14h4Zm0 13h11.1a3 3 0 0 0 2.92-2.3l1.35-5.76A3 3 0 0 0 22.45 15H18l.66-4.62A3 3 0 0 0 15.7 7L10 14v13Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
+            </button>
+            <button aria-label="별로예요" type="button">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
+            </button>
+            <button aria-label="다시 생성" onClick={handleRegenerate} type="button">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M25 12a10 10 0 1 0 1 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" /><path d="M25 6v6h-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>
+            </button>
+            <button aria-label="복사" onClick={() => handleCopyAnswer(message.content)} type="button">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><rect height="15" rx="2" stroke="currentColor" strokeWidth="1.8" width="15" x="11" y="11" /><path d="M21 11V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" /></svg>
+            </button>
           </div>
         </>
       ) : null}
@@ -1238,37 +1345,32 @@ function AgentFloatingButton({
   return (
     <>
       <div className={`agent-floating-entry${isOpen ? " is-open" : ""}`} aria-label="AI 에이전트 진입점">
-        {isOpen ? (
+        <div
+          className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
+        >
+          <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
+            피부 고민을 같이 찾아볼까요?
+          </button>
+          <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
+            궁금한 성분을 물어보세요
+          </button>
+        </div>
+        {isChatMounted ? (
           <section
             aria-labelledby="agent-chat-title"
-            className="agent-chat-popup"
+            className={`agent-chat-popup${isOpen ? " is-visible" : ""}`}
             id="agent-chat-popup"
             role="dialog"
           >
             <span className="agent-chat-popup__tail" aria-hidden="true" />
             <div className={`agent-chat-popup__head${isThreadView ? " has-back" : ""}`}>
               <span className="agent-chat-popup__avatar" aria-hidden="true">
-                <svg fill="none" viewBox="0 0 24 24">
-                  <path
-                    d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2L12 3.5Z"
-                    stroke="currentColor"
-                    strokeLinejoin="round"
-                    strokeWidth="1.8"
-                  />
-                </svg>
+                <img alt="" src="/mwobareullae-rabbit-chat.png" />
               </span>
               <div className="agent-chat-popup__title">
                 <h2 id="agent-chat-title">뭐바를래 AI</h2>
                 <p>성분 근거로 답해드려요</p>
               </div>
-              <button
-                aria-label="AI 대화 팝업 닫기"
-                className="agent-chat-popup__close"
-                onClick={() => setIsOpen(false)}
-                type="button"
-              >
-                ×
-              </button>
               {isThreadView ? (
                 <button className="agent-chat-back-button" onClick={() => setActiveView("home")} type="button">
                   <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
@@ -1300,9 +1402,10 @@ function AgentFloatingButton({
 
                   <div className="agent-chat-divider" />
                   <div className="agent-chat-section-label">빠른 질문</div>
-                  {quickQuestions.map((question) => (
-                    <button
-                      className="agent-chat-question-row"
+                    <div className="agent-chat-quick-questions">
+                    {quickQuestions.map((question) => (
+                      <button
+                      className="agent-chat-question-row quick"
                       disabled={isSubmitting}
                       key={question}
                       onClick={() => void sendMessage(question)}
@@ -1327,8 +1430,9 @@ function AgentFloatingButton({
                       </span>
                       <span>{question}</span>
                       <span aria-hidden="true">›</span>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                    </div>
 
                   {chatThreads.length > 0 ? (
                     <>
@@ -1370,6 +1474,21 @@ function AgentFloatingButton({
               )}
             </div>
 
+            {isThreadView ? (
+              <div className="agent-chat-thread-quick-questions" aria-label="빠른 질문">
+                {quickQuestions.map((question) => (
+                  <button
+                    disabled={isSubmitting}
+                    key={`thread-${question}`}
+                    onClick={() => void sendMessage(question)}
+                    type="button"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <form className="agent-chat-input" onSubmit={handleSubmit}>
               <input
                 aria-label="AI에게 질문 입력"
@@ -1391,31 +1510,32 @@ function AgentFloatingButton({
         <button
           aria-controls="agent-chat-popup"
           aria-expanded={isOpen}
-          className="agent-floating-entry__button"
-          onClick={() => setIsOpen((current) => !current)}
+          className={`agent-floating-entry__button${isOpen ? " is-open" : ""}`}
+          onClick={() => (isOpen ? closeChat() : openChat())}
           type="button"
-          aria-label="뭐바를래 AI 열기"
+          aria-label={isOpen ? "뭐바를래 AI 닫기" : "뭐바를래 AI 열기"}
         >
-          {isAgentBusy ? <span className="agent-floating-entry__badge" aria-hidden="true" /> : null}
-          <svg
-            aria-hidden="true"
-            className="agent-floating-entry__icon"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M20 14.5a3 3 0 0 1-3 3H9.25L4 21V6.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8Z"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.9"
-            />
-            <path
-              d="M8.4 10.4h.01M12 10.4h.01M15.6 10.4h.01"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="2.5"
-            />
-          </svg>
+          {isOpen ? (
+            <svg className="agent-floating-entry__close-icon" aria-hidden="true" fill="none" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+            </svg>
+          ) : (
+            <>
+              {isAgentBusy ? <span className="agent-floating-entry__badge" aria-hidden="true" /> : null}
+              <svg className="agent-floating-entry__chat-icon" aria-hidden="true" fill="none" viewBox="0 0 32 32">
+                <path
+                  d="M16 4.5c-6.35 0-11.5 4.7-11.5 10.5 0 2.3.85 4.42 2.3 6.13L5.5 26.5l5.57-2.7c1.48.77 3.15 1.2 4.93 1.2 6.35 0 11.5-4.7 11.5-10.5S22.35 4.5 16 4.5Z"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                />
+                <circle cx="10.5" cy="15" fill="currentColor" r="1.4" />
+                <circle cx="16" cy="15" fill="currentColor" r="1.4" />
+                <circle cx="21.5" cy="15" fill="currentColor" r="1.4" />
+              </svg>
+            </>
+          )}
         </button>
       </div>
     </>

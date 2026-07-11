@@ -848,10 +848,19 @@ function GlobalAgentEntry() {
         ? "empty"
         : "empty";
 
+  const path = location.pathname;
+  const agentSurface = path.startsWith("/product-detail")
+    ? "productDetail"
+    : /recommend|skin-test|recommendations/.test(path)
+      ? "context"
+      : /mypage|cart|checkout|login|signup|order/.test(path)
+        ? "minimal"
+        : "home";
+
   return (
     <AgentFloatingButton
       skinProfileStatus={skinProfileStatus}
-      surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"}
+      surface={agentSurface}
     />
   );
 }

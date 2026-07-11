@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import Skeleton from "../../components/ui/Skeleton";
 import { addCartItem } from "../../lib/cartApi";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { getOrderDetail, getOrders } from "../../lib/orderApi";
@@ -54,6 +55,23 @@ const formatDate = (value: string) => {
   }).format(date);
 };
 
+function OrderListSkeleton() {
+  return (
+    <div style={styles.skeletonList}>
+      {Array.from({ length: 10 }, (_, index) => (
+        <div key={index} style={styles.skeletonCard}>
+          <Skeleton style={styles.skeletonImage} />
+          <div style={styles.skeletonBody}>
+            <Skeleton style={styles.skeletonStatus} />
+            <Skeleton style={styles.skeletonTitle} />
+            <Skeleton style={styles.skeletonMeta} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function OrderList() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
@@ -69,6 +87,7 @@ export default function OrderList() {
   const [deleteTargetOrderCode, setDeleteTargetOrderCode] = useState<string | null>(null);
 
   const loadOrders = useCallback(async (cursor?: string | null) => {
+    const startedAt = Date.now();
     const isFirstPage = !cursor;
     if (isFirstPage) {
       setIsLoading(true);
@@ -88,7 +107,10 @@ export default function OrderList() {
         setNextCursor(null);
       }
     } finally {
-      setIsLoading(false);
+      const finishLoading = () => setIsLoading(false);
+      const remaining = Math.max(0, 600 - (Date.now() - startedAt));
+      if (isFirstPage && remaining > 0) window.setTimeout(finishLoading, remaining);
+      else finishLoading();
       setIsLoadingMore(false);
     }
   }, [statusFilter]);
@@ -194,7 +216,7 @@ export default function OrderList() {
           ))}
         </div>
         {isLoading ? (
-          <div style={styles.stateBox}>주문/배송내역을 불러오는 중입니다.</div>
+          <OrderListSkeleton />
         ) : errorMessage ? (
           <div style={styles.stateBox} role="alert">
             <strong style={styles.stateTitle}>주문/배송내역을 불러오지 못했어요</strong>
@@ -524,6 +546,44 @@ const styles: Record<string, CSSProperties> = {
     color: "#6b7280",
     fontSize: 15,
     textAlign: "center"
+  },
+  skeletonList: {
+    display: "grid",
+    gap: 14
+  },
+  skeletonCard: {
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    gap: 16,
+    minHeight: 144,
+    padding: "26px 28px",
+    border: "1px solid #edf0f2",
+    borderRadius: 18
+  },
+  skeletonImage: {
+    width: 92,
+    height: 92,
+    borderRadius: 8
+  },
+  skeletonBody: {
+    display: "grid",
+    alignContent: "center",
+    gap: 10
+  },
+  skeletonStatus: {
+    width: 80,
+    height: 16,
+    borderRadius: 5
+  },
+  skeletonTitle: {
+    width: "min(70%, 420px)",
+    height: 20,
+    borderRadius: 5
+  },
+  skeletonMeta: {
+    width: 180,
+    height: 18,
+    borderRadius: 5
   },
   stateTitle: {
     color: "#1a1a1a",
