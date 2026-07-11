@@ -240,7 +240,13 @@ def endpoint_rows(k6: dict, *, limit: int = 16) -> str:
     return "\n".join(rows) if rows else "| N/A | N/A | N/A | N/A | N/A | N/A |"
 
 
-def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, sla_ms: float) -> tuple[str, str, str]:
+def determine_result(
+    k6: dict,
+    slow_query_count: int,
+    notable_error_count: int,
+    sla_ms: float,
+    type_sla_ms: dict[str, float] | None = None,
+) -> tuple[str, str, str]:
     reasons: list[str] = []
     failed_rate = k6.get("failed_rate_pct") or 0
     overall_p95 = k6.get("http_req_duration_p95_ms")
@@ -254,11 +260,14 @@ def determine_result(k6: dict, slow_query_count: int, notable_error_count: int, 
     worst_p95 = -1.0
     for request_type, values in (k6.get("by_type") or {}).items():
         p95 = values.get("p95_ms")
+        request_sla_ms = (type_sla_ms or {}).get(request_type, sla_ms)
         if p95 is not None and p95 > worst_p95:
             worst_type = request_type
             worst_p95 = p95
-        if p95 is not None and p95 > sla_ms:
-            reasons.append(f"type={request_type} p95 {format_ms(p95)}로 SLA {sla_ms / 1000:.0f}s 초과")
+        if p95 is not None and p95 > request_sla_ms:
+            reasons.append(
+                f"type={request_type} p95 {format_ms(p95)}로 SLA {format_ms(request_sla_ms)} 초과"
+            )
 
     if notable_error_count > 0:
         reasons.append(f"notable error {notable_error_count}건")
@@ -306,6 +315,8 @@ def main() -> None:
     parser.add_argument("--rds-metrics", required=True)
     parser.add_argument("--rds-cpu-avg-warn-pct", type=float, default=40)
     parser.add_argument("--sla-ms", type=float, default=3000)
+    parser.add_argument("--catalog-search-sla-ms", type=float, default=500)
+    parser.add_argument("--catalog-suggestions-sla-ms", type=float, default=200)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -322,6 +333,10 @@ def main() -> None:
         slow_query_count,
         notable_error_count,
         args.sla_ms,
+        {
+            "catalog_search": args.catalog_search_sla_ms,
+            "catalog_suggestions": args.catalog_suggestions_sla_ms,
+        },
     )
 
     by_type = k6.get("by_type") or {}
@@ -349,7 +364,8 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 - `GET /api/health`
 - `GET /api/products/popular`
 - `GET /api/products/{{product_id}}`
-- `GET /api/products/search`
+- `GET /api/search/products`
+- `GET /api/search/suggestions`
 - `GET /api/home/layout`
 - `GET /api/home/market-popular`
 - `GET /api/home/evidence-picks`
@@ -379,6 +395,8 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("Started at KST", args.start_kst)}
 {row("Ended at KST", args.end_kst)}
 {row("SLA", f"p95 < {args.sla_ms / 1000:.0f}s")}
+{row("Catalog search SLA", f"p95 < {args.catalog_search_sla_ms:.0f}ms")}
+{row("Catalog suggestions SLA", f"p95 < {args.catalog_suggestions_sla_ms:.0f}ms")}
 
 ## Data Count
 
@@ -410,6 +428,8 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("type=fast p95", format_ms((by_type.get("fast") or {}).get("p95_ms")))}
 {row("type=home p95", format_ms((by_type.get("home") or {}).get("p95_ms")))}
 {row("type=search p95", format_ms((by_type.get("search") or {}).get("p95_ms")))}
+{row("type=catalog_search p95", format_ms((by_type.get("catalog_search") or {}).get("p95_ms")))}
+{row("type=catalog_suggestions p95", format_ms((by_type.get("catalog_suggestions") or {}).get("p95_ms")))}
 {row("type=write p95", format_ms((by_type.get("write") or {}).get("p95_ms")))}
 
 ## Endpoint

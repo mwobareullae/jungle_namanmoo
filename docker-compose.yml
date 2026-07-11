@@ -71,6 +71,7 @@ services:
       ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
       ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-mubarelle_dev}
       ELASTICSEARCH_PRODUCTS_ALIAS: ${ELASTICSEARCH_PRODUCTS_ALIAS:-mubarelle_dev_products_current}
+      ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS: ${ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS:-mubarelle_dev_catalog_products_current}
       ELASTICSEARCH_TIMEOUT_SECONDS: ${ELASTICSEARCH_TIMEOUT_SECONDS:-2.0}
       ELASTICSEARCH_MAX_RETRIES: ${ELASTICSEARCH_MAX_RETRIES:-0}
       ELASTICSEARCH_CIRCUIT_BREAKER_SECONDS: ${ELASTICSEARCH_CIRCUIT_BREAKER_SECONDS:-60}
@@ -182,7 +183,9 @@ services:
       - app_network
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    build:
+      context: ./docker/elasticsearch
+    image: mwobareullae-elasticsearch:8.15.3-nori
     container_name: mwobareullae-elasticsearch
     restart: unless-stopped
     profiles:
@@ -199,7 +202,11 @@ services:
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9200/_cat/plugins | grep -q analysis-nori"
+        ]
       interval: 15s
       timeout: 10s
       retries: 10

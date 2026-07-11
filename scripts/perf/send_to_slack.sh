@@ -68,6 +68,8 @@ REQS_PER_SEC="$(table_value "http_reqs/s")"
 FAILED_RATE="$(table_value "http_req_failed")"
 FAST_P95="$(table_value "type=fast p95")"
 SEARCH_P95="$(table_value "type=search p95")"
+CATALOG_SEARCH_P95="$(table_value "type=catalog_search p95")"
+CATALOG_SUGGESTIONS_P95="$(table_value "type=catalog_suggestions p95")"
 WRITE_P95="$(table_value "type=write p95")"
 SLOW_QUERIES="$(table_value "Slow query count")"
 NOTABLE_ERRORS="$(table_value "Notable errors")"
@@ -105,7 +107,7 @@ SUMMARY_TEXT="$(cat <<SUMMARY
 *Profile*: ${PROFILE:-N/A} / *Data*: ${DATA_LABEL:-N/A} / *Cart writes*: ${CART_WRITES:-N/A}
 *Auth home for-you*: ${AUTH_HOME_FOR_YOU:-N/A}
 *k6*: ${REQS_PER_SEC:-N/A}, failed ${FAILED_RATE:-N/A}
-*p95*: fast ${FAST_P95:-N/A}, search ${SEARCH_P95:-N/A}, write ${WRITE_P95:-N/A}
+*p95*: fast ${FAST_P95:-N/A}, search ${SEARCH_P95:-N/A}, catalog ${CATALOG_SEARCH_P95:-N/A}, suggestions ${CATALOG_SUGGESTIONS_P95:-N/A}, write ${WRITE_P95:-N/A}
 *Server*: backend ${BACKEND_CPU_MEM:-N/A}, postgres ${POSTGRES_CPU_MEM:-N/A}, es ${ES_CPU_MEM:-N/A}
 *Logs*: slow queries ${SLOW_QUERIES:-N/A}, notable errors ${NOTABLE_ERRORS:-N/A}
 *Bottleneck*: ${BOTTLENECK:-N/A}
