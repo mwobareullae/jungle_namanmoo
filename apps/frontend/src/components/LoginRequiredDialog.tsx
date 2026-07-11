@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Dialog, DialogClose, DialogRawContent } from "./ui/dialog";
+import ConfirmModal from "./ui/ConfirmModal";
 
 type LoginRequiredDialogProps = {
   open: boolean;
@@ -22,33 +22,15 @@ function LoginRequiredDialog({ open, onOpenChange, redirectTo }: LoginRequiredDi
   };
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogRawContent
-        aria-describedby="loginRequiredDialogDescription"
-        aria-labelledby="loginRequiredDialogTitle"
-        className="login-required-dialog"
-        overlayClassName="login-required-dialog-backdrop"
-      >
-        <div className="login-required-dialog__body">
-          <h2 id="loginRequiredDialogTitle">로그인이 필요한 서비스입니다.</h2>
-          <p id="loginRequiredDialogDescription">로그인 하시겠습니까?</p>
-        </div>
-        <div className="login-required-dialog__actions">
-          <DialogClose asChild>
-            <button className="login-required-dialog__button" type="button">
-              닫기
-            </button>
-          </DialogClose>
-          <button
-            className="login-required-dialog__button login-required-dialog__button--primary"
-            onClick={handleLoginClick}
-            type="button"
-          >
-            로그인 하기
-          </button>
-        </div>
-      </DialogRawContent>
-    </Dialog>
+    <ConfirmModal
+      cancelLabel="닫기"
+      confirmLabel="로그인 하기"
+      message="로그인 하시겠습니까?"
+      onCancel={() => onOpenChange(false)}
+      onConfirm={handleLoginClick}
+      open={open}
+      title="로그인이 필요한 서비스입니다."
+    />
   );
 }
 

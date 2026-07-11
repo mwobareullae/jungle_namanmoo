@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import ActivityToast from "../../components/ui/ActivityToast";
+import ConfirmModal from "../../components/ui/ConfirmModal";
 import { addCartItem } from "../../lib/cartApi";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { getOrderDetail, getOrders } from "../../lib/orderApi";
@@ -65,6 +66,7 @@ export default function OrderList() {
   const [orderDetailItems, setOrderDetailItems] = useState<Record<string, OrderDetailItem[]>>({});
   const [loadingDetailOrderCodes, setLoadingDetailOrderCodes] = useState<Set<string>>(() => new Set());
   const { message: toastMessage, showToast } = useActivityToast();
+  const [deleteTargetOrderCode, setDeleteTargetOrderCode] = useState<string | null>(null);
 
   const loadOrders = useCallback(async (cursor?: string | null) => {
     const isFirstPage = !cursor;
@@ -76,11 +78,11 @@ export default function OrderList() {
     setErrorMessage("");
 
     try {
-      const response = await getOrders({ limit: 15, cursor, status: statusFilter });
+      const response = await getOrders({ limit: 10, cursor, status: statusFilter });
       setOrders((current) => (isFirstPage ? response.items : [...current, ...response.items]));
       setNextCursor(response.next_cursor ?? null);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "주문/배송 조회를 불러오지 못했습니다.");
+      setErrorMessage(error instanceof Error ? error.message : "주문/배송내역을 불러오지 못했습니다.");
       if (isFirstPage) {
         setOrders([]);
         setNextCursor(null);
@@ -129,6 +131,10 @@ export default function OrderList() {
 
   const handleReview = () => showToast("준비중입니다.");
   const handleUnavailableAction = () => showToast("준비중입니다.");
+  const handleDeleteConfirm = () => {
+    setDeleteTargetOrderCode(null);
+    showToast("주문 내역 삭제 기능은 준비중입니다.");
+  };
 
   const handleReorder = async (order: OrderListItem) => {
     try {
@@ -142,10 +148,30 @@ export default function OrderList() {
     }
   };
 
+  const handleItemReorder = async (item: OrderDetailItem) => {
+    try {
+      await addCartItem({ product_id: item.product_id, quantity: item.quantity });
+      navigate("/cart");
+    } catch {
+      showToast("다시 담기에 실패했습니다.");
+    }
+  };
+
+  const handleItemBuyNow = async (item: OrderDetailItem) => {
+    try {
+      const cart = await addCartItem({ product_id: item.product_id, quantity: item.quantity });
+      const cartItem = cart.items.find((cartItem) => cartItem.product_id === item.product_id);
+      if (!cartItem) throw new Error("장바구니 상품을 찾지 못했습니다.");
+      navigate(`/checkout?cart_item_ids=${cartItem.id}`);
+    } catch {
+      showToast("바로 구매하기 기능은 준비중입니다.");
+    }
+  };
+
   return (
     <MyPageLayout activePath="/mypage/orders">
-      <PageTitle title="주문/배송 조회" />
-      <section style={styles.card} aria-label="주문/배송 조회 목록">
+      <PageTitle title="주문/배송내역" />
+      <section style={styles.card} aria-label="주문/배송내역 목록">
         <div aria-label="주문 상태 필터" role="tablist" style={styles.statusFilters}>
           {statusFilterItems.map((item) => (
             <button
@@ -168,10 +194,10 @@ export default function OrderList() {
           ))}
         </div>
         {isLoading ? (
-          <div style={styles.stateBox}>주문/배송 조회를 불러오는 중입니다.</div>
+          <div style={styles.stateBox}>주문/배송내역을 불러오는 중입니다.</div>
         ) : errorMessage ? (
           <div style={styles.stateBox} role="alert">
-            <strong style={styles.stateTitle}>주문/배송 조회를 불러오지 못했어요</strong>
+            <strong style={styles.stateTitle}>주문/배송내역을 불러오지 못했어요</strong>
             <p style={styles.stateText}>{errorMessage}</p>
             <button
               className="bg-white hover:bg-[#FAFAFA]"
@@ -184,7 +210,7 @@ export default function OrderList() {
           </div>
         ) : orders.length === 0 ? (
           <div style={styles.stateBox}>
-            <strong style={styles.stateTitle}>아직 주문/배송 조회 내역이 없어요</strong>
+            <strong style={styles.stateTitle}>아직 주문/배송내역이 없어요</strong>
             <p style={styles.stateText}>추천받은 상품을 장바구니에 담고 첫 주문을 진행해보세요.</p>
             <Link className="bg-[#0C1117] hover:bg-[#1A1A1A]" style={styles.primaryLink} to="/">
               추천 상품 보러가기
@@ -216,7 +242,21 @@ export default function OrderList() {
                     style={styles.orderCard}
                     tabIndex={0}
                   >
-                    <div style={styles.orderCardMenu} aria-hidden="true">⋮</div>
+                    {!(order.item_count > 1 && expandedOrderCodes.has(order.order_code)) ? <button
+                      aria-label="주문 내역 삭제"
+                      className="bg-transparent hover:bg-[#FAFAFA]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTargetOrderCode(order.order_code);
+                      }}
+                      style={styles.orderCardMenu}
+                      type="button"
+                    >
+                      <svg fill="none" height="21" viewBox="0 0 32 32" width="21">
+                        <path d="m9 9 14 14M23 9 9 23" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                      </svg>
+                    </button> : null}
+                    {!(order.item_count > 1 && expandedOrderCodes.has(order.order_code)) ? (
                     <div style={styles.orderCardMain}>
                     <div style={styles.thumbnail}>
                       {thumbnailUrl ? (
@@ -268,23 +308,9 @@ export default function OrderList() {
                     </div>
                     </div>
                     </div>
+                    ) : null}
                     {order.item_count > 1 ? (
                       <>
-                        <button
-                          className="bg-white hover:bg-[#FAFAFA]"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void toggleOrderItems(order);
-                          }}
-                          style={styles.expandButton}
-                          type="button"
-                        >
-                          {loadingDetailOrderCodes.has(order.order_code)
-                            ? "불러오는 중"
-                            : expandedOrderCodes.has(order.order_code)
-                              ? `총 ${order.item_count}건 접기`
-                              : `총 ${order.item_count}건 펼쳐보기`}
-                        </button>
                         {expandedOrderCodes.has(order.order_code) ? (
                           <div style={styles.detailItemList}>
                             {(orderDetailItems[order.order_code] ?? []).map((item, index) => (
@@ -295,6 +321,21 @@ export default function OrderList() {
                                   ...(index > 0 ? styles.detailItemCardSeparated : {})
                                 }}
                               >
+                                <button
+                                  aria-label="상품 닫기"
+                                  className="bg-transparent hover:bg-[#FAFAFA]"
+                                  onClick={(event) => event.stopPropagation()}
+                                  style={{
+                                    ...styles.detailItemClose,
+                                    ...(index === 0 ? styles.detailItemCloseFirst : {})
+                                  }}
+                                  type="button"
+                                >
+                                  <svg fill="none" height="21" viewBox="0 0 32 32" width="21">
+                                    <path d="m9 9 14 14M23 9 9 23" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                                  </svg>
+                                </button>
+                                <div style={styles.detailItemMain}>
                                 <div style={styles.detailItemThumbnail}>
                                   {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
                                     <img
@@ -308,14 +349,54 @@ export default function OrderList() {
                                   <strong style={styles.detailItemStatus}>{statusLabelMap[order.status] ?? order.status}</strong>
                                   <span style={styles.detailItemName}>{item.product_name}</span>
                                   <div style={styles.detailItemMeta}>
-                                    <strong>{formatWon(item.line_total)}</strong>
+                                    <strong style={styles.detailItemPrice}>{formatWon(item.line_total)}</strong>
                                     <span>{item.quantity}개</span>
                                   </div>
+                                </div>
+                                </div>
+                                <div style={styles.detailItemActions}>
+                                  <button
+                                    className="mypage-order-action-button mypage-order-action-button--neutral bg-white"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleItemReorder(item);
+                                    }}
+                                    style={styles.reorderButton}
+                                    type="button"
+                                  >
+                                    다시 담기
+                                  </button>
+                                  <button
+                                    className="mypage-order-action-button mypage-order-action-button--neutral bg-white"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleItemBuyNow(item);
+                                    }}
+                                    style={styles.reorderButton}
+                                    type="button"
+                                  >
+                                    바로 구매하기
+                                  </button>
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : null}
+                        <button
+                          className={expandedOrderCodes.has(order.order_code) ? "mypage-expand-button-expanded bg-white hover:bg-[#FAFAFA]" : "bg-white hover:bg-[#FAFAFA]"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleOrderItems(order);
+                          }}
+                          style={styles.expandButton}
+                          type="button"
+                        >
+                          {loadingDetailOrderCodes.has(order.order_code)
+                            ? "불러오는 중"
+                            : expandedOrderCodes.has(order.order_code)
+                              ? `총 ${order.item_count}건 접기`
+                              : `총 ${order.item_count}건 펼쳐보기`}
+                        </button>
                       </>
                     ) : (
                       <div
@@ -397,6 +478,13 @@ export default function OrderList() {
         )}
       </section>
       <ActivityToast message={toastMessage} />
+      <ConfirmModal
+        compact
+        message="함께 주문한 전체 상품의 주문/배송내역이 삭제되어 복구할 수 없습니다. 정말 삭제하시겠습니까?"
+        onCancel={() => setDeleteTargetOrderCode(null)}
+        onConfirm={handleDeleteConfirm}
+        open={Boolean(deleteTargetOrderCode)}
+      />
     </MyPageLayout>
   );
 }
@@ -483,16 +571,22 @@ const styles: Record<string, CSSProperties> = {
   },
   orderCardMenu: {
     position: "absolute",
-    top: 24,
-    right: 28,
+    top: 20,
+    right: 24,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    border: 0,
     color: "#9ca3af",
-    fontSize: 24,
-    lineHeight: 1
+    width: 21,
+    height: 21,
+    cursor: "pointer"
   },
   orderCardHeader: {
     display: "flex",
     alignItems: "baseline",
-    marginBottom: 10
+    marginBottom: 6
   },
   orderStatus: {
     color: "#1a1a1a",
@@ -591,25 +685,27 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #d9dde1",
     borderRadius: 10,
     color: "#1a1a1a",
-    fontSize: 15,
-    fontWeight: 600,
+    fontSize: 14,
+    fontWeight: 400,
     cursor: "pointer"
   },
   detailItemList: {
     display: "grid",
-    marginTop: 12,
-    padding: "0 16px",
-    borderRadius: 10,
-    background: "#ffffff"
+    marginTop: 0,
+    marginLeft: -28,
+    marginRight: -28,
+    padding: 0,
+    background: "transparent"
   },
   detailItemCard: {
+    position: "relative",
     display: "grid",
-    gridTemplateColumns: "92px minmax(0, 1fr)",
     gap: 16,
-    padding: "18px 0"
+    padding: "0 28px 26px"
   },
   detailItemCardSeparated: {
-    borderTop: "2px dotted #e8edf0"
+    borderTop: "2px dotted #e8edf0",
+    paddingTop: 26
   },
   detailItemThumbnail: {
     width: 92,
@@ -617,6 +713,29 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: "#f7f8f9",
     overflow: "hidden"
+  },
+  detailItemMain: {
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    gap: 16,
+    paddingRight: 28
+  },
+  detailItemClose: {
+    position: "absolute",
+    top: 20,
+    right: 24,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 26,
+    height: 26,
+    padding: 0,
+    border: 0,
+    color: "#9ca3af",
+    cursor: "pointer"
+  },
+  detailItemCloseFirst: {
+    top: -6
   },
   detailItemBody: {
     display: "grid",
@@ -626,7 +745,7 @@ const styles: Record<string, CSSProperties> = {
   },
   detailItemStatus: {
     color: "#1a1a1a",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 600
   },
   detailItemName: {
@@ -644,6 +763,17 @@ const styles: Record<string, CSSProperties> = {
     color: "#6b7280",
     fontSize: 13,
     fontWeight: 500
+  },
+  detailItemPrice: {
+    color: "#1a1a1a",
+    fontSize: 18,
+    fontWeight: 700
+  },
+  detailItemActions: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+    marginTop: 16
   },
   orderActions: {
     display: "grid",
@@ -680,7 +810,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "baseline",
     gap: 8,
-    marginTop: 8,
+    marginTop: 6,
     color: "#9ca3af",
     fontSize: 13,
     fontWeight: 500
@@ -751,5 +881,5 @@ const styles: Record<string, CSSProperties> = {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: 600
-  }
+  },
 };

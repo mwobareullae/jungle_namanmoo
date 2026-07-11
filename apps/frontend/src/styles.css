@@ -2505,6 +2505,20 @@ body {
   border-color: #b9c0c7 !important;
 }
 
+.mypage-expand-button-expanded {
+  position: relative;
+  margin-top: 26px !important;
+}
+
+.mypage-expand-button-expanded::before {
+  position: absolute;
+  top: -26px;
+  right: -28px;
+  left: -28px;
+  border-top: 2px dotted #e8edf0;
+  content: "";
+}
+
 .mypage-product-list-row-button .mypage-product-list-thumbnail {
   transition: transform 180ms ease;
 }
