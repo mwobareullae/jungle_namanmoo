@@ -96,6 +96,8 @@ const sortTabs: { id: WishlistSort; label: string }[] = [
   { id: "recent", label: "최근순" }
 ];
 
+const PAGE_SIZE = 10;
+
 const formatPrice = (price: number) => `${price.toLocaleString("ko-KR")}원`;
 
 const mapActivityItem = (
@@ -163,6 +165,10 @@ function MypageProductList({
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const { message: toastMessage, showToast } = useActivityToast();
+  const [pageState, setPageState] = useState<{ mode: ProductListMode; currentPage: number }>(() => ({
+    mode,
+    currentPage: 1
+  }));
   const title = isRecent ? "최근 본 상품" : "찜한 상품";
   const activePath: "/mypage/recent" | "/mypage/wishlist" = isRecent ? "/mypage/recent" : "/mypage/wishlist";
   const guideText = isRecent ? "최근 한 달간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
@@ -176,6 +182,13 @@ function MypageProductList({
       return bTime - aTime;
     });
   }, [listItems]);
+  const totalPages = Math.max(1, Math.ceil(displayItems.length / PAGE_SIZE));
+  const currentPage = pageState.mode === mode ? Math.min(pageState.currentPage, totalPages) : 1;
+  const pageStartIndex = (currentPage - 1) * PAGE_SIZE;
+  const paginatedItems = useMemo(
+    () => displayItems.slice(pageStartIndex, pageStartIndex + PAGE_SIZE),
+    [displayItems, pageStartIndex]
+  );
 
   useEffect(() => {
     if (items) {
@@ -234,7 +247,12 @@ function MypageProductList({
 
   const updateSort = (nextSort: WishlistSort) => {
     setSort(nextSort);
+    setPageState({ mode, currentPage: 1 });
     onSortChange?.(nextSort);
+  };
+
+  const changePage = (nextPage: number) => {
+    setPageState({ mode, currentPage: Math.min(Math.max(nextPage, 1), totalPages) });
   };
 
   const removeItem = async (item: MypageProductListItem) => {
@@ -350,7 +368,7 @@ function MypageProductList({
               <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
               <p style={styles.emptyDescription}>{emptyDescription}</p>
               <button
-                className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-extrabold text-white hover:bg-[#1A1A1A]"
+                className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
                 onClick={() => navigate("/")}
                 type="button"
               >
@@ -435,7 +453,7 @@ function MypageProductList({
           <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
           <p style={styles.emptyDescription}>{emptyDescription}</p>
           <button
-            className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-extrabold text-white hover:bg-[#1A1A1A]"
+            className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
             onClick={() => navigate("/")}
             type="button"
           >
@@ -444,8 +462,9 @@ function MypageProductList({
         </div>
       ) : (
         <section style={styles.list} aria-label={`${title} 목록`}>
-          {displayItems.map((item, index) => {
-            const shouldShowDate = isRecent && item.dateLabel && item.dateLabel !== displayItems[index - 1]?.dateLabel;
+          {paginatedItems.map((item, index) => {
+            const previousItem = index === 0 ? null : paginatedItems[index - 1];
+            const shouldShowDate = isRecent && item.dateLabel && item.dateLabel !== previousItem?.dateLabel;
             const isTodayDivider = item.dateLabel === todayDateLabel;
 
             return (
@@ -520,6 +539,46 @@ function MypageProductList({
         redirectTo={`${window.location.pathname}${window.location.search}`}
       />
       <ActivityToast message={toastMessage} />
+      {displayItems.length > PAGE_SIZE ? (
+        <nav aria-label={`${title} 페이지`} style={styles.pagination}>
+          <button
+            aria-label="이전 페이지"
+            disabled={currentPage === 1}
+            onClick={() => changePage(currentPage - 1)}
+            style={currentPage === 1 ? styles.paginationButtonDisabled : styles.paginationButton}
+            type="button"
+          >
+            이전
+          </button>
+          {Array.from({ length: totalPages }, (_, index) => {
+            const pageNumber = index + 1;
+            const isActive = pageNumber === currentPage;
+
+            return (
+              <button
+                aria-current={isActive ? "page" : undefined}
+                aria-label={`${pageNumber} 페이지`}
+                key={pageNumber}
+                onClick={() => changePage(pageNumber)}
+                style={isActive ? styles.paginationButtonActive : styles.paginationButton}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            );
+          })}
+          <button
+            aria-label="다음 페이지"
+            disabled={currentPage === totalPages}
+            onClick={() => changePage(currentPage + 1)}
+            style={currentPage === totalPages ? styles.paginationButtonDisabled : styles.paginationButton}
+            type="button"
+          >
+            다음
+          </button>
+        </nav>
+      ) : null}
+      <p style={styles.guideText}>{guideText}</p>
     </MyPageLayout>
   );
 }
@@ -593,6 +652,53 @@ const styles: Record<string, CSSProperties> = {
   list: {
     display: "grid"
   },
+  pagination: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 28
+  },
+  paginationButton: {
+    minWidth: 38,
+    height: 38,
+    padding: "0 12px",
+    border: "1px solid #e1e5e8",
+    borderRadius: 999,
+    background: "#ffffff",
+    color: "#3d3d3d",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  paginationButtonActive: {
+    minWidth: 38,
+    height: 38,
+    padding: "0 12px",
+    border: "1px solid #0C1117",
+    borderRadius: 999,
+    background: "#0C1117",
+    color: "#ffffff",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  paginationButtonDisabled: {
+    minWidth: 38,
+    height: 38,
+    padding: "0 12px",
+    border: "1px solid #edf0f2",
+    borderRadius: 999,
+    background: "#fafafa",
+    color: "#9ca3af",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "not-allowed"
+  },
   dateDivider: {
     padding: "6px 16px",
     background: "#f4f6f8",
@@ -655,7 +761,7 @@ const styles: Record<string, CSSProperties> = {
   discount: {
     color: "#e4003a",
     fontSize: 17,
-    fontWeight: 800
+    fontWeight: 700
   },
   price: {
     color: "#111111",
@@ -813,7 +919,7 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 0 24px",
     color: "#222222",
     fontSize: 18,
-    fontWeight: 800
+    fontWeight: 700
   },
   recommendGrid: {
     display: "grid",
@@ -876,6 +982,6 @@ const styles: Record<string, CSSProperties> = {
   recommendPrice: {
     color: "#063445",
     fontSize: 18,
-    fontWeight: 800
+    fontWeight: 700
   }
 };

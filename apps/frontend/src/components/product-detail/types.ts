@@ -22,6 +22,7 @@ export type ProductPurchasePanelProps = {
   isProductSoldOut: boolean;
   onAddToCart: () => void;
   onBuyNow: () => void;
+  onRestockNotify: () => void;
 };
 
 export type ProductDetailHeroProps = {
@@ -42,6 +43,7 @@ export type ProductDetailHeroProps = {
   mainImageUrl: string;
   onAddToCart: () => void;
   onBuyNow: () => void;
+  onRestockNotify: () => void;
   onToggleNarrativeDetail: () => void;
   onToggleWishlist: () => void;
   priceLabel: string;

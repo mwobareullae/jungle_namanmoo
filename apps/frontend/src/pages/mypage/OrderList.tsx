@@ -173,7 +173,7 @@ const styles: Record<string, CSSProperties> = {
   stateTitle: {
     color: "#1a1a1a",
     fontSize: 20,
-    fontWeight: 800
+    fontWeight: 700
   },
   stateText: {
     margin: 0,
@@ -188,7 +188,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 10,
     color: "#1a1a1a",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 600,
     cursor: "pointer"
   },
   primaryLink: {
@@ -200,7 +200,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     color: "#ffffff",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     textDecoration: "none"
   },
   list: {
@@ -247,20 +247,20 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 8,
     color: "#9ca3af",
     fontSize: 12,
-    fontWeight: 700
+    fontWeight: 500
   },
   itemTitle: {
     margin: 0,
     color: "#1a1a1a",
     fontSize: 17,
-    fontWeight: 800,
+    fontWeight: 700,
     lineHeight: 1.45
   },
   itemDescription: {
     margin: "8px 0 0",
     color: "#6b7280",
     fontSize: 13,
-    fontWeight: 700
+    fontWeight: 500
   },
   itemAside: {
     display: "grid",
@@ -270,7 +270,7 @@ const styles: Record<string, CSSProperties> = {
   price: {
     color: "#1a1a1a",
     fontSize: 18,
-    fontWeight: 900
+    fontWeight: 700
   },
   detailLink: {
     display: "inline-flex",
@@ -282,7 +282,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 10,
     color: "#1a1a1a",
     fontSize: 13,
-    fontWeight: 800,
+    fontWeight: 600,
     textDecoration: "none"
   },
   moreButton: {
@@ -292,7 +292,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #dddddd",
     borderRadius: 12,
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     cursor: "pointer"
   }
 };

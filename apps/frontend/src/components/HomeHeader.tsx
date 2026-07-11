@@ -12,6 +12,7 @@ function HomeHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [cartCount, setCartCount] = useState(0);
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isPopularPage = location.pathname === "/products/popular";
   const isSkinTestPage = location.pathname.startsWith("/skin-test");
@@ -27,6 +28,7 @@ function HomeHeader() {
   const handleCategoryAreaLeave = (event: MouseEvent<HTMLElement>) => {
     if (!isCategoryHoverArea(event.relatedTarget)) {
       callOriginal("closeCategoryMenu");
+      setIsCategoryMenuOpen(false);
     }
   };
   const handleWishlistClick = () => {
@@ -82,17 +84,23 @@ function HomeHeader() {
 
   return (
     <>
-      <CategoryPanelOverlay />
+      <CategoryPanelOverlay onOpenChange={setIsCategoryMenuOpen} />
       <header className="site-header" onMouseLeave={handleCategoryAreaLeave}>
         <div className="header-inner">
           <div className="header-brand">
             <button
               aria-controls="categoryPanel"
-              aria-expanded="false"
+              aria-expanded={isCategoryMenuOpen}
               aria-label="카테고리 메뉴 열기"
               className="category-menu-btn"
-              onClick={() => callOriginal("openCategoryMenu")}
-              onMouseEnter={() => callOriginal("openCategoryMenu")}
+              onClick={() => {
+                callOriginal("openCategoryMenu");
+                setIsCategoryMenuOpen(true);
+              }}
+              onMouseEnter={() => {
+                callOriginal("openCategoryMenu");
+                setIsCategoryMenuOpen(true);
+              }}
               type="button"
             >
               <svg
