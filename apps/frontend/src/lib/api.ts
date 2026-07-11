@@ -1,6 +1,6 @@
 import type {
   ApiError,
-  HomeSectionsResponse,
+  HomeSection,
   ProductCardItem,
   ProductDetail,
   ProductIngredient,
@@ -24,6 +24,7 @@ import type {
   AgentToolConfirmRequest,
   AgentToolConfirmResponse
 } from "../types/agent";
+import type { PopularProductsResponse } from "../types/product";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
@@ -39,12 +40,17 @@ type RecommendationApi = {
     recommendationId: string,
     request?: RecommendationNarrativeRequest
   ) => Promise<RecommendationNarrativeResponse>;
-  getHomeSections: (params?: {
+  getMarketPopular: (params?: { categoryCode?: string | null; limit?: number }) => Promise<HomeSection>;
+  getEvidencePicks: (params?: { categoryCode?: string | null; limit?: number }) => Promise<HomeSection>;
+  getForYou: (params?: {
     skinType?: string;
     sensitivity?: string;
+    concern?: string;
+    effect?: string;
     categoryCode?: string | null;
-    limitPerSection?: number;
-  }) => Promise<HomeSectionsResponse>;
+    limit?: number;
+  }) => Promise<HomeSection>;
+  getPopularProducts: (params?: { categoryCode?: string; limit?: number }) => Promise<PopularProductsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
@@ -188,7 +194,7 @@ type BackendProductDetailResponse = {
   }[];
 };
 
-type BackendHomeSectionsResponse = HomeSectionsResponse;
+type BackendHomeSection = HomeSection;
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
@@ -241,14 +247,19 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
   score_breakdown: mapScoreBreakdown(product.score_breakdown)
 });
 
-const mapHomeSections = (response: BackendHomeSectionsResponse): HomeSectionsResponse => ({
+const mapHomeSection = (section: BackendHomeSection): HomeSection => ({
+  ...section,
+  products: section.products.map((product) => ({
+    ...product,
+    thumbnail_url: getProductImageUrl(product.thumbnail_url, "w400") || null
+  }))
+});
+
+const mapPopularProducts = (response: PopularProductsResponse): PopularProductsResponse => ({
   ...response,
-  sections: response.sections.map((section) => ({
-    ...section,
-    products: section.products.map((product) => ({
-      ...product,
-      thumbnail_url: getProductImageUrl(product.thumbnail_url, "w400") || null
-    }))
+  items: response.items.map((item) => ({
+    ...item,
+    thumbnail_url: getProductImageUrl(item.thumbnail_url, "w400") || ""
   }))
 });
 
@@ -428,18 +439,56 @@ export const api: RecommendationApi = {
     return parseJson<RecommendationNarrativeResponse>(response);
   },
 
-  async getHomeSections(params = {}) {
+  async getMarketPopular(params = {}) {
     const searchParams = new URLSearchParams();
-    if (params.skinType) searchParams.set("skin_type", params.skinType);
-    if (params.sensitivity) searchParams.set("sensitivity", params.sensitivity);
     if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
-    if (params.limitPerSection) searchParams.set("limit_per_section", String(params.limitPerSection));
+    if (params.limit) searchParams.set("limit", String(params.limit));
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/home/sections${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/home/market-popular${query ? `?${query}` : ""}`
     );
-    return mapHomeSections(await parseJson<BackendHomeSectionsResponse>(response));
+    return mapHomeSection(await parseJson<BackendHomeSection>(response));
+  },
+
+  async getEvidencePicks(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/home/evidence-picks${query ? `?${query}` : ""}`
+    );
+    return mapHomeSection(await parseJson<BackendHomeSection>(response));
+  },
+
+  async getForYou(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.skinType) searchParams.set("skin_type", params.skinType);
+    if (params.sensitivity) searchParams.set("sensitivity", params.sensitivity);
+    if (params.concern) searchParams.set("concern", params.concern);
+    if (params.effect) searchParams.set("effect", params.effect);
+    if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/home/for-you${query ? `?${query}` : ""}`
+    );
+    return mapHomeSection(await parseJson<BackendHomeSection>(response));
+  },
+
+  async getPopularProducts(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.categoryCode) searchParams.set("category_code", params.categoryCode);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/products/popular${query ? `?${query}` : ""}`
+    );
+    return mapPopularProducts(await parseJson<PopularProductsResponse>(response));
   },
 
   async getProduct(productId, recommendationId) {
