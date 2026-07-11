@@ -231,6 +231,116 @@ class IngredientEvidence(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class EvidenceDiscoveryCandidate(Base):
+    __tablename__ = "evidence_discovery_candidates"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status in ('candidate_unverified', 'accepted', 'rejected')",
+            name="ck_evidence_discovery_candidates_review_status",
+        ),
+        CheckConstraint(
+            "review_status != 'accepted' or promoted_evidence_id is not null",
+            name="ck_evidence_discovery_candidates_accepted_promoted",
+        ),
+        CheckConstraint(
+            "review_status != 'rejected' or promoted_evidence_id is null",
+            name="ck_evidence_discovery_candidates_rejected_not_promoted",
+        ),
+        UniqueConstraint(
+            "ingredient_id",
+            "effect_id",
+            "paper_key",
+            name="uq_evidence_discovery_candidates_pair_paper",
+        ),
+        Index(
+            "ix_evidence_discovery_candidates_review_seen",
+            "review_status",
+            "last_seen_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    discovery_key: Mapped[str] = mapped_column(String(240), unique=True, nullable=False)
+    ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False, index=True)
+    effect_id: Mapped[int] = mapped_column(ForeignKey("effects.id"), nullable=False, index=True)
+    paper_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    pmid: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    doi: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    journal: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    publication_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    publication_date_text: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    publication_types: Mapped[str | None] = mapped_column(Text, nullable=True)
+    authors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    abstract_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    discovery_scope: Mapped[str] = mapped_column(String(40), nullable=False)
+    search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    search_window_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    search_window_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    review_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="candidate_unverified",
+        server_default="candidate_unverified",
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    promoted_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ingredient_evidence.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class EvidenceDiscoveryReview(Base):
+    __tablename__ = "evidence_discovery_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "previous_status in ('candidate_unverified', 'accepted', 'rejected')",
+            name="ck_evidence_discovery_reviews_previous_status",
+        ),
+        CheckConstraint(
+            "new_status in ('accepted', 'rejected')",
+            name="ck_evidence_discovery_reviews_new_status",
+        ),
+        CheckConstraint(
+            "new_status != 'accepted' or promoted_evidence_id is not null",
+            name="ck_evidence_discovery_reviews_accepted_promoted",
+        ),
+        CheckConstraint(
+            "new_status != 'rejected' or promoted_evidence_id is null",
+            name="ck_evidence_discovery_reviews_rejected_not_promoted",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("evidence_discovery_candidates.id"), nullable=False, index=True
+    )
+    previous_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reviewer_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    promoted_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ingredient_evidence.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class RiskFlag(Base):
     __tablename__ = "risk_flags"
 
