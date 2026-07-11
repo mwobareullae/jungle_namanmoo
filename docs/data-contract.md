@@ -246,6 +246,44 @@ Seed는 입력 CSV에 있는 alias를 insert/update하지만, CSV에서 삭제�
 adjusted_evidence_score = evidence_score / 100 * source_authority_score
 ```
 
+### 신규 논문 후보 DB
+
+주간 PubMed 수집 결과는 기존 `ingredient_evidence`에 바로 넣지 않고
+`evidence_discovery_candidates`에 영구 보관합니다. 후보 테이블에 있는 행은 점수에 사용하지 않으며,
+관리자가 승인한 경우에만 같은 트랜잭션에서 `ingredient_evidence` 행을 생성하거나 갱신합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `discovery_key` | 수집기가 만든 성분×효능×논문 식별키 |
+| `ingredient_id`, `effect_id` | 검수 대상 성분×효능 DB FK |
+| `paper_key` | PMID 우선, 없으면 정규화 DOI |
+| `pmid`, `doi` | 외부 논문 식별자 |
+| `title`, `journal`, `publication_date_text` | 논문 표시용 서지정보 |
+| `publication_types`, `authors`, `abstract_excerpt` | 검수 보조 메타데이터 |
+| `source_url`, `search_query` | 원문 링크와 실제 검색식 |
+| `first_seen_at`, `last_seen_at` | 최초·최근 자동 발견 시각 |
+| `review_status` | `candidate_unverified`, `accepted`, `rejected` |
+| `review_note`, `reviewed_by_user_id`, `reviewed_at` | 사람 판정 정보 |
+| `promoted_evidence_id` | 승인 시 생성·갱신된 `ingredient_evidence.id` |
+
+동일 `(ingredient_id, effect_id, paper_key)`는 한 후보만 허용합니다. 주간 검색에 다시 노출되면
+새 행을 만들지 않고 `last_seen_at`과 서지정보만 갱신합니다. 판정 이력은
+`evidence_discovery_reviews`에 별도 행으로 보존합니다.
+
+승인 경계:
+
+- `candidate_unverified`: 후보 테이블에만 존재, 점수 미반영
+- `rejected`: 후보와 판정 이력만 보존, `ingredient_evidence` 미생성
+- `accepted`: 관리자 입력값으로 `ingredient_evidence`를 생성·갱신하고 두 행을 연결
+- `negative`, `null`, `unclear`: 현재는 `reference_only + evidence_score=0`만 허용
+
+정본 경계:
+
+- `data/ingredient_evidence.csv`는 기존 검증 근거의 baseline seed 정본이다.
+- 자동 수집 이후 신규 후보·판정 이력·승인 근거는 운영 DB가 정본이다.
+- seed는 후보에서 승격된 `ingredient_evidence`를 CSV 누락 행으로 보아 비활성화하지 않는다.
+- 후보·판정 테이블은 일반 카탈로그 clean seed 대상이 아니며 운영 DB 백업 대상이다.
+
 ### `data/ingredient_effect_ranges.csv`
 
 성분 함량 점수화를 위한 확장 파일입니다. MVP v0에서는 아직 필수로 사용하지 않지만, 나중에 `concentration_fit_score` 계산에 사용합니다.
