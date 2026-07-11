@@ -267,7 +267,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
         ))}
       </nav>
       <main className="mx-auto grid w-[calc(100%-40px)] items-start gap-12 py-9 pb-[72px] md:w-[min(1180px,calc(100%-80px))] md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside aria-label="마이페이지 메뉴" className="sticky top-6 hidden md:block">
+        <aside aria-label="마이페이지 메뉴" className="sticky top-20 hidden md:block">
           <section style={styles.userBlock}>
             <ProfileAvatar size="small" />
             <div>
@@ -651,7 +651,7 @@ const styles: Record<string, CSSProperties> = {
     padding: "16px 18px",
     marginBottom: 18,
     borderRadius: 14,
-    background: "rgba(148, 224, 248, 0.16)",
+    background: "#ffffff",
     border: "1px solid rgba(148, 224, 248, 0.4)"
   },
   avatarSmall: {

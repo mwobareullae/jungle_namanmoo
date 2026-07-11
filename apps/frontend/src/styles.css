@@ -2491,6 +2491,20 @@ body {
   outline: none;
 }
 
+.mypage-order-action-button {
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.mypage-order-action-button--accent:hover {
+  background: #eaf9fd !important;
+  border-color: #2aa6d1 !important;
+}
+
+.mypage-order-action-button--neutral:hover {
+  background: #fafafa !important;
+  border-color: #b9c0c7 !important;
+}
+
 .mypage-product-list-row-button .mypage-product-list-thumbnail {
   transition: transform 180ms ease;
 }
