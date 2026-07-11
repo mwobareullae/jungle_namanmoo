@@ -33,7 +33,7 @@ function AppFooter() {
             <ul>
               {items.map((item) => (
                 <li key={item}>
-                  <a href="/#defaultSection">{item}</a>
+                  <a href={item === "베스트" ? "/products/popular" : "/#defaultSection"}>{item}</a>
                 </li>
               ))}
             </ul>

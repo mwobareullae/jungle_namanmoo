@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import ActivityToast from "../components/ui/ActivityToast";
 import { useAuth } from "../contexts/useAuth";
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
@@ -13,6 +15,7 @@ import {
 } from "../lib/skinTest";
 import type { HomeSectionProduct } from "../types/recommendation";
 import type { SkinTestResult } from "../types/skinTest";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
 
 type SkinTestRecommendationsLocationState = {
   result?: SkinTestResult;
@@ -264,15 +267,9 @@ function SkinTestRecommendationsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
-  const [toastMessage, setToastMessage] = useState("");
-  const toastTimerRef = useRef<number | null>(null);
+  const { message: toastMessage, showToast } = useActivityToast();
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const resultId = getResultIdFromSearchParams(searchParams) ?? result?.result_id ?? null;
-
-  useEffect(() => () => {
-    if (toastTimerRef.current !== null) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-  }, []);
 
   useEffect(() => {
     if (locationState?.result) {
@@ -397,24 +394,13 @@ function SkinTestRecommendationsPage() {
     navigate(`/product-detail?id=${encodeURIComponent(productId)}`);
   };
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    if (toastTimerRef.current !== null) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastMessage("");
-      toastTimerRef.current = null;
-    }, 2500);
-  };
-
   const toggleWishlist = async (productId: string) => {
     if (pendingWishlistProductIds.has(productId)) {
       return;
     }
 
     if (!user) {
-      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      setIsLoginDialogOpen(true);
       return;
     }
 
@@ -433,10 +419,10 @@ function SkinTestRecommendationsPage() {
     try {
       if (wasWished) {
         await deleteMyWishlistItem(productId);
-        showToast("찜한 상품에서 해제했습니다.");
+        showToast(wishlistToastMessage.removed);
       } else {
         await addMyWishlistItem(productId);
-        showToast("찜한 상품에 추가했습니다.");
+        showToast(wishlistToastMessage.added);
       }
     } catch {
       setWishedProductIds((current) => {
@@ -448,7 +434,7 @@ function SkinTestRecommendationsPage() {
         }
         return next;
       });
-      showToast("찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      showToast(wishlistToastMessage.failed);
     } finally {
       setPendingWishlistProductIds((current) => {
         const next = new Set(current);
@@ -580,12 +566,12 @@ function SkinTestRecommendationsPage() {
           )}
         </section>
       </main>
-      {toastMessage ? (
-        <div className="activity-toast" role="status" aria-live="polite">
-          <span className="activity-toast__dot" />
-          {toastMessage}
-        </div>
-      ) : null}
+      <ActivityToast message={toastMessage} />
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
     </div>
   );
 }
