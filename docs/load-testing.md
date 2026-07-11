@@ -39,7 +39,8 @@ tests/k6/commerce-smoke.js
 - `GET /api/health`
 - `GET /api/products/popular`
 - `GET /api/products/{product_id}`
-- `GET /api/products/search`
+- `GET /api/search/products`
+- `GET /api/search/suggestions`
 - `GET /api/home/layout`
 - `GET /api/home/market-popular`
 - `GET /api/home/evidence-picks`
