@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.models.catalog import Product, ProductPrice
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, ProductPopularityMetric
+from app.db.models.review import ProductReviewMetric
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
 from app.services.elasticsearch_catalog_index import (
@@ -46,6 +47,41 @@ def test_catalog_document_batches_use_keyset_and_include_search_fields() -> None
     assert all(document["category_group"] for document in documents)
     assert all("aliases_compact" in document for document in documents)
     assert all("aliases_chosung" in document for document in documents)
+
+
+def test_catalog_document_uses_review_metrics_for_rating_fields() -> None:
+    session = _seed_example_session()
+    product = session.scalar(select(Product).where(Product.product_code == "prod_001"))
+    assert product is not None
+    session.add_all(
+        [
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                review_count=999,
+                average_rating=1.0,
+                popularity_score=65,
+            ),
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=24,
+                rating_count=24,
+                average_rating=4.75,
+            ),
+        ]
+    )
+    session.flush()
+
+    document = next(
+        document
+        for batch in iter_catalog_product_document_batches(session)
+        for document in batch
+        if document["product_id"] == "prod_001"
+    )
+
+    assert document["rating"] == 4.75
+    assert document["review_count"] == 24
+    assert document["popularity_score"] == 65.0
 
 
 def test_catalog_index_includes_product_without_price() -> None:

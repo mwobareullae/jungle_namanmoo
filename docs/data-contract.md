@@ -474,8 +474,8 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 | 컬럼 | 설명 |
 | --- | --- |
 | `product_id` | 상품 고유 ID |
-| `review_count` | 리뷰 수 |
-| `average_rating` | 평균 평점. 0~5 스케일 |
+| `review_count` | 과거 수집 스냅샷의 리뷰 수. runtime 인기·검색·추천에는 사용하지 않음 |
+| `average_rating` | 과거 수집 스냅샷의 평균 평점. runtime에는 사용하지 않음 |
 | `sales_count` | 판매량. 있으면 가장 직접적인 인기 신호 |
 | `sales_rank` | 판매 랭킹. `sales_count`가 없을 때 사용하며 낮을수록 좋음 |
 | `recent_view_count` | 최근 14일 조회 수 |
@@ -488,9 +488,11 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 
 - 인기 섹션은 이 파일 또는 동일한 DB 필드가 있을 때만 산출합니다.
 - 가격, 이미지 존재, 성분 점수, `AUTO_SEED` 재고를 인기 신호처럼 쓰지 않습니다.
-- 리뷰수, 판매량, 최근 행동 수치는 `log1p` 정규화합니다.
-- 평점은 리뷰 수 50개를 신뢰 기준으로 둔 Bayesian 보정을 사용합니다.
+- 판매량과 최근 행동 수치는 `log1p` 정규화합니다.
+- 리뷰 수와 평점은 `product_reviews`의 rollup 결과만 사용하며 시장 인기 점수에 섞지 않습니다.
 - 판매량이 없고 판매 랭킹만 있으면 log 기반 역순 랭킹 점수를 사용합니다.
+
+`product_popularity_metrics.review_count`, `average_rating` 컬럼은 migration 호환을 위해 남아 있지만 deprecated입니다. 상품 상세, 추천, 일반 검색, 인기상품, ES 문서는 `product_review_metrics`만 authoritative source로 사용합니다.
 
 ### `data/storefront_product_reviews/*.csv`
 
