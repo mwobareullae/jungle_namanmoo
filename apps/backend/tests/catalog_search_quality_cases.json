@@ -1,0 +1,551 @@
+{
+  "version": "catalog-search-quality-v1",
+  "catalog_snapshot": {
+    "captured_on": "2026-07-11",
+    "source": "data/products/*.csv",
+    "product_count": 79952,
+    "recommendable_count": 10164,
+    "non_recommendable_count": 69788
+  },
+  "cases": [
+    {
+      "id": "exact-001",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "토리든 다이브인 저분자 히알루론산 토너 500ml",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000256045"],
+        "top_k": 1,
+        "brand_names": ["토리든"],
+        "category_codes": ["toner"],
+        "required_terms": ["다이브인", "히알루론산", "토너"]
+      }
+    },
+    {
+      "id": "exact-002",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "에스트라 아토베리어365 캡슐토너 300ml",
+      "catalog_flags": {"is_recommendable": false},
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000258833"],
+        "top_k": 1,
+        "brand_names": ["에스트라"],
+        "category_codes": ["toner"],
+        "required_terms": ["아토베리어365", "캡슐토너"]
+      }
+    },
+    {
+      "id": "exact-003",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "아누아 피디알엔 히알루론산 캡슐 100 세럼",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000255324"],
+        "top_k": 1,
+        "brand_names": ["아누아"],
+        "category_codes": ["serum"],
+        "required_terms": ["피디알엔", "히알루론산", "세럼"]
+      }
+    },
+    {
+      "id": "exact-004",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "롬앤 더 쥬시 래스팅 틴트",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000241210"],
+        "top_k": 1,
+        "brand_names": ["롬앤"],
+        "category_codes": ["makeup"],
+        "required_terms": ["쥬시", "래스팅", "틴트"]
+      }
+    },
+    {
+      "id": "exact-005",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "클리오 킬 커버 파운웨어 쿠션",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000232098"],
+        "top_k": 1,
+        "brand_names": ["클리오"],
+        "category_codes": ["makeup"],
+        "required_terms": ["킬 커버", "파운웨어", "쿠션"]
+      }
+    },
+    {
+      "id": "exact-006",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "클로란 드라이샴푸 150ml",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000141612"],
+        "top_k": 1,
+        "brand_names": ["클로란"],
+        "category_codes": ["haircare"],
+        "required_terms": ["드라이샴푸", "150ml"]
+      }
+    },
+    {
+      "id": "exact-007",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "헤드앤숄더 프로페셔널 샴푸 300ml",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000228439"],
+        "top_k": 1,
+        "brand_names": ["헤드앤숄더"],
+        "category_codes": ["haircare"],
+        "required_terms": ["프로페셔널", "샴푸", "300ml"]
+      }
+    },
+    {
+      "id": "exact-008",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Moroccanoil Treatment Original 3.4 oz",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["dermstore_850ca1ede3d457"],
+        "top_k": 1,
+        "brand_names": ["Moroccanoil"],
+        "category_codes": ["haircare"],
+        "required_terms": ["Treatment", "Original", "3.4 oz"]
+      }
+    },
+    {
+      "id": "exact-009",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "트리헛 시어 슈가 스크럽 510g",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000148549"],
+        "top_k": 1,
+        "brand_names": ["트리헛"],
+        "category_codes": ["bodycare"],
+        "required_terms": ["시어 슈가", "스크럽", "510g"]
+      }
+    },
+    {
+      "id": "exact-010",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "애프터블로우 오 드 퍼퓸",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000237852"],
+        "top_k": 1,
+        "brand_names": ["애프터블로우"],
+        "category_codes": ["fragrance"],
+        "required_terms": ["오 드 퍼퓸"]
+      }
+    },
+    {
+      "id": "exact-011",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "올리오 체리시 네일 폴리쉬",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000252959"],
+        "top_k": 1,
+        "brand_names": ["올리오"],
+        "category_codes": ["nail"],
+        "required_terms": ["체리시", "네일 폴리쉬"]
+      }
+    },
+    {
+      "id": "exact-012",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "더툴랩 글로우핏 불렛 스펀지 4P",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000259317"],
+        "top_k": 1,
+        "brand_names": ["더툴랩"],
+        "category_codes": ["beauty_tool"],
+        "required_terms": ["글로우핏", "불렛 스펀지"]
+      }
+    },
+    {
+      "id": "exact-013",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "센카 퍼펙트 휩 페이셜 워시 120g",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000253102"],
+        "top_k": 1,
+        "brand_names": ["센카"],
+        "category_codes": ["cleansing"],
+        "required_terms": ["퍼펙트 휩", "페이셜 워시", "120g"]
+      }
+    },
+    {
+      "id": "exact-014",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "라운드랩 자작나무 수분 선크림 50ml",
+      "expected": {
+        "outcome": "products",
+        "top_product_ids": ["prod_oy_a000000255124"],
+        "top_k": 1,
+        "brand_names": ["라운드랩"],
+        "category_codes": ["suncare"],
+        "required_terms": ["자작나무", "수분 선크림", "50ml"]
+      }
+    },
+    {
+      "id": "brand-001",
+      "type": "brand",
+      "status": "ready",
+      "query": "토리든",
+      "expected": {"outcome": "products", "brand_names": ["토리든"], "top_k": 10}
+    },
+    {
+      "id": "brand-002",
+      "type": "brand",
+      "status": "ready",
+      "query": "롬앤",
+      "expected": {"outcome": "products", "brand_names": ["롬앤"], "top_k": 10}
+    },
+    {
+      "id": "brand-003",
+      "type": "brand",
+      "status": "ready",
+      "query": "닥터지",
+      "expected": {"outcome": "products", "brand_names": ["닥터지"], "top_k": 10}
+    },
+    {
+      "id": "brand-004",
+      "type": "brand",
+      "status": "ready",
+      "query": "라운드랩",
+      "expected": {"outcome": "products", "brand_names": ["라운드랩"], "top_k": 10}
+    },
+    {
+      "id": "brand-005",
+      "type": "brand",
+      "status": "ready",
+      "query": "센카",
+      "expected": {"outcome": "products", "brand_names": ["센카"], "top_k": 10}
+    },
+    {
+      "id": "brand-006",
+      "type": "brand",
+      "status": "ready",
+      "query": "모로칸오일",
+      "expected": {"outcome": "products", "brand_names": ["Moroccanoil"], "top_k": 10}
+    },
+    {
+      "id": "brand-007",
+      "type": "brand",
+      "status": "catalog_data_blocked",
+      "query": "맥",
+      "expected": {
+        "outcome": "products",
+        "brand_names": ["MAC"],
+        "top_k": 10,
+        "forbidden_product_ids": [
+          "cultbeauty_374e38d075856c",
+          "lookfantastic_c800073cfb9572"
+        ]
+      }
+    },
+    {
+      "id": "brand-008",
+      "type": "brand",
+      "status": "catalog_data_blocked",
+      "query": "나스",
+      "expected": {
+        "outcome": "products",
+        "brand_names": ["NARS"],
+        "top_k": 10,
+        "forbidden_product_ids": ["cultbeauty_168b506cb8c907"]
+      }
+    },
+    {
+      "id": "category-001",
+      "type": "category",
+      "status": "ready",
+      "query": "토너",
+      "expected": {"outcome": "products", "category_codes": ["toner"], "top_k": 20}
+    },
+    {
+      "id": "category-002",
+      "type": "category",
+      "status": "ready",
+      "query": "세럼",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "top_k": 20}
+    },
+    {
+      "id": "category-003",
+      "type": "category",
+      "status": "ready",
+      "query": "수분크림",
+      "expected": {"outcome": "products", "category_codes": ["cream"], "required_terms": ["수분"], "top_k": 20}
+    },
+    {
+      "id": "category-004",
+      "type": "category",
+      "status": "ready",
+      "query": "립틴트",
+      "expected": {"outcome": "products", "category_codes": ["makeup"], "required_terms": ["틴트"], "top_k": 20}
+    },
+    {
+      "id": "category-005",
+      "type": "category",
+      "status": "ready",
+      "query": "샴푸",
+      "expected": {"outcome": "products", "category_codes": ["haircare"], "required_terms": ["샴푸"], "top_k": 20}
+    },
+    {
+      "id": "category-006",
+      "type": "category",
+      "status": "ready",
+      "query": "바디워시",
+      "expected": {"outcome": "products", "category_codes": ["bodycare", "hair_body"], "required_terms": ["바디워시"], "top_k": 20}
+    },
+    {
+      "id": "category-007",
+      "type": "category",
+      "status": "ready",
+      "query": "향수",
+      "expected": {"outcome": "products", "category_codes": ["fragrance"], "top_k": 20}
+    },
+    {
+      "id": "category-008",
+      "type": "category",
+      "status": "ready",
+      "query": "네일 폴리쉬",
+      "expected": {"outcome": "products", "category_codes": ["nail"], "required_terms": ["네일"], "top_k": 20}
+    },
+    {
+      "id": "category-009",
+      "type": "category",
+      "status": "ready",
+      "query": "메이크업 스펀지",
+      "expected": {"outcome": "products", "category_codes": ["beauty_tool"], "required_terms": ["스펀지"], "top_k": 20}
+    },
+    {
+      "id": "category-010",
+      "type": "category",
+      "status": "ready",
+      "query": "클렌징폼",
+      "expected": {"outcome": "products", "category_codes": ["cleanser", "cleansing"], "required_terms": ["클렌징", "폼"], "top_k": 20}
+    },
+    {
+      "id": "category-011",
+      "type": "category",
+      "status": "ready",
+      "query": "선크림",
+      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["선"], "top_k": 20}
+    },
+    {
+      "id": "category-012",
+      "type": "category",
+      "status": "ready",
+      "query": "마스크팩",
+      "expected": {"outcome": "products", "category_codes": ["mask", "mask_pack"], "required_terms": ["마스크", "팩"], "top_k": 20}
+    },
+    {
+      "id": "attribute-001",
+      "type": "attribute",
+      "status": "ready",
+      "query": "히알루론산",
+      "expected": {"outcome": "products", "required_terms": ["히알루론산"], "top_k": 20}
+    },
+    {
+      "id": "attribute-002",
+      "type": "attribute",
+      "status": "ready",
+      "query": "나이아신아마이드 세럼",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["나이아신아마이드"], "top_k": 20}
+    },
+    {
+      "id": "attribute-003",
+      "type": "attribute",
+      "status": "ready",
+      "query": "시카 진정 크림",
+      "expected": {"outcome": "products", "category_codes": ["cream"], "required_terms": ["시카", "진정"], "top_k": 20}
+    },
+    {
+      "id": "attribute-004",
+      "type": "attribute",
+      "status": "ready",
+      "query": "약산성 클렌징폼",
+      "expected": {"outcome": "products", "category_codes": ["cleanser", "cleansing"], "required_terms": ["약산성"], "top_k": 20}
+    },
+    {
+      "id": "attribute-005",
+      "type": "attribute",
+      "status": "ready",
+      "query": "무기자차 선크림",
+      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["무기자차"], "top_k": 20}
+    },
+    {
+      "id": "attribute-006",
+      "type": "attribute",
+      "status": "ready",
+      "query": "지성 두피 샴푸",
+      "expected": {"outcome": "products", "category_codes": ["haircare"], "required_terms": ["지성", "두피", "샴푸"], "top_k": 20}
+    },
+    {
+      "id": "attribute-007",
+      "type": "attribute",
+      "status": "ready",
+      "query": "워터프루프 선크림",
+      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["워터프루프"], "top_k": 20}
+    },
+    {
+      "id": "attribute-008",
+      "type": "attribute",
+      "status": "ready",
+      "query": "저자극 바디워시",
+      "expected": {"outcome": "products", "category_codes": ["bodycare", "hair_body"], "required_terms": ["저자극", "바디워시"], "top_k": 20}
+    },
+    {
+      "id": "compound-001",
+      "type": "compound",
+      "status": "ready",
+      "query": "2만원 이하 수분크림",
+      "expected": {"outcome": "products", "category_codes": ["cream"], "required_terms": ["수분"], "filters": {"price_max": 20000}}
+    },
+    {
+      "id": "compound-002",
+      "type": "compound",
+      "status": "ready",
+      "query": "1만원대 클렌징폼",
+      "expected": {"outcome": "products", "category_codes": ["cleanser", "cleansing"], "filters": {"price_min": 10000, "price_max": 19999}}
+    },
+    {
+      "id": "compound-003",
+      "type": "compound",
+      "status": "ready",
+      "query": "3만원 이하 롬앤 틴트",
+      "expected": {"outcome": "products", "brand_names": ["롬앤"], "category_codes": ["makeup"], "required_terms": ["틴트"], "filters": {"price_max": 30000}}
+    },
+    {
+      "id": "compound-004",
+      "type": "compound",
+      "status": "ready",
+      "query": "4점 이상 헤어 마스크",
+      "expected": {"outcome": "products", "category_codes": ["haircare"], "required_terms": ["마스크"], "filters": {"rating_min": 4.0}}
+    },
+    {
+      "id": "compound-005",
+      "type": "compound",
+      "status": "ready",
+      "query": "재고 있는 향수",
+      "expected": {"outcome": "products", "category_codes": ["fragrance"], "filters": {"availability": "IN_STOCK"}}
+    },
+    {
+      "id": "compound-006",
+      "type": "compound",
+      "status": "ready",
+      "query": "민감성 수분 선크림 2만원 이하",
+      "expected": {"outcome": "products", "category_codes": ["suncare", "sunscreen"], "required_terms": ["민감", "수분"], "filters": {"price_max": 20000}}
+    },
+    {
+      "id": "compound-007",
+      "type": "compound",
+      "status": "ready",
+      "query": "건성용 세럼 인기순",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["건성"], "sort": "popularity"}
+    },
+    {
+      "id": "compound-008",
+      "type": "compound",
+      "status": "ready",
+      "query": "신상품 네일",
+      "expected": {"outcome": "products", "category_codes": ["nail"], "sort": "newest"}
+    },
+    {
+      "id": "typo-001",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "토리덴",
+      "expected": {"outcome": "correction", "correction": "토리든", "brand_names": ["토리든"]}
+    },
+    {
+      "id": "typo-002",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "라로슈포재",
+      "expected": {"outcome": "correction", "correction": "라로슈포제", "brand_names": ["라로슈포제", "La Roche-Posay"]}
+    },
+    {
+      "id": "typo-003",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "히알루론싼",
+      "expected": {"outcome": "correction", "correction": "히알루론산", "required_terms": ["히알루론산"]}
+    },
+    {
+      "id": "typo-004",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "클렌징 폼",
+      "expected": {"outcome": "correction", "correction": "클렌징폼", "category_codes": ["cleanser", "cleansing"]}
+    },
+    {
+      "id": "typo-005",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "선 크림",
+      "expected": {"outcome": "correction", "correction": "선크림", "category_codes": ["suncare", "sunscreen"]}
+    },
+    {
+      "id": "typo-006",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "모로칸 오일",
+      "expected": {"outcome": "correction", "correction": "모로칸오일", "brand_names": ["Moroccanoil"]}
+    },
+    {
+      "id": "no-result-001",
+      "type": "no_result",
+      "status": "ready",
+      "query": "맥북 프로",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": []}
+    },
+    {
+      "id": "no-result-002",
+      "type": "no_result",
+      "status": "ready",
+      "query": "아이폰 케이스",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": []}
+    },
+    {
+      "id": "no-result-003",
+      "type": "no_result",
+      "status": "ready",
+      "query": "롬앤 자동차 타이어",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": ["롬앤"]}
+    },
+    {
+      "id": "no-result-004",
+      "type": "no_result",
+      "status": "ready",
+      "query": "토리든 샴푸",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": ["토리든", "샴푸"]}
+    },
+    {
+      "id": "no-result-005",
+      "type": "no_result",
+      "status": "ready",
+      "query": "존재하지않는브랜드 초음파 세럼",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": ["세럼"]}
+    }
+  ]
+}
