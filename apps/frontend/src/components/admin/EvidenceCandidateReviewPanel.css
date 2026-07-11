@@ -1,0 +1,229 @@
+/* === admin evidence candidate review === */
+.admin-evidence-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 390px);
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-evidence-main,
+.admin-evidence-detail {
+  min-width: 0;
+}
+
+.admin-evidence-detail {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+.admin-evidence-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid #d9e0e7;
+}
+
+.admin-evidence-table {
+  table-layout: fixed;
+}
+
+.admin-evidence-table th:nth-child(1) { width: 22%; }
+.admin-evidence-table th:nth-child(2) { width: 38%; }
+.admin-evidence-table th:nth-child(3),
+.admin-evidence-table th:nth-child(4) { width: 14%; }
+.admin-evidence-table th:nth-child(5) { width: 12%; }
+
+.admin-evidence-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-evidence-table tbody tr.selected {
+  background: #e7f5f8;
+  box-shadow: inset 3px 0 #087f8c;
+}
+
+.admin-evidence-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+}
+
+.admin-evidence-detail-title {
+  margin: 14px 0 8px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.admin-evidence-abstract {
+  margin-top: 16px;
+  padding: 12px 0;
+  border-top: 1px solid #d9e0e7;
+  border-bottom: 1px solid #d9e0e7;
+}
+
+.admin-evidence-abstract p,
+.admin-evidence-history p {
+  margin: 6px 0 0;
+  color: #4f5f6f;
+  line-height: 1.55;
+}
+
+.admin-evidence-review-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.admin-evidence-current {
+  margin-top: 16px;
+}
+
+.admin-evidence-current h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.admin-evidence-current article {
+  padding: 10px 0;
+  border-top: 1px solid #edf0f3;
+}
+
+.admin-evidence-current article > div {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.admin-evidence-current article strong {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.admin-evidence-current article p {
+  margin: 5px 0;
+  color: #4f5f6f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.admin-evidence-current article small {
+  color: #708090;
+  font-size: 10px;
+}
+
+.admin-evidence-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-evidence-review-form label {
+  display: grid;
+  gap: 6px;
+  color: #344453;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-evidence-review-form input,
+.admin-evidence-review-form select,
+.admin-evidence-review-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd5df;
+  border-radius: 6px;
+  background: #fff;
+  color: #182735;
+  font: inherit;
+  font-weight: 500;
+  padding: 9px 10px;
+}
+
+.admin-evidence-review-form textarea {
+  resize: vertical;
+}
+
+.admin-evidence-checkbox {
+  grid-template-columns: 18px 1fr !important;
+  align-items: center;
+}
+
+.admin-evidence-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.admin-evidence-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.admin-secondary-button.danger {
+  border-color: #d54b4b;
+  color: #a32626;
+}
+
+.admin-evidence-history {
+  margin-top: 18px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 14px;
+}
+
+.admin-evidence-history h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.admin-evidence-history > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.admin-evidence-history span {
+  color: #708090;
+  font-size: 11px;
+  text-align: right;
+}
+
+.admin-evidence-history p {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .admin-evidence-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-evidence-detail {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-evidence-stats,
+  .admin-evidence-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-evidence-table th:nth-child(3),
+  .admin-evidence-table td:nth-child(3),
+  .admin-evidence-table th:nth-child(4),
+  .admin-evidence-table td:nth-child(4) {
+    display: none;
+  }
+
+  .admin-evidence-table th:nth-child(1) { width: 34%; }
+  .admin-evidence-table th:nth-child(2) { width: 46%; }
+  .admin-evidence-table th:nth-child(5) { width: 20%; }
+}
+

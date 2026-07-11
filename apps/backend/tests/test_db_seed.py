@@ -14,6 +14,7 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage,
 from app.db.models.commerce import Inventory, InventoryMovement, ProductPopularityMetric, Seller
 from app.db.models.search import SearchDocument
 from app.db.models.taxonomy import (
+    EvidenceDiscoveryCandidate,
     Concern,
     ConcernAlias,
     Effect,
@@ -160,6 +161,39 @@ def test_seed_catalog_marks_missing_evidence_inactive_without_deleting_it() -> N
     ).scalar_one()
     assert removed_row.is_current is False
     assert _count(session, IngredientEvidence) == len(catalog.ingredient_evidence)
+
+
+def test_seed_catalog_keeps_admin_promoted_evidence_active() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    seed_catalog(session, catalog)
+    removed = catalog.ingredient_evidence[-1]
+    evidence = session.execute(
+        select(IngredientEvidence).where(
+            IngredientEvidence.canonical_evidence_key == removed.canonical_evidence_key
+        )
+    ).scalar_one()
+    session.add(
+        EvidenceDiscoveryCandidate(
+            discovery_key=f"admin-promoted:{evidence.id}",
+            ingredient_id=evidence.ingredient_id,
+            effect_id=evidence.effect_id,
+            paper_key=evidence.canonical_evidence_key,
+            pmid=evidence.pmid,
+            doi=evidence.doi,
+            title=evidence.source_title or "Admin promoted evidence",
+            source_url=evidence.source_url or "https://example.com/evidence",
+            discovery_scope="new_paper",
+            review_status="accepted",
+            promoted_evidence_id=evidence.id,
+        )
+    )
+    session.flush()
+
+    reduced_catalog = replace(catalog, ingredient_evidence=catalog.ingredient_evidence[:-1])
+    seed_catalog(session, reduced_catalog)
+
+    assert evidence.is_current is True
 
 
 def test_seed_database_emits_seed_performance_log() -> None:
