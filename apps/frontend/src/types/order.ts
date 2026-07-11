@@ -1,7 +1,6 @@
 export type OrderPaymentProvider = "MOCK" | "TOSS";
 
 export type CreateOrderShippingAddress = {
-  address_name?: string | null;
   recipient_name: string;
   phone: string;
   postal_code: string;

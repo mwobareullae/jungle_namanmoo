@@ -619,19 +619,11 @@ function ProfileAvatar({ size }: { size: "small" | "large" }) {
 
   return (
     <div style={isLarge ? styles.avatarLarge : styles.avatarSmall} aria-hidden="true">
-      <svg
-        width={isLarge ? 34 : 22}
-        height={isLarge ? 34 : 22}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M20 21a8 8 0 0 0-16 0" />
-        <circle cx="12" cy="8" r="4" />
-      </svg>
+      <img
+        alt=""
+        src="/mypage-profile-rabbit.png"
+        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+      />
     </div>
   );
 }
