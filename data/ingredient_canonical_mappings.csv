@@ -1,39 +1,39 @@
 source_ingredient_id,source_ingredient_name,canonical_id,mapping_type,confidence,source
-aha,Lactic Acid,lactic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5453 sha256=4a523f990553
-aha,락틱애씨드,lactic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5453 sha256=4a523f990553
-centella_asiatica,Centella Asiatica Extract,centella_asiatica_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=540 sha256=4a523f990553
-centella_asiatica,Centella Asiatica Leaf Extract,centella_asiatica_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=539 sha256=4a523f990553
-centella_asiatica,병풀잎추출물,centella_asiatica_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=539 sha256=4a523f990553
-centella_asiatica,병풀추출물,centella_asiatica_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=540 sha256=4a523f990553
-ceramides,Ceramide 3,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 sha256=4a523f990553
-ceramides,Ceramide NP,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 sha256=4a523f990553
-ceramides,세라마이드3,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 sha256=4a523f990553
-ceramides,세라마이드엔피,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 sha256=4a523f990553
-cholesterol_fatty_acids,Cholesterol,cholesterol,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3087 sha256=4a523f990553
-cholesterol_fatty_acids,Myristic Acid,myristic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=336 sha256=4a523f990553
-cholesterol_fatty_acids,Palmitic Acid,palmitic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3559 sha256=4a523f990553
-cholesterol_fatty_acids,Stearic Acid,stearic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1465 sha256=4a523f990553
-cholesterol_fatty_acids,미리스틱애씨드,myristic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=336 sha256=4a523f990553
-cholesterol_fatty_acids,스테아릭애씨드,stearic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1465 sha256=4a523f990553
-cholesterol_fatty_acids,콜레스테롤,cholesterol,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3087 sha256=4a523f990553
-cholesterol_fatty_acids,팔미틱애씨드,palmitic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3559 sha256=4a523f990553
-green_tea,Camellia Sinensis Leaf Extract,camellia_sinensis_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2756 sha256=4a523f990553
-green_tea,녹차추출물,camellia_sinensis_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2756 sha256=4a523f990553
-hyaluronic_acid,Hydrolyzed Hyaluronic Acid,hydrolyzed_hyaluronic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5655 sha256=4a523f990553
-hyaluronic_acid,Hydrolyzed Sodium Hyaluronate,hydrolyzed_sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7511 sha256=4a523f990553
-hyaluronic_acid,Hydroxypropyltrimonium Hyaluronate,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 sha256=4a523f990553
-hyaluronic_acid,Potassium Hyaluronate,potassium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3711 sha256=4a523f990553
-hyaluronic_acid,Sodium Acetylated Hyaluronate,sodium_acetylated_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1150 sha256=4a523f990553
-hyaluronic_acid,Sodium Hyaluronate,sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1265 sha256=4a523f990553
-hyaluronic_acid,Sodium Hyaluronate Crosspolymer,sodium_hyaluronate_crosspolymer,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1268 sha256=4a523f990553
-hyaluronic_acid,소듐아세틸레이티드하이알루로네이트,sodium_acetylated_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1150 sha256=4a523f990553
-hyaluronic_acid,소듐하이알루로네이트,sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1265 sha256=4a523f990553
-hyaluronic_acid,소듐하이알루로네이트크로스폴리머,sodium_hyaluronate_crosspolymer,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1268 sha256=4a523f990553
-hyaluronic_acid,포타슘하이알루로네이트,potassium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3711 sha256=4a523f990553
-hyaluronic_acid,하이드록시프로필트라이모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 sha256=4a523f990553
-hyaluronic_acid,하이드록시프로필트리모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 sha256=4a523f990553
-hyaluronic_acid,하이드롤라이즈드소듐하이알루로네이트,hydrolyzed_sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7511 sha256=4a523f990553
-hyaluronic_acid,하이드롤라이즈드하이알루로닉애씨드,hydrolyzed_hyaluronic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5655 sha256=4a523f990553
+aha,Lactic Acid,lactic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5453 alias_basis=standard_name sha256=4a523f990553
+aha,락틱애씨드,lactic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5453 alias_basis=standard_name sha256=4a523f990553
+centella_asiatica,Centella Asiatica Extract,centella_asiatica_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=540 alias_basis=standard_name sha256=4a523f990553
+centella_asiatica,Centella Asiatica Leaf Extract,centella_asiatica_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=539 alias_basis=standard_name sha256=4a523f990553
+centella_asiatica,병풀잎추출물,centella_asiatica_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=539 alias_basis=standard_name sha256=4a523f990553
+centella_asiatica,병풀추출물,centella_asiatica_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=540 alias_basis=standard_name sha256=4a523f990553
+ceramides,Ceramide 3,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 alias_basis=legacy_name sha256=4a523f990553
+ceramides,Ceramide NP,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 alias_basis=standard_name sha256=4a523f990553
+ceramides,세라마이드3,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 alias_basis=legacy_name sha256=4a523f990553
+ceramides,세라마이드엔피,ceramide_np,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7186 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,Cholesterol,cholesterol,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3087 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,Myristic Acid,myristic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=336 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,Palmitic Acid,palmitic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3559 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,Stearic Acid,stearic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1465 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,미리스틱애씨드,myristic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=336 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,스테아릭애씨드,stearic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1465 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,콜레스테롤,cholesterol,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3087 alias_basis=standard_name sha256=4a523f990553
+cholesterol_fatty_acids,팔미틱애씨드,palmitic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3559 alias_basis=standard_name sha256=4a523f990553
+green_tea,Camellia Sinensis Leaf Extract,camellia_sinensis_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2756 alias_basis=standard_name sha256=4a523f990553
+green_tea,녹차추출물,camellia_sinensis_leaf_extract,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2756 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Hydrolyzed Hyaluronic Acid,hydrolyzed_hyaluronic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5655 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Hydrolyzed Sodium Hyaluronate,hydrolyzed_sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7511 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Hydroxypropyltrimonium Hyaluronate,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 alias_basis=legacy_name sha256=4a523f990553
+hyaluronic_acid,Potassium Hyaluronate,potassium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3711 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Sodium Acetylated Hyaluronate,sodium_acetylated_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1150 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Sodium Hyaluronate,sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1265 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,Sodium Hyaluronate Crosspolymer,sodium_hyaluronate_crosspolymer,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1268 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,소듐아세틸레이티드하이알루로네이트,sodium_acetylated_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1150 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,소듐하이알루로네이트,sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1265 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,소듐하이알루로네이트크로스폴리머,sodium_hyaluronate_crosspolymer,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1268 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,포타슘하이알루로네이트,potassium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3711 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,하이드록시프로필트라이모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,하이드록시프로필트리모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=4707 alias_basis=legacy_name sha256=4a523f990553
+hyaluronic_acid,하이드롤라이즈드소듐하이알루로네이트,hydrolyzed_sodium_hyaluronate,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=7511 alias_basis=standard_name sha256=4a523f990553
+hyaluronic_acid,하이드롤라이즈드하이알루로닉애씨드,hydrolyzed_hyaluronic_acid,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=5655 alias_basis=standard_name sha256=4a523f990553
 ing_pending_003dc3a6e5c4,,caprylyl_capryl_glucoside,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=2929 sha256=4a523f990553
 ing_pending_00883b68c2d3,,triethoxycaprylylsilane,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=3389 sha256=4a523f990553
 ing_pending_00a50002a1cb,,potassium_hydroxide,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=3709 sha256=4a523f990553
@@ -685,14 +685,14 @@ ing_pending_fdc8d933024b,,anhydroxylitol,official_exact,high,KCIA 표준화명�
 ing_pending_fe711f9efafb,,geranyl_acetate,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=2705 sha256=4a523f990553
 ing_pending_fe9c995ff6e9,,phenylpropanol,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=6226 sha256=4a523f990553
 ing_pending_ff760a7db7fa,,calcium_aluminum_borosilicate,official_exact,high,KCIA 표준화명칭목록 2026-06-30 code=2959 sha256=4a523f990553
-peptides,Acetyl Hexapeptide-8,acetyl_hexapeptide_8,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1718 sha256=4a523f990553
-peptides,Copper Tripeptide-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 sha256=4a523f990553
-peptides,Palmitoyl Pentapeptide-3,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 sha256=4a523f990553
-peptides,Palmitoyl Pentapeptide-4,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 sha256=4a523f990553
-peptides,아세틸헥사펩타이드-8,acetyl_hexapeptide_8,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1718 sha256=4a523f990553
-peptides,카퍼트라이펩타이드-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 sha256=4a523f990553
-peptides,카퍼트리펩타이드-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 sha256=4a523f990553
-peptides,팔미토일펜타펩타이드-3,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 sha256=4a523f990553
-peptides,팔미토일펜타펩타이드-4,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 sha256=4a523f990553
-tea_tree,Melaleuca Alternifolia (Tea Tree) Leaf Oil,melaleuca_alternifolia_tea_tree_leaf_oil,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3468 sha256=4a523f990553
-tea_tree,티트리잎오일,melaleuca_alternifolia_tea_tree_leaf_oil,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3468 sha256=4a523f990553
+peptides,Acetyl Hexapeptide-8,acetyl_hexapeptide_8,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1718 alias_basis=standard_name sha256=4a523f990553
+peptides,Copper Tripeptide-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 alias_basis=legacy_name sha256=4a523f990553
+peptides,Palmitoyl Pentapeptide-3,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 alias_basis=legacy_name sha256=4a523f990553
+peptides,Palmitoyl Pentapeptide-4,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 alias_basis=standard_name sha256=4a523f990553
+peptides,아세틸헥사펩타이드-8,acetyl_hexapeptide_8,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=1718 alias_basis=standard_name sha256=4a523f990553
+peptides,카퍼트라이펩타이드-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 alias_basis=standard_name sha256=4a523f990553
+peptides,카퍼트리펩타이드-1,copper_tripeptide_1,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=2908 alias_basis=legacy_name sha256=4a523f990553
+peptides,팔미토일펜타펩타이드-3,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 alias_basis=legacy_name sha256=4a523f990553
+peptides,팔미토일펜타펩타이드-4,palmitoyl_pentapeptide_4,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3551 alias_basis=standard_name sha256=4a523f990553
+tea_tree,Melaleuca Alternifolia (Tea Tree) Leaf Oil,melaleuca_alternifolia_tea_tree_leaf_oil,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3468 alias_basis=standard_name sha256=4a523f990553
+tea_tree,티트리잎오일,melaleuca_alternifolia_tea_tree_leaf_oil,exact_name_override,high,KCIA 표준화명칭목록 2026-06-30 code=3468 alias_basis=standard_name sha256=4a523f990553
