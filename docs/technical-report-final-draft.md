@@ -241,7 +241,7 @@ excessive
 
 ## 2.6 현재 구현과 다음 확장 구분
 
-현재 scoring version은 `v3_behavior_personalization`이다. 피부 타입·민감도·최신 피부 테스트와 함께, 인증 사용자에게 유효한 행동 데이터가 있으면 행동 affinity를 ranking에 조건부 반영한다. 행동 데이터가 없으면 행동 weight를 0으로 만들고 나머지 축을 재정규화하므로 기본 추천으로 fallback한다.
+현재 scoring version은 `v4_review_personalization`이다. 피부 타입·민감도·최신 피부 테스트와 행동 affinity에 더해, 사전 집계된 리뷰 품질과 유사 프로필 affinity를 ranking에 반영한다. 행동 데이터가 없으면 행동 weight를 0으로 만들고 나머지 축을 재정규화하며, 리뷰 원문은 추천 요청 중 조회하지 않는다.
 
 이는 구현 상태에 대한 설명이며 효과가 검증됐다는 뜻은 아니다. 동일 test set에서 행동 축을 끈 결과와 비교하는 ablation으로 품질 개선과 latency 비용을 확인한 뒤 발표 수치에 포함한다.
 
