@@ -396,21 +396,32 @@ function UserSummaryCard({
         >
           {orderStatusSummary.map((item, index) => {
             const isActive = item.count > 0;
+            const statusContent = (
+              <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
+                <strong
+                  className={`whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none sm:text-[24px] ${isActive ? "text-[#1A1A1A]" : "text-[#d6dade]"}`}
+                >
+                  {item.count}
+                </strong>
+                <span
+                  className={`text-center text-[11px] leading-tight font-semibold whitespace-nowrap sm:text-[13px] ${isActive ? "text-[#1A1A1A]" : "text-[#aeb4ba]"}`}
+                >
+                  {item.label}
+                </span>
+              </div>
+            );
 
             return (
               <Fragment key={item.label}>
-                <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
-                  <strong
-                    className={`whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none sm:text-[24px] ${isActive ? "text-[#2AA6D1]" : "text-[#d6dade]"}`}
+                {isActive ? (
+                  <Link
+                    aria-label={`${item.label} ${item.count}건 조회`}
+                    className="flex min-w-[64px] shrink-0 flex-1 items-center justify-center no-underline transition-opacity hover:opacity-65 sm:min-w-0"
+                    to="/mypage/orders"
                   >
-                    {item.count}
-                  </strong>
-                  <span
-                    className={`text-center text-[11px] leading-tight font-semibold whitespace-nowrap sm:text-[13px] ${isActive ? "text-[#1A1A1A]" : "text-[#aeb4ba]"}`}
-                  >
-                    {item.label}
-                  </span>
-                </div>
+                    {statusContent}
+                  </Link>
+                ) : statusContent}
                 {index < orderStatusSummary.length - 1 ? (
                   <span aria-hidden="true" className="shrink-0 text-[16px] leading-none text-[#d7dce0] sm:text-[22px]">
                     ›

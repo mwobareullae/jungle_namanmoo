@@ -6149,6 +6149,27 @@ body.search-results-page #searchResultsGrid .product-info {
   }
 }
 
+@keyframes skin-profile-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skin-profile-save-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-right: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation-name: skin-profile-save-spin;
+  animation-duration: 700ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
 .search-pagination {
   display: flex;
   align-items: center;
