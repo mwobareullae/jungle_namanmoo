@@ -6,7 +6,10 @@ import ProductComparisonPanel, { type ProductComparisonDifference } from "../com
 import ProductDetailHero from "../components/product-detail/ProductDetailHero";
 import ProductDetailStatus from "../components/product-detail/ProductDetailStatus";
 import ProductDetailToast from "../components/product-detail/ProductDetailToast";
+import { Button } from "../components/ui/button";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
 import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
@@ -487,8 +490,6 @@ function ProductDetailSpaPage() {
   const [likedReviewIds, setLikedReviewIds] = useState<Set<string>>(() => new Set());
   const [reviewSkinTypeFilter, setReviewSkinTypeFilter] = useState("");
   const restoredHashProductRef = useRef<string | null>(null);
-  const reviewTypeFilterRef = useRef<HTMLDivElement | null>(null);
-  const reviewSkinFilterRef = useRef<HTMLDivElement | null>(null);
   const { reviews: productReviews, summary: reviewSummary } = useProductReviews(product?.product_id ?? productId);
 
   useEffect(() => installHomeRuntime(), []);
@@ -498,32 +499,6 @@ function ProductDetailSpaPage() {
       window.clearTimeout(toastTimerRef.current);
     }
   }, []);
-
-  useEffect(() => {
-    if (!isReviewTypePopoverOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!reviewTypeFilterRef.current?.contains(event.target as Node)) {
-        setIsReviewTypePopoverOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isReviewTypePopoverOpen]);
-
-  useEffect(() => {
-    if (!isReviewSkinPopoverOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!reviewSkinFilterRef.current?.contains(event.target as Node)) {
-        setIsReviewSkinPopoverOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isReviewSkinPopoverOpen]);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -1067,6 +1042,10 @@ function ProductDetailSpaPage() {
     }
   };
 
+  const handleRestockNotify = () => {
+    showToast("재입고 알림 신청 기능은 준비 중입니다.");
+  };
+
   const handleToggleWishlist = async () => {
     if (!productId || isWishlistPending) {
       return;
@@ -1220,6 +1199,7 @@ function ProductDetailSpaPage() {
               mainImageUrl={mainImageUrl}
               onAddToCart={handleAddToCart}
               onBuyNow={handleBuyNow}
+              onRestockNotify={handleRestockNotify}
               onToggleNarrativeDetail={() => setIsNarrativeDetailOpen((current) => !current)}
               onToggleWishlist={handleToggleWishlist}
               priceLabel={formatPrice(product.lowest_price)}
@@ -1550,25 +1530,22 @@ function ProductDetailSpaPage() {
 
                 <div className="product-review-controls">
                   <div className="product-review-filter-group">
-                    <div className="product-review-filter-popover-wrap" ref={reviewTypeFilterRef}>
-                      <button
-                        className={hasActiveReviewTypeFilter ? "product-review-filter-button active" : "product-review-filter-button"}
-                        type="button"
-                        aria-expanded={isReviewTypePopoverOpen}
-                        onClick={() => setIsReviewTypePopoverOpen((current) => !current)}
-                      >
-                        {hasActiveReviewTypeFilter ? <strong>{activeReviewTypeLabel}</strong> : "리뷰 유형"}
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </button>
-                      {isReviewTypePopoverOpen ? (
-                        <div className="product-review-type-popover">
+                    <Popover open={isReviewTypePopoverOpen} onOpenChange={setIsReviewTypePopoverOpen}>
+                      <div className="product-review-filter-popover-wrap">
+                        <PopoverTrigger className={hasActiveReviewTypeFilter ? "product-review-filter-button active" : "product-review-filter-button"}>
+                          {hasActiveReviewTypeFilter ? <strong>{activeReviewTypeLabel}</strong> : "리뷰 유형"}
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </PopoverTrigger>
+                        <PopoverContent className="product-review-type-popover">
                           {reviewTypeOptions.map((option) => (
-                            <button
+                            <Button
+                              aria-checked={option.value === reviewTypeFilter}
                               className={option.value === reviewTypeFilter ? "active" : ""}
-                              type="button"
                               key={option.value}
+                              role="menuitemradio"
+                              variant="link"
                               onClick={() => {
                                 setReviewTypeFilter(option.value);
                                 setReviewPage(1);
@@ -1576,28 +1553,25 @@ function ProductDetailSpaPage() {
                               }}
                             >
                               {option.label}
-                            </button>
+                            </Button>
                           ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="product-review-filter-popover-wrap" ref={reviewSkinFilterRef}>
-                      <button
-                        className={hasActiveSkinTypeFilter ? "product-review-filter-button active" : "product-review-filter-button"}
-                        type="button"
-                        aria-expanded={isReviewSkinPopoverOpen}
-                        onClick={() => setIsReviewSkinPopoverOpen((current) => !current)}
-                      >
-                        {hasActiveSkinTypeFilter ? <strong>{activeSkinTypeLabel}</strong> : "피부 필터"}
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </button>
-                      {isReviewSkinPopoverOpen ? (
-                        <div className="product-review-type-popover">
-                          <button
+                        </PopoverContent>
+                      </div>
+                    </Popover>
+                    <Popover open={isReviewSkinPopoverOpen} onOpenChange={setIsReviewSkinPopoverOpen}>
+                      <div className="product-review-filter-popover-wrap">
+                        <PopoverTrigger className={hasActiveSkinTypeFilter ? "product-review-filter-button active" : "product-review-filter-button"}>
+                          {hasActiveSkinTypeFilter ? <strong>{activeSkinTypeLabel}</strong> : "피부 필터"}
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </PopoverTrigger>
+                        <PopoverContent className="product-review-type-popover">
+                          <Button
+                            aria-checked={reviewSkinTypeFilter === ""}
                             className={reviewSkinTypeFilter === "" ? "active" : ""}
-                            type="button"
+                            role="menuitemradio"
+                            variant="link"
                             onClick={() => {
                               setReviewSkinTypeFilter("");
                               setReviewPage(1);
@@ -1605,12 +1579,14 @@ function ProductDetailSpaPage() {
                             }}
                           >
                             전체
-                          </button>
+                          </Button>
                           {reviewSkinTypeOptions.map((option) => (
-                            <button
+                            <Button
+                              aria-checked={option === reviewSkinTypeFilter}
                               className={option === reviewSkinTypeFilter ? "active" : ""}
-                              type="button"
                               key={option}
+                              role="menuitemradio"
+                              variant="link"
                               onClick={() => {
                                 setReviewSkinTypeFilter(option);
                                 setReviewPage(1);
@@ -1618,41 +1594,58 @@ function ProductDetailSpaPage() {
                               }}
                             >
                               {option}
-                            </button>
+                            </Button>
                           ))}
-                        </div>
-                      ) : null}
-                    </div>
+                        </PopoverContent>
+                      </div>
+                    </Popover>
                   </div>
 
                   <div className="product-review-controls-row2">
-                    <button
-                      className={isSkinFitOnly ? "product-review-skin-toggle active" : "product-review-skin-toggle"}
-                      type="button"
-                      aria-pressed={isSkinFitOnly}
-                      onClick={handleSkinFitToggle}
+                    <ToggleGroup
+                      aria-label="리뷰 피부 맞춤 필터"
+                      type="single"
+                      value={isSkinFitOnly ? "skin-fit" : ""}
+                      onValueChange={(nextValue) => {
+                        const nextIsSkinFitOnly = nextValue === "skin-fit";
+                        if (nextIsSkinFitOnly !== isSkinFitOnly) {
+                          handleSkinFitToggle();
+                        }
+                      }}
                     >
-                      <span className="product-review-skin-toggle-track" aria-hidden="true">
-                        <span className="product-review-skin-toggle-knob" />
-                      </span>
-                      내 피부 맞춤
-                    </button>
+                      <ToggleGroupItem
+                        aria-label="내 피부 맞춤 리뷰만 보기"
+                        className={isSkinFitOnly ? "product-review-skin-toggle active" : "product-review-skin-toggle"}
+                        value="skin-fit"
+                      >
+                        <span className="product-review-skin-toggle-track" aria-hidden="true">
+                          <span className="product-review-skin-toggle-knob" />
+                        </span>
+                        내 피부 맞춤
+                      </ToggleGroupItem>
+                    </ToggleGroup>
 
-                    <div className="product-review-sort-list" aria-label="리뷰 정렬">
+                    <ToggleGroup
+                      className="product-review-sort-list"
+                      type="single"
+                      value={reviewSort}
+                      aria-label="리뷰 정렬"
+                      onValueChange={(nextValue) => {
+                        if (!nextValue || nextValue === reviewSort) return;
+                        setReviewSort(nextValue as ReviewSortOption);
+                        setReviewPage(1);
+                      }}
+                    >
                       {reviewSortOptions.map((option) => (
-                        <button
+                        <ToggleGroupItem
                           className={option.value === reviewSort ? "active" : ""}
-                          type="button"
                           key={option.value}
-                          onClick={() => {
-                            setReviewSort(option.value);
-                            setReviewPage(1);
-                          }}
+                          value={option.value}
                         >
                           {option.label}
-                        </button>
+                        </ToggleGroupItem>
                       ))}
-                    </div>
+                    </ToggleGroup>
                   </div>
                 </div>
 
@@ -1716,21 +1709,21 @@ function ProductDetailSpaPage() {
                           ) : null}
 
                           <div className="product-review-actions">
-                            <button type="button">
+                            <Button variant="link">
                               <span aria-hidden="true">□</span>
                               신고하기
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               className={isLiked ? "liked" : ""}
-                              type="button"
                               aria-pressed={isLiked}
+                              variant="link"
                               onClick={() => toggleReviewLike(review.id)}
                             >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <path d="M12 21s-6.716-4.35-9.428-8.06C.94 10.42 1.3 6.9 4.02 5.06c2.28-1.54 5.02-.9 6.62 1.02L12 7.5l1.36-1.42c1.6-1.92 4.34-2.56 6.62-1.02 2.72 1.84 3.08 5.36 1.45 7.88C18.716 16.65 12 21 12 21z" />
                               </svg>
                               좋아요 {review.likeCount + (isLiked ? 1 : 0)}
-                            </button>
+                            </Button>
                           </div>
                         </article>
                       );
@@ -1745,31 +1738,31 @@ function ProductDetailSpaPage() {
 
                 {totalReviewPages > 1 ? (
                   <div className="product-review-pagination" aria-label="리뷰 페이지">
-                    <button
-                      type="button"
+                    <Button
                       disabled={currentReviewPage === 1}
+                      variant="outline"
                       onClick={() => handleReviewPageChange(currentReviewPage - 1)}
                     >
                       ‹
-                    </button>
+                    </Button>
                     {Array.from({ length: totalReviewPages }, (_, index) => index + 1).map((page) => (
-                      <button
+                      <Button
                         className={page === currentReviewPage ? "active" : ""}
-                        type="button"
                         key={page}
                         aria-current={page === currentReviewPage ? "page" : undefined}
+                        variant="outline"
                         onClick={() => handleReviewPageChange(page)}
                       >
                         {page}
-                      </button>
+                      </Button>
                     ))}
-                    <button
-                      type="button"
+                    <Button
                       disabled={currentReviewPage === totalReviewPages}
+                      variant="outline"
                       onClick={() => handleReviewPageChange(currentReviewPage + 1)}
                     >
                       ›
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
 

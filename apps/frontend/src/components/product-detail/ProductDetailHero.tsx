@@ -21,6 +21,7 @@ function ProductDetailHero({
   mainImageUrl,
   onAddToCart,
   onBuyNow,
+  onRestockNotify,
   onToggleNarrativeDetail,
   onToggleWishlist,
   priceLabel,
@@ -146,6 +147,7 @@ function ProductDetailHero({
           isProductSoldOut={isProductSoldOut}
           onAddToCart={onAddToCart}
           onBuyNow={onBuyNow}
+          onRestockNotify={onRestockNotify}
         />
       </div>
     </div>
