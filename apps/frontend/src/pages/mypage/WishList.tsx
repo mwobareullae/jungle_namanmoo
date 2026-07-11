@@ -2,8 +2,11 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
+import LoginRequiredDialog from "../../components/LoginRequiredDialog";
 import { ToggleGroup, ToggleGroupTabItem } from "../../components/ui/toggle-group";
+import { useAuth } from "../../contexts/useAuth";
 import {
+  addMyWishlistItem,
   deleteMyRecentProduct,
   deleteMyWishlistItem,
   getMyRecentProducts,
@@ -145,6 +148,7 @@ function MypageProductList({
   onSortChange
 }: ProductListProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [sort, setSort] = useState<WishlistSort>("recent");
   const isRecent = mode === "recent";
   const [listItems, setListItems] = useState<MypageProductListItem[]>(() =>
@@ -152,9 +156,11 @@ function MypageProductList({
   );
   const [isLoading, setIsLoading] = useState(!items);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const title = isRecent ? "최근 본 상품" : "찜한 상품";
   const activePath: "/mypage/recent" | "/mypage/wishlist" = isRecent ? "/mypage/recent" : "/mypage/wishlist";
-  const guideText = isRecent ? "최근 2주간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
+  const guideText = isRecent ? "최근 한 달간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
   const emptyTitle = isRecent ? "최근 본 상품이 없어요" : "아직 찜한 상품이 없어요";
   const emptyDescription = isRecent ? "상품을 둘러보면 최근 본 상품이 여기에 모여요." : "피부 타입에 맞는 제품을 찾아 찜해보세요.";
   const todayDateLabel = getTodayDateLabel();
@@ -184,7 +190,12 @@ function MypageProductList({
       }
     }, 0);
 
-    const request = mode === "wishlist" ? getMyWishlist() : getMyRecentProducts();
+    const request = mode === "wishlist"
+      ? getMyWishlist().then((wishlistItems) => wishlistItems)
+      : Promise.all([getMyRecentProducts(), getMyWishlist()]).then(([recentItems, wishlistItems]) => {
+          const wishedProductIds = new Set(wishlistItems.map((item) => item.productId));
+          return recentItems.map((item) => ({ ...item, isWished: wishedProductIds.has(item.productId) }));
+        });
     request
       .then((activityItems) => {
         if (!isMounted) {
@@ -232,6 +243,38 @@ function MypageProductList({
     } catch {
       setListItems(previousItems);
       setLoadError("삭제에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    }
+  };
+
+  const toggleWishlist = async (item: MypageProductListItem) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+
+    if (pendingWishlistProductIds.has(item.productId)) return;
+
+    const previousItems = listItems;
+    setPendingWishlistProductIds((previous) => new Set(previous).add(item.productId));
+    setListItems((previous) => previous.map((candidate) => (
+      candidate.productId === item.productId ? { ...candidate, isWished: !candidate.isWished } : candidate
+    )));
+
+    try {
+      if (item.isWished) {
+        await deleteMyWishlistItem(item.productId);
+      } else {
+        await addMyWishlistItem(item.productId);
+      }
+    } catch {
+      setListItems(previousItems);
+      setLoadError("찜 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setPendingWishlistProductIds((previous) => {
+        const next = new Set(previous);
+        next.delete(item.productId);
+        return next;
+      });
     }
   };
 
@@ -327,6 +370,8 @@ function MypageProductList({
         <h1 style={styles.singleTitle}>{title}</h1>
       </header>
 
+      <p style={styles.guideText}>{guideText}</p>
+
       {!isRecent ? (
         <ToggleGroup
           aria-label="찜한 상품 필터"
@@ -345,12 +390,6 @@ function MypageProductList({
             </ToggleGroupTabItem>
           ))}
         </ToggleGroup>
-      ) : null}
-
-      {isRecent ? (
-        <div style={styles.countRow}>
-          <strong>최근 본 상품 <span style={styles.countNumber}>{displayItems.length}</span></strong>
-        </div>
       ) : null}
 
       {loadError ? <p style={styles.statusMessage}>{loadError}</p> : null}
@@ -382,11 +421,18 @@ function MypageProductList({
                   <div style={isTodayDivider ? styles.dateDividerToday : styles.dateDivider}>{item.dateLabel}</div>
                 ) : null}
                 <article style={styles.row}>
-                  <button
-                    className="bg-transparent hover:bg-[#FAFAFA]"
+                  <div
+                    className="mypage-product-list-row-button bg-transparent"
                     onClick={() => openProduct(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openProduct(item);
+                      }
+                    }}
+                    role="button"
                     style={styles.rowButton}
-                    type="button"
+                    tabIndex={0}
                   >
                     <div style={styles.imageWrap}>
                       <ProductThumbnail
@@ -394,7 +440,31 @@ function MypageProductList({
                         alt={`${item.brand} ${item.name}`}
                         className="mypage-product-list-thumbnail"
                       />
-                      <span style={item.isWished ? styles.heartBadgeActive : styles.heartBadge} aria-hidden="true">♥</span>
+                      <button
+                        aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
+                        className={`mypage-product-list-heart-button${item.isWished ? " is-wished" : ""}`}
+                        disabled={pendingWishlistProductIds.has(item.productId)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void toggleWishlist(item);
+                        }}
+                        type="button"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          className={item.isWished ? "mypage-product-list-heart-icon is-wished" : "mypage-product-list-heart-icon"}
+                          fill="none"
+                          height="12"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          width="12"
+                        >
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                      </button>
                     </div>
                     <span style={styles.body}>
                       <strong style={styles.name}>{item.name}</strong>
@@ -405,15 +475,8 @@ function MypageProductList({
                       {item.originalPrice ? <span style={styles.originalPrice}>{formatPrice(item.originalPrice)}</span> : null}
                       {item.deliveryLabel ? <span style={styles.delivery}>배송비 {item.deliveryLabel}</span> : null}
                       <span style={styles.brand}>{item.brand}</span>
-                      {item.tags?.length ? (
-                        <span style={styles.tags}>
-                          {item.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} style={styles.tag}>{tag}</span>
-                          ))}
-                        </span>
-                      ) : null}
                     </span>
-                  </button>
+                  </div>
                   <button
                     aria-label={`${item.name} 목록에서 제거`}
                     className="text-[#c8cdd2] hover:text-[#4b5563]"
@@ -429,7 +492,11 @@ function MypageProductList({
           })}
         </section>
       )}
-      <p style={styles.guideText}>{guideText}</p>
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
     </MyPageLayout>
   );
 }
@@ -486,20 +553,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500
   },
   guideText: {
-    margin: "18px 0 0",
+    margin: "18px 0",
     color: "#9ca3af",
     fontSize: 13,
-    fontWeight: 600
-  },
-  countRow: {
-    padding: "17px 0",
-    borderBottom: "1px solid #eef0f2",
-    color: "#222222",
-    fontSize: 14,
-    fontWeight: 700
-  },
-  countNumber: {
-    color: "#2aa6d1"
+    fontWeight: 500
   },
   statusMessage: {
     margin: "0 0 18px",
@@ -517,15 +574,15 @@ const styles: Record<string, CSSProperties> = {
     padding: "6px 16px",
     background: "#f4f6f8",
     color: "#555555",
-    fontSize: 14,
-    fontWeight: 800
+    fontSize: 16,
+    fontWeight: 700
   },
   dateDividerToday: {
     padding: "6px 16px",
-    background: "rgba(148,224,248,0.14)",
-    color: "#2aa6d1",
-    fontSize: 14,
-    fontWeight: 800
+    background: "#f4f6f8",
+    color: "#555555",
+    fontSize: 16,
+    fontWeight: 700
   },
   row: {
     position: "relative",
@@ -564,7 +621,7 @@ const styles: Record<string, CSSProperties> = {
   name: {
     color: "#111111",
     fontSize: 15,
-    fontWeight: 700,
+    fontWeight: 500,
     lineHeight: 1.35
   },
   priceLine: {
@@ -580,7 +637,7 @@ const styles: Record<string, CSSProperties> = {
   price: {
     color: "#111111",
     fontSize: 18,
-    fontWeight: 800
+    fontWeight: 700
   },
   originalPrice: {
     color: "#9ca3af",
@@ -596,7 +653,7 @@ const styles: Record<string, CSSProperties> = {
   brand: {
     color: "#7d858f",
     fontSize: 12,
-    fontWeight: 600
+    fontWeight: 400
   },
   tags: {
     display: "flex",
@@ -615,32 +672,6 @@ const styles: Record<string, CSSProperties> = {
     color: "#2aa6d1",
     fontSize: 10,
     fontWeight: 600
-  },
-  heartBadge: {
-    position: "absolute",
-    right: 7,
-    bottom: 7,
-    display: "grid",
-    placeItems: "center",
-    width: 22,
-    height: 22,
-    borderRadius: "50%",
-    background: "rgba(0,0,0,0.26)",
-    color: "#ffffff",
-    fontSize: 12
-  },
-  heartBadgeActive: {
-    position: "absolute",
-    right: 7,
-    bottom: 7,
-    display: "grid",
-    placeItems: "center",
-    width: 22,
-    height: 22,
-    borderRadius: "50%",
-    background: "#94e0f8",
-    color: "#ffffff",
-    fontSize: 12
   },
   removeButton: {
     position: "absolute",

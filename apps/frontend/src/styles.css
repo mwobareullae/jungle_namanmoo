@@ -98,7 +98,7 @@
   padding: 13px 14px;
   border: 0;
   border-radius: 6px;
-  background: transparent;
+  background: #9ca3af;
   color: rgba(255, 255, 255, 0.72);
   font-family: inherit;
   font-size: 14px;
@@ -2437,6 +2437,59 @@ html {
 
 body {
   background: #ffffff;
+}
+
+.mypage-product-list-row-button {
+  transition: none;
+}
+
+.mypage-product-list-row-button:hover,
+.mypage-product-list-row-button:focus-visible {
+  background: transparent;
+}
+
+.mypage-product-list-row-button .mypage-product-list-thumbnail {
+  transition: transform 180ms ease;
+}
+
+.mypage-product-list-row-button:hover .mypage-product-list-thumbnail,
+.mypage-product-list-row-button:focus-visible .mypage-product-list-thumbnail {
+  transform: scale(1.06);
+}
+
+.mypage-product-list-heart-button {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.mypage-product-list-heart-icon {
+  display: block;
+}
+
+.mypage-product-list-heart-button.is-wished {
+  background: #ff3521;
+}
+
+.mypage-product-list-heart-icon,
+.mypage-product-list-heart-icon.is-wished {
+  color: #ffffff;
+}
+
+.mypage-product-list-heart-button:disabled {
+  cursor: wait;
 }
 
 .spa-origin-shell {
