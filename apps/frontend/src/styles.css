@@ -6264,6 +6264,23 @@ header.site-header nav a.nav-ai {
   font-weight: 700;
 }
 
+header.site-header nav a.nav-active {
+  position: relative;
+  color: #0b2a3a;
+  font-weight: 700;
+}
+
+header.site-header nav a.nav-active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -9px;
+  left: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: #94e0f8;
+}
+
 header.site-header nav a.nav-ai::after {
   content: "";
   position: absolute;
