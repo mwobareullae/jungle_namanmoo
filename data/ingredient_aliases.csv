@@ -40,10 +40,10 @@ PHA,pha,abbrev,high,common cosmetic abbreviation
 폴리하이드록시애씨드,pha,synonym,high,common cosmetic synonym
 Polyhydroxy Acid,pha,synonym,high,common cosmetic synonym
 Poly Hydroxy Acid,pha,synonym,high,common cosmetic synonym
-글루코노락톤,pha,ko,high,KCIA 표준화명칭목록
-Gluconolactone,pha,inci,high,INCI/CosIng
-락토바이오닉애씨드,pha,ko,high,KCIA 표준화명칭목록
-Lactobionic Acid,pha,inci,high,INCI/CosIng
+글루코노락톤,gluconolactone,ko,high,KCIA 표준화명칭목록
+Gluconolactone,gluconolactone,inci,high,INCI/CosIng
+락토바이오닉애씨드,lactobionic_acid,ko,high,KCIA 표준화명칭목록
+Lactobionic Acid,lactobionic_acid,inci,high,INCI/CosIng
 말토바이오닉애씨드,pha,ko,medium,KCIA 표준화명칭목록
 Maltobionic Acid,pha,inci,medium,INCI/CosIng
 징크피씨에이,zinc_pca,ko,high,KCIA 표준화명칭목록
@@ -52,6 +52,8 @@ Maltobionic Acid,pha,inci,medium,INCI/CosIng
 아연 PCA,zinc_pca,synonym,high,common Korean synonym
 Zinc PCA,zinc_pca,inci,high,INCI/CosIng
 Zinc Pidolate,zinc_pca,synonym,medium,chemical synonym
+징크설페이트,zinc_sulfate,ko,high,observed exact product label
+Zinc Sulfate,zinc_sulfate,inci,high,INCI/CosIng
 레티놀,retinol,ko,high,KCIA 표준화명칭목록
 Retinol,retinol,inci,high,INCI/CosIng
 all-trans Retinol,retinol,synonym,high,chemical synonym
@@ -142,6 +144,8 @@ Glycyrrhiza Inflata Root Extract,licorice_extract,inci,high,INCI/CosIng
 Glycyrrhiza Glabra (Licorice) Root Extract,licorice_extract,inci,high,INCI/CosIng
 유용성감초추출물,licorice_extract,synonym,medium,MFDS functional ingredient label
 Oil Soluble Licorice Extract,licorice_extract,synonym,medium,MFDS functional ingredient label
+글라브리딘,glabridin,ko,high,observed exact product label
+Glabridin,glabridin,inci,high,literature and product label
 글리세린,glycerin,ko,high,KCIA 표준화명칭목록
 Glycerin,glycerin,inci,high,INCI/CosIng
 글리세롤,glycerin,synonym,high,chemical synonym
@@ -259,6 +263,9 @@ Centella Asiatica Leaf Water,centella_asiatica,inci,medium,INCI/CosIng
 Hydrolyzed Centella Asiatica Extract,centella_asiatica,inci,medium,INCI/CosIng
 시카,centella_asiatica,synonym,medium,common market synonym
 Cica,centella_asiatica,synonym,medium,common market synonym
+아시아티코사이드,asiaticoside,ko,high,observed exact product label
+Asiaticoside,asiaticoside,inci,high,INCI/CosIng
+Asiaticoside (),asiaticoside,typo,high,observed empty-parenthesis formatting variant
 마데카소사이드,madecassoside,ko,high,KCIA 표준화명칭목록
 Madecassoside,madecassoside,inci,high,INCI/CosIng
 마데카소사이드*,madecassoside,typo,medium,project raw crawl

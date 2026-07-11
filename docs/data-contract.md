@@ -379,6 +379,8 @@ skin_profile_score = 0.9 * 0.6 + 0.8 * 0.4 = 0.86
 | `normalized_concentration_value` | 선택. 계산용으로 `%` 단위로 변환한 함량값 |
 | `normalized_concentration_unit` | 선택. 계산용 단위. 변환 가능하면 `%`, 변환 불가하면 빈 값 |
 
+Seed는 상품×성분 pair를 insert/update하지만 CSV에서 사라진 과거 pair를 자동 삭제하지 않습니다. 기존 `ingredient_id`를 새 canonical ID로 바꾸는 배치는 이전 연결이 함께 남지 않도록 clean DB reseed 또는 별도 cleanup을 거쳐야 합니다. 2026-07-11 exact 성분 5종 분리 배치는 clean dev reseed를 전제로 합니다.
+
 함량 처리 원칙:
 
 - 상품 성분 행에 명시된 숫자와 단위만 함량으로 인정합니다.
