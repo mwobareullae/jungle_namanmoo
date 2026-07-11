@@ -76,12 +76,13 @@ def test_catalog_search_skips_recovery_when_normal_results_are_at_least_three() 
 
     execution = get_catalog_search_response(
         session,
-        query="수분 크림",
+        query="라운드렙",
         elasticsearch_search=search,
     )
 
     assert len(calls) == 1
     assert execution.recovery_used is False
+    assert execution.response.corrected_query is None
 
 
 def test_catalog_search_uses_recovery_only_below_three_results() -> None:
@@ -113,6 +114,32 @@ def test_catalog_search_uses_recovery_only_below_three_results() -> None:
     assert execution.recovery_used is True
     assert execution.response.corrected_query == "토리든"
     assert execution.response.query == "토리덴"
+
+
+def test_catalog_search_exposes_confident_correction_without_extra_recovery() -> None:
+    session = _seed_example_session()
+    calls: list[dict] = []
+
+    def search(*args, **kwargs) -> ElasticsearchCatalogSearchResult:
+        calls.append(kwargs)
+        return ElasticsearchCatalogSearchResult(
+            product_db_ids=(1,),
+            total_hit_count=3,
+            aggregations={},
+            attempted=True,
+            duration_ms=2,
+            index_alias="test_catalog_products_current",
+        )
+
+    execution = get_catalog_search_response(
+        session,
+        query="히알루론사",
+        elasticsearch_search=search,
+    )
+
+    assert len(calls) == 1
+    assert execution.recovery_used is False
+    assert execution.response.corrected_query == "히알루론산"
 
 
 def _fake_es_search(

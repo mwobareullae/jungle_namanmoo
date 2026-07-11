@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from app.services.catalog_search_text import compact_search_text
+
 
 QUALITY_TARGETS = {
     "exact_hit_at_1": {"operator": "gte", "target": 1.0},
@@ -152,7 +154,11 @@ def evaluate_catalog_search_case(
         if not recovered:
             failure_reasons.append("typo query was not recovered")
     else:
-        wrong_correction = bool(corrected_query) and corrected_query != expected_correction
+        wrong_correction = (
+            bool(corrected_query)
+            and corrected_query != expected_correction
+            and compact_search_text(corrected_query) != compact_search_text(case["query"])
+        )
         checks["wrong_correction"] = wrong_correction
         if wrong_correction:
             failure_reasons.append("unexpected correction was suggested")

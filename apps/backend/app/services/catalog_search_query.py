@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from threading import Lock
+from time import monotonic
 from typing import Iterable
 
 from sqlalchemy import select
@@ -24,6 +26,12 @@ from app.services.catalog_search_text import (
     normalize_query_text,
     normalize_search_text,
 )
+
+
+_LOOKUP_CACHE_TTL_SECONDS = 60.0
+_LOOKUP_CACHE_LOCK = Lock()
+_BRAND_LOOKUP_CACHE: tuple[float, dict[str, str]] | None = None
+_CATEGORY_LOOKUP_CACHE: tuple[float, dict[str, str]] | None = None
 
 
 _CATEGORY_QUERY_ALIASES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
@@ -281,15 +289,13 @@ def _detect_brand_codes(
     compact_query: str,
 ) -> tuple[str, ...]:
     lookup = _brand_lookup(session)
+    query_phrases = _compact_query_phrases(normalized_query)
     matches: list[tuple[int, str]] = []
     for alias_key, brand_code in lookup.items():
         compact_alias = compact_search_text(alias_key)
         if not compact_alias:
             continue
-        if len(compact_alias) <= 1:
-            matched = compact_query == compact_alias or alias_key in normalized_query.split()
-        else:
-            matched = compact_alias in compact_query or alias_key in normalized_query
+        matched = compact_alias in query_phrases
         if matched:
             matches.append((len(compact_alias), brand_code))
     if not matches:
@@ -304,6 +310,17 @@ def _detect_brand_codes(
 
 
 def _brand_lookup(session: Session) -> dict[str, str]:
+    global _BRAND_LOOKUP_CACHE
+
+    if _lookup_cache_enabled(session):
+        with _LOOKUP_CACHE_LOCK:
+            cached = _BRAND_LOOKUP_CACHE
+            if (
+                cached is not None
+                and monotonic() - cached[0] < _LOOKUP_CACHE_TTL_SECONDS
+            ):
+                return cached[1]
+
     rows = session.execute(
         select(
             Brand.brand_code,
@@ -320,6 +337,9 @@ def _brand_lookup(session: Session) -> dict[str, str]:
         for value in (brand_code, name, normalized_name, alias, normalized_alias):
             if value:
                 lookup[_lookup_key(str(value))] = str(brand_code)
+    if _lookup_cache_enabled(session):
+        with _LOOKUP_CACHE_LOCK:
+            _BRAND_LOOKUP_CACHE = (monotonic(), lookup)
     return lookup
 
 
@@ -347,6 +367,17 @@ def _resolve_category_values(
 
 
 def _category_lookup(session: Session) -> dict[str, str]:
+    global _CATEGORY_LOOKUP_CACHE
+
+    if _lookup_cache_enabled(session):
+        with _LOOKUP_CACHE_LOCK:
+            cached = _CATEGORY_LOOKUP_CACHE
+            if (
+                cached is not None
+                and monotonic() - cached[0] < _LOOKUP_CACHE_TTL_SECONDS
+            ):
+                return cached[1]
+
     rows = session.execute(
         select(
             ProductCategory.category_code,
@@ -362,7 +393,17 @@ def _category_lookup(session: Session) -> dict[str, str]:
         for value in (category_code, name, alias, normalized_alias):
             if value:
                 lookup[_lookup_key(str(value))] = str(category_code)
+    if _lookup_cache_enabled(session):
+        with _LOOKUP_CACHE_LOCK:
+            _CATEGORY_LOOKUP_CACHE = (monotonic(), lookup)
     return lookup
+
+
+def _lookup_cache_enabled(session: Session) -> bool:
+    try:
+        return session.get_bind().dialect.name != "sqlite"
+    except Exception:
+        return False
 
 
 def _detect_categories(compact_query: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -387,6 +428,18 @@ def _detect_categories(compact_query: str) -> tuple[tuple[str, ...], tuple[str, 
 def _lookup_key(value: str) -> str:
     compact = compact_search_text(value)
     return compact or normalize_search_text(value)
+
+
+def _compact_query_phrases(value: str) -> set[str]:
+    tokens = [compact_search_text(token) for token in normalize_query_text(value).split()]
+    tokens = [token for token in tokens if token]
+    phrases: set[str] = set(tokens)
+    for start in range(len(tokens)):
+        combined = ""
+        for token in tokens[start:]:
+            combined += token
+            phrases.add(combined)
+    return phrases
 
 
 def _dedupe(values: Iterable[str]) -> tuple[str, ...]:

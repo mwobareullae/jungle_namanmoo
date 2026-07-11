@@ -60,6 +60,19 @@ def test_explicit_catalog_filters_override_query_filters() -> None:
     assert parsed.sort == CatalogSearchSort.NEWEST
 
 
+def test_brand_detection_requires_complete_token_phrases() -> None:
+    session = _seed_example_session()
+
+    smith = parse_catalog_search_query(session, query="Smith's Rosebud Trio")
+    pencil = parse_catalog_search_query(
+        session,
+        query="Brow Wiz Precision Eyebrow Pencil - Soft Brown",
+    )
+
+    assert smith.filters.brand_codes == ()
+    assert pencil.filters.brand_codes == ()
+
+
 def _seed_example_session() -> Session:
     engine = make_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

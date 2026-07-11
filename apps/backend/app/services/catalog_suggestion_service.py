@@ -68,10 +68,7 @@ def get_catalog_suggestions_response(
         documents = es_result.documents
         backend = "elasticsearch"
         fallback_used = False
-        try:
-            brand_names = _load_matching_brand_names(session, normalized_query, limit=limit)
-        except Exception:
-            brand_names = ()
+        brand_names = ()
     else:
         try:
             documents = _load_database_suggestion_documents(

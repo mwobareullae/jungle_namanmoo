@@ -47,6 +47,7 @@ KNOWN_QUERY_CORRECTIONS: dict[str, str] = {
     "네일르": "네일",
     "선크림므": "선크림",
     "마스크펙": "마스크팩",
+    "스킨푸두": "스킨푸드",
     "클렌징 폼": "클렌징폼",
     "선 크림": "선크림",
     "모로칸 오일": "모로칸오일",
@@ -63,18 +64,14 @@ def equivalent_brand_values(value: str) -> tuple[str, ...]:
 
 def matching_brand_equivalent_values(query: str) -> tuple[str, ...]:
     normalized_query = normalize_query_text(query)
-    compact_query = compact_search_text(query)
-    query_tokens = set(normalized_query.split())
+    query_phrases = _compact_query_phrases(normalized_query)
     matches: list[str] = []
     for group in BRAND_ALIAS_GROUPS:
         matched = False
         for alias in group:
             compact_alias = compact_search_text(alias)
             normalized_alias = normalize_query_text(alias)
-            if len(compact_alias) <= 1:
-                matched = normalized_alias in query_tokens
-            else:
-                matched = compact_alias in compact_query
+            matched = compact_alias in query_phrases or normalized_alias == normalized_query
             if matched:
                 break
         if matched:
@@ -116,7 +113,23 @@ def known_query_correction(query: str) -> str | None:
     for incorrect, corrected in KNOWN_QUERY_CORRECTIONS.items():
         normalized_incorrect = normalize_query_text(incorrect)
         if normalized_incorrect in normalized_query:
-            return normalized_query.replace(normalized_incorrect, corrected, 1)
+            candidate = normalized_query.replace(normalized_incorrect, corrected, 1)
+            if candidate != normalized_query:
+                return candidate
         if compact_query == compact_search_text(incorrect):
-            return corrected
+            candidate = normalize_query_text(corrected)
+            if candidate != normalized_query:
+                return candidate
     return None
+
+
+def _compact_query_phrases(value: str) -> set[str]:
+    tokens = [compact_search_text(token) for token in normalize_query_text(value).split()]
+    tokens = [token for token in tokens if token]
+    phrases: set[str] = set(tokens)
+    for start in range(len(tokens)):
+        combined = ""
+        for token in tokens[start:]:
+            combined += token
+            phrases.add(combined)
+    return phrases
