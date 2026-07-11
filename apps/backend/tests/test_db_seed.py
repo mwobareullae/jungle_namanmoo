@@ -68,6 +68,12 @@ def test_seed_database_loads_example_catalog_into_db() -> None:
     assert evidence_row is not None
     assert evidence_row.source_type == "paper"
     assert evidence_row.source_authority_score is not None
+    assert evidence_row.canonical_evidence_key is not None
+    assert evidence_row.review_status == "candidate_unverified"
+    assert evidence_row.result_direction == "unclear"
+    assert evidence_row.score_use_level == "reference_only"
+    assert evidence_row.is_representative is False
+    assert evidence_row.is_current is True
     risk_row = session.execute(select(RiskFlag)).scalar_one()
     assert risk_row.applies_to == "sensitive"
     assert risk_row.severity_score is not None
@@ -104,6 +110,56 @@ def test_seed_catalog_persists_product_recommendation_eligibility() -> None:
     assert excluded_product.recommend_exclude_reason == "missing_ingredients"
     assert included_product.is_recommendable is True
     assert included_product.recommend_exclude_reason is None
+
+
+def test_seed_catalog_updates_evidence_by_canonical_key() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    seed_catalog(session, catalog)
+    evidence = catalog.ingredient_evidence[0]
+    original = session.execute(
+        select(IngredientEvidence).where(
+            IngredientEvidence.canonical_evidence_key == evidence.canonical_evidence_key
+        )
+    ).scalar_one()
+    original_id = original.id
+    updated_title = f"{evidence.source_title} 수정"
+    updated_catalog = replace(
+        catalog,
+        ingredient_evidence=(
+            replace(evidence, source_title=updated_title),
+            *catalog.ingredient_evidence[1:],
+        ),
+    )
+
+    seed_catalog(session, updated_catalog)
+
+    updated = session.execute(
+        select(IngredientEvidence).where(
+            IngredientEvidence.canonical_evidence_key == evidence.canonical_evidence_key
+        )
+    ).scalar_one()
+    assert updated.id == original_id
+    assert updated.source_title == updated_title
+    assert _count(session, IngredientEvidence) == len(catalog.ingredient_evidence)
+
+
+def test_seed_catalog_marks_missing_evidence_inactive_without_deleting_it() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    seed_catalog(session, catalog)
+    removed = catalog.ingredient_evidence[-1]
+    reduced_catalog = replace(catalog, ingredient_evidence=catalog.ingredient_evidence[:-1])
+
+    seed_catalog(session, reduced_catalog)
+
+    removed_row = session.execute(
+        select(IngredientEvidence).where(
+            IngredientEvidence.canonical_evidence_key == removed.canonical_evidence_key
+        )
+    ).scalar_one()
+    assert removed_row.is_current is False
+    assert _count(session, IngredientEvidence) == len(catalog.ingredient_evidence)
 
 
 def test_seed_database_emits_seed_performance_log() -> None:
