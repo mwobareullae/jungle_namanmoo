@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,16 @@ class IngredientEvidence:
     pmid: str | None
     doi: str | None
     source_authority_score: float | None
+    canonical_evidence_key: str
+    review_status: str
+    result_direction: str
+    score_use_level: str
+    is_representative: bool
+    representative_rank: int | None
+    is_current: bool
+    review_note: str | None
+    reviewed_by: str | None
+    reviewed_at: datetime | None
 
 
 @dataclass(frozen=True)
