@@ -1,6 +1,6 @@
 # 일반 상품 검색 v1 행동 명세
 
-상태: 구현 전 품질 기준 초안
+상태: API 계약 확정, 구현 진행
 작성일: 2026-07-11
 범위: 백엔드 일반 상품 검색. 피부 고민 맞춤 추천은 변경하지 않는다.
 
@@ -162,12 +162,13 @@ v1 구현 완료 기준은 다음과 같다.
 - 운영자용 검색 규칙 관리 화면
 - 프론트엔드 화면 변경
 
-## 11. 다음 단계 전에 확정할 결정
+## 11. 확정된 구현 결정
 
-- 새 API를 `GET /api/search/products`와 `GET /api/search/suggestions`로 둘지
-- 페이지 번호와 cursor 중 어떤 UX를 사용할지
-- 위 카테고리 그룹을 API facet 계약으로 사용할지
-- 품절 상품을 후순위로 노출할지
-- Nori 플러그인을 포함한 Elasticsearch 이미지를 사용할지
+- `GET /api/search/products`, `GET /api/search/suggestions`를 신규 계약으로 사용한다.
+- 페이지 번호와 `page_size`를 사용하고 기본 20, 최대 50으로 제한한다.
+- 원본 카테고리 코드와 사용자용 통합 그룹을 함께 색인한다.
+- `HIDDEN`은 제외하고 `SOLD_OUT`은 후순위로 노출한다.
+- Nori 플러그인과 일반검색 전용 Elasticsearch alias를 사용한다.
+- 띄어쓰기, 초성, 두벌식 자판 변환, 확정 alias, 제한 fuzzy 복구를 지원한다.
 
-이 결정들이 확정되기 전에는 mapping, API response, ranking 구현을 시작하지 않는다.
+세부 request/response와 오류 계약은 `docs/catalog-search-api-contract.md`를 따른다.
