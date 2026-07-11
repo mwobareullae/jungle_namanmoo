@@ -543,6 +543,13 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
             {effectTags.slice(0, 3).map((effect) => <span key={effect} style={styles.baumannEffectTag}>{effect}</span>)}
           </div>
         ) : null}
+        <Link
+          className="mt-5 inline-flex min-h-[42px] items-center justify-center gap-1 rounded-full bg-[#0C1117] px-5 text-[13px] font-bold text-white no-underline transition-colors hover:bg-[#1A1A1A]"
+          onClick={() => window.scrollTo({ top: 0, behavior: "auto" })}
+          to={`/skin-test/recommendations?result_id=${encodeURIComponent(result.result_id)}`}
+        >
+          맞춤 추천 결과 보러가기 <span aria-hidden="true">›</span>
+        </Link>
       </div>
       {imageUrl && !imageFailed ? (
         <div aria-hidden="true" className="justify-self-center lg:justify-self-end" style={styles.baumannImageWrap}>
