@@ -33,6 +33,7 @@ from app.services.catalog_search_text import (
     extract_chosung,
     normalize_search_text,
 )
+from app.services.catalog_search_aliases import equivalent_brand_values
 from app.services.elasticsearch_client import (
     ElasticsearchClientProvider,
     default_elasticsearch_client_provider,
@@ -126,7 +127,17 @@ CATALOG_PRODUCT_INDEX_MAPPING: dict[str, Any] = {
                 "analyzer": "catalog_edge",
                 "search_analyzer": "catalog_keyword_search",
             },
-            "brand_aliases": {"type": "text", "analyzer": "catalog_nori"},
+            "brand_aliases": {
+                "type": "text",
+                "analyzer": "catalog_nori",
+                "fields": {
+                    "edge": {
+                        "type": "text",
+                        "analyzer": "catalog_edge",
+                        "search_analyzer": "catalog_keyword_search",
+                    }
+                },
+            },
             "category_code": {"type": "keyword"},
             "category_group": {"type": "keyword"},
             "category_name": {
@@ -136,13 +147,39 @@ CATALOG_PRODUCT_INDEX_MAPPING: dict[str, Any] = {
                     "exact": {"type": "keyword", "normalizer": "catalog_keyword"}
                 },
             },
-            "category_aliases": {"type": "text", "analyzer": "catalog_nori"},
+            "category_aliases": {
+                "type": "text",
+                "analyzer": "catalog_nori",
+                "fields": {
+                    "edge": {
+                        "type": "text",
+                        "analyzer": "catalog_edge",
+                        "search_analyzer": "catalog_keyword_search",
+                    }
+                },
+            },
             "ingredient_names": {"type": "text", "analyzer": "catalog_nori"},
             "ingredient_aliases": {"type": "text", "analyzer": "catalog_nori"},
             "effect_names": {"type": "text", "analyzer": "catalog_nori"},
             "effect_aliases": {"type": "text", "analyzer": "catalog_nori"},
             "aliases": {"type": "text", "analyzer": "catalog_nori"},
-            "all_text": {"type": "text", "analyzer": "catalog_nori"},
+            "aliases_compact": {"type": "keyword", "normalizer": "catalog_keyword"},
+            "aliases_chosung": {
+                "type": "text",
+                "analyzer": "catalog_edge",
+                "search_analyzer": "catalog_keyword_search",
+            },
+            "all_text": {
+                "type": "text",
+                "analyzer": "catalog_nori",
+                "fields": {
+                    "edge": {
+                        "type": "text",
+                        "analyzer": "catalog_edge",
+                        "search_analyzer": "catalog_keyword_search",
+                    }
+                },
+            },
             "lowest_price": {"type": "integer"},
             "rating": {"type": "float"},
             "review_count": {"type": "integer"},
@@ -554,7 +591,17 @@ def _load_batch_context(
 
 def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
     product_db_id = int(row.product_db_id)
-    brand_aliases = context.brand_aliases.get(int(row.brand_db_id), ())
+    brand_aliases = tuple(
+        sorted(
+            set(
+                (
+                    *context.brand_aliases.get(int(row.brand_db_id), ()),
+                    *equivalent_brand_values(row.brand_name),
+                    *equivalent_brand_values(row.brand_code),
+                )
+            )
+        )
+    )
     category_aliases = context.category_aliases.get(int(row.category_db_id), ())
     ingredient_names = context.ingredient_names.get(product_db_id, ())
     ingredient_aliases = context.ingredient_aliases.get(product_db_id, ())
@@ -604,6 +651,8 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         "effect_names": list(effect_names),
         "effect_aliases": list(effect_aliases),
         "aliases": list(aliases),
+        "aliases_compact": [compact_search_text(alias) for alias in aliases],
+        "aliases_chosung": [extract_chosung(alias) for alias in aliases],
         "all_text": " ".join(str(value) for value in all_text_values if value),
         "lowest_price": context.prices.get(product_db_id),
         "rating": rating,

@@ -26,9 +26,14 @@ from app.services.catalog_search_query import (
     CatalogSearchQuery,
     parse_catalog_search_query,
 )
+from app.services.catalog_search_recovery import (
+    CatalogSearchRecoveryPlan,
+    build_catalog_search_recovery_plan,
+)
 from app.services.catalog_search_text import (
     CATEGORY_GROUP_LABELS,
     category_group_for_code,
+    is_all_chosung_query,
     normalize_search_text,
 )
 from app.services.elasticsearch_catalog_search import (
@@ -42,6 +47,7 @@ DEFAULT_CATALOG_SEARCH_PAGE_SIZE = 20
 MAX_CATALOG_SEARCH_PAGE_SIZE = 50
 CATALOG_SEARCH_FALLBACK_LIMIT = 500
 POPULARITY_WINDOW_DAYS = 7
+MAX_RECOVERY_FETCH = 250
 
 _PRICE_FACETS: tuple[tuple[str, str, int | None, int | None], ...] = (
     ("under_10000", "1만원 미만", 0, 10_000),
@@ -114,20 +120,33 @@ def get_catalog_search_response(
     )
     if es_result.successful:
         try:
-            rows = _load_catalog_rows(session, es_result.product_db_ids)
-            ordered_rows = _order_rows(rows, es_result.product_db_ids)
+            recovery_plan = build_catalog_search_recovery_plan(session, parsed_query)
+            selected_result, recovery_used, search_duration_ms = _recover_low_result_search(
+                parsed_query,
+                normal_result=es_result,
+                recovery_plan=recovery_plan,
+                offset=offset,
+                page_size=page_size,
+                elasticsearch_search=elasticsearch_search,
+            )
+            corrected_query = recovery_plan.corrected_query
+            if corrected_query is None and selected_result.suggested_queries:
+                corrected_query = selected_result.suggested_queries[0]
+
+            rows = _load_catalog_rows(session, selected_result.product_db_ids)
+            ordered_rows = _order_rows(rows, selected_result.product_db_ids)
             current_rows = [
                 row
                 for row in ordered_rows
                 if _row_matches_filters(row, parsed_query.filters)
             ]
-            stale_count = len(es_result.product_db_ids) - len(current_rows)
+            stale_count = len(selected_result.product_db_ids) - len(current_rows)
             items = [_row_to_item(row) for row in current_rows]
             total_items = max(
                 offset + len(items),
-                max(0, es_result.total_hit_count - stale_count),
+                max(0, selected_result.total_hit_count - stale_count),
             )
-            facets = _facets_from_elasticsearch(session, es_result.aggregations)
+            facets = _facets_from_elasticsearch(session, selected_result.aggregations)
             response = _build_response(
                 parsed_query,
                 items=items,
@@ -135,13 +154,17 @@ def get_catalog_search_response(
                 page=page,
                 page_size=page_size,
                 total_items=total_items,
+                corrected_query=corrected_query,
             )
             return CatalogSearchExecution(
                 response=response,
                 backend="elasticsearch",
                 fallback_used=False,
                 elasticsearch_attempted=es_result.attempted,
-                elasticsearch_duration_ms=es_result.duration_ms,
+                elasticsearch_duration_ms=search_duration_ms,
+                recovery_used=recovery_used,
+                choseong_used=recovery_plan.choseong_used,
+                keyboard_conversion_used=recovery_plan.keyboard_conversion_used,
             )
         except Exception:
             pass
@@ -164,6 +187,7 @@ def get_catalog_search_response(
         page=page,
         page_size=page_size,
         total_items=total_items,
+        corrected_query=None,
     )
     return CatalogSearchExecution(
         response=response,
@@ -171,7 +195,73 @@ def get_catalog_search_response(
         fallback_used=True,
         elasticsearch_attempted=es_result.attempted,
         elasticsearch_duration_ms=es_result.duration_ms,
+        choseong_used=is_all_chosung_query(parsed_query.text_query),
     )
+
+
+def _recover_low_result_search(
+    parsed_query: CatalogSearchQuery,
+    *,
+    normal_result: ElasticsearchCatalogSearchResult,
+    recovery_plan: CatalogSearchRecoveryPlan,
+    offset: int,
+    page_size: int,
+    elasticsearch_search: CatalogElasticsearchSearch,
+) -> tuple[ElasticsearchCatalogSearchResult, bool, int]:
+    if normal_result.total_hit_count >= 3 or not recovery_plan.should_search:
+        return normal_result, False, normal_result.duration_ms
+
+    recovery_fetch = min(max(offset + page_size, page_size), MAX_RECOVERY_FETCH)
+    recovery_result = elasticsearch_search(
+        parsed_query,
+        offset=0 if normal_result.total_hit_count > 0 else offset,
+        limit=recovery_fetch if normal_result.total_hit_count > 0 else page_size,
+        recovery_variants=recovery_plan.variants,
+        fuzzy_enabled=recovery_plan.fuzzy_enabled,
+        recovery_only=True,
+    )
+    total_duration_ms = normal_result.duration_ms + recovery_result.duration_ms
+    if not recovery_result.successful:
+        return normal_result, False, total_duration_ms
+    if normal_result.total_hit_count == 0:
+        return recovery_result, True, total_duration_ms
+
+    normal_ids = normal_result.product_db_ids
+    if offset > 0 and len(normal_ids) < normal_result.total_hit_count:
+        anchor_result = elasticsearch_search(
+            parsed_query,
+            offset=0,
+            limit=min(normal_result.total_hit_count, 2),
+        )
+        total_duration_ms += anchor_result.duration_ms
+        if anchor_result.successful:
+            normal_ids = anchor_result.product_db_ids
+    merged_ids = _dedupe_product_ids((*normal_ids, *recovery_result.product_db_ids))
+    page_ids = merged_ids[offset : offset + page_size]
+    return (
+        ElasticsearchCatalogSearchResult(
+            product_db_ids=page_ids,
+            total_hit_count=max(normal_result.total_hit_count, recovery_result.total_hit_count),
+            aggregations=recovery_result.aggregations or normal_result.aggregations,
+            attempted=True,
+            duration_ms=total_duration_ms,
+            index_alias=normal_result.index_alias,
+            suggested_queries=recovery_result.suggested_queries,
+        ),
+        True,
+        total_duration_ms,
+    )
+
+
+def _dedupe_product_ids(product_db_ids: Sequence[int]) -> tuple[int, ...]:
+    result: list[int] = []
+    seen: set[int] = set()
+    for product_db_id in product_db_ids:
+        if product_db_id in seen:
+            continue
+        seen.add(product_db_id)
+        result.append(product_db_id)
+    return tuple(result)
 
 
 def _load_catalog_rows(session: Session, product_db_ids: Sequence[int]) -> list[Any]:
@@ -507,11 +597,12 @@ def _build_response(
     page: int,
     page_size: int,
     total_items: int,
+    corrected_query: str | None,
 ) -> CatalogSearchResponse:
     total_pages = ceil(total_items / page_size) if total_items else 0
     return CatalogSearchResponse(
         query=parsed_query.original_query,
-        corrected_query=None,
+        corrected_query=corrected_query,
         items=items,
         pagination=CatalogSearchPagination(
             page=page,

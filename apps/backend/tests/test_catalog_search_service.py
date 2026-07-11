@@ -59,6 +59,62 @@ def test_catalog_search_does_not_fill_successful_empty_es_result() -> None:
     assert execution.response.pagination.total_items == 0
 
 
+def test_catalog_search_skips_recovery_when_normal_results_are_at_least_three() -> None:
+    session = _seed_example_session()
+    calls: list[dict] = []
+
+    def search(*args, **kwargs) -> ElasticsearchCatalogSearchResult:
+        calls.append(kwargs)
+        return ElasticsearchCatalogSearchResult(
+            product_db_ids=(1,),
+            total_hit_count=3,
+            aggregations={},
+            attempted=True,
+            duration_ms=2,
+            index_alias="test_catalog_products_current",
+        )
+
+    execution = get_catalog_search_response(
+        session,
+        query="수분 크림",
+        elasticsearch_search=search,
+    )
+
+    assert len(calls) == 1
+    assert execution.recovery_used is False
+
+
+def test_catalog_search_uses_recovery_only_below_three_results() -> None:
+    session = _seed_example_session()
+    calls: list[dict] = []
+
+    def search(*args, **kwargs) -> ElasticsearchCatalogSearchResult:
+        calls.append(kwargs)
+        is_recovery = kwargs.get("recovery_only", False)
+        return ElasticsearchCatalogSearchResult(
+            product_db_ids=(1,) if is_recovery else (),
+            total_hit_count=1 if is_recovery else 0,
+            aggregations={},
+            attempted=True,
+            duration_ms=2,
+            index_alias="test_catalog_products_current",
+            suggested_queries=("토리든",) if is_recovery else (),
+        )
+
+    execution = get_catalog_search_response(
+        session,
+        query="토리덴",
+        elasticsearch_search=search,
+    )
+
+    assert len(calls) == 2
+    assert calls[1]["recovery_only"] is True
+    assert calls[1]["fuzzy_enabled"] is True
+    assert execution.recovery_used is True
+    assert execution.response.corrected_query == "토리든"
+    assert execution.response.query == "토리덴"
+
+
 def _fake_es_search(
     product_db_ids: list[int],
     *,
