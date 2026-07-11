@@ -1,5 +1,4 @@
 export type UserAddressCreateRequest = {
-  address_name?: string | null;
   recipient_name: string;
   phone: string;
   postal_code: string;
@@ -10,7 +9,6 @@ export type UserAddressCreateRequest = {
 };
 
 export type UserAddressUpdateRequest = {
-  address_name?: string | null;
   recipient_name?: string;
   phone?: string;
   postal_code?: string;
@@ -22,7 +20,6 @@ export type UserAddressUpdateRequest = {
 
 export type UserAddress = {
   id: number;
-  address_name?: string | null;
   recipient_name: string;
   phone: string;
   postal_code: string;
