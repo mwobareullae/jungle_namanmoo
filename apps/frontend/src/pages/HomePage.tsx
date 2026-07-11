@@ -63,7 +63,7 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
-  const { user } = useAuth();
+  const { isAuthLoading, user } = useAuth();
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
   const [isSkinTestPromptOpen, setIsSkinTestPromptOpen] = useState(false);
@@ -71,19 +71,39 @@ function HomePage({ bodyHtml }: HomePageProps) {
   useEffect(() => installHomeRuntime(profile), [profile]);
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!user) {
+      const timerId = window.setTimeout(() => {
+        setProfile(defaultRecommendationProfile);
+        setHasSavedProfile(false);
+      }, 0);
+
+      return () => window.clearTimeout(timerId);
+    }
+
     let isMounted = true;
 
     getSavedSkinProfile().then((savedProfile) => {
-      if (isMounted && savedProfile) {
+      if (!isMounted) {
+        return;
+      }
+
+      if (savedProfile) {
         setProfile(savedProfile);
         setHasSavedProfile(true);
+      } else {
+        setProfile(defaultRecommendationProfile);
+        setHasSavedProfile(false);
       }
     });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthLoading, user]);
 
   useEffect(() => {
     if (!user) {
