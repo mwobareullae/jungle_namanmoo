@@ -9,7 +9,7 @@ type SkeletonProps<T extends ElementType = "span"> = {
 function Skeleton<T extends ElementType = "span">({ as, className, style, ...props }: SkeletonProps<T>) {
   const Component = (as ?? "span") as ElementType;
 
-  return <Component aria-hidden="true" className={`skeleton-shimmer ${className ?? ""}`.trim()} style={style} {...props} />;
+  return <Component aria-hidden="true" className={`skeleton-shimmer skeleton-component ${className ?? ""}`.trim()} style={style} {...props} />;
 }
 
 export default Skeleton;
