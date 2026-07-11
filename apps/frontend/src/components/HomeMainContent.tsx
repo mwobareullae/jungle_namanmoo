@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
+import { navigateWithinApp } from "../lib/navigation";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
   HomeSection,
@@ -42,7 +43,7 @@ const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
 const openProductDetail = (product: ProductCardItem) => {
-  window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
+  void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
 };
 
 function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {

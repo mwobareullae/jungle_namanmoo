@@ -10,7 +10,9 @@ on:
     paths:
       - ".github/workflows/evidence-discovery.yml"
       - "data/scripts/discover_new_evidence.py"
+      - "data/scripts/publish_evidence_candidates.py"
       - "data/scripts/tests/test_discover_new_evidence.py"
+      - "data/scripts/tests/test_publish_evidence_candidates.py"
       - "docs/scoring/evidence-discovery-operations.md"
   push:
     branches:
@@ -22,7 +24,9 @@ on:
       - "data/ingredient_evidence.csv"
       - "data/ingredients.csv"
       - "data/scripts/discover_new_evidence.py"
+      - "data/scripts/publish_evidence_candidates.py"
       - "data/scripts/tests/test_discover_new_evidence.py"
+      - "data/scripts/tests/test_publish_evidence_candidates.py"
   schedule:
     # Monday 09:17 KST. Non-zero minute reduces peak-time schedule delays.
     - cron: "17 0 * * 1"
@@ -73,6 +77,8 @@ jobs:
       LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '8' }}
       NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
       NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+      EVIDENCE_INGEST_URL: ${{ vars.EVIDENCE_INGEST_URL }}
+      EVIDENCE_INGEST_TOKEN: ${{ secrets.EVIDENCE_INGEST_TOKEN }}
 
     steps:
       - name: Checkout
@@ -94,7 +100,20 @@ jobs:
       - name: Publish run summary
         run: cat artifacts/evidence-discovery/summary.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Validate candidate persistence configuration
+        run: |
+          if [ -z "$EVIDENCE_INGEST_URL" ] || [ -z "$EVIDENCE_INGEST_TOKEN" ]; then
+            echo "::error::EVIDENCE_INGEST_URL/TOKEN 미설정: 후보 DB 영구 저장을 완료할 수 없습니다."
+            exit 1
+          fi
+
+      - name: Persist candidates in review inbox
+        run: |
+          python data/scripts/publish_evidence_candidates.py \
+            --input artifacts/evidence-discovery/new_evidence_candidates.csv
+
       - name: Upload candidate report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: evidence-candidates-${{ github.run_id }}
