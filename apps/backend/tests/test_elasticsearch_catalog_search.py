@@ -1,6 +1,9 @@
 from app.schemas.catalog_search import CatalogSearchSort
 from app.services.catalog_search_query import CatalogSearchFilters, CatalogSearchQuery
-from app.services.elasticsearch_catalog_search import build_catalog_search_request
+from app.services.elasticsearch_catalog_search import (
+    build_catalog_search_request,
+    build_catalog_suggestion_request,
+)
 
 
 def test_catalog_search_request_contains_fixed_ranking_boosts_and_filters() -> None:
@@ -70,3 +73,57 @@ def test_catalog_search_request_uses_stable_non_relevance_sort() -> None:
         "price_ranges",
         "availability",
     }
+
+
+def test_catalog_recovery_request_limits_fuzzy_to_one_edit() -> None:
+    parsed = CatalogSearchQuery(
+        original_query="토리덴",
+        text_query="토리덴",
+        normalized_query="토리덴",
+        compact_query="토리덴",
+        filters=CatalogSearchFilters((), (), (), None, None, None, None),
+        sort=CatalogSearchSort.RELEVANCE,
+    )
+
+    request = build_catalog_search_request(
+        parsed,
+        offset=0,
+        limit=20,
+        recovery_variants=("토리든",),
+        fuzzy_enabled=True,
+        recovery_only=True,
+    )
+    should = request["query"]["script_score"]["query"]["bool"]["should"]
+    fuzzy_clause = next(clause["multi_match"] for clause in should if "fuzziness" in clause.get("multi_match", {}))
+
+    assert fuzzy_clause["fuzziness"] == 1
+    assert fuzzy_clause["boost"] == 1.0
+    assert len(request["suggest"]["catalog_correction"]["term"]) == 5
+    assert "product_name_chosung" not in str(should)
+
+
+def test_catalog_chosung_request_does_not_add_fuzzy_query() -> None:
+    parsed = CatalogSearchQuery(
+        original_query="ㅌㄹㄷ",
+        text_query="ㅌㄹㄷ",
+        normalized_query="ㅌㄹㄷ",
+        compact_query="ㅌㄹㄷ",
+        filters=CatalogSearchFilters((), (), (), None, None, None, None),
+        sort=CatalogSearchSort.RELEVANCE,
+    )
+
+    request = build_catalog_search_request(parsed, offset=0, limit=20)
+    query_text = str(request["query"])
+
+    assert "product_name_chosung^1.5" in query_text
+    assert "fuzziness" not in query_text
+
+
+def test_catalog_suggestion_request_supports_prefix_compact_and_chosung() -> None:
+    prefix_request = build_catalog_suggestion_request("라운", limit=8)
+    chosung_request = build_catalog_suggestion_request("ㄹㅇㄷㄹ", limit=8)
+
+    assert "product_name.edge^4" in str(prefix_request["query"])
+    assert "product_name_compact" in str(prefix_request["query"])
+    assert "brand_name_chosung^6" in str(chosung_request["query"])
+    assert "suggest" not in chosung_request

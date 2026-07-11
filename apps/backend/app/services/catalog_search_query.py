@@ -14,9 +14,14 @@ from app.db.models.catalog import (
     ProductCategoryAlias,
 )
 from app.schemas.catalog_search import CatalogSearchSort
+from app.services.catalog_search_aliases import (
+    equivalent_brand_values,
+    matching_brand_equivalent_values,
+)
 from app.services.catalog_search_text import (
     CATEGORY_GROUP_LABELS,
     compact_search_text,
+    normalize_query_text,
     normalize_search_text,
 )
 
@@ -99,6 +104,24 @@ class CatalogSearchQuery:
     sort: CatalogSearchSort
 
 
+def catalog_category_suggestion_texts(query: str) -> tuple[str, ...]:
+    compact_query = compact_search_text(query)
+    if not compact_query:
+        return ()
+    matches = [
+        alias
+        for alias in _CATEGORY_QUERY_ALIASES
+        if compact_search_text(alias).startswith(compact_query)
+        or compact_query.startswith(compact_search_text(alias))
+    ]
+    return tuple(
+        sorted(
+            dict.fromkeys(matches),
+            key=lambda value: (len(compact_search_text(value)), value),
+        )
+    )
+
+
 def parse_catalog_search_query(
     session: Session,
     *,
@@ -117,7 +140,7 @@ def parse_catalog_search_query(
     parsed_text, parsed_min_rating = _extract_rating_filter(parsed_text)
     parsed_text, parsed_in_stock = _extract_stock_filter(parsed_text)
     parsed_text, parsed_sort = _extract_sort(parsed_text)
-    normalized_query = normalize_search_text(parsed_text)
+    normalized_query = normalize_query_text(parsed_text)
     compact_query = compact_search_text(parsed_text)
 
     explicit_brands = _dedupe(brands)
@@ -238,7 +261,18 @@ def _extract_sort(value: str) -> tuple[str, CatalogSearchSort | None]:
 
 def _resolve_brand_values(session: Session, values: tuple[str, ...]) -> tuple[str, ...]:
     lookup = _brand_lookup(session)
-    return _dedupe(lookup.get(_lookup_key(value), normalize_search_text(value)) for value in values)
+    resolved: list[str] = []
+    for value in values:
+        matched_existing = False
+        for equivalent in equivalent_brand_values(value):
+            brand_code = lookup.get(_lookup_key(equivalent))
+            if brand_code is None:
+                continue
+            matched_existing = True
+            resolved.append(brand_code)
+        if not matched_existing:
+            resolved.append(normalize_search_text(value))
+    return _dedupe(resolved)
 
 
 def _detect_brand_codes(
@@ -253,7 +287,7 @@ def _detect_brand_codes(
         if not compact_alias:
             continue
         if len(compact_alias) <= 1:
-            matched = compact_query == compact_alias
+            matched = compact_query == compact_alias or alias_key in normalized_query.split()
         else:
             matched = compact_alias in compact_query or alias_key in normalized_query
         if matched:
@@ -261,7 +295,12 @@ def _detect_brand_codes(
     if not matches:
         return ()
     longest = max(length for length, _ in matches)
-    return _dedupe(brand_code for length, brand_code in matches if length == longest)
+    matched_codes = [brand_code for length, brand_code in matches if length == longest]
+    for equivalent in matching_brand_equivalent_values(normalized_query):
+        brand_code = lookup.get(_lookup_key(equivalent))
+        if brand_code is not None:
+            matched_codes.append(brand_code)
+    return _dedupe(matched_codes)
 
 
 def _brand_lookup(session: Session) -> dict[str, str]:

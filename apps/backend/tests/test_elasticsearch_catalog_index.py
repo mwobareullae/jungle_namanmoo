@@ -22,6 +22,8 @@ def test_catalog_mapping_uses_nori_and_strict_fields() -> None:
     assert analysis["tokenizer"]["catalog_nori_tokenizer"]["type"] == "nori_tokenizer"
     assert CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["dynamic"] == "strict"
     assert "product_name_chosung" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
+    assert "aliases_compact" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
+    assert "aliases_chosung" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
 
 
 def test_build_catalog_products_index_name_uses_separate_prefix() -> None:
@@ -41,6 +43,8 @@ def test_catalog_document_batches_use_keyset_and_include_search_fields() -> None
     assert all(document["product_name_compact"] for document in documents)
     assert all(document["product_name_chosung"] for document in documents)
     assert all(document["category_group"] for document in documents)
+    assert all("aliases_compact" in document for document in documents)
+    assert all("aliases_chosung" in document for document in documents)
 
 
 def test_catalog_index_includes_product_without_price() -> None:

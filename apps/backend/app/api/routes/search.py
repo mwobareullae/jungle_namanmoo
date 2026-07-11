@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.session import get_db
-from app.schemas.catalog_search import CatalogSearchResponse, CatalogSearchSort
+from app.schemas.catalog_search import (
+    CatalogSearchResponse,
+    CatalogSearchSort,
+    CatalogSuggestionsResponse,
+)
 from app.schemas.common import ErrorResponse
 from app.services.catalog_search_service import (
     DEFAULT_CATALOG_SEARCH_PAGE,
@@ -14,6 +18,11 @@ from app.services.catalog_search_service import (
     get_catalog_search_response,
 )
 from app.services.event_tracking import request_id_from_request
+from app.services.catalog_suggestion_service import (
+    DEFAULT_CATALOG_SUGGESTION_LIMIT,
+    MAX_CATALOG_SUGGESTION_LIMIT,
+    get_catalog_suggestions_response,
+)
 
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -75,6 +84,43 @@ def search_catalog_products(
             "recovery_used": execution.recovery_used,
             "choseong_used": execution.choseong_used,
             "keyboard_conversion_used": execution.keyboard_conversion_used,
+        },
+    )
+    return response
+
+
+@router.get(
+    "/suggestions",
+    response_model=CatalogSuggestionsResponse,
+    responses={503: {"model": ErrorResponse}},
+)
+def get_catalog_search_suggestions(
+    request: Request,
+    q: str = Query(min_length=1, max_length=100),
+    limit: int = Query(DEFAULT_CATALOG_SUGGESTION_LIMIT, ge=1, le=MAX_CATALOG_SUGGESTION_LIMIT),
+    session: Session = Depends(get_db),
+) -> CatalogSuggestionsResponse:
+    started_at = current_time()
+    execution = get_catalog_suggestions_response(
+        session,
+        query=q,
+        limit=limit,
+    )
+    response = execution.response
+    log_performance_event(
+        "catalog_search_suggestions_completed",
+        request_id=request_id_from_request(request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "query_length": len(q),
+            "requested_limit": limit,
+            "result_count": len(response.items),
+            "backend": execution.backend,
+            "elasticsearch_attempted": execution.elasticsearch_attempted,
+            "elasticsearch_duration_ms": execution.elasticsearch_duration_ms,
+            "fallback_used": execution.fallback_used,
+            "correction_suggested": execution.correction_suggested,
+            "choseong_used": execution.choseong_used,
         },
     )
     return response

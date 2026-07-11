@@ -892,6 +892,17 @@ def test_legacy_product_search_endpoint_is_removed(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_catalog_search_suggestions_return_typed_items(client: TestClient) -> None:
+    response = client.get("/api/search/suggestions", params={"q": "라운", "limit": 8})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["query"] == "라운"
+    assert data["items"]
+    assert data["items"][0]["type"] in {"BRAND", "PRODUCT"}
+    assert len(data["items"]) <= 8
+
+
 def test_get_product_detail_includes_purchase_stock_info(
     client: TestClient,
     db_engine: Engine,
