@@ -52,6 +52,7 @@ AGENTS.md
 docs/skin-test-ui-milestones.local.md
 docs/skin-test-backend-handoff.local.md
 apps/frontend/docs/
+docs/admin
 
 # Performance test local config and outputs
 scripts/perf/config.env
