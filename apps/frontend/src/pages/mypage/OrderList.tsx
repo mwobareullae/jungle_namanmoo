@@ -2,9 +2,12 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import ActivityToast from "../../components/ui/ActivityToast";
+import { addCartItem } from "../../lib/cartApi";
 import { getProductImageUrl } from "../../lib/imageUrls";
-import { getOrders } from "../../lib/orderApi";
-import type { OrderListItem } from "../../types/order";
+import { getOrderDetail, getOrders } from "../../lib/orderApi";
+import type { OrderDetailItem, OrderListItem } from "../../types/order";
+import { useActivityToast } from "../../hooks/useActivityToast";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
 const statusLabelMap: Record<string, string> = {
@@ -58,6 +61,10 @@ export default function OrderList() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [expandedOrderCodes, setExpandedOrderCodes] = useState<Set<string>>(() => new Set());
+  const [orderDetailItems, setOrderDetailItems] = useState<Record<string, OrderDetailItem[]>>({});
+  const [loadingDetailOrderCodes, setLoadingDetailOrderCodes] = useState<Set<string>>(() => new Set());
+  const { message: toastMessage, showToast } = useActivityToast();
 
   const loadOrders = useCallback(async (cursor?: string | null) => {
     const isFirstPage = !cursor;
@@ -91,6 +98,49 @@ export default function OrderList() {
 
     return () => window.clearTimeout(timerId);
   }, [loadOrders]);
+
+  const toggleOrderItems = async (order: OrderListItem) => {
+    const isExpanded = expandedOrderCodes.has(order.order_code);
+    if (isExpanded) {
+      setExpandedOrderCodes((current) => {
+        const next = new Set(current);
+        next.delete(order.order_code);
+        return next;
+      });
+      return;
+    }
+
+    if (!orderDetailItems[order.order_code]) {
+      setLoadingDetailOrderCodes((current) => new Set(current).add(order.order_code));
+      try {
+        const detail = await getOrderDetail(order.order_code);
+        setOrderDetailItems((current) => ({ ...current, [order.order_code]: detail.items }));
+      } finally {
+        setLoadingDetailOrderCodes((current) => {
+          const next = new Set(current);
+          next.delete(order.order_code);
+          return next;
+        });
+      }
+    }
+
+    setExpandedOrderCodes((current) => new Set(current).add(order.order_code));
+  };
+
+  const handleReview = () => showToast("준비중입니다.");
+  const handleUnavailableAction = () => showToast("준비중입니다.");
+
+  const handleReorder = async (order: OrderListItem) => {
+    try {
+      const detail = await getOrderDetail(order.order_code);
+      await Promise.all(
+        detail.items.map((item) => addCartItem({ product_id: item.product_id, quantity: item.quantity }))
+      );
+      navigate("/cart");
+    } catch {
+      navigate(`/mypage/orders/${encodeURIComponent(order.order_code)}`);
+    }
+  };
 
   return (
     <MyPageLayout activePath="/mypage/orders">
@@ -146,6 +196,9 @@ export default function OrderList() {
               {orders.map((order) => {
                 const thumbnailUrl = getProductImageUrl(order.thumbnail_storage_key, "w400");
                 const displayTitle = removeAdditionalItemSuffix(order.title);
+                const isCompletedOrder = order.status === "PAID" || order.status === "DELIVERED";
+                const isShippingOrder = order.status === "PREPARING_SHIPMENT" || order.status === "SHIPPED";
+                const isExpiredOrder = order.status === "EXPIRED";
                 return (
                   <article
                     aria-label={`${displayTitle} 주문 상세 보기`}
@@ -171,6 +224,9 @@ export default function OrderList() {
                       ) : (
                         <span style={styles.thumbnailEmpty}>N</span>
                       )}
+                      {order.item_count > 1 ? (
+                        <span style={styles.itemCountBadge}>{order.item_count}</span>
+                      ) : null}
                     </div>
                     <div style={styles.itemBody}>
                     <div style={styles.orderCardHeader}>
@@ -212,6 +268,113 @@ export default function OrderList() {
                     </div>
                     </div>
                     </div>
+                    {order.item_count > 1 ? (
+                      <>
+                        <button
+                          className="bg-white hover:bg-[#FAFAFA]"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleOrderItems(order);
+                          }}
+                          style={styles.expandButton}
+                          type="button"
+                        >
+                          {loadingDetailOrderCodes.has(order.order_code)
+                            ? "불러오는 중"
+                            : expandedOrderCodes.has(order.order_code)
+                              ? `총 ${order.item_count}건 접기`
+                              : `총 ${order.item_count}건 펼쳐보기`}
+                        </button>
+                        {expandedOrderCodes.has(order.order_code) ? (
+                          <div style={styles.detailItemList}>
+                            {(orderDetailItems[order.order_code] ?? []).map((item, index) => (
+                              <div
+                                key={item.id}
+                                style={{
+                                  ...styles.detailItemCard,
+                                  ...(index > 0 ? styles.detailItemCardSeparated : {})
+                                }}
+                              >
+                                <div style={styles.detailItemThumbnail}>
+                                  {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
+                                    <img
+                                      alt=""
+                                      src={getProductImageUrl(item.thumbnail_storage_key, "w400")}
+                                      style={styles.thumbnailImage}
+                                    />
+                                  ) : null}
+                                </div>
+                                <div style={styles.detailItemBody}>
+                                  <strong style={styles.detailItemStatus}>{statusLabelMap[order.status] ?? order.status}</strong>
+                                  <span style={styles.detailItemName}>{item.product_name}</span>
+                                  <div style={styles.detailItemMeta}>
+                                    <strong>{formatWon(item.line_total)}</strong>
+                                    <span>{item.quantity}개</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          ...styles.orderActions,
+                          ...(isCompletedOrder ? styles.orderActionsThree : {})
+                        }}
+                      >
+                        {isCompletedOrder ? (
+                          <button
+                            className="mypage-order-action-button mypage-order-action-button--accent bg-white"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleReview();
+                            }}
+                            style={styles.reviewButton}
+                            type="button"
+                          >
+                            리뷰쓰기
+                          </button>
+                        ) : isShippingOrder ? (
+                          <button
+                            className="mypage-order-action-button mypage-order-action-button--accent bg-white"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleUnavailableAction();
+                            }}
+                            style={styles.reviewButton}
+                            type="button"
+                          >
+                            배송 조회
+                          </button>
+                        ) : null}
+                        <button
+                          className="mypage-order-action-button mypage-order-action-button--neutral bg-white"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleReorder(order);
+                          }}
+                          style={styles.reorderButton}
+                          type="button"
+                        >
+                          다시 담기
+                        </button>
+                        {isCompletedOrder || isExpiredOrder ? (
+                          <button
+                            className="mypage-order-action-button mypage-order-action-button--neutral bg-white"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleUnavailableAction();
+                            }}
+                            style={styles.reorderButton}
+                            type="button"
+                          >
+                            바로 구매하기
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -233,6 +396,7 @@ export default function OrderList() {
           </>
         )}
       </section>
+      <ActivityToast message={toastMessage} />
     </MyPageLayout>
   );
 }
@@ -342,6 +506,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center"
   },
   thumbnail: {
+    position: "relative",
     width: 92,
     height: 92,
     borderRadius: 6,
@@ -363,6 +528,21 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     textAlign: "center"
+  },
+  itemCountBadge: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 24,
+    borderRadius: "6px 0 0 0",
+    background: "#9ca3af",
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: 700
   },
   itemBody: {
     minWidth: 0
@@ -400,6 +580,97 @@ const styles: Record<string, CSSProperties> = {
     color: "#2aa6d1",
     fontSize: 15,
     fontWeight: 600
+  },
+  expandButton: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    minHeight: 48,
+    marginTop: 18,
+    border: "1px solid #d9dde1",
+    borderRadius: 10,
+    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  detailItemList: {
+    display: "grid",
+    marginTop: 12,
+    padding: "0 16px",
+    borderRadius: 10,
+    background: "#ffffff"
+  },
+  detailItemCard: {
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    gap: 16,
+    padding: "18px 0"
+  },
+  detailItemCardSeparated: {
+    borderTop: "2px dotted #e8edf0"
+  },
+  detailItemThumbnail: {
+    width: 92,
+    height: 92,
+    borderRadius: 8,
+    background: "#f7f8f9",
+    overflow: "hidden"
+  },
+  detailItemBody: {
+    display: "grid",
+    alignContent: "center",
+    gap: 6,
+    minWidth: 0
+  },
+  detailItemStatus: {
+    color: "#1a1a1a",
+    fontSize: 14,
+    fontWeight: 600
+  },
+  detailItemName: {
+    overflow: "hidden",
+    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: 500,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
+  detailItemMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    color: "#6b7280",
+    fontSize: 13,
+    fontWeight: 500
+  },
+  orderActions: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+    marginTop: 18
+  },
+  orderActionsThree: {
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))"
+  },
+  reviewButton: {
+    minHeight: 48,
+    border: "1px solid #2aa6d1",
+    borderRadius: 10,
+    color: "#2aa6d1",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  reorderButton: {
+    minHeight: 48,
+    border: "1px solid #d5d9dd",
+    borderRadius: 10,
+    color: "#1a1a1a",
+    fontSize: 14,
+    fontWeight: 400,
+    cursor: "pointer"
   },
   itemArrow: {
     display: "block",
