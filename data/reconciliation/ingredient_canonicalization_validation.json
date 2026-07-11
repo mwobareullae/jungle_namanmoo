@@ -1,0 +1,16 @@
+{
+  "canonical_count": 500,
+  "mapping_count": 697,
+  "mapped_target_count": 465,
+  "total_product_ingredient_rows": 2058675,
+  "product_count": 65955,
+  "affected_product_count": 65428,
+  "already_canonical_rows": 160313,
+  "mapped_source_rows": 1116912,
+  "effective_canonical_rows": 1277225,
+  "unmapped_pending_rows": 781450,
+  "effective_canonical_coverage_pct": 62.0411,
+  "duplicate_effective_pairs": 1065,
+  "unique_effective_pairs": 2057610,
+  "missing_mapping_source_ids": []
+}
