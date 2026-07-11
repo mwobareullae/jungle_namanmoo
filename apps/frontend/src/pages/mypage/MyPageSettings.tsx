@@ -214,7 +214,7 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: "#1A1A1A",
     fontSize: 17,
-    fontWeight: 800,
+    fontWeight: 700,
     lineHeight: 1.35
   },
   cardDescription: {
@@ -243,7 +243,7 @@ const styles: Record<string, CSSProperties> = {
     display: "block",
     color: "#1A1A1A",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     lineHeight: 1.4
   },
   settingDescription: {
@@ -257,7 +257,7 @@ const styles: Record<string, CSSProperties> = {
     flex: "0 0 auto",
     color: "#3D3D3D",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 600,
     textAlign: "right"
   },
   consentToggle: {
@@ -270,7 +270,7 @@ const styles: Record<string, CSSProperties> = {
   consentToggleLabel: {
     color: "#3D3D3D",
     fontSize: 14,
-    fontWeight: 700
+    fontWeight: 600
   },
   actionRow: {
     display: "flex",
@@ -291,7 +291,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     color: "#1A1A1A",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     textDecoration: "none"
   },
   dangerButton: {
@@ -305,7 +305,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     color: "#FF6B52",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     cursor: "pointer"
   }
 };
