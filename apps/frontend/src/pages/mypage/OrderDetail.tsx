@@ -222,7 +222,7 @@ function InfoRow({
 const styles: Record<string, CSSProperties> = {
   backLink: {
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     textDecoration: "none"
   },
   stateCard: {
@@ -240,7 +240,7 @@ const styles: Record<string, CSSProperties> = {
   stateTitle: {
     color: "#1a1a1a",
     fontSize: 20,
-    fontWeight: 800
+    fontWeight: 700
   },
   stateText: {
     margin: 0,
@@ -255,7 +255,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 10,
     color: "#1a1a1a",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 600,
     cursor: "pointer"
   },
   detailGrid: {
@@ -279,13 +279,13 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: "#1a1a1a",
     fontSize: 20,
-    fontWeight: 900,
+    fontWeight: 700,
     lineHeight: 1.35
   },
   cardCount: {
     color: "#6b7280",
     fontSize: 13,
-    fontWeight: 800
+    fontWeight: 600
   },
   infoRows: {
     display: "grid",
@@ -301,13 +301,13 @@ const styles: Record<string, CSSProperties> = {
   infoLabel: {
     color: "#6b7280",
     fontSize: 14,
-    fontWeight: 700
+    fontWeight: 600
   },
   infoValue: {
     minWidth: 0,
     color: "#1a1a1a",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 600,
     lineHeight: 1.45,
     overflowWrap: "anywhere"
   },
@@ -316,7 +316,7 @@ const styles: Record<string, CSSProperties> = {
   },
   infoValueStrong: {
     fontSize: 17,
-    fontWeight: 900
+    fontWeight: 700
   },
   itemList: {
     display: "grid"
@@ -364,24 +364,24 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 0 5px",
     color: "#2aa6d1",
     fontSize: 13,
-    fontWeight: 800
+    fontWeight: 600
   },
   itemTitle: {
     margin: 0,
     color: "#1a1a1a",
     fontSize: 17,
-    fontWeight: 900,
+    fontWeight: 700,
     lineHeight: 1.45
   },
   itemMeta: {
     margin: "8px 0 0",
     color: "#6b7280",
     fontSize: 13,
-    fontWeight: 700
+    fontWeight: 500
   },
   itemPrice: {
     color: "#1a1a1a",
     fontSize: 17,
-    fontWeight: 900
+    fontWeight: 700
   }
 };

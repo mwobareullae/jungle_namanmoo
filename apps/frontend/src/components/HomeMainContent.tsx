@@ -44,11 +44,6 @@ const openProductDetail = (product: ProductCardItem) => {
   window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
 };
 
-const isPersonalRecommendationSection = (section: HomeSection) => {
-  const text = `${section.section_id} ${section.title} ${section.subtitle} ${section.section_type} ${section.algorithm}`;
-  return /너에게|당신에게|추천하는 제품|personal|recommend/i.test(text);
-};
-
 function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
   return (
     <div className="search-loading-state" aria-live="polite">
@@ -143,6 +138,13 @@ function HomeSectionLoadingSkeleton() {
         </div>
       </section>
 
+      <section className="home-api-section home-original-section home-personal-section home-loading-section">
+        <HomeLoadingSectionHead />
+        <div className="product-grid" id="defaultProductGrid">
+          <ProductSkeletonList count={8} />
+        </div>
+      </section>
+
       <section className="home-api-section home-deal-section tone-mint home-loading-section">
         <HomeLoadingSectionHead />
         <div className="home-deal-grid">
@@ -160,13 +162,6 @@ function HomeSectionLoadingSkeleton() {
               </div>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section className="home-api-section home-original-section home-personal-section home-loading-section">
-        <HomeLoadingSectionHead />
-        <div className="product-grid" id="defaultProductGrid">
-          <ProductSkeletonList count={8} />
         </div>
       </section>
     </div>
@@ -456,7 +451,9 @@ function HomeMainContent({
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [homeSections, setHomeSections] = useState<HomeSection[]>([]);
+  const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
+  const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
+  const [evidencePicksSection, setEvidencePicksSection] = useState<HomeSection | null>(null);
   const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
   const [homeSectionError, setHomeSectionError] = useState("");
   const [sortType, setSortType] = useState("score");
@@ -608,16 +605,24 @@ function HomeMainContent({
       setHomeSectionError("");
 
       try {
-        const response = await api.getHomeSections({
-          skinType: initialProfile.skin,
-          sensitivity: initialProfile.sensitivity,
-          limitPerSection: 10
-        });
+        const [marketPopular, forYou, evidencePicks] = await Promise.all([
+          api.getMarketPopular({ limit: 10 }),
+          api.getForYou({
+            skinType: initialProfile.skin,
+            sensitivity: initialProfile.sensitivity,
+            limit: 10
+          }),
+          api.getEvidencePicks({ limit: 10 })
+        ]);
         if (!isMounted) return;
-        setHomeSections(response.sections);
+        setMarketPopularSection(marketPopular);
+        setForYouSection(forYou);
+        setEvidencePicksSection(evidencePicks);
       } catch {
         if (!isMounted) return;
-        setHomeSections([]);
+        setMarketPopularSection(null);
+        setForYouSection(null);
+        setEvidencePicksSection(null);
         setHomeSectionError("인기 상품을 불러오지 못했습니다.");
       } finally {
         if (isMounted) setIsHomeSectionLoading(false);
@@ -848,40 +853,31 @@ function HomeMainContent({
           <HomeSectionLoadingSkeleton />
         ) : homeSectionError ? (
           <HomeSectionErrorState />
-        ) : homeSections.length ? (
+        ) : marketPopularSection || forYouSection || evidencePicksSection ? (
           <div className="home-section-stack">
-            {homeSections.map((section, sectionIndex) => {
-              const sectionProducts = section.products.map(mapHomeProductToCard);
-              if (isPersonalRecommendationSection(section)) {
-                return (
-                  <HomeOriginalGridSection
-                    key={section.section_id || sectionIndex}
-                    products={sectionProducts}
-                    section={section}
-                  />
-                );
-              }
-
-              if (sectionIndex === 0) {
-                return (
-                  <HomeRankingSection
-                    key={section.section_id || sectionIndex}
-                    products={sectionProducts}
-                    section={section}
-                    sectionIndex={sectionIndex}
-                  />
-                );
-              }
-
-              return (
-                <HomeDealSection
-                  key={section.section_id || sectionIndex}
-                  products={sectionProducts}
-                  section={section}
-                  sectionIndex={sectionIndex}
-                />
-              );
-            })}
+            {marketPopularSection ? (
+              <HomeRankingSection
+                key={marketPopularSection.section_id}
+                products={marketPopularSection.products.map(mapHomeProductToCard)}
+                section={marketPopularSection}
+                sectionIndex={0}
+              />
+            ) : null}
+            {forYouSection ? (
+              <HomeOriginalGridSection
+                key={forYouSection.section_id}
+                products={forYouSection.products.map(mapHomeProductToCard)}
+                section={forYouSection}
+              />
+            ) : null}
+            {evidencePicksSection ? (
+              <HomeDealSection
+                key={evidencePicksSection.section_id}
+                products={evidencePicksSection.products.map(mapHomeProductToCard)}
+                section={evidencePicksSection}
+                sectionIndex={1}
+              />
+            ) : null}
           </div>
         ) : (
           <div className="empty-state">표시할 섹션이 없습니다.</div>

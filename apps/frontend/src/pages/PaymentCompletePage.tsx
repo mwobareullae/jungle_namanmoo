@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
@@ -417,6 +418,7 @@ function PaymentCompletePage() {
             <section className="complete-product-toggle">
               <button
                 type="button"
+                aria-controls="completeProductList"
                 aria-expanded={isProductListOpen}
                 onClick={() => setIsProductListOpen((current) => !current)}
               >
@@ -426,7 +428,7 @@ function PaymentCompletePage() {
               </button>
 
               {isProductListOpen ? (
-                <div className="complete-product-list">
+                <div className="complete-product-list" id="completeProductList">
                   {completeProducts.map((completeProduct) => (
                     <article className="complete-product" key={`${completeProduct.id}-${completeProduct.name}`}>
                       {completeProduct.image ? (
@@ -460,7 +462,7 @@ function PaymentCompletePage() {
             </div>
 
             <div className="complete-actions">
-              <a className="complete-btn" href="/cart">주문 상세보기</a>
+              <Link className="complete-btn" to={`/mypage/orders/${displayOrderNo}`}>주문 상세보기</Link>
               <a className="complete-btn primary" href="/">쇼핑 계속하기</a>
             </div>
           </section>
