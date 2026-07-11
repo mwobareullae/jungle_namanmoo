@@ -504,7 +504,7 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 | `product_id` | 리뷰가 연결되는 상품 ID. `products.csv` 또는 `products/*.csv`의 `product_id`를 참조 |
 | `source` | 리뷰 출처. 예: `oliveyoung` |
 | `source_review_id` | 원본 출처의 리뷰 식별자. 중복 제거와 재수집 대조용 |
-| `rating` | 별점. 0~5 스케일 |
+| `rating` | 별점. 1~5 스케일 |
 | `review_text` | 리뷰 본문 |
 | `review_date` | 리뷰 작성일. 원본에서 확인 가능한 경우 입력 |
 | `option_text` | 리뷰 작성자가 구매한 옵션/구성 원문 |
@@ -536,6 +536,17 @@ DB 정규화 원칙:
 - 상품 집계는 `product_review_metrics`, 피부 타입·민감도·고민·톤별 집계는 `product_review_segment_metrics`가 담당합니다.
 - 집계 테이블은 원본 CSV 값을 그대로 적재하지 않고, 게시 상태의 원본 리뷰에서 재계산할 수 있는 파생 read model로 관리합니다.
 - 원본 변경 감지는 `source_content_hash`, 프로필 라벨 재매핑은 `profile_mapping_version`으로 구분합니다.
+
+리뷰 집계 점수 원칙:
+
+- 원본 1건의 가중치는 `source 1.0 × 한달사용 1.15 × 구매확인 true 1.10 × helpful 최대 1.10 × recency`입니다.
+- helpful은 `1 + 0.10 × min(log(1 + helpful_count) / log(21), 1)`을 사용합니다.
+- recency는 `0.5 + 0.5 × 2^(-age_days / 730)`이며 작성일이 없으면 `0.75`입니다.
+- 카테고리 평균과 prior strength `20`으로 상품의 Bayesian 별점·재구매율을 계산합니다.
+- 유효 표본 수는 Kish 공식 `(sum(w)^2 / sum(w^2))`, confidence는 `n_eff / (n_eff + 20)`입니다.
+- 프로필 segment는 상품 전체 Bayesian 값을 prior로 사용합니다. 매핑 신뢰도는 segment weight에 곱합니다.
+- 사진 존재 여부는 count로만 저장하며 품질·affinity 점수에는 사용하지 않습니다.
+- 집계 버전은 `review_quality_v1`입니다.
 
 ### `data/product_review_summary.csv`
 
