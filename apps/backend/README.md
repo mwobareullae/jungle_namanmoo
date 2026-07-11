@@ -44,6 +44,19 @@ Docker Compose에서는 루트 `data/` 디렉터리를 백엔드 컨테이너의
 curl http://localhost:8000/api/health
 ```
 
+로컬 관리자 API를 확인할 때는 먼저 일반 회원가입으로 계정을 만든 뒤, 해당 계정의
+역할만 개발용 CLI로 변경합니다. 비밀번호나 고정 관리자 계정은 저장소에 두지 않습니다.
+
+```bash
+docker compose exec backend python -m app.cli.set_user_role --email user@example.com --role ADMIN
+```
+
+확인이 끝난 계정을 일반 사용자로 되돌릴 수 있습니다.
+
+```bash
+docker compose exec backend python -m app.cli.set_user_role --email user@example.com --role USER
+```
+
 백엔드 테스트:
 
 ```bash
