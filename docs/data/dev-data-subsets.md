@@ -48,6 +48,7 @@ python data/scripts/build_seed_subset.py --output-dir data/generated-subsets/all
 
 - `ingredients.csv`
 - `ingredient_aliases.csv`
+- `ingredient_canonical_mappings.csv` (선택 상품의 source 성분 매핑과 해당 canonical target 포함)
 - `ingredient_effect.csv`
 - `ingredient_effect_ranges.csv`
 - `ingredient_evidence.csv`
