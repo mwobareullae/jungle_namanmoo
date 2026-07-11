@@ -256,7 +256,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
           <Link
             className={`inline-flex items-center whitespace-nowrap border-b-2 px-3.5 py-[11px] text-[13px] no-underline ${
               currentPath === item.path
-                ? "border-[#0C1117] font-bold text-[#0C1117]"
+                ? "border-[#0C1117] font-semibold text-[#0C1117]"
                 : "border-transparent text-[#737b7a]"
             }`}
             key={item.label}
@@ -287,7 +287,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
                   item.path ? (
                     <Link
                       className={`block px-8 py-3 text-[17px] leading-[1.5] no-underline hover:bg-black/[0.04] ${
-                        currentPath === item.path ? "font-bold text-[#0C1117]" : "font-normal text-[#444444]"
+                        currentPath === item.path ? "font-semibold text-[#0C1117]" : "font-normal text-[#444444]"
                       }`}
                       key={item.label}
                       to={item.path}
@@ -500,7 +500,7 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
         <div style={styles.skinTestEmptyContent}>
           <h3 style={styles.skinTestEmptyTitle}>아직 저장된 테스트 결과가 없어요</h3>
           <Link
-            className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-full bg-[#0C1117] px-4 text-[13px] font-bold text-white no-underline hover:bg-[#1A1A1A]"
+            className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-full bg-[#0C1117] px-4 text-[13px] font-semibold text-white no-underline hover:bg-[#1A1A1A]"
             to="/skin-test"
           >
             피부 테스트 시작하기 <span aria-hidden="true">›</span>
@@ -865,7 +865,7 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(12,35,49,0.88)",
     color: "#ffffff",
     fontSize: 13,
-    fontWeight: 800
+    fontWeight: 700
   },
   baumannTitle: {
     margin: "0 0 10px",
@@ -934,7 +934,7 @@ const styles: Record<string, CSSProperties> = {
   baumannImageFallback: {
     color: "#0d2231",
     fontSize: 28,
-    fontWeight: 800
+    fontWeight: 700
   },
   iconInfoRow: {
     display: "flex",

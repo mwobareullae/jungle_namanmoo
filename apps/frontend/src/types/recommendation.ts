@@ -92,14 +92,12 @@ export type HomeSection = {
   subtitle: string;
   section_type: string;
   algorithm: string;
-  products: HomeSectionProduct[];
-};
-
-export type HomeSectionsResponse = {
-  skin_type: string;
-  sensitivity: string;
   category_code: string | null;
-  sections: HomeSection[];
+  limit: number;
+  products: HomeSectionProduct[];
+  skin_type: string | null;
+  sensitivity: string | null;
+  personalization_sources: string[];
 };
 
 export type RecommendationSummary = {

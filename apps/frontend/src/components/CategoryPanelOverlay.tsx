@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { callOriginal } from "../lib/originalRuntime";
 
 const categoryGroups = [
@@ -89,22 +90,34 @@ const isCategoryHoverArea = (target: EventTarget | null) => {
   return Boolean(header?.contains(target) || panel?.contains(target));
 };
 
-function CategoryPanelOverlay() {
+type CategoryPanelOverlayProps = {
+  onOpenChange: (isOpen: boolean) => void;
+};
+
+function CategoryPanelOverlay({ onOpenChange }: CategoryPanelOverlayProps) {
+  const handleClose = () => {
+    callOriginal("closeCategoryMenu");
+    onOpenChange(false);
+  };
+
   return (
     <>
       <div
         className="category-panel-backdrop"
         id="categoryPanelBackdrop"
-        onClick={() => callOriginal("closeCategoryMenu")}
+        onClick={handleClose}
       />
       <aside
         aria-label="카테고리 메뉴"
         className="category-panel"
         id="categoryPanel"
-        onMouseEnter={() => callOriginal("openCategoryMenu")}
+        onMouseEnter={() => {
+          callOriginal("openCategoryMenu");
+          onOpenChange(true);
+        }}
         onMouseLeave={(event) => {
           if (!isCategoryHoverArea(event.relatedTarget)) {
-            callOriginal("closeCategoryMenu");
+            handleClose();
           }
         }}
       >
@@ -116,14 +129,22 @@ function CategoryPanelOverlay() {
             >
               {column.map((group) => (
                 <section className="category-panel__section" key={group.title}>
-                  <a className="category-panel__title" href="/#defaultSection">
+                  <Link
+                    className="category-panel__title"
+                    to={`/category/${encodeURIComponent(group.title)}`}
+                    onClick={handleClose}
+                  >
                     <span>{group.title}</span>
-                  </a>
+                  </Link>
                   <div className="category-panel__links">
                     {group.items.map((item) => (
-                      <a href="/#defaultSection" key={`${group.title}-${item}`}>
+                      <Link
+                        to={`/category/${encodeURIComponent(group.title)}`}
+                        key={`${group.title}-${item}`}
+                        onClick={handleClose}
+                      >
                         {item}
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 </section>
