@@ -336,13 +336,13 @@ function SkinTestRecommendationsPage() {
       setIsProductsLoading(true);
 
       try {
-        const response = await api.getHomeSections({
-          skinType: skinTypeLabel,
-          sensitivity: sensitivityLabel,
-          limitPerSection: 12,
-        });
-        const nextProducts = response.sections.flatMap((section) => section.products).map((product, index) =>
-          mapHomeProduct(product, index, typeCode),
+        const [marketPopular, forYou, evidencePicks] = await Promise.all([
+          api.getMarketPopular({ limit: 12 }),
+          api.getForYou({ skinType: skinTypeLabel, sensitivity: sensitivityLabel, limit: 12 }),
+          api.getEvidencePicks({ limit: 12 }),
+        ]);
+        const nextProducts = [...marketPopular.products, ...forYou.products, ...evidencePicks.products].map(
+          (product, index) => mapHomeProduct(product, index, typeCode),
         );
 
         if (isActive) {
