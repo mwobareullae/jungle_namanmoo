@@ -31,6 +31,7 @@ from app.services.recommendation_pipeline import (
     load_recommendation_run,
     score_breakdown_to_api,
 )
+from app.services.review_query_service import get_product_review_summary
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,7 @@ def get_product_detail_response(
             ),
         ),
         sources=sources,
+        review_summary=get_product_review_summary(session, product_row.product.id),
     )
 
 
