@@ -57,3 +57,6 @@ apps/frontend/docs/
 scripts/perf/config.env
 scripts/perf/results/
 perf-runs/
+
+# Generated evidence-discovery reports
+artifacts/evidence-discovery/
