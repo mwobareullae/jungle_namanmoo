@@ -128,3 +128,38 @@ def test_review_model_rejects_duplicate_source_review(db_engine: Engine) -> None
         )
         with pytest.raises(IntegrityError):
             session.flush()
+
+
+def test_review_model_allows_same_source_review_id_for_different_products(
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product_ids = list(
+            session.execute(select(Product.id).order_by(Product.id).limit(2)).scalars()
+        )
+        assert len(product_ids) == 2
+        session.add_all(
+            [
+                ProductReview(
+                    review_code="rev_product_scope_001",
+                    product_id=int(product_ids[0]),
+                    source="oliveyoung",
+                    source_review_id="source-product-local",
+                    status="PUBLISHED",
+                    review_type="MONTH_USE",
+                    rating=4,
+                ),
+                ProductReview(
+                    review_code="rev_product_scope_002",
+                    product_id=int(product_ids[1]),
+                    source="oliveyoung",
+                    source_review_id="source-product-local",
+                    status="PUBLISHED",
+                    review_type="MONTH_USE",
+                    rating=5,
+                ),
+            ]
+        )
+        session.commit()
+
+        assert session.scalar(select(ProductReview.id).limit(1)) is not None

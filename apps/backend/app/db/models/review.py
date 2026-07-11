@@ -46,7 +46,12 @@ class ProductReview(Base):
             "rating is not null or (review_text is not null and length(trim(review_text)) > 0)",
             name="ck_product_reviews_content",
         ),
-        UniqueConstraint("source", "source_review_id", name="uq_product_reviews_source_review"),
+        UniqueConstraint(
+            "source",
+            "product_id",
+            "source_review_id",
+            name="uq_product_reviews_source_product_review",
+        ),
         UniqueConstraint("order_item_id", "review_type", name="uq_product_reviews_order_item_type"),
         Index(
             "ix_product_reviews_product_status_reviewed",
