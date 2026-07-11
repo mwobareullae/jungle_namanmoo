@@ -528,6 +528,15 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 - 같은 `source_review_id`가 다시 수집되면 기존 리뷰 갱신 또는 중복 제거 대상으로 처리합니다.
 - 이 파일은 리뷰 목록 노출을 위한 데이터이며, 추천 점수 반영 여부를 직접 확정하지 않습니다.
 
+DB 정규화 원칙:
+
+- 원본 리뷰는 `product_reviews`, 정규화된 작성자 피부 라벨은 `product_review_profile_labels`에 저장합니다.
+- `review_type=one_month_review`와 `is_month_use_review=true`는 DB에서 `MONTH_USE`로 정규화합니다. 일반 리뷰는 `GENERAL`을 사용합니다.
+- `has_photo`는 원본에 사진이 있었다는 표식일 뿐입니다. 실제 미디어 행이나 공개 URL이 없으므로 리뷰 이미지로 노출하지 않습니다.
+- 상품 집계는 `product_review_metrics`, 피부 타입·민감도·고민·톤별 집계는 `product_review_segment_metrics`가 담당합니다.
+- 집계 테이블은 원본 CSV 값을 그대로 적재하지 않고, 게시 상태의 원본 리뷰에서 재계산할 수 있는 파생 read model로 관리합니다.
+- 원본 변경 감지는 `source_content_hash`, 프로필 라벨 재매핑은 `profile_mapping_version`으로 구분합니다.
+
 ### `data/product_review_summary.csv`
 
 상품별 리뷰 요약 통계입니다. 상품 카드, 상품 상세 리뷰 요약, 관리자 QA에서 사용할 수 있는 집계 데이터입니다.
