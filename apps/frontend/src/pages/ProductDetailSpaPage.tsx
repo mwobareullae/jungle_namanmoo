@@ -498,13 +498,14 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hasHash = Boolean(window.location.hash);
-      const normalizedHash = normalizeDetailHash(window.location.hash);
+      const rawHash = window.location.hash;
+      const hasValidHash = DETAIL_TAB_HASHES.includes(rawHash as DetailTabHash);
+      const normalizedHash = normalizeDetailHash(rawHash);
       setActiveTab(normalizedHash);
-      if (normalizedHash !== window.location.hash) {
+      if (rawHash && !hasValidHash) {
         window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${normalizedHash}`);
       }
-      if (hasHash) {
+      if (hasValidHash) {
         scrollToDetailTabs("auto");
       }
     };
@@ -849,7 +850,7 @@ function ProductDetailSpaPage() {
 
     restoredHashProductRef.current = restoreKey;
     setActiveTab(normalizedHash);
-    if (window.location.hash) {
+    if (DETAIL_TAB_HASHES.includes(window.location.hash as DetailTabHash)) {
       scrollToDetailTabs("auto");
     }
   }, [detailData, product?.product_id]);
@@ -866,7 +867,7 @@ function ProductDetailSpaPage() {
 
     setActiveTab(normalizedHash);
     if (window.location.hash !== normalizedHash) {
-      window.history.pushState(
+      window.history.replaceState(
         null,
         "",
         `${window.location.pathname}${window.location.search}${normalizedHash}`,

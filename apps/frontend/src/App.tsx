@@ -899,7 +899,6 @@ function RouteLoadingFallback() {
   return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
 }
 
-<<<<<<< HEAD
 function PopularProductsRouteFallback() {
   return (
     <>
@@ -923,7 +922,27 @@ function PopularProductsRouteFallback() {
       </main>
     </>
   );
-=======
+}
+
+function ScrollToTop() {
+  const location = useLocation();
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousRestoration;
+    };
+  }, []);
+
+  return null;
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
@@ -943,13 +962,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   return <>{children}</>;
->>>>>>> f2c8222 (fix(frontend): 비로그인 마이페이지 접근 처리)
 }
 
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
     <>
+      <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
@@ -958,17 +977,6 @@ function App() {
           )}
           {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
           {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
-<<<<<<< HEAD
-          {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
-          {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
-          {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
-          {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
-          {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
-          {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
-          {appMode !== "community" && <Route path="/mypage/addresses" element={<Addresses />} />}
-          {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
-          {appMode !== "community" && <Route path="/mypage/settings" element={<MyPageSettings />} />}
-=======
           {appMode !== "community" && (
             <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />
           )}
@@ -1042,7 +1050,16 @@ function App() {
               }
             />
           )}
->>>>>>> f2c8222 (fix(frontend): 비로그인 마이페이지 접근 처리)
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/addresses"
+              element={(
+                <ProtectedRoute>
+                  <Addresses />
+                </ProtectedRoute>
+              )}
+            />
+          )}
           {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
           {appMode !== "community" && (
             <Route path="/skin-test/result" element={<SkinTestResultPage />} />
