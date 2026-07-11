@@ -30,6 +30,7 @@ PRODUCT_INGREDIENT_FIELDS = [
 ]
 
 SPLIT_CSV_TARGET_BYTES = 45 * 1024 * 1024
+SOURCE_CSV_FIELD = "_source_csv"
 
 REVIEW_FIELDS = [
     "product_id",
@@ -71,9 +72,25 @@ def read_csv(path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+def read_product_ingredient_rows(path: Path) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for csv_path in resolve_csv_paths(path):
+        with csv_path.open(newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle):
+                row[SOURCE_CSV_FIELD] = str(csv_path)
+                rows.append(row)
+    return rows
+
+
+def write_csv(
+    path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+    *,
+    encoding: str = "utf-8",
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
+    with path.open("w", newline="", encoding=encoding) as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
@@ -94,13 +111,49 @@ def resolve_csv_paths(path: Path) -> tuple[Path, ...]:
 
 def write_product_ingredients(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
     shard_dir = path.parent / path.stem
+    source_paths = resolve_csv_paths(path)
+    if len(source_paths) > 1 and all(row.get(SOURCE_CSV_FIELD) for row in rows):
+        write_csv_shards_preserving_sources(source_paths, fieldnames, rows)
+        return
+    clean_rows = [{field: row.get(field, "") for field in fieldnames} for row in rows]
     if shard_dir.exists() or not path.exists():
-        write_csv_shards(shard_dir, path.stem, fieldnames, rows)
+        write_csv_shards(shard_dir, path.stem, fieldnames, clean_rows)
         if path.exists():
             path.unlink()
         return
 
-    write_csv(path, fieldnames, rows)
+    write_csv(path, fieldnames, clean_rows)
+
+
+def write_csv_shards_preserving_sources(
+    source_paths: tuple[Path, ...],
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    rows_by_source: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        source_path = row.get(SOURCE_CSV_FIELD)
+        if source_path is None:
+            raise ValueError("source shard metadata is missing")
+        rows_by_source[source_path].append({field: row.get(field, "") for field in fieldnames})
+
+    pending_replacements: list[tuple[Path, Path]] = []
+    try:
+        for source_path in source_paths:
+            temp_path = source_path.with_suffix(f"{source_path.suffix}.tmp")
+            write_csv(
+                temp_path,
+                fieldnames,
+                rows_by_source.get(str(source_path), []),
+                encoding="utf-8-sig",
+            )
+            pending_replacements.append((temp_path, source_path))
+        for temp_path, source_path in pending_replacements:
+            temp_path.replace(source_path)
+    finally:
+        for temp_path, _ in pending_replacements:
+            if temp_path.exists():
+                temp_path.unlink()
 
 
 def write_csv_shards(shard_dir: Path, prefix: str, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
@@ -172,9 +225,14 @@ def normalize_raw(raw: str, alias_lookup: dict[str, dict[str, str]]) -> str:
     return normalized.strip()
 
 
-def load_alias_lookup(path: Path) -> dict[str, dict[str, str]]:
+def load_alias_lookup(
+    path: Path,
+    canonical_ids: set[str] | None = None,
+) -> dict[str, dict[str, str]]:
     aliases: dict[str, dict[str, str]] = {}
     for row in read_csv(path):
+        if canonical_ids is not None and row["canonical_id"] not in canonical_ids:
+            continue
         key = normalize_text(row["alias"])
         existing = aliases.get(key)
         if existing and existing["canonical_id"] != row["canonical_id"]:
@@ -305,7 +363,10 @@ def merge_group(rows: list[dict[str, str]]) -> tuple[dict[str, str], dict[str, s
 
 
 def product_row(row: dict[str, str]) -> dict[str, str]:
-    return {field: row.get(field, "") for field in PRODUCT_INGREDIENT_FIELDS}
+    output = {field: row.get(field, "") for field in PRODUCT_INGREDIENT_FIELDS}
+    if row.get(SOURCE_CSV_FIELD):
+        output[SOURCE_CSV_FIELD] = row[SOURCE_CSV_FIELD]
+    return output
 
 
 def order_key(row: dict[str, str]) -> int:
@@ -379,14 +440,21 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("data/reconciliation/a_group_product_ingredient_collapse_review.csv"),
     )
+    parser.add_argument(
+        "--canonical-id",
+        action="append",
+        dest="canonical_ids",
+        help="only apply aliases targeting this canonical id; repeat for multiple ids",
+    )
     parser.add_argument("--write", action="store_true", help="rewrite product_ingredients.csv")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    rows = read_csv(args.product_ingredients)
-    alias_lookup = load_alias_lookup(args.aliases)
+    rows = read_product_ingredient_rows(args.product_ingredients)
+    canonical_ids = set(args.canonical_ids) if args.canonical_ids else None
+    alias_lookup = load_alias_lookup(args.aliases, canonical_ids)
     output_rows, review_rows, stats = reconcile_rows(rows, alias_lookup)
 
     if args.write:
