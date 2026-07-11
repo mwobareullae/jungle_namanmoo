@@ -2,8 +2,14 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
+import LoginRequiredDialog from "../../components/LoginRequiredDialog";
+import Skeleton from "../../components/ui/Skeleton";
+import HeartIcon from "../../components/ui/HeartIcon";
+import ActivityToast from "../../components/ui/ActivityToast";
 import { ToggleGroup, ToggleGroupTabItem } from "../../components/ui/toggle-group";
+import { useAuth } from "../../contexts/useAuth";
 import {
+  addMyWishlistItem,
   deleteMyRecentProduct,
   deleteMyWishlistItem,
   getMyRecentProducts,
@@ -11,6 +17,7 @@ import {
   type ActivityProductItem
 } from "../../lib/activityApi";
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
+import { useActivityToast, wishlistToastMessage } from "../../hooks/useActivityToast";
 
 type ProductListMode = "wishlist" | "recent";
 type WishlistSort = "recent";
@@ -147,6 +154,7 @@ function MypageProductList({
   onSortChange
 }: ProductListProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [sort, setSort] = useState<WishlistSort>("recent");
   const isRecent = mode === "recent";
   const [listItems, setListItems] = useState<MypageProductListItem[]>(() =>
@@ -154,13 +162,16 @@ function MypageProductList({
   );
   const [isLoading, setIsLoading] = useState(!items);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const { message: toastMessage, showToast } = useActivityToast();
   const [pageState, setPageState] = useState<{ mode: ProductListMode; currentPage: number }>(() => ({
     mode,
     currentPage: 1
   }));
   const title = isRecent ? "최근 본 상품" : "찜한 상품";
   const activePath: "/mypage/recent" | "/mypage/wishlist" = isRecent ? "/mypage/recent" : "/mypage/wishlist";
-  const guideText = isRecent ? "최근 2주간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
+  const guideText = isRecent ? "최근 한 달간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
   const emptyTitle = isRecent ? "최근 본 상품이 없어요" : "아직 찜한 상품이 없어요";
   const emptyDescription = isRecent ? "상품을 둘러보면 최근 본 상품이 여기에 모여요." : "피부 타입에 맞는 제품을 찾아 찜해보세요.";
   const todayDateLabel = getTodayDateLabel();
@@ -190,6 +201,8 @@ function MypageProductList({
     }
 
     let isMounted = true;
+    const loadingStartedAt = Date.now();
+    const minimumLoadingDuration = 600;
     const loadingTimerId = window.setTimeout(() => {
       if (isMounted) {
         setIsLoading(true);
@@ -197,7 +210,12 @@ function MypageProductList({
       }
     }, 0);
 
-    const request = mode === "wishlist" ? getMyWishlist() : getMyRecentProducts();
+    const request = mode === "wishlist"
+      ? getMyWishlist().then((wishlistItems) => wishlistItems)
+      : Promise.all([getMyRecentProducts(), getMyWishlist()]).then(([recentItems, wishlistItems]) => {
+          const wishedProductIds = new Set(wishlistItems.map((item) => item.productId));
+          return recentItems.map((item) => ({ ...item, isWished: wishedProductIds.has(item.productId) }));
+        });
     request
       .then((activityItems) => {
         if (!isMounted) {
@@ -215,9 +233,10 @@ function MypageProductList({
         setLoadError(null);
       })
       .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        const remainingDuration = Math.max(0, minimumLoadingDuration - (Date.now() - loadingStartedAt));
+        window.setTimeout(() => {
+          if (isMounted) setIsLoading(false);
+        }, remainingDuration);
       });
 
     return () => {
@@ -253,6 +272,41 @@ function MypageProductList({
     }
   };
 
+  const toggleWishlist = async (item: MypageProductListItem) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+
+    if (pendingWishlistProductIds.has(item.productId)) return;
+
+    const previousItems = listItems;
+    setPendingWishlistProductIds((previous) => new Set(previous).add(item.productId));
+    setListItems((previous) => previous.map((candidate) => (
+      candidate.productId === item.productId ? { ...candidate, isWished: !candidate.isWished } : candidate
+    )));
+
+    try {
+      if (item.isWished) {
+        await deleteMyWishlistItem(item.productId);
+        showToast(wishlistToastMessage.removed);
+      } else {
+        await addMyWishlistItem(item.productId);
+        showToast(wishlistToastMessage.added);
+      }
+    } catch {
+      setListItems(previousItems);
+      setLoadError("찜 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((previous) => {
+        const next = new Set(previous);
+        next.delete(item.productId);
+        return next;
+      });
+    }
+  };
+
   const openProduct = (item: MypageProductListItem) => {
     if (onOpenProduct) {
       onOpenProduct(item);
@@ -262,7 +316,7 @@ function MypageProductList({
     navigate(`/product-detail?id=${encodeURIComponent(item.productId)}`);
   };
 
-  if (isLoading || (!loadError && displayItems.length === 0)) {
+  if (!isLoading && (!loadError && displayItems.length === 0)) {
     return (
       <MyPageLayout activePath={activePath}>
         <style>{`
@@ -283,7 +337,7 @@ function MypageProductList({
           <h1 style={styles.singleTitle}>{title}</h1>
         </header>
         <section style={styles.emptyWishlistPanel} aria-label={`${title} 빈 상태`}>
-          <div style={styles.emptyIconCircle} aria-hidden="true">
+          {!isLoading ? <div style={styles.emptyIconCircle} aria-hidden="true">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               {isRecent ? (
                 <>
@@ -294,9 +348,21 @@ function MypageProductList({
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z" />
               )}
             </svg>
-          </div>
+          </div> : null}
           {isLoading ? (
-            <div style={styles.emptyLoadingSpacer} aria-label={`${title} 불러오는 중`} />
+            <div style={styles.loadingList} aria-label={`${title} 불러오는 중`}>
+              {Array.from({ length: 5 }, (_, index) => (
+                <div aria-hidden="true" key={index} style={styles.loadingRow}>
+                  <span style={styles.loadingImage} />
+                  <span style={styles.loadingBody}>
+                    <span style={styles.loadingLineWide} />
+                    <span style={styles.loadingLineMedium} />
+                    <span style={styles.loadingLineShort} />
+                    <span style={styles.loadingLineShort} />
+                  </span>
+                </div>
+              ))}
+            </div>
           ) : (
             <>
               <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
@@ -345,6 +411,8 @@ function MypageProductList({
         <h1 style={styles.singleTitle}>{title}</h1>
       </header>
 
+      <p style={styles.guideText}>{guideText}</p>
+
       {!isRecent ? (
         <ToggleGroup
           aria-label="찜한 상품 필터"
@@ -365,17 +433,21 @@ function MypageProductList({
         </ToggleGroup>
       ) : null}
 
-      {isRecent ? (
-        <div style={styles.countRow}>
-          <strong>최근 본 상품 <span style={styles.countNumber}>{displayItems.length}</span></strong>
-        </div>
-      ) : null}
-
       {loadError ? <p style={styles.statusMessage}>{loadError}</p> : null}
       {isLoading ? (
-        <div style={styles.emptyWrap}>
-          <p style={styles.emptyDescription}>{title}을 불러오는 중입니다.</p>
-        </div>
+        <section style={styles.loadingList} aria-label={`${title} 불러오는 중`}>
+          {isRecent ? <Skeleton className="mypage-loading-date" style={styles.loadingDateBlock} /> : null}
+          {Array.from({ length: 5 }, (_, index) => (
+            <div aria-hidden="true" key={index} style={styles.loadingRow}>
+              <Skeleton className="mypage-loading-image" style={styles.loadingImage} />
+              <span style={styles.loadingBody}>
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineWide} />
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineMedium} />
+                <Skeleton className="mypage-loading-line" style={styles.loadingLineShort} />
+              </span>
+            </div>
+          ))}
+        </section>
       ) : displayItems.length === 0 ? (
         <div style={styles.emptyWrap}>
           <h2 style={styles.emptyTitle}>{emptyTitle}</h2>
@@ -401,11 +473,18 @@ function MypageProductList({
                   <div style={isTodayDivider ? styles.dateDividerToday : styles.dateDivider}>{item.dateLabel}</div>
                 ) : null}
                 <article style={styles.row}>
-                  <button
-                    className="bg-transparent hover:bg-[#FAFAFA]"
+                  <div
+                    className="mypage-product-list-row-button bg-transparent"
                     onClick={() => openProduct(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openProduct(item);
+                      }
+                    }}
+                    role="button"
                     style={styles.rowButton}
-                    type="button"
+                    tabIndex={0}
                   >
                     <div style={styles.imageWrap}>
                       <ProductThumbnail
@@ -413,7 +492,20 @@ function MypageProductList({
                         alt={`${item.brand} ${item.name}`}
                         className="mypage-product-list-thumbnail"
                       />
-                      <span style={item.isWished ? styles.heartBadgeActive : styles.heartBadge} aria-hidden="true">♥</span>
+                      {isRecent ? (
+                        <button
+                          aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
+                          className={`mypage-product-list-heart-button${item.isWished ? " is-wished" : ""}`}
+                          disabled={pendingWishlistProductIds.has(item.productId)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleWishlist(item);
+                          }}
+                          type="button"
+                        >
+                          <HeartIcon size={12} />
+                        </button>
+                      ) : null}
                     </div>
                     <span style={styles.body}>
                       <strong style={styles.name}>{item.name}</strong>
@@ -424,15 +516,8 @@ function MypageProductList({
                       {item.originalPrice ? <span style={styles.originalPrice}>{formatPrice(item.originalPrice)}</span> : null}
                       {item.deliveryLabel ? <span style={styles.delivery}>배송비 {item.deliveryLabel}</span> : null}
                       <span style={styles.brand}>{item.brand}</span>
-                      {item.tags?.length ? (
-                        <span style={styles.tags}>
-                          {item.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} style={styles.tag}>{tag}</span>
-                          ))}
-                        </span>
-                      ) : null}
                     </span>
-                  </button>
+                  </div>
                   <button
                     aria-label={`${item.name} 목록에서 제거`}
                     className="text-[#c8cdd2] hover:text-[#4b5563]"
@@ -448,6 +533,12 @@ function MypageProductList({
           })}
         </section>
       )}
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
+      <ActivityToast message={toastMessage} />
       {displayItems.length > PAGE_SIZE ? (
         <nav aria-label={`${title} 페이지`} style={styles.pagination}>
           <button
@@ -544,20 +635,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500
   },
   guideText: {
-    margin: "18px 0 0",
+    margin: "18px 0",
     color: "#9ca3af",
     fontSize: 13,
-    fontWeight: 600
-  },
-  countRow: {
-    padding: "17px 0",
-    borderBottom: "1px solid #eef0f2",
-    color: "#222222",
-    fontSize: 14,
-    fontWeight: 700
-  },
-  countNumber: {
-    color: "#2aa6d1"
+    fontWeight: 500
   },
   statusMessage: {
     margin: "0 0 18px",
@@ -622,14 +703,14 @@ const styles: Record<string, CSSProperties> = {
     padding: "6px 16px",
     background: "#f4f6f8",
     color: "#555555",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 700
   },
   dateDividerToday: {
     padding: "6px 16px",
-    background: "rgba(148,224,248,0.14)",
-    color: "#2aa6d1",
-    fontSize: 14,
+    background: "#f4f6f8",
+    color: "#555555",
+    fontSize: 16,
     fontWeight: 700
   },
   row: {
@@ -669,7 +750,7 @@ const styles: Record<string, CSSProperties> = {
   name: {
     color: "#111111",
     fontSize: 15,
-    fontWeight: 700,
+    fontWeight: 500,
     lineHeight: 1.35
   },
   priceLine: {
@@ -701,7 +782,7 @@ const styles: Record<string, CSSProperties> = {
   brand: {
     color: "#7d858f",
     fontSize: 12,
-    fontWeight: 600
+    fontWeight: 400
   },
   tags: {
     display: "flex",
@@ -720,32 +801,6 @@ const styles: Record<string, CSSProperties> = {
     color: "#2aa6d1",
     fontSize: 10,
     fontWeight: 600
-  },
-  heartBadge: {
-    position: "absolute",
-    right: 7,
-    bottom: 7,
-    display: "grid",
-    placeItems: "center",
-    width: 22,
-    height: 22,
-    borderRadius: "50%",
-    background: "rgba(0,0,0,0.26)",
-    color: "#ffffff",
-    fontSize: 12
-  },
-  heartBadgeActive: {
-    position: "absolute",
-    right: 7,
-    bottom: 7,
-    display: "grid",
-    placeItems: "center",
-    width: 22,
-    height: 22,
-    borderRadius: "50%",
-    background: "#94e0f8",
-    color: "#ffffff",
-    fontSize: 12
   },
   removeButton: {
     position: "absolute",
@@ -789,6 +844,59 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyLoadingSpacer: {
     minHeight: 120
+  },
+  loadingList: {
+    display: "grid",
+    width: "100%",
+    gap: 0,
+    textAlign: "left"
+  },
+  loadingRow: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    gap: 16,
+    minHeight: 136,
+    padding: "18px 0",
+    borderBottom: "1px solid #eef0f2"
+  },
+  loadingImage: {
+    display: "block",
+    width: 92,
+    height: 92,
+    borderRadius: 6,
+  },
+  loadingDateBlock: {
+    display: "block",
+    width: "100%",
+    height: 42,
+    marginBottom: 0,
+    borderRadius: 0,
+  },
+  loadingBody: {
+    display: "grid",
+    alignContent: "start",
+    gap: 7,
+    paddingTop: 2
+  },
+  loadingLineWide: {
+    display: "block",
+    width: "100%",
+    height: 15,
+    borderRadius: 5,
+  },
+  loadingLineMedium: {
+    display: "block",
+    width: "82%",
+    height: 15,
+    borderRadius: 5,
+  },
+  loadingLineShort: {
+    display: "block",
+    width: 220,
+    maxWidth: "60%",
+    height: 15,
+    borderRadius: 5,
   },
   emptyTitle: {
     margin: 0,

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ProductComparisonPanel, { type ProductComparisonDifference } from "../components/ProductComparisonPanel";
 import ProductDetailHero from "../components/product-detail/ProductDetailHero";
 import ProductDetailStatus from "../components/product-detail/ProductDetailStatus";
 import ProductDetailToast from "../components/product-detail/ProductDetailToast";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
@@ -467,8 +469,8 @@ function ProductDetailSpaPage() {
   const [isWishlistPending, setIsWishlistPending] = useState(false);
   const [cartMessage, setCartMessage] = useState("");
   const [cartErrorMessage, setCartErrorMessage] = useState("");
-  const [toastMessage, setToastMessage] = useState("");
-  const toastTimerRef = useRef<number | null>(null);
+  const { message: toastMessage, showToast } = useActivityToast();
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => normalizeDetailHash(window.location.hash));
   const [isNarrativeDetailOpen, setIsNarrativeDetailOpen] = useState(false);
   const [candidateTotalState, setCandidateTotalState] = useState<{
@@ -493,12 +495,6 @@ function ProductDetailSpaPage() {
   const { reviews: productReviews, summary: reviewSummary } = useProductReviews(product?.product_id ?? productId);
 
   useEffect(() => installHomeRuntime(), []);
-
-  useEffect(() => () => {
-    if (toastTimerRef.current !== null) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -946,17 +942,6 @@ function ProductDetailSpaPage() {
     return updatedCart;
   };
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    if (toastTimerRef.current !== null) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastMessage("");
-      toastTimerRef.current = null;
-    }, 2500);
-  };
-
   const handleSkinFitToggle = () => {
     if (!user) {
       showToast("로그인 후 내 피부 맞춤 리뷰를 볼 수 있어요.");
@@ -1052,7 +1037,7 @@ function ProductDetailSpaPage() {
     }
 
     if (!user) {
-      navigate("/login", { state: { from: window.location.pathname + window.location.search } });
+      setIsLoginDialogOpen(true);
       return;
     }
 
@@ -1063,14 +1048,14 @@ function ProductDetailSpaPage() {
     try {
       if (nextIsWished) {
         await addMyWishlistItem(productId);
-        showToast("찜한 상품에 추가했습니다.");
+        showToast(wishlistToastMessage.added);
       } else {
         await deleteMyWishlistItem(productId);
-        showToast("찜한 상품에서 해제했습니다.");
+        showToast(wishlistToastMessage.removed);
       }
     } catch {
       setIsWished(!nextIsWished);
-      showToast("찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      showToast(wishlistToastMessage.failed);
     } finally {
       setIsWishlistPending(false);
     }
@@ -1781,6 +1766,11 @@ function ProductDetailSpaPage() {
       </main>
 
       <ProductDetailToast message={toastMessage} />
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
 
     </>
   );

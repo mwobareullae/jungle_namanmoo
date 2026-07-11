@@ -73,13 +73,11 @@ jobs:
             set -euo pipefail
             cd '$DEV_APP_DIR'
             test -f .env || cp .env.example .env
-            if [ -f data/scripts/build_seed_subset.py ] && [ -f data/products.csv ]; then
+            if [ -f data/scripts/build_seed_subset.py ] && { [ -f data/products.csv ] || [ -d data/products ]; }; then
               python3 data/scripts/build_seed_subset.py --source-dir data --output-dir data/dev-small --force
             fi
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache config
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml stop frontend || true
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml rm -f frontend || true
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache up --build -d backend redis elasticsearch caddy
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server config
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up --build -d
             docker compose ps
           "
 

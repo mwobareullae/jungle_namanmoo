@@ -1,9 +1,12 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 
 function AuthHeader() {
   const defaultSectionHref = "/#defaultSection";
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPopularPage = location.pathname === "/products/popular";
+  const isSkinTestPage = location.pathname.startsWith("/skin-test");
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -30,7 +33,7 @@ function AuthHeader() {
           <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
             신상품
           </a>
-          <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
+          <a className={`${isPopularPage ? "relative font-bold text-[#0B2A3A] after:absolute after:right-0 after:-bottom-[25px] after:left-0 after:h-[3px] after:rounded-[3px] after:bg-[#94E0F8]" : "no-underline hover:text-[#1A1A1A]"}`} href="/products/popular">
             베스트
           </a>
           <a className="no-underline hover:text-[#1A1A1A]" href={defaultSectionHref}>
@@ -46,7 +49,7 @@ function AuthHeader() {
             브랜드
           </a>
           <a
-            className="relative font-bold text-[#0B2A3A] no-underline after:absolute after:right-0 after:-bottom-[25px] after:left-0 after:h-[3px] after:rounded-[3px] after:bg-[#94E0F8]"
+            className={`${isSkinTestPage ? "relative font-bold text-[#0B2A3A] no-underline after:absolute after:right-0 after:-bottom-[25px] after:left-0 after:h-[3px] after:rounded-[3px] after:bg-[#94E0F8]" : "no-underline hover:text-[#1A1A1A]"}`}
             href="/skin-test"
           >
             맞춤 추천
