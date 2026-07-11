@@ -18,7 +18,8 @@
 | 구분 | 현재 위치 | 상태 |
 |---|---|---|
 | 고민 동의어 | `data/tags.json` | 11개 고민 태그와 synonym을 seed |
-| 성분 alias | `data/ingredient_aliases.csv` | 315개 alias, `ko/en/inci/typo/abbrev/synonym` 유형 |
+| 성분 alias | `data/ingredient_aliases.csv` | 1,382개 alias, `ko/en/inci/typo/abbrev/synonym` 유형 |
+| 성분 canonical 매핑 | `data/ingredient_canonical_mappings.csv` | source ID 또는 broad+exact name 697개를 canonical로 해석 |
 | 브랜드 alias | `purchase_conditions.py` + `products.csv` | 일부 브랜드 override + 상품 CSV 브랜드명 기반 |
 | 카테고리 alias | `purchase_conditions.py` | serum/toner/lotion/cream 하드코딩 |
 | unmatched terms | `RecommendationResponse.unmatched_terms` | 추천 응답에 반환 |

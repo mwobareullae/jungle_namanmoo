@@ -26,9 +26,9 @@ Alpha-Hydroxy Acid,aha,synonym,high,common cosmetic synonym
 글라이콜릭애씨드,aha,ko,high,KCIA 표준화명칭목록
 글리콜릭애씨드,aha,typo,medium,common Korean label typo
 Glycolic Acid,aha,inci,high,INCI/CosIng
-락틱애씨드,aha,ko,high,KCIA 표준화명칭목록
+락틱애씨드,lactic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
 젖산,aha,synonym,high,common Korean synonym
-Lactic Acid,aha,inci,high,INCI/CosIng
+Lactic Acid,lactic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
 만델릭애씨드,aha,ko,medium,KCIA 표준화명칭목록
 Mandelic Acid,aha,inci,medium,INCI/CosIng
 말릭애씨드,aha,ko,medium,KCIA 표준화명칭목록
@@ -86,16 +86,16 @@ Hexapeptide,peptides,en,medium,KCIA peptide naming
 Oligopeptide,peptides,en,medium,KCIA peptide naming
 폴리펩타이드,peptides,ko,medium,KCIA peptide naming
 Polypeptide,peptides,en,medium,KCIA peptide naming
-아세틸헥사펩타이드-8,peptides,ko,high,KCIA 표준화명칭목록
-Acetyl Hexapeptide-8,peptides,inci,high,INCI/CosIng
+아세틸헥사펩타이드-8,acetyl_hexapeptide_8,ko,high,KCIA 표준화명칭목록 2026-06-30
+Acetyl Hexapeptide-8,acetyl_hexapeptide_8,inci,high,KCIA 표준화명칭목록 2026-06-30
 아르지렐린,peptides,synonym,high,common market synonym
 Argireline,peptides,synonym,high,common market synonym
-카퍼트라이펩타이드-1,peptides,ko,high,KCIA 표준화명칭목록
-Copper Tripeptide-1,peptides,inci,high,INCI/CosIng
+카퍼트라이펩타이드-1,copper_tripeptide_1,ko,high,KCIA 표준화명칭목록 2026-06-30
+Copper Tripeptide-1,copper_tripeptide_1,inci,high,KCIA 표준화명칭목록 2026-06-30
 구리펩타이드,peptides,synonym,high,common Korean synonym
 Copper Peptide,peptides,synonym,high,common market synonym
-팔미토일펜타펩타이드-4,peptides,ko,high,KCIA 표준화명칭목록
-Palmitoyl Pentapeptide-4,peptides,inci,high,INCI/CosIng
+팔미토일펜타펩타이드-4,palmitoyl_pentapeptide_4,ko,high,KCIA 표준화명칭목록 2026-06-30
+Palmitoyl Pentapeptide-4,palmitoyl_pentapeptide_4,inci,high,KCIA 표준화명칭목록 2026-06-30
 마트릭실,peptides,synonym,medium,common market synonym
 Matrixyl,peptides,synonym,medium,common market synonym
 팔미토일트라이펩타이드-1,peptides,ko,high,KCIA 표준화명칭목록
@@ -155,20 +155,20 @@ Vegetable Glycerin,glycerin,synonym,medium,common market synonym
 히알루론산,hyaluronic_acid,synonym,high,common Korean synonym
 하이알루로닉애씨드,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
 Hyaluronic Acid,hyaluronic_acid,inci,high,INCI/CosIng
-소듐하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
-Sodium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
-하이드롤라이즈드하이알루로닉애씨드,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
-Hydrolyzed Hyaluronic Acid,hyaluronic_acid,inci,high,INCI/CosIng
-하이드롤라이즈드소듐하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
-Hydrolyzed Sodium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
-포타슘하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
-Potassium Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
-소듐아세틸레이티드하이알루로네이트,hyaluronic_acid,ko,high,KCIA 표준화명칭목록
-Sodium Acetylated Hyaluronate,hyaluronic_acid,inci,high,INCI/CosIng
-소듐하이알루로네이트크로스폴리머,hyaluronic_acid,ko,medium,KCIA 표준화명칭목록
-Sodium Hyaluronate Crosspolymer,hyaluronic_acid,inci,medium,INCI/CosIng
-하이드록시프로필트라이모늄하이알루로네이트,hyaluronic_acid,ko,medium,KCIA 표준화명칭목록
-Hydroxypropyltrimonium Hyaluronate,hyaluronic_acid,inci,medium,INCI/CosIng
+소듐하이알루로네이트,sodium_hyaluronate,ko,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Hyaluronate,sodium_hyaluronate,inci,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드하이알루로닉애씨드,hydrolyzed_hyaluronic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Hyaluronic Acid,hydrolyzed_hyaluronic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드소듐하이알루로네이트,hydrolyzed_sodium_hyaluronate,ko,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Sodium Hyaluronate,hydrolyzed_sodium_hyaluronate,inci,high,KCIA 표준화명칭목록 2026-06-30
+포타슘하이알루로네이트,potassium_hyaluronate,ko,high,KCIA 표준화명칭목록 2026-06-30
+Potassium Hyaluronate,potassium_hyaluronate,inci,high,KCIA 표준화명칭목록 2026-06-30
+소듐아세틸레이티드하이알루로네이트,sodium_acetylated_hyaluronate,ko,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Acetylated Hyaluronate,sodium_acetylated_hyaluronate,inci,high,KCIA 표준화명칭목록 2026-06-30
+소듐하이알루로네이트크로스폴리머,sodium_hyaluronate_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Hyaluronate Crosspolymer,sodium_hyaluronate_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시프로필트라이모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,ko,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxypropyltrimonium Hyaluronate,hydroxypropyltrimonium_hyaluronate,inci,high,KCIA 표준화명칭목록 2026-06-30
 저분자히알루론산,hyaluronic_acid,synonym,medium,common market synonym
 고분자히알루론산,hyaluronic_acid,synonym,medium,common market synonym
 판테놀,panthenol,ko,high,KCIA 표준화명칭목록
@@ -183,10 +183,10 @@ Provitamin B5,panthenol,synonym,high,common market synonym
 세라마이드,ceramides,ko,high,common cosmetic family
 Ceramide,ceramides,en,high,common cosmetic family
 Ceramides,ceramides,en,high,common cosmetic family
-세라마이드엔피,ceramides,ko,high,KCIA 표준화명칭목록
-Ceramide NP,ceramides,inci,high,INCI/CosIng
-세라마이드3,ceramides,synonym,high,KCIA 구명칭
-Ceramide 3,ceramides,synonym,high,KCIA 구명칭
+세라마이드엔피,ceramide_np,ko,high,KCIA 표준화명칭목록 2026-06-30
+Ceramide NP,ceramide_np,inci,high,KCIA 표준화명칭목록 2026-06-30
+세라마이드3,ceramide_np,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Ceramide 3,ceramide_np,synonym,high,KCIA 표준화명칭목록 2026-06-30
 세라마이드에이피,ceramides,ko,high,KCIA 표준화명칭목록
 Ceramide AP,ceramides,inci,high,INCI/CosIng
 세라마이드이오피,ceramides,ko,high,KCIA 표준화명칭목록
@@ -199,8 +199,8 @@ Ceramide NG,ceramides,inci,high,INCI/CosIng
 Ceramide AS,ceramides,inci,high,INCI/CosIng
 세라마이드엔디에스,ceramides,ko,medium,KCIA 표준화명칭목록
 Ceramide NDS,ceramides,inci,medium,INCI/CosIng
-콜레스테롤,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
-Cholesterol,cholesterol_fatty_acids,inci,high,INCI/CosIng
+콜레스테롤,cholesterol,ko,high,KCIA 표준화명칭목록 2026-06-30
+Cholesterol,cholesterol,inci,high,KCIA 표준화명칭목록 2026-06-30
 지방산,cholesterol_fatty_acids,synonym,medium,common cosmetic family
 Fatty Acid,cholesterol_fatty_acids,synonym,medium,common cosmetic family
 Fatty Acids,cholesterol_fatty_acids,synonym,medium,common cosmetic family
@@ -210,14 +210,14 @@ Linoleic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
 Linolenic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
 올레익애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
 Oleic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
-스테아릭애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
-Stearic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
-팔미틱애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
-Palmitic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+스테아릭애씨드,stearic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+Stearic Acid,stearic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+팔미틱애씨드,palmitic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+Palmitic Acid,palmitic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
 라우릭애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
 Lauric Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
-미리스틱애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
-Myristic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
+미리스틱애씨드,myristic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+Myristic Acid,myristic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
 베헤닉애씨드,cholesterol_fatty_acids,ko,high,KCIA 표준화명칭목록
 Behenic Acid,cholesterol_fatty_acids,inci,high,INCI/CosIng
 스쿠알란,squalane,ko,high,KCIA 표준화명칭목록
@@ -249,15 +249,15 @@ Liquid Paraffin,petrolatum_mineral_oil,synonym,high,common English synonym
 Urea,urea,inci,high,INCI/CosIng
 카바마이드,urea,synonym,high,chemical synonym
 Carbamide,urea,synonym,high,chemical synonym
-병풀추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
-병풀잎추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
+병풀추출물,centella_asiatica_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+병풀잎추출물,centella_asiatica_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
 병풀뿌리추출물,centella_asiatica,ko,high,KCIA 표준화명칭목록
 병풀잎수,centella_asiatica,ko,medium,KCIA 표준화명칭목록
 병풀수,centella_asiatica,synonym,medium,common Korean label
 센텔라아시아티카추출물,centella_asiatica,synonym,high,common Korean label
 센텔라추출물,centella_asiatica,synonym,high,common Korean label
-Centella Asiatica Extract,centella_asiatica,inci,high,INCI/CosIng
-Centella Asiatica Leaf Extract,centella_asiatica,inci,high,INCI/CosIng
+Centella Asiatica Extract,centella_asiatica_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Centella Asiatica Leaf Extract,centella_asiatica_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
 Centella Asiatica Root Extract,centella_asiatica,inci,high,INCI/CosIng
 Centella Asiatica Leaf Water,centella_asiatica,inci,medium,INCI/CosIng
 Hydrolyzed Centella Asiatica Extract,centella_asiatica,inci,medium,INCI/CosIng
@@ -270,7 +270,7 @@ Asiaticoside (),asiaticoside,typo,high,observed empty-parenthesis formatting var
 Madecassoside,madecassoside,inci,high,INCI/CosIng
 마데카소사이드*,madecassoside,typo,medium,project raw crawl
 티트리,tea_tree,synonym,high,common Korean label
-티트리잎오일,tea_tree,ko,high,KCIA 표준화명칭목록
+티트리잎오일,melaleuca_alternifolia_tea_tree_leaf_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
 티트리잎추출물,tea_tree,ko,high,KCIA 표준화명칭목록
 티트리추출물,tea_tree,ko,high,KCIA 표준화명칭목록
 티트리꽃/잎/줄기추출물,tea_tree,ko,high,KCIA 표준화명칭목록
@@ -294,11 +294,11 @@ Alpha-Bisabolol,bisabolol,synonym,high,chemical synonym
 레보메놀,bisabolol,synonym,medium,chemical synonym
 Levomenol,bisabolol,synonym,medium,chemical synonym
 녹차,green_tea,synonym,high,common Korean label
-녹차추출물,green_tea,ko,high,KCIA 표준화명칭목록
+녹차추출물,camellia_sinensis_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
 녹차잎추출물,green_tea,ko,high,common Korean label
 차나무잎추출물,green_tea,ko,high,KCIA 표준화명칭목록
 Green Tea Extract,green_tea,en,high,common market synonym
-Camellia Sinensis Leaf Extract,green_tea,inci,high,INCI/CosIng
+Camellia Sinensis Leaf Extract,camellia_sinensis_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
 녹차수,green_tea,ko,medium,KCIA 표준화명칭목록
 Green Tea Water,green_tea,en,medium,common market synonym
 Camellia Sinensis Leaf Water,green_tea,inci,medium,INCI/CosIng
@@ -321,3 +321,1063 @@ Yeast Beta-Glucan,beta_glucan,synonym,medium,common English label; yeast beta-gl
 디포타슘글리시리제이트,dipotassium_glycyrrhizate,typo,medium,common Korean transliteration variant
 Dipotassium Glycyrrhizate,dipotassium_glycyrrhizate,inci,high,INCI
 Dipotassium Glycyrrhizinate,dipotassium_glycyrrhizate,synonym,medium,literature spelling variant
+"1,2-Hexanediol",1_2_hexanediol,inci,high,KCIA 표준화명칭목록 2026-06-30
+"1,2-헥산다이올",1_2_hexanediol,ko,high,KCIA 표준화명칭목록 2026-06-30
+"1,2-헥산디올",1_2_hexanediol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+3-O-Ethyl Ascorbic Acid,3_o_ethyl_ascorbic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+3-O-에틸아스코빅애씨드,3_o_ethyl_ascorbic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+Acacia Senegal Gum,acacia_senegal_gum,inci,high,KCIA 표준화명칭목록 2026-06-30
+Acetic Acid,acetic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Acetyl Glucosamine,acetyl_glucosamine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Acrylates/C10-30 Alkyl Acrylate Crosspolymer,acrylates_c10_30_alkyl_acrylate_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Acrylates Copolymer,acrylates_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Alanine,alanine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Alcohol,alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Alcohol Denat.,alcohol_denat,inci,high,KCIA 표준화명칭목록 2026-06-30
+Algae Extract,algae_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Algin,algin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aloe Barbadensis Leaf Extract,aloe_barbadensis_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aloe Barbadensis Leaf Juice,aloe_barbadensis_leaf_juice,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aloe Barbadensis Leaf Juice Powder,aloe_barbadensis_leaf_juice_powder,inci,high,KCIA 표준화명칭목록 2026-06-30
+Alpha-Isomethyl Ionone,alpha_isomethyl_ionone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Alumina,alumina,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aluminum Hydroxide,aluminum_hydroxide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aluminum Starch Octenylsuccinate,aluminum_starch_octenylsuccinate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aminomethyl Propanol,aminomethyl_propanol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ammonium Acryloyldimethyltaurate/VP Copolymer,ammonium_acryloyldimethyltaurate_vp_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ammonium Polyacryloyldimethyl Taurate,ammonium_polyacryloyldimethyl_taurate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Amodimethicone,amodimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Amyl Cinnamal,amyl_cinnamal,inci,high,KCIA 표준화명칭목록 2026-06-30
+Anhydroxylitol,anhydroxylitol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Anthemis Nobilis Flower Extract,chamomilla_recutita_matricaria_flower_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Argania Spinosa Kernel Oil,argania_spinosa_kernel_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Arginine,arginine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ascorbyl Glucoside,ascorbyl_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ascorbyl Palmitate,ascorbyl_palmitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Asiatic Acid,asiatic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Aspartic Acid,aspartic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Auricula/Vitis Labrusca Fruit/Helianthus Tuberosus Tuber Ferment Extract Isoamyl Laurate,auricula_vitis_labrusca_fruit_helianthus_tuberosus_tub_kcia_6682,inci,high,KCIA 표준화명칭목록 2026-06-30
+Avena Sativa (Oat) Kernel Extract,avena_sativa_oat_kernel_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Bakuchiol,bakuchiol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Barium Sulfate,barium_sulfate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Behentrimonium Chloride,behentrimonium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Behentrimonium Methosulfate,behentrimonium_methosulfate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Behenyl Alcohol,behenyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Benzoic Acid,benzoic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Benzophenone-4,benzophenone_4,inci,high,KCIA 표준화명칭목록 2026-06-30
+Benzyl Alcohol,benzyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Benzyl Benzoate,benzyl_benzoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Benzyl Salicylate,benzyl_salicylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Betaine,betaine,inci,high,KCIA 표준화명칭목록 2026-06-30
+BHT,bht,inci,high,KCIA 표준화명칭목록 2026-06-30
+Biosaccharide Gum-1,biosaccharide_gum_1,inci,high,KCIA 표준화명칭목록 2026-06-30
+Biotin,biotin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Bis-Diglyceryl Polyacyladipate-2,bis_diglyceryl_polyacyladipate_2,inci,high,KCIA 표준화명칭목록 2026-06-30
+Bis-Ethylhexyloxyphenol Methoxyphenyl Triazine,bis_ethylhexyloxyphenol_methoxyphenyl_triazine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Boron Nitride,boron_nitride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Brilliant Blue FCF,brilliant_blue_fcf,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butylene/Ethylene/Styrene Copolymer,butylene_ethylene_styrene_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butylene Glycol,butylene_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butylene Glycol Dicaprylate/Dicaprate,butylene_glycol_dicaprylate_dicaprate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butyl Methoxydibenzoylmethane,butyl_methoxydibenzoylmethane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butyloctyl Salicylate,butyloctyl_salicylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butylphenyl Methylpropional,butylphenyl_methylpropional,inci,high,KCIA 표준화명칭목록 2026-06-30
+Butyrospermum Parkii (Shea) Butter,butyrospermum_parkii_shea_butter,inci,high,KCIA 표준화명칭목록 2026-06-30
+C11-15 Alketh-7,c11_15_alketh_7,inci,high,KCIA 표준화명칭목록 2026-06-30
+C11-15 Pareth-7,c11_15_alketh_7,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C11-15알케스-7,c11_15_alketh_7,ko,high,KCIA 표준화명칭목록 2026-06-30
+C11-15파레스-7,c11_15_alketh_7,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C12-15 Alkyl Benzoate,c12_15_alkyl_benzoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+C12-15알킬벤조에이트,c12_15_alkyl_benzoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+C13-14 Isoalkane,c13_14_isoalkane,inci,high,KCIA 표준화명칭목록 2026-06-30
+C13-14 Isoparaffin,c13_14_isoalkane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C13-14아이소알케인,c13_14_isoalkane,ko,high,KCIA 표준화명칭목록 2026-06-30
+C13-14아이소파라핀,c13_14_isoalkane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C13-14이소파라핀,c13_14_isoalkane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C13-15 Alkane,c13_15_alkane,inci,high,KCIA 표준화명칭목록 2026-06-30
+C13-15알칸,c13_15_alkane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+C13-15알케인,c13_15_alkane,ko,high,KCIA 표준화명칭목록 2026-06-30
+C9-12 Alkane,c9_12_alkane,inci,high,KCIA 표준화명칭목록 2026-06-30
+C9-12알케인,c9_12_alkane,ko,high,KCIA 표준화명칭목록 2026-06-30
+Caffeine,caffeine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Calcium Aluminum Borosilicate,calcium_aluminum_borosilicate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Calcium Gluconate,calcium_gluconate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Calcium Sodium Borosilicate,calcium_sodium_borosilicate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Calendula Officinalis Flower Extract,calendula_officinalis_flower_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Camellia Japonica Seed Oil,camellia_japonica_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caprylhydroxamic Acid,caprylhydroxamic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caprylic/Capric Triglyceride,caprylic_capric_triglyceride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Capryloyl Salicylic Acid,capryloyl_salicylic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caprylyl/Capryl Glucoside,caprylyl_capryl_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caprylyl Glycol,caprylyl_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caprylyl Methicone,caprylyl_methicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Caramel,caramel,inci,high,KCIA 표준화명칭목록 2026-06-30
+Carbomer,carbomer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Carthamus Tinctorius (Safflower) Seed Oil,carthamus_tinctorius_safflower_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cellulose,cellulose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cellulose Gum,cellulose_gum,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cera Microcristallina,microcrystalline_wax,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Cetearyl Alcohol,cetearyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetearyl Glucoside,cetearyl_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetearyl Olivate,cetearyl_olivate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetrimonium Chloride,cetrimonium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetyl Alcohol,cetyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetyl Esters,cetyl_esters,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetyl Ethylhexanoate,cetyl_ethylhexanoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetyl Palmitate,cetyl_palmitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cetyl PEG/PPG-10/1 Dimethicone,cetyl_peg_ppg_10_1_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Chamomilla Recutita (Matricaria) Flower Extract,chamomilla_recutita_matricaria_flower_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Chlorphenesin,chlorphenesin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Chondrus Crispus Extract,chondrus_crispus_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citral,citral,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citric Acid,citric_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citronellol,citronellol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrullus Lanatus (Watermelon) Fruit Extract,citrullus_lanatus_watermelon_fruit_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Aurantium Bergamia (Bergamot) Fruit Oil,citrus_aurantium_bergamia_bergamot_fruit_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Aurantium Dulcis (Orange) Fruit Extract,citrus_aurantium_dulcis_orange_fruit_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Aurantium Dulcis (Orange) Peel Oil,citrus_aurantium_dulcis_orange_peel_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Limon (Lemon) Fruit Extract,citrus_limon_lemon_fruit_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Limon (Lemon) Peel Oil,citrus_limon_lemon_peel_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Medica Limonum (Lemon) Fruit Extract,citrus_limon_lemon_fruit_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Citrus Medica Limonum (Lemon) Peel Oil,citrus_limon_lemon_peel_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Cocamide MIPA,cocamide_mipa,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cocamidopropyl Betaine,cocamidopropyl_betaine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cocamidopropyl Hydroxysultaine,cocamidopropyl_hydroxysultaine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Coco-Betaine,coco_betaine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Coco-Caprylate/Caprate,coco_caprylate_caprate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Coco-Glucoside,coco_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cocoa butter,theobroma_cacao_cocoa_seed_butter,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Coconut Acid,coconut_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Coconut Alkanes,coconut_alkanes,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cocos Nucifera (Coconut) Oil,cocos_nucifera_coconut_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Corallina Officinalis Extract,corallina_officinalis_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Coumarin,coumarin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cucumis Sativus (Cucumber) Fruit Extract,cucumis_sativus_cucumber_fruit_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Curcuma Longa (Turmeric) Root Extract,curcuma_longa_turmeric_root_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cyclohexasiloxane,cyclohexasiloxane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cyclopentasiloxane,cyclopentasiloxane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Cysteine,cysteine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Daucus Carota Sativa (Carrot) Root Extract,daucus_carota_sativa_carrot_root_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Decyl Glucoside,decyl_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dehydroacetic Acid,dehydroacetic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dextran,dextran,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dextrin,dextrin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diamond Powder,diamond_powder,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dibutyl Adipate,dibutyl_adipate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dicalcium Phosphate,dicalcium_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dicaprylyl Carbonate,dicaprylyl_carbonate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dicaprylyl Ether,dicaprylyl_ether,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diethylamino Hydroxybenzoyl Hexyl Benzoate,diethylamino_hydroxybenzoyl_hexyl_benzoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diethylhexyl Syringylidenemalonate,diethylhexyl_syringylidenemalonate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diisopropyl Sebacate,diisopropyl_sebacate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diisostearyl Malate,diisostearyl_malate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dimethicone/Methicone Copolymer,hydrogen_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Dimethicone/PEG-10/15 Crosspolymer,dimethicone_peg_10_15_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dimethicone/Vinyl Dimethicone Crosspolymer,dimethicone_vinyl_dimethicone_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dimethicone Crosspolymer,dimethicone_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dimethiconol,dimethiconol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dimethyl Isosorbide,dimethyl_isosorbide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Diphenylsiloxy Phenyl Trimethicone,diphenylsiloxy_phenyl_trimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Dipropylene Glycol,dipropylene_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Disodium EDTA,disodium_edta,inci,high,KCIA 표준화명칭목록 2026-06-30
+Disodium Phosphate,disodium_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Disodium Stearoyl Glutamate,disodium_stearoyl_glutamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Disteardimonium Hectorite,disteardimonium_hectorite,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ectoin,ectoin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylene/Propylene/Styrene Copolymer,ethylene_propylene_styrene_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylhexylglycerin,ethylhexylglycerin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylhexyl Methoxycinnamate,ethylhexyl_methoxycinnamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylhexyl Palmitate,ethylhexyl_palmitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylhexyl Salicylate,ethylhexyl_salicylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ethylhexyl Triazone,ethylhexyl_triazone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Eucalyptus Globulus Leaf Oil,eucalyptus_globulus_leaf_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Eugenol,eugenol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Farnesol,farnesol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Fast Acid Magenta,fast_acid_magenta,inci,high,KCIA 표준화명칭목록 2026-06-30
+Fragrance|Perfume|Parfum,fragrance_perfume_parfum,inci,high,KCIA 표준화명칭목록 2026-06-30
+Fructooligosaccharides,fructooligosaccharides,inci,high,KCIA 표준화명칭목록 2026-06-30
+Fructose,fructose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Gardenia Florida Fruit Extract,gardenia_florida_fruit_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Geraniol,geraniol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Geranyl Acetate,geranyl_acetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glucose,glucose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glutamic Acid,glutamic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glycereth-26,glycereth_26,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glyceryl Caprylate,glyceryl_caprylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glyceryl Oleate,glyceryl_oleate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glyceryl Stearate,glyceryl_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glyceryl Stearate Citrate,glyceryl_stearate_citrate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glyceryl Stearate SE,glyceryl_stearate_se,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glycine,glycine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glycine Soja (Soybean) Oil,glycine_soja_soybean_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Glycol Distearate,glycol_distearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Guar Hydroxypropyltrimonium Chloride,guar_hydroxypropyltrimonium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+HDI/Trimethylol Hexyllactone Crosspolymer,hdi_trimethylol_hexyllactone_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Helianthus Annuus (Sunflower) Extract,helianthus_annuus_sunflower_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Helianthus Annuus (Sunflower) Seed Extract,helianthus_annuus_sunflower_seed_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Helianthus Annuus (Sunflower) Seed Oil,helianthus_annuus_sunflower_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hexyl Cinnamal,hexyl_cinnamal,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hexylene Glycol,hexylene_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hexyl Laurate,hexyl_laurate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hibiscus Sabdariffa Flower Extract,hibiscus_sabdariffa_flower_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Histidine,histidine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Houttuynia Cordata Extract,houttuynia_cordata_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Castor Oil,hydrogenated_castor_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Ethylhexyl Olivate,hydrogenated_ethylhexyl_olivate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Lecithin,hydrogenated_lecithin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Olive Oil Unsaponifiables,hydrogenated_olive_oil_unsaponifiables,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Polydecene,hydrogenated_polydecene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Polyisobutene,hydrogenated_polyisobutene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogenated Vegetable Oil,hydrogenated_vegetable_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrogen Dimethicone,hydrogen_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Collagen,hydrolyzed_collagen,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Keratin,hydrolyzed_keratin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Quinoa,hydrolyzed_quinoa,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Rice Protein,hydrolyzed_rice_protein,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Soy Protein,hydrolyzed_soy_protein,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Vegetable Protein,hydrolyzed_vegetable_protein,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Vegetable Protein PG-Propyl Silanetriol,hydrolyzed_vegetable_protein_pg_propyl_silanetriol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydrolyzed Wheat Protein,hydrolyzed_wheat_protein,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxyacetophenone,hydroxyacetophenone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxycitronellal,hydroxycitronellal,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxyethyl Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,hydroxyethyl_acrylate_sodium_acryloyldimethyl_taurate_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxyethylcellulose,hydroxyethylcellulose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxyethyl Urea,hydroxyethyl_urea,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxypropyl Guar Hydroxypropyltrimonium Chloride,hydroxypropyl_guar_hydroxypropyltrimonium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Hydroxypropyl Starch Phosphate,hydroxypropyl_starch_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Iron Oxide Black,iron_oxide_black,inci,high,KCIA 표준화명칭목록 2026-06-30
+Iron Oxide Red,iron_oxide_red,inci,high,KCIA 표준화명칭목록 2026-06-30
+Iron Oxide Yellow,iron_oxide_yellow,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isoamyl Laurate,auricula_vitis_labrusca_fruit_helianthus_tuberosus_tub_kcia_6682,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Isododecane,isododecane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isohexadecane,isohexadecane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isoleucine,isoleucine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isononyl Isononanoate,isononyl_isononanoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isopropyl Alcohol,isopropyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isopropyl Myristate,isopropyl_myristate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isopropyl Palmitate,isopropyl_palmitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isopropyl Titanium Triisostearate,isopropyl_titanium_triisostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Isostearic Acid,isostearic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Jojoba Esters,jojoba_esters,inci,high,KCIA 표준화명칭목록 2026-06-30
+Kaolin,kaolin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lactobacillus Ferment,lactobacillus_ferment,inci,high,KCIA 표준화명칭목록 2026-06-30
+Laminaria Digitata Extract,laminaria_digitata_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Laminaria Japonica Extract,laminaria_japonica_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Laminaria Saccharina Extract,laminaria_saccharina_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Laureth-4,laureth_4,inci,high,KCIA 표준화명칭목록 2026-06-30
+Laureth-7,laureth_7,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lauroyl Lysine,lauroyl_lysine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lauryl Glucoside,lauryl_glucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lauryl PEG-9 Polydimethylsiloxyethyl Dimethicone,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lavandula Angustifolia (Lavender) Oil,lavandula_angustifolia_lavender_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lecithin,lecithin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Leucine,leucine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Leuconostoc/Radish Root Ferment Filtrate,leuconostoc_radish_root_ferment_filtrate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Limnanthes Alba (Meadowfoam) Seed Oil,limnanthes_alba_meadowfoam_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Limonene,limonene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Linalool,linalool,inci,high,KCIA 표준화명칭목록 2026-06-30
+Linalyl Acetate,linalyl_acetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lithol Rubine BCA,lithol_rubine_bca,inci,high,KCIA 표준화명칭목록 2026-06-30
+Lysine,lysine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Madecassic Acid,madecassic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Aluminum Silicate,magnesium_aluminum_silicate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Ascorbyl Phosphate,magnesium_ascorbyl_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Chloride,magnesium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Myristate,magnesium_myristate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Stearate,magnesium_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Magnesium Sulfate,magnesium_sulfate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Maltodextrin,maltodextrin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Mangifera Indica (Mango) Seed Butter,mangifera_indica_mango_seed_butter,inci,high,KCIA 표준화명칭목록 2026-06-30
+Mannitol,mannitol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Melaleuca Alternifolia (Tea Tree) Leaf Oil,melaleuca_alternifolia_tea_tree_leaf_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Melia Azadirachta Flower Extract,melia_azadirachta_flower_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Melia Azadirachta Leaf Extract,melia_azadirachta_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Mentha Piperita (Peppermint) Oil,mentha_piperita_peppermint_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Menthol,menthol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methicone,methicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methionine,methionine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methylchloroisothiazolinone,methylchloroisothiazolinone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methylisothiazolinone,methylisothiazolinone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methyl Methacrylate Crosspolymer,methyl_methacrylate_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methylparaben,methylparaben,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methylpropanediol,methylpropanediol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Methyl Trimethicone,methyl_trimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Mica,mica,inci,high,KCIA 표준화명칭목록 2026-06-30
+Microcrystalline Cellulose,microcrystalline_cellulose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Microcrystalline Wax,microcrystalline_wax,inci,high,KCIA 표준화명칭목록 2026-06-30
+Moringa Oleifera Seed Oil,moringa_oleifera_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Moringa Pterygosperma Seed Oil,moringa_oleifera_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Neopentyl Glycol Diheptanoate,neopentyl_glycol_diheptanoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Nylon-12,nylon_12,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ocimum Sanctum Leaf Extract,ocimum_sanctum_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Octyldodecanol,octyldodecanol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Octyldodecyl Stearoyl Stearate,octyldodecyl_stearoyl_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Oenothera Biennis (Evening Primrose) Oil,oenothera_biennis_evening_primrose_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Olea Europaea (Olive) Fruit Oil,olea_europaea_olive_fruit_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Palmitoyl Pentapeptide-3,palmitoyl_pentapeptide_4,synonym,high,KCIA 표준화명칭목록 2026-06-30
+Paraffin,paraffin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Passiflora Edulis Seed Oil,passiflora_edulis_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+PCA,pca,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG-100 Stearate,peg_100_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG-10 Dimethicone,peg_10_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG-40 Hydrogenated Castor Oil,peg_40_hydrogenated_castor_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG-8,peg_8,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG-9 Polydimethylsiloxyethyl Dimethicone,peg_9_polydimethylsiloxyethyl_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+PEG/PPG-18/18 Dimethicone,peg_ppg_18_18_dimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pelargonium Graveolens Flower Oil,pelargonium_graveolens_flower_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pentaerythrityl Tetra-di-t-butyl Hydroxyhydrocinnamate,pentaerythrityl_tetra_di_t_butyl_hydroxyhydrocinnamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pentaerythrityl Tetraisostearate,pentaerythrityl_tetraisostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pentylene Glycol,pentylene_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Persea Gratissima (Avocado) Oil,persea_gratissima_avocado_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phenethyl Alcohol,phenethyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phenoxyethanol,phenoxyethanol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phenylalanine,phenylalanine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phenylpropanol,phenylpropanol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phenyl Trimethicone,phenyl_trimethicone,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phospholipids,phospholipids,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phytic Acid,phytic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Phytosterols,phytosterols,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pinene,pinene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyacrylamide,polyacrylamide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyacrylate Crosspolymer-6,polyacrylate_crosspolymer_6,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polybutene,polybutene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyethylene,polyethylene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglutamic Acid,polyglutamic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglycerin-3,polyglycerin_3,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-10 Laurate,polyglyceryl_10_laurate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-2 Triisostearate,polyglyceryl_2_triisostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-3 Diisostearate,polyglyceryl_3_diisostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-3 Methylglucose Distearate,polyglyceryl_3_methylglucose_distearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-3 Polyricinoleate,polyglyceryl_3_polyricinoleate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-4 Caprate,polyglyceryl_4_caprate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-4 Diisostearate/Polyhydroxystearate/Sebacate,polyglyceryl_4_diisostearate_polyhydroxystearate_sebacate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-4 Isostearate,polyglyceryl_4_isostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyglyceryl-6 Polyricinoleate,polyglyceryl_6_polyricinoleate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyhydroxystearic Acid,polyhydroxystearic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyisobutene,polyisobutene,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polymethyl Methacrylate,polymethyl_methacrylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polymethylsilsesquioxane,polymethylsilsesquioxane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyquaternium-10,polyquaternium_10,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyquaternium-37,polyquaternium_37,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polyquaternium-7,polyquaternium_7,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polysilicone-11,polysilicone_11,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polysorbate 20,polysorbate_20,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polysorbate 60,polysorbate_60,inci,high,KCIA 표준화명칭목록 2026-06-30
+Polysorbate 80,polysorbate_80,inci,high,KCIA 표준화명칭목록 2026-06-30
+Portulaca Oleracea Extract,portulaca_oleracea_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Potassium Cetyl Phosphate,potassium_cetyl_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Potassium Chloride,potassium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Potassium Hydroxide,potassium_hydroxide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Potassium Sorbate,potassium_sorbate,inci,high,KCIA 표준화명칭목록 2026-06-30
+PPG-1 Trideceth-6,ppg_1_trideceth_6,inci,high,KCIA 표준화명칭목록 2026-06-30
+PPG-26-Buteth-26,ppg_26_buteth_26,inci,high,KCIA 표준화명칭목록 2026-06-30
+Proline,proline,inci,high,KCIA 표준화명칭목록 2026-06-30
+Propanediol,propanediol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Propylene Carbonate,propylene_carbonate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Propylene Glycol,propylene_glycol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Propylene Glycol Dicaprylate/Dicaprate,propylene_glycol_dicaprylate_dicaprate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Propylparaben,propylparaben,inci,high,KCIA 표준화명칭목록 2026-06-30
+Prunus Amygdalus Dulcis (Sweet Almond) Oil,prunus_amygdalus_dulcis_sweet_almond_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Prunus Armeniaca (Apricot) Kernel Oil,prunus_armeniaca_apricot_kernel_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Pullulan,pullulan,inci,high,KCIA 표준화명칭목록 2026-06-30
+PVP,pvp,inci,high,KCIA 표준화명칭목록 2026-06-30
+Quaternium-90 Bentonite,quaternium_90_bentonite,inci,high,KCIA 표준화명칭목록 2026-06-30
+Retinyl Palmitate,retinyl_palmitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ricinus Communis (Castor) Seed Oil,ricinus_communis_castor_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Rosa Canina Fruit Oil,rosa_canina_fruit_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Rosa Damascena Flower Oil,rosa_damascena_flower_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Rosmarinus Officinalis (Rosemary) Leaf Extract,rosmarinus_officinalis_rosemary_leaf_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Rosmarinus Officinalis (Rosemary) Leaf Oil,rosmarinus_officinalis_rosemary_leaf_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Saccharide Isomerate,saccharide_isomerate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sclerocarya Birrea Seed Oil,sclerocarya_birrea_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sclerotium Gum,sclerotium_gum,inci,high,KCIA 표준화명칭목록 2026-06-30
+Scutellaria Baicalensis Root Extract,scutellaria_baicalensis_root_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Serine,serine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Silica,silica,inci,high,KCIA 표준화명칭목록 2026-06-30
+Silica Dimethyl Silylate,silica_dimethyl_silylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Silica Silylate,silica_silylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Simmondsia Chinensis (Jojoba) Seed Oil,simmondsia_chinensis_jojoba_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Acetate,sodium_acetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,sodium_acrylate_sodium_acryloyldimethyl_taurate_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Ascorbyl Phosphate,sodium_ascorbyl_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Benzoate,sodium_benzoate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium C14-16 Olefin Sulfonate,sodium_c14_16_olefin_sulfonate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Chloride,sodium_chloride,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Citrate,sodium_citrate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Cocoyl Glutamate,sodium_cocoyl_glutamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Cocoyl Isethionate,sodium_cocoyl_isethionate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Dehydroacetate,sodium_dehydroacetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium DNA,sodium_dna,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Gluconate,sodium_gluconate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Hydroxide,sodium_hydroxide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Lactate,sodium_lactate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Laureth Sulfate,sodium_laureth_sulfate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Lauroyl Glutamate,sodium_lauroyl_glutamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Lauroyl Lactylate,sodium_lauroyl_lactylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Lauroyl Sarcosinate,sodium_lauroyl_sarcosinate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Levulinate,sodium_levulinate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Metabisulfite,sodium_metabisulfite,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Methyl Cocoyl Taurate,sodium_methyl_cocoyl_taurate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium PCA,sodium_pca,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Phosphate,sodium_phosphate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Phytate,sodium_phytate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Polyacrylate,sodium_polyacrylate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Polyacryloyldimethyl Taurate,sodium_polyacryloyldimethyl_taurate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sodium Stearoyl Glutamate,sodium_stearoyl_glutamate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbic Acid,sorbic_acid,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Isostearate,sorbitan_isostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Oleate,sorbitan_oleate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Olivate,sorbitan_olivate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Sesquiisostearate,sorbitan_sesquiisostearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Sesquioleate,sorbitan_sesquioleate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitan Stearate,sorbitan_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sorbitol,sorbitol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Stearalkonium Hectorite,stearalkonium_hectorite,inci,high,KCIA 표준화명칭목록 2026-06-30
+Stearamidopropyl Dimethylamine,stearamidopropyl_dimethylamine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Steareth-20,steareth_20,inci,high,KCIA 표준화명칭목록 2026-06-30
+Stearyl Alcohol,stearyl_alcohol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sucrose,sucrose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Sunset Yellow FCF,sunset_yellow_fcf,inci,high,KCIA 표준화명칭목록 2026-06-30
+Synthetic Beeswax,synthetic_beeswax,inci,high,KCIA 표준화명칭목록 2026-06-30
+Synthetic Fluorphlogopite,synthetic_fluorphlogopite,inci,high,KCIA 표준화명칭목록 2026-06-30
+Synthetic Wax,synthetic_wax,inci,high,KCIA 표준화명칭목록 2026-06-30
+Talc,talc,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tartrazine,tartrazine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Terpineol,terpineol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tetrahexyldecyl Ascorbate,tetrahexyldecyl_ascorbate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tetramethyl Acetyloctahydronaphthalenes,tetramethyl_acetyloctahydronaphthalenes,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tetrasodium EDTA,tetrasodium_edta,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tetrasodium Glutamate Diacetate,tetrasodium_glutamate_diacetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Theobroma Cacao (Cocoa) Seed Butter,theobroma_cacao_cocoa_seed_butter,inci,high,KCIA 표준화명칭목록 2026-06-30
+Threonine,threonine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tin Oxide,tin_oxide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Titanium Dioxide,titanium_dioxide,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tocopherol,tocopherol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tocopheryl Acetate,tocopheryl_acetate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trehalose,trehalose,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tribehenin,tribehenin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tridecane,tridecane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trideceth-12,trideceth_12,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trideceth-6,trideceth_6,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tridecyl Trimellitate,tridecyl_trimellitate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Triethanolamine,triethanolamine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Triethoxycaprylylsilane,triethoxycaprylylsilane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Triethyl Citrate,triethyl_citrate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Triethylhexanoin,triethylhexanoin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trihydroxystearin,trihydroxystearin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trimethylsiloxysilicate,trimethylsiloxysilicate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trisiloxane,trisiloxane,inci,high,KCIA 표준화명칭목록 2026-06-30
+Trisodium Ethylenediamine Disuccinate,trisodium_ethylenediamine_disuccinate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tromethamine,tromethamine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Tyrosine,tyrosine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Ulmus Davidiana Root Extract,ulmus_davidiana_root_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+Valine,valine,inci,high,KCIA 표준화명칭목록 2026-06-30
+Vanillin,vanillin,inci,high,KCIA 표준화명칭목록 2026-06-30
+Vinyl Dimethicone/Methicone Silsesquioxane Crosspolymer,vinyl_dimethicone_methicone_silsesquioxane_crosspolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Vitis Vinifera (Grape) Seed Oil,vitis_vinifera_grape_seed_oil,inci,high,KCIA 표준화명칭목록 2026-06-30
+VP/Eicosene Copolymer,vp_eicosene_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+VP/Hexadecene Copolymer,vp_hexadecene_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+VP/VA Copolymer,vp_va_copolymer,inci,high,KCIA 표준화명칭목록 2026-06-30
+Water,water,inci,high,KCIA 표준화명칭목록 2026-06-30
+Xanthan Gum,xanthan_gum,inci,high,KCIA 표준화명칭목록 2026-06-30
+Xylitol,xylitol,inci,high,KCIA 표준화명칭목록 2026-06-30
+Xylitylglucoside,xylitylglucoside,inci,high,KCIA 표준화명칭목록 2026-06-30
+Zea Mays (Corn) Starch,zea_mays_corn_starch,inci,high,KCIA 표준화명칭목록 2026-06-30
+Zinc Gluconate,zinc_gluconate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Zinc Stearate,zinc_stearate,inci,high,KCIA 표준화명칭목록 2026-06-30
+Zingiber Officinale (Ginger) Root Extract,zingiber_officinale_ginger_root_extract,inci,high,KCIA 표준화명칭목록 2026-06-30
+강황추출물,curcuma_longa_turmeric_root_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+곤포추출물,laminaria_japonica_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+과물시계꽃씨오일,passiflora_edulis_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+구아하이드록시프로필트라이모늄클로라이드,guar_hydroxypropyltrimonium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+구아하이드록시프로필트리모늄클로라이드,guar_hydroxypropyltrimonium_chloride,synonym,high,KCIA 표준화명칭목록 2026-06-30
+귀리커넬추출물,avena_sativa_oat_kernel_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+글라이신,glycine,ko,high,KCIA 표준화명칭목록 2026-06-30
+글라이콜다이스테아레이트,glycol_distearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+글라이콜디스테아레이트,glycol_distearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+글루코오스,glucose,ko,high,KCIA 표준화명칭목록 2026-06-30
+글루타믹애씨드,glutamic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세레스-26,glycereth_26,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세릴스테아레이트,glyceryl_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세릴스테아레이트시트레이트,glyceryl_stearate_citrate,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세릴스테아레이트에스이,glyceryl_stearate_se,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세릴올리에이트,glyceryl_oleate,ko,high,KCIA 표준화명칭목록 2026-06-30
+글리세릴카프릴레이트,glyceryl_caprylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+나일론-12,nylon_12,ko,high,KCIA 표준화명칭목록 2026-06-30
+네오펜틸글라이콜다이헵타노에이트,neopentyl_glycol_diheptanoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+네오펜틸글라이콜디헵타노에이트,neopentyl_glycol_diheptanoate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+느릅나무뿌리추출물,ulmus_davidiana_root_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+다마스크장미꽃오일,rosa_damascena_flower_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+다시마추출물,laminaria_japonica_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이메티콘/비닐다이메티콘크로스폴리머,dimethicone_vinyl_dimethicone_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이메티콘/피이지-10/15크로스폴리머,dimethicone_peg_10_15_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이메티콘올,dimethiconol,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이메티콘크로스폴리머,dimethicone_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이메틸아이소소바이드,dimethyl_isosorbide,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이부틸아디페이트,dibutyl_adipate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이소듐스테아로일글루타메이트,disodium_stearoyl_glutamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이소듐이디티에이,disodium_edta,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이소듐포스페이트,disodium_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이스테아다이모늄헥토라이트,disteardimonium_hectorite,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이아몬드가루,diamond_powder,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이아이소스테아릴말레이트,diisostearyl_malate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이아이소프로필세바케이트,diisopropyl_sebacate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이에틸헥실시링질리덴말로네이트,diethylhexyl_syringylidenemalonate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이카프릴릴에터,dicaprylyl_ether,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이카프릴릴카보네이트,dicaprylyl_carbonate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이칼슘포스페이트,dicalcium_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이페닐실록시페닐트라이메티콘,diphenylsiloxy_phenyl_trimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+다이프로필렌글라이콜,dipropylene_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+달맞이꽃오일,oenothera_biennis_evening_primrose_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+당근추출물,daucus_carota_sativa_carrot_root_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+당느릅나무뿌리추출물,ulmus_davidiana_root_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+데실글루코사이드,decyl_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+데하이드로아세틱애씨드,dehydroacetic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+덱스트란,dextran,ko,high,KCIA 표준화명칭목록 2026-06-30
+덱스트린,dextrin,ko,high,KCIA 표준화명칭목록 2026-06-30
+돌콩오일,glycine_soja_soybean_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+동백나무씨오일,camellia_japonica_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+동백오일,camellia_japonica_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+드럼스틱나무씨오일,moringa_oleifera_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+드럼스틱씨오일,moringa_oleifera_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+디메치콘/메치콘코폴리머,hydrogen_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디메치콘/비닐디메치콘크로스폴리머,dimethicone_vinyl_dimethicone_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디메치콘/피이지-10/15크로스폴리머,dimethicone_peg_10_15_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디메치콘올,dimethiconol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디메치콘크로스폴리머,dimethicone_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디메칠이소소바이드,dimethyl_isosorbide,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디부틸아디페이트,dibutyl_adipate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디소듐스테아로일글루타메이트,disodium_stearoyl_glutamate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디소듐이디티에이,disodium_edta,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디소듐포스페이트,disodium_phosphate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디스테아디모늄헥토라이트,disteardimonium_hectorite,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디에칠아미노하이드록시벤조일헥실벤조에이트,diethylamino_hydroxybenzoyl_hexyl_benzoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+디에칠헥실시린질리덴말로네이트,diethylhexyl_syringylidenemalonate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디이소스테아릴말레이트,diisostearyl_malate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디이소프로필세바케이트,diisopropyl_sebacate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디카프릴릴에텔,dicaprylyl_ether,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디카프릴릴카보네이트,dicaprylyl_carbonate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디칼슘포스페이트,dicalcium_phosphate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디페닐실록시페닐트리메치콘,diphenylsiloxy_phenyl_trimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+디프로필렌글라이콜,dipropylene_glycol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+라벤더오일,lavandula_angustifolia_lavender_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우레스-4,laureth_4,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우레스-7,laureth_7,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우로일라이신,lauroyl_lysine,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우릴글루코사이드,lauryl_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우릴피이 지-9폴라다이메틸실록시에틸다이메티콘,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+라우릴피이지-9폴리다이메틸실록시에틸다이메티콘,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+라우릴피이지-9폴리디메칠실록시에칠디메치콘,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+라이신,lysine,ko,high,KCIA 표준화명칭목록 2026-06-30
+락토바실러스발효물,lactobacillus_ferment,ko,high,KCIA 표준화명칭목록 2026-06-30
+레몬껍질오일,citrus_limon_lemon_peel_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+레몬추출물,citrus_limon_lemon_fruit_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+레시틴,lecithin,ko,high,KCIA 표준화명칭목록 2026-06-30
+레티닐팔미테이트,retinyl_palmitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+로즈마리잎오일,rosmarinus_officinalis_rosemary_leaf_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+로즈마리잎추출물,rosmarinus_officinalis_rosemary_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+로즈힙열매오일,rosa_canina_fruit_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+류신,leucine,ko,high,KCIA 표준화명칭목록 2026-06-30
+류코노스톡/무발효여과물,leuconostoc_radish_root_ferment_filtrate,ko,high,KCIA 표준화명칭목록 2026-06-30
+리날룰,linalool,ko,high,KCIA 표준화명칭목록 2026-06-30
+리날릴아세테이트,linalyl_acetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+리모넨,limonene,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘미리스테이트,magnesium_myristate,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘설페이트,magnesium_sulfate,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘스테아레이트,magnesium_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘아스코빌포스페이트,magnesium_ascorbyl_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘알루미늄실리케이트,magnesium_aluminum_silicate,ko,high,KCIA 표준화명칭목록 2026-06-30
+마그네슘클로라이드,magnesium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+마데카식애씨드,madecassic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+마룰라씨오일,sclerocarya_birrea_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+마이카,mica,ko,high,KCIA 표준화명칭목록 2026-06-30
+마이크로크리스탈린셀룰로오스,microcrystalline_cellulose,ko,high,KCIA 표준화명칭목록 2026-06-30
+마이크로크리스탈린왁스,microcrystalline_wax,ko,high,KCIA 표준화명칭목록 2026-06-30
+마치현추출물,portulaca_oleracea_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+마트리카리아꽃추출물,chamomilla_recutita_matricaria_flower_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+만니톨,mannitol,ko,high,KCIA 표준화명칭목록 2026-06-30
+말토덱스트린,maltodextrin,ko,high,KCIA 표준화명칭목록 2026-06-30
+망고씨드버터,mangifera_indica_mango_seed_butter,synonym,high,KCIA 표준화명칭목록 2026-06-30
+망고씨버터,mangifera_indica_mango_seed_butter,ko,high,KCIA 표준화명칭목록 2026-06-30
+메도우폼씨오일,limnanthes_alba_meadowfoam_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+메치오닌,methionine,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메치콘,methicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메칠메타크릴레이트크로스폴리머,methyl_methacrylate_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메칠이소치아졸리논,methylisothiazolinone,ko,high,KCIA 표준화명칭목록 2026-06-30
+메칠클로로이소치아졸리논,methylchloroisothiazolinone,ko,high,KCIA 표준화명칭목록 2026-06-30
+메칠트리메치콘,methyl_trimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메칠파라벤,methylparaben,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메칠프로판디올,methylpropanediol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+메티오닌,methionine,ko,high,KCIA 표준화명칭목록 2026-06-30
+메티콘,methicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+메틸메타크릴레이트크로스폴리머,methyl_methacrylate_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+메틸트라이메티콘,methyl_trimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+메틸파라벤,methylparaben,ko,high,KCIA 표준화명칭목록 2026-06-30
+메틸프로판다이올,methylpropanediol,ko,high,KCIA 표준화명칭목록 2026-06-30
+멘톨,menthol,ko,high,KCIA 표준화명칭목록 2026-06-30
+무수자일리톨,anhydroxylitol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+바닐린,vanillin,ko,high,KCIA 표준화명칭목록 2026-06-30
+바륨설페이트,barium_sulfate,ko,high,KCIA 표준화명칭목록 2026-06-30
+바이오사카라이드검-1,biosaccharide_gum_1,ko,high,KCIA 표준화명칭목록 2026-06-30
+바이오틴,biotin,ko,high,KCIA 표준화명칭목록 2026-06-30
+바쿠치올,bakuchiol,ko,high,KCIA 표준화명칭목록 2026-06-30
+발린,valine,ko,high,KCIA 표준화명칭목록 2026-06-30
+베르가모트열매오일,citrus_aurantium_bergamia_bergamot_fruit_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+베르가모트오일,citrus_aurantium_bergamia_bergamot_fruit_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+베타인,betaine,ko,high,KCIA 표준화명칭목록 2026-06-30
+베헤닐알코올,behenyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+베헨트라이모늄메토설페이트,behentrimonium_methosulfate,ko,high,KCIA 표준화명칭목록 2026-06-30
+베헨트라이모늄클로라이드,behentrimonium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+베헨트리모늄메토설페이트,behentrimonium_methosulfate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+베헨트리모늄클로라이드,behentrimonium_chloride,synonym,high,KCIA 표준화명칭목록 2026-06-30
+벤조익애씨드,benzoic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+벤조페논-4,benzophenone_4,ko,high,KCIA 표준화명칭목록 2026-06-30
+벤질벤조에이트,benzyl_benzoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+벤질살리실레이트,benzyl_salicylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+벤질알코올,benzyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+변성알코올,alcohol_denat,ko,high,KCIA 표준화명칭목록 2026-06-30
+보론나이트라이드,boron_nitride,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸렌/에칠렌/스타이렌코폴리머,butylene_ethylene_styrene_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+부틸렌/에틸렌/스타이렌코폴리머,butylene_ethylene_styrene_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸렌글라이콜,butylene_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸렌글라이콜다이카프릴레이트/다이카프레이트,butylene_glycol_dicaprylate_dicaprate,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸렌글라이콜디카프릴레이트/디카프레이트,butylene_glycol_dicaprylate_dicaprate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+부틸메톡시디벤조일메탄,butyl_methoxydibenzoylmethane,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸옥틸살리실레이트,butyloctyl_salicylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+부틸페닐메칠프로피오날,butylphenyl_methylpropional,synonym,high,KCIA 표준화명칭목록 2026-06-30
+부틸페닐메틸프로피오날,butylphenyl_methylpropional,ko,high,KCIA 표준화명칭목록 2026-06-30
+브이피/브이에이코폴리머,vp_va_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+브이피/에이코센코폴리머,vp_eicosene_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+브이피/에이코신코폴리머,vp_eicosene_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+브이피/헥사데센코폴리머,vp_hexadecene_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+비닐다이메티콘/메티콘실세스퀴옥세인크로스폴리머,vinyl_dimethicone_methicone_silsesquioxane_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+비닐디메치콘/메치콘실세스퀴옥산크로스폴리머,vinyl_dimethicone_methicone_silsesquioxane_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+비르씨오일,sclerocarya_birrea_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+비스-다이글리세릴폴리아실아디페이트-2,bis_diglyceryl_polyacyladipate_2,ko,high,KCIA 표준화명칭목록 2026-06-30
+비스-디글리세릴폴리아실아디페이트-2,bis_diglyceryl_polyacyladipate_2,synonym,high,KCIA 표준화명칭목록 2026-06-30
+비스-에칠헥실옥시페놀메톡시페닐트리아진,bis_ethylhexyloxyphenol_methoxyphenyl_triazine,ko,high,KCIA 표준화명칭목록 2026-06-30
+비에이치티,bht,ko,high,KCIA 표준화명칭목록 2026-06-30
+사이클로펜타실록산,cyclopentasiloxane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+사이클로펜타실록세인,cyclopentasiloxane,ko,high,KCIA 표준화명칭목록 2026-06-30
+사이클로헥사실록산,cyclohexasiloxane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+사이클로헥사실록세인,cyclohexasiloxane,ko,high,KCIA 표준화명칭목록 2026-06-30
+사카라이드아이소머레이트,saccharide_isomerate,ko,high,KCIA 표준화명칭목록 2026-06-30
+살구씨오일,prunus_armeniaca_apricot_kernel_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+생강추출물,zingiber_officinale_ginger_root_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+세라마이크로크리스탈리나,microcrystalline_wax,synonym,high,KCIA 표준화명칭목록 2026-06-30
+세린,serine,ko,high,KCIA 표준화명칭목록 2026-06-30
+세테아릴글루코사이드,cetearyl_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+세테아릴알코올,cetearyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+세테아릴올리베이트,cetearyl_olivate,ko,high,KCIA 표준화명칭목록 2026-06-30
+세트리모늄클로라이드,cetrimonium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸알코올,cetyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸에스터,cetyl_esters,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸에칠헥사노에이트,cetyl_ethylhexanoate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+세틸에틸헥사노에이트,cetyl_ethylhexanoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸팔미테이트,cetyl_palmitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸피이지/피피지-10/1다이메티콘,cetyl_peg_ppg_10_1_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+세틸피이지/피피지-10/1디메치콘,cetyl_peg_ppg_10_1_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+센티드제라늄꽃오일,pelargonium_graveolens_flower_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+셀룰로오스,cellulose,ko,high,KCIA 표준화명칭목록 2026-06-30
+셀룰로오스검,cellulose_gum,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐C14-16올레핀설포네이트,sodium_c14_16_olefin_sulfonate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐글루코네이트,sodium_gluconate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐데하이드로아세테이트,sodium_dehydroacetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐디엔에이,sodium_dna,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐라우레스설페이트,sodium_laureth_sulfate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐라우로일글루타메이트,sodium_lauroyl_glutamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐라우로일락틸레이트,sodium_lauroyl_lactylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐라우로일사코시네이트,sodium_lauroyl_sarcosinate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐락테이트,sodium_lactate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐레불리네이트,sodium_levulinate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐메칠코코일타우레이트,sodium_methyl_cocoyl_taurate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소듐메타바이설파이트,sodium_metabisulfite,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐메틸코코일타우레이트,sodium_methyl_cocoyl_taurate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐벤조에이트,sodium_benzoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐스테아로일글루타메이트,sodium_stearoyl_glutamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐시트레이트,sodium_citrate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐아세테이트,sodium_acetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐아스코빌포스페이트,sodium_ascorbyl_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐아크릴레이트/소듐아크릴로일다이메틸타우레이트코폴 리머,sodium_acrylate_sodium_acryloyldimethyl_taurate_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐아크릴레이트/소듐아크릴로일디메칠타우레이트코폴리 머,sodium_acrylate_sodium_acryloyldimethyl_taurate_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소듐코코일글루타메이트,sodium_cocoyl_glutamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐코코일이세치오네이트,sodium_cocoyl_isethionate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소듐코코일이세티오네이트,sodium_cocoyl_isethionate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐클로라이드,sodium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐파이테이트,sodium_phytate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐포스페이트,sodium_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐폴리아크릴레이트,sodium_polyacrylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐폴리아크릴로일다이메틸타우레이트,sodium_polyacryloyldimethyl_taurate,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐폴리아크릴로일디메칠타우레이트,sodium_polyacryloyldimethyl_taurate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소듐피씨에이,sodium_pca,ko,high,KCIA 표준화명칭목록 2026-06-30
+소듐하이드록사이드,sodium_hydroxide,ko,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄세스퀴올리에이트,sorbitan_sesquioleate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄세스퀴이소스테아레이트,sorbitan_sesquiisostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄스테아레이트,sorbitan_stearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄올리베이트,sorbitan_olivate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄올리에이트,sorbitan_oleate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비탄이소스테아레이트,sorbitan_isostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르비톨,sorbitol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+소르빅애씨드,sorbic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄세스퀴아이소스테아레이트,sorbitan_sesquiisostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄세스퀴올리에이트,sorbitan_sesquioleate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄스테아레이트,sorbitan_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄아이소스테아레이트,sorbitan_isostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄올리베이트,sorbitan_olivate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비탄올리에이트,sorbitan_oleate,ko,high,KCIA 표준화명칭목록 2026-06-30
+솔비톨,sorbitol,ko,high,KCIA 표준화명칭목록 2026-06-30
+쇠비름추출물,portulaca_oleracea_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+수박추출물,citrullus_lanatus_watermelon_fruit_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+수크로오스,sucrose,ko,high,KCIA 표준화명칭목록 2026-06-30
+쉐어버터,butyrospermum_parkii_shea_butter,synonym,high,KCIA 표준화명칭목록 2026-06-30
+슈가켈프추출물,laminaria_saccharina_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+슈크로오스,sucrose,synonym,high,KCIA 표준화명칭목록 2026-06-30
+스위트아몬드오일,prunus_amygdalus_dulcis_sweet_almond_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+스클레로튬검,sclerotium_gum,ko,high,KCIA 표준화명칭목록 2026-06-30
+스테아라미도프로필다이메틸아민,stearamidopropyl_dimethylamine,ko,high,KCIA 표준화명칭목록 2026-06-30
+스테아라미도프로필디메칠아민,stearamidopropyl_dimethylamine,synonym,high,KCIA 표준화명칭목록 2026-06-30
+스테아랄코늄헥토라이트,stearalkonium_hectorite,ko,high,KCIA 표준화명칭목록 2026-06-30
+스테아레스-20,steareth_20,ko,high,KCIA 표준화명칭목록 2026-06-30
+스테아릴알코올,stearyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+시스테인,cysteine,ko,high,KCIA 표준화명칭목록 2026-06-30
+시어버터,butyrospermum_parkii_shea_butter,ko,high,KCIA 표준화명칭목록 2026-06-30
+시트랄,citral,ko,high,KCIA 표준화명칭목록 2026-06-30
+시트로넬올,citronellol,ko,high,KCIA 표준화명칭목록 2026-06-30
+시트릭애씨드,citric_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+실리카,silica,ko,high,KCIA 표준화명칭목록 2026-06-30
+실리카다이메틸실릴레이트,silica_dimethyl_silylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+실리카디메칠실릴레이트,silica_dimethyl_silylate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+실리카실릴레이트,silica_silylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+심황뿌리추출물,curcuma_longa_turmeric_root_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+아라비아고무,acacia_senegal_gum,synonym,high,KCIA 표준화명칭목록 2026-06-30
+아라비아고무나무검,acacia_senegal_gum,ko,high,KCIA 표준화명칭목록 2026-06-30
+아르간커넬오일,argania_spinosa_kernel_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+아르간트리커넬오일,argania_spinosa_kernel_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+아모다이메티콘,amodimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+아모디메치콘,amodimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+아미노메칠프로판올,aminomethyl_propanol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+아미노메틸프로판올,aminomethyl_propanol,ko,high,KCIA 표준화명칭목록 2026-06-30
+아밀신남알,amyl_cinnamal,ko,high,KCIA 표준화명칭목록 2026-06-30
+아보카도오일,persea_gratissima_avocado_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+아세틱애씨드,acetic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+아세틸글루코사민,acetyl_glucosamine,ko,high,KCIA 표준화명칭목록 2026-06-30
+아스코빌글루코사이드,ascorbyl_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+아스코빌팔미테이트,ascorbyl_palmitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+아스파틱애씨드,aspartic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+아시아틱애씨드,asiatic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이리쉬모스추출물,chondrus_crispus_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소노닐아이소노나노에이트,isononyl_isononanoate,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소도데케인,isododecane,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소류신,isoleucine,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소스테아릭애씨드,isostearic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소아밀라우레이트,auricula_vitis_labrusca_fruit_helianthus_tuberosus_tub_kcia_6682,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소프로필미리스테이트,isopropyl_myristate,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소프로필알코올,isopropyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소프로필티타늄트라이아이소스테아레이트,isopropyl_titanium_triisostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소프로필팔미테이트,isopropyl_palmitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+아이소헥사데칸,isohexadecane,ko,high,KCIA 표준화명칭목록 2026-06-30
+아크릴레이트/C10-30알킬아크릴레이트크로스폴리머,acrylates_c10_30_alkyl_acrylate_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+아크릴레이트코폴리머,acrylates_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+안하이드로자일리톨,anhydroxylitol,ko,high,KCIA 표준화명칭목록 2026-06-30
+알라닌,alanine,ko,high,KCIA 표준화명칭목록 2026-06-30
+알로에베라잎즙,aloe_barbadensis_leaf_juice,ko,high,KCIA 표준화명칭목록 2026-06-30
+알로에베라잎즙가루,aloe_barbadensis_leaf_juice_powder,ko,high,KCIA 표준화명칭목록 2026-06-30
+알로에베라잎추출물,aloe_barbadensis_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+알루미나,alumina,ko,high,KCIA 표준화명칭목록 2026-06-30
+알루미늄스타치옥테닐석시네이트,aluminum_starch_octenylsuccinate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+알루미늄전분옥테닐석시네이트,aluminum_starch_octenylsuccinate,ko,high,KCIA 표준화명칭목록 2026-06-30
+알루미늄하이드록사이드,aluminum_hydroxide,ko,high,KCIA 표준화명칭목록 2026-06-30
+알지닌,arginine,ko,high,KCIA 표준화명칭목록 2026-06-30
+알진,algin,ko,high,KCIA 표준화명칭목록 2026-06-30
+알파-아이소메틸아이오논,alpha_isomethyl_ionone,ko,high,KCIA 표준화명칭목록 2026-06-30
+알파-이소메칠이오논,alpha_isomethyl_ionone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+암모늄아크릴로일다이메틸타우레이트/브이피코폴리머,ammonium_acryloyldimethyltaurate_vp_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+암모늄아크릴로일디메칠타우레이트/브이피코폴리머,ammonium_acryloyldimethyltaurate_vp_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+암모늄폴리아크릴로일다이메틸타우레이트,ammonium_polyacryloyldimethyl_taurate,ko,high,KCIA 표준화명칭목록 2026-06-30
+암모늄폴리아크릴로일디메칠타우레이트,ammonium_polyacryloyldimethyl_taurate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+약모밀추출물,houttuynia_cordata_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+어성초추출물,houttuynia_cordata_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+에이치디아이/트라이메틸올헥실락톤크로스폴리머,hdi_trimethylol_hexyllactone_crosspolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+에이치디아이/트리메칠올헥실락톤크로스폴리머,hdi_trimethylol_hexyllactone_crosspolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+에칠렌/프로필렌/스타이렌코폴리머,ethylene_propylene_styrene_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+에칠헥실글리세린,ethylhexylglycerin,synonym,high,KCIA 표준화명칭목록 2026-06-30
+에칠헥실메톡시신나메이트,ethylhexyl_methoxycinnamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+에칠헥실살리실레이트,ethylhexyl_salicylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+에칠헥실트리아존,ethylhexyl_triazone,ko,high,KCIA 표준화명칭목록 2026-06-30
+에칠헥실팔미테이트,ethylhexyl_palmitate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+에탄올,alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+에틸렌/프로필렌/스타이렌코폴리머,ethylene_propylene_styrene_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+에틸헥실글리세린,ethylhexylglycerin,ko,high,KCIA 표준화명칭목록 2026-06-30
+에틸헥실팔미테이트,ethylhexyl_palmitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+엑토인,ectoin,ko,high,KCIA 표준화명칭목록 2026-06-30
+오렌지껍질오일,citrus_aurantium_dulcis_orange_peel_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+오렌지추출물,citrus_aurantium_dulcis_orange_fruit_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+오이열매추출물,cucumis_sativus_cucumber_fruit_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+오이추출물,cucumis_sativus_cucumber_fruit_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+옥수수전분,zea_mays_corn_starch,ko,high,KCIA 표준화명칭목록 2026-06-30
+옥틸도데실스테아로일스테아레이트,octyldodecyl_stearoyl_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+옥틸도데칸올,octyldodecanol,ko,high,KCIA 표준화명칭목록 2026-06-30
+올리브오일,olea_europaea_olive_fruit_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+울금뿌리추출물,curcuma_longa_turmeric_root_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+유제놀,eugenol,ko,high,KCIA 표준화명칭목록 2026-06-30
+유칼립투스잎오일,eucalyptus_globulus_leaf_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+이소노닐이소노나노에이트,isononyl_isononanoate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소도데칸,isododecane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소류신,isoleucine,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소스테아릭애씨드,isostearic_acid,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소아밀라우레이트,auricula_vitis_labrusca_fruit_helianthus_tuberosus_tub_kcia_6682,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소프로필미리스테이트,isopropyl_myristate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소프로필알코올,isopropyl_alcohol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소프로필티타늄트리이소스테아레이트,isopropyl_titanium_triisostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소프로필팔미테이트,isopropyl_palmitate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+이소헥사데칸,isohexadecane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+인도멀구슬나무꽃추출물,melia_azadirachta_flower_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+인도멀구슬나무잎추출물,melia_azadirachta_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+잇꽃씨오일,carthamus_tinctorius_safflower_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+자일리톨,xylitol,ko,high,KCIA 표준화명칭목록 2026-06-30
+자일리틸글루코사이드,xylitylglucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+잔탄검,xanthan_gum,ko,high,KCIA 표준화명칭목록 2026-06-30
+적색202호,lithol_rubine_bca,ko,high,KCIA 표준화명칭목록 2026-06-30
+적색227호,fast_acid_magenta,ko,high,KCIA 표준화명칭목록 2026-06-30
+적색산화철,iron_oxide_red,ko,high,KCIA 표준화명칭목록 2026-06-30
+정제수,water,ko,high,KCIA 표준화명칭목록 2026-06-30
+제라니올,geraniol,ko,high,KCIA 표준화명칭목록 2026-06-30
+제라닐아세테이트,geranyl_acetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+조류추출물,algae_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+징크글루코네이트,zinc_gluconate,ko,high,KCIA 표준화명칭목록 2026-06-30
+징크스테아레이트,zinc_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+참산호말추출물,corallina_officinalis_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+청색1호,brilliant_blue_fcf,ko,high,KCIA 표준화명칭목록 2026-06-30
+치자추출물,gardenia_florida_fruit_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+카라기난추출물,chondrus_crispus_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카라멜,caramel,ko,high,KCIA 표준화명칭목록 2026-06-30
+카렌둘라꽃추출물,calendula_officinalis_flower_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카보머,carbomer,ko,high,KCIA 표준화명칭목록 2026-06-30
+카올린,kaolin,ko,high,KCIA 표준화명칭목록 2026-06-30
+카카오씨드버터,theobroma_cacao_cocoa_seed_butter,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카카오씨버터,theobroma_cacao_cocoa_seed_butter,ko,high,KCIA 표준화명칭목록 2026-06-30
+카퍼트리펩타이드-1,copper_tripeptide_1,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카페인,caffeine,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴로일살리실릭애씨드,capryloyl_salicylic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릭/카프릭트라이글리세라이드,caprylic_capric_triglyceride,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릭/카프릭트리글리세라이드,caprylic_capric_triglyceride,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릴/카프릴글루코사이드,caprylyl_capryl_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릴글라이콜,caprylyl_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릴메치콘,caprylyl_methicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+카프릴릴메티콘,caprylyl_methicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+카프릴하이드록사믹애씨드,caprylhydroxamic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+칼슘글루코네이트,calcium_gluconate,ko,high,KCIA 표준화명칭목록 2026-06-30
+칼슘소듐보로실리케이트,calcium_sodium_borosilicate,ko,high,KCIA 표준화명칭목록 2026-06-30
+칼슘알루미늄보로실리케이트,calcium_aluminum_borosilicate,ko,high,KCIA 표준화명칭목록 2026-06-30
+캐모마일꽃추출물,chamomilla_recutita_matricaria_flower_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+코카마이드미파,cocamide_mipa,ko,high,KCIA 표준화명칭목록 2026-06-30
+코카미도프로필베타인,cocamidopropyl_betaine,ko,high,KCIA 표준화명칭목록 2026-06-30
+코카미도프로필하이드록시설테인,cocamidopropyl_hydroxysultaine,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코-글루코사이드,coco_glucoside,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코-베타인,coco_betaine,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코-카프릴레이트/카프레이트,coco_caprylate_caprate,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코넛알칸,coconut_alkanes,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코넛애씨드,coconut_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코넛야자오일,cocos_nucifera_coconut_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+코코넛오일,cocos_nucifera_coconut_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+코코넛지방산,coconut_acid,synonym,high,KCIA 표준화명칭목록 2026-06-30
+코코아버터,theobroma_cacao_cocoa_seed_butter,synonym,high,KCIA 표준화명칭목록 2026-06-30
+콩오일,glycine_soja_soybean_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+쿠마린,coumarin,ko,high,KCIA 표준화명칭목록 2026-06-30
+쿼터늄-90벤토나이트,quaternium_90_bentonite,ko,high,KCIA 표준화명칭목록 2026-06-30
+클로페네신,chlorphenesin,ko,high,KCIA 표준화명칭목록 2026-06-30
+타이로신,tyrosine,ko,high,KCIA 표준화명칭목록 2026-06-30
+탤크,talc,ko,high,KCIA 표준화명칭목록 2026-06-30
+터피네올,terpineol,ko,high,KCIA 표준화명칭목록 2026-06-30
+테트라메칠아세틸옥타하이드로나프탈렌,tetramethyl_acetyloctahydronaphthalenes,synonym,high,KCIA 표준화명칭목록 2026-06-30
+테트라메틸아세틸옥타하이드로나프탈렌,tetramethyl_acetyloctahydronaphthalenes,ko,high,KCIA 표준화명칭목록 2026-06-30
+테트라소듐글루타메이트다이아세테이트,tetrasodium_glutamate_diacetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+테트라소듐글루타메이트디아세테이트,tetrasodium_glutamate_diacetate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+테트라소듐이디티에이,tetrasodium_edta,ko,high,KCIA 표준화명칭목록 2026-06-30
+테트라헥실데실아스코베이트,tetrahexyldecyl_ascorbate,ko,high,KCIA 표준화명칭목록 2026-06-30
+토코페롤,tocopherol,ko,high,KCIA 표준화명칭목록 2026-06-30
+토코페릴아세테이트,tocopheryl_acetate,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이데세스-12,trideceth_12,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이데세스-6,trideceth_6,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이데실트라이멜리테이트,tridecyl_trimellitate,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이데케인,tridecane,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이메틸실록시실리케이트,trimethylsiloxysilicate,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이베헤닌,tribehenin,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이소듐에틸렌다이아민다이석시네이트,trisodium_ethylenediamine_disuccinate,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이실록세인,trisiloxane,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이에탄올아민,triethanolamine,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이에톡시카프릴릴실레인,triethoxycaprylylsilane,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이에틸시트레이트,triethyl_citrate,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이에틸헥사노인,triethylhexanoin,ko,high,KCIA 표준화명칭목록 2026-06-30
+트라이하이드록시스테아린,trihydroxystearin,ko,high,KCIA 표준화명칭목록 2026-06-30
+트레오닌,threonine,ko,high,KCIA 표준화명칭목록 2026-06-30
+트레할로스,trehalose,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트레할로오스,trehalose,ko,high,KCIA 표준화명칭목록 2026-06-30
+트로메타민,tromethamine,ko,high,KCIA 표준화명칭목록 2026-06-30
+트리데세스-12,trideceth_12,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리데세스-6,trideceth_6,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리데실트리멜리테이트,tridecyl_trimellitate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리데칸,tridecane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리메칠실록시실리케이트,trimethylsiloxysilicate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리베헤닌,tribehenin,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리소듐에칠렌디아민디석시네이트,trisodium_ethylenediamine_disuccinate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리실록산,trisiloxane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리에칠시트레이트,triethyl_citrate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리에칠헥사노인,triethylhexanoin,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리에탄올아민,triethanolamine,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리에톡시카프릴릴실란,triethoxycaprylylsilane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+트리하이드록시스테아린,trihydroxystearin,synonym,high,KCIA 표준화명칭목록 2026-06-30
+티타늄디옥사이드,titanium_dioxide,ko,high,KCIA 표준화명칭목록 2026-06-30
+틴옥사이드,tin_oxide,ko,high,KCIA 표준화명칭목록 2026-06-30
+파네솔,farnesol,ko,high,KCIA 표준화명칭목록 2026-06-30
+파라핀,paraffin,ko,high,KCIA 표준화명칭목록 2026-06-30
+파이틱애씨드,phytic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+팔미토일펜타펩타이드-3,palmitoyl_pentapeptide_4,synonym,high,KCIA 표준화명칭목록 2026-06-30
+패션프룻씨오일,passiflora_edulis_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+페네칠알코올,phenethyl_alcohol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+페네틸알코올,phenethyl_alcohol,ko,high,KCIA 표준화명칭목록 2026-06-30
+페녹시에탄올,phenoxyethanol,ko,high,KCIA 표준화명칭목록 2026-06-30
+페닐알라닌,phenylalanine,ko,high,KCIA 표준화명칭목록 2026-06-30
+페닐트라이메티콘,phenyl_trimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+페닐트리메치콘,phenyl_trimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+페닐프로판올,phenylpropanol,ko,high,KCIA 표준화명칭목록 2026-06-30
+페퍼민트오일,mentha_piperita_peppermint_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+펜타에리스리틸테트라-다이-t-부틸하이드록시하이드로신나 메이트,pentaerythrityl_tetra_di_t_butyl_hydroxyhydrocinnamate,ko,high,KCIA 표준화명칭목록 2026-06-30
+펜타에리스리틸테트라-디-t-부틸하이드록시하이드로신나메 이트,pentaerythrityl_tetra_di_t_butyl_hydroxyhydrocinnamate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+펜타에리스리틸테트라아이소스테아레이트,pentaerythrityl_tetraisostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+펜타에리스리틸테트라이소스테아레이트,pentaerythrityl_tetraisostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+펜틸렌글라이콜,pentylene_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+포도씨오일,vitis_vinifera_grape_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+포스포리피드,phospholipids,ko,high,KCIA 표준화명칭목록 2026-06-30
+포타슘세틸포스페이트,potassium_cetyl_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+포타슘소르베이트,potassium_sorbate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+포타슘솔베이트,potassium_sorbate,ko,high,KCIA 표준화명칭목록 2026-06-30
+포타슘클로라이드,potassium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+포타슘하이드록사이드,potassium_hydroxide,ko,high,KCIA 표준화명칭목록 2026-06-30
+포트마리골드꽃추출물,calendula_officinalis_flower_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글루타믹애씨드,polyglutamic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세린-3,polyglycerin_3,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-10라우레이트,polyglyceryl_10_laurate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-2트라이아이소스테아레이트,polyglyceryl_2_triisostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-2트리이소스테아레이트,polyglyceryl_2_triisostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-3다이아이소스테아레이트,polyglyceryl_3_diisostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-3디이소스테아레이트,polyglyceryl_3_diisostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-3메칠글루코오스디스테아레이트,polyglyceryl_3_methylglucose_distearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-3메틸글루코오스다이스테아레이트,polyglyceryl_3_methylglucose_distearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-3폴리리시놀리에이트,polyglyceryl_3_polyricinoleate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-4다이아이소스테아레이트/폴리하이드록시스 테아레이트/세바케이트,polyglyceryl_4_diisostearate_polyhydroxystearate_sebacate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-4디이소스테아레이트/폴리하이드록시스테아 레이트/세바케이트,polyglyceryl_4_diisostearate_polyhydroxystearate_sebacate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-4아이소스테아레이트,polyglyceryl_4_isostearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-4이소스테아레이트,polyglyceryl_4_isostearate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-4카프레이트,polyglyceryl_4_caprate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리글리세릴-6폴리리시놀리에이트,polyglyceryl_6_polyricinoleate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리메칠메타크릴레이트,polymethyl_methacrylate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리메칠실세스퀴옥산,polymethylsilsesquioxane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리메틸메타크릴레이트,polymethyl_methacrylate,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리메틸실세스퀴옥산,polymethylsilsesquioxane,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리메틸실세스퀴옥세인,polymethylsilsesquioxane,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리부텐,polybutene,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리소르베이트20,polysorbate_20,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리소르베이트60,polysorbate_60,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리소르베이트80,polysorbate_80,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리솔베이트20,polysorbate_20,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리솔베이트60,polysorbate_60,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리솔베이트80,polysorbate_80,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리실리콘-11,polysilicone_11,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리아이소부텐,polyisobutene,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리아크릴레이트크로스폴리머-6,polyacrylate_crosspolymer_6,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리아크릴아마이드,polyacrylamide,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리에칠렌,polyethylene,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리에틸렌,polyethylene,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리이소부텐,polyisobutene,synonym,high,KCIA 표준화명칭목록 2026-06-30
+폴리쿼터늄-10,polyquaternium_10,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리쿼터늄-37,polyquaternium_37,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리쿼터늄-7,polyquaternium_7,ko,high,KCIA 표준화명칭목록 2026-06-30
+폴리하이드록시스테아릭애씨드,polyhydroxystearic_acid,ko,high,KCIA 표준화명칭목록 2026-06-30
+풀루란,pullulan,ko,high,KCIA 표준화명칭목록 2026-06-30
+프로판다이올,propanediol,ko,high,KCIA 표준화명칭목록 2026-06-30
+프로판디올,propanediol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+프로필렌글라이콜,propylene_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+프로필렌글라이콜다이카프릴레이트/다이카프레이트,propylene_glycol_dicaprylate_dicaprate,ko,high,KCIA 표준화명칭목록 2026-06-30
+프로필렌글라이콜디카프릴레이트/디카프레이트,propylene_glycol_dicaprylate_dicaprate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+프로필렌카보네이트,propylene_carbonate,ko,high,KCIA 표준화명칭목록 2026-06-30
+프로필파라벤,propylparaben,ko,high,KCIA 표준화명칭목록 2026-06-30
+프롤린,proline,ko,high,KCIA 표준화명칭목록 2026-06-30
+프룩토오스,fructose,ko,high,KCIA 표준화명칭목록 2026-06-30
+프룩토올리고사카라이드,fructooligosaccharides,ko,high,KCIA 표준화명칭목록 2026-06-30
+피넨,pinene,ko,high,KCIA 표준화명칭목록 2026-06-30
+피마자씨오일,ricinus_communis_castor_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+피마자오일,ricinus_communis_castor_seed_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+피브이피,pvp,ko,high,KCIA 표준화명칭목록 2026-06-30
+피씨에이,pca,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-100스테아레이트,peg_100_stearate,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-10다이메티콘,peg_10_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-10디메치콘,peg_10_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+피이지-40하이드로제네이티드캐스터오일,peg_40_hydrogenated_castor_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-8,peg_8,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-9폴리다이메틸실록시에틸다이메티콘,peg_9_polydimethylsiloxyethyl_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지-9폴리디메칠실록시에칠디메치콘,peg_9_polydimethylsiloxyethyl_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+피이지/피피지-18/18다이메티콘,peg_ppg_18_18_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+피이지/피피지-18/18디메치콘,peg_ppg_18_18_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+피토스테롤,phytosterols,ko,high,KCIA 표준화명칭목록 2026-06-30
+피피지-1트라이데세스-6,ppg_1_trideceth_6,ko,high,KCIA 표준화명칭목록 2026-06-30
+피피지-1트리데세스-6,ppg_1_trideceth_6,synonym,high,KCIA 표준화명칭목록 2026-06-30
+피피지-26-부테스-26,ppg_26_buteth_26,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드레시틴,hydrogenated_lecithin,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드식물성오일,hydrogenated_vegetable_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드에칠헥실올리베이트,hydrogenated_ethylhexyl_olivate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드에틸헥실올리베이트,hydrogenated_ethylhexyl_olivate,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드올리브오일불검화물,hydrogenated_olive_oil_unsaponifiables,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드캐스터오일,hydrogenated_castor_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드폴리데센,hydrogenated_polydecene,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드폴리아이소부텐,hydrogenated_polyisobutene,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로제네이티드폴리이소부텐,hydrogenated_polyisobutene,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드로젠다이메티콘,hydrogen_dimethicone,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드로젠디메치콘,hydrogen_dimethicone,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시시트로넬알,hydroxycitronellal,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시아세토페논,hydroxyacetophenone,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에칠셀룰로오스,hydroxyethylcellulose,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에칠아크릴레이트/소듐아크릴로일디메칠타우레 이트코폴리머,hydroxyethyl_acrylate_sodium_acryloyldimethyl_taurate_copolymer,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에칠우레아,hydroxyethyl_urea,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에틸셀룰로오스,hydroxyethylcellulose,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에틸아크릴레이트/소듐아크릴로일다이메틸타우 레이트코폴리머,hydroxyethyl_acrylate_sodium_acryloyldimethyl_taurate_copolymer,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시에틸우레아,hydroxyethyl_urea,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시프로필구아하이드록시프로필트라이모늄클로라 이드,hydroxypropyl_guar_hydroxypropyltrimonium_chloride,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시프로필구아하이드록시프로필트리모늄클로라이 드,hydroxypropyl_guar_hydroxypropyltrimonium_chloride,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시프로필스타치포스페이트,hydroxypropyl_starch_phosphate,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드록시프로필트리모늄하이알루로네이트,hydroxypropyltrimonium_hyaluronate,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드밀단백질,hydrolyzed_wheat_protein,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드식물성단백질,hydrolyzed_vegetable_protein,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드식물성단백질피지-프로필실란트라이올,hydrolyzed_vegetable_protein_pg_propyl_silanetriol,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드식물성단백질피지-프로필실란트리올,hydrolyzed_vegetable_protein_pg_propyl_silanetriol,synonym,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드쌀단백질,hydrolyzed_rice_protein,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드케라틴,hydrolyzed_keratin,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드콜라겐,hydrolyzed_collagen,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드콩단백질,hydrolyzed_soy_protein,ko,high,KCIA 표준화명칭목록 2026-06-30
+하이드롤라이즈드퀴노아,hydrolyzed_quinoa,ko,high,KCIA 표준화명칭목록 2026-06-30
+합성비즈왁스,synthetic_beeswax,ko,high,KCIA 표준화명칭목록 2026-06-30
+합성왁스,synthetic_wax,ko,high,KCIA 표준화명칭목록 2026-06-30
+합성플루오르고파이트,synthetic_fluorphlogopite,synonym,high,KCIA 표준화명칭목록 2026-06-30
+합성플루오르플로고파이트,synthetic_fluorphlogopite,ko,high,KCIA 표준화명칭목록 2026-06-30
+해바라기씨오일,helianthus_annuus_sunflower_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+해바라기씨추출물,helianthus_annuus_sunflower_seed_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+해바라기추출물,helianthus_annuus_sunflower_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+행인오일,prunus_armeniaca_apricot_kernel_oil,synonym,high,KCIA 표준화명칭목록 2026-06-30
+향료,fragrance_perfume_parfum,ko,high,KCIA 표준화명칭목록 2026-06-30
+헥실라우레이트,hexyl_laurate,ko,high,KCIA 표준화명칭목록 2026-06-30
+헥실렌글라이콜,hexylene_glycol,ko,high,KCIA 표준화명칭목록 2026-06-30
+헥실신나몰,hexyl_cinnamal,synonym,high,KCIA 표준화명칭목록 2026-06-30
+헥실신남알,hexyl_cinnamal,ko,high,KCIA 표준화명칭목록 2026-06-30
+호스테일켈프추출물,laminaria_digitata_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+호호바씨오일,simmondsia_chinensis_jojoba_seed_oil,ko,high,KCIA 표준화명칭목록 2026-06-30
+호호바에스터,jojoba_esters,ko,high,KCIA 표준화명칭목록 2026-06-30
+홀리바실잎추출물,ocimum_sanctum_leaf_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+홀리바실추출물,ocimum_sanctum_leaf_extract,synonym,high,KCIA 표준화명칭목록 2026-06-30
+홀리바질잎추출물,ocimum_sanctum_leaf_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+황금추출물,scutellaria_baicalensis_root_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+황색4호,tartrazine,ko,high,KCIA 표준화명칭목록 2026-06-30
+황색5호,sunset_yellow_fcf,ko,high,KCIA 표준화명칭목록 2026-06-30
+황색산화철,iron_oxide_yellow,ko,high,KCIA 표준화명칭목록 2026-06-30
+흑색산화철,iron_oxide_black,ko,high,KCIA 표준화명칭목록 2026-06-30
+히비스커스꽃추출물,hibiscus_sabdariffa_flower_extract,ko,high,KCIA 표준화명칭목록 2026-06-30
+히스티딘,histidine,ko,high,KCIA 표준화명칭목록 2026-06-30
