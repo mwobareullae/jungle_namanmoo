@@ -2499,7 +2499,7 @@ body {
   color: #111111;
   font-family: "GmarketSans", sans-serif;
   font-size: clamp(32px, 4vw, 48px);
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.05em;
   text-align: center;
 }
