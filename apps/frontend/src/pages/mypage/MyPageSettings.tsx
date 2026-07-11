@@ -106,7 +106,6 @@ export default function MyPageSettings() {
             <div style={styles.settingList}>
               <SettingRow label="이메일" value={user?.email ?? "-"} />
               <SettingRow label="닉네임" value={user?.nickname?.trim() || "미설정"} />
-              <SettingRow label="회원 상태" value={user?.status ?? "활성"} />
             </div>
           </div>
         </section>
