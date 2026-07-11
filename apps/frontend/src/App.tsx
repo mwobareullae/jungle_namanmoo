@@ -16,6 +16,7 @@ const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
+const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
 const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
@@ -888,6 +889,7 @@ function App() {
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
+          <Route path="/products/popular" element={<PopularProductsPage />} />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>

@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
 import LoginRequiredDialog from "../../components/LoginRequiredDialog";
 import Skeleton from "../../components/ui/Skeleton";
+import HeartIcon from "../../components/ui/HeartIcon";
+import ActivityToast from "../../components/ui/ActivityToast";
 import { ToggleGroup, ToggleGroupTabItem } from "../../components/ui/toggle-group";
 import { useAuth } from "../../contexts/useAuth";
 import {
@@ -15,6 +17,7 @@ import {
   type ActivityProductItem
 } from "../../lib/activityApi";
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
+import { useActivityToast, wishlistToastMessage } from "../../hooks/useActivityToast";
 
 type ProductListMode = "wishlist" | "recent";
 type WishlistSort = "recent";
@@ -159,6 +162,7 @@ function MypageProductList({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const { message: toastMessage, showToast } = useActivityToast();
   const title = isRecent ? "최근 본 상품" : "찜한 상품";
   const activePath: "/mypage/recent" | "/mypage/wishlist" = isRecent ? "/mypage/recent" : "/mypage/wishlist";
   const guideText = isRecent ? "최근 한 달간 최대 50개까지 유지" : "최근 1년간 찜한 내역 유지";
@@ -267,12 +271,15 @@ function MypageProductList({
     try {
       if (item.isWished) {
         await deleteMyWishlistItem(item.productId);
+        showToast(wishlistToastMessage.removed);
       } else {
         await addMyWishlistItem(item.productId);
+        showToast(wishlistToastMessage.added);
       }
     } catch {
       setListItems(previousItems);
       setLoadError("찜 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      showToast(wishlistToastMessage.failed);
     } finally {
       setPendingWishlistProductIds((previous) => {
         const next = new Set(previous);
@@ -477,20 +484,7 @@ function MypageProductList({
                           }}
                           type="button"
                         >
-                          <svg
-                            aria-hidden="true"
-                            className={item.isWished ? "mypage-product-list-heart-icon is-wished" : "mypage-product-list-heart-icon"}
-                            fill="none"
-                            height="12"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                            width="12"
-                          >
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                          </svg>
+                          <HeartIcon size={12} />
                         </button>
                       ) : null}
                     </div>
@@ -525,6 +519,7 @@ function MypageProductList({
         open={isLoginDialogOpen}
         redirectTo={`${window.location.pathname}${window.location.search}`}
       />
+      <ActivityToast message={toastMessage} />
     </MyPageLayout>
   );
 }
