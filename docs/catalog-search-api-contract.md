@@ -185,3 +185,30 @@ GET /api/search/suggestions?q=토리&limit=8
 성능 로그에는 검색어 원문을 저장하지 않는다. 검색어 길이, 결과 수, 교정·자판·초성 사용 여부, fallback 여부, 처리 시간만 기록한다.
 
 검색 결과의 가격·재고는 조회 시 PostgreSQL로 다시 확인한다. 상품 상세, 장바구니, 주문은 기존 transaction 규칙으로 구매 가능 여부를 최종 검증한다.
+
+## 9. 색인 운영
+
+상품 seed/import를 마친 뒤 먼저 색인 대상 수를 확인하고 전체 색인을 발행한다.
+
+```bash
+docker compose exec -T backend python -m app.cli.index_catalog_products_to_elasticsearch --dry-run
+docker compose exec -T backend python -m app.cli.index_catalog_products_to_elasticsearch --full
+```
+
+전체 색인은 새 versioned index의 건수·중복·대표 상품을 검증한 뒤에만
+`*_catalog_products_current` alias를 원자적으로 교체한다. 이전 색인은 기본 2개를
+보관한다.
+
+상품 한 건이 생성·수정·비활성화되거나 판매 상태가 `HIDDEN`으로 바뀌면 상품
+코드 기준으로 단건 재색인한다. 색인 대상에서 빠진 상품은 같은 명령이 기존
+문서를 삭제한다.
+
+```bash
+docker compose exec -T backend python -m app.cli.reindex_catalog_product prod_oy_a000000256045 --refresh
+```
+
+문제가 확인되면 보관 중인 이전 색인 이름을 지정해 alias를 되돌린다.
+
+```bash
+docker compose exec -T backend python -m app.cli.index_catalog_products_to_elasticsearch --rollback-to mubarelle_dev_catalog_products_YYYYMMDDHHMMSS
+```
