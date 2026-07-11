@@ -546,6 +546,419 @@
       "status": "ready",
       "query": "존재하지않는브랜드 초음파 세럼",
       "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": ["세럼"]}
+    },
+    {
+      "id": "exact-015",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Total Face Sponge",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_ab177dad4222ef"], "top_k": 1, "brand_names": ["e.l.f. Cosmetics"], "category_codes": ["beauty_tool"], "required_terms": ["Face", "Sponge"]}
+    },
+    {
+      "id": "exact-016",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "프롬 그린 딥 포밍 클렌저",
+      "expected": {"outcome": "products", "top_product_ids": ["prod_bm_b4a6c16ec8cad6"], "top_k": 1, "brand_names": ["퓨리토 서울"], "category_codes": ["cleanser"], "required_terms": ["프롬 그린", "포밍 클렌저"]}
+    },
+    {
+      "id": "exact-017",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "원더 릴리프 센텔라 크림",
+      "expected": {"outcome": "products", "top_product_ids": ["prod_bm_610db3d06d681f"], "top_k": 1, "brand_names": ["퓨리토 서울"], "category_codes": ["cream"], "required_terms": ["센텔라", "크림"]}
+    },
+    {
+      "id": "exact-018",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Smith's Rosebud Trio",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_e90ce885c90496"], "top_k": 1, "brand_names": ["Rosebud Perfume Co."], "category_codes": ["fragrance"], "required_terms": ["Rosebud", "Trio"]}
+    },
+    {
+      "id": "exact-019",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Miracle Moisture Daily Shampoo - 10.0 oz",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_0997b749d9a530"], "top_k": 1, "brand_names": ["It's A 10"], "category_codes": ["haircare"], "required_terms": ["Miracle Moisture", "Shampoo"]}
+    },
+    {
+      "id": "exact-020",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Brow Wiz Precision Eyebrow Pencil - Soft Brown",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_c26e987a9dd39f"], "top_k": 1, "brand_names": ["Anastasia Beverly Hills"], "category_codes": ["makeup"], "required_terms": ["Brow Wiz", "Eyebrow Pencil"]}
+    },
+    {
+      "id": "exact-021",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "에이바자르 멜라컨트롤 화이트닝 아이패치 1매",
+      "expected": {"outcome": "products", "top_product_ids": ["prod_oy_a000000208472"], "top_k": 1, "brand_names": ["에이바자르"], "category_codes": ["mask_pack"], "required_terms": ["화이트닝", "아이패치"]}
+    },
+    {
+      "id": "exact-022",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Gel Polish & Artificial Nail Remover Kit",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_5071d2f0a57b8b"], "top_k": 1, "brand_names": ["Red Carpet Manicure"], "category_codes": ["nail"], "required_terms": ["Nail", "Remover Kit"]}
+    },
+    {
+      "id": "exact-023",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "퓨어 비타민 씨 세럼",
+      "expected": {"outcome": "products", "top_product_ids": ["prod_bm_e10c154a3d8d7b"], "top_k": 1, "brand_names": ["퓨리토 서울"], "category_codes": ["serum"], "required_terms": ["비타민 씨", "세럼"]}
+    },
+    {
+      "id": "exact-024",
+      "type": "exact_product",
+      "status": "ready",
+      "query": "Eucalyptus Bath Salt",
+      "expected": {"outcome": "products", "top_product_ids": ["ulta_2a01cec2181382"], "top_k": 1, "brand_names": ["Ahava"], "category_codes": ["bodycare"], "required_terms": ["Eucalyptus", "Bath Salt"]}
+    },
+    {
+      "id": "brand-009",
+      "type": "brand",
+      "status": "ready",
+      "query": "e.l.f. Cosmetics",
+      "expected": {"outcome": "products", "brand_names": ["e.l.f. Cosmetics"], "top_k": 10}
+    },
+    {
+      "id": "brand-010",
+      "type": "brand",
+      "status": "ready",
+      "query": "퓨리토 서울",
+      "expected": {"outcome": "products", "brand_names": ["퓨리토 서울"], "top_k": 10}
+    },
+    {
+      "id": "brand-011",
+      "type": "brand",
+      "status": "ready",
+      "query": "Anastasia Beverly Hills",
+      "expected": {"outcome": "products", "brand_names": ["Anastasia Beverly Hills"], "top_k": 10}
+    },
+    {
+      "id": "brand-012",
+      "type": "brand",
+      "status": "ready",
+      "query": "Matrix",
+      "expected": {"outcome": "products", "brand_names": ["Matrix"], "top_k": 10}
+    },
+    {
+      "id": "category-013",
+      "type": "category",
+      "status": "ready",
+      "query": "로션",
+      "expected": {"outcome": "products", "category_codes": ["lotion"], "top_k": 20}
+    },
+    {
+      "id": "category-014",
+      "type": "category",
+      "status": "ready",
+      "query": "쿠션",
+      "expected": {"outcome": "products", "category_codes": ["makeup"], "required_terms": ["쿠션"], "top_k": 20}
+    },
+    {
+      "id": "attribute-009",
+      "type": "attribute",
+      "status": "ready",
+      "query": "비타민 씨 세럼",
+      "expected": {"outcome": "products", "category_codes": ["serum"], "required_terms": ["비타민", "세럼"], "top_k": 20}
+    },
+    {
+      "id": "no-result-006",
+      "type": "no_result",
+      "status": "ready",
+      "query": "게이밍 모니터 240Hz",
+      "expected": {"outcome": "no_results", "allow_popular_fallback": false, "recovery_suggestions": []}
+    },
+    {
+      "id": "typo-007",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "라운드렙",
+      "expected": {"outcome": "products", "brand_names": ["라운드랩"]}
+    },
+    {
+      "id": "typo-008",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "닥터지이",
+      "expected": {"outcome": "products", "brand_names": ["닥터지"]}
+    },
+    {
+      "id": "typo-009",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "이니스프리이",
+      "expected": {"outcome": "products", "brand_names": ["이니스프리"]}
+    },
+    {
+      "id": "typo-010",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "메디큐부",
+      "expected": {"outcome": "products", "brand_names": ["메디큐브"]}
+    },
+    {
+      "id": "typo-011",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "에스뜨라",
+      "expected": {"outcome": "products", "brand_names": ["에스트라"]}
+    },
+    {
+      "id": "typo-012",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "아누야",
+      "expected": {"outcome": "products", "brand_names": ["아누아"]}
+    },
+    {
+      "id": "typo-013",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "롬엔",
+      "expected": {"outcome": "products", "brand_names": ["롬앤"]}
+    },
+    {
+      "id": "typo-014",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "클리오오",
+      "expected": {"outcome": "products", "brand_names": ["클리오"]}
+    },
+    {
+      "id": "typo-015",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "센카아",
+      "expected": {"outcome": "products", "brand_names": ["센카"]}
+    },
+    {
+      "id": "typo-016",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "닥터자르",
+      "expected": {"outcome": "products", "brand_names": ["닥터자르트"]}
+    },
+    {
+      "id": "typo-017",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "코스알엑",
+      "expected": {"outcome": "products", "brand_names": ["코스알엑스"]}
+    },
+    {
+      "id": "typo-018",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "셀퓨전시",
+      "expected": {"outcome": "products", "brand_names": ["셀퓨전씨"]}
+    },
+    {
+      "id": "typo-019",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "스킨푸두",
+      "expected": {"outcome": "products", "brand_names": ["스킨푸드"]}
+    },
+    {
+      "id": "typo-020",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "라타플렝",
+      "expected": {"outcome": "products", "brand_names": ["라타플랑"]}
+    },
+    {
+      "id": "typo-021",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "바이오던스으",
+      "expected": {"outcome": "products", "brand_names": ["바이오던스"]}
+    },
+    {
+      "id": "typo-022",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "에스네이처르",
+      "expected": {"outcome": "products", "brand_names": ["에스네이처"]}
+    },
+    {
+      "id": "typo-023",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "웰라쥐",
+      "expected": {"outcome": "products", "brand_names": ["웰라쥬"]}
+    },
+    {
+      "id": "typo-024",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "유세린느",
+      "expected": {"outcome": "products", "brand_names": ["유세린"]}
+    },
+    {
+      "id": "typo-025",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "메디힐르",
+      "expected": {"outcome": "products", "brand_names": ["메디힐"]}
+    },
+    {
+      "id": "typo-026",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "퓨리토 서웋",
+      "expected": {"outcome": "products", "brand_names": ["퓨리토 서울"]}
+    },
+    {
+      "id": "typo-027",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "히알루론사",
+      "expected": {"outcome": "correction", "correction": "히알루론산"}
+    },
+    {
+      "id": "typo-028",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "나이아신아마드",
+      "expected": {"outcome": "correction", "correction": "나이아신아마이드"}
+    },
+    {
+      "id": "typo-029",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "레티놀ㄹ",
+      "expected": {"outcome": "correction", "correction": "레티놀"}
+    },
+    {
+      "id": "typo-030",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "판테놀ㄹ",
+      "expected": {"outcome": "correction", "correction": "판테놀"}
+    },
+    {
+      "id": "typo-031",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "스쿠알란느",
+      "expected": {"outcome": "correction", "correction": "스쿠알란"}
+    },
+    {
+      "id": "typo-032",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "세라마이드드",
+      "expected": {"outcome": "correction", "correction": "세라마이드"}
+    },
+    {
+      "id": "typo-033",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "글루타치온ㄴ",
+      "expected": {"outcome": "correction", "correction": "글루타치온"}
+    },
+    {
+      "id": "typo-034",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "콜라겐ㄴ",
+      "expected": {"outcome": "correction", "correction": "콜라겐"}
+    },
+    {
+      "id": "typo-035",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "토너어",
+      "expected": {"outcome": "correction", "correction": "토너", "category_codes": ["toner"]}
+    },
+    {
+      "id": "typo-036",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "세럼어",
+      "expected": {"outcome": "correction", "correction": "세럼", "category_codes": ["serum"]}
+    },
+    {
+      "id": "typo-037",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "크리임",
+      "expected": {"outcome": "correction", "correction": "크림", "category_codes": ["cream"]}
+    },
+    {
+      "id": "typo-038",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "클랜징폼",
+      "expected": {"outcome": "correction", "correction": "클렌징폼", "category_codes": ["cleanser", "cleansing"]}
+    },
+    {
+      "id": "typo-039",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "바디워시이",
+      "expected": {"outcome": "correction", "correction": "바디워시", "category_codes": ["bodycare", "hair_body"]}
+    },
+    {
+      "id": "typo-040",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "샴푸우",
+      "expected": {"outcome": "correction", "correction": "샴푸", "category_codes": ["haircare"]}
+    },
+    {
+      "id": "typo-041",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "향수우",
+      "expected": {"outcome": "correction", "correction": "향수", "category_codes": ["fragrance"]}
+    },
+    {
+      "id": "typo-042",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "네일르",
+      "expected": {"outcome": "correction", "correction": "네일", "category_codes": ["nail"]}
+    },
+    {
+      "id": "typo-043",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "선크림므",
+      "expected": {"outcome": "correction", "correction": "선크림", "category_codes": ["suncare", "sunscreen"]}
+    },
+    {
+      "id": "typo-044",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "마스크펙",
+      "expected": {"outcome": "correction", "correction": "마스크팩", "category_codes": ["mask", "mask_pack"]}
+    },
+    {
+      "id": "typo-045",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "xhflems",
+      "expected": {"outcome": "correction", "correction": "토리든", "brand_names": ["토리든"]}
+    },
+    {
+      "id": "typo-046",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "ㄹㅇㄷㄹ",
+      "expected": {"outcome": "products", "brand_names": ["라운드랩"]}
+    },
+    {
+      "id": "typo-047",
+      "type": "typo_alias",
+      "status": "ready",
+      "query": "ㅌㄹㄷ",
+      "expected": {"outcome": "products", "brand_names": ["토리든"]}
     }
   ]
 }
