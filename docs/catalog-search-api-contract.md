@@ -195,11 +195,12 @@ GET /api/search/suggestions?q=토리&limit=8
 ```bash
 docker compose exec -T backend python -m app.cli.import_product_reviews --full --batch-size 5000
 docker compose exec -T backend python -m app.cli.rollup_product_reviews --full
+docker compose exec -T backend python -m app.cli.rollup_product_popularity --window-days 7
 docker compose exec -T backend python -m app.cli.index_catalog_products_to_elasticsearch --dry-run
 docker compose exec -T backend python -m app.cli.index_catalog_products_to_elasticsearch --full
 ```
 
-이 catalog full reindex는 `product_review_metrics`의 평균 평점과 리뷰 수를 기존 ES 필드 형태로 다시 기록합니다. 일반 검색은 embedding을 사용하지 않으므로 이 순서에서 embedding을 다시 만들지 않습니다.
+행동 인기 집계를 먼저 실행해야 기존 seed에 남아 있을 수 있는 리뷰 기반 인기 점수가 행동 데이터 전용 점수로 갱신됩니다. 이후 catalog full reindex는 `product_review_metrics`의 평균 평점과 리뷰 수, 최신 행동 인기 점수를 기존 ES 필드 형태로 다시 기록합니다. 일반 검색은 embedding을 사용하지 않으므로 이 순서에서 embedding을 다시 만들지 않습니다.
 
 전체 색인은 새 versioned index의 건수·중복·대표 상품을 검증한 뒤에만
 `*_catalog_products_current` alias를 원자적으로 교체한다. 이전 색인은 기본 2개를
