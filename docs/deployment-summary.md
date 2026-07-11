@@ -11,7 +11,7 @@ dev branch push
 -> GitHub Actions checkout
 -> rsync to EC2
 -> data/dev-small 재생성
--> docker compose --profile search-cache up --build -d backend redis elasticsearch caddy
+-> docker compose --profile server up -d --build
 ```
 
 - Dev 서버는 `dev` 브랜치 merge/push 기준으로 GitHub Actions가 자동 배포합니다.
@@ -48,34 +48,36 @@ dev branch push
 
 | profile | 서비스 | 용도 |
 | --- | --- | --- |
-| `frontend` | `frontend` | 로컬 frontend 개발 |
-| `local-db` | `postgres` | 로컬/CI 테스트용 Docker Postgres |
-| `search-cache` | `redis`, `elasticsearch` | 검색/캐시 통합 확인 및 Dev 서버 search/cache |
+| `server` | `backend`, `redis`, `elasticsearch` | 서버 배포용. RDS 사용, Docker Postgres/Frontend 미실행 |
+| `backend-dev` | `backend`, `postgres`, `redis`, `elasticsearch` | backend 개발과 검색/캐시 통합 확인 |
+| `frontend-local-backend` | `frontend`, `backend`, `postgres` | frontend가 로컬 backend를 함께 확인 |
+| `frontend-dev-server` | `frontend` | frontend만 실행하고 API는 개발 서버 사용 |
+| `frontend`, `local-db`, `search-cache` | 일부 서비스 | 기존 명령 호환용 |
 
-기본 `docker compose config --services` 결과는 `backend`만 포함합니다.
+기본 `docker compose config --services` 결과는 비어 있어야 합니다. 서비스는 역할별 profile로만 실행합니다.
 
 서버 배포 조합:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache up --build -d backend redis elasticsearch caddy
+docker compose --profile server up -d --build
 ```
 
-전체 로컬 개발 조합:
+백엔드 개발 조합:
 
 ```bash
-docker compose --profile frontend --profile local-db --profile search-cache up --build frontend backend postgres redis elasticsearch
+docker compose --profile backend-dev up -d --build
 ```
 
-프론트가 Dev API만 사용할 때:
+프론트가 로컬 backend를 사용할 때:
 
 ```bash
-docker compose --profile frontend up --build frontend
+docker compose --profile frontend-local-backend up -d --build
 ```
 
-백엔드가 로컬 DB만 사용할 때:
+프론트가 Dev API를 사용할 때:
 
 ```bash
-docker compose --profile local-db up --build backend postgres
+docker compose --profile frontend-dev-server up -d --build
 ```
 
 ## Backend Env 기준
@@ -102,7 +104,7 @@ DATA_DIR=/data/dev-small
 
 ## Redis / Elasticsearch 기준
 
-현재 Dev 서버에서는 `search-cache` profile로 Redis/Elasticsearch를 실행합니다.
+현재 Dev 서버에서는 `server` profile로 Redis/Elasticsearch를 backend와 함께 실행합니다.
 
 ```env
 REDIS_URL=redis://redis:6379/0
@@ -187,7 +189,7 @@ docker compose exec backend python -m app.cli.seed_data
 
 ### data/dev-small
 
-CD의 `rsync --delete`로 서버에서 만든 `data/dev-small`이 사라질 수 있으므로, Dev 배포 workflow는 `data/products.csv`가 있을 때 1,000개 subset CSV를 자동으로 다시 생성합니다.
+CD의 `rsync --delete`로 서버에서 만든 `data/dev-small`이 사라질 수 있으므로, Dev 배포 workflow는 `data/products.csv` 또는 `data/products/`가 있을 때 1,000개 subset CSV를 자동으로 다시 생성합니다.
 
 ```bash
 python3 data/scripts/build_seed_subset.py --source-dir data --output-dir data/dev-small --force
@@ -196,8 +198,8 @@ python3 data/scripts/build_seed_subset.py --source-dir data --output-dir data/de
 ## Redis / Elasticsearch Smoke Test
 
 ```bash
-docker compose --profile search-cache config
-docker compose --profile search-cache up -d redis elasticsearch
+docker compose --profile server config
+docker compose --profile server up -d redis elasticsearch
 docker compose ps redis elasticsearch
 docker compose exec -T redis redis-cli ping
 curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
@@ -208,7 +210,7 @@ curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
 - Redis와 Elasticsearch container가 `healthy`
 - Redis `PING` 응답이 `PONG`
 - Elasticsearch `_cluster/health`가 `green` 또는 `yellow`
-- `docker compose --profile search-cache config`에서 Redis/Elasticsearch host bind가 `127.0.0.1`
+- `docker compose --profile server config`에서 Redis/Elasticsearch host bind가 `127.0.0.1`
 - EC2 security group에서 `6379`, `9200` inbound가 외부 공개되지 않음
 
 ## 장애 운영 기준

@@ -32,7 +32,6 @@ type AddressFormMode = "closed" | "create" | "edit";
 type CashReceiptMode = "personal" | "business";
 
 type AddressFormState = {
-  address_name: string;
   recipient_name: string;
   phone: string;
   postal_code: string;
@@ -66,7 +65,6 @@ declare global {
 }
 
 const emptyAddressForm: AddressFormState = {
-  address_name: "",
   recipient_name: "",
   phone: "",
   postal_code: "",
@@ -286,7 +284,6 @@ const mapCartItemToOrderProduct = (item: CartItem): OrderProduct => ({
 });
 
 const mapAddressToForm = (address: UserAddress): AddressFormState => ({
-  address_name: address.address_name ?? "",
   recipient_name: address.recipient_name,
   phone: address.phone,
   postal_code: address.postal_code,
@@ -816,7 +813,6 @@ function CheckoutPage() {
   };
 
   const buildAddressRequest = (): UserAddressCreateRequest => ({
-    address_name: addressForm.address_name.trim() || null,
     recipient_name: addressForm.recipient_name.trim(),
     phone: addressForm.phone.trim(),
     postal_code: addressForm.postal_code.trim(),
@@ -1416,14 +1412,6 @@ function CheckoutPage() {
                     <p role="alert">{addressFormErrorMessage}</p>
                   ) : null}
                   <div className="checkout-address-form-grid">
-                    <label>
-                      배송지명
-                      <input
-                        value={addressForm.address_name}
-                        onChange={(event) => updateAddressFormField("address_name", event.target.value)}
-                        placeholder="집"
-                      />
-                    </label>
                     <label>
                       받는 분
                       <input

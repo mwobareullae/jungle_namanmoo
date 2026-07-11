@@ -14,6 +14,8 @@ services:
     restart: unless-stopped
     profiles:
       - frontend
+      - frontend-local-backend
+      - frontend-dev-server
     environment:
       VITE_APP_MODE: ${VITE_APP_MODE:-commerce}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
@@ -43,6 +45,10 @@ services:
         INSTALL_DEV: "true"
     container_name: mwobareullae-backend
     restart: unless-stopped
+    profiles:
+      - server
+      - backend-dev
+      - frontend-local-backend
     environment:
       APP_NAME: ${APP_NAME:-mwobareullae}
       APP_ENV: ${APP_ENV:-local}
@@ -116,6 +122,8 @@ services:
     restart: unless-stopped
     profiles:
       - local-db
+      - backend-dev
+      - frontend-local-backend
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mwobareullae}
       POSTGRES_USER: ${POSTGRES_USER:-mwobareullae}
@@ -144,6 +152,8 @@ services:
     restart: unless-stopped
     profiles:
       - search-cache
+      - server
+      - backend-dev
     command:
       [
         "redis-server",
@@ -180,6 +190,8 @@ services:
     restart: unless-stopped
     profiles:
       - search-cache
+      - server
+      - backend-dev
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"

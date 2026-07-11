@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
+import { navigateWithinApp } from "../lib/navigation";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
   HomeSection,
@@ -13,6 +14,7 @@ import type {
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 import ProductThumbnail from "./ProductThumbnail";
+import Skeleton from "./ui/Skeleton";
 
 const createFallbackPagination = (productCount: number): RecommendationPagination => ({
   page: 1,
@@ -41,7 +43,7 @@ const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
 const openProductDetail = (product: ProductCardItem) => {
-  window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
+  void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
 };
 
 function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
@@ -73,16 +75,16 @@ function ProductSkeletonList({
       <>
         {Array.from({ length: count }, (_, index) => (
           <article className="product-card product-card-loading" key={index} aria-hidden="true">
-            <div className="product-img skeleton-shimmer" />
+            <Skeleton className="product-img" />
             <div className="product-info">
-              <div className="skeleton-line skeleton-brand skeleton-shimmer" />
-              <div className="skeleton-line skeleton-title skeleton-shimmer" />
-              <div className="skeleton-line skeleton-title short skeleton-shimmer" />
+              <Skeleton className="skeleton-line skeleton-brand" />
+              <Skeleton className="skeleton-line skeleton-title" />
+              <Skeleton className="skeleton-line skeleton-title short" />
               <div className="skeleton-pill-row">
-                <div className="skeleton-pill skeleton-shimmer" />
-                <div className="skeleton-pill skeleton-shimmer" />
+                <Skeleton className="skeleton-pill" />
+                <Skeleton className="skeleton-pill" />
               </div>
-              <div className="skeleton-price skeleton-shimmer" />
+              <Skeleton className="skeleton-price" />
             </div>
           </article>
         ))}
@@ -94,21 +96,21 @@ function ProductSkeletonList({
     <>
       {Array.from({ length: count }, (_, index) => (
         <div className={`product-skeleton ${variant}`} key={index} aria-hidden="true">
-          <div className="product-skeleton-media skeleton-shimmer" />
+          <Skeleton className="product-skeleton-media" />
           <div className="product-skeleton-body">
-            <div className="skeleton-line skeleton-brand skeleton-shimmer" />
-            <div className="skeleton-line skeleton-title skeleton-shimmer" />
-            <div className="skeleton-line skeleton-title short skeleton-shimmer" />
+            <Skeleton className="skeleton-line skeleton-brand" />
+            <Skeleton className="skeleton-line skeleton-title" />
+            <Skeleton className="skeleton-line skeleton-title short" />
             <div className="skeleton-pill-row">
-              <div className="skeleton-pill skeleton-shimmer" />
-              <div className="skeleton-pill skeleton-shimmer" />
-              <div className="skeleton-pill skeleton-shimmer" />
+              <Skeleton className="skeleton-pill" />
+              <Skeleton className="skeleton-pill" />
+              <Skeleton className="skeleton-pill" />
             </div>
           </div>
           {variant === "search" ? (
             <div className="product-skeleton-side">
-              <div className="skeleton-line skeleton-brand skeleton-shimmer" />
-              <div className="skeleton-price skeleton-shimmer" />
+              <Skeleton className="skeleton-line skeleton-brand" />
+              <Skeleton className="skeleton-price" />
             </div>
           ) : null}
         </div>
@@ -127,11 +129,11 @@ function HomeSectionLoadingSkeleton() {
             {Array.from({ length: 5 }, (_, index) => (
               <article className="home-ranking-card home-ranking-loading-card" key={index} aria-hidden="true">
                 <div className="home-ranking-visual">
-                  <div className="home-ranking-media skeleton-shimmer" />
+                  <Skeleton className="home-ranking-media" />
                 </div>
-                <div className="home-ranking-brand skeleton-shimmer" />
-                <div className="home-ranking-name skeleton-shimmer" />
-                <div className="home-ranking-price skeleton-shimmer" />
+                <Skeleton className="home-ranking-brand" />
+                <Skeleton className="home-ranking-name" />
+                <Skeleton className="home-ranking-price" />
               </article>
             ))}
           </div>
@@ -150,15 +152,15 @@ function HomeSectionLoadingSkeleton() {
         <div className="home-deal-grid">
           {Array.from({ length: 8 }, (_, index) => (
             <article className="home-deal-card home-deal-loading-card" key={index} aria-hidden="true">
-              <div className="home-deal-media skeleton-shimmer" />
+              <Skeleton className="home-deal-media" />
               <div className="home-deal-body">
-                <div className="home-ranking-brand skeleton-shimmer" />
-                <div className="home-deal-name skeleton-shimmer" />
+                <Skeleton className="home-ranking-brand" />
+                <Skeleton className="home-deal-name" />
                 <div className="home-deal-tags">
-                  <span className="skeleton-shimmer" />
-                  <span className="skeleton-shimmer" />
+                  <Skeleton as="span" />
+                  <Skeleton as="span" />
                 </div>
-                <div className="home-deal-price skeleton-shimmer" />
+                <Skeleton className="home-deal-price" />
               </div>
             </article>
           ))}
@@ -172,11 +174,11 @@ function HomeLoadingSectionHead() {
   return (
     <div className="home-section-head home-loading-head" aria-hidden="true">
       <div>
-        <div className="home-section-kicker skeleton-shimmer" />
-        <div className="section-title skeleton-shimmer" />
-        <div className="section-subtitle skeleton-shimmer" />
+        <Skeleton className="home-section-kicker" />
+        <Skeleton className="section-title" />
+        <Skeleton className="section-subtitle" />
       </div>
-      <div className="home-see-all skeleton-shimmer" />
+      <Skeleton className="home-see-all" />
     </div>
   );
 }
@@ -235,7 +237,7 @@ function HomeRankingSection({
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href="/products/popular">
           전체보기
           <span aria-hidden="true">→</span>
         </a>

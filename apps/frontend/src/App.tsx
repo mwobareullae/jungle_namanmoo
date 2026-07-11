@@ -1,7 +1,12 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
 import AppFooter from "./components/AppFooter";
+import HomeHeader from "./components/HomeHeader";
+import PopularProductsHeader from "./components/PopularProductsHeader";
+import Skeleton from "./components/ui/Skeleton";
+import { useAuth } from "./contexts/useAuth";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
 
@@ -16,7 +21,9 @@ const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
 const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
+const Addresses = lazy(() => import("./pages/mypage/Addresses"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
+const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
 const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
@@ -30,7 +37,7 @@ const SignupSkinProfilePage = lazy(() => import("./pages/SignupSkinProfilePage")
 const SignupTermsPage = lazy(() => import("./pages/SignupTermsPage"));
 const WishList = lazy(() => import("./pages/mypage/WishList"));
 const RecentProducts = lazy(() =>
-  import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts })),
+  import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts }))
 );
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
@@ -42,7 +49,8 @@ const gatedStylePageKeys: OriginalPageKey[] = ["checkout", "paymentComplete"];
 
 const needsStyleGate = (pageKey: OriginalPageKey) => gatedStylePageKeys.includes(pageKey);
 
-const getCurrentPageKey = (): OriginalPageKey => { // 주소 보고 이름표 붙이기
+const getCurrentPageKey = (): OriginalPageKey => {
+  // 주소 보고 이름표 붙이기
   const { pathname } = window.location;
 
   if (pathname.startsWith("/search")) {
@@ -71,17 +79,20 @@ function LegacyApp() {
     typeof import("./originalPages").originalPages | null
   >(null);
   const [pageKey, setPageKey] = useState<OriginalPageKey>(() => getCurrentPageKey());
-  const visiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey)
-    ? "home"
-    : pageKey;
+  const visiblePageKey =
+    appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey) ? "home" : pageKey;
   const [styleReadyKey, setStyleReadyKey] = useState<OriginalPageKey | null>(() => {
     const initialPageKey = getCurrentPageKey();
-    const initialVisiblePageKey = appMode === "community" && ["checkout", "paymentComplete"].includes(initialPageKey)
-      ? "home"
-      : initialPageKey;
+    const initialVisiblePageKey =
+      appMode === "community" && ["checkout", "paymentComplete"].includes(initialPageKey)
+        ? "home"
+        : initialPageKey;
     return needsStyleGate(initialVisiblePageKey) ? null : initialVisiblePageKey;
   });
-  const page = useMemo(() => originalPagesMap?.[visiblePageKey] ?? null, [originalPagesMap, visiblePageKey]);
+  const page = useMemo(
+    () => originalPagesMap?.[visiblePageKey] ?? null,
+    [originalPagesMap, visiblePageKey]
+  );
   const isPageStyleReady = !needsStyleGate(visiblePageKey) || styleReadyKey === visiblePageKey;
 
   useEffect(() => {
@@ -128,18 +139,20 @@ function LegacyApp() {
     Array.from(headContainer.children).forEach((node) => {
       if (node instanceof HTMLLinkElement && node.rel === "stylesheet") {
         const href = new URL(node.getAttribute("href") ?? "", window.location.origin).href;
-        const existingLink = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).find(
-          (link) => link.href === href && link.sheet,
-        );
+        const existingLink = Array.from(
+          document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+        ).find((link) => link.href === href && link.sheet);
 
         if (existingLink) {
           return;
         }
 
-        styleLoadPromises.push(new Promise((resolve) => {
-          node.addEventListener("load", () => resolve(), { once: true });
-          node.addEventListener("error", () => resolve(), { once: true });
-        }));
+        styleLoadPromises.push(
+          new Promise((resolve) => {
+            node.addEventListener("load", () => resolve(), { once: true });
+            node.addEventListener("error", () => resolve(), { once: true });
+          })
+        );
       }
 
       document.head.appendChild(node);
@@ -758,7 +771,9 @@ function LegacyApp() {
       injectedNodes.push(gaInlineScript);
     }
 
-    if (!["home", "search", "productDetail", "checkout", "paymentComplete"].includes(visiblePageKey)) {
+    if (
+      !["home", "search", "productDetail", "checkout", "paymentComplete"].includes(visiblePageKey)
+    ) {
       window.setTimeout(() => {
         page.scripts.forEach((scriptText) => {
           const script = document.createElement("script");
@@ -797,10 +812,7 @@ function LegacyApp() {
       ) : visiblePageKey === "paymentComplete" ? (
         <PaymentCompletePage />
       ) : (
-        <div
-          className="spa-origin-section"
-          dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
-        />
+        <div className="spa-origin-section" dangerouslySetInnerHTML={{ __html: page.bodyHtml }} />
       )}
     </main>
   );
@@ -808,6 +820,7 @@ function LegacyApp() {
 
 function GlobalAgentEntry() {
   const location = useLocation();
+  const { user, isAuthLoading } = useAuth();
   const [hasSavedSkinProfile, setHasSavedSkinProfile] = useState(false);
   const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
 
@@ -817,6 +830,18 @@ function GlobalAgentEntry() {
   }, [location.search]);
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!user) {
+      const timerId = window.setTimeout(() => {
+        setHasSavedSkinProfile(false);
+        setIsSkinProfileResolved(true);
+      }, 0);
+      return () => window.clearTimeout(timerId);
+    }
+
     let isMounted = true;
 
     getSavedSkinProfile().then((profile) => {
@@ -829,7 +854,7 @@ function GlobalAgentEntry() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthLoading, user]);
 
   if (appMode === "community" || location.pathname.startsWith("/admin")) {
     return null;
@@ -843,10 +868,19 @@ function GlobalAgentEntry() {
         ? "empty"
         : "empty";
 
+  const path = location.pathname;
+  const agentSurface = path.startsWith("/product-detail")
+    ? "productDetail"
+    : /recommend|skin-test|recommendations/.test(path)
+      ? "context"
+      : /mypage|cart|checkout|login|signup|order/.test(path)
+        ? "minimal"
+        : "home";
+
   return (
     <AgentFloatingButton
       skinProfileStatus={skinProfileStatus}
-      surface={location.pathname.startsWith("/product-detail") ? "productDetail" : "home"}
+      surface={agentSurface}
     />
   );
 }
@@ -865,31 +899,188 @@ function RouteLoadingFallback() {
   return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
 }
 
+function PopularProductsRouteFallback() {
+  return (
+    <>
+      <HomeHeader />
+      <main className="popular-products-page popular-products-route-fallback" aria-label="인기상품 페이지 불러오는 중">
+        <section className="popular-products-shell">
+          <PopularProductsHeader category="" windowDays={7} />
+          <div className="popular-products-grid" aria-hidden="true">
+            {Array.from({ length: 10 }, (_, index) => (
+              <article className="popular-product-card popular-product-card--skeleton" key={index}>
+                <Skeleton className="popular-product-card__image" />
+                <div className="popular-product-card__skeleton-body">
+                  <Skeleton className="popular-product-card__brand" />
+                  <Skeleton className="popular-product-card__name" />
+                  <Skeleton className="popular-product-card__price" />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
+  );
+}
+
+function ScrollToTop() {
+  const location = useLocation();
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousRestoration;
+    };
+  }, []);
+
+  return null;
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, isAuthLoading } = useAuth();
+  const location = useLocation();
+
+  if (isAuthLoading) {
+    return <RouteLoadingFallback />;
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        replace
+        to="/login"
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+
+  return <>{children}</>;
+}
+
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
     <>
+      <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           {appMode !== "community" && <Route path="/login" element={<LoginPage />} />}
-          {appMode !== "community" && <Route path="/password-reset" element={<PasswordResetPage />} />}
+          {appMode !== "community" && (
+            <Route path="/password-reset" element={<PasswordResetPage />} />
+          )}
           {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
           {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
-          {appMode !== "community" && <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />}
-          {appMode !== "community" && <Route path="/mypage" element={<MyPageShell />} />}
-          {appMode !== "community" && <Route path="/mypage/skin-profile" element={<SkinProfile />} />}
-          {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
-          {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
-          {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
-          {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
-          {appMode !== "community" && <Route path="/mypage/settings" element={<MyPageSettings />} />}
+          {appMode !== "community" && (
+            <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage"
+              element={
+                <ProtectedRoute>
+                  <MyPageShell />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/skin-profile"
+              element={
+                <ProtectedRoute>
+                  <SkinProfile />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/wishlist"
+              element={
+                <ProtectedRoute>
+                  <WishList />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/recent"
+              element={
+                <ProtectedRoute>
+                  <RecentProducts />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/orders"
+              element={
+                <ProtectedRoute>
+                  <OrderList />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/orders/:orderCode"
+              element={
+                <ProtectedRoute>
+                  <OrderDetail />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/settings"
+              element={
+                <ProtectedRoute>
+                  <MyPageSettings />
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/addresses"
+              element={(
+                <ProtectedRoute>
+                  <Addresses />
+                </ProtectedRoute>
+              )}
+            />
+          )}
           {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
-          {appMode !== "community" && <Route path="/skin-test/result" element={<SkinTestResultPage />} />}
-          {appMode !== "community" && <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />}
+          {appMode !== "community" && (
+            <Route path="/skin-test/result" element={<SkinTestResultPage />} />
+          )}
+          {appMode !== "community" && (
+            <Route path="/skin-test/recommendations" element={<SkinTestRecommendationsPage />} />
+          )}
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
-          {appMode !== "community" && <Route path="/category/:categoryTitle" element={<CategoryPage />} />}
+          {appMode !== "community" && (
+            <Route path="/category/:categoryTitle" element={<CategoryPage />} />
+          )}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
+          <Route
+            path="/products/popular"
+            element={(
+              <Suspense fallback={<PopularProductsRouteFallback />}>
+                <PopularProductsPage />
+              </Suspense>
+            )}
+          />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>

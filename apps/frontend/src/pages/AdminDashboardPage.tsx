@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useRef, useState } from "react";
+import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 
 type AdminView =
   | "dashboard"
@@ -7,6 +8,7 @@ type AdminView =
   | "excelUpload"
   | "imageUpload"
   | "ingredientReview"
+  | "evidenceReview"
   | "stockPrice"
   | "orderStatus"
   | "sellers"
@@ -99,6 +101,7 @@ const navItems: Array<{ label: string; view: AdminView }> = [
   { label: "엑셀 상품 대량 등록", view: "excelUpload" },
   { label: "이미지 대량 연결", view: "imageUpload" },
   { label: "성분 매핑 검수", view: "ingredientReview" },
+  { label: "논문 근거 관리", view: "evidenceReview" },
   { label: "재고/가격 확인", view: "stockPrice" },
   { label: "주문 상태 확인", view: "orderStatus" },
   { label: "셀러 관리", view: "sellers" },
@@ -108,6 +111,7 @@ const navItems: Array<{ label: string; view: AdminView }> = [
 
 const navGroupHeadings: Partial<Record<AdminView, string>> = {
   products: "상품 운영",
+  evidenceReview: "추천 운영",
   orderStatus: "주문 운영",
   sellers: "셀러 운영"
 };
@@ -3463,6 +3467,8 @@ function AdminDashboardPage() {
           ? "이미지 등록"
           : activeView === "ingredientReview"
             ? "성분 매핑 검수"
+            : activeView === "evidenceReview"
+              ? "논문 근거 관리"
             : activeView === "stockPrice"
               ? "재고·가격"
               : activeView === "orderStatus"
@@ -3502,6 +3508,7 @@ function AdminDashboardPage() {
                     "excelUpload",
                     "imageUpload",
                     "ingredientReview",
+                    "evidenceReview",
                     "stockPrice",
                     "orderStatus",
                     "sellers",
@@ -3517,6 +3524,7 @@ function AdminDashboardPage() {
                     item.view === "excelUpload" ||
                     item.view === "imageUpload" ||
                     item.view === "ingredientReview" ||
+                    item.view === "evidenceReview" ||
                     item.view === "stockPrice" ||
                     item.view === "orderStatus" ||
                     item.view === "sellers" ||
@@ -3586,6 +3594,11 @@ function AdminDashboardPage() {
         {activeView === "excelUpload" && renderExcelUpload()}
         {activeView === "imageUpload" && renderImageUpload()}
         {activeView === "ingredientReview" && renderIngredientReview()}
+        {activeView === "evidenceReview" && (
+          <EvidenceCandidateReviewPanel
+            onNotify={(message, tone) => setToast({ message, tone })}
+          />
+        )}
         {activeView === "stockPrice" && renderStockPrice()}
         {activeView === "orderStatus" && renderOrderStatus()}
         {activeView === "sellers" && renderSellerList()}
