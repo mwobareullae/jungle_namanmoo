@@ -160,11 +160,18 @@ def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[
         family_ids = [value for value in row.get("related_scoring_family_ids", "").split("|") if value]
         if not family_ids:
             continue
-        aliases: list[str] = [row["kcia_standard_name_ko"], row["kcia_standard_name_en"]]
-        aliases.extend(split_aliases(row["kcia_old_names_ko"]))
-        aliases.extend(split_aliases(row["kcia_old_names_en"]))
+        aliases: list[tuple[str, str]] = [
+            (row["kcia_standard_name_ko"], "standard_name"),
+            (row["kcia_standard_name_en"], "standard_name"),
+        ]
+        aliases.extend(
+            (alias, "legacy_name") for alias in split_aliases(row["kcia_old_names_ko"])
+        )
+        aliases.extend(
+            (alias, "legacy_name") for alias in split_aliases(row["kcia_old_names_en"])
+        )
         for family_id in family_ids:
-            for alias in aliases:
+            for alias, alias_basis in aliases:
                 key = (family_id, normalize(alias))
                 if not key[1]:
                     continue
@@ -176,7 +183,8 @@ def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[
                     "confidence": "high",
                     "source": (
                         "KCIA 표준화명칭목록 2026-06-30 "
-                        f"code={row['kcia_ingredient_code']} sha256={row['source_document_sha256'][:12]}"
+                        f"code={row['kcia_ingredient_code']} alias_basis={alias_basis} "
+                        f"sha256={row['source_document_sha256'][:12]}"
                     ),
                 }
                 prior = rows_by_key.get(key)

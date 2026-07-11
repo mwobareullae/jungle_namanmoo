@@ -60,12 +60,18 @@ class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
             sum(row["ingredient_id"] == "acetyl_hexapeptide_8" for row in ingredient_rows),
             1,
         )
-        self.assertEqual(len(mapping_rows), 4)
+        self.assertEqual(len(mapping_rows), 5)
         self.assertTrue(all(row["canonical_id"] == "acetyl_hexapeptide_8" for row in mapping_rows))
         self.assertEqual(
             sum(row["mapping_type"] == "exact_name_override" for row in mapping_rows),
-            2,
+            3,
         )
+        legacy_mapping = next(
+            row
+            for row in mapping_rows
+            if row["source_ingredient_name"] == "Palmitoyl Pentapeptide-3"
+        )
+        self.assertIn("alias_basis=legacy_name", legacy_mapping["source"])
         exact_alias = next(row for row in alias_rows if row["alias"] == "Acetyl Hexapeptide-8")
         self.assertEqual(exact_alias["canonical_id"], "acetyl_hexapeptide_8")
 
@@ -97,7 +103,7 @@ class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
                     "kcia_standard_name_ko": "아세틸헥사펩타이드-8",
                     "kcia_standard_name_en": "Acetyl Hexapeptide-8",
                     "kcia_old_names_ko": "",
-                    "kcia_old_names_en": "",
+                    "kcia_old_names_en": "Palmitoyl Pentapeptide-3",
                     "proposed_action": "create_canonical",
                     "proposed_canonical_id": "acetyl_hexapeptide_8",
                     "related_scoring_family_ids": "peptides",
