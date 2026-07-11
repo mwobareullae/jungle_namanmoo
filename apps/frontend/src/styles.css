@@ -2448,6 +2448,49 @@ body {
   background: transparent;
 }
 
+.mypage-order-status-filter:focus,
+.mypage-order-status-filter:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mypage-order-status-filter,
+.mypage-order-status-filter:hover,
+.mypage-order-status-filter:active {
+  border: 1px solid #eeeeee !important;
+}
+
+.mypage-order-status-filter[aria-selected="false"]:focus,
+.mypage-order-status-filter[aria-selected="false"]:focus-visible {
+  border: 1px solid #eeeeee !important;
+}
+
+.mypage-order-status-filter[aria-selected="true"],
+.mypage-order-status-filter[aria-selected="true"]:hover,
+.mypage-order-status-filter[aria-selected="true"]:active,
+.mypage-order-status-filter[aria-selected="true"]:focus,
+.mypage-order-status-filter[aria-selected="true"]:focus-visible {
+  border: 1px solid #1a1a1a !important;
+}
+
+.mypage-order-card {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.mypage-order-card:hover {
+  border-color: #d5d9dd !important;
+  background: #fcfcfc !important;
+  box-shadow: 0 6px 18px rgba(12, 17, 23, 0.06);
+}
+
+.mypage-order-card:focus,
+.mypage-order-card:focus-visible {
+  outline: none;
+}
+
 .mypage-product-list-row-button .mypage-product-list-thumbnail {
   transition: transform 180ms ease;
 }

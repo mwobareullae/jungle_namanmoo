@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { getOrders } from "../../lib/orderApi";
 import type { OrderListItem } from "../../types/order";
@@ -15,28 +16,48 @@ const statusLabelMap: Record<string, string> = {
   PREPARING_SHIPMENT: "배송준비중",
   SHIPPED: "배송중",
   DELIVERED: "배송완료",
-  CANCEL_REQUESTED: "취소요청"
+  CANCEL_REQUESTED: "취소요청",
+  REFUND_REQUESTED: "환불요청",
+  REFUNDED: "환불완료",
+  RETURN_REQUESTED: "반품요청",
+  RETURNED: "반품완료",
+  EXCHANGE_REQUESTED: "교환요청",
+  EXCHANGED: "교환완료"
 };
 
+const statusFilterItems = [
+  { value: null, label: "전체" },
+  { value: "PENDING_PAYMENT", label: "주문접수" },
+  { value: "PAID", label: "결제완료" },
+  { value: "PREPARING_SHIPMENT", label: "배송준비중" },
+  { value: "SHIPPED", label: "배송중" },
+  { value: "DELIVERED", label: "배송완료" }
+] as const;
+
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
+const removeAdditionalItemSuffix = (title: string) => title.replace(/\s+and\s+\d+\s+more\s*$/i, "").trim();
 
 const formatDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
   }).format(date);
 };
 
 export default function OrderList() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const loadOrders = useCallback(async (cursor?: string | null) => {
     const isFirstPage = !cursor;
@@ -48,7 +69,7 @@ export default function OrderList() {
     setErrorMessage("");
 
     try {
-      const response = await getOrders({ limit: 20, cursor });
+      const response = await getOrders({ limit: 15, cursor, status: statusFilter });
       setOrders((current) => (isFirstPage ? response.items : [...current, ...response.items]));
       setNextCursor(response.next_cursor ?? null);
     } catch (error) {
@@ -61,7 +82,7 @@ export default function OrderList() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -75,6 +96,27 @@ export default function OrderList() {
     <MyPageLayout activePath="/mypage/orders">
       <PageTitle title="주문/배송 조회" />
       <section style={styles.card} aria-label="주문/배송 조회 목록">
+        <div aria-label="주문 상태 필터" role="tablist" style={styles.statusFilters}>
+          {statusFilterItems.map((item) => (
+            <button
+              aria-selected={statusFilter === item.value}
+              className="mypage-order-status-filter"
+              key={item.value ?? "all"}
+              onMouseDown={(event) => event.currentTarget.blur()}
+              onClick={() => setStatusFilter(item.value)}
+              role="tab"
+              style={{
+                ...styles.statusFilter,
+                ...(statusFilter === item.value ? styles.statusFilterActive : {}),
+                outline: "none",
+                boxShadow: "none"
+              }}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         {isLoading ? (
           <div style={styles.stateBox}>주문/배송 조회를 불러오는 중입니다.</div>
         ) : errorMessage ? (
@@ -103,40 +145,80 @@ export default function OrderList() {
             <div style={styles.list}>
               {orders.map((order) => {
                 const thumbnailUrl = getProductImageUrl(order.thumbnail_storage_key, "w400");
+                const displayTitle = removeAdditionalItemSuffix(order.title);
                 return (
-                  <article style={styles.item} key={order.order_code}>
+                  <article
+                    aria-label={`${displayTitle} 주문 상세 보기`}
+                    className="mypage-order-card"
+                    key={order.order_code}
+                    onMouseDown={(event) => event.currentTarget.blur()}
+                    onClick={() => navigate(`/mypage/orders/${encodeURIComponent(order.order_code)}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate(`/mypage/orders/${encodeURIComponent(order.order_code)}`);
+                      }
+                    }}
+                    role="link"
+                    style={styles.orderCard}
+                    tabIndex={0}
+                  >
+                    <div style={styles.orderCardMenu} aria-hidden="true">⋮</div>
+                    <div style={styles.orderCardMain}>
                     <div style={styles.thumbnail}>
                       {thumbnailUrl ? (
                         <img src={thumbnailUrl} alt="" style={styles.thumbnailImage} />
                       ) : (
-                        <span style={styles.thumbnailEmpty}>이미지 준비중</span>
+                        <span style={styles.thumbnailEmpty}>N</span>
                       )}
                     </div>
                     <div style={styles.itemBody}>
-                      <div style={styles.itemMeta}>
-                        <span>{formatDate(order.ordered_at)}</span>
-                        <span>{order.order_code}</span>
-                      </div>
-                      <h2 style={styles.itemTitle}>{order.title}</h2>
-                      <p style={styles.itemDescription}>
-                        상품 {order.item_count}개 · {statusLabelMap[order.status] ?? order.status}
-                      </p>
+                    <div style={styles.orderCardHeader}>
+                      <strong style={styles.orderStatus}>{statusLabelMap[order.status] ?? order.status}</strong>
                     </div>
-                    <div style={styles.itemAside}>
-                      <strong style={styles.price}>{formatWon(order.total)}</strong>
-                      <Link
-                        className="hover:bg-[#FAFAFA]"
-                        style={styles.detailLink}
-                        to={`/mypage/orders/${encodeURIComponent(order.order_code)}`}
+                    <Link
+                      className="no-underline hover:text-[#555555]"
+                      style={styles.itemTitleLink}
+                      to={`/mypage/orders/${encodeURIComponent(order.order_code)}`}
+                    >
+                      <h2 style={styles.itemTitle}>{displayTitle}</h2>
+                      {order.item_count > 1 ? (
+                        <span style={styles.itemCountLabel}>
+                          포함 <strong style={styles.itemCountAccent}>총 {order.item_count}건</strong>
+                        </span>
+                      ) : null}
+                      <svg
+                        aria-hidden="true"
+                        fill="none"
+                        height="14"
+                        role="presentation"
+                        style={styles.itemArrow}
+                        viewBox="0 0 256 256"
+                        width="14"
                       >
-                        상세보기
-                      </Link>
+                        <path
+                          d="m96 48 80 80-80 80"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="16"
+                        />
+                      </svg>
+                    </Link>
+                    <div style={styles.itemMetaLine}>
+                      <strong style={styles.price}>{formatWon(order.total)}</strong>
+                      <span style={styles.itemMetaDivider}>|</span>
+                      <span style={styles.paymentDate}>{formatDate(order.ordered_at)} 결제</span>
+                    </div>
+                    </div>
                     </div>
                   </article>
                 );
               })}
             </div>
-            {nextCursor ? (
+            <div style={styles.paginationBar}>
+              <span aria-current="page" style={styles.currentPage}>1</span>
+              {nextCursor ? (
               <button
                 className="bg-white text-[#1a1a1a] hover:bg-[#FAFAFA] disabled:cursor-not-allowed disabled:bg-[#F5F5F5] disabled:text-[#9CA3AF]"
                 disabled={isLoadingMore}
@@ -146,7 +228,8 @@ export default function OrderList() {
               >
                 {isLoadingMore ? "불러오는 중" : "더 보기"}
               </button>
-            ) : null}
+              ) : null}
+            </div>
           </>
         )}
       </section>
@@ -156,10 +239,30 @@ export default function OrderList() {
 
 const styles: Record<string, CSSProperties> = {
   card: {
+    background: "transparent"
+  },
+  statusFilters: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 20
+  },
+  statusFilter: {
+    minHeight: 40,
+    padding: "0 18px",
     border: "1px solid #eeeeee",
-    borderRadius: 18,
-    background: "#ffffff",
-    overflow: "hidden"
+    borderRadius: 999,
+    background: "#f5f5f5",
+    color: "#555555",
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: "pointer"
+  },
+  statusFilterActive: {
+    borderColor: "#1a1a1a",
+    background: "#1a1a1a",
+    color: "#ffffff",
+    fontWeight: 600
   },
   stateBox: {
     display: "grid",
@@ -204,20 +307,44 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: "none"
   },
   list: {
-    display: "grid"
-  },
-  item: {
     display: "grid",
-    gridTemplateColumns: "88px minmax(0, 1fr) auto",
-    gap: 18,
-    alignItems: "center",
-    padding: "22px 24px",
-    borderBottom: "1px solid #eeeeee"
+    gap: 14
+  },
+  orderCard: {
+    position: "relative",
+    padding: "26px 28px",
+    border: "1px solid #edf0f2",
+    borderRadius: 18,
+    background: "#ffffff"
+  },
+  orderCardMenu: {
+    position: "absolute",
+    top: 24,
+    right: 28,
+    color: "#9ca3af",
+    fontSize: 24,
+    lineHeight: 1
+  },
+  orderCardHeader: {
+    display: "flex",
+    alignItems: "baseline",
+    marginBottom: 10
+  },
+  orderStatus: {
+    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: 600
+  },
+  orderCardMain: {
+    display: "grid",
+    gridTemplateColumns: "92px minmax(0, 1fr) auto",
+    gap: 16,
+    alignItems: "center"
   },
   thumbnail: {
-    width: 88,
-    height: 88,
-    borderRadius: 14,
+    width: 92,
+    height: 92,
+    borderRadius: 6,
     background: "#f7f8f9",
     overflow: "hidden"
   },
@@ -252,9 +379,49 @@ const styles: Record<string, CSSProperties> = {
   itemTitle: {
     margin: 0,
     color: "#1a1a1a",
-    fontSize: 17,
-    fontWeight: 700,
-    lineHeight: 1.45
+    fontSize: 15,
+    fontWeight: 500,
+    lineHeight: 1.35
+  },
+  itemTitleLink: {
+    display: "inline-flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+    color: "#1a1a1a"
+  },
+  itemCountLabel: {
+    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: 500
+  },
+  itemCountAccent: {
+    color: "#2aa6d1",
+    fontSize: 15,
+    fontWeight: 600
+  },
+  itemArrow: {
+    display: "block",
+    flexShrink: 0
+  },
+  itemMetaLine: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 8,
+    marginTop: 8,
+    color: "#9ca3af",
+    fontSize: 13,
+    fontWeight: 500
+  },
+  itemMetaDivider: {
+    color: "#d5d9dd",
+    fontSize: 13,
+    fontWeight: 300
+  },
+  paymentDate: {
+    fontSize: 13,
+    fontWeight: 400
   },
   itemDescription: {
     margin: "8px 0 0",
@@ -286,13 +453,32 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: "none"
   },
   moreButton: {
-    width: "calc(100% - 48px)",
+    minWidth: 120,
     minHeight: 46,
-    margin: "20px 24px 24px",
+    margin: 0,
     border: "1px solid #dddddd",
     borderRadius: 12,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer"
+  },
+  paginationBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 20
+  },
+  currentPage: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    background: "#1a1a1a",
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: 600
   }
 };

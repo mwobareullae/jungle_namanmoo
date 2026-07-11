@@ -19,6 +19,7 @@ const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
 const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
+const Addresses = lazy(() => import("./pages/mypage/Addresses"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
 const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
@@ -910,6 +911,7 @@ function App() {
           {appMode !== "community" && <Route path="/mypage/wishlist" element={<WishList />} />}
           {appMode !== "community" && <Route path="/mypage/recent" element={<RecentProducts />} />}
           {appMode !== "community" && <Route path="/mypage/orders" element={<OrderList />} />}
+          {appMode !== "community" && <Route path="/mypage/addresses" element={<Addresses />} />}
           {appMode !== "community" && <Route path="/mypage/orders/:orderCode" element={<OrderDetail />} />}
           {appMode !== "community" && <Route path="/mypage/settings" element={<MyPageSettings />} />}
           {appMode !== "community" && <Route path="/skin-test" element={<SkinTestPage />} />}
