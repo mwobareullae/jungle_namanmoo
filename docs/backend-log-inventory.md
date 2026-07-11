@@ -171,6 +171,7 @@ event:
 |---|---|---|
 | `popular_products_completed` | `GET /api/products/popular` | `window_days`, `requested_limit`, `item_count`, `category_code`, `top_popularity_score` |
 | `product_detail_completed` | `GET /api/products/{product_id}` | `product_id`, `has_recommendation_context`, `can_purchase`, `sales_status`, `stock_status` |
+| `product_reviews_completed` | `GET /api/products/{product_id}/reviews` | `product_id`, `sort`, `limit`, `item_count`, `has_next`, `has_profile_filter` |
 
 ### 추천 API
 
