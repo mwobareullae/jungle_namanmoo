@@ -40,7 +40,9 @@ export default function Addresses() {
     }
   }, []);
 
-  useEffect(() => { void loadAddresses(); }, [loadAddresses]);
+  useEffect(() => {
+    void Promise.resolve().then(loadAddresses);
+  }, [loadAddresses]);
 
   const openCreate = () => {
     setEditingId(null);

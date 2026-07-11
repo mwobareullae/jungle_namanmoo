@@ -41,7 +41,7 @@ function PopularProductsPage() {
 
   useEffect(() => {
     if (!user) {
-      setWishedProductIds(new Set());
+      void Promise.resolve().then(() => setWishedProductIds(new Set()));
       return;
     }
 
@@ -101,15 +101,16 @@ function PopularProductsPage() {
       skeletonShownAt = Date.now();
       setIsLoading(true);
     }, 150);
-    setIsLoading(items.length === 0);
-    setErrorMessage("");
     const query = new URLSearchParams({ limit: "50", window_days: String(windowDays) });
     if (category) query.set("category_code", category);
 
     fetchWithTimeout(`${API_BASE_URL}/products/popular?${query}`)
       .then((response) => parseJson<PopularResponse>(response))
       .then((data) => {
-        if (isMounted) setItems(data.items);
+        if (isMounted) {
+          setItems(data.items);
+          setErrorMessage("");
+        }
       })
       .catch(() => {
         if (isMounted) setErrorMessage("인기상품을 불러오지 못했습니다.");

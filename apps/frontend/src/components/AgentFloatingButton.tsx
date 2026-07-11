@@ -846,8 +846,8 @@ function AgentFloatingButton({
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const teaserTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const teaserTimerRef = useRef<number | null>(null);
   const hasDismissedTeaserRef = useRef(false);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
