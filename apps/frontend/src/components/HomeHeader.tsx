@@ -13,6 +13,8 @@ function HomeHeader() {
   const { user, logout } = useAuth();
   const [cartCount, setCartCount] = useState(0);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
+  const isPopularPage = location.pathname === "/products/popular";
+  const isSkinTestPage = location.pathname.startsWith("/skin-test");
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
   const isCategoryHoverArea = (target: EventTarget | null) => {
     if (!(target instanceof Node)) return false;
@@ -111,10 +113,10 @@ function HomeHeader() {
           </div>
           <nav>
             <a href={defaultSectionHref}>신상품</a>
-            <a href="/products/popular">베스트</a>
+            <a className={isPopularPage ? "nav-active" : ""} href="/products/popular">베스트</a>
             <a href={defaultSectionHref}>브랜드</a>
             <a href={defaultSectionHref}>쿠폰</a>
-            <a className="nav-ai" href="/skin-test">
+            <a className={isSkinTestPage ? "nav-ai" : ""} href="/skin-test">
               맞춤 추천
             </a>
           </nav>
