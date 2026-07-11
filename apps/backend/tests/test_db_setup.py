@@ -469,6 +469,7 @@ def test_settings_exposes_dev_infra_urls() -> None:
     assert settings.elasticsearch_url
     assert settings.elasticsearch_index_prefix
     assert settings.elasticsearch_products_alias
+    assert settings.elasticsearch_catalog_products_alias
     assert settings.elasticsearch_timeout_seconds > 0
     assert settings.elasticsearch_max_retries >= 0
     assert settings.elasticsearch_circuit_breaker_seconds > 0

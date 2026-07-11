@@ -111,10 +111,12 @@ REDIS_URL=redis://redis:6379/0
 REDIS_KEY_PREFIX=mubarelle:dev:
 ELASTICSEARCH_URL=http://elasticsearch:9200
 ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
+ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=mubarelle_dev_catalog_products_current
 ```
 
 - Redis bind: `127.0.0.1:${REDIS_PORT:-6379}`
 - Elasticsearch bind: `127.0.0.1:${ELASTICSEARCH_PORT:-9200}`
+- Elasticsearch는 `docker/elasticsearch/Dockerfile`의 8.15.3 고정 이미지에 `analysis-nori`를 설치해 사용합니다.
 - Redis memory limit: `${REDIS_MEMORY_LIMIT:-512m}`
 - Elasticsearch memory limit: `${ELASTICSEARCH_MEMORY_LIMIT:-2g}`
 - Elasticsearch heap: `${ELASTICSEARCH_HEAP_SIZE:-1g}`

@@ -8,6 +8,8 @@ const CART_WRITES_ENABLED =
   (__ENV.CART_WRITES || __ENV.ENABLE_CART_WRITES || "false").toLowerCase() === "true";
 const DEBUG_ERRORS = (__ENV.DEBUG_ERRORS || "false").toLowerCase() === "true";
 const SLA_MS = Number(__ENV.SLA_MS || "3000");
+const CATALOG_SEARCH_SLA_MS = Number(__ENV.CATALOG_SEARCH_SLA_MS || "500");
+const CATALOG_SUGGESTIONS_SLA_MS = Number(__ENV.CATALOG_SUGGESTIONS_SLA_MS || "200");
 const AUTH_COOKIE = __ENV.AUTH_COOKIE || "";
 const AUTH_HOME_FOR_YOU_ENABLED =
   (__ENV.AUTH_HOME_FOR_YOU || __ENV.ENABLE_AUTH_HOME_FOR_YOU || "false").toLowerCase() === "true";
@@ -20,6 +22,10 @@ const HEAVY_PRODUCT_IDS = (__ENV.HEAVY_PRODUCT_IDS || "")
   .map((value) => value.trim())
   .filter(Boolean);
 const SEARCH_QUERIES = (__ENV.SEARCH_QUERIES || "세럼,수분 크림,나이아신아마이드,진정,선크림")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const SUGGESTION_QUERIES = (__ENV.SUGGESTION_QUERIES || "토리,라운,수분,세럼,ㅌㄹㄷ")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
@@ -61,17 +67,22 @@ const PROFILE_SCENARIOS = {
       { duration: "1m", target: 0 },
     ],
   },
+  catalog: {
+    executor: "constant-vus",
+    vus: 10,
+    duration: "2m",
+  },
 };
 
 if (!PROFILE_SCENARIOS[PROFILE]) {
-  throw new Error(`Unknown PROFILE: ${PROFILE}. Use smoke, baseline, target, or stress.`);
+  throw new Error(`Unknown PROFILE: ${PROFILE}. Use smoke, baseline, target, stress, or catalog.`);
 }
 
 export const options = {
   scenarios: {
     [PROFILE]: {
       ...PROFILE_SCENARIOS[PROFILE],
-      exec: "userJourney",
+      exec: PROFILE === "catalog" ? "catalogSearchJourney" : "userJourney",
     },
   },
   thresholds: {
@@ -79,6 +90,8 @@ export const options = {
     "http_req_duration{type:fast}": [`p(95)<${SLA_MS}`],
     "http_req_duration{type:home}": [`p(95)<${SLA_MS}`],
     "http_req_duration{type:search}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:catalog_search}": [`p(95)<${CATALOG_SEARCH_SLA_MS}`],
+    "http_req_duration{type:catalog_suggestions}": [`p(95)<${CATALOG_SUGGESTIONS_SLA_MS}`],
     ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": [`p(95)<${SLA_MS}`] } : {}),
   },
 };
@@ -124,6 +137,10 @@ export function setup() {
     "health is 200": (response) => response.status === 200,
   });
 
+  if (PROFILE === "catalog") {
+    return { productIds: [] };
+  }
+
   const popular = http.get(`${BASE_URL}/products/popular?limit=20`, {
     tags: { endpoint: "popular_products", type: "fast" },
   });
@@ -138,6 +155,36 @@ export function setup() {
   }
 
   return { productIds };
+}
+
+export function catalogSearchJourney() {
+  group("catalog_product_search", () => {
+    const query = pick(SEARCH_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/search/products?q=${encodeURIComponent(query)}&page=1&page_size=20`,
+      { tags: { endpoint: "catalog_product_search", type: "catalog_search" } },
+    );
+    debugFailedResponse("catalog_product_search", response);
+    check(response, {
+      "catalog product search 200": (res) => res.status === 200,
+      "catalog product search contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
+  group("catalog_search_suggestions", () => {
+    const query = pick(SUGGESTION_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/search/suggestions?q=${encodeURIComponent(query)}&limit=8`,
+      { tags: { endpoint: "catalog_search_suggestions", type: "catalog_suggestions" } },
+    );
+    debugFailedResponse("catalog_search_suggestions", response);
+    check(response, {
+      "catalog suggestions 200": (res) => res.status === 200,
+      "catalog suggestions contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
+  sleep(0.2);
 }
 
 export function userJourney(data) {
@@ -174,13 +221,23 @@ export function userJourney(data) {
   group("product_search", () => {
     const query = pick(SEARCH_QUERIES);
     const response = http.get(
-      `${BASE_URL}/products/search?q=${encodeURIComponent(query)}&page=1&page_size=20`,
-      { tags: { endpoint: "product_search", type: "search" } },
+      `${BASE_URL}/search/products?q=${encodeURIComponent(query)}&page=1&page_size=20`,
+      { tags: { endpoint: "catalog_product_search", type: "catalog_search" } },
     );
     debugFailedResponse("product_search", response);
     check(response, {
       "product search 200": (res) => res.status === 200,
     });
+  });
+
+  group("catalog_search_suggestions", () => {
+    const query = pick(SUGGESTION_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/search/suggestions?q=${encodeURIComponent(query)}&limit=8`,
+      { tags: { endpoint: "catalog_search_suggestions", type: "catalog_suggestions" } },
+    );
+    debugFailedResponse("catalog_search_suggestions", response);
+    check(response, { "catalog suggestions 200": (res) => res.status === 200 });
   });
 
   group("home_layout", () => {
