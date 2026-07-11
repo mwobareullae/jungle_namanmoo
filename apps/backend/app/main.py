@@ -9,6 +9,7 @@ from app.api.routes import (
     auth,
     cart,
     events,
+    evidence_admin,
     health,
     home,
     orders,
@@ -52,6 +53,7 @@ app.include_router(addresses.router, prefix=settings.api_base_path)
 app.include_router(orders.router, prefix=settings.api_base_path)
 app.include_router(payments.router, prefix=settings.api_base_path)
 app.include_router(events.router, prefix=settings.api_base_path)
+app.include_router(evidence_admin.router, prefix=settings.api_base_path)
 app.include_router(agent.router, prefix=settings.api_base_path)
 
 
