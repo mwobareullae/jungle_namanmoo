@@ -16,13 +16,13 @@ ALLOWED_CASE_TYPES = {
 ALLOWED_CASE_STATUSES = {"ready", "catalog_data_blocked"}
 ALLOWED_OUTCOMES = {"products", "correction", "no_results"}
 MINIMUM_CASE_COUNTS = {
-    "exact_product": 12,
-    "brand": 6,
-    "category": 10,
-    "attribute": 6,
-    "compound": 6,
-    "typo_alias": 5,
-    "no_result": 4,
+    "exact_product": 24,
+    "brand": 10,
+    "category": 12,
+    "attribute": 8,
+    "compound": 8,
+    "typo_alias": 40,
+    "no_result": 6,
 }
 
 
@@ -36,11 +36,12 @@ def test_catalog_search_quality_fixture_has_required_coverage() -> None:
 
     assert payload["version"] == "catalog-search-quality-v1"
     assert payload["catalog_snapshot"]["product_count"] == 79_952
-    assert len(cases) >= 60
+    assert 120 <= len(cases) <= 150
 
     case_counts = Counter(case["type"] for case in cases)
     for case_type, minimum_count in MINIMUM_CASE_COUNTS.items():
         assert case_counts[case_type] >= minimum_count
+    assert 40 <= case_counts["typo_alias"] <= 50
 
 
 def test_catalog_search_quality_fixture_cases_are_well_formed() -> None:
