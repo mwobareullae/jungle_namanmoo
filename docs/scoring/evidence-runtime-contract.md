@@ -59,7 +59,9 @@
 
 ## 3. 최소 데이터 계약
 
-기존 `ingredient_evidence`를 유지하면서 아래 필드를 추가하는 방식을 1차 권고안으로 둔다. 논문과 claim 테이블의 완전 분리는 자동 수집을 구현할 때 별도 결정한다.
+기존 `ingredient_evidence`는 검수 완료 후 런타임에 연결할 근거 테이블로 유지한다.
+자동 수집된 미검수 논문은 별도 `evidence_discovery_candidates`에 저장하고,
+승인 트랜잭션에서만 `ingredient_evidence`로 승격한다.
 
 | 필드 | 값/형식 | 의미 |
 |---|---|---|
@@ -83,6 +85,18 @@
 - 한 논문을 여러 성분·효능에 연결할 수 있지만, 각 연결은 별도 검수 판정을 가진다.
 - 감초추출물·병풀추출물·PHA·retinol처럼 범위가 넓은 원료와 glabridin·asiaticoside·gluconolactone·개별 retinyl 화합물 같은 특정 성분을 자동으로 같은 근거 범위로 취급하지 않는다.
 - 초기 canonical remap은 `ingredient_name` strict exact 행만 대상으로 한다. contains 변형은 alias 승인 전까지 기존 상태 또는 pending으로 유지한다.
+
+### 3.1 자동 수집 후보 보관함
+
+- 후보 자연키는 `(ingredient_id, effect_id, paper_key)`다.
+- 동일 후보가 다음 주 검색에 다시 나오면 새 행을 만들지 않고 최근 발견 시각만 갱신한다.
+- 후보 테이블은 점수 계산·고객 API·대표 근거 조회 대상이 아니다.
+- 기각 후보도 삭제하지 않고 판정 이력을 보존한다.
+- 승인 시 검수자가 결과 방향, 근거 등급, 점수 사용 등급, 근거 점수, 대표 여부를 입력한다.
+- 승인과 `ingredient_evidence` 생성은 한 DB 트랜잭션으로 처리한다.
+- 음성·무효·불명확 후보는 종합 감점식 확정 전까지 `reference_only + 0점`으로만 승인할 수 있다.
+- 기존 CSV 근거는 baseline seed가 관리하고, 자동 수집 이후 후보·판정·승인 근거는 운영 DB가 관리한다.
+- seed 정리 로직은 후보에서 승격된 근거를 CSV 미존재 이유로 비활성화하지 않는다.
 
 ## 4. 점수 동작 계약
 

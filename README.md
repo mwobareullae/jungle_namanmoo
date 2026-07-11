@@ -16,7 +16,7 @@
 - Database: RDS PostgreSQL + pgvector
 - Data: CSV/JSON seed, 상품/성분/이미지/검색 문서 데이터
 - Infra: Docker Compose, GitHub Actions CI/CD, EC2 dev 배포
-- Dev infra profile: Redis, Elasticsearch 컨테이너를 `search-cache` profile로 추가
+- Dev infra profile: Redis, Elasticsearch 컨테이너를 `server`/`backend-dev` profile로 추가
 - Image assets: S3 + CloudFront 기준 운영 설계
 
 현재 백엔드는 `health`, `auth`, `skin`, `home`, `recommendations`, `products`, `user_activity`, `cart`, `addresses`, `orders`, `payments`, `events`, `agent` API를 포함합니다. 프론트는 홈, 추천/검색, 상품 상세, 로그인/회원가입, 피부 테스트, 마이페이지, 장바구니, checkout/payment mock 화면을 포함하며, 커뮤니티 모드에서는 커머스 행동을 제한합니다.
@@ -52,7 +52,8 @@ cp .env.example .env
 - `BACKEND_CORS_ORIGINS`: 브라우저에서 API 호출을 허용할 프론트 origin 목록입니다.
 - `REDIS_*`, `ELASTICSEARCH_*`: Dev 통합 확인용 Redis/Elasticsearch 연결과 prefix 기준입니다.
 - `COMPOSE_PROJECT_NAME`: Docker Compose project/container 이름 prefix를 고정합니다.
-- `COMPOSE_PROFILES`: 기본값은 비워두고, 실행 명령에서 `frontend`, `local-db`, `search-cache` profile을 명시합니다.
+- `COMPOSE_PROFILES`: 기본값은 비워두고, 실행 명령에서 역할별 profile을 명시합니다.
+- 로컬 `.env`의 `COMPOSE_PROFILES`에 값이 있으면 모든 compose 명령에 추가 적용되므로, 특별한 이유가 없으면 빈 값으로 둡니다.
 - `DEV_HOST`, `DEV_SSH_KEY` 같은 배포 secret은 `.env.example`에 넣지 않고 GitHub Secrets에만 둡니다.
 - EC2 서버의 `.env`는 배포 workflow가 덮어쓰지 않습니다. 서버에서 직접 관리합니다.
 
@@ -70,29 +71,31 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml config
 
 ### 3. Docker Compose 실행 조합
 
-RDS 분리 이후 기본 compose 실행은 `backend`만 대상으로 봅니다. 필요한 조합은 profile과 서비스명을 명시해서 실행합니다.
+RDS 분리 이후 서버 배포에서는 Docker Postgres와 frontend를 실행하지 않습니다. 필요한 조합은 역할별 profile로 실행합니다.
 
 | 목적 | 명령 |
 | --- | --- |
-| backend 개발자: frontend + backend + postgres + redis + es | `docker compose --profile frontend --profile local-db --profile search-cache up --build frontend backend postgres redis elasticsearch` |
-| frontend 개발자: 로컬 backend 사용 | `docker compose --profile frontend --profile local-db up --build frontend backend postgres` |
-| frontend 개발자: Dev API 사용 | `docker compose --profile frontend up --build frontend` |
-| 서버 배포 | GitHub Actions가 `backend redis elasticsearch caddy`를 명시 실행 |
+| 서버 배포: backend + redis + elasticsearch | `docker compose --profile server up -d --build` |
+| backend 개발자: backend + postgres + redis + elasticsearch | `docker compose --profile backend-dev up -d --build` |
+| frontend 개발자: 로컬 backend 사용 | `docker compose --profile frontend-local-backend up -d --build` |
+| frontend 개발자: Dev API 사용 | `docker compose --profile frontend-dev-server up -d --build` |
 
 Profile 기준:
 
 | profile | 서비스 | 용도 |
 | --- | --- | --- |
-| `frontend` | `frontend` | 로컬 frontend 개발 |
-| `local-db` | `postgres` | 로컬/CI 테스트용 Docker Postgres |
-| `search-cache` | `redis`, `elasticsearch` | 검색/캐시 통합 확인 |
+| `server` | `backend`, `redis`, `elasticsearch` | 서버 배포용 |
+| `backend-dev` | `backend`, `postgres`, `redis`, `elasticsearch` | backend 개발과 검색/캐시 통합 확인 |
+| `frontend-local-backend` | `frontend`, `backend`, `postgres` | frontend가 로컬 backend를 함께 확인 |
+| `frontend-dev-server` | `frontend` | frontend만 실행하고 API는 개발 서버 사용 |
+| `frontend`, `local-db`, `search-cache` | 일부 서비스 | 기존 명령 호환용 |
 
 - Backend: <http://localhost:8000>
 - Backend health: <http://localhost:8000/api/health>
 - Frontend: <http://localhost:5173>
 - Postgres(local-db): `localhost:5432`
-- Redis(search-cache): `127.0.0.1:6379`
-- Elasticsearch(search-cache): <http://127.0.0.1:9200>
+- Redis(server/backend-dev): `127.0.0.1:6379`
+- Elasticsearch(server/backend-dev): <http://127.0.0.1:9200>
 
 DB만 실행할 때:
 
@@ -121,29 +124,25 @@ VITE_API_BASE_URL=https://dev.api.mubarelle.com/api
 ```
 
 ```bash
-docker compose --profile frontend up --build frontend
+docker compose --profile frontend-dev-server up -d --build
 ```
 
 프론트 작업자가 로컬 backend까지 함께 확인할 때는 frontend/backend/postgres를 같이 띄웁니다.
 
 ```bash
-docker compose --profile frontend --profile local-db up --build frontend backend postgres
+docker compose --profile frontend-local-backend up -d --build
 ```
 
-백엔드 작업자는 필요 범위에 따라 local-db만 쓰거나 search-cache까지 함께 띄웁니다.
+백엔드 작업자는 backend/postgres/redis/elasticsearch를 함께 띄웁니다.
 
 ```bash
-# 일반 backend 개발
-docker compose --profile local-db up --build backend postgres
-
-# 검색/추천/캐시 통합 확인
-docker compose --profile local-db --profile search-cache up --build backend postgres redis elasticsearch
+docker compose --profile backend-dev up -d --build
 ```
 
 서버 배포는 RDS를 기준으로 하므로 Docker Postgres를 실행하지 않습니다.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile search-cache up --build -d backend redis elasticsearch caddy
+docker compose --profile server up -d --build
 ```
 
 ## 환경변수 운영 기준
@@ -215,8 +214,8 @@ ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
 Dev 서버에서 Redis/Elasticsearch까지 확인할 때는 서버에 SSH 접속한 뒤 `DEV_APP_DIR`에서 아래 순서로 확인합니다.
 
 ```bash
-docker compose --profile search-cache config
-docker compose --profile search-cache up -d redis elasticsearch
+docker compose --profile server config
+docker compose --profile server up -d redis elasticsearch
 docker compose ps redis elasticsearch
 docker compose exec -T redis redis-cli ping
 curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
@@ -255,7 +254,7 @@ ELASTICSEARCH_INDEX_PREFIX=mubarelle_demo
 - frontend build
 - 필수 파일 존재 확인
 - 실제 `.env` 파일 커밋 여부 확인
-- `docker compose --profile local-db --profile frontend --profile search-cache config`
+- `docker compose --profile backend-dev --profile frontend-dev-server config`
 - Docker Compose backend/postgres 기동
 - backend health check
 - backend pytest
@@ -264,8 +263,8 @@ ELASTICSEARCH_INDEX_PREFIX=mubarelle_demo
 로컬에서 PR 전 최소 확인:
 
 ```bash
-docker compose --profile local-db --profile frontend --profile search-cache config
-docker compose --profile local-db up --build -d backend postgres
+docker compose --profile backend-dev --profile frontend-dev-server config
+docker compose --profile backend-dev up --build -d backend postgres
 curl http://localhost:8000/api/health
 docker compose exec -T backend python -m pytest
 docker compose exec -T backend python -m alembic heads
@@ -277,12 +276,12 @@ docker compose down
 현재 별도 production 서버 자동 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버로 소스를 동기화한 뒤 backend/API 중심 Docker Compose를 재실행합니다. 프론트는 Vercel이 담당합니다.
 
 ```text
-dev push -> GitHub Actions checkout -> rsync to EC2 -> data/dev-small 재생성 -> docker compose --profile search-cache up --build -d backend redis elasticsearch caddy
+dev push -> GitHub Actions checkout -> rsync to EC2 -> data/dev-small 재생성 -> docker compose --profile server up --build -d backend redis elasticsearch caddy
 dev push -> Vercel Production Branch(dev) -> frontend production deployment
 PR/feature push with apps/frontend changes -> Vercel Preview deployment
 ```
 
-CD의 `rsync --delete`로 서버에서 만든 `data/dev-small`이 사라질 수 있으므로, Dev 배포 workflow는 `data/products.csv`가 있을 때 1,000개 subset CSV를 자동으로 다시 생성합니다.
+CD의 `rsync --delete`로 서버에서 만든 `data/dev-small`이 사라질 수 있으므로, Dev 배포 workflow는 `data/products.csv` 또는 `data/products/`가 있을 때 1,000개 subset CSV를 자동으로 다시 생성합니다.
 
 ### EC2 구성 기준
 

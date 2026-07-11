@@ -1,5 +1,6 @@
 import type { ProductCardItem } from "../types/recommendation";
 import { trackEvent } from "../lib/appSignals/client";
+import { navigateWithinApp } from "../lib/navigation";
 import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
@@ -38,7 +39,7 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
         }
       });
     }
-    window.location.href = detailUrl;
+    void navigateWithinApp(detailUrl);
   };
 
   return (

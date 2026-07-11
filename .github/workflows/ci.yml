@@ -98,10 +98,10 @@ jobs:
           fi
 
       - name: Validate Docker Compose config
-        run: docker compose --profile local-db --profile frontend --profile search-cache config
+        run: docker compose --profile backend-dev --profile frontend-dev-server config
 
       - name: Start Docker Compose services
-        run: docker compose --profile local-db up --build -d backend postgres
+        run: docker compose --profile backend-dev up --build -d backend postgres
 
       - name: Check backend hello endpoint
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 2 http://localhost:8000/api/health

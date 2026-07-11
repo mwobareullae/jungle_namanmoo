@@ -42,6 +42,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "concerns",
         "effect_aliases",
         "effects",
+        "evidence_discovery_candidates",
+        "evidence_discovery_reviews",
         "event_logs",
         "ingredient_aliases",
         "ingredient_effects",
@@ -101,6 +103,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     recommendation_results = Base.metadata.tables["recommendation_results"]
     ingredient_aliases = Base.metadata.tables["ingredient_aliases"]
     ingredient_evidence = Base.metadata.tables["ingredient_evidence"]
+    evidence_discovery_candidates = Base.metadata.tables["evidence_discovery_candidates"]
+    evidence_discovery_reviews = Base.metadata.tables["evidence_discovery_reviews"]
     product_images = Base.metadata.tables["product_images"]
     product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
     wishlists = Base.metadata.tables["wishlists"]
@@ -220,6 +224,31 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     }.issubset(
         ingredient_evidence.columns.keys()
     )
+    assert {
+        "discovery_key",
+        "ingredient_id",
+        "effect_id",
+        "paper_key",
+        "pmid",
+        "doi",
+        "title",
+        "publication_date_text",
+        "first_seen_at",
+        "last_seen_at",
+        "review_status",
+        "review_note",
+        "reviewed_by_user_id",
+        "promoted_evidence_id",
+    }.issubset(evidence_discovery_candidates.columns.keys())
+    assert {
+        "candidate_id",
+        "previous_status",
+        "new_status",
+        "reviewer_user_id",
+        "note",
+        "promoted_evidence_id",
+        "created_at",
+    }.issubset(evidence_discovery_reviews.columns.keys())
     assert {"severity_score", "applies_to", "condition", "source_type"}.issubset(risk_flags.columns.keys())
     assert {"product_id", "stock_quantity", "reserved_quantity", "safety_stock", "sales_status"}.issubset(
         inventories.columns.keys()

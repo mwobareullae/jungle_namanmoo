@@ -1,45 +1,53 @@
-const footerColumns = [
-  ["고객 지원", "공지사항", "자주 묻는 질문", "1:1 문의", "교환/반품 안내", "배송 조회"],
-  ["쇼핑", "신상품", "베스트", "세일", "브랜드", "맞춤 추천"],
-  ["회사", "회사소개", "이용약관", "개인정보처리방침", "입점 문의", "채용"]
-];
+const footerUtilityLinks = ["회사소개", "이용약관", "개인정보처리방침"];
 
-const communityFooterColumns = [
-  ["서비스", "맞춤 추천", "성분 가이드", "자주 묻는 질문"],
-  ["회사", "회사소개", "이용약관", "개인정보처리방침"]
-];
+const supportLinks = [
+  ["주문배송", "/mypage/orders"],
+  ["교환반품 안내", "/#defaultSection"],
+  ["1:1 문의", "/#defaultSection"]
+] as const;
 
 function AppFooter() {
-  const columns = import.meta.env.VITE_APP_MODE === "community" ? communityFooterColumns : footerColumns;
-
   return (
     <footer>
+      <nav className="footer-utility" aria-label="푸터 주요 링크">
+        <div className="footer-utility-inner">
+          {footerUtilityLinks.map((item) => (
+            <a href="/#defaultSection" key={item}>
+              {item}
+            </a>
+          ))}
+        </div>
+      </nav>
+
       <div className="footer-inner">
         <div className="footer-brand">
           <a className="logo" href="/">
             뭐바를래
           </a>
           <p className="footer-desc">
-            피부 고민에서 시작해 최적의 성분과 제품까지.
+            피부 고민에서 시작해 성분 근거와 피부 데이터로
             <br />
-            뭐바를래는 성분 함량과 근거 데이터를 함께 보고
-            <br />
-            납득 가능한 선택지를 골라드립니다.
+            더 나은 선택을 돕습니다.
           </p>
         </div>
-        {columns.map(([title, ...items]) => (
-          <div className="footer-col" key={title}>
-            <h5>{title}</h5>
-            <ul>
-              {items.map((item) => (
-                <li key={item}>
-                  <a href="/#defaultSection">{item}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <div className="footer-col footer-support">
+          <h5>고객지원</h5>
+          <ul>
+            {supportLinks.map(([label, href]) => (
+              <li key={label}>
+                <a href={href}>{label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="footer-company" aria-label="회사 안내">
+          <strong>뭐바를래</strong>
+          <p>성분 근거 기반 뷰티 커머스</p>
+          <p>피부 고민에 맞는 제품을 찾아보세요.</p>
+        </div>
       </div>
+
       <div className="footer-bottom">
         <span>© 2026 뭐바를래. All rights reserved.</span>
       </div>
