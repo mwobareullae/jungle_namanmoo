@@ -177,6 +177,11 @@ def clean(value: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value or "")).strip()
 
 
+def clean_cosing_values(values: Iterable[object]) -> tuple[str, ...]:
+    cleaned = {clean(str(value)) for value in values}
+    return tuple(sorted(value for value in cleaned if value))
+
+
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -389,24 +394,19 @@ def fetch_cosing_records(ingredient_rows: list[dict[str, str]]) -> dict[str, Cos
     for inci_name, entries in metadata_by_name.items():
         records[inci_name] = CosingRecord(
             inci_name=inci_name,
-            functions=tuple(
-                sorted({value for entry in entries for value in entry.get("functionName", [])})
+            functions=clean_cosing_values(
+                value for entry in entries for value in entry.get("functionName", [])
             ),
-            restrictions=tuple(
-                sorted(
-                    {
-                        value
-                        for entry in entries
-                        for value in entry.get("cosmeticRestriction", [])
-                        if value
-                    }
-                )
+            restrictions=clean_cosing_values(
+                value
+                for entry in entries
+                for value in entry.get("cosmeticRestriction", [])
             ),
-            sccs_opinions=tuple(
-                sorted({value for entry in entries for value in entry.get("sccsOpinion", [])})
+            sccs_opinions=clean_cosing_values(
+                value for entry in entries for value in entry.get("sccsOpinion", [])
             ),
-            substance_ids=tuple(
-                sorted({value for entry in entries for value in entry.get("substanceId", [])})
+            substance_ids=clean_cosing_values(
+                value for entry in entries for value in entry.get("substanceId", [])
             ),
         )
     return records
@@ -431,12 +431,12 @@ def write_cosing_cache(path: Path, records: dict[str, CosingRecord], fetched_on:
 def load_cosing_cache(path: Path) -> tuple[dict[str, CosingRecord], str]:
     rows = read_csv(path)
     records = {
-        row["inci_name"]: CosingRecord(
-            inci_name=row["inci_name"],
-            functions=tuple(json.loads(row["functions_json"])),
-            restrictions=tuple(json.loads(row["restrictions_json"])),
-            sccs_opinions=tuple(json.loads(row["sccs_opinions_json"])),
-            substance_ids=tuple(json.loads(row["substance_ids_json"])),
+        clean(row["inci_name"]): CosingRecord(
+            inci_name=clean(row["inci_name"]),
+            functions=clean_cosing_values(json.loads(row["functions_json"])),
+            restrictions=clean_cosing_values(json.loads(row["restrictions_json"])),
+            sccs_opinions=clean_cosing_values(json.loads(row["sccs_opinions_json"])),
+            substance_ids=clean_cosing_values(json.loads(row["substance_ids_json"])),
         )
         for row in rows
     }
@@ -654,7 +654,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--roles-output",
         type=Path,
-        default=Path("data/reconciliation/ingredient_role_review_500.csv"),
+        default=Path("data/reconciliation/ingredient_role_review.csv"),
     )
     parser.add_argument(
         "--watchlist-output",
@@ -664,7 +664,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cosing-cache",
         type=Path,
-        default=Path("data/reconciliation/ingredient_cosing_function_snapshot_500.csv"),
+        default=Path("data/reconciliation/ingredient_cosing_function_snapshot.csv"),
     )
     parser.add_argument("--refresh-cosing", action="store_true")
     return parser.parse_args()

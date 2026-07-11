@@ -11,7 +11,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from build_ingredient_canonicalization_inventory import build_inventory  # noqa: E402
+from build_ingredient_canonicalization_inventory import (  # noqa: E402
+    build_inventory,
+    load_mapped_source_ids,
+)
 from reconcile_a_group_product_ingredients import PRODUCT_INGREDIENT_FIELDS  # noqa: E402
 
 
@@ -27,6 +30,12 @@ class BuildIngredientCanonicalizationInventoryTests(unittest.TestCase):
                 "정제수,water,ko,high,test\n",
                 encoding="utf-8",
             )
+            mappings_path = data_dir / "ingredient_canonical_mappings.csv"
+            mappings_path.write_text(
+                "source_ingredient_id,source_ingredient_name,canonical_id,mapping_type,confidence,source\n"
+                "ing_pending_mapped,,mapped,official_exact,high,test\n",
+                encoding="utf-8",
+            )
             self._write_rows(
                 shard_dir / "product_ingredients_000.csv",
                 [
@@ -35,6 +44,7 @@ class BuildIngredientCanonicalizationInventoryTests(unittest.TestCase):
                     self._row("p3", "ing_pending_new", "Tocopherol"),
                     self._row("p4", "ing_pending_noise", "1"),
                     self._row("p5", "water", "Water"),
+                    self._row("p6", "ing_pending_mapped", "Mapped"),
                 ],
             )
 
@@ -42,6 +52,7 @@ class BuildIngredientCanonicalizationInventoryTests(unittest.TestCase):
                 data_dir / "product_ingredients.csv",
                 aliases_path,
                 limit=10,
+                mapped_source_ids=load_mapped_source_ids(mappings_path),
             )
 
         by_id = {row["source_ingredient_id"]: row for row in rows}
@@ -50,11 +61,12 @@ class BuildIngredientCanonicalizationInventoryTests(unittest.TestCase):
         self.assertEqual(by_id["ing_pending_water"]["existing_canonical_id"], "water")
         self.assertEqual(by_id["ing_pending_new"]["triage_status"], "canonical_review_required")
         self.assertEqual(by_id["ing_pending_noise"]["triage_status"], "reject_noise_candidate")
+        self.assertNotIn("ing_pending_mapped", by_id)
         self.assertEqual(
             json.loads(by_id["ing_pending_water"]["observed_names_json"]),
             [{"name": "정제수", "count": 2}],
         )
-        self.assertEqual(stats["total_rows"], 5)
+        self.assertEqual(stats["total_rows"], 6)
         self.assertEqual(stats["selected_rows"], 4)
 
     @staticmethod

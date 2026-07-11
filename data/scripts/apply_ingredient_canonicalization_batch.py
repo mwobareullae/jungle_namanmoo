@@ -152,6 +152,33 @@ def build_mapping_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
     return mappings
 
 
+def merge_mapping_rows(
+    path: Path,
+    new_rows: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    existing_rows = read_csv(path) if path.exists() else []
+    rows_by_key: dict[tuple[str, str], dict[str, str]] = {}
+    for row in [*existing_rows, *new_rows]:
+        key = (row["source_ingredient_id"], normalize(row["source_ingredient_name"]))
+        prior = rows_by_key.get(key)
+        if prior is None:
+            rows_by_key[key] = row
+            continue
+        if prior["canonical_id"] != row["canonical_id"]:
+            raise ValueError(
+                "기존 canonical mapping과 신규 proposal이 충돌합니다: "
+                f"{row['source_ingredient_id']}/{row['source_ingredient_name']} "
+                f"{prior['canonical_id']} != {row['canonical_id']}"
+            )
+    return sorted(
+        rows_by_key.values(),
+        key=lambda row: (
+            row["source_ingredient_id"],
+            normalize(row["source_ingredient_name"]),
+        ),
+    )
+
+
 def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
     rows_by_key: dict[tuple[str, str], dict[str, str]] = {}
     for row in selected:
@@ -306,13 +333,11 @@ def apply_batch(
 ) -> ApplyStats:
     selected = selected_rows(read_csv(proposals_path))
     before, added, after = append_ingredients(ingredients_path, selected)
-    mapping_rows = build_mapping_rows(selected)
-    mapping_rows.extend(build_exact_name_override_rows(selected))
-    mapping_rows.sort(
-        key=lambda row: (
-            row["source_ingredient_id"],
-            normalize(row["source_ingredient_name"]),
-        )
+    new_mapping_rows = build_mapping_rows(selected)
+    new_mapping_rows.extend(build_exact_name_override_rows(selected))
+    mapping_rows = merge_mapping_rows(
+        mappings_path,
+        new_mapping_rows,
     )
     write_csv(mappings_path, MAPPING_FIELDS, mapping_rows)
     aliases_added, aliases_reassigned, conflicts = update_aliases(

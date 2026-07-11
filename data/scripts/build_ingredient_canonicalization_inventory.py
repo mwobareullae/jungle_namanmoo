@@ -41,8 +41,10 @@ def build_inventory(
     aliases_path: Path,
     *,
     limit: int = 300,
+    mapped_source_ids: set[str] | None = None,
 ) -> tuple[list[dict[str, str]], dict[str, int]]:
     alias_lookup = load_alias_lookup(aliases_path)
+    mapped_source_ids = mapped_source_ids or set()
     counts: Counter[str] = Counter()
     products: dict[str, set[str]] = defaultdict(set)
     names: dict[str, Counter[str]] = defaultdict(Counter)
@@ -54,6 +56,8 @@ def build_inventory(
                 total_rows += 1
                 ingredient_id = row["ingredient_id"].strip()
                 if not ingredient_id.startswith("ing_pending_"):
+                    continue
+                if ingredient_id in mapped_source_ids:
                     continue
                 ingredient_name = row["ingredient_name"].strip()
                 counts[ingredient_id] += 1
@@ -119,6 +123,17 @@ def build_inventory(
     return output, stats
 
 
+def load_mapped_source_ids(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        return {
+            row["source_ingredient_id"].strip()
+            for row in csv.DictReader(handle)
+            if not row.get("source_ingredient_name", "").strip()
+        }
+
+
 def classify_candidate(
     *,
     dominant_name: str,
@@ -161,6 +176,11 @@ def main() -> None:
         default=Path("data/ingredient_aliases.csv"),
     )
     parser.add_argument(
+        "--mappings",
+        type=Path,
+        default=Path("data/ingredient_canonical_mappings.csv"),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("data/reconciliation/ingredient_canonicalization_top300.csv"),
@@ -172,6 +192,7 @@ def main() -> None:
         args.product_ingredients,
         args.aliases,
         limit=args.limit,
+        mapped_source_ids=load_mapped_source_ids(args.mappings),
     )
     write_inventory(args.output, rows)
     print(

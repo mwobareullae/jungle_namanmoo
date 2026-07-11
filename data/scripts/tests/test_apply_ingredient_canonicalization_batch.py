@@ -34,6 +34,11 @@ class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
                 "Acetyl Hexapeptide-8,peptides,inci,high,old\n",
                 encoding="utf-8",
             )
+            mappings.write_text(
+                "source_ingredient_id,source_ingredient_name,canonical_id,mapping_type,confidence,source\n"
+                "peptides,Peptide Family,peptides,exact_name_override,high,existing\n",
+                encoding="utf-8",
+            )
             self._write_proposals(proposals)
 
             first = apply_batch(
@@ -60,11 +65,18 @@ class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
             sum(row["ingredient_id"] == "acetyl_hexapeptide_8" for row in ingredient_rows),
             1,
         )
-        self.assertEqual(len(mapping_rows), 5)
-        self.assertTrue(all(row["canonical_id"] == "acetyl_hexapeptide_8" for row in mapping_rows))
+        self.assertEqual(len(mapping_rows), 6)
+        self.assertEqual(
+            next(
+                row["canonical_id"]
+                for row in mapping_rows
+                if row["source_ingredient_name"] == "Peptide Family"
+            ),
+            "peptides",
+        )
         self.assertEqual(
             sum(row["mapping_type"] == "exact_name_override" for row in mapping_rows),
-            3,
+            4,
         )
         legacy_mapping = next(
             row

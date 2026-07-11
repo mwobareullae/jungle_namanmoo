@@ -110,6 +110,45 @@ class BuildIngredientRoleInventoryTests(unittest.TestCase):
         self.assertEqual(loaded, records)
         self.assertEqual(fetched_on, "2026-07-12")
 
+    def test_cosing_cache_load_collapses_metadata_whitespace(self):
+        import csv
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "cache.csv"
+            with path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=[
+                        "fetched_on",
+                        "source_url",
+                        "inci_name",
+                        "functions_json",
+                        "restrictions_json",
+                        "sccs_opinions_json",
+                        "substance_ids_json",
+                    ],
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "fetched_on": "2026-07-12",
+                        "source_url": "https://example.com",
+                        "inci_name": "TEST INCI",
+                        "functions_json": json.dumps(["SKIN  CONDITIONING"]),
+                        "restrictions_json": json.dumps(["III/61\r\nrestricted"]),
+                        "sccs_opinions_json": json.dumps([]),
+                        "substance_ids_json": json.dumps([" 123 "]),
+                    }
+                )
+
+            loaded, _ = load_cosing_cache(path)
+
+        self.assertEqual(loaded["TEST INCI"].functions, ("SKIN CONDITIONING",))
+        self.assertEqual(loaded["TEST INCI"].restrictions, ("III/61 restricted",))
+        self.assertEqual(loaded["TEST INCI"].substance_ids, ("123",))
+
 
 if __name__ == "__main__":
     unittest.main()
