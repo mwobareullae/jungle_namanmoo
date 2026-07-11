@@ -109,6 +109,16 @@ class IngredientAlias:
 
 
 @dataclass(frozen=True)
+class IngredientCanonicalMapping:
+    source_ingredient_id: str
+    source_ingredient_name: str | None
+    canonical_id: str
+    mapping_type: str
+    confidence: str
+    source: str
+
+
+@dataclass(frozen=True)
 class IngredientEffect:
     ingredient_id: str
     effect_id: str
@@ -203,6 +213,7 @@ class DataCatalog:
     product_skin_profiles: tuple[ProductSkinProfile, ...]
     ingredients: tuple[Ingredient, ...]
     ingredient_aliases: tuple[IngredientAlias, ...]
+    ingredient_canonical_mappings: tuple[IngredientCanonicalMapping, ...]
     ingredient_effects: tuple[IngredientEffect, ...]
     ingredient_effect_ranges: tuple[IngredientEffectRange, ...]
     ingredient_evidence: tuple[IngredientEvidence, ...]

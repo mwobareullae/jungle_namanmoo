@@ -12,6 +12,7 @@ from app.models.data_contract import (
     DataCatalog,
     Ingredient,
     IngredientAlias,
+    IngredientCanonicalMapping,
     IngredientEffect,
     IngredientEffectRange,
     IngredientEvidence,
@@ -109,6 +110,14 @@ CSV_HEADERS = {
     },
     "ingredients.csv": {"ingredient_id", "name_ko", "name_en", "description"},
     "ingredient_aliases.csv": {"alias", "canonical_id", "alias_type", "confidence", "source"},
+    "ingredient_canonical_mappings.csv": {
+        "source_ingredient_id",
+        "source_ingredient_name",
+        "canonical_id",
+        "mapping_type",
+        "confidence",
+        "source",
+    },
     "ingredient_effect.csv": {"ingredient_id", "effect_id", "effect_name", "effect_score"},
     "ingredient_effect_ranges.csv": {
         "ingredient_id",
@@ -171,6 +180,8 @@ EVIDENCE_SCORE_USE_LEVEL_VALUES = {"primary", "supporting", "reference_only"}
 ALIAS_TYPE_VALUES = {"ko", "en", "inci", "abbrev", "typo", "synonym"}
 ALIAS_CONFIDENCE_VALUES = {"high", "medium", "low"}
 ALIAS_CONFIDENCE_ALIASES = {"med": "medium"}
+CANONICAL_MAPPING_TYPE_VALUES = {"official_exact", "existing_identity", "exact_name_override"}
+CANONICAL_MAPPING_CONFIDENCE_VALUES = {"high"}
 SALES_STATUS_VALUES = {"ON_SALE", "SOLD_OUT", "HIDDEN"}
 BRAND_CORRECTION_FILE = Path("reconciliation") / "brand_corrections_recommendable.csv"
 
@@ -218,6 +229,11 @@ def load_data_catalog(data_dir: str | Path, *, include_product_ingredients: bool
         "ingredient_aliases.csv",
         _parse_ingredient_alias,
     )
+    ingredient_canonical_mappings = _load_optional_csv(
+        base_path,
+        "ingredient_canonical_mappings.csv",
+        _parse_ingredient_canonical_mapping,
+    )
     ingredient_effects = _load_csv(
         base_path,
         "ingredient_effect.csv",
@@ -248,6 +264,7 @@ def load_data_catalog(data_dir: str | Path, *, include_product_ingredients: bool
         product_skin_profiles=product_skin_profiles,
         ingredients=ingredients,
         ingredient_aliases=ingredient_aliases,
+        ingredient_canonical_mappings=ingredient_canonical_mappings,
         ingredient_effects=ingredient_effects,
         ingredient_effect_ranges=ingredient_effect_ranges,
         ingredient_evidence=ingredient_evidence,
@@ -652,6 +669,29 @@ def _parse_ingredient_alias(row: dict[str, str], file_name: str, line_number: in
     )
 
 
+def _parse_ingredient_canonical_mapping(
+    row: dict[str, str],
+    file_name: str,
+    line_number: int,
+) -> IngredientCanonicalMapping:
+    mapping_type = _required_text(row, "mapping_type", file_name, line_number)
+    if mapping_type not in CANONICAL_MAPPING_TYPE_VALUES:
+        allowed = ", ".join(sorted(CANONICAL_MAPPING_TYPE_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} mapping_type은 {allowed} 중 하나여야 합니다.")
+    confidence = _required_text(row, "confidence", file_name, line_number)
+    if confidence not in CANONICAL_MAPPING_CONFIDENCE_VALUES:
+        allowed = ", ".join(sorted(CANONICAL_MAPPING_CONFIDENCE_VALUES))
+        raise DataLoadError(f"{file_name}:{line_number} confidence는 {allowed}만 허용됩니다.")
+    return IngredientCanonicalMapping(
+        source_ingredient_id=_required_text(row, "source_ingredient_id", file_name, line_number),
+        source_ingredient_name=_optional_text(row.get("source_ingredient_name")),
+        canonical_id=_required_text(row, "canonical_id", file_name, line_number),
+        mapping_type=mapping_type,
+        confidence=confidence,
+        source=_required_text(row, "source", file_name, line_number),
+    )
+
+
 def _parse_ingredient_effect(
     row: dict[str, str],
     file_name: str,
@@ -873,6 +913,19 @@ def _validate_catalog(catalog: DataCatalog, *, validate_product_ingredients: boo
     )
     _validate_alias_conflicts(catalog.ingredient_aliases)
     _validate_references(
+        "ingredient_canonical_mappings.csv",
+        "source_ingredient_id",
+        (mapping.source_ingredient_id for mapping in catalog.ingredient_canonical_mappings),
+        ingredient_ids,
+    )
+    _validate_references(
+        "ingredient_canonical_mappings.csv",
+        "canonical_id",
+        (mapping.canonical_id for mapping in catalog.ingredient_canonical_mappings),
+        ingredient_ids,
+    )
+    _validate_canonical_mappings(catalog.ingredient_canonical_mappings)
+    _validate_references(
         "ingredient_effect.csv",
         "ingredient_id",
         (effect.ingredient_id for effect in catalog.ingredient_effects),
@@ -940,6 +993,44 @@ def _validate_alias_conflicts(ingredient_aliases: tuple[IngredientAlias, ...]) -
                 f"{alias.alias}"
             )
         owners_by_alias[normalized_alias] = alias.ingredient_id
+
+
+def _validate_canonical_mappings(
+    mappings: tuple[IngredientCanonicalMapping, ...],
+) -> None:
+    seen_keys: set[tuple[str, str]] = set()
+    for mapping in mappings:
+        normalized_name = _normalize_alias(mapping.source_ingredient_name or "")
+        key = (mapping.source_ingredient_id, normalized_name)
+        if key in seen_keys:
+            raise DataLoadError(
+                "ingredient_canonical_mappings.csv에 source ID와 name 조합이 중복됩니다: "
+                f"{mapping.source_ingredient_id}/{mapping.source_ingredient_name or '*'}"
+            )
+        seen_keys.add(key)
+        if mapping.mapping_type == "exact_name_override":
+            if not mapping.source_ingredient_name:
+                raise DataLoadError(
+                    "exact_name_override mapping은 source_ingredient_name이 필요합니다: "
+                    f"{mapping.source_ingredient_id}"
+                )
+        elif not mapping.source_ingredient_id.startswith("ing_pending_"):
+            raise DataLoadError(
+                "official_exact/existing_identity source는 ing_pending_으로 시작해야 합니다: "
+                f"{mapping.source_ingredient_id}"
+            )
+        elif mapping.source_ingredient_name:
+            raise DataLoadError(
+                "pending source mapping의 source_ingredient_name은 비워야 합니다: "
+                f"{mapping.source_ingredient_id}"
+            )
+        if mapping.canonical_id.startswith("ing_pending_"):
+            raise DataLoadError(
+                "ingredient_canonical_mappings.csv의 canonical_id는 정식 canonical이어야 합니다: "
+                f"{mapping.canonical_id}"
+            )
+        if mapping.source_ingredient_id == mapping.canonical_id:
+            raise DataLoadError("ingredient_canonical_mappings.csv는 자기 자신으로 매핑할 수 없습니다")
 
 
 def _validate_ingredient_evidence_contract(

@@ -37,6 +37,7 @@
 | --- | --- | --- |
 | `data/ingredients.csv` | CSV | 성분 기본 정보 |
 | `data/ingredient_aliases.csv` | CSV | raw 성분 표기와 canonical 성분 ID의 매핑 |
+| `data/ingredient_canonical_mappings.csv` | CSV | pending source 또는 broad exact 표기를 승인된 canonical 성분 ID로 연결하는 매핑 |
 | `data/ingredient_effect.csv` | CSV | 성분과 효능의 매핑 |
 | `data/ingredient_evidence.csv` | CSV | 성분 효능 근거와 근거 등급 |
 | `data/ingredient_effect_ranges.csv` | CSV | 성분-효능별 유효/적정/과다 함량 범위 |
@@ -198,6 +199,23 @@ staging 검증은 row 단위로 성공/실패를 남겨야 합니다. 실패 row
 
 동일한 정규화 alias가 둘 이상의 `canonical_id`에 매핑되면 충돌로 보고 seed 전에 수정합니다.
 Seed는 입력 CSV에 있는 alias를 insert/update하지만, CSV에서 삭제된 기존 DB alias를 자동 삭제하지 않습니다. 삭제가 필요한 경우 별도 정리 작업으로 처리합니다.
+
+### `data/ingredient_canonical_mappings.csv`
+
+대용량 `product_ingredients.csv` 원본을 다시 쓰지 않고, 검수 완료된 pending source ID 또는 broad 성분의 exact 표기를 canonical 성분으로 해석하기 위한 선택 입력 파일입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `source_ingredient_id` | 원본 상품-성분 연결의 성분 ID. 전체 매핑은 `ing_pending_` ID, exact override는 기존 broad canonical ID 사용 가능 |
+| `source_ingredient_name` | pending ID 전체를 옮길 때는 공란. 기존 broad ID 중 exact 표기만 분리할 때는 원문 성분명 |
+| `canonical_id` | 매핑 대상 정식 성분 ID. `ingredients.csv`에 존재하고 `ing_pending_`이 아니어야 함 |
+| `mapping_type` | `official_exact`, `existing_identity`, `exact_name_override` |
+| `confidence` | 자동 적용 파일에는 `high`만 허용 |
+| `source` | 매핑 근거. 예: `KCIA 표준화명칭목록 2026-06-30` |
+
+Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredient_name)` exact override를 확인하고, 없으면 source ID 전체 매핑을 적용합니다. 이미 DB에 남아 있는 해당 source 연결은 같은 트랜잭션에서 먼저 삭제한 뒤 현재 원본 CSV를 기준으로 broad 또는 exact canonical 연결을 다시 upsert합니다. 매핑이 없는 pending ID는 기존과 동일하게 유지합니다.
+
+이 파일은 검수 완료 매핑만 담는 append-oriented 정본입니다. 기존 매핑을 제거하거나 대상을 바꿀 때는 과거 canonical 연결 정리가 필요하므로 별도 데이터 정리와 검증을 수행해야 합니다.
 
 ### `data/ingredient_effect.csv`
 
