@@ -36,12 +36,12 @@ export type MypageUserSummary = {
 
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/settings";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/settings" | "";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
   label: string;
   group: 1 | 2 | 3;
 };
@@ -54,8 +54,8 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/skin-profile", label: "피부 프로필", group: 1 },
   { path: "/mypage/wishlist", label: "찜한 상품", group: 2 },
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
-  { path: "/mypage/orders", label: "주문/배송 조회", group: 3 },
-  { path: "", label: "배송지 관리", group: 3 },
+  { path: "/mypage/orders", label: "주문/배송내역", group: 3 },
+  { path: "/mypage/addresses", label: "배송지 관리", group: 3 },
   { path: "/mypage/settings", label: "개인정보 설정", group: 3 }
 ] as const;
 
@@ -267,7 +267,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
         ))}
       </nav>
       <main className="mx-auto grid w-[calc(100%-40px)] items-start gap-12 py-9 pb-[72px] md:w-[min(1180px,calc(100%-80px))] md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside aria-label="마이페이지 메뉴" className="sticky top-6 hidden md:block">
+        <aside aria-label="마이페이지 메뉴" className="sticky top-20 hidden md:block">
           <section style={styles.userBlock}>
             <ProfileAvatar size="small" />
             <div>
@@ -382,7 +382,7 @@ function UserSummaryCard({
 
       <section style={styles.summarySection} aria-label="주문 배송 조회">
         <div style={styles.summarySectionHeader}>
-          <h3 style={styles.orderSectionTitle}>주문/배송 조회</h3>
+          <h3 style={styles.orderSectionTitle}>주문/배송내역</h3>
           <Link
             className="inline-flex items-center gap-[3px] text-[13px] font-semibold text-[#7b8794] no-underline hover:text-[#1A1A1A]"
             to="/mypage/orders"
@@ -396,21 +396,32 @@ function UserSummaryCard({
         >
           {orderStatusSummary.map((item, index) => {
             const isActive = item.count > 0;
+            const statusContent = (
+              <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
+                <strong
+                  className={`whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none sm:text-[24px] ${isActive ? "text-[#1A1A1A]" : "text-[#d6dade]"}`}
+                >
+                  {item.count}
+                </strong>
+                <span
+                  className={`text-center text-[11px] leading-tight font-semibold whitespace-nowrap sm:text-[13px] ${isActive ? "text-[#1A1A1A]" : "text-[#aeb4ba]"}`}
+                >
+                  {item.label}
+                </span>
+              </div>
+            );
 
             return (
               <Fragment key={item.label}>
-                <div className="flex min-w-[64px] shrink-0 flex-col items-center gap-2 sm:min-w-0 sm:flex-1">
-                  <strong
-                    className={`whitespace-nowrap font-['GmarketSans',sans-serif] text-[20px] leading-none sm:text-[24px] ${isActive ? "text-[#2AA6D1]" : "text-[#d6dade]"}`}
+                {isActive ? (
+                  <Link
+                    aria-label={`${item.label} ${item.count}건 조회`}
+                    className="flex min-w-[64px] shrink-0 flex-1 items-center justify-center no-underline transition-opacity hover:opacity-65 sm:min-w-0"
+                    to="/mypage/orders"
                   >
-                    {item.count}
-                  </strong>
-                  <span
-                    className={`text-center text-[11px] leading-tight font-semibold whitespace-nowrap sm:text-[13px] ${isActive ? "text-[#1A1A1A]" : "text-[#aeb4ba]"}`}
-                  >
-                    {item.label}
-                  </span>
-                </div>
+                    {statusContent}
+                  </Link>
+                ) : statusContent}
                 {index < orderStatusSummary.length - 1 ? (
                   <span aria-hidden="true" className="shrink-0 text-[16px] leading-none text-[#d7dce0] sm:text-[22px]">
                     ›
@@ -532,6 +543,13 @@ function BaumannResultPanel({ result }: { result: SkinTestResult | null }) {
             {effectTags.slice(0, 3).map((effect) => <span key={effect} style={styles.baumannEffectTag}>{effect}</span>)}
           </div>
         ) : null}
+        <Link
+          className="mt-5 inline-flex min-h-[42px] items-center justify-center gap-1 rounded-full bg-[#0C1117] px-5 text-[13px] font-bold text-white no-underline transition-colors hover:bg-[#1A1A1A]"
+          onClick={() => window.scrollTo({ top: 0, behavior: "auto" })}
+          to={`/skin-test/recommendations?result_id=${encodeURIComponent(result.result_id)}`}
+        >
+          맞춤 추천 결과 보러가기 <span aria-hidden="true">›</span>
+        </Link>
       </div>
       {imageUrl && !imageFailed ? (
         <div aria-hidden="true" className="justify-self-center lg:justify-self-end" style={styles.baumannImageWrap}>
@@ -601,19 +619,11 @@ function ProfileAvatar({ size }: { size: "small" | "large" }) {
 
   return (
     <div style={isLarge ? styles.avatarLarge : styles.avatarSmall} aria-hidden="true">
-      <svg
-        width={isLarge ? 34 : 22}
-        height={isLarge ? 34 : 22}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M20 21a8 8 0 0 0-16 0" />
-        <circle cx="12" cy="8" r="4" />
-      </svg>
+      <img
+        alt=""
+        src="/mypage-profile-rabbit.png"
+        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+      />
     </div>
   );
 }
@@ -641,7 +651,7 @@ const styles: Record<string, CSSProperties> = {
     padding: "16px 18px",
     marginBottom: 18,
     borderRadius: 14,
-    background: "rgba(148, 224, 248, 0.16)",
+    background: "#ffffff",
     border: "1px solid rgba(148, 224, 248, 0.4)"
   },
   avatarSmall: {
