@@ -41,7 +41,7 @@ export const ORDER_STATUS_LABELS = {
   PAID: "결제완료",
   PAYMENT_FAILED: "결제실패",
   EXPIRED: "주문만료",
-  PREPARING_SHIPMENT: "배송준비",
+  PREPARING_SHIPMENT: "배송준비중",
   SHIPPED: "배송중",
   DELIVERED: "배송완료",
   CANCEL_REQUESTED: "취소요청",
