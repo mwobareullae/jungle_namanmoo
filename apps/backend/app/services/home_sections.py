@@ -59,6 +59,9 @@ HOME_LAYOUT_SECTIONS = (
     ),
 )
 
+# Keep the personalized section directly below the market-popular section on home.
+HOME_LAYOUT_SECTIONS = (HOME_LAYOUT_SECTIONS[0], HOME_LAYOUT_SECTIONS[2], HOME_LAYOUT_SECTIONS[1])
+
 
 @dataclass(frozen=True)
 class _ProductBase:
