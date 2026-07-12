@@ -845,6 +845,8 @@ function AgentFloatingButton({
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const teaserTimerRef = useRef<number | null>(null);
@@ -881,6 +883,7 @@ function AgentFloatingButton({
     setIsOpen(false);
     hasDismissedTeaserRef.current = true;
     setIsTeaserVisible(false);
+    triggerButtonRef.current?.focus();
     if (typeof window !== "undefined") {
       closeTimerRef.current = window.setTimeout(() => {
         setIsChatMounted(false);
@@ -952,6 +955,15 @@ function AgentFloatingButton({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => chatInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(animationFrame);
   }, [isOpen]);
 
   useEffect(() => {
@@ -1357,6 +1369,7 @@ function AgentFloatingButton({
         </div>
         {isChatMounted ? (
           <section
+            aria-modal={isOpen ? "true" : undefined}
             aria-labelledby="agent-chat-title"
             className={`agent-chat-popup${isOpen ? " is-visible" : ""}`}
             id="agent-chat-popup"
@@ -1495,6 +1508,7 @@ function AgentFloatingButton({
                 disabled={isSubmitting}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="무엇이든 물어보세요"
+                ref={chatInputRef}
                 value={draft}
               />
               <button aria-label="질문 전송" disabled={!draft.trim() || isSubmitting} type="submit">
@@ -1512,6 +1526,7 @@ function AgentFloatingButton({
           aria-expanded={isOpen}
           className={`agent-floating-entry__button${isOpen ? " is-open" : ""}`}
           onClick={() => (isOpen ? closeChat() : openChat())}
+          ref={triggerButtonRef}
           type="button"
           aria-label={isOpen ? "뭐바를래 AI 닫기" : "뭐바를래 AI 열기"}
         >
