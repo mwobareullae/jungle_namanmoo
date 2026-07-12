@@ -818,6 +818,25 @@ for a later retry. Full cancellation marks the order and order items as
 `CANCELED`, marks the payment as `CANCELED`, and restores the sold quantity to
 inventory with a `SALE_CANCEL` movement.
 
+## Order claim API
+
+Only delivered orders can create a return, exchange, or refund claim. The
+claim window is seven days from `delivered_at`, and partial item quantities are
+allowed. Active claim quantities are subtracted from the remaining claimable
+quantity.
+
+```text
+GET  /api/orders/{order_code}/claim-eligibility
+POST /api/order-claims
+GET  /api/order-claims
+GET  /api/order-claims/{claim_code}
+POST /api/order-claims/{claim_code}/withdraw
+```
+
+Creating a claim records `REQUESTED` state and does not execute a refund,
+inventory restoration, pickup, or exchange shipment. Those operations require
+later administrator processing. Users can withdraw only a `REQUESTED` claim.
+
 ## Frontend Responsibilities
 
 - Use `cart_item_ids` selected by user.
