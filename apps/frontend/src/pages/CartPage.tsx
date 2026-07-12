@@ -490,18 +490,9 @@ function CartPage() {
               <h2>{user ? `${user.nickname ?? "회원"}님의 장바구니가 비어 있어요` : "장바구니가 비어 있어요"}</h2>
               <p>추천받은 뷰티 상품을 담아보세요.</p>
               <div className="cart-page-empty-actions">
-                <button type="button" onClick={() => navigateWithinApp("/search")}>
-                  추천 상품 보러가기
+                <button type="button" onClick={() => void navigateWithinApp("/products/popular")}>
+                  인기 상품 보기
                 </button>
-                {!user && (
-                  <button
-                    className="cart-page-empty-secondary"
-                    type="button"
-                    onClick={() => navigate("/login", { state: { from: "/cart" } })}
-                  >
-                    로그인하고 이전 장바구니 복원하기
-                  </button>
-                )}
                 {user && (
                   <button
                     className="cart-page-empty-link"

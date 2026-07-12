@@ -107,8 +107,11 @@ BASE_URL="https://dev.api.mubarelle.com/api"
 REPORT_TITLE="Dev API k6 Performance Run"
 CART_WRITES="false"
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
+SUGGESTION_QUERIES="토리,라운,수분,세럼,ㅌㄹㄷ"
 HEAVY_PRODUCT_IDS=""
 SLA_MS=3000
+CATALOG_SEARCH_SLA_MS=500
+CATALOG_SUGGESTIONS_SLA_MS=200
 
 RDS_METRICS_ENABLED="true"
 RDS_DB_INSTANCE_IDENTIFIER="mubarelle-db"
@@ -174,6 +177,15 @@ scripts/perf/run-loadtest.sh baseline
 ```
 
 baseline은 10 VU로 4분 동안 실행됩니다. 36,000건 상품 데이터 기준 주요 API 응답 기준선을 잡는 용도입니다.
+
+일반 상품 검색과 자동완성만 분리해서 보려면 `catalog` 프로필을 사용합니다.
+
+```bash
+scripts/perf/run-loadtest.sh catalog
+```
+
+`catalog`는 10 VU로 2분 동안 `/api/search/products`와 `/api/search/suggestions`만 반복하며,
+각각 p95 500ms 미만과 200ms 미만을 별도 threshold로 판정합니다.
 
 ## 6. Cart Write 포함 실행
 
@@ -354,7 +366,8 @@ DEBUG_ERRORS=true scripts/perf/run-loadtest.sh smoke
 GET  /api/health
 GET  /api/products/popular
 GET  /api/products/{product_id}
-GET  /api/products/search
+GET  /api/search/products
+GET  /api/search/suggestions
 GET  /api/home/layout
 GET  /api/home/market-popular
 GET  /api/home/evidence-picks
@@ -366,13 +379,16 @@ POST /api/cart/items          # CART_WRITES=true 일 때만
 POST /api/checkout/preview    # CART_WRITES=true 일 때만
 ```
 
-검색어는 `SEARCH_QUERIES`로 조절합니다.
+상품 검색어는 `SEARCH_QUERIES`, 자동완성 입력은 `SUGGESTION_QUERIES`로 조절합니다.
 로그인 사용자 홈 추천은 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정했을 때만 추가 실행합니다.
 기본 실행은 비로그인/fallback for-you만 포함하며, 로그인 시나리오 포함 여부는 `report.md`의 `Auth home for-you` 행과 Slack 요약에 표시됩니다.
 리포트 제목은 `REPORT_TITLE`로 조절합니다.
 
 ```env
 SEARCH_QUERIES="세럼,수분 크림,나이아신아마이드,진정,선크림"
+SUGGESTION_QUERIES="토리,라운,수분,세럼,ㅌㄹㄷ"
+CATALOG_SEARCH_SLA_MS=500
+CATALOG_SUGGESTIONS_SLA_MS=200
 ```
 
 성분이 많거나 이미지/가격/evidence가 무거운 상품 상세를 따로 보고 싶으면 `HEAVY_PRODUCT_IDS`를 지정합니다.

@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.schemas.recommendation import CartHandoff, ScoreBreakdown
+from app.schemas.review import ProductReviewSummary
 
 
 class ProductInfo(BaseModel):
@@ -160,3 +161,4 @@ class ProductDetailResponse(BaseModel):
     ingredients: list[ProductIngredient]
     evidence: ProductEvidence
     sources: list[SourceInfo]
+    review_summary: ProductReviewSummary
