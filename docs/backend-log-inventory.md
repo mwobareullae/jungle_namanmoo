@@ -178,6 +178,18 @@ event:
 | `product_review_catalog_sync_completed` | 리뷰 변경 후 ES 단건 동기화 | `product_id`, `action` |
 | `product_review_catalog_sync_failed` | 리뷰 저장 후 ES 단건 동기화 실패 | `product_id`, `error` |
 
+### 카탈로그 탐색
+
+위치:
+
+- `apps/backend/app/api/routes/catalog.py`
+
+| event | 붙은 API | 주요 필드 |
+|---|---|---|
+| `product_listing_completed` | `GET /api/products` | `page`, `page_size`, `item_count`, `total_items`, `sort`, 필터별 개수 |
+| `catalog_categories_completed` | `GET /api/categories` | `item_count` |
+| `catalog_brands_completed` | `GET /api/brands` | `page`, `page_size`, `item_count`, `has_query` |
+
 ### 추천 API
 
 위치:
