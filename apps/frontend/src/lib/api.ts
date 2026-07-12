@@ -25,7 +25,7 @@ import type {
   AgentToolConfirmRequest,
   AgentToolConfirmResponse
 } from "../types/agent";
-import type { PopularProductsResponse } from "../types/product";
+import type { ProductListingResponse, ProductListingSort, PopularProductsResponse } from "../types/product";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
@@ -53,6 +53,18 @@ type RecommendationApi = {
     limit?: number;
   }) => Promise<HomeSection>;
   getPopularProducts: (params?: { categoryCode?: string; limit?: number }) => Promise<PopularProductsResponse>;
+  getProductListing: (params?: {
+    page?: number;
+    pageSize?: number;
+    brandCodes?: string[];
+    categoryCodes?: string[];
+    categoryGroups?: string[];
+    minPrice?: number;
+    maxPrice?: number;
+    minRating?: number;
+    inStock?: boolean;
+    sort?: ProductListingSort;
+  }) => Promise<ProductListingResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
@@ -510,6 +522,24 @@ export const api: RecommendationApi = {
       `${API_BASE_URL}/products/popular${query ? `?${query}` : ""}`
     );
     return mapPopularProducts(await parseJson<PopularProductsResponse>(response));
+  },
+
+  async getProductListing(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    params.brandCodes?.forEach((code) => searchParams.append("brand_code", code));
+    params.categoryCodes?.forEach((code) => searchParams.append("category_code", code));
+    params.categoryGroups?.forEach((group) => searchParams.append("category_group", group));
+    if (params.minPrice !== undefined) searchParams.set("min_price", String(params.minPrice));
+    if (params.maxPrice !== undefined) searchParams.set("max_price", String(params.maxPrice));
+    if (params.minRating !== undefined) searchParams.set("min_rating", String(params.minRating));
+    if (params.inStock !== undefined) searchParams.set("in_stock", String(params.inStock));
+    if (params.sort) searchParams.set("sort", params.sort);
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(`${API_BASE_URL}/products${query ? `?${query}` : ""}`);
+    return parseJson<ProductListingResponse>(response);
   },
 
   async getProduct(productId, recommendationId) {
