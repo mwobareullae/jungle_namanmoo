@@ -364,6 +364,8 @@ def test_toss_confirm_approves_payment_and_records_provider_key(
     assert len(attempts) == 1
     assert attempts[0].operation == "CONFIRM"
     assert attempts[0].status == "APPROVED"
+    assert attempts[0].attempt_code.startswith("toss_confirm:")
+    assert len(attempts[0].attempt_code) == 77
     assert attempts[0].provider_payment_key == "toss_payment_key_confirm"
     assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert events[0].provider_payment_key == "toss_payment_key_confirm"

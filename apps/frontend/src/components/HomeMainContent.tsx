@@ -11,7 +11,8 @@ import type {
   ProductCardItem,
   RecommendationResponse,
   RecommendationPagination,
-  RecommendationProfile
+  RecommendationProfile,
+  SearchMode
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 import ProductThumbnail from "./ProductThumbnail";
@@ -162,14 +163,14 @@ function HomeSectionLoadingSkeleton() {
         </div>
       </section>
 
-      <section className="home-api-section home-original-section home-personal-section home-loading-section">
+      <section className="home-api-section home-original-section home-personal-section tone-mint home-loading-section">
         <HomeLoadingSectionHead />
         <div className="product-grid" id="defaultProductGrid">
           <ProductSkeletonList count={8} />
         </div>
       </section>
 
-      <section className="home-api-section home-deal-section tone-mint home-loading-section">
+      <section className="home-api-section home-deal-section home-loading-section">
         <HomeLoadingSectionHead />
         <div className="home-deal-grid">
           {Array.from({ length: 8 }, (_, index) => (
@@ -348,7 +349,7 @@ function HomeDealSection({
   const visibleProducts = products.slice(0, 8);
 
   return (
-    <section className="home-api-section home-deal-section tone-mint">
+    <section className="home-api-section home-deal-section">
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">맞춤 추천 섹션</div>
@@ -422,7 +423,7 @@ function HomeOriginalGridSection({
   const visibleProducts = products.slice(0, 8);
 
   return (
-    <section className="home-api-section home-original-section home-personal-section">
+    <section className="home-api-section home-original-section home-personal-section tone-mint">
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">성분 근거 기준 큐레이션</div>
@@ -466,6 +467,7 @@ type HomeMainContentProps = {
   initialQuery?: string;
   initialPage?: number;
   initialRecommendationId?: string;
+  initialSearchMode?: SearchMode;
   initialProfile?: RecommendationProfile;
   mode?: "home" | "search";
   pageSize?: number;
@@ -476,6 +478,7 @@ function HomeMainContent({
   initialQuery = "",
   initialPage = 1,
   initialRecommendationId,
+  initialSearchMode = "ai",
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
@@ -498,6 +501,7 @@ function HomeMainContent({
   });
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
+  const isGeneralSearch = initialSearchMode === "general";
 
   const updateSearchUrl = useCallback(
     (
@@ -510,15 +514,18 @@ function HomeMainContent({
 
       const params = new URLSearchParams({
         keyword: nextQuery,
-        skin_type: profile.skin,
-        sensitivity: profile.sensitivity,
+        search_mode: initialSearchMode,
         page_size: String(pageSize)
       });
+      if (!isGeneralSearch) {
+        params.set("skin_type", profile.skin);
+        params.set("sensitivity", profile.sensitivity);
+      }
       if (page > 1) params.set("page", String(page));
       if (recommendationId) params.set("recommendation_id", recommendationId);
       window.history.replaceState(null, "", `/search?${params.toString()}`);
     },
-    [mode, pageSize]
+    [initialSearchMode, isGeneralSearch, mode, pageSize]
   );
 
   const runSearch = useCallback(
@@ -526,7 +533,8 @@ function HomeMainContent({
       nextQuery: string,
       profile: RecommendationProfile,
       page = 1,
-      recommendationId?: string
+      recommendationId?: string,
+      shouldScrollToResults = mode !== "search"
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
@@ -540,19 +548,23 @@ function HomeMainContent({
           detail: { status: "loading", query: trimmedQuery, recommendation: null }
         })
       );
-      window.requestAnimationFrame(() => {
-        document
-          .getElementById("searchResultsSection")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      if (shouldScrollToResults) {
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById("searchResultsSection")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
 
       try {
-        const response = recommendationId
-          ? await api.getRecommendation(recommendationId, {
+        const response = isGeneralSearch
+          ? await api.searchCatalogProducts({ query: trimmedQuery, page, pageSize })
+          : recommendationId
+            ? await api.getRecommendation(recommendationId, {
               page,
               pageSize
             })
-          : await api.createRecommendation(
+            : await api.createRecommendation(
               {
                 concern_text: trimmedQuery,
                 skin_type: profile.skin,
@@ -581,11 +593,11 @@ function HomeMainContent({
         }
 
         const displayResponse =
-          response.products.length > 0
+          isGeneralSearch || response.products.length > 0
             ? response
             : createFallbackRecommendation(trimmedQuery, profile);
         const nextRecommendationId =
-          displayResponse.recommendation_id === "fallback-original-design"
+          isGeneralSearch || displayResponse.recommendation_id === "fallback-original-design"
             ? undefined
             : displayResponse.recommendation_id;
         updateSearchUrl(
@@ -601,6 +613,10 @@ function HomeMainContent({
           })
         );
       } catch {
+        if (isGeneralSearch) {
+          setErrorMessage("상품 검색을 일시적으로 사용할 수 없습니다.");
+          return;
+        }
         const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
         updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
         setRecommendation(fallbackResponse);
@@ -614,7 +630,7 @@ function HomeMainContent({
         setIsLoading(false);
       }
     },
-    [mode, pageSize, updateSearchUrl]
+    [isGeneralSearch, mode, pageSize, updateSearchUrl]
   );
 
   useEffect(() => {
@@ -630,7 +646,7 @@ function HomeMainContent({
   useEffect(() => {
     if (initialQuery) {
       queueMicrotask(() => {
-        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId);
+        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId, false);
       });
     }
   }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
@@ -714,7 +730,7 @@ function HomeMainContent({
       recommendation.recommendation_id !== "fallback-original-design"
         ? recommendation.recommendation_id
         : initialRecommendationId;
-    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId);
+    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId, true);
   };
 
   return (
@@ -723,76 +739,55 @@ function HomeMainContent({
       id="mainContent"
     >
       <div id="searchResultsSection" style={{ display: hasSearchState ? "block" : "none" }}>
-        <div className="search-results-shell">
-          <aside aria-label="검색 조건" className="search-filter-sidebar" data-commerce-only>
-            <div className="filter-card">
-              <div className="filter-card-title">추천 기준</div>
-              <div className="filter-options">
-                <div className="filter-option">
-                  <span className="filter-dot" />
-                  <span id="filterConcern">{query || "피부 고민 분석"}</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-dot" />
-                  <span id="filterProfile">
-                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity}
-                  </span>
-                </div>
-                <div className="filter-note">
-                  입력한 고민과 피부 조건을 기준으로 성분 효능 근거를 먼저 비교합니다.
-                </div>
-              </div>
-            </div>
-            <div className="filter-card">
-              <div className="filter-card-title">결과 기준</div>
-              <div className="filter-options">
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>성분 효능 근거</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>피부 타입 적합도</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>가격 정보</span>
-                </div>
-                <div className="filter-note">표시되는 값은 추천 API 응답 기준입니다.</div>
-              </div>
-            </div>
-          </aside>
+        <div
+          className={`search-results-shell${isGeneralSearch ? " general-search-results" : " ai-search-results"}`}
+          style={isGeneralSearch ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}
+        >
 
           <section className="search-results-panel">
-            <div className="results-header">
+            <div
+              className="results-header"
+              style={
+                !isGeneralSearch
+                  ? { alignItems: "center", flexDirection: "row", gap: 18, padding: "18px 22px" }
+                  : undefined
+              }
+            >
               <div>
                 <div className="results-query">
-                  &quot;<strong id="queryDisplay">{query}</strong>
-                  &quot; 검색 결과 ·{" "}
-                  <span id="sortDisplay">
-                    {sortType === "price-low"
-                      ? "가격 낮은순"
-                      : sortType === "price-high"
-                        ? "가격 높은순"
-                        : "매칭 점수순"}
-                  </span>
+                  &quot;<strong id="queryDisplay">{query}</strong>&quot; 검색 결과
                 </div>
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
                   {isLoading
-                    ? "추천 결과를 불러오는 중입니다"
-                    : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
+                    ? isGeneralSearch ? "상품 검색 결과를 불러오는 중입니다" : "추천 결과를 불러오는 중입니다"
+                    : isGeneralSearch ? `${pagination.total_items}개 제품을 찾았습니다` : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
-              <select
-                aria-label="검색 결과 정렬"
-                className="sort-select"
-                onChange={(event) => setSortType(event.target.value)}
-                value={sortType}
-              >
-                <option value="score">매칭 점수순</option>
-                <option value="price-low">가격 낮은순</option>
-                <option value="price-high">가격 높은순</option>
-              </select>
+              {!isGeneralSearch ? (
+                <div
+                  aria-label="AI 추천 결과 정렬"
+                  className="general-search-sort-tabs"
+                  role="tablist"
+                  style={{ marginLeft: "auto", width: "auto" }}
+                >
+                  {[
+                    { value: "score", label: "매칭 점수순" },
+                    { value: "price-low", label: "낮은 가격순" },
+                    { value: "price-high", label: "높은 가격순" }
+                  ].map((option) => (
+                    <button
+                      aria-selected={sortType === option.value}
+                      className={sortType === option.value ? "active" : ""}
+                      key={option.value}
+                      onClick={() => setSortType(option.value)}
+                      role="tab"
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div
               className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`}
@@ -815,8 +810,9 @@ function HomeMainContent({
               ) : errorMessage ? (
                 <div className="search-empty">{errorMessage}</div>
               ) : sortedProducts.length ? (
-                sortedProducts.map((product) => (
+                sortedProducts.map((product, index) => (
                   <HomeProductCard
+                    displayRank={isGeneralSearch ? undefined : index + 1}
                     eventContext={{
                       sectionId: "recommendation_results",
                       page: "search",
@@ -826,8 +822,8 @@ function HomeMainContent({
                     }}
                     key={product.product_id}
                     product={product}
-                    recommendationId={recommendation?.recommendation_id}
-                    showScore
+                    recommendationId={isGeneralSearch ? undefined : recommendation?.recommendation_id}
+                    showScore={!isGeneralSearch}
                   />
                 ))
               ) : hasSearchState ? (

@@ -1,6 +1,7 @@
 import type {
   ApiError,
-  HomeLayoutResponse,
+  CatalogSearchParams,
+  CatalogSearchResponse as RecommendationCatalogSearchResponse,
   HomeSection,
   ProductCardItem,
   ProductDetail,
@@ -37,7 +38,6 @@ import type {
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
-  getHomeLayout: () => Promise<HomeLayoutResponse>;
   createRecommendation: (
     request: RecommendationRequest,
     params?: { page?: number; pageSize?: number }
@@ -60,6 +60,8 @@ type RecommendationApi = {
     categoryCode?: string | null;
     limit?: number;
   }) => Promise<HomeSection>;
+  searchCatalogProducts: (params: { page?: number; pageSize?: number; query: string }) => Promise<RecommendationResponse>;
+  getCatalogSearchProducts: (params: CatalogSearchParams) => Promise<RecommendationCatalogSearchResponse>;
   getPopularProducts: (params?: { categoryCode?: string; limit?: number }) => Promise<PopularProductsResponse>;
   getProductListing: (params?: {
     page?: number;
@@ -237,7 +239,19 @@ type BackendProductDetailResponse = {
 };
 
 type BackendHomeSection = HomeSection;
-type BackendHomeLayoutResponse = HomeLayoutResponse;
+
+type BackendCatalogSearchResponse = {
+  items: Array<{
+    brand: string;
+    category_name: string;
+    lowest_price: number | null;
+    name: string;
+    product_id: string;
+    thumbnail_url: string | null;
+  }>;
+  pagination: { page: number; page_size: number; total_items: number; total_pages: number; has_next: boolean; has_prev: boolean };
+  query: string;
+};
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
@@ -483,9 +497,53 @@ export const api: RecommendationApi = {
     return parseJson<RecommendationNarrativeResponse>(response);
   },
 
-  async getHomeLayout() {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/home/layout`);
-    return parseJson<BackendHomeLayoutResponse>(response);
+  async searchCatalogProducts(params) {
+    const searchParams = new URLSearchParams({ q: params.query });
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
+    const data = await parseJson<BackendCatalogSearchResponse>(response);
+    return {
+      recommendation_id: "catalog-search",
+      pagination: data.pagination,
+      summary: {
+        concern_text: data.query,
+        skin_type: "",
+        sensitivity: "",
+        avoid_ingredients: [],
+        concerns: [],
+        effects: [],
+        purchase_constraints: emptyPurchaseConstraints
+      },
+      unmatched_terms: [],
+      products: data.items.map((item, index) => ({
+        product_id: item.product_id,
+        rank: (data.pagination.page - 1) * data.pagination.page_size + index + 1,
+        total_score: 0,
+        reason_summary: item.category_name,
+        brand: item.brand,
+        name: item.name,
+        thumbnail_url: item.thumbnail_url,
+        lowest_price: item.lowest_price,
+        evidence_tags: [],
+        key_ingredients: [],
+        risk_flags: []
+      }))
+    };
+  },
+
+  async getCatalogSearchProducts(params) {
+    const searchParams = new URLSearchParams({ q: params.query });
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    if (params.sort) searchParams.set("sort", params.sort);
+    if (params.inStock) searchParams.set("in_stock", "true");
+    params.brands?.forEach((brand) => searchParams.append("brand", brand));
+    params.categories?.forEach((category) => searchParams.append("category", category));
+    params.features?.forEach((feature) => searchParams.append("feature", feature));
+    params.skinTypes?.forEach((skinType) => searchParams.append("skin_type", skinType));
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
+    return parseJson<RecommendationCatalogSearchResponse>(response);
   },
 
   async getMarketPopular(params = {}) {
