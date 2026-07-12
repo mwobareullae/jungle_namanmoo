@@ -43,6 +43,13 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
+const getHomeSectionHref = (sectionId: string) => {
+  if (sectionId === "market_popular") return "/products/popular";
+  if (sectionId === "evidence_picks") return "/products/evidence-picks";
+  if (sectionId === "for_you") return "/products/for-you";
+  return "/catalog-search";
+};
+
 type HomeProductEventContext = {
   sectionId: string;
   source: string;
@@ -354,7 +361,7 @@ function HomeDealSection({
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
           전체보기
           <span aria-hidden="true">→</span>
         </a>
@@ -403,7 +410,7 @@ function HomeDealSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
-      <a className="home-section-more" href="/#defaultSection">
+      <a className="home-section-more" href={getHomeSectionHref(section.section_id)}>
         {section.title} 전체보기
         <span aria-hidden="true">→</span>
       </a>
@@ -428,7 +435,7 @@ function HomeOriginalGridSection({
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
           전체보기
           <span aria-hidden="true">→</span>
         </a>

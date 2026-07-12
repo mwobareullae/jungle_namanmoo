@@ -44,6 +44,7 @@ const RecentProducts = lazy(() =>
 const ReviewWritePage = lazy(() => import("./pages/mypage/ReviewWritePage"));
 const BrandsPage = lazy(() => import("./pages/BrandsPage"));
 const LegalDocumentPage = lazy(() => import("./pages/LegalDocumentPage"));
+const HomeSectionProductsPage = lazy(() => import("./pages/HomeSectionProductsPage"));
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -1101,6 +1102,8 @@ function App() {
             )}
           />
           {appMode !== "community" && <Route path="/products/new" element={<NewProductsPage />} />}
+          <Route path="/products/evidence-picks" element={<HomeSectionProductsPage sectionType="evidence-picks" />} />
+          <Route path="/products/for-you" element={<HomeSectionProductsPage sectionType="for-you" />} />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>
