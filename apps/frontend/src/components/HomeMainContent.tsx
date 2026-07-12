@@ -147,7 +147,7 @@ function HomeSectionLoadingSkeleton() {
         </div>
       </section>
 
-      <section className="home-api-section home-deal-section tone-mint home-loading-section">
+      <section className="home-api-section home-deal-section home-loading-section">
         <HomeLoadingSectionHead />
         <div className="home-deal-grid">
           {Array.from({ length: 8 }, (_, index) => (
@@ -320,18 +320,15 @@ function HomeRankingSection({
 
 function HomeDealSection({
   products,
-  section,
-  sectionIndex
+  section
 }: {
   products: ProductCardItem[];
   section: HomeSection;
-  sectionIndex: number;
 }) {
   const visibleProducts = products.slice(0, 8);
-  const toneClass = sectionIndex % 2 === 0 ? "tone-soft" : "tone-mint";
 
   return (
-    <section className={`home-api-section home-deal-section ${toneClass}`}>
+    <section className="home-api-section home-deal-section">
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">맞춤 추천 섹션</div>
@@ -877,7 +874,6 @@ function HomeMainContent({
                 key={evidencePicksSection.section_id}
                 products={evidencePicksSection.products.map(mapHomeProductToCard)}
                 section={evidencePicksSection}
-                sectionIndex={1}
               />
             ) : null}
           </div>
