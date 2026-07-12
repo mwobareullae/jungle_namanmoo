@@ -52,6 +52,14 @@ AdminOrderAction = Literal[
     "COMPLETE_DELIVERY",
 ]
 
+# 배송 액션(prepare/dispatch/deliver) 성공 응답에서 실제로 나올 수 있는 상태 3종만 허용.
+# 서비스가 실수로 CANCELED/PENDING_PAYMENT 등을 성공 응답으로 반환하는 걸 스키마가 막는다.
+AdminShipmentResultStatus = Literal[
+    "PREPARING_SHIPMENT",
+    "SHIPPED",
+    "DELIVERED",
+]
+
 
 class AdminOrderListItem(BaseModel):
     id: int
@@ -102,3 +110,19 @@ class AdminOrderListResponse(BaseModel):
     items: list[AdminOrderListItem]
     summary: AdminOrderSummary
     next_cursor: str | None
+
+
+class AdminOrderShipmentActionResponse(BaseModel):
+    """배송 액션(prepare/dispatch/deliver) 공통 응답.
+
+    멱등 재요청(이미 목표 상태)이면 기존 값을 그대로 반환하고 updated_at 을 갱신하지
+    않는다. 그 외 상태에서 호출되면 서비스가 ApiError(409)를 던진다(응답에 도달하지 않음).
+    """
+
+    order_code: str
+    order_status: AdminShipmentResultStatus
+    available_actions: list[AdminOrderAction] = Field(
+        ...,
+        description="전이 후 상태 기준으로 이어서 할 수 있는 다음 액션. 목록 조회와 동일 규칙(결제 승인 확인 포함).",
+    )
+    updated_at: datetime
