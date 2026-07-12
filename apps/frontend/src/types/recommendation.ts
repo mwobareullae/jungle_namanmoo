@@ -40,6 +40,8 @@ export type RecommendationProfile = {
   avoidIngredients: string[];
 };
 
+export type SearchMode = "ai" | "general";
+
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;

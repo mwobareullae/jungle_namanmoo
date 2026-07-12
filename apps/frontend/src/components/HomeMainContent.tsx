@@ -10,7 +10,8 @@ import type {
   ProductCardItem,
   RecommendationResponse,
   RecommendationPagination,
-  RecommendationProfile
+  RecommendationProfile,
+  SearchMode
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
 import ProductThumbnail from "./ProductThumbnail";
@@ -428,6 +429,7 @@ type HomeMainContentProps = {
   initialQuery?: string;
   initialPage?: number;
   initialRecommendationId?: string;
+  initialSearchMode?: SearchMode;
   initialProfile?: RecommendationProfile;
   mode?: "home" | "search";
   pageSize?: number;
@@ -438,6 +440,7 @@ function HomeMainContent({
   initialQuery = "",
   initialPage = 1,
   initialRecommendationId,
+  initialSearchMode = "ai",
   initialProfile = {
     skin: "수부지",
     sensitivity: "보통",
@@ -457,6 +460,7 @@ function HomeMainContent({
   const [homeSectionError, setHomeSectionError] = useState("");
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
+  const isGeneralSearch = initialSearchMode === "general";
 
   const updateSearchUrl = useCallback(
     (
@@ -469,15 +473,18 @@ function HomeMainContent({
 
       const params = new URLSearchParams({
         keyword: nextQuery,
-        skin_type: profile.skin,
-        sensitivity: profile.sensitivity,
+        search_mode: initialSearchMode,
         page_size: String(pageSize)
       });
+      if (!isGeneralSearch) {
+        params.set("skin_type", profile.skin);
+        params.set("sensitivity", profile.sensitivity);
+      }
       if (page > 1) params.set("page", String(page));
       if (recommendationId) params.set("recommendation_id", recommendationId);
       window.history.replaceState(null, "", `/search?${params.toString()}`);
     },
-    [mode, pageSize]
+    [initialSearchMode, isGeneralSearch, mode, pageSize]
   );
 
   const runSearch = useCallback(
@@ -506,12 +513,14 @@ function HomeMainContent({
       });
 
       try {
-        const response = recommendationId
-          ? await api.getRecommendation(recommendationId, {
+        const response = isGeneralSearch
+          ? await api.searchCatalogProducts({ query: trimmedQuery, page, pageSize })
+          : recommendationId
+            ? await api.getRecommendation(recommendationId, {
               page,
               pageSize
             })
-          : await api.createRecommendation(
+            : await api.createRecommendation(
               {
                 concern_text: trimmedQuery,
                 skin_type: profile.skin,
@@ -540,11 +549,11 @@ function HomeMainContent({
         }
 
         const displayResponse =
-          response.products.length > 0
+          isGeneralSearch || response.products.length > 0
             ? response
             : createFallbackRecommendation(trimmedQuery, profile);
         const nextRecommendationId =
-          displayResponse.recommendation_id === "fallback-original-design"
+          isGeneralSearch || displayResponse.recommendation_id === "fallback-original-design"
             ? undefined
             : displayResponse.recommendation_id;
         updateSearchUrl(
@@ -560,6 +569,10 @@ function HomeMainContent({
           })
         );
       } catch {
+        if (isGeneralSearch) {
+          setErrorMessage("상품 검색을 일시적으로 사용할 수 없습니다.");
+          return;
+        }
         const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
         updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
         setRecommendation(fallbackResponse);
@@ -573,7 +586,7 @@ function HomeMainContent({
         setIsLoading(false);
       }
     },
-    [mode, pageSize, updateSearchUrl]
+    [isGeneralSearch, mode, pageSize, updateSearchUrl]
   );
 
   useEffect(() => {
@@ -669,8 +682,8 @@ function HomeMainContent({
       id="mainContent"
     >
       <div id="searchResultsSection" style={{ display: hasSearchState ? "block" : "none" }}>
-        <div className="search-results-shell">
-          <aside aria-label="검색 조건" className="search-filter-sidebar" data-commerce-only>
+        <div className={`search-results-shell${isGeneralSearch ? " general-search-results" : ""}`}>
+          {!isGeneralSearch ? <aside aria-label="추천 조건" className="search-filter-sidebar" data-commerce-only>
             <div className="filter-card">
               <div className="filter-card-title">추천 기준</div>
               <div className="filter-options">
@@ -707,7 +720,7 @@ function HomeMainContent({
                 <div className="filter-note">표시되는 값은 추천 API 응답 기준입니다.</div>
               </div>
             </div>
-          </aside>
+          </aside> : null}
 
           <section className="search-results-panel">
             <div className="results-header">
@@ -717,19 +730,19 @@ function HomeMainContent({
                   &quot; 검색 결과 ·{" "}
                   <span id="sortDisplay">
                     {sortType === "price-low"
-                      ? "가격 낮은순"
+                    ? "가격 낮은순"
                       : sortType === "price-high"
                         ? "가격 높은순"
-                        : "매칭 점수순"}
+                        : isGeneralSearch ? "일반 검색" : "매칭 점수순"}
                   </span>
                 </div>
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
                   {isLoading
-                    ? "추천 결과를 불러오는 중입니다"
-                    : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
+                    ? isGeneralSearch ? "상품 검색 결과를 불러오는 중입니다" : "추천 결과를 불러오는 중입니다"
+                    : isGeneralSearch ? `${pagination.total_items}개 제품을 찾았습니다` : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
-              <select
+              {!isGeneralSearch ? <select
                 aria-label="검색 결과 정렬"
                 className="sort-select"
                 onChange={(event) => setSortType(event.target.value)}
@@ -738,7 +751,7 @@ function HomeMainContent({
                 <option value="score">매칭 점수순</option>
                 <option value="price-low">가격 낮은순</option>
                 <option value="price-high">가격 높은순</option>
-              </select>
+              </select> : null}
             </div>
             <div
               className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`}
@@ -765,8 +778,8 @@ function HomeMainContent({
                   <HomeProductCard
                     key={product.product_id}
                     product={product}
-                    recommendationId={recommendation?.recommendation_id}
-                    showScore
+                    recommendationId={isGeneralSearch ? undefined : recommendation?.recommendation_id}
+                    showScore={!isGeneralSearch}
                   />
                 ))
               ) : hasSearchState ? (
