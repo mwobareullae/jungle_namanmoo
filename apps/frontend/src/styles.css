@@ -2957,6 +2957,34 @@ body {
   z-index: 2;
 }
 
+.search-mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 10px 4px;
+  padding: 4px;
+  border: 1px solid #dfe9ee;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.search-mode-tabs button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.search-mode-tabs button.active {
+  background: #94e0f8;
+  color: #0b2a3a;
+}
+
 .search-suggest-panel {
   z-index: 20 !important;
 }

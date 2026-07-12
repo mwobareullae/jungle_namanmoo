@@ -6,7 +6,7 @@ import SearchBarPanel from "../components/SearchBarPanel";
 import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import type { RecommendationProfile, Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
 
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
 const sensitivities = ["낮음", "보통", "높음"] as const;
@@ -35,12 +35,13 @@ const getSearchParams = () => {
     sensitivity: hasSensitivity ? (sensitivity as Sensitivity) : undefined,
     page: normalizePositiveNumber(params.get("page"), 1),
     pageSize: normalizePositiveNumber(params.get("page_size"), 10),
-    recommendationId: params.get("recommendation_id") ?? undefined
+    recommendationId: params.get("recommendation_id") ?? undefined,
+    searchMode: params.get("search_mode") === "general" ? "general" as SearchMode : "ai" as SearchMode
   };
 };
 
 function SearchPage() {
-  const { keyword, skin, sensitivity, page, pageSize, recommendationId } = useMemo(
+  const { keyword, skin, sensitivity, page, pageSize, recommendationId, searchMode } = useMemo(
     () => getSearchParams(),
     []
   );
@@ -83,13 +84,15 @@ function SearchPage() {
         hasSavedProfile={Boolean(savedProfile)}
         initialProfile={profile}
         initialQuery={keyword}
+        initialSearchMode={searchMode}
       />
-      <HomeMatchResult compact />
+      {searchMode === "ai" ? <HomeMatchResult compact /> : null}
       <HomeMainContent
         initialProfile={profile}
         initialQuery={isProfileResolved ? keyword : ""}
         initialPage={page}
         initialRecommendationId={recommendationId}
+        initialSearchMode={searchMode}
         pageSize={pageSize}
         mode="search"
         showDefaultSection={false}
