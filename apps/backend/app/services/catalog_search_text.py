@@ -46,6 +46,33 @@ CATEGORY_GROUP_LABELS: dict[str, str] = {
     "other": "기타",
 }
 
+CATEGORY_CODE_LABELS: dict[str, str] = {
+    "toner": "토너",
+    "serum": "세럼",
+    "cream": "크림",
+    "lotion": "로션",
+    "set": "세트",
+    "cleanser": "클렌저",
+    "cleansing": "클렌징",
+    "exfoliant": "각질 케어",
+    "bodycare": "바디케어",
+    "hair_body": "헤어·바디",
+    "haircare": "헤어케어",
+    "beauty_tool": "뷰티소품",
+    "mask": "마스크",
+    "mask_pack": "마스크팩",
+    "suncare": "선케어",
+    "sunscreen": "선크림",
+    "makeup": "메이크업",
+    "eye_neck": "아이·넥",
+    "spot": "스팟 케어",
+    "nail": "네일",
+    "fragrance": "향수·디퓨저",
+    "men_allinone": "남성 올인원",
+    "unknown": "기타",
+    "accessory": "소품",
+}
+
 _COMPACT_PATTERN = re.compile(r"[^0-9a-zA-Z가-힣ㄱ-ㅎㅏ-ㅣ]+")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
 _QUERY_PUNCTUATION_PATTERN = re.compile(r"[^\w가-힣ㄱ-ㅎㅏ-ㅣ.%+'-]+", re.UNICODE)
