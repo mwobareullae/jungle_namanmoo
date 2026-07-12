@@ -68,7 +68,9 @@ export type CatalogSearchResponse = {
     availability: CatalogSearchFacet[];
     brands: CatalogSearchFacet[];
     categories: CatalogSearchFacet[];
+    features: CatalogSearchFacet[];
     price_ranges: CatalogSearchFacet[];
+    skin_types: CatalogSearchFacet[];
   };
   items: CatalogSearchItem[];
   pagination: RecommendationPagination;
@@ -78,11 +80,13 @@ export type CatalogSearchResponse = {
 export type CatalogSearchParams = {
   brands?: string[];
   categories?: string[];
+  features?: string[];
   inStock?: boolean;
   page?: number;
   pageSize?: number;
   query: string;
   sort?: CatalogSearchSort;
+  skinTypes?: string[];
 };
 
 export type ScoreBreakdown = {

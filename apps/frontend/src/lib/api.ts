@@ -499,6 +499,8 @@ export const api: RecommendationApi = {
     if (params.inStock) searchParams.set("in_stock", "true");
     params.brands?.forEach((brand) => searchParams.append("brand", brand));
     params.categories?.forEach((category) => searchParams.append("category", category));
+    params.features?.forEach((feature) => searchParams.append("feature", feature));
+    params.skinTypes?.forEach((skinType) => searchParams.append("skin_type", skinType));
     const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
     return parseJson<CatalogSearchResponse>(response);
   },

@@ -28,6 +28,8 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
   const [page, setPage] = useState(initialPage);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [inStock, setInStock] = useState(false);
   const [sort, setSort] = useState<CatalogSearchSort>("relevance");
 
@@ -41,7 +43,9 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
       pageSize,
       brands: selectedBrands,
       categories: selectedCategories,
+      features: selectedFeatures,
       inStock,
+      skinTypes: selectedSkinTypes,
       sort
     }).then((nextResponse) => {
       if (isMounted) {
@@ -57,7 +61,7 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
     return () => {
       isMounted = false;
     };
-  }, [inStock, initialQuery, page, pageSize, selectedBrands, selectedCategories, sort]);
+  }, [inStock, initialQuery, page, pageSize, selectedBrands, selectedCategories, selectedFeatures, selectedSkinTypes, sort]);
 
   const toggleFilter = (value: string, setValues: (values: string[]) => void, values: string[]) => {
     setIsLoading(true);
@@ -88,7 +92,7 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
         <aside aria-label="검색 필터" className="general-search-filters">
           <div className="general-search-filter-head">
             <strong>필터</strong>
-            <button onClick={() => { setIsLoading(true); setErrorMessage(""); setSelectedBrands([]); setSelectedCategories([]); setInStock(false); setPage(1); }} type="button">초기화</button>
+            <button onClick={() => { setIsLoading(true); setErrorMessage(""); setSelectedBrands([]); setSelectedCategories([]); setSelectedFeatures([]); setSelectedSkinTypes([]); setInStock(false); setPage(1); }} type="button">초기화</button>
           </div>
           <label className="general-search-stock-filter">
             <input checked={inStock} onChange={updateInStock} type="checkbox" />
@@ -105,6 +109,28 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
               ))}
             </div>
           </section>
+          {(response?.facets.features?.length ?? 0) > 0 ? <section>
+            <h2>특징</h2>
+            <div className="general-search-filter-list">
+              {response?.facets.features.slice(0, 5).map((facet) => (
+                <label key={facet.value}>
+                  <input checked={selectedFeatures.includes(facet.value)} onChange={() => toggleFilter(facet.value, setSelectedFeatures, selectedFeatures)} type="checkbox" />
+                  <span>{facet.label}</span><em>{facet.count}</em>
+                </label>
+              ))}
+            </div>
+          </section> : null}
+          {(response?.facets.skin_types?.length ?? 0) > 0 ? <section>
+            <h2>피부 타입</h2>
+            <div className="general-search-filter-list">
+              {response?.facets.skin_types.slice(0, 5).map((facet) => (
+                <label key={facet.value}>
+                  <input checked={selectedSkinTypes.includes(facet.value)} onChange={() => toggleFilter(facet.value, setSelectedSkinTypes, selectedSkinTypes)} type="checkbox" />
+                  <span>{facet.label}</span><em>{facet.count}</em>
+                </label>
+              ))}
+            </div>
+          </section> : null}
           <section>
             <h2>브랜드</h2>
             <div className="general-search-filter-list">
