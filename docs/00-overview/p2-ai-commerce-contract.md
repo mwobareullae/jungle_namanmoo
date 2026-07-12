@@ -274,7 +274,7 @@ Spring은 이 payload를 받은 뒤 `product_id` 기준으로 현재 판매 가�
 | 피부 프로필 전달 방식 | 원우, 지현, 규태 | Spring 저장 후 FastAPI 요청에는 snapshot 전달 |
 | 추천 유입 장바구니 payload | 원우, 지현, 규태 | 이 문서의 handoff payload 사용 |
 | 추천 결과 만료 정책 | 원우, 규태 | P2 기본값: 조회 가능하되 checkout 가격은 Spring 기준 |
-| 이벤트 로그 최소 범위 | 지운, 원우, 규태 | `docs/analytics-event-roadmap.md`의 1차 이벤트와 이 문서의 구매 이벤트를 맞춘다. |
+| 이벤트 로그 최소 범위 | 지운, 원우, 규태 | `docs/analytics/analytics-event-roadmap.md`의 1차 이벤트와 이 문서의 구매 이벤트를 맞춘다. |
 
 ## P3 이후로 미룰 것
 
