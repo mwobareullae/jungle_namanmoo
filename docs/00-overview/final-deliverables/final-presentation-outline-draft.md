@@ -427,7 +427,7 @@ leakage_flags
 split
 ```
 
-실제 데이터셋으로 만들 때는 리뷰 사용 권한을 확인하고 작성자 식별 정보와 원문에 포함된 개인정보를 제거한다. 이 schema를 CSV/JSON으로 확정할 때는 `docs/data-contract.md`도 함께 갱신한다.
+실제 데이터셋으로 만들 때는 리뷰 사용 권한을 확인하고 작성자 식별 정보와 원문에 포함된 개인정보를 제거한다. 이 schema를 CSV/JSON으로 확정할 때는 `docs/data/data-contract.md`도 함께 갱신한다.
 
 레이블 품질 KPI:
 
