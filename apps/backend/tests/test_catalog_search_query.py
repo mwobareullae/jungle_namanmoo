@@ -60,6 +60,20 @@ def test_explicit_catalog_filters_override_query_filters() -> None:
     assert parsed.sort == CatalogSearchSort.NEWEST
 
 
+def test_explicit_feature_and_skin_type_filters_are_preserved() -> None:
+    session = _seed_example_session()
+
+    parsed = parse_catalog_search_query(
+        session,
+        query="수분 크림",
+        features=("moisturizing_calming",),
+        skin_types=("dehydrated_oily",),
+    )
+
+    assert parsed.filters.features == ("moisturizing_calming",)
+    assert parsed.filters.skin_types == ("dehydrated_oily",)
+
+
 def test_brand_detection_requires_complete_token_phrases() -> None:
     session = _seed_example_session()
 
