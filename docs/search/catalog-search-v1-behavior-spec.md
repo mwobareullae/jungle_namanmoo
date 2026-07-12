@@ -171,4 +171,4 @@ v1 구현 완료 기준은 다음과 같다.
 - Nori 플러그인과 일반검색 전용 Elasticsearch alias를 사용한다.
 - 띄어쓰기, 초성, 두벌식 자판 변환, 확정 alias, 제한 fuzzy 복구를 지원한다.
 
-세부 request/response와 오류 계약은 `docs/catalog-search-api-contract.md`를 따른다.
+세부 request/response와 오류 계약은 `docs/api/catalog-search-api-contract.md`를 따른다.
