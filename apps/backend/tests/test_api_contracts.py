@@ -299,6 +299,13 @@ def test_get_popular_products_returns_metric_ranked_products(
     }
 
 
+def test_get_popular_products_accepts_limit_100(client: TestClient) -> None:
+    response = client.get("/api/products/popular", params={"window_days": 7, "limit": 100})
+
+    assert response.status_code == 200
+    assert response.json()["window_days"] == 7
+
+
 def test_get_home_market_popular_returns_metric_section_when_metrics_exist(
     client: TestClient,
     db_engine: Engine,

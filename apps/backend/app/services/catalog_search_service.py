@@ -352,6 +352,7 @@ def _catalog_row_statement(
             Product.product_code,
             Product.product_name,
             Product.thumbnail_url,
+            Product.released_at,
             Product.created_at,
             Brand.brand_code,
             Brand.name.label("brand_name"),
@@ -438,7 +439,7 @@ def _database_sort(parsed_query: CatalogSearchQuery, statement: Any) -> tuple[An
     if parsed_query.sort == CatalogSearchSort.POPULAR:
         return (ProductPopularityMetric.popularity_score.desc().nulls_last(), stable_id)
     if parsed_query.sort == CatalogSearchSort.NEWEST:
-        return (Product.created_at.desc(), stable_id)
+        return (func.coalesce(Product.released_at, Product.created_at).desc(), stable_id)
     if parsed_query.sort == CatalogSearchSort.PRICE_ASC:
         return (_column(statement, "lowest_price").asc().nulls_last(), stable_id)
     if parsed_query.sort == CatalogSearchSort.PRICE_DESC:
