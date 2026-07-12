@@ -325,6 +325,21 @@ def start_preparation(session: Session, *, order_code: str) -> ShipmentTransitio
     )
 
 
+def start_shipment(session: Session, *, order_code: str) -> ShipmentTransitionResult:
+    """배송준비중(PREPARING_SHIPMENT) → 배송중(SHIPPED).
+
+    이미 SHIPPED 면 멱등 성공(updated_at 갱신 없음). PREPARING_SHIPMENT 가 아니면 409.
+    결제 레코드가 없거나 승인(APPROVED)되지 않았으면 409.
+    """
+    return _transition_shipping_order(
+        session,
+        order_code=order_code,
+        expected_status=ORDER_STATUS_PREPARING_SHIPMENT,
+        target_status=ORDER_STATUS_SHIPPED,
+        action=ACTION_START_SHIPMENT,
+    )
+
+
 def _transition_shipping_order(
     session: Session,
     *,
