@@ -13,8 +13,8 @@
 - 여러 값을 담는 컬럼은 가능하면 JSON 문자열보다 별도 매핑 파일로 분리합니다.
 - 점수형 컬럼은 별도 설명이 없으면 `0.0~1.0` 범위를 사용합니다.
 - 민감정보, API key, 실제 운영 secret은 데이터 파일에 넣지 않습니다.
-- 상품근거점수와 리뷰매칭점수는 MVP 점수에서 제외합니다.
-- 위험성분은 점수 감점이 아니라 별도 주의 표기로 제공합니다.
+- 상품 근거와 리뷰 품질·유사 프로필 affinity는 현재 추천 점수에 반영합니다.
+- 위험성분은 모든 사용자에게 표시하고, 민감도 `높음` 사용자에게만 제한된 penalty를 적용합니다.
 - 확장 컬럼은 파일에 포함하되 값은 비워둘 수 있습니다. 값이 들어오면 v1 스코어링에서 반영합니다.
 - 함량 컬럼은 `product_ingredients.csv`에 포함하되, 함량이 공개되지 않은 행은 빈 값과 `unknown`으로 둡니다.
 - P2/MVP에서 레포에 들어가는 정규화 CSV는 10만 상품 import 전 검증용 dry-run seed로 취급합니다.
@@ -474,8 +474,8 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 | 컬럼 | 설명 |
 | --- | --- |
 | `product_id` | 상품 고유 ID |
-| `review_count` | 리뷰 수 |
-| `average_rating` | 평균 평점. 0~5 스케일 |
+| `review_count` | 과거 수집 스냅샷의 리뷰 수. runtime 인기·검색·추천에는 사용하지 않음 |
+| `average_rating` | 과거 수집 스냅샷의 평균 평점. runtime에는 사용하지 않음 |
 | `sales_count` | 판매량. 있으면 가장 직접적인 인기 신호 |
 | `sales_rank` | 판매 랭킹. `sales_count`가 없을 때 사용하며 낮을수록 좋음 |
 | `recent_view_count` | 최근 14일 조회 수 |
@@ -488,9 +488,11 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 
 - 인기 섹션은 이 파일 또는 동일한 DB 필드가 있을 때만 산출합니다.
 - 가격, 이미지 존재, 성분 점수, `AUTO_SEED` 재고를 인기 신호처럼 쓰지 않습니다.
-- 리뷰수, 판매량, 최근 행동 수치는 `log1p` 정규화합니다.
-- 평점은 리뷰 수 50개를 신뢰 기준으로 둔 Bayesian 보정을 사용합니다.
+- 판매량과 최근 행동 수치는 `log1p` 정규화합니다.
+- 리뷰 수와 평점은 `product_reviews`의 rollup 결과만 사용하며 시장 인기 점수에 섞지 않습니다.
 - 판매량이 없고 판매 랭킹만 있으면 log 기반 역순 랭킹 점수를 사용합니다.
+
+`product_popularity_metrics.review_count`, `average_rating` 컬럼은 migration 호환을 위해 남아 있지만 deprecated입니다. 상품 상세, 추천, 일반 검색, 인기상품, ES 문서는 `product_review_metrics`만 authoritative source로 사용합니다.
 
 ### `data/storefront_product_reviews/*.csv`
 
@@ -504,7 +506,7 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 | `product_id` | 리뷰가 연결되는 상품 ID. `products.csv` 또는 `products/*.csv`의 `product_id`를 참조 |
 | `source` | 리뷰 출처. 예: `oliveyoung` |
 | `source_review_id` | 원본 출처의 리뷰 식별자. 중복 제거와 재수집 대조용 |
-| `rating` | 별점. 0~5 스케일 |
+| `rating` | 별점. 1~5 스케일 |
 | `review_text` | 리뷰 본문 |
 | `review_date` | 리뷰 작성일. 원본에서 확인 가능한 경우 입력 |
 | `option_text` | 리뷰 작성자가 구매한 옵션/구성 원문 |
@@ -525,8 +527,33 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 - 리뷰 원문은 상품 상세 노출용 seed 데이터입니다.
 - 리뷰 작성자의 닉네임, 프로필 이미지, 리뷰 첨부 이미지는 저장하지 않습니다.
 - `review_id`는 전체 split 파일에서 중복되면 안 됩니다.
-- 같은 `source_review_id`가 다시 수집되면 기존 리뷰 갱신 또는 중복 제거 대상으로 처리합니다.
+- 같은 `source + product_id + source_review_id`가 다시 수집되면 기존 리뷰 갱신 또는 중복 제거 대상으로 처리합니다. 원본 `source_review_id`는 상품 범위에서만 유일할 수 있습니다.
 - 이 파일은 리뷰 목록 노출을 위한 데이터이며, 추천 점수 반영 여부를 직접 확정하지 않습니다.
+
+DB 정규화 원칙:
+
+- 원본 리뷰는 `product_reviews`, 정규화된 작성자 피부 라벨은 `product_review_profile_labels`에 저장합니다.
+- `review_type=one_month_review`와 `is_month_use_review=true`는 DB에서 `MONTH_USE`로 정규화합니다. 일반 리뷰는 `GENERAL`을 사용합니다.
+- `has_photo`는 원본에 사진이 있었다는 표식일 뿐입니다. 실제 미디어 행이나 공개 URL이 없으므로 리뷰 이미지로 노출하지 않습니다.
+- 상품 집계는 `product_review_metrics`, 피부 타입·민감도·고민·톤별 집계는 `product_review_segment_metrics`가 담당합니다.
+- 집계 테이블은 원본 CSV 값을 그대로 적재하지 않고, 게시 상태의 원본 리뷰에서 재계산할 수 있는 파생 read model로 관리합니다.
+- 원본 변경 감지는 `source_content_hash`, 프로필 라벨 재매핑은 `profile_mapping_version`으로 구분합니다.
+- 자사몰 구매 리뷰는 `source=mubarelle`, `review_type=GENERAL`, `verified_purchase=true`로 저장하고 본인 배송완료 주문 상품의 `order_item_id`를 참조합니다.
+- 자사몰 구매 리뷰 본문은 공백 제거 후 1~2,000자이며 별점 1~5가 필수입니다. 외부 seed의 누락 가능성을 유지하기 위해 이 입력 제약은 API에서 강제합니다.
+- 자사몰 리뷰는 작성 시점의 저장 피부 타입·민감도·피부 고민을 `product_review_profile_labels`에 snapshot하며 이후 프로필 변경으로 과거 라벨을 바꾸지 않습니다.
+- 사용자 삭제는 `status=DELETED` tombstone으로 남기되 별점·본문·옵션·재구매·구매 인증·source metadata와 프로필 라벨을 제거합니다. 삭제 행은 공개 조회와 집계에서 제외합니다.
+- 같은 `order_item_id + review_type`에는 활성 리뷰 하나만 허용하며, 삭제 후 재작성은 기존 tombstone을 재활성화합니다.
+
+리뷰 집계 점수 원칙:
+
+- 원본 1건의 가중치는 `source 1.0 × 한달사용 1.15 × 구매확인 true 1.10 × helpful 최대 1.10 × recency`입니다.
+- helpful은 `1 + 0.10 × min(log(1 + helpful_count) / log(21), 1)`을 사용합니다.
+- recency는 `0.5 + 0.5 × 2^(-age_days / 730)`이며 작성일이 없으면 `0.75`입니다.
+- 카테고리 평균과 prior strength `20`으로 상품의 Bayesian 별점·재구매율을 계산합니다.
+- 유효 표본 수는 Kish 공식 `(sum(w)^2 / sum(w^2))`, confidence는 `n_eff / (n_eff + 20)`입니다.
+- 프로필 segment는 상품 전체 Bayesian 값을 prior로 사용합니다. 매핑 신뢰도는 segment weight에 곱합니다.
+- 사진 존재 여부는 count로만 저장하며 품질·affinity 점수에는 사용하지 않습니다.
+- 집계 버전은 `review_quality_v1`입니다.
 
 ### `data/product_review_summary.csv`
 
@@ -578,7 +605,7 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 
 ### `data/product_review_signals.csv` (선택)
 
-리뷰 데이터를 추천에 활용할 수 있도록 만든 보조 신호 데이터입니다. 이 파일은 추천 점수 공식을 변경하는 파일이 아니며, 실제 scoring 반영 여부와 반영 방식은 R4 추천/검색 담당자가 별도로 결정합니다.
+리뷰 데이터를 추천에 활용하기 위해 과거에 만든 보조 신호 CSV입니다. 현재 runtime은 이 파일을 읽지 않고 `product_reviews`에서 계산한 `product_review_metrics`, `product_review_segment_metrics`를 단일 집계 원천으로 사용합니다.
 
 | 컬럼 | 설명 |
 | --- | --- |
@@ -600,9 +627,9 @@ P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 �
 
 운영 원칙:
 
-- 이 파일은 추천 후보 품질을 설명하기 위한 데이터 후보입니다.
-- R5는 데이터 산출과 QA를 담당하고, 실제 추천 점수 반영은 R4가 결정합니다.
-- MVP에서 리뷰매칭점수는 기본 추천 점수에 자동 반영하지 않습니다.
+- 이 파일은 과거 QA·대조용 산출물이며 runtime scoring 입력이 아닙니다.
+- 실제 추천은 `review_quality 7%`, `review_profile_affinity 5%` 기본축을 사용합니다.
+- 세부 공식과 동적 배수는 `docs/backend-scoring-v0.md`를 기준으로 확인합니다.
 ### `data/product_image_assets.csv`
 
 P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광고 이미지를 서버가 저장하기 위한 작업 큐입니다.
@@ -697,16 +724,16 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 | `sensitivity_fit_score` | 민감도 적합도 점수 |
 | `price_score` | 가격 접근성 점수 |
 
-## MVP 점수 정책
+## 현재 점수 정책
 
 - 성분효능점수는 효능 단위로 계산합니다.
 - 같은 효능이 여러 고민에서 중복 도출되어도 효능 자체는 한 번만 반영합니다.
 - 하나의 효능에 여러 유효 성분이 있으면 상위 3개 성분을 반영합니다.
 - 상위 3개 성분은 `1.0 / 0.5 / 0.25` 감쇠계수를 적용합니다.
-- 상품근거점수와 리뷰매칭점수는 MVP에서 제외합니다.
-- 위험성분은 감점하지 않고 `주의 성분 있음`처럼 별도 표시합니다.
-- v0 스코어링은 `성분효능`, `성분근거`, `피부프로필`, `검색매칭`, `가격`을 사용합니다.
-- 함량 점수는 v1 확장 항목입니다. 다만 `product_ingredients.csv`의 함량 컬럼과 `ingredient_effect_ranges.csv`는 지금부터 수집합니다.
+- 상품 근거와 리뷰 품질·유사 프로필 affinity를 추천 점수에 반영합니다.
+- 위험성분은 항상 표시하며 민감도 `높음` 사용자에게만 penalty를 적용합니다.
+- `v4_review_personalization`은 성분효능, 성분근거, 피부프로필, 함량, 기능성, 검색, 가격, 인기, 스킨테스트, 행동, 리뷰 품질, 리뷰 affinity를 사용합니다.
+- 함량 점수는 `product_ingredients.csv`와 `ingredient_effect_ranges.csv`를 사용합니다.
 - 피부타입/민감도 개인화는 `product_skin_profiles.csv`가 채워지는 즉시 `skin_profile_score`에 반영할 수 있습니다.
 
 ## 검수 체크리스트

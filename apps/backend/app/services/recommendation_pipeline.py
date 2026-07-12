@@ -28,6 +28,7 @@ from app.schemas.recommendation import (
     RecommendationResponse,
     RecommendationSummary,
     ScoreBreakdown,
+    ReviewProfileMatchedSegment,
 )
 from app.services.candidate_pool import CandidatePool, generate_candidate_pool
 from app.services.product_image_service import load_thumbnail_storage_keys
@@ -206,6 +207,7 @@ def create_recommendation_response(
             sensitivity=normalized_request.sensitivity,
             skin_test_context=skin_test_context,
             behavior_personalization_context=behavior_personalization_context,
+            saved_concerns=_saved_concerns_from_profile(saved_skin_profile),
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
         )
@@ -386,6 +388,21 @@ def normalize_recommendation_request(
         manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
 
+
+def _saved_concerns_from_profile(saved_skin_profile: Any | None) -> tuple[str, ...]:
+    if saved_skin_profile is None:
+        return ()
+    concern_profile = getattr(saved_skin_profile, "concern_profile_json", None)
+    if not isinstance(concern_profile, dict):
+        return ()
+    concerns = concern_profile.get("concerns")
+    if not isinstance(concerns, list):
+        return ()
+    return tuple(
+        value.strip()
+        for value in concerns
+        if isinstance(value, str) and value.strip()
+    )
 
 def normalize_pagination(page: int, page_size: int) -> NormalizedPagination:
     if page < 1:
@@ -663,6 +680,24 @@ def score_breakdown_to_api(score_breakdown: dict | None) -> ScoreBreakdown:
         vector_score=_component_to_percent(raw.get("vector_score")),
         search_match_score=_component_to_percent(raw.get("search_match_score")),
         market_signal_score=_component_to_percent(raw.get("market_signal_score", 0.5)),
+        review_quality_score=_component_to_percent(raw.get("review_quality_score", 0.5)),
+        review_quality_applied=raw.get("review_quality_applied") is True,
+        review_quality_confidence=_component_to_percent(
+            raw.get("review_quality_confidence")
+        ),
+        review_count=_optional_int(raw.get("review_count")) or 0,
+        review_profile_affinity_score=_component_to_percent(
+            raw.get("review_profile_affinity_score", 0.5)
+        ),
+        review_profile_affinity_applied=(
+            raw.get("review_profile_affinity_applied") is True
+        ),
+        review_profile_affinity_dimensions=_component_percent_dict(
+            raw.get("review_profile_affinity_dimensions")
+        ),
+        review_profile_matched_segments=_review_matched_segments(
+            raw.get("review_profile_matched_segments")
+        ),
         skin_test_context_score=_component_to_percent(raw.get("skin_test_context_score", 0.5)),
         skin_test_context_applied=raw.get("skin_test_context_applied") is True,
         skin_test_context_axes=_component_percent_dict(raw.get("skin_test_context_axes")),
@@ -727,6 +762,36 @@ def _float_dict(value: object) -> dict[str, float]:
         for key, item in value.items()
         if str(key).strip()
     }
+
+
+def _review_matched_segments(value: object) -> list[ReviewProfileMatchedSegment]:
+    if not isinstance(value, list):
+        return []
+    result: list[ReviewProfileMatchedSegment] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        dimension = _optional_str(item.get("dimension"))
+        value_code = _optional_str(item.get("value_code"))
+        if dimension is None or value_code is None:
+            continue
+        result.append(
+            ReviewProfileMatchedSegment(
+                dimension=dimension,
+                value_code=value_code,
+                strength=_component_to_percent(item.get("strength")),
+                segment_score=_component_to_percent(item.get("segment_score")),
+                applied_score=_component_to_percent(item.get("applied_score")),
+                effective_sample_size=round(
+                    max(0.0, _to_float(item.get("effective_sample_size"))),
+                    6,
+                ),
+                review_count=max(0, _optional_int(item.get("review_count")) or 0),
+                eligible=item.get("eligible") is True,
+                sources=_string_list(item.get("sources")),
+            )
+        )
+    return result
 
 
 def _int_dict(value: object) -> dict[str, int]:

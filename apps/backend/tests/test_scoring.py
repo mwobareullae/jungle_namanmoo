@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from app.db.models.auth import User
 from app.db.models.catalog import Product
 from app.db.models.commerce import ProductPopularityMetric, Wishlist
 from app.db.models.skin import BaumannTypeProfile, SkinProfile, SkinTestResult
+from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
 from app.db.models.taxonomy import Ingredient, RiskFlag
 from app.db.session import make_engine
 from app.services.parser import ParsedEffect
@@ -17,6 +19,7 @@ from app.services.product_candidates import list_product_candidates
 from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_intent import build_recommendation_intent
+from app.services.recommendation_pipeline import score_breakdown_to_api
 from app.services.repository import load_repository
 from app.services.scoring import (
     SkinTestScoringContext,
@@ -49,7 +52,7 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
     assert [product.product_id for product in scored_products] == ["prod_001", "prod_002"]
     top = scored_products[0]
     assert top.rank == 1
-    assert top.total_score > 79
+    assert top.total_score > 70
     assert top.score_breakdown["ingredient_effect_score"] == pytest.approx(1.0)
     assert top.score_breakdown["ingredient_evidence_score"] == pytest.approx(0.9478)
     assert top.score_breakdown["skin_profile_score"] == pytest.approx(0.788)
@@ -107,8 +110,10 @@ def test_score_candidates_boosts_search_match_for_strong_search_intent() -> None
     assert scored_products
     breakdown = scored_products[0].score_breakdown
     assert breakdown["weight_profile"] == "search_intent_boost"
-    assert breakdown["base_weights"]["search_match"] == pytest.approx(0.15)
-    assert breakdown["weights"]["search_match"] == pytest.approx(0.15625)
+    assert breakdown["base_weights"]["search_match"] == pytest.approx(0.123364486)
+    assert breakdown["weights"]["search_match"] == pytest.approx(0.1356350185)
+    assert breakdown["base_weights"]["review_quality"] == pytest.approx(0.07)
+    assert breakdown["base_weights"]["review_profile_affinity"] == pytest.approx(0.05)
     assert breakdown["weights"]["skin_test_context"] == pytest.approx(0.0)
     assert "category" in breakdown["search_intent_signals"]
     assert "search_terms" in breakdown["search_intent_signals"]
@@ -126,8 +131,8 @@ def test_score_candidates_keeps_default_weights_for_open_concern_query() -> None
     assert scored_products
     breakdown = scored_products[0].score_breakdown
     assert breakdown["weight_profile"] == "default"
-    assert breakdown["base_weights"]["search_match"] == pytest.approx(0.07)
-    assert breakdown["weights"]["search_match"] == pytest.approx(0.0736842105)
+    assert breakdown["base_weights"]["search_match"] == pytest.approx(0.06)
+    assert breakdown["weights"]["search_match"] == pytest.approx(0.0674157303)
     assert breakdown["weights"]["skin_test_context"] == pytest.approx(0.0)
     assert "category" not in breakdown["search_intent_signals"]
 
@@ -287,7 +292,13 @@ def test_score_candidates_applies_skin_test_context_and_market_signal() -> None:
     first_breakdown = scored_products[0].score_breakdown
     assert first_breakdown["skin_test_context_applied"] is True
     assert first_breakdown["weights"]["skin_test_context"] > 0
-    assert first_breakdown["applied_multipliers"]["market_signal"] == pytest.approx(4.0)
+    assert first_breakdown["applied_multipliers"]["market_signal"] == pytest.approx(1.0)
+    assert first_breakdown["applied_multipliers"]["review_quality"] == pytest.approx(1.485)
+    assert first_breakdown["applied_multipliers"]["review_profile_affinity"] == pytest.approx(1.84)
+    assert (
+        first_breakdown["weights"]["review_quality"]
+        + first_breakdown["weights"]["review_profile_affinity"]
+    ) == pytest.approx(0.18)
     assert scored_by_id["prod_002"].score_breakdown["market_signal_score"] == pytest.approx(0.9)
     assert (
         scored_by_id["prod_002"].score_breakdown["skin_test_context_score"]
@@ -322,6 +333,146 @@ def test_score_candidates_uses_value_preference_for_relative_price() -> None:
         scored_by_id["prod_001"].score_breakdown["price_score"]
         > scored_by_id["prod_002"].score_breakdown["price_score"]
     )
+
+
+def test_score_candidates_applies_review_quality_as_independent_axis() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+    baseline = {
+        product.product_id: product
+        for product in score_candidates(session, intent, candidates, matches)
+    }
+    _add_review_metrics(
+        session,
+        quality_by_product={"prod_001": 0.9, "prod_002": 0.1},
+    )
+
+    scored = {
+        product.product_id: product
+        for product in score_candidates(session, intent, candidates, matches)
+    }
+
+    first = scored["prod_001"].score_breakdown
+    second = scored["prod_002"].score_breakdown
+    assert first["review_quality_applied"] is True
+    assert first["review_quality_score"] == pytest.approx(0.9)
+    assert first["review_quality_confidence"] == pytest.approx(0.8)
+    assert first["review_count"] == 100
+    assert second["review_quality_score"] == pytest.approx(0.1)
+    assert scored["prod_001"].total_score > baseline["prod_001"].total_score
+    assert scored["prod_002"].total_score < baseline["prod_002"].total_score
+
+
+def test_score_candidates_uses_review_segments_and_neutralizes_small_samples() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+    _add_review_metrics(
+        session,
+        quality_by_product={"prod_001": 0.5, "prod_002": 0.5},
+    )
+    _add_review_segment(
+        session,
+        "prod_001",
+        "SKIN_CONCERN",
+        "concern_sensitive",
+        score=0.7,
+        effective_sample_size=10,
+    )
+    _add_review_segment(
+        session,
+        "prod_002",
+        "SKIN_CONCERN",
+        "concern_sensitive",
+        score=0.95,
+        effective_sample_size=4,
+    )
+
+    scored = {
+        product.product_id: product
+        for product in score_candidates(session, intent, candidates, matches)
+    }
+
+    first = scored["prod_001"].score_breakdown
+    second = scored["prod_002"].score_breakdown
+    assert first["review_profile_affinity_applied"] is True
+    assert first["review_profile_affinity_dimensions"]["SKIN_CONCERN"] == pytest.approx(0.7)
+    assert first["review_profile_affinity_score"] == pytest.approx(0.57)
+    assert second["review_profile_affinity_applied"] is False
+    assert second["review_profile_affinity_score"] == pytest.approx(0.5)
+    assert second["review_profile_matched_segments"][0] == {
+        "dimension": "SKIN_CONCERN",
+        "value_code": "concern_sensitive",
+        "strength": 1.0,
+        "segment_score": 0.95,
+        "applied_score": 0.5,
+        "effective_sample_size": 4.0,
+        "review_count": 10,
+        "eligible": False,
+        "sources": ["query_concern"],
+    }
+
+
+def test_review_affinity_records_manual_saved_and_skin_test_strengths() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감 진정 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+    _add_review_metrics(session, quality_by_product={"prod_001": 0.5})
+    for dimension, value_code in (
+        ("SKIN_TYPE", "dry"),
+        ("SKIN_TYPE", "oily"),
+        ("SENSITIVITY", "high"),
+        ("SKIN_CONCERN", "concern_sensitive"),
+        ("SKIN_CONCERN", "concern_pore"),
+        ("SKIN_CONCERN", "concern_brightening_spots"),
+        ("SKIN_CONCERN", "concern_wrinkle_elasticity"),
+    ):
+        _add_review_segment(
+            session,
+            "prod_001",
+            dimension,
+            value_code,
+            score=0.6,
+            effective_sample_size=10,
+        )
+
+    scored = score_candidates(
+        session,
+        intent,
+        candidates,
+        matches,
+        skin_type="건성",
+        sensitivity="보통",
+        skin_test_context=_skin_test_context(),
+        saved_concerns=("concern_pore",),
+        manual_skin_type_explicit=True,
+    )
+    breakdown = next(
+        product.score_breakdown for product in scored if product.product_id == "prod_001"
+    )
+    matched = {
+        (item["dimension"], item["value_code"]): item
+        for item in breakdown["review_profile_matched_segments"]
+    }
+
+    assert matched[("SKIN_TYPE", "dry")]["strength"] == pytest.approx(1.0)
+    assert matched[("SKIN_TYPE", "dry")]["sources"] == ["manual_skin_type"]
+    assert matched[("SKIN_TYPE", "oily")]["strength"] == pytest.approx(0.25)
+    assert matched[("SKIN_TYPE", "oily")]["sources"] == ["skin_test"]
+    assert matched[("SKIN_CONCERN", "concern_pore")]["strength"] == pytest.approx(0.75)
+    assert matched[("SKIN_CONCERN", "concern_pore")]["sources"] == ["saved_concern"]
+    assert matched[("SKIN_CONCERN", "concern_sensitive")]["strength"] == pytest.approx(1.0)
+    assert matched[("SKIN_CONCERN", "concern_sensitive")]["sources"] == [
+        "query_concern",
+        "skin_test",
+    ]
 
 
 def test_score_candidates_applies_behavior_personalization_from_wishlist() -> None:
@@ -409,6 +560,41 @@ def test_load_skin_test_scoring_context_uses_latest_profile_result() -> None:
     assert context.commerce_profile["buying_criteria"]["code"] == "ingredient"
 
 
+def test_score_breakdown_api_exposes_review_context() -> None:
+    breakdown = score_breakdown_to_api(
+        {
+            "review_quality_score": 0.73,
+            "review_quality_applied": True,
+            "review_quality_confidence": 0.81,
+            "review_count": 120,
+            "review_profile_affinity_score": 0.61,
+            "review_profile_affinity_applied": True,
+            "review_profile_affinity_dimensions": {"SKIN_CONCERN": 0.7},
+            "review_profile_matched_segments": [
+                {
+                    "dimension": "SKIN_CONCERN",
+                    "value_code": "concern_sensitive",
+                    "strength": 1.0,
+                    "segment_score": 0.7,
+                    "applied_score": 0.7,
+                    "effective_sample_size": 14.25,
+                    "review_count": 18,
+                    "eligible": True,
+                    "sources": ["query_concern"],
+                }
+            ],
+        }
+    )
+
+    assert breakdown.review_quality_score == 73
+    assert breakdown.review_quality_confidence == 81
+    assert breakdown.review_count == 120
+    assert breakdown.review_profile_affinity_score == 61
+    assert breakdown.review_profile_affinity_dimensions == {"SKIN_CONCERN": 70}
+    assert breakdown.review_profile_matched_segments[0].effective_sample_size == 14.25
+    assert breakdown.review_profile_matched_segments[0].strength == 100
+
+
 def _seed_example_session() -> Session:
     engine = make_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -454,4 +640,51 @@ def _add_popularity_metrics(session: Session, scores_by_product_code: dict[str, 
                 popularity_score=popularity_score,
             )
         )
+    session.flush()
+
+
+def _add_review_metrics(
+    session: Session,
+    *,
+    quality_by_product: dict[str, float],
+) -> None:
+    for product_code, quality_score in quality_by_product.items():
+        product = session.execute(
+            select(Product).where(Product.product_code == product_code)
+        ).scalar_one()
+        session.add(
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=100,
+                rating_count=100,
+                confidence=Decimal("0.8"),
+                review_quality_score=Decimal(str(quality_score)),
+            )
+        )
+    session.flush()
+
+
+def _add_review_segment(
+    session: Session,
+    product_code: str,
+    dimension: str,
+    value_code: str,
+    *,
+    score: float,
+    effective_sample_size: float,
+) -> None:
+    product = session.execute(
+        select(Product).where(Product.product_code == product_code)
+    ).scalar_one()
+    session.add(
+        ProductReviewSegmentMetric(
+            product_id=product.id,
+            dimension=dimension,
+            value_code=value_code,
+            review_count=10,
+            rating_count=10,
+            effective_sample_size=Decimal(str(effective_sample_size)),
+            total_affinity_score=Decimal(str(score)),
+        )
+    )
     session.flush()
