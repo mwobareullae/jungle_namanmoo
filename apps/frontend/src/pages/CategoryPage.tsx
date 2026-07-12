@@ -4,6 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
 import { api } from "../lib/api";
 import { getCategoryCodesByGroupTitle } from "../lib/categoryMapping";
+import { getProductImageUrl } from "../lib/imageUrls";
 import type { ProductCardItem } from "../types/recommendation";
 import type { ProductListingItem } from "../types/product";
 
@@ -35,7 +36,7 @@ const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCa
   reason_summary: "",
   brand: item.brand,
   name: item.name,
-  thumbnail_url: item.thumbnail_url,
+  thumbnail_url: getProductImageUrl(item.thumbnail_url, "w400") || null,
   lowest_price: item.lowest_price,
   evidence_tags: [],
   key_ingredients: [],
