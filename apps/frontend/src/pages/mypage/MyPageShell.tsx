@@ -606,15 +606,6 @@ function getImageAccentColor(image: HTMLImageElement) {
   }
 }
 
-export function MypageToastMessage({ message }: { message: string }) {
-  return (
-    <div style={styles.toast} role="status" aria-live="polite">
-      <span style={styles.toastDot} />
-      <span>{message}</span>
-    </div>
-  );
-}
-
 function ProfileAvatar({ size }: { size: "small" | "large" }) {
   const isLarge = size === "large";
 
@@ -977,33 +968,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     fontWeight: 700,
     lineHeight: 1.35
-  },
-  toast: {
-    position: "fixed",
-    left: "50%",
-    bottom: 40,
-    zIndex: 1000,
-    transform: "translateX(-50%)",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 48,
-    padding: "0 18px",
-    borderRadius: 999,
-    border: "1px solid rgba(148, 224, 248, 0.42)",
-    background: "rgba(255, 255, 255, 0.96)",
-    color: "#1f2a32",
-    boxShadow: "0 12px 32px rgba(16, 28, 42, 0.12)",
-    fontSize: 14,
-    fontWeight: 500,
-    lineHeight: 1.45
-  },
-  toastDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#94e0f8",
-    flex: "0 0 auto"
   },
   quickGrid: {
     display: "grid",

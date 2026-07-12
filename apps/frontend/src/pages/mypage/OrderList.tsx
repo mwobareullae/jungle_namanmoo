@@ -152,10 +152,10 @@ export default function OrderList() {
   };
 
   const handleReview = (orderCode: string) => navigate(`/mypage/reviews?order_code=${encodeURIComponent(orderCode)}`);
-  const handleUnavailableAction = () => showToast("준비중입니다.");
+  const handleUnavailableAction = () => showToast("준비 중입니다.");
   const handleDeleteConfirm = () => {
     setDeleteTargetOrderCode(null);
-    showToast("주문 내역 삭제 기능은 준비중입니다.");
+    showToast("주문 내역 삭제 기능은 준비 중입니다.");
   };
 
   const handleReorder = async (order: OrderListItem) => {
@@ -186,7 +186,7 @@ export default function OrderList() {
       if (!cartItem) throw new Error("장바구니 상품을 찾지 못했습니다.");
       navigate(`/checkout?cart_item_ids=${cartItem.id}`);
     } catch {
-      showToast("바로 구매하기 기능은 준비중입니다.");
+      showToast("바로 구매하기 기능은 준비 중입니다.");
     }
   };
 
