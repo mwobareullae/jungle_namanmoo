@@ -842,6 +842,7 @@ def _seed_products(
                 functional_cosmetic_claims=functional_claims,
                 functional_claim_confidence=product.functional_claim_confidence,
                 functional_claim_basis=product.functional_claim_basis,
+                released_at=product.released_at,
                 is_recommendable=product.is_recommendable,
                 recommend_exclude_reason=product.recommend_exclude_reason,
             )
@@ -858,6 +859,7 @@ def _seed_products(
             row.functional_cosmetic_claims = functional_claims
             row.functional_claim_confidence = product.functional_claim_confidence
             row.functional_claim_basis = product.functional_claim_basis
+            row.released_at = product.released_at
             row.is_recommendable = product.is_recommendable
             row.recommend_exclude_reason = product.recommend_exclude_reason
             row.is_active = True

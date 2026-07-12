@@ -602,6 +602,7 @@ def _sort_clause(sort: CatalogSearchSort) -> list[dict[str, Any]]:
         ]
     if sort == CatalogSearchSort.NEWEST:
         return [
+            {"released_at": {"order": "desc", "missing": "_last"}},
             {"created_at": {"order": "desc", "missing": "_last"}},
             {"_score": {"order": "desc"}},
             stable_id,
