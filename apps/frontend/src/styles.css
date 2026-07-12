@@ -9993,6 +9993,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .agent-chat-popup__body {
   display: grid;
+  align-content: start;
   flex: 1 1 auto;
   gap: 0;
   min-width: 0;
@@ -14136,7 +14137,7 @@ html[data-app-mode="community"] .search-results-shell {
 
   .agent-floating-entry {
     right: 18px;
-    bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   .agent-floating-entry__button {
@@ -14159,7 +14160,7 @@ html[data-app-mode="community"] .search-results-shell {
   .agent-chat-popup {
     right: 0;
     bottom: calc(100% + 12px);
-    width: calc(100vw - 32px);
+    width: min(454px, max(320px, calc(50vw - 16px)));
     height: min(680px, calc(100vh - 168px));
     border-radius: 30px;
   }
