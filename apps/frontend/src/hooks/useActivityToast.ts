@@ -23,5 +23,5 @@ export function useActivityToast(duration = 2500) {
 export const wishlistToastMessage = {
   added: "찜한 상품에 추가했습니다.",
   removed: "찜한 상품에서 해제했습니다.",
-  failed: "찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요."
+  failed: "찜 처리에 실패했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
