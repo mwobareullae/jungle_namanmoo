@@ -36,6 +36,7 @@ PAYMENT_STATUS_VALUES = (
     "'READY', 'CONFIRMING', 'UNKNOWN', 'APPROVED', 'FAILED', 'CANCELED', 'EXPIRED', "
     "'REFUND_REQUESTED', 'REFUNDED', 'PARTIALLY_REFUNDED'"
 )
+REFUND_STATUS_VALUES = "'REQUESTED', 'PROCESSING', 'REFUNDED', 'FAILED'"
 CLAIM_TYPE_VALUES = "'RETURN', 'EXCHANGE', 'REFUND'"
 CLAIM_STATUS_VALUES = "'REQUESTED', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED', 'WITHDRAWN'"
 CLAIM_ITEM_RESOLUTION_VALUES = "'REFUND', 'EXCHANGE'"
@@ -384,6 +385,33 @@ class OrderClaimEvent(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PaymentRefund(Base):
+    __tablename__ = "payment_refunds"
+    __table_args__ = (
+        CheckConstraint(f"status in ({REFUND_STATUS_VALUES})", name="ck_payment_refunds_status"),
+        CheckConstraint("amount > 0", name="ck_payment_refunds_amount_positive"),
+        UniqueConstraint("claim_id", name="uq_payment_refunds_claim_id"),
+        Index("ix_payment_refunds_payment_created_at", "payment_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    refund_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    claim_id: Mapped[int] = mapped_column(ForeignKey("order_claims.id"), nullable=False, index=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="REQUESTED", server_default="REQUESTED")
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="KRW", server_default="KRW")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    restocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    provider_refund_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class OrderItem(Base):
