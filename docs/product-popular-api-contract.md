@@ -17,7 +17,7 @@ Rollup operation guide is defined in [`docs/popularity-rollup-operations.md`](./
 ## Endpoint
 
 ```http
-GET /api/products/popular?window_days=7&limit=20
+GET /api/products/popular?window_days=7&limit=100
 ```
 
 Optional params:
@@ -25,7 +25,7 @@ Optional params:
 | Param | Meaning |
 |---|---|
 | `window_days` | Popularity window. `7` is the MVP default. `0` may mean all-time if a metric row exists. |
-| `limit` | Max products, capped by backend. |
+| `limit` | Max products, `1~100`. |
 | `category_code` | Optional category narrowing. |
 
 ## Source Table
