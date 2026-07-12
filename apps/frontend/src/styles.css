@@ -8529,6 +8529,42 @@ html[data-app-mode="community"] .search-results-shell {
   gap: 24px;
 }
 
+.review-write-page__tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid #e4e9ec;
+}
+
+.review-write-page__tabs button {
+  position: relative;
+  padding: 0 2px 14px;
+  border: 0;
+  background: transparent;
+  color: #7a8791;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.review-write-page__tabs button.is-active {
+  color: #171b1e;
+}
+
+.review-write-page__tabs button.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: #171b1e;
+  content: "";
+}
+
+.review-write-page__tabs span {
+  color: #238ca1;
+}
+
 .review-write-page__items {
   display: grid;
   gap: 12px;
@@ -8599,6 +8635,69 @@ html[data-app-mode="community"] .search-results-shell {
 .review-write-page__select-label {
   color: #238ca1;
   font-size: 13px;
+  font-weight: 700;
+}
+
+.review-write-page__review {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid #e1e6e9;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.review-write-page__review-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.review-write-page__review-copy small {
+  color: #7a8791;
+  font-size: 12px;
+}
+
+.review-write-page__review-copy strong {
+  color: #1a1a1a;
+  font-size: 15px;
+}
+
+.review-write-page__review-copy p {
+  margin: 4px 0 0;
+  color: #4f5d67;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.review-write-page__review-rating {
+  color: #ff6b52;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.review-write-page__review-rating i {
+  color: #d9dfe3;
+  font-style: normal;
+}
+
+.review-write-page__review-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.review-write-page__review-actions button {
+  padding: 7px 10px;
+  border: 1px solid #dce3e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #596873;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -8719,7 +8818,8 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 @media (max-width: 640px) {
-  .review-write-page__item {
+  .review-write-page__item,
+  .review-write-page__review {
     grid-template-columns: 64px minmax(0, 1fr);
   }
 
@@ -8729,6 +8829,10 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .review-write-page__select-label {
+    grid-column: 2;
+  }
+
+  .review-write-page__review-actions {
     grid-column: 2;
   }
 
