@@ -5712,12 +5712,26 @@ body {
   text-align: left;
 }
 
-.home-deal-section.tone-mint {
+.home-api-section.tone-mint {
+  position: relative;
+  isolation: isolate;
   background: transparent;
 }
 
-.home-deal-section.tone-mint::before {
+.home-api-section.tone-mint::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset-block: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
   background: #f0fbfe;
+}
+
+.home-api-section.tone-mint > * {
+  position: relative;
+  z-index: 1;
 }
 
 .home-deal-section.tone-soft {
