@@ -245,6 +245,7 @@ export default function OrderList() {
                 const thumbnailUrl = getProductImageUrl(order.thumbnail_storage_key, "w400");
                 const displayTitle = removeAdditionalItemSuffix(order.title);
                 const isCompletedOrder = order.status === "PAID" || order.status === "DELIVERED";
+                const canWriteReview = order.status === "DELIVERED";
                 const isShippingOrder = order.status === "PREPARING_SHIPMENT" || order.status === "SHIPPED";
                 const isExpiredOrder = order.status === "EXPIRED";
                 return (
@@ -424,10 +425,10 @@ export default function OrderList() {
                       <div
                         style={{
                           ...styles.orderActions,
-                          ...(isCompletedOrder ? styles.orderActionsThree : {})
+                          ...(canWriteReview ? styles.orderActionsThree : {})
                         }}
                       >
-                        {isCompletedOrder ? (
+                        {canWriteReview ? (
                           <button
                             className="mypage-order-action-button mypage-order-action-button--accent bg-white"
                             onClick={(event) => {
