@@ -11,7 +11,10 @@
 - 상단 요약 카드용 summary(전체 집계, 페이지·필터와 독립).
 """
 
-from sqlalchemy import func, select
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
@@ -19,6 +22,7 @@ from app.db.models.commerce import Order, OrderItem, Payment
 from app.schemas.admin.order import (
     AdminOrderListItem,
     AdminOrderListResponse,
+    AdminOrderShipmentActionResponse,
     AdminOrderSummary,
 )
 from app.schemas.common import ApiError
@@ -28,9 +32,14 @@ ORDER_STATUS_PENDING_PAYMENT = "PENDING_PAYMENT"
 ORDER_STATUS_PAID = "PAID"
 ORDER_STATUS_PREPARING_SHIPMENT = "PREPARING_SHIPMENT"
 ORDER_STATUS_SHIPPED = "SHIPPED"
+ORDER_STATUS_DELIVERED = "DELIVERED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
 
 PAYMENT_STATUS_APPROVED = "APPROVED"
+
+ACTION_START_PREPARATION = "START_PREPARATION"
+ACTION_START_SHIPMENT = "START_SHIPMENT"
+ACTION_COMPLETE_DELIVERY = "COMPLETE_DELIVERY"
 
 # db/models/commerce.py ORDER_STATUS_VALUES 와 정합
 ORDER_STATUSES = {
@@ -256,11 +265,11 @@ def _compute_available_actions(order: Order, payment: Payment | None) -> list[st
     if not payment_approved:
         return []
     if order.status == ORDER_STATUS_PAID:
-        return ["START_PREPARATION"]
+        return [ACTION_START_PREPARATION]
     if order.status == ORDER_STATUS_PREPARING_SHIPMENT:
-        return ["START_SHIPMENT"]
+        return [ACTION_START_SHIPMENT]
     if order.status == ORDER_STATUS_SHIPPED:
-        return ["COMPLETE_DELIVERY"]
+        return [ACTION_COMPLETE_DELIVERY]
     return []
 
 
@@ -271,6 +280,145 @@ def _recommendation_ids(items: list[OrderItem]) -> list[str]:
         if rid and rid not in ids:
             ids.append(rid)
     return ids
+
+
+# ---------------------------------------------------------------------------
+# 배송 상태 전이 (M1.5-A, 쓰기)
+#
+# 순서 고정: PAID → PREPARING_SHIPMENT → SHIPPED → DELIVERED. 건너뛰기·되돌리기 불가.
+# 세 전이 모두 결제 승인(Payment.status == APPROVED)을 먼저 확인한다(2026-07-13 결정).
+# Order 와 그 하위 OrderItem 을 같은 트랜잭션에서 함께 바꾸고, 서비스는 flush 까지만 한다
+# (commit 은 router 담당). 성공/실패 성능 로그는 세 전이 함수가 완성된 뒤 Chunk 4에서
+# router·공통 처리로 추가한다 — 이 단계에서는 로그를 남기지 않는다.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ShipmentTransitionResult:
+    """서비스 반환값. response 는 API 응답 그대로, 나머지는 이후 Chunk 4에서 router 가
+    commit 이후 성능 로그를 남길 때 쓰는 부가 정보.
+
+    updated_item_count 는 이번 전이에서 **실제로 상태를 바꾼 OrderItem 행 수**다
+    (order.item_count 저장값이 아니라 UPDATE rowcount). 멱등 재요청은 아무 행도 바꾸지
+    않으므로 0 이다.
+    """
+
+    response: AdminOrderShipmentActionResponse
+    previous_status: str
+    updated_item_count: int
+    idempotent_replay: bool
+    action: str
+
+
+def start_preparation(session: Session, *, order_code: str) -> ShipmentTransitionResult:
+    """결제완료(PAID) → 배송준비중(PREPARING_SHIPMENT).
+
+    이미 PREPARING_SHIPMENT 면 멱등 성공(updated_at 갱신 없음). PAID 가 아니면 409.
+    결제 레코드가 없거나 승인(APPROVED)되지 않았으면 409.
+    """
+    return _transition_shipping_order(
+        session,
+        order_code=order_code,
+        expected_status=ORDER_STATUS_PAID,
+        target_status=ORDER_STATUS_PREPARING_SHIPMENT,
+        action=ACTION_START_PREPARATION,
+    )
+
+
+def _transition_shipping_order(
+    session: Session,
+    *,
+    order_code: str,
+    expected_status: str,
+    target_status: str,
+    action: str,
+) -> ShipmentTransitionResult:
+    order = _load_order_for_update(session, order_code)
+    payment = _load_payment_for_order(session, int(order.id))
+    previous_status = order.status
+
+    # 멱등: 이미 목표 상태면 갱신 없이 성공 반환(updated_at 유지, 바뀐 행 0)
+    if order.status == target_status:
+        return ShipmentTransitionResult(
+            response=_to_shipment_response(order, payment),
+            previous_status=previous_status,
+            updated_item_count=0,
+            idempotent_replay=True,
+            action=action,
+        )
+
+    # 순서 고정: 기대 상태가 아니면 건너뛰기·되돌리기·그 외 상태 모두 차단
+    _require_status(
+        order.status == expected_status,
+        "ORDER_SHIPPING_TRANSITION_NOT_ALLOWED",
+        f"Order status must be {expected_status} for this action.",
+    )
+
+    # 결제 승인 확인 (세 전이 공통)
+    if payment is None:
+        raise ApiError(409, "ORDER_PAYMENT_NOT_FOUND", "Payment record not found for this order.")
+    _require_status(
+        payment.status == PAYMENT_STATUS_APPROVED,
+        "ORDER_PAYMENT_NOT_APPROVED",
+        "Payment is not approved.",
+    )
+
+    now = datetime.now(UTC)
+    order.status = target_status
+    order.updated_at = now
+    result = session.execute(
+        update(OrderItem)
+        .where(OrderItem.order_id == order.id)
+        .values(status=target_status, updated_at=now)
+    )
+    updated_count = result.rowcount or 0
+    # 저장된 item_count 와 실제 바뀐 행 수가 다르면 데이터가 어긋난 것 —
+    # router 가 롤백하면 방금 바꾼 Order 상태도 함께 취소된다.
+    if updated_count != order.item_count:
+        raise ApiError(409, "ORDER_ITEMS_INCONSISTENT", "Order items are inconsistent.")
+    session.flush()
+
+    return ShipmentTransitionResult(
+        response=_to_shipment_response(order, payment),
+        previous_status=previous_status,
+        updated_item_count=updated_count,
+        idempotent_replay=False,
+        action=action,
+    )
+
+
+def _require_status(condition: bool, code: str, message: str) -> None:
+    if not condition:
+        raise ApiError(409, code, message)
+
+
+def _load_order_for_update(session: Session, order_code: str) -> Order:
+    normalized_code = order_code.strip()
+    if not normalized_code:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order not found.")
+    order = session.execute(
+        select(Order).where(Order.order_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if order is None:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order not found.")
+    return order
+
+
+def _load_payment_for_order(session: Session, order_id: int) -> Payment | None:
+    # Order 를 잠근 뒤 Payment 도 함께 잠근다(order_cancel_service 와 동일 순서).
+    # 배송 승인 검증과 commit 사이에 결제가 CANCELED/REFUNDED 로 바뀌는 경쟁을 막는다.
+    return session.execute(
+        select(Payment).where(Payment.order_id == order_id).with_for_update()
+    ).scalar_one_or_none()
+
+
+def _to_shipment_response(order: Order, payment: Payment | None) -> AdminOrderShipmentActionResponse:
+    return AdminOrderShipmentActionResponse(
+        order_code=order.order_code,
+        order_status=order.status,
+        available_actions=_compute_available_actions(order, payment),
+        updated_at=order.updated_at,
+    )
 
 
 def _compute_summary(session: Session) -> AdminOrderSummary:
