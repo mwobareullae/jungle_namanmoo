@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  HomeLayoutResponse,
   HomeSection,
   ProductCardItem,
   ProductDetail,
@@ -28,6 +29,7 @@ import type { PopularProductsResponse } from "../types/product";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
+  getHomeLayout: () => Promise<HomeLayoutResponse>;
   createRecommendation: (
     request: RecommendationRequest,
     params?: { page?: number; pageSize?: number }
@@ -195,6 +197,7 @@ type BackendProductDetailResponse = {
 };
 
 type BackendHomeSection = HomeSection;
+type BackendHomeLayoutResponse = HomeLayoutResponse;
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(
   /\/$/,
@@ -437,6 +440,11 @@ export const api: RecommendationApi = {
       }
     );
     return parseJson<RecommendationNarrativeResponse>(response);
+  },
+
+  async getHomeLayout() {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/home/layout`);
+    return parseJson<BackendHomeLayoutResponse>(response);
   },
 
   async getMarketPopular(params = {}) {

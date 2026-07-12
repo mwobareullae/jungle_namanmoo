@@ -183,17 +183,15 @@ function HomeLoadingSectionHead() {
   );
 }
 
-function HomeSectionErrorState() {
-  return (
-    <section className="home-section-error-state" aria-live="polite">
-      <div className="home-section-error-icon" aria-hidden="true">
-        !
-      </div>
-      <h2>상품을 불러오지 못했습니다.</h2>
-      <p>잠시 후 새로고침 해주세요.</p>
-    </section>
-  );
-}
+type HomeSectionKey = "marketPopular" | "forYou" | "evidencePicks";
+
+const DEFAULT_HOME_SECTION_ORDER: HomeSectionKey[] = ["marketPopular", "evidencePicks", "forYou"];
+
+const HOME_SECTION_KEY_BY_ID: Record<string, HomeSectionKey | undefined> = {
+  market_popular: "marketPopular",
+  evidence_picks: "evidencePicks",
+  for_you: "forYou"
+};
 
 function HomeRankingSection({
   products,
@@ -320,18 +318,15 @@ function HomeRankingSection({
 
 function HomeDealSection({
   products,
-  section,
-  sectionIndex
+  section
 }: {
   products: ProductCardItem[];
   section: HomeSection;
-  sectionIndex: number;
 }) {
   const visibleProducts = products.slice(0, 8);
-  const toneClass = sectionIndex % 2 === 0 ? "tone-soft" : "tone-mint";
 
   return (
-    <section className={`home-api-section home-deal-section ${toneClass}`}>
+    <section className="home-api-section home-deal-section tone-mint">
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">맞춤 추천 섹션</div>
@@ -402,7 +397,7 @@ function HomeOriginalGridSection({
     <section className="home-api-section home-original-section home-personal-section">
       <div className="home-section-head">
         <div>
-          <div className="home-section-kicker">피부 조건 기준 추천</div>
+          <div className="home-section-kicker">성분 근거 기준 큐레이션</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
@@ -456,8 +451,12 @@ function HomeMainContent({
   const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
   const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
   const [evidencePicksSection, setEvidencePicksSection] = useState<HomeSection | null>(null);
-  const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
-  const [homeSectionError, setHomeSectionError] = useState("");
+  const [homeSectionLoading, setHomeSectionLoading] = useState<Record<HomeSectionKey, boolean>>({
+    marketPopular: showDefaultSection,
+    forYou: showDefaultSection,
+    evidencePicks: showDefaultSection
+  });
+  const [homeSectionOrder, setHomeSectionOrder] = useState<HomeSectionKey[]>(DEFAULT_HOME_SECTION_ORDER);
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -597,46 +596,102 @@ function HomeMainContent({
     }
   }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
 
+  const loadHomeSection = useCallback(
+    async (sectionKey: HomeSectionKey) => {
+      setHomeSectionLoading((current) => ({ ...current, [sectionKey]: true }));
+
+      try {
+        if (sectionKey === "marketPopular") {
+          setMarketPopularSection(await api.getMarketPopular({ limit: 10 }));
+        } else if (sectionKey === "forYou") {
+          setForYouSection(
+            await api.getForYou({
+              skinType: initialProfile.skin,
+              sensitivity: initialProfile.sensitivity,
+              limit: 10
+            })
+          );
+        } else {
+          setEvidencePicksSection(await api.getEvidencePicks({ limit: 10 }));
+        }
+      } catch {
+        if (sectionKey === "marketPopular") setMarketPopularSection(null);
+        else if (sectionKey === "forYou") setForYouSection(null);
+        else setEvidencePicksSection(null);
+      } finally {
+        setHomeSectionLoading((current) => ({ ...current, [sectionKey]: false }));
+      }
+    },
+    [initialProfile.sensitivity, initialProfile.skin]
+  );
+
   useEffect(() => {
     if (!showDefaultSection) return;
 
-    let isMounted = true;
-
-    const loadHomeSections = async () => {
-      setIsHomeSectionLoading(true);
-      setHomeSectionError("");
-
+    const loadHome = async () => {
       try {
-        const [marketPopular, forYou, evidencePicks] = await Promise.all([
-          api.getMarketPopular({ limit: 10 }),
-          api.getForYou({
-            skinType: initialProfile.skin,
-            sensitivity: initialProfile.sensitivity,
-            limit: 10
-          }),
-          api.getEvidencePicks({ limit: 10 })
-        ]);
-        if (!isMounted) return;
-        setMarketPopularSection(marketPopular);
-        setForYouSection(forYou);
-        setEvidencePicksSection(evidencePicks);
+        const layout = await api.getHomeLayout();
+        const layoutOrder = layout.sections
+          .map((section) => HOME_SECTION_KEY_BY_ID[section.section_id])
+          .filter((sectionKey): sectionKey is HomeSectionKey => Boolean(sectionKey));
+        setHomeSectionOrder(
+          layoutOrder.length === DEFAULT_HOME_SECTION_ORDER.length
+            ? layoutOrder
+            : DEFAULT_HOME_SECTION_ORDER
+        );
       } catch {
-        if (!isMounted) return;
-        setMarketPopularSection(null);
-        setForYouSection(null);
-        setEvidencePicksSection(null);
-        setHomeSectionError("인기 상품을 불러오지 못했습니다.");
-      } finally {
-        if (isMounted) setIsHomeSectionLoading(false);
+        setHomeSectionOrder(DEFAULT_HOME_SECTION_ORDER);
       }
+
+      await Promise.all(DEFAULT_HOME_SECTION_ORDER.map(loadHomeSection));
     };
 
-    loadHomeSections();
+    void loadHome();
+  }, [loadHomeSection, showDefaultSection]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [initialProfile.sensitivity, initialProfile.skin, showDefaultSection]);
+  const isInitialHomeSectionLoading =
+    !marketPopularSection &&
+    !forYouSection &&
+    !evidencePicksSection &&
+    Object.values(homeSectionLoading).some(Boolean);
+
+  const hasVisibleHomeSection =
+    Boolean(marketPopularSection?.products.length) ||
+    Boolean(forYouSection?.products.length) ||
+    Boolean(evidencePicksSection?.products.length);
+
+  const renderHomeSection = (sectionKey: HomeSectionKey, sectionIndex: number) => {
+    const section =
+      sectionKey === "marketPopular"
+        ? marketPopularSection
+        : sectionKey === "forYou"
+          ? forYouSection
+          : evidencePicksSection;
+
+    if (!section || section.products.length === 0) return null;
+
+    const products = section.products.map(mapHomeProductToCard);
+    if (sectionIndex === 0) {
+      return (
+        <HomeRankingSection
+          key={section.section_id}
+          products={products}
+          section={section}
+          sectionIndex={sectionIndex}
+        />
+      );
+    }
+    if (sectionIndex === 1) {
+      return <HomeOriginalGridSection key={section.section_id} products={products} section={section} />;
+    }
+    return (
+      <HomeDealSection
+        key={section.section_id}
+        products={products}
+        section={section}
+      />
+    );
+  };
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -851,39 +906,13 @@ function HomeMainContent({
         id="defaultSection"
         style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}
       >
-        {isHomeSectionLoading ? (
+        {isInitialHomeSectionLoading ? (
           <HomeSectionLoadingSkeleton />
-        ) : homeSectionError ? (
-          <HomeSectionErrorState />
-        ) : marketPopularSection || forYouSection || evidencePicksSection ? (
+        ) : hasVisibleHomeSection ? (
           <div className="home-section-stack">
-            {marketPopularSection ? (
-              <HomeRankingSection
-                key={marketPopularSection.section_id}
-                products={marketPopularSection.products.map(mapHomeProductToCard)}
-                section={marketPopularSection}
-                sectionIndex={0}
-              />
-            ) : null}
-            {forYouSection ? (
-              <HomeOriginalGridSection
-                key={forYouSection.section_id}
-                products={forYouSection.products.map(mapHomeProductToCard)}
-                section={forYouSection}
-              />
-            ) : null}
-            {evidencePicksSection ? (
-              <HomeDealSection
-                key={evidencePicksSection.section_id}
-                products={evidencePicksSection.products.map(mapHomeProductToCard)}
-                section={evidencePicksSection}
-                sectionIndex={1}
-              />
-            ) : null}
+            {homeSectionOrder.map(renderHomeSection)}
           </div>
-        ) : (
-          <div className="empty-state">표시할 섹션이 없습니다.</div>
-        )}
+        ) : null}
       </div>
     </main>
   );
