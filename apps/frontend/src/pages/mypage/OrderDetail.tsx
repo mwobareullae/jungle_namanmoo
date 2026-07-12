@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import ConfirmModal from "../../components/ui/ConfirmModal";
 import { getProductImageUrl } from "../../lib/imageUrls";
-import { getOrderDetail } from "../../lib/orderApi";
+import { cancelOrder, getOrderDetail } from "../../lib/orderApi";
 import type { OrderDetailResponse } from "../../types/order";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
@@ -60,6 +61,9 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<OrderDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [cancelErrorMessage, setCancelErrorMessage] = useState("");
 
   const loadOrderDetail = useCallback(async () => {
     if (!orderCode) {
@@ -90,6 +94,25 @@ export default function OrderDetail() {
     return () => window.clearTimeout(timerId);
   }, [loadOrderDetail]);
 
+  const canCancelOrder = order?.status === "PENDING_PAYMENT" || order?.status === "PAID";
+  const cancelActionLabel = order?.status === "PAID" ? "주문 취소 요청" : "주문 취소";
+
+  const submitCancel = async () => {
+    if (!order || !canCancelOrder || isCanceling) return;
+
+    setIsCanceling(true);
+    setCancelErrorMessage("");
+    try {
+      await cancelOrder(order.order_code);
+      setIsCancelModalOpen(false);
+      await loadOrderDetail();
+    } catch (error) {
+      setCancelErrorMessage(error instanceof Error ? error.message : "주문 취소에 실패했습니다.");
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
   return (
     <MyPageLayout activePath="/mypage/orders">
       <PageTitle
@@ -119,7 +142,22 @@ export default function OrderDetail() {
       ) : order ? (
         <div style={styles.detailGrid}>
           <section style={styles.card} aria-labelledby="orderInfoTitle">
-            <h2 id="orderInfoTitle" style={styles.cardTitle}>주문 정보</h2>
+            <div style={styles.cardHeader}>
+              <h2 id="orderInfoTitle" style={styles.cardTitle}>주문 정보</h2>
+              {canCancelOrder ? (
+                <button
+                  className="bg-white hover:bg-[#FAFAFA]"
+                  onClick={() => {
+                    setCancelErrorMessage("");
+                    setIsCancelModalOpen(true);
+                  }}
+                  style={styles.cancelButton}
+                  type="button"
+                >
+                  {cancelActionLabel}
+                </button>
+              ) : null}
+            </div>
             <div style={styles.infoRows}>
               <InfoRow label="주문번호" value={order.order_code} />
               <InfoRow label="주문상태" value={statusLabelMap[order.status] ?? order.status} accent />
@@ -156,7 +194,14 @@ export default function OrderDetail() {
           <section style={styles.card} aria-labelledby="orderedItemsTitle">
             <div style={styles.cardHeader}>
               <h2 id="orderedItemsTitle" style={styles.cardTitle}>주문 상품</h2>
-              <span style={styles.cardCount}>상품 {order.items.length}개</span>
+              <div style={styles.cardHeaderActions}>
+                <span style={styles.cardCount}>상품 {order.items.length}개</span>
+                {order.status === "DELIVERED" ? (
+                  <Link className="return-request-order-link" to={`/mypage/orders/${order.order_code}/return-request`}>
+                    반품·교환·환불 신청
+                  </Link>
+                ) : null}
+              </div>
             </div>
             <div style={styles.itemList}>
               {order.items.map((item) => {
@@ -194,6 +239,18 @@ export default function OrderDetail() {
           </section>
         </div>
       ) : null}
+      {cancelErrorMessage ? <p style={styles.cancelError} role="alert">{cancelErrorMessage}</p> : null}
+      <ConfirmModal
+        cancelLabel="돌아가기"
+        confirmLabel={isCanceling ? "처리 중" : cancelActionLabel}
+        message={order?.status === "PAID" ? "결제 완료 주문을 취소 요청할까요? 환불은 백엔드 확인 후 처리됩니다." : "이 주문을 취소할까요?"}
+        onCancel={() => {
+          if (!isCanceling) setIsCancelModalOpen(false);
+        }}
+        onConfirm={() => void submitCancel()}
+        open={isCancelModalOpen}
+        title={cancelActionLabel}
+      />
     </MyPageLayout>
   );
 }
@@ -274,6 +331,22 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "space-between",
     gap: 12,
     marginBottom: 18
+  },
+  cancelButton: {
+    minHeight: 36,
+    padding: "0 14px",
+    border: "1px solid #d9e2e6",
+    borderRadius: 9,
+    color: "#43545b",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  cancelError: {
+    margin: "14px 0 0",
+    color: "#c44747",
+    fontSize: 14,
+    lineHeight: 1.5
   },
   cardTitle: {
     margin: 0,

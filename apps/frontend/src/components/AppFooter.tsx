@@ -10,6 +10,7 @@ const accountLinks = [
   ["찜한 상품", "/mypage/wishlist"],
   ["최근 본 상품", "/mypage/recent"],
   ["주문/배송내역", "/mypage/orders"],
+  ["반품·교환·환불", "/returns"],
   ["이용약관", "/terms"],
   ["개인정보처리방침", "/privacy"]
 ] as const;

@@ -22,6 +22,7 @@ const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
 const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const NewProductsPage = lazy(() => import("./pages/NewProductsPage"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
+const ReturnRequestPage = lazy(() => import("./pages/mypage/ReturnRequestPage"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const Addresses = lazy(() => import("./pages/mypage/Addresses"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
@@ -29,6 +30,7 @@ const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
 const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
+const ReturnPolicyPage = lazy(() => import("./pages/ReturnPolicyPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 const SkinProfile = lazy(() => import("./pages/mypage/SkinProfile"));
 const SkinTestPage = lazy(() => import("./pages/SkinTestPage"));
@@ -1048,6 +1050,16 @@ function App() {
           )}
           {appMode !== "community" && (
             <Route
+              path="/mypage/orders/:orderCode/return-request"
+              element={(
+                <ProtectedRoute>
+                  <ReturnRequestPage />
+                </ProtectedRoute>
+              )}
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
               path="/mypage/reviews"
               element={(
                 <ProtectedRoute>
@@ -1088,6 +1100,7 @@ function App() {
           {appMode !== "community" && <Route path="/brands" element={<BrandsPage />} />}
           <Route path="/terms" element={<LegalDocumentPage documentType="terms" />} />
           <Route path="/privacy" element={<LegalDocumentPage documentType="privacy" />} />
+          <Route path="/returns" element={<ReturnPolicyPage />} />
           {appMode !== "community" && (
             <Route path="/category/:categoryTitle" element={<CategoryPage />} />
           )}
