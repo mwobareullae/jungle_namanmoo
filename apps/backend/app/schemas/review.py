@@ -42,6 +42,10 @@ class ProductReviewItem(BaseModel):
     is_repurchase_review: bool | None
     verified_purchase: bool | None
     helpful_count: int
+    updated_at: datetime | None = None
+    is_mine: bool = False
+    can_edit: bool = False
+    can_delete: bool = False
     badges: list[str] = Field(default_factory=list)
     author: ProductReviewAuthor | None = None
     profile_labels: list[ProductReviewProfileLabel] = Field(default_factory=list)
@@ -104,3 +108,41 @@ class ProductReviewMutationResponse(BaseModel):
     product_id: str
     status: str
     review_summary: ProductReviewSummary
+
+
+class MyProductReviewItem(BaseModel):
+    product_id: str
+    product_name: str
+    brand_name: str
+    thumbnail_storage_key: str | None
+    status: str
+    review: ProductReviewItem
+
+
+class MyProductReviewsResponse(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    items: list[MyProductReviewItem]
+
+
+class ReviewableOrderItem(BaseModel):
+    order_item_id: int
+    order_code: str
+    product_id: str
+    product_name: str
+    brand_name: str
+    thumbnail_storage_key: str | None
+    order_item_status: str
+    review_id: str | None
+    review_status: str | None
+    can_write: bool
+
+
+class ReviewableOrderItemsResponse(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    items: list[ReviewableOrderItem]

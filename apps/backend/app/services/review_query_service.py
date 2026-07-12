@@ -9,8 +9,10 @@ from typing import Literal
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.db.models.auth import User
 from app.db.models.catalog import Product
 from app.db.models.review import (
+    FIRST_PARTY_REVIEW_SOURCE,
     ProductReview,
     ProductReviewMetric,
     ProductReviewProfileLabel,
@@ -18,6 +20,7 @@ from app.db.models.review import (
 from app.schemas.common import ApiError
 from app.schemas.review import (
     ProductReviewItem,
+    ProductReviewAuthor,
     ProductReviewProfileLabel as ProductReviewProfileLabelSchema,
     ProductReviewsResponse,
     ProductReviewSummary,
@@ -46,6 +49,7 @@ def get_product_reviews_response(
     sensitivity: str | None = None,
     skin_tone: str | None = None,
     concern: str | None = None,
+    current_user_id: int | None = None,
 ) -> ProductReviewsResponse:
     product_id = _resolve_product_id(session, product_code)
     normalized_sort = _normalize_sort(sort)
@@ -94,12 +98,21 @@ def get_product_reviews_response(
     rows = list(session.execute(statement).scalars())
     has_next = len(rows) > normalized_limit
     visible_rows = rows[:normalized_limit]
-    labels_by_review_id = _load_profile_labels(
+    labels_by_review_id = load_review_profile_labels(
         session,
         [int(review.id) for review in visible_rows],
     )
+    users_by_id = load_review_users(
+        session,
+        [int(review.user_id) for review in visible_rows if review.user_id is not None],
+    )
     items = [
-        _to_review_item(review, labels_by_review_id.get(int(review.id), []))
+        to_review_item(
+            review,
+            labels_by_review_id.get(int(review.id), []),
+            author=users_by_id.get(int(review.user_id)) if review.user_id is not None else None,
+            current_user_id=current_user_id,
+        )
         for review in visible_rows
     ]
     next_cursor = (
@@ -278,7 +291,7 @@ def _parse_cursor_datetime(value: object) -> datetime:
     return _as_utc(parsed) or _NULL_REVIEWED_AT
 
 
-def _load_profile_labels(
+def load_review_profile_labels(
     session: Session,
     review_ids: list[int],
 ) -> dict[int, list[ProductReviewProfileLabelSchema]]:
@@ -305,11 +318,24 @@ def _load_profile_labels(
     return result
 
 
-def _to_review_item(
+def load_review_users(session: Session, user_ids: list[int]) -> dict[int, User]:
+    normalized_ids = sorted(set(user_ids))
+    if not normalized_ids:
+        return {}
+    rows = session.execute(select(User).where(User.id.in_(normalized_ids))).scalars()
+    return {int(user.id): user for user in rows}
+
+
+def to_review_item(
     review: ProductReview,
     profile_labels: list[ProductReviewProfileLabelSchema],
+    *,
+    author: User | None = None,
+    current_user_id: int | None = None,
 ) -> ProductReviewItem:
     badges = review.source_badge_labels_json
+    is_mine = current_user_id is not None and review.user_id == current_user_id
+    is_first_party = review.source == FIRST_PARTY_REVIEW_SOURCE
     return ProductReviewItem(
         review_id=review.review_code,
         rating=review.rating,
@@ -320,11 +346,28 @@ def _to_review_item(
         is_repurchase_review=review.is_repurchase_review,
         verified_purchase=review.verified_purchase,
         helpful_count=int(review.helpful_count or 0),
+        updated_at=_as_utc(review.updated_at),
+        is_mine=is_mine,
+        can_edit=is_mine and is_first_party and review.status == "PUBLISHED",
+        can_delete=is_mine and is_first_party and review.status != "DELETED",
         badges=[str(value) for value in badges] if isinstance(badges, list) else [],
-        author=None,
+        author=(
+            ProductReviewAuthor(display_name=mask_review_author_name(author.display_name))
+            if author is not None and is_first_party
+            else None
+        ),
         profile_labels=profile_labels,
         media=[],
     )
+
+
+def mask_review_author_name(value: str | None) -> str:
+    normalized = (value or "").strip()
+    if not normalized:
+        return "구매자"
+    if len(normalized) == 1:
+        return f"{normalized}*"
+    return f"{normalized[0]}{'*' * (len(normalized) - 1)}"
 
 
 def _as_utc(value: datetime | None) -> datetime | None:

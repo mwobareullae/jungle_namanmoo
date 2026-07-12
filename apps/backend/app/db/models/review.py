@@ -24,6 +24,7 @@ from app.db.types import big_integer_pk_type, jsonb_type
 REVIEW_STATUS_VALUES = "'PENDING', 'PUBLISHED', 'HIDDEN', 'DELETED'"
 REVIEW_TYPE_VALUES = "'GENERAL', 'MONTH_USE'"
 REVIEW_PROFILE_DIMENSION_VALUES = "'SKIN_TYPE', 'SENSITIVITY', 'SKIN_CONCERN', 'SKIN_TONE'"
+FIRST_PARTY_REVIEW_SOURCE = "mubarelle"
 
 
 class ProductReview(Base):

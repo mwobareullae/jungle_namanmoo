@@ -92,6 +92,7 @@ def get_product_reviews(
     sensitivity: str | None = Query(default=None, max_length=64),
     skin_tone: str | None = Query(default=None, max_length=64),
     concern: str | None = Query(default=None, max_length=64),
+    current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> ProductReviewsResponse:
     started_at = current_time()
@@ -108,6 +109,7 @@ def get_product_reviews(
         sensitivity=sensitivity,
         skin_tone=skin_tone,
         concern=concern,
+        current_user_id=int(current_user.id) if current_user is not None else None,
     )
     log_performance_event(
         "product_reviews_completed",

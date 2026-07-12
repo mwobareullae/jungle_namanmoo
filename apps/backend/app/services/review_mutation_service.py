@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -11,10 +12,14 @@ from sqlalchemy.orm import Session
 from app.db.models.auth import User
 from app.db.models.catalog import Product
 from app.db.models.commerce import Order, OrderItem
-from app.db.models.review import ProductReview, ProductReviewProfileLabel
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.db.models.review import (
+    FIRST_PARTY_REVIEW_SOURCE,
+    ProductReview,
+    ProductReviewProfileLabel,
+)
 from app.schemas.common import ApiError
 from app.schemas.review import (
-    ProductReviewAuthor,
     ProductReviewCreateRequest,
     ProductReviewItem,
     ProductReviewMutationResponse,
@@ -22,12 +27,17 @@ from app.schemas.review import (
     ProductReviewUpdateRequest,
 )
 from app.services.review_query_service import get_product_review_summary
+from app.services.review_query_service import to_review_item
 from app.services.review_rollup import rollup_product_review_metrics
 from app.services.skin_profile_service import load_skin_profile_for_user
+from app.services.elasticsearch_catalog_index import (
+    ElasticsearchCatalogIndexError,
+    reindex_catalog_product_to_elasticsearch,
+)
 
 
-FIRST_PARTY_REVIEW_SOURCE = "mubarelle"
 FIRST_PARTY_PROFILE_MAPPING_VERSION = "saved_skin_profile_v1"
+logger = logging.getLogger(__name__)
 
 _SKIN_TYPE_CODES = {
     "건성": "dry",
@@ -144,6 +154,7 @@ def create_purchase_review(
     session.add_all(profile_labels)
     rollup_product_review_metrics(session, product_id=int(product.id), computed_at=now)
     session.commit()
+    _sync_catalog_review_metrics(session, product.product_code)
 
     return ProductReviewMutationResponse(
         review=_to_review_item(review, profile_labels, current_user),
@@ -185,6 +196,7 @@ def update_purchase_review(
     labels = _load_profile_label_rows(session, int(review.id))
     rollup_product_review_metrics(session, product_id=int(product.id), computed_at=now)
     session.commit()
+    _sync_catalog_review_metrics(session, product.product_code)
     return ProductReviewMutationResponse(
         review=_to_review_item(review, labels, current_user),
         review_id=review.review_code,
@@ -231,6 +243,7 @@ def delete_purchase_review(
         )
         rollup_product_review_metrics(session, product_id=int(product.id), computed_at=now)
         session.commit()
+        _sync_catalog_review_metrics(session, product.product_code)
 
     return ProductReviewMutationResponse(
         review=None,
@@ -417,42 +430,54 @@ def _to_review_item(
     profile_labels: list[ProductReviewProfileLabel],
     current_user: User,
 ) -> ProductReviewItem:
-    return ProductReviewItem(
-        review_id=review.review_code,
-        rating=review.rating,
-        review_text=review.review_text,
-        reviewed_at=review.reviewed_at,
-        option_text=review.option_text,
-        review_type=review.review_type,
-        is_repurchase_review=review.is_repurchase_review,
-        verified_purchase=review.verified_purchase,
-        helpful_count=int(review.helpful_count or 0),
-        badges=[],
-        author=ProductReviewAuthor(
-            display_name=_masked_display_name(current_user.display_name),
-        ),
-        profile_labels=[
-            ProductReviewProfileLabelSchema(
-                dimension=label.dimension,
-                value_code=label.value_code,
-                display_label=label.source_label,
-            )
-            for label in sorted(
-                profile_labels,
-                key=lambda item: (item.dimension, item.value_code),
-            )
-        ],
-        media=[],
+    label_schemas = [
+        ProductReviewProfileLabelSchema(
+            dimension=label.dimension,
+            value_code=label.value_code,
+            display_label=label.source_label,
+        )
+        for label in sorted(
+            profile_labels,
+            key=lambda item: (item.dimension, item.value_code),
+        )
+    ]
+    return to_review_item(
+        review,
+        label_schemas,
+        author=current_user,
+        current_user_id=int(current_user.id),
     )
 
 
-def _masked_display_name(value: str | None) -> str:
-    normalized = (value or "").strip()
-    if not normalized:
-        return "구매자"
-    if len(normalized) == 1:
-        return f"{normalized}*"
-    return f"{normalized[0]}{'*' * (len(normalized) - 1)}"
+def _sync_catalog_review_metrics(session: Session, product_code: str) -> None:
+    started_at = current_time()
+    try:
+        result = reindex_catalog_product_to_elasticsearch(
+            session,
+            product_id=product_code,
+        )
+    except ElasticsearchCatalogIndexError as exc:
+        log_performance_event(
+            "product_review_catalog_sync_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={
+                "product_id": product_code,
+                "error": type(exc).__name__,
+            },
+        )
+        logger.warning(
+            "review catalog sync failed",
+            extra={"product_id": product_code, "error_type": type(exc).__name__},
+        )
+        return
+    log_performance_event(
+        "product_review_catalog_sync_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "product_id": product_code,
+            "action": result.action,
+        },
+    )
 
 
 def _new_review_code() -> str:
