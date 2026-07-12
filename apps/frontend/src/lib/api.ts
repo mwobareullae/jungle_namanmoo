@@ -175,6 +175,18 @@ type BackendProductDetailResponse = {
     stock_status: string;
     available_quantity: number | null;
   };
+  review_summary: {
+    review_count: number;
+    average_rating: number | null;
+    rating_distribution: Record<string, number>;
+    general_review_count: number;
+    month_use_review_count: number;
+    repurchase_known_count: number;
+    repurchase_review_count: number;
+    repurchase_rate: number | null;
+    profile_labeled_review_count: number;
+    last_reviewed_at: string | null;
+  };
   ingredients: {
     name: string;
     purpose: string;
@@ -346,6 +358,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     ingredients: response.ingredients.map(mapProductIngredient),
     purchase_url: lowestPrice?.product_url ?? null,
     purchase_info: response.purchase_info,
+    review_summary: response.review_summary,
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,
