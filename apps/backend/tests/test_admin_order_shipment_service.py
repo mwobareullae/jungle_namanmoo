@@ -17,7 +17,7 @@ from app.db.base import Base
 from app.db.models.auth import User
 from app.db.models.commerce import Order, OrderItem, Payment
 from app.schemas.common import ApiError
-from app.services.admin.order_service import start_preparation
+from app.services.admin.order_service import start_preparation, start_shipment
 
 
 @pytest.fixture()
@@ -241,3 +241,95 @@ def test_prepare_idempotent_ignores_unapproved_payment(session: Session) -> None
     result = start_preparation(session, order_code=order.order_code)
     assert result.idempotent_replay is True
     assert result.response.available_actions == []
+
+
+# ---------------------------------------------------------------------------
+# start_shipment: PREPARING_SHIPMENT -> SHIPPED
+#
+# 공통 로직(rowcount 검증·rollback·404)은 start_preparation 테스트에서 이미 검증했으므로
+# 여기서는 start_shipment 의 상태 매핑(expected/target/action)이 정확한지만 확인한다.
+# ---------------------------------------------------------------------------
+
+
+def test_shipment_preparing_approved_transitions_to_shipped(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED", item_count=2)
+    session.commit()
+
+    result = start_shipment(session, order_code=order.order_code)
+
+    assert result.idempotent_replay is False
+    assert result.previous_status == "PREPARING_SHIPMENT"
+    assert result.action == "START_SHIPMENT"
+    assert result.response.order_status == "SHIPPED"
+    assert order.status == "SHIPPED"
+
+
+def test_shipment_syncs_all_order_items(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED", item_count=3)
+    session.commit()
+
+    result = start_shipment(session, order_code=order.order_code)
+
+    assert result.updated_item_count == 3
+    assert _item_statuses(session, order.id) == ["SHIPPED"] * 3
+
+
+def test_shipment_response_available_actions_is_complete_delivery(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    session.commit()
+
+    result = start_shipment(session, order_code=order.order_code)
+
+    assert result.response.available_actions == ["COMPLETE_DELIVERY"]
+
+
+def test_shipment_idempotent_when_already_shipped(session: Session) -> None:
+    order = _make_order(session, order_status="SHIPPED", payment_status="APPROVED")
+    session.commit()
+    before_updated_at = order.updated_at
+
+    result = start_shipment(session, order_code=order.order_code)
+
+    assert result.idempotent_replay is True
+    assert result.response.order_status == "SHIPPED"
+    assert order.updated_at == before_updated_at
+
+
+def test_shipment_rejects_skip_from_paid(session: Session) -> None:
+    order = _make_order(session, order_status="PAID", payment_status="APPROVED")
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        start_shipment(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_SHIPPING_TRANSITION_NOT_ALLOWED"
+
+
+def test_shipment_rejects_revert_from_delivered(session: Session) -> None:
+    order = _make_order(session, order_status="DELIVERED", payment_status="APPROVED")
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        start_shipment(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_SHIPPING_TRANSITION_NOT_ALLOWED"
+
+
+def test_shipment_rejects_missing_payment(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status=None)
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        start_shipment(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_PAYMENT_NOT_FOUND"
+
+
+def test_shipment_rejects_unapproved_payment(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="READY")
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        start_shipment(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_PAYMENT_NOT_APPROVED"
