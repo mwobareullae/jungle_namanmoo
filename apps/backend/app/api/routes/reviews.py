@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -10,6 +10,8 @@ from app.schemas.review import (
     ProductReviewCreateRequest,
     ProductReviewMutationResponse,
     ProductReviewUpdateRequest,
+    MyProductReviewsResponse,
+    ReviewableOrderItemsResponse,
 )
 from app.services.event_tracking import request_id_from_request
 from app.services.review_mutation_service import (
@@ -17,9 +19,61 @@ from app.services.review_mutation_service import (
     delete_purchase_review,
     update_purchase_review,
 )
+from app.services.review_user_query_service import (
+    DEFAULT_MY_REVIEW_PAGE_SIZE,
+    MAX_MY_REVIEW_PAGE_SIZE,
+    get_my_product_reviews,
+    get_reviewable_order_items,
+)
 
 
 router = APIRouter(tags=["reviews"])
+
+
+@router.get(
+    "/me/reviews",
+    response_model=MyProductReviewsResponse,
+    responses={401: {"model": ErrorResponse}},
+)
+def get_my_reviews(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_MY_REVIEW_PAGE_SIZE,
+        ge=1,
+        le=MAX_MY_REVIEW_PAGE_SIZE,
+    ),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> MyProductReviewsResponse:
+    return get_my_product_reviews(
+        session,
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/me/reviewable-order-items",
+    response_model=ReviewableOrderItemsResponse,
+    responses={401: {"model": ErrorResponse}},
+)
+def get_my_reviewable_order_items(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_MY_REVIEW_PAGE_SIZE,
+        ge=1,
+        le=MAX_MY_REVIEW_PAGE_SIZE,
+    ),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> ReviewableOrderItemsResponse:
+    return get_reviewable_order_items(
+        session,
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(

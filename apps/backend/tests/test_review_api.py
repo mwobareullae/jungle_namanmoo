@@ -522,6 +522,82 @@ def test_other_user_cannot_update_or_delete_review(
     assert delete_response.json()["error"]["code"] == "REVIEW_NOT_FOUND"
 
 
+def test_my_reviews_and_reviewable_items_expose_ownership_state(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-my@example.com", nickname="reviewer")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-my@example.com",
+        item_status="DELIVERED",
+    )
+    review_id = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "내 리뷰 목록 확인",
+        },
+    ).json()["review_id"]
+
+    my_reviews = client.get("/api/me/reviews")
+    reviewable = client.get("/api/me/reviewable-order-items")
+    public_items = client.get("/api/products/prod_001/reviews").json()["items"]
+    public_review = next(item for item in public_items if item["review_id"] == review_id)
+
+    assert my_reviews.status_code == 200
+    assert my_reviews.json()["total_items"] == 1
+    assert my_reviews.json()["items"][0]["review"]["review_id"] == review_id
+    assert my_reviews.json()["items"][0]["review"]["is_mine"] is True
+    assert my_reviews.json()["items"][0]["review"]["can_edit"] is True
+    assert my_reviews.json()["items"][0]["review"]["can_delete"] is True
+    assert reviewable.status_code == 200
+    assert reviewable.json()["items"][0]["order_item_id"] == order_item_id
+    assert reviewable.json()["items"][0]["review_status"] == "PUBLISHED"
+    assert reviewable.json()["items"][0]["can_write"] is False
+    assert public_review["author"]["display_name"] == "r*******"
+    assert public_review["is_mine"] is True
+
+    client.delete(f"/api/reviews/{review_id}")
+    after_delete = client.get("/api/me/reviewable-order-items").json()["items"][0]
+    assert after_delete["review_id"] == review_id
+    assert after_delete["review_status"] == "DELETED"
+    assert after_delete["can_write"] is True
+
+
+def test_other_user_sees_public_author_but_not_edit_permissions(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-public-owner@example.com", nickname="owner")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-public-owner@example.com",
+        item_status="DELIVERED",
+    )
+    review_id = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "공개 작성자 확인",
+        },
+    ).json()["review_id"]
+
+    _signup(client, email="review-public-reader@example.com", nickname="reader")
+    item = next(
+        item
+        for item in client.get("/api/products/prod_001/reviews").json()["items"]
+        if item["review_id"] == review_id
+    )
+
+    assert item["author"]["display_name"] == "o****"
+    assert item["is_mine"] is False
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+
+
 def _review(
     review_code: str,
     product_id: int,
