@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProductReviewSummary(BaseModel):
@@ -55,3 +55,26 @@ class ProductReviewsResponse(BaseModel):
     items: list[ProductReviewItem]
     next_cursor: str | None
     has_next: bool
+
+
+class ProductReviewCreateRequest(BaseModel):
+    order_item_id: int = Field(gt=0)
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(min_length=1, max_length=2000)
+    is_repurchase_review: bool | None = None
+
+    @field_validator("review_text")
+    @classmethod
+    def normalize_review_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("리뷰 본문은 1자 이상이어야 합니다.")
+        return normalized
+
+
+class ProductReviewMutationResponse(BaseModel):
+    review: ProductReviewItem | None
+    review_id: str
+    product_id: str
+    status: str
+    review_summary: ProductReviewSummary
