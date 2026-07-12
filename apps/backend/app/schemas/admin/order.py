@@ -44,6 +44,14 @@ AdminPaymentStatus = Literal[
     "PARTIALLY_REFUNDED",
 ]
 
+# 관리자가 주문에 취할 수 있는 다음 액션. 현재는 배송 액션만 존재하며(M1.5-A),
+# 취소·반품·환불·교환 액션은 M1.5-B에서 백엔드가 공유하는 API 계약에 맞춰 추가한다.
+AdminOrderAction = Literal[
+    "START_PREPARATION",
+    "START_SHIPMENT",
+    "COMPLETE_DELIVERY",
+]
+
 
 class AdminOrderListItem(BaseModel):
     id: int
@@ -71,6 +79,14 @@ class AdminOrderListItem(BaseModel):
     recommendation_ids: list[str] = Field(
         ...,
         description="주문 내 OrderItem 들의 recommendation_id 중복 제거 목록. 추천 주문이 아니면 서비스가 명시적으로 [] 전달.",
+    )
+    paid_at: datetime | None = Field(
+        ...,
+        description="Order.paid_at 그대로. 결제 미완료·정보 누락 주문은 None.",
+    )
+    available_actions: list[AdminOrderAction] = Field(
+        ...,
+        description="현재 주문·결제 상태를 기준으로 관리자가 수행할 수 있는 다음 액션. 프론트는 이 값을 직접 계산하지 않고 그대로 사용한다.",
     )
     updated_at: datetime
 
