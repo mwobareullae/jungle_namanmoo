@@ -24,10 +24,10 @@
 ## 기준 문서
 
 - 작업 규칙과 역할 범위: `AGENTS.md`
-- 데이터 계약: `docs/data-contract.md`
+- 데이터 계약: `docs/data/data-contract.md`
 - 배포 결정 기록: `docs/deployment-summary.md`
 - 이벤트/GA4 로드맵: `docs/analytics-event-roadmap.md`
-- P2 AI commerce 계약: `docs/p2-ai-commerce-contract.md`
+- P2 AI commerce 계약: `docs/00-overview/p2-ai-commerce-contract.md`
 - 프론트 상세: `apps/frontend/README.md`
 - 백엔드 상세: `apps/backend/README.md`
 

@@ -11,7 +11,7 @@
 - 현재 레포에 들어가는 CSV는 최종 10만 원본 feed가 아니라, 백엔드 seed/import와 추천/검색 dry-run에 바로 사용할 수 있는 검증된 결과물입니다.
 - 올리브영 등 외부 출처는 초기 수집 기준일 뿐, P2 서비스에서는 `뭐바를래` 자사몰 상품처럼 취급합니다.
 - 10만 상품 확장은 원본 feed를 바로 운영 테이블에 넣지 않고, staging validation, bulk upsert, QA 리포트, rollback 가능성을 거친 뒤 반영합니다.
-- 대량 import 입력 계약과 실패 row 포맷은 `docs/data-contract.md`의 `P2/MVP 대량 카탈로그 계약`을 기준으로 합니다.
+- 대량 import 입력 계약과 실패 row 포맷은 `docs/data/data-contract.md`의 `P2/MVP 대량 카탈로그 계약`을 기준으로 합니다.
 
 ## 최종 디렉터리 구조
 
