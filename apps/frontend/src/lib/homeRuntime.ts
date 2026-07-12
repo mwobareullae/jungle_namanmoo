@@ -1,7 +1,12 @@
-import type { RecommendationProfile, Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
 
-const RECENT_CONCERNS_KEY = "mwobareullae_recent_concerns";
+const LEGACY_RECENT_CONCERNS_KEY = "mwobareullae_recent_concerns";
+const RECENT_QUERY_KEYS: Record<SearchMode, string> = {
+  ai: "mwobareullae_recent_ai_queries",
+  general: "mwobareullae_recent_general_queries"
+};
 const MAX_RECENT_CONCERNS = 3;
+let currentSearchMode: SearchMode = "ai";
 
 const fallbackRecentConcerns = [
   "수부지인데 모공과 좁쌀이 고민이에요",
@@ -35,9 +40,17 @@ const escapeHtml = (value: string) =>
       })[char] ?? char
   );
 
-const getRecentConcerns = () => {
+const getRecentConcerns = (searchMode: SearchMode = currentSearchMode) => {
   try {
-    const raw = localStorage.getItem(RECENT_CONCERNS_KEY);
+    const raw = localStorage.getItem(RECENT_QUERY_KEYS[searchMode]);
+    if (raw === null && searchMode === "ai") {
+      const legacyRaw = localStorage.getItem(LEGACY_RECENT_CONCERNS_KEY);
+      if (legacyRaw !== null) {
+        localStorage.setItem(RECENT_QUERY_KEYS.ai, legacyRaw);
+        localStorage.removeItem(LEGACY_RECENT_CONCERNS_KEY);
+        return JSON.parse(legacyRaw) as string[];
+      }
+    }
     if (raw === null) return [];
     const saved = JSON.parse(raw) as unknown;
     return Array.isArray(saved)
@@ -50,38 +63,41 @@ const getRecentConcerns = () => {
   }
 };
 
-const saveRecentConcern = (text: string) => {
+const saveRecentConcern = (text: string, searchMode: SearchMode = currentSearchMode) => {
   const clean = text.trim();
   if (!clean) return;
 
-  const current = getRecentConcerns().filter((item) => item !== clean);
+  const current = getRecentConcerns(searchMode).filter((item) => item !== clean);
   localStorage.setItem(
-    RECENT_CONCERNS_KEY,
+    RECENT_QUERY_KEYS[searchMode],
     JSON.stringify([clean, ...current].slice(0, MAX_RECENT_CONCERNS))
   );
 };
 
-const buildSearchResultsUrl = (query: string) => {
+const buildSearchResultsUrl = (query: string, searchMode = "ai") => {
   const params = new URLSearchParams({
     keyword: query,
-    skin_type: searchProfile.skin,
-    sensitivity: searchProfile.sensitivity,
+    search_mode: searchMode,
     page_size: "10"
   });
+  if (searchMode === "ai") {
+    params.set("skin_type", searchProfile.skin);
+    params.set("sensitivity", searchProfile.sensitivity);
+  }
 
   return `/search?${params.toString()}`;
 };
 
-const renderRecentConcerns = () => {
+const renderRecentConcerns = (searchMode: SearchMode = currentSearchMode) => {
   const list = document.getElementById("recentConcernList");
   const clearButton = document.getElementById("recentClearButton");
   if (!list) return;
 
-  const concerns = getRecentConcerns();
+  const concerns = getRecentConcerns(searchMode);
   if (clearButton) clearButton.style.display = concerns.length > 0 ? "inline-flex" : "none";
 
   if (concerns.length === 0) {
-    list.innerHTML = '<div class="recent-empty">최근 고민이 없습니다</div>';
+    list.innerHTML = `<div class="recent-empty">${searchMode === "ai" ? "최근 AI 추천이 없습니다" : "최근 검색어가 없습니다"}</div>`;
     return;
   }
 
@@ -129,10 +145,10 @@ const closeSearchSuggestions = () => {
   document.querySelector(".search-container")?.classList.remove("suggestions-open");
 };
 
-const goToSearchResultsPage = (query: string) => {
-  saveRecentConcern(query);
+const goToSearchResultsPage = (query: string, searchMode: SearchMode = "ai") => {
+  saveRecentConcern(query, searchMode);
   closeSearchSuggestions();
-  window.location.href = buildSearchResultsUrl(query);
+  window.location.href = buildSearchResultsUrl(query, searchMode);
 };
 
 const updateSearchInput = (query: string) => {
@@ -245,6 +261,10 @@ const installFunctions = () => {
   };
   runtime.showToast = (message) => showToast(String(message));
   runtime.openSearchSuggestions = openSearchSuggestions;
+  runtime.setSearchMode = (mode) => {
+    currentSearchMode = mode === "general" ? "general" : "ai";
+    renderRecentConcerns(currentSearchMode);
+  };
   runtime.closeSearchSuggestions = closeSearchSuggestions;
   runtime.focusSearch = () => {
     const input = document.getElementById("searchInput");
@@ -259,7 +279,7 @@ const installFunctions = () => {
   };
   runtime.clearRecentConcerns = (event) => {
     (event as Event | undefined)?.stopPropagation();
-    localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify([]));
+    localStorage.setItem(RECENT_QUERY_KEYS[currentSearchMode], JSON.stringify([]));
     renderRecentConcerns();
   };
   runtime.selectProfileOption = (profile, value) => {
@@ -280,12 +300,12 @@ const installFunctions = () => {
     const query = String(text);
     const input = document.getElementById("searchInput") as HTMLInputElement | null;
     if (input) input.value = query;
-    goToSearchResultsPage(query);
+    goToSearchResultsPage(query, "ai");
   };
-  runtime.doSearch = () => {
+  runtime.doSearch = (mode) => {
     const input = document.getElementById("searchInput") as HTMLInputElement | null;
     const query = input?.value.trim() || fallbackRecentConcerns[0];
-    goToSearchResultsPage(query);
+    goToSearchResultsPage(query, mode === "general" ? "general" : "ai");
   };
   runtime.handleSearch = (event) => {
     if ((event as KeyboardEvent).key === "Enter") runtime.doSearch();
@@ -305,7 +325,7 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
   }
 
   installFunctions();
-  renderRecentConcerns();
+  renderRecentConcerns(currentSearchMode);
   updateProfileSummary();
   renderDefaultEmptyState();
 
@@ -340,8 +360,8 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
     if (deleteButton?.dataset.query) {
       event.stopPropagation();
       localStorage.setItem(
-        RECENT_CONCERNS_KEY,
-        JSON.stringify(getRecentConcerns().filter((item) => item !== deleteButton.dataset.query))
+        RECENT_QUERY_KEYS[currentSearchMode],
+        JSON.stringify(getRecentConcerns(currentSearchMode).filter((item) => item !== deleteButton.dataset.query))
       );
       renderRecentConcerns();
       return;

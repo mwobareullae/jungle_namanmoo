@@ -179,6 +179,31 @@ def test_catalog_search_hydrates_rating_from_review_metrics() -> None:
     assert execution.response.items[0].review_count == 12
 
 
+def test_catalog_search_filters_and_facets_features_and_skin_types() -> None:
+    session = _seed_example_session()
+
+    execution = get_catalog_search_response(
+        session,
+        query="크림",
+        features=("moisturizing_calming",),
+        skin_types=("dehydrated_oily",),
+        elasticsearch_search=_fake_es_search([], failure_reason="index missing"),
+    )
+
+    assert [item.product_id for item in execution.response.items] == ["prod_001"]
+    assert execution.response.applied_filters.features == ["moisturizing_calming"]
+    assert execution.response.applied_filters.skin_types == ["dehydrated_oily"]
+    assert [(facet.value, facet.count) for facet in execution.response.facets.features] == [
+        ("moisturizing_calming", 1),
+        ("trouble_care", 1),
+    ]
+    assert [(facet.value, facet.count) for facet in execution.response.facets.skin_types] == [
+        ("dry", 1),
+        ("dehydrated_oily", 1),
+        ("normal", 1),
+    ]
+
+
 def _fake_es_search(
     product_db_ids: list[int],
     *,
