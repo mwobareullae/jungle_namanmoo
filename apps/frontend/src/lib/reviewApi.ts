@@ -1,7 +1,9 @@
 import type {
   CreateProductReviewRequest,
+  MyProductReviewsResponse,
   ProductReviewMutationResponse,
-  ReviewableOrderItemsResponse
+  ReviewableOrderItemsResponse,
+  UpdateProductReviewRequest
 } from "../types/review";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "./api";
 
@@ -17,4 +19,23 @@ export const createProductReview = (productId: string, request: CreateProductRev
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
+  }).then((response) => parseJson<ProductReviewMutationResponse>(response));
+
+export const getMyProductReviews = (page = 1, pageSize = 20) => {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  return fetchWithTimeout(`${API_BASE_URL}/me/reviews?${params.toString()}`).then((response) =>
+    parseJson<MyProductReviewsResponse>(response)
+  );
+};
+
+export const updateProductReview = (reviewId: string, request: UpdateProductReviewRequest) =>
+  fetchWithTimeout(`${API_BASE_URL}/reviews/${encodeURIComponent(reviewId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  }).then((response) => parseJson<ProductReviewMutationResponse>(response));
+
+export const deleteProductReview = (reviewId: string) =>
+  fetchWithTimeout(`${API_BASE_URL}/reviews/${encodeURIComponent(reviewId)}`, {
+    method: "DELETE"
   }).then((response) => parseJson<ProductReviewMutationResponse>(response));
