@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
@@ -31,6 +31,8 @@ function NewProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const loadProducts = useCallback(async (page: number, append: boolean) => {
     if (append) setIsLoadingMore(true);
@@ -44,12 +46,13 @@ function NewProductsPage() {
       setProducts((current) => (append ? [...current, ...mapped] : mapped));
       setNextPage(response.pagination.has_next ? page + 1 : null);
       setErrorMessage("");
+      setLoadMoreError("");
     } catch {
       if (!append) {
         setProducts([]);
         setNextPage(null);
         setErrorMessage("신상품을 불러오지 못했습니다.");
-      }
+      } else setLoadMoreError("다음 신상품을 불러오지 못했습니다.");
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -59,6 +62,20 @@ function NewProductsPage() {
   useEffect(() => {
     void loadProducts(1, false);
   }, [loadProducts]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || nextPage === null || isLoading || isLoadingMore || loadMoreError) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadProducts(nextPage, true);
+      },
+      { rootMargin: "320px 0px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isLoading, isLoadingMore, loadMoreError, loadProducts, nextPage]);
 
   return (
     <div className="category-page new-products-page">
@@ -83,15 +100,9 @@ function NewProductsPage() {
           )}
         </div>
         {!isLoading && !errorMessage && nextPage !== null ? (
-          <div className="category-page__load-more">
-            <button
-              className="page-btn nav"
-              disabled={isLoadingMore}
-              onClick={() => void loadProducts(nextPage, true)}
-              type="button"
-            >
-              {isLoadingMore ? "불러오는 중" : "더보기"}
-            </button>
+          <div aria-live="polite" className="new-products-page__load-state" ref={loadMoreRef}>
+            {isLoadingMore ? "신상품을 더 불러오는 중..." : null}
+            {loadMoreError ? <span>{loadMoreError}</span> : null}
           </div>
         ) : null}
       </main>
