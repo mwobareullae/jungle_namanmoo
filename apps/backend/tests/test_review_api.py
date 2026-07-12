@@ -385,6 +385,77 @@ def test_review_create_requires_login_and_nonblank_text(client: TestClient) -> N
     assert invalid.status_code == 400
 
 
+def test_review_create_accepts_one_character_and_rejects_over_2000_characters(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-length@example.com", nickname="length")
+    first_item_id = _create_order_item(
+        db_engine,
+        email="review-length@example.com",
+        item_status="DELIVERED",
+    )
+    one_character = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": first_item_id,
+            "rating": 5,
+            "review_text": "굿",
+        },
+    )
+    assert one_character.status_code == 201
+
+    second_item_id = _create_order_item(
+        db_engine,
+        email="review-length@example.com",
+        item_status="DELIVERED",
+    )
+    too_long = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": second_item_id,
+            "rating": 5,
+            "review_text": "a" * 2001,
+        },
+    )
+    assert too_long.status_code == 400
+
+
+def test_review_create_enforces_order_ownership_and_product_match(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-order-owner@example.com", nickname="order-owner")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-order-owner@example.com",
+        item_status="DELIVERED",
+    )
+
+    mismatch = client.post(
+        "/api/products/prod_002/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "상품 불일치",
+        },
+    )
+    assert mismatch.status_code == 400
+    assert mismatch.json()["error"]["code"] == "REVIEW_PRODUCT_MISMATCH"
+
+    _signup(client, email="review-order-other@example.com", nickname="order-other")
+    not_owner = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "다른 사용자 주문",
+        },
+    )
+    assert not_owner.status_code == 404
+    assert not_owner.json()["error"]["code"] == "REVIEW_ORDER_ITEM_NOT_FOUND"
+
+
 def test_review_owner_can_update_without_changing_original_reviewed_at(
     client: TestClient,
     db_engine: Engine,
