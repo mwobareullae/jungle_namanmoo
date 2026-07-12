@@ -225,6 +225,19 @@ export type ProductPurchaseInfo = {
   available_quantity: number | null;
 };
 
+export type ProductReviewSummary = {
+  review_count: number;
+  average_rating: number | null;
+  rating_distribution: Record<string, number>;
+  general_review_count: number;
+  month_use_review_count: number;
+  repurchase_known_count: number;
+  repurchase_review_count: number;
+  repurchase_rate: number | null;
+  profile_labeled_review_count: number;
+  last_reviewed_at: string | null;
+};
+
 export type ProductDetail = ProductCardItem & {
   image_urls: string[];
   content_confidence: ContentConfidence;
@@ -232,6 +245,7 @@ export type ProductDetail = ProductCardItem & {
   ingredients: ProductIngredient[];
   purchase_url: string | null;
   purchase_info?: ProductPurchaseInfo;
+  review_summary?: ProductReviewSummary;
   evidence: IngredientEvidence[];
   prices: ProductPrice[];
   sources: ProductSource[];
