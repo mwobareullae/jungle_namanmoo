@@ -36,6 +36,9 @@ PAYMENT_STATUS_VALUES = (
     "'READY', 'CONFIRMING', 'UNKNOWN', 'APPROVED', 'FAILED', 'CANCELED', 'EXPIRED', "
     "'REFUND_REQUESTED', 'REFUNDED', 'PARTIALLY_REFUNDED'"
 )
+CLAIM_TYPE_VALUES = "'RETURN', 'EXCHANGE', 'REFUND'"
+CLAIM_STATUS_VALUES = "'REQUESTED', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED', 'WITHDRAWN'"
+CLAIM_ITEM_RESOLUTION_VALUES = "'REFUND', 'EXCHANGE'"
 
 
 class Seller(Base):
@@ -318,6 +321,68 @@ class OrderFulfillmentEvent(Base):
     to_status: Mapped[str] = mapped_column(String(40), nullable=False)
     source: Mapped[str] = mapped_column(String(40), nullable=False, default="ADMIN", server_default="ADMIN")
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderClaim(Base):
+    __tablename__ = "order_claims"
+    __table_args__ = (
+        CheckConstraint(f"claim_type in ({CLAIM_TYPE_VALUES})", name="ck_order_claims_claim_type"),
+        CheckConstraint(f"status in ({CLAIM_STATUS_VALUES})", name="ck_order_claims_status"),
+        CheckConstraint("length(trim(reason_code)) > 0", name="ck_order_claims_reason_code_not_blank"),
+        CheckConstraint("refund_amount is null or refund_amount >= 0", name="ck_order_claims_refund_non_negative"),
+        Index("ix_order_claims_user_created_at", "user_id", "created_at"),
+        Index("ix_order_claims_order_status", "order_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    claim_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    claim_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="REQUESTED", server_default="REQUESTED")
+    reason_code: Mapped[str] = mapped_column(String(40), nullable=False)
+    reason_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refund_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderClaimItem(Base):
+    __tablename__ = "order_claim_items"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_order_claim_items_quantity_positive"),
+        CheckConstraint(f"resolution in ({CLAIM_ITEM_RESOLUTION_VALUES})", name="ck_order_claim_items_resolution"),
+        UniqueConstraint("claim_id", "order_item_id", name="uq_order_claim_items_claim_order_item"),
+        Index("ix_order_claim_items_order_item", "order_item_id"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    claim_id: Mapped[int] = mapped_column(ForeignKey("order_claims.id"), nullable=False, index=True)
+    order_item_id: Mapped[int] = mapped_column(ForeignKey("order_items.id"), nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    resolution: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderClaimEvent(Base):
+    __tablename__ = "order_claim_events"
+    __table_args__ = (
+        CheckConstraint("length(trim(to_status)) > 0", name="ck_order_claim_events_to_status_not_blank"),
+        Index("ix_order_claim_events_claim_created_at", "claim_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    claim_id: Mapped[int] = mapped_column(ForeignKey("order_claims.id"), nullable=False, index=True)
+    from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False, default="SYSTEM", server_default="SYSTEM")
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
