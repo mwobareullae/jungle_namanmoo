@@ -5369,6 +5369,24 @@ body {
   padding: 4px 0;
 }
 
+.home-personal-section {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  padding: 42px 0;
+}
+
+.home-personal-section::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  z-index: -1;
+  width: 100vw;
+  background: #f0fbfe;
+  transform: translateX(-50%);
+}
+
 .home-personal-section .product-img {
   aspect-ratio: 1;
   background: var(--mint-bg);
