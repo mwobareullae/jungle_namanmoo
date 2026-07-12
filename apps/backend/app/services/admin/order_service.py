@@ -25,8 +25,12 @@ from app.schemas.common import ApiError
 
 
 ORDER_STATUS_PENDING_PAYMENT = "PENDING_PAYMENT"
+ORDER_STATUS_PAID = "PAID"
 ORDER_STATUS_PREPARING_SHIPMENT = "PREPARING_SHIPMENT"
+ORDER_STATUS_SHIPPED = "SHIPPED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
+
+PAYMENT_STATUS_APPROVED = "APPROVED"
 
 # db/models/commerce.py ORDER_STATUS_VALUES 와 정합
 ORDER_STATUSES = {
@@ -222,6 +226,8 @@ def _to_list_item(
         payment_issue=payment_issue,
         reserved_quantity=_reserved_quantity(order),
         recommendation_ids=_recommendation_ids(items),
+        paid_at=order.paid_at,
+        available_actions=_compute_available_actions(order, payment),
         updated_at=order.updated_at,
     )
 
@@ -243,6 +249,19 @@ def _product_summary(items: list[OrderItem], item_count: int) -> str:
 
 def _reserved_quantity(order: Order) -> int:
     return order.total_quantity if order.status == ORDER_STATUS_PENDING_PAYMENT else 0
+
+
+def _compute_available_actions(order: Order, payment: Payment | None) -> list[str]:
+    payment_approved = payment is not None and payment.status == PAYMENT_STATUS_APPROVED
+    if not payment_approved:
+        return []
+    if order.status == ORDER_STATUS_PAID:
+        return ["START_PREPARATION"]
+    if order.status == ORDER_STATUS_PREPARING_SHIPMENT:
+        return ["START_SHIPMENT"]
+    if order.status == ORDER_STATUS_SHIPPED:
+        return ["COMPLETE_DELIVERY"]
+    return []
 
 
 def _recommendation_ids(items: list[OrderItem]) -> list[str]:
