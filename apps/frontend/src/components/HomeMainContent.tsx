@@ -531,6 +531,9 @@ function HomeMainContent({
   const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
   const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
   const [forYouSections, setForYouSections] = useState<Record<string, HomeSection | null>>({});
+  const [forYouLoading, setForYouLoading] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, showDefaultSection]))
+  );
   const [evidencePicksSection, setEvidencePicksSection] = useState<HomeSection | null>(null);
   const [homeSectionLoading, setHomeSectionLoading] = useState<Record<HomeSectionKey, boolean>>({
     marketPopular: showDefaultSection,
@@ -700,18 +703,24 @@ function HomeMainContent({
         if (sectionKey === "marketPopular") {
           setMarketPopularSection(await api.getMarketPopular({ limit: 10 }));
         } else if (sectionKey === "forYou") {
+          setForYouLoading(Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, true])));
           const prefetched = await Promise.all(
             FOR_YOU_SKIN_TYPES.map(async (skinType) => {
               try {
-                return [skinType, await api.getForYou({ skinType, limit: 10 })] as const;
+                const section = await api.getForYou({ skinType, limit: 10 });
+                setForYouSections((current) => ({ ...current, [skinType]: section }));
+                if (skinType === "건성") setForYouSection(section);
+                return [skinType, section] as const;
               } catch {
                 return [skinType, null] as const;
+              } finally {
+                setForYouLoading((current) => ({ ...current, [skinType]: false }));
               }
             })
           );
           const nextSections = Object.fromEntries(prefetched) as Record<string, HomeSection | null>;
           setForYouSections(nextSections);
-          setForYouSection(nextSections["건성"] ?? Object.values(nextSections).find(Boolean) ?? null);
+          setForYouSection(nextSections["건성"] ?? null);
         } else {
           setEvidencePicksSection(await api.getEvidencePicks({ limit: 10 }));
         }
@@ -751,6 +760,9 @@ function HomeMainContent({
     Boolean(marketPopularSection?.products.length) ||
     Boolean(forYouSection?.products.length) ||
     Boolean(evidencePicksSection?.products.length);
+  const selectedForYouSection =
+    forYouSections[forYouFilters.skinType] ?? (forYouFilters.skinType === "건성" ? forYouSection : null);
+  const selectedForYouLoading = forYouLoading[forYouFilters.skinType] ?? homeSectionLoading.forYou;
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -962,16 +974,16 @@ function HomeMainContent({
                 sectionIndex={0}
               />
             ) : homeSectionLoading.marketPopular ? <HomeSectionLoadingSkeleton sectionKey="marketPopular" /> : null}
-            {(forYouSections[forYouFilters.skinType] ?? forYouSection)?.products.length ? (
+            {selectedForYouSection?.products.length ? (
               <HomeDealSection
-                key={(forYouSections[forYouFilters.skinType] ?? forYouSection)!.section_id}
-                products={(forYouSections[forYouFilters.skinType] ?? forYouSection)!.products.map(mapHomeProductToCard)}
-                section={forYouSections[forYouFilters.skinType] ?? forYouSection!}
+                key={selectedForYouSection.section_id}
+                products={selectedForYouSection.products.map(mapHomeProductToCard)}
+                section={selectedForYouSection}
                 toneMint
                 forYouFilters={forYouFilters}
                 onForYouFilterChange={updateForYouFilter}
               />
-            ) : homeSectionLoading.forYou ? <HomeSectionLoadingSkeleton sectionKey="forYou" /> : null}
+            ) : selectedForYouLoading ? <HomeSectionLoadingSkeleton sectionKey="forYou" /> : null}
             {evidencePicksSection?.products.length ? (
               <HomeOriginalGridSection
                 key={evidencePicksSection.section_id}
