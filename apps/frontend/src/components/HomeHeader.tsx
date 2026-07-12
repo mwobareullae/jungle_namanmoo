@@ -7,7 +7,6 @@ import { callOriginal } from "../lib/originalRuntime";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
 
 function HomeHeader() {
-  const defaultSectionHref = "/#defaultSection";
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -126,7 +125,6 @@ function HomeHeader() {
             <a className={isNewProductsPage ? "nav-active" : ""} href="/products/new">신상품</a>
             <a className={isPopularPage ? "nav-active" : ""} href="/products/popular">베스트</a>
             <a className={isBrandsPage ? "nav-active" : ""} href="/brands">브랜드</a>
-            <a href={defaultSectionHref}>쿠폰</a>
             <a className={isSkinTestPage ? "nav-ai" : ""} href="/skin-test">
               맞춤 추천
             </a>
