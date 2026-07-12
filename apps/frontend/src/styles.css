@@ -3403,8 +3403,8 @@ body {
 
 .general-search-results-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  flex-direction: column;
   gap: 16px;
   padding: 22px 24px;
   border-bottom: 1px solid #eef2f4;
@@ -3412,7 +3412,37 @@ body {
 
 .general-search-results-head p { margin: 0; color: var(--ink); font-size: 16px; }
 .general-search-results-head span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
-.general-search-results-head select { min-height: 40px; padding: 0 30px 0 12px; border: 1px solid #dfe6ea; border-radius: 10px; background: #ffffff; color: var(--ink2); font: inherit; font-size: 13px; }
+
+.general-search-sort-tabs {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.general-search-sort-tabs button {
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid #e3e9ec;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.general-search-sort-tabs button:first-child { padding-left: 0; }
+.general-search-sort-tabs button:last-child { padding-right: 0; border-right: 0; }
+
+.general-search-sort-tabs button.active,
+.general-search-sort-tabs button:hover,
+.general-search-sort-tabs button:focus-visible {
+  color: #1687c6;
+  font-weight: 800;
+  outline: none;
+}
 
 .general-search-product-list { display: grid; }
 
@@ -3443,6 +3473,8 @@ body {
   .general-search-layout { grid-template-columns: 1fr; }
   .general-search-filters { position: static; display: none; }
   .general-search-results-head { padding: 18px; }
+  .general-search-sort-tabs { width: 100%; max-width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .general-search-sort-tabs button { padding: 0 10px; }
   .general-search-product { grid-template-columns: 82px minmax(0, 1fr); padding: 16px; }
   .general-search-product > img { width: 82px; height: 82px; }
   .general-search-product-price { grid-column: 2; justify-items: start; grid-template-columns: auto auto; align-items: center; gap: 10px; }

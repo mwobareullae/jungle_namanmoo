@@ -124,9 +124,20 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
               <p><strong>&quot;{initialQuery}&quot;</strong> 검색 결과</p>
               <span>{isLoading ? "상품을 찾는 중입니다" : `${pagination?.total_items ?? 0}개 제품`}</span>
             </div>
-            <select aria-label="일반 검색 결과 정렬" onChange={(event) => updateSort(event.target.value as CatalogSearchSort)} value={sort}>
-              {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            <div aria-label="일반 검색 결과 정렬" className="general-search-sort-tabs" role="tablist">
+              {sortOptions.map((option) => (
+                <button
+                  aria-selected={sort === option.value}
+                  className={sort === option.value ? "active" : ""}
+                  key={option.value}
+                  onClick={() => updateSort(option.value)}
+                  role="tab"
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </header>
 
           {errorMessage ? <div className="general-search-empty">{errorMessage}</div> : null}
