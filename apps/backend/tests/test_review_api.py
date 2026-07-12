@@ -4,14 +4,17 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.db.models.auth import User
 from app.db.models.catalog import Product
-from app.db.models.review import ProductReview, ProductReviewProfileLabel
+from app.db.models.commerce import Order, OrderItem, Seller
+from app.db.models.review import ProductReview, ProductReviewMetric, ProductReviewProfileLabel
+from app.db.models.skin import SkinProfile
 from app.db.session import get_db
 from app.main import app
 from app.services.db_seed import seed_database
@@ -264,6 +267,124 @@ def test_review_list_rejects_invalid_cursor_and_missing_product(client: TestClie
     assert missing.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_delivered_order_owner_can_create_verified_review(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-create@example.com", nickname="reviewer")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-create@example.com",
+        item_status="DELIVERED",
+    )
+    with Session(db_engine) as session:
+        user_id = int(
+            session.scalar(select(User.id).where(User.email == "review-create@example.com"))
+        )
+        session.add(
+            SkinProfile(
+                user_id=user_id,
+                skin_type="건성",
+                sensitivity="높음",
+                skin_type_confidence=Decimal("1.0000"),
+                sensitivity_confidence=Decimal("0.9000"),
+                concern_profile_json={"concerns": ["concern_pore"]},
+                source="manual",
+            )
+        )
+        session.commit()
+
+    response = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "  좋아요  ",
+            "is_repurchase_review": True,
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "PUBLISHED"
+    assert data["review"]["review_text"] == "좋아요"
+    assert data["review"]["verified_purchase"] is True
+    assert data["review_summary"]["review_count"] == 5
+    assert {
+        (label["dimension"], label["value_code"])
+        for label in data["review"]["profile_labels"]
+    } == {
+        ("SKIN_TYPE", "dry"),
+        ("SENSITIVITY", "high"),
+        ("SKIN_CONCERN", "concern_pore"),
+    }
+
+    with Session(db_engine) as session:
+        review = session.scalar(
+            select(ProductReview).where(ProductReview.order_item_id == order_item_id)
+        )
+        metric = session.scalar(
+            select(ProductReviewMetric).where(ProductReviewMetric.product_id == review.product_id)
+        )
+        assert review.source == "mubarelle"
+        assert review.source_review_id == review.review_code
+        assert review.review_text == "좋아요"
+        assert metric.review_count == 5
+
+
+def test_review_create_requires_delivered_order_and_rejects_duplicate(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-eligibility@example.com", nickname="eligibility")
+    shipped_item_id = _create_order_item(
+        db_engine,
+        email="review-eligibility@example.com",
+        item_status="SHIPPED",
+    )
+
+    not_delivered = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": shipped_item_id,
+            "rating": 4,
+            "review_text": "아직 배송 중이에요",
+        },
+    )
+    assert not_delivered.status_code == 409
+    assert not_delivered.json()["error"]["code"] == "REVIEW_NOT_ELIGIBLE"
+
+    delivered_item_id = _create_order_item(
+        db_engine,
+        email="review-eligibility@example.com",
+        item_status="DELIVERED",
+    )
+    payload = {
+        "order_item_id": delivered_item_id,
+        "rating": 4,
+        "review_text": "배송완료 후 작성",
+    }
+    assert client.post("/api/products/prod_001/reviews", json=payload).status_code == 201
+    duplicate = client.post("/api/products/prod_001/reviews", json=payload)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == "REVIEW_ALREADY_EXISTS"
+
+
+def test_review_create_requires_login_and_nonblank_text(client: TestClient) -> None:
+    unauthorized = client.post(
+        "/api/products/prod_001/reviews",
+        json={"order_item_id": 1, "rating": 5, "review_text": "좋음"},
+    )
+    assert unauthorized.status_code == 401
+
+    _signup(client, email="review-validation@example.com", nickname="validation")
+    invalid = client.post(
+        "/api/products/prod_001/reviews",
+        json={"order_item_id": 1, "rating": 5, "review_text": "   "},
+    )
+    assert invalid.status_code == 400
+
+
 def _review(
     review_code: str,
     product_id: int,
@@ -312,3 +433,67 @@ def _label(
         mapping_source="test",
         mapping_confidence=Decimal("1.0"),
     )
+
+
+def _signup(client: TestClient, *, email: str, nickname: str) -> None:
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": email,
+            "password": "password123",
+            "nickname": nickname,
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert response.status_code == 200
+
+
+def _create_order_item(
+    engine: Engine,
+    *,
+    email: str,
+    item_status: str,
+) -> int:
+    with Session(engine) as session:
+        user = session.scalar(select(User).where(User.email == email))
+        product = session.scalar(select(Product).where(Product.product_code == "prod_001"))
+        seller = session.scalar(select(Seller).order_by(Seller.id))
+        sequence = int(session.scalar(select(func.count(Order.id))) or 0) + 1
+        order = Order(
+            order_code=f"order-review-{sequence}",
+            user_id=int(user.id),
+            idempotency_key=f"review-order-{sequence}",
+            status="DELIVERED" if item_status == "DELIVERED" else "SHIPPED",
+            subtotal_amount=10000,
+            shipping_fee=0,
+            discount_amount=0,
+            total_amount=10000,
+            currency="KRW",
+            item_count=1,
+            total_quantity=1,
+        )
+        session.add(order)
+        session.flush()
+        order_item = OrderItem(
+            order_id=int(order.id),
+            product_id=int(product.id),
+            seller_id=int(seller.id),
+            product_name_snapshot=product.product_name,
+            brand_name_snapshot="brand",
+            seller_name_snapshot=seller.display_name,
+            unit_price=10000,
+            quantity=1,
+            line_subtotal=10000,
+            line_discount_amount=0,
+            line_total=10000,
+            currency="KRW",
+            status=item_status,
+        )
+        session.add(order_item)
+        session.commit()
+        return int(order_item.id)
