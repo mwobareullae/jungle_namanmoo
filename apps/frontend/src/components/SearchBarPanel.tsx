@@ -1,10 +1,11 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import type { RecommendationProfile, Sensitivity, SkinType } from "../types/recommendation";
+import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
 
 type SearchBarPanelProps = {
   initialQuery?: string;
+  initialSearchMode?: SearchMode;
   initialProfile: RecommendationProfile;
   hasSavedProfile?: boolean;
 };
@@ -12,9 +13,14 @@ type SearchBarPanelProps = {
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
 const sensitivities = ["낮음", "보통", "높음"] as const;
 
-function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = false }: SearchBarPanelProps) {
+function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialProfile, hasSavedProfile = false }: SearchBarPanelProps) {
   const [query, setQuery] = useState(initialQuery);
   const [profile, setProfile] = useState(initialProfile);
+  const [searchMode, setSearchMode] = useState<SearchMode>(initialSearchMode);
+
+  useEffect(() => {
+    callOriginal("setSearchMode", searchMode);
+  }, [searchMode]);
 
   const goToSearch = (nextQuery = query) => {
     const trimmedQuery = nextQuery.trim();
@@ -22,10 +28,13 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
 
     const params = new URLSearchParams({
       keyword: trimmedQuery,
-      skin_type: profile.skin,
-      sensitivity: profile.sensitivity,
+      search_mode: searchMode,
       page_size: "10"
     });
+    if (searchMode === "ai") {
+      params.set("skin_type", profile.skin);
+      params.set("sensitivity", profile.sensitivity);
+    }
     window.location.href = `/search?${params.toString()}`;
   };
 
@@ -36,7 +45,11 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
   return (
     <section className="search-page-top">
       <div className="search-page-top-inner">
-        <div className="search-container">
+        <div className="search-container search-mode-container">
+          <div aria-label="검색 방식" className="search-mode-tabs" role="tablist">
+            <button aria-selected={searchMode === "general"} className={searchMode === "general" ? "active" : ""} onClick={() => setSearchMode("general")} role="tab" type="button">일반 검색</button>
+            <button aria-selected={searchMode === "ai"} className={searchMode === "ai" ? "active" : ""} onClick={() => setSearchMode("ai")} role="tab" type="button">AI 추천</button>
+          </div>
           <div className="search-combo">
             <div className="search-box" id="searchBox">
               <div className="search-icon">
@@ -54,7 +67,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
                   <path d="m21 21-4.35-4.35" />
                 </svg>
               </div>
-              {!hasSavedProfile ? (
+              {searchMode === "ai" && !hasSavedProfile ? (
                 <button
                   className="search-profile-chip"
                   id="searchProfileChip"
@@ -68,7 +81,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
                 id="searchInput"
                 onKeyDown={handleSearchKey}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="모공이 넓고 번들거려요"
+                placeholder={searchMode === "ai" ? "예: 민감하고 자주 붉어져요" : "상품명, 브랜드, 성분을 검색하세요"}
                 type="text"
                 value={query}
               />
@@ -85,7 +98,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
                 >
                   <path d="m22 2-7 20-4-9-9-4z" />
                 </svg>
-                추천 찾기
+                {searchMode === "ai" ? "AI 추천 받기" : "검색"}
               </button>
             </div>
 
@@ -96,7 +109,7 @@ function SearchBarPanel({ initialQuery = "", initialProfile, hasSavedProfile = f
             >
               <div className="suggest-section">
                 <div className="suggest-header">
-                  <span>최근 고민</span>
+                  <span>{searchMode === "ai" ? "최근 AI 추천" : "최근 검색어"}</span>
                   <button
                     className="recent-clear"
                     id="recentClearButton"

@@ -316,6 +316,8 @@ def build_catalog_search_request(
         "aggregations": {
             "brands": {"terms": {"field": "brand_code", "size": 50}},
             "categories": {"terms": {"field": "category_group", "size": 20}},
+            "features": {"terms": {"field": "feature_codes", "size": 10}},
+            "skin_types": {"terms": {"field": "skin_type_codes", "size": 10}},
             "price_ranges": {"range": PRICE_RANGE_AGGREGATION},
             "availability": {
                 "filters": {
@@ -589,6 +591,10 @@ def _filter_clauses(parsed_query: CatalogSearchQuery) -> list[dict[str, Any]]:
         filters.append({"range": {"rating": {"gte": search_filters.min_rating}}})
     if search_filters.in_stock is True:
         filters.append({"term": {"in_stock": True}})
+    if search_filters.features:
+        filters.append({"terms": {"feature_codes": list(search_filters.features)}})
+    if search_filters.skin_types:
+        filters.append({"terms": {"skin_type_codes": list(search_filters.skin_types)}})
     return filters
 
 
