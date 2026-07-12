@@ -74,6 +74,18 @@ export type BrandListResponse = {
   items: BrandListItem[];
 };
 
+export type CategoryListItem = {
+  code: string;
+  name: string;
+  group: string;
+  group_name: string;
+  product_count: number;
+};
+
+export type CategoryListResponse = {
+  items: CategoryListItem[];
+};
+
 export type CatalogSearchSort =
   | "relevance"
   | "popular"
