@@ -1,25 +1,53 @@
-# 백엔드 추천 스코어링 v0
+# 백엔드 추천 스코어링 v4
 
 이 문서는 현재 백엔드가 실제 추천 API에서 사용하는 점수 계산식을 기록한다.
-값은 MVP 검증용 기본값이며, 팀 합의 후 조정 가능해야 한다.
+현재 scoring version은 `v4_review_personalization`이다. 아래 값은 동적 배수를 적용하기 전 기본 가중치다.
 
 ## 총점 공식
 
 ```text
-total_score =
-  ingredient_effect_score   * 0.35
-+ ingredient_evidence_score * 0.25
-+ skin_profile_score        * 0.15
-+ concentration_fit_score   * 0.08
-+ functional_claim_score    * 0.05
-+ search_match_score        * 0.07
-+ price_score               * 0.05
-- risk_penalty
+raw_score =
+  ingredient_effect_score       * 0.26
++ ingredient_evidence_score     * 0.18
++ skin_profile_score            * 0.11
++ concentration_fit_score       * 0.07
++ functional_claim_score        * 0.04
++ search_match_score            * 0.06
++ price_score                   * 0.03
++ market_signal_score           * 0.02
++ skin_test_context_score       * 0.04
++ behavior_personalization      * 0.07
++ review_quality_score          * 0.07
++ review_profile_affinity_score * 0.05
+
+total_score = clamp(raw_score, 0, 1) * 100 - risk_penalty
 ```
 
 - 각 축 점수는 기본적으로 `0.0~1.0`이다.
 - API 응답의 `score_breakdown`은 프론트가 읽기 쉽게 `0~100` 정수로 변환된다.
 - `risk_penalty`는 총점에서 직접 차감되는 점수다.
+- skin-test나 행동 컨텍스트가 없으면 해당 축을 0으로 두고 활성 축을 다시 정규화한다.
+- 카테고리·브랜드처럼 강한 상품 검색 의도가 있으면 review `0.07/0.05`는 유지하고 기존 검색 프로필의 비리뷰 축 상대 비율을 88% 안에서 보존한다.
+
+## 리뷰 점수
+
+`review_quality_score`는 `product_review_metrics`의 전체 상품 품질이다. 별점 70%, 재구매 20%, 일반/한달 후기 일관성 10%를 사용하고 effective sample confidence로 0.5 쪽에 보수 보정한다.
+
+`review_profile_affinity_score`는 상품 전체 대비 유사 프로필 segment의 상대 반응이다.
+
+```text
+skin type  0.40
+sensitivity 0.25
+concern    0.35
+```
+
+- 명시 요청·수동 프로필·현재 검색 고민: 강도 `1.0`
+- 저장 고민: 강도 `0.75`
+- 스킨테스트 추론: 강도 `0.25`
+- segment effective sample size가 5 미만이면 저장값은 breakdown에 남기되 점수 기여는 `0.5`다.
+- segment와 상품 지표는 후보 전체를 bulk query로 읽으며 리뷰 원문은 추천 요청에서 조회하지 않는다.
+
+스킨테스트 구매 기준이 `review`이면 quality `1.35`, affinity `1.15`를 곱한다. 결정 트리거가 `similar_review`이면 quality `1.10`, affinity `1.60`을 곱한다. 배수 적용·정규화 후 두 리뷰 축 합은 최대 `0.18`이다. 이 선택은 `market_signal` 배수를 변경하지 않는다.
 
 ## 성분 효능 점수
 
@@ -130,6 +158,14 @@ keyword_score
 vector_score
 search_match_score
 market_signal_score
+review_quality_score
+review_quality_applied
+review_quality_confidence
+review_count
+review_profile_affinity_score
+review_profile_affinity_applied
+review_profile_affinity_dimensions
+review_profile_matched_segments
 skin_test_context_score
 skin_test_context_applied
 skin_test_context_axes
@@ -154,7 +190,7 @@ risk_policy
 
 ## 조정 필요 후보
 
-- 축별 weight: 효능, 근거, 피부, 함량, 기능성, 검색, 가격
+- 축별 weight: 효능, 근거, 피부, 함량, 기능성, 검색, 가격, 인기, 스킨테스트, 행동, 리뷰 품질, 리뷰 affinity
 - 기능성 claim 기본점과 매칭점
 - 함량 bucket 점수
 - confidence 보정 강도

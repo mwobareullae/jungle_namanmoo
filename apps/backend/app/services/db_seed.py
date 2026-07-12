@@ -67,7 +67,6 @@ class SeedResult:
 ModelT = TypeVar("ModelT")
 POPULARITY_WINDOW_DAYS = 7
 MOCK_POPULARITY_SCORE_VERSION = "mock_market_signals_v1"
-BAYESIAN_RATING_CONFIDENCE_REVIEWS = 50.0
 SEED_PROGRESS_INTERVAL_ROWS = 10_000
 SEED_PRODUCT_INGREDIENT_BATCH_SIZE = max(1, int(os.getenv("SEED_PRODUCT_INGREDIENT_BATCH_SIZE", "10000")))
 SEED_PHASE_COUNT = 7
@@ -1048,8 +1047,6 @@ def _seed_product_popularity_metrics(
             "cart_add_count": signal.cart_add_count,
             "order_count": signal.sales_count,
             "units_sold": signal.sales_count,
-            "review_count": signal.review_count,
-            "average_rating": _decimal_or_none(signal.average_rating),
             "popularity_score": Decimal(str(popularity_score)),
             "score_version": MOCK_POPULARITY_SCORE_VERSION,
             "computed_at": _parse_datetime_or_default(signal.updated_at, computed_at),
@@ -1413,39 +1410,22 @@ def _decimal_or_none(value: float | None) -> Decimal | None:
 
 @dataclass(frozen=True)
 class _MarketPopularityContext:
-    max_review_count: float
     max_sales_count: float
     max_recent_signal: float
     max_sales_rank: float
-    global_rating: float
 
 
 def _build_market_popularity_context(signals) -> _MarketPopularityContext:
-    weighted_ratings = [
-        (signal.average_rating, signal.review_count)
-        for signal in signals
-        if signal.average_rating is not None and signal.average_rating > 0 and signal.review_count > 0
-    ]
-    rating_weight = sum(weight for _, weight in weighted_ratings)
-    global_rating = (
-        sum(rating * weight for rating, weight in weighted_ratings) / rating_weight
-        if rating_weight
-        else 4.0
-    )
     return _MarketPopularityContext(
-        max_review_count=max((signal.review_count for signal in signals), default=0),
         max_sales_count=max((signal.sales_count for signal in signals), default=0),
         max_recent_signal=max((_recent_signal_value(signal) for signal in signals), default=0),
         max_sales_rank=max((signal.sales_rank or 0 for signal in signals), default=0),
-        global_rating=global_rating,
     )
 
 
 def _has_market_signal(signal) -> bool:
     return (
-        signal.review_count > 0
-        or (signal.average_rating is not None and signal.average_rating > 0)
-        or signal.sales_count > 0
+        signal.sales_count > 0
         or signal.sales_rank is not None
         or signal.recent_view_count > 0
         or signal.wishlist_count > 0
@@ -1454,21 +1434,13 @@ def _has_market_signal(signal) -> bool:
 
 
 def _market_popularity_score(signal, context: _MarketPopularityContext) -> float:
-    review_count_score = _log_normalized_score(signal.review_count, context.max_review_count)
-    rating_score = _bayesian_rating_score(
-        rating=signal.average_rating or 0.0,
-        review_count=signal.review_count,
-        global_rating=context.global_rating,
-    )
     sales_score = _sales_signal_score(signal, context)
     recent_signal_score = _log_normalized_score(_recent_signal_value(signal), context.max_recent_signal)
     return round(
         _weighted_available_score(
             [
-                (review_count_score, 0.30, signal.review_count > 0),
-                (rating_score, 0.25, signal.average_rating is not None and signal.average_rating > 0),
-                (sales_score, 0.30, signal.sales_count > 0 or signal.sales_rank is not None),
-                (recent_signal_score, 0.15, _recent_signal_value(signal) > 0),
+                (sales_score, 0.65, signal.sales_count > 0 or signal.sales_rank is not None),
+                (recent_signal_score, 0.35, _recent_signal_value(signal) > 0),
             ]
         ),
         2,
@@ -1479,24 +1451,6 @@ def _log_normalized_score(value: float, max_value: float) -> float:
     if value <= 0 or max_value <= 0:
         return 0.0
     return 100.0 * math.log1p(value) / math.log1p(max_value)
-
-
-def _bayesian_rating_score(
-    *,
-    rating: float,
-    review_count: float,
-    global_rating: float,
-) -> float:
-    if rating <= 0:
-        return 0.0
-    clipped_rating = min(5.0, max(0.0, rating))
-    adjusted = (
-        review_count / (review_count + BAYESIAN_RATING_CONFIDENCE_REVIEWS) * clipped_rating
-        + BAYESIAN_RATING_CONFIDENCE_REVIEWS
-        / (review_count + BAYESIAN_RATING_CONFIDENCE_REVIEWS)
-        * global_rating
-    )
-    return adjusted / 5.0 * 100.0
 
 
 def _sales_signal_score(signal, context: _MarketPopularityContext) -> float:

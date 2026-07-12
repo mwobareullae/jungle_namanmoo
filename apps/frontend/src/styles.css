@@ -6916,56 +6916,20 @@ header .btn-login:hover {
 
 footer {
   margin-top: 0;
-  padding: 0;
+  padding: 0 40px;
   border-top: 1px solid var(--color-edge);
   background: #ffffff;
   color: var(--color-ink);
   font-family: var(--font-ui);
 }
 
-.footer-utility {
-  border-bottom: 1px solid var(--color-edge);
-}
-
-.footer-utility-inner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0;
-  width: min(1180px, calc(100% - 80px));
-  margin: 0 auto;
-  padding: 16px 0;
-}
-
-.footer-utility a {
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-muted-text);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-decoration: none;
-}
-
-.footer-utility a + a::before {
-  content: "|";
-  margin: 0 14px;
-  color: var(--color-edge);
-  font-weight: 400;
-}
-
-.footer-utility a:hover,
-.footer-utility a:focus-visible {
-  color: var(--color-ink);
-}
-
 .footer-inner {
   display: grid;
-  grid-template-columns: minmax(260px, 1.35fr) minmax(170px, 0.72fr) minmax(250px, 1fr);
+  grid-template-columns: minmax(260px, 1.35fr) repeat(2, minmax(150px, 0.72fr));
   gap: 72px;
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 48px 0 46px;
+  padding: 26px 0;
 }
 
 .footer-brand .logo {
@@ -6979,15 +6943,15 @@ footer {
 }
 
 .footer-desc {
-  margin: 18px 0 0;
+  margin: 12px 0 0;
   color: var(--color-muted-text);
   font-size: 13px;
   font-weight: 500;
-  line-height: 1.72;
+  line-height: 1.6;
 }
 
 .footer-col h5 {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   color: var(--color-ink);
   font-size: 12px;
   font-weight: 800;
@@ -6996,7 +6960,7 @@ footer {
 
 .footer-col ul {
   display: grid;
-  gap: 13px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -7014,25 +6978,6 @@ footer {
   color: var(--color-ink);
 }
 
-.footer-company {
-  align-self: start;
-  color: var(--color-muted-text);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.footer-company strong {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--color-ink);
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.footer-company p {
-  margin: 0;
-}
-
 .footer-bottom {
   display: flex;
   align-items: center;
@@ -7040,7 +6985,7 @@ footer {
   gap: 24px;
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 22px 0 32px;
+  padding: 14px 0 18px;
   border-top: 1px solid var(--color-edge);
   color: var(--color-faint-text);
   font-size: 11px;
@@ -9936,7 +9881,7 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .agent-floating-entry.is-open {
-  z-index: 172;
+  z-index: 1201;
 }
 
 .agent-chat-popup {
@@ -10050,9 +9995,13 @@ html[data-app-mode="community"] .search-results-shell {
   display: grid;
   flex: 1 1 auto;
   gap: 0;
+  min-width: 0;
   min-height: 0;
   padding: 8px 22px 14px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .agent-chat-section-label {
@@ -10237,7 +10186,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-thread {
   display: grid;
   min-height: 100%;
-  align-content: end;
+  align-content: start;
   gap: 10px;
   padding: 6px 0 4px;
 }
@@ -13906,7 +13855,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 @media (max-width: 1080px) {
   .footer-inner {
-    grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(220px, 1fr);
+    grid-template-columns: minmax(240px, 1.2fr) repeat(2, minmax(130px, 0.8fr));
     gap: 42px;
   }
 
@@ -13941,24 +13890,14 @@ html[data-app-mode="community"] .search-results-shell {
     padding: 0 24px;
   }
 
-  .footer-utility-inner {
-    width: 100%;
-    padding: 14px 0;
-  }
-
   .footer-inner {
     grid-template-columns: 1fr 1fr;
     gap: 28px 34px;
-    padding: 38px 0 34px;
+    padding: 24px 0;
   }
 
   .footer-brand {
     grid-column: 1 / -1;
-  }
-
-  .footer-company {
-    grid-column: 1 / -1;
-    padding-top: 4px;
   }
 
   .footer-bottom {
@@ -14474,10 +14413,6 @@ html[data-app-mode="community"] .search-results-shell {
 
   .footer-inner {
     grid-template-columns: 1fr;
-  }
-
-  .footer-company {
-    grid-column: auto;
   }
 
   .cart-page-item {

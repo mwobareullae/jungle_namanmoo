@@ -66,6 +66,10 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_ingredients",
         "product_popularity_metrics",
         "product_prices",
+        "product_review_metrics",
+        "product_review_profile_labels",
+        "product_review_segment_metrics",
+        "product_reviews",
         "product_skin_profiles",
         "products",
         "recommendation_results",
@@ -107,6 +111,10 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
     evidence_discovery_reviews = Base.metadata.tables["evidence_discovery_reviews"]
     product_images = Base.metadata.tables["product_images"]
     product_popularity_metrics = Base.metadata.tables["product_popularity_metrics"]
+    product_reviews = Base.metadata.tables["product_reviews"]
+    product_review_profile_labels = Base.metadata.tables["product_review_profile_labels"]
+    product_review_metrics = Base.metadata.tables["product_review_metrics"]
+    product_review_segment_metrics = Base.metadata.tables["product_review_segment_metrics"]
     wishlists = Base.metadata.tables["wishlists"]
     recent_views = Base.metadata.tables["recent_views"]
     carts = Base.metadata.tables["carts"]
@@ -190,6 +198,59 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "score_version",
         "computed_at",
     }.issubset(product_popularity_metrics.columns.keys())
+    assert {
+        "review_code",
+        "product_id",
+        "user_id",
+        "order_item_id",
+        "parent_review_id",
+        "source",
+        "source_review_id",
+        "status",
+        "review_type",
+        "rating",
+        "review_text",
+        "reviewed_at",
+        "is_repurchase_review",
+        "verified_purchase",
+        "helpful_count",
+        "source_has_photo",
+        "source_content_hash",
+        "profile_mapping_version",
+    }.issubset(product_reviews.columns.keys())
+    assert {
+        "review_id",
+        "dimension",
+        "value_code",
+        "source_label",
+        "mapping_source",
+        "mapping_confidence",
+    }.issubset(product_review_profile_labels.columns.keys())
+    assert {
+        "product_id",
+        "review_count",
+        "average_rating",
+        "bayesian_rating",
+        "rating_effective_sample_size",
+        "repurchase_effective_sample_size",
+        "month_use_effective_sample_size",
+        "confidence",
+        "review_quality_score",
+        "score_version",
+        "computed_at",
+    }.issubset(product_review_metrics.columns.keys())
+    assert {
+        "product_id",
+        "dimension",
+        "value_code",
+        "review_count",
+        "bayesian_rating",
+        "effective_sample_size",
+        "rating_affinity_score",
+        "repurchase_affinity_score",
+        "total_affinity_score",
+        "score_version",
+    }.issubset(product_review_segment_metrics.columns.keys())
     assert {"user_id", "product_id", "added_at"}.issubset(wishlists.columns.keys())
     assert {"user_id", "product_id", "viewed_at", "updated_at"}.issubset(recent_views.columns.keys())
     assert {"user_id", "anonymous_cart_id", "status", "expires_at", "merged_into_cart_id"}.issubset(

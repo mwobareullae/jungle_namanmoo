@@ -41,6 +41,18 @@ class RecommendationSummary(BaseModel):
     purchase_constraints: PurchaseConstraints
 
 
+class ReviewProfileMatchedSegment(BaseModel):
+    dimension: str
+    value_code: str
+    strength: int
+    segment_score: int
+    applied_score: int
+    effective_sample_size: float
+    review_count: int
+    eligible: bool
+    sources: list[str] = Field(default_factory=list)
+
+
 class ScoreBreakdown(BaseModel):
     ingredient_effect_score: int
     ingredient_evidence_score: int
@@ -56,6 +68,16 @@ class ScoreBreakdown(BaseModel):
     vector_score: int = 0
     search_match_score: int
     market_signal_score: int = 50
+    review_quality_score: int = 50
+    review_quality_applied: bool = False
+    review_quality_confidence: int = 0
+    review_count: int = 0
+    review_profile_affinity_score: int = 50
+    review_profile_affinity_applied: bool = False
+    review_profile_affinity_dimensions: dict[str, int] = Field(default_factory=dict)
+    review_profile_matched_segments: list[ReviewProfileMatchedSegment] = Field(
+        default_factory=list
+    )
     skin_test_context_score: int = 50
     skin_test_context_applied: bool = False
     skin_test_context_axes: dict[str, int] = Field(default_factory=dict)

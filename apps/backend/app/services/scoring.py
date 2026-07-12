@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Cart, CartItem, Order, OrderItem, ProductPopularityMetric, RecentView, Wishlist
 from app.db.models.events import EventLog
+from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
 from app.db.models.skin import SkinProfile, SkinTestResult
 from app.db.models.taxonomy import (
     Effect,
@@ -23,7 +24,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v3_behavior_personalization"
+SCORING_VERSION = "v4_review_personalization"
 EFFECT_CAP = 1.2
 TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
@@ -112,6 +113,15 @@ WEIGHT_MULTIPLIER_CAPS = {
     "functional_claim": (0.95, 1.30),
     "price": (0.60, 1.80),
     "market_signal": (1.00, 4.00),
+    "review_quality": (1.00, 1.485),
+    "review_profile_affinity": (1.00, 1.84),
+}
+REVIEW_WEIGHT_SHARE_CAP = 0.18
+REVIEW_SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE = 5.0
+REVIEW_AFFINITY_DIMENSION_WEIGHTS = {
+    "SKIN_TYPE": 0.40,
+    "SENSITIVITY": 0.25,
+    "SKIN_CONCERN": 0.35,
 }
 SCORE_WEIGHT_FIELDS = (
     "ingredient_effect",
@@ -124,6 +134,8 @@ SCORE_WEIGHT_FIELDS = (
     "market_signal",
     "skin_test_context",
     "behavior_personalization",
+    "review_quality",
+    "review_profile_affinity",
 )
 VALUE_ORIENTED_BUYING_CRITERIA = {"value"}
 VALUE_ORIENTED_PRICE_INVESTMENTS = {"daily_repeat_value", "value_volume"}
@@ -133,30 +145,34 @@ WRINKLE_EFFECT_CODES = ("effect_wrinkle",)
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    ingredient_effect: float = 0.32
-    ingredient_evidence: float = 0.23
-    skin_profile: float = 0.14
-    concentration_fit: float = 0.08
-    functional_claim: float = 0.05
-    search_match: float = 0.07
-    price: float = 0.04
+    ingredient_effect: float = 0.26
+    ingredient_evidence: float = 0.18
+    skin_profile: float = 0.11
+    concentration_fit: float = 0.07
+    functional_claim: float = 0.04
+    search_match: float = 0.06
+    price: float = 0.03
     market_signal: float = 0.02
-    skin_test_context: float = 0.05
-    behavior_personalization: float = 0.08
+    skin_test_context: float = 0.04
+    behavior_personalization: float = 0.07
+    review_quality: float = 0.07
+    review_profile_affinity: float = 0.05
 
 
 DEFAULT_SCORE_WEIGHTS = ScoreWeights()
 SEARCH_INTENT_SCORE_WEIGHTS = ScoreWeights(
-    ingredient_effect=0.29,
-    ingredient_evidence=0.19,
-    skin_profile=0.14,
-    concentration_fit=0.08,
-    functional_claim=0.05,
-    search_match=0.15,
-    price=0.04,
-    market_signal=0.02,
-    skin_test_context=0.05,
-    behavior_personalization=0.06,
+    ingredient_effect=0.2385046729,
+    ingredient_evidence=0.1562616822,
+    skin_profile=0.1151401869,
+    concentration_fit=0.0657943925,
+    functional_claim=0.0411214953,
+    search_match=0.1233644860,
+    price=0.0328971963,
+    market_signal=0.0164485981,
+    skin_test_context=0.0411214953,
+    behavior_personalization=0.0493457944,
+    review_quality=0.07,
+    review_profile_affinity=0.05,
 )
 
 
@@ -172,6 +188,8 @@ class ScoreMultipliers:
     market_signal: float = 1.0
     skin_test_context: float = 1.0
     behavior_personalization: float = 1.0
+    review_quality: float = 1.0
+    review_profile_affinity: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -331,8 +349,51 @@ class _FunctionalInfo:
 @dataclass(frozen=True)
 class _MarketSignalInfo:
     popularity_score: float
+
+
+@dataclass(frozen=True)
+class _ReviewMetricInfo:
+    review_quality_score: float
+    confidence: float
     review_count: int
-    average_rating: float | None
+
+
+@dataclass(frozen=True)
+class _ReviewSegmentInfo:
+    dimension: str
+    value_code: str
+    total_affinity_score: float
+    effective_sample_size: float
+    review_count: int
+
+
+@dataclass(frozen=True)
+class _ReviewAffinityTarget:
+    dimension: str
+    value_code: str
+    strength: float
+    sources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _ReviewMatchedSegment:
+    dimension: str
+    value_code: str
+    strength: float
+    segment_score: float
+    applied_score: float
+    effective_sample_size: float
+    review_count: int
+    eligible: bool
+    sources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _ReviewProfileAffinityScore:
+    score: float
+    applied: bool
+    dimension_scores: dict[str, float]
+    matched_segments: tuple[_ReviewMatchedSegment, ...]
 
 
 @dataclass(frozen=True)
@@ -486,6 +547,7 @@ def score_candidates(
     sensitivity: str | None = None,
     skin_test_context: SkinTestScoringContext | None = None,
     behavior_personalization_context: BehaviorPersonalizationContext | None = None,
+    saved_concerns: tuple[str, ...] = (),
     manual_skin_type_explicit: bool = False,
     manual_sensitivity_explicit: bool = False,
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
@@ -504,6 +566,8 @@ def score_candidates(
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     market_signals_by_product = _load_market_signals(session, product_ids)
+    review_metrics_by_product = _load_review_metrics(session, product_ids)
+    review_segments_by_product = _load_review_segments(session, product_ids)
     behavior_signals_by_product = (
         _load_behavior_product_signals(session, product_ids)
         if behavior_personalization_context is not None
@@ -517,6 +581,15 @@ def score_candidates(
         skin_test_context=skin_test_context,
         behavior_personalization_context=behavior_personalization_context,
     )
+    review_affinity_targets = _build_review_affinity_targets(
+        intent,
+        skin_type=skin_type,
+        sensitivity=sensitivity,
+        skin_test_context=skin_test_context,
+        saved_concerns=saved_concerns,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
 
     scored_products = [
         _score_candidate(
@@ -529,6 +602,9 @@ def score_candidates(
             skin_profiles_by_product.get(candidate.db_product_id),
             risk_flags_by_product.get(candidate.db_product_id, ()),
             market_signals_by_product.get(candidate.db_product_id),
+            review_metrics_by_product.get(candidate.db_product_id),
+            review_segments_by_product.get(candidate.db_product_id, {}),
+            review_affinity_targets,
             behavior_signals_by_product.get(candidate.db_product_id),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
@@ -577,6 +653,9 @@ def _score_candidate(
     skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
     market_signal: _MarketSignalInfo | None,
+    review_metric: _ReviewMetricInfo | None,
+    review_segments: dict[tuple[str, str], _ReviewSegmentInfo],
+    review_affinity_targets: tuple[_ReviewAffinityTarget, ...],
     behavior_signal: _BehaviorProductSignals | None,
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
@@ -623,6 +702,15 @@ def _score_candidate(
         price_context=price_context,
     )
     market_signal_score = _score_market_signal(market_signal)
+    review_quality_score = (
+        _clamp(review_metric.review_quality_score)
+        if review_metric is not None and review_metric.review_count > 0
+        else 0.5
+    )
+    review_profile_affinity = _score_review_profile_affinity(
+        review_segments,
+        review_affinity_targets,
+    )
     skin_test_score = _score_skin_test_context(
         skin_test_context,
         intent_purchase_conditions=purchase_conditions,
@@ -654,6 +742,8 @@ def _score_candidate(
         + market_signal_score * weights.market_signal
         + skin_test_score.score * weights.skin_test_context
         + behavior_score.score * weights.behavior_personalization
+        + review_quality_score * weights.review_quality
+        + review_profile_affinity.score * weights.review_profile_affinity
     )
     total_score = _round_score(_clamp(raw_score) * 100 - risk_penalty)
     score_evidence = _build_score_evidence(contributions_by_effect)
@@ -677,6 +767,34 @@ def _score_candidate(
         "search_match_score": _round_component(search_match_score),
         "price_score": _round_component(price_score),
         "market_signal_score": _round_component(market_signal_score),
+        "review_quality_score": _round_component(review_quality_score),
+        "review_quality_applied": review_metric is not None and review_metric.review_count > 0,
+        "review_quality_confidence": _round_component(
+            review_metric.confidence if review_metric is not None else 0.0
+        ),
+        "review_count": review_metric.review_count if review_metric is not None else 0,
+        "review_profile_affinity_score": _round_component(
+            review_profile_affinity.score
+        ),
+        "review_profile_affinity_applied": review_profile_affinity.applied,
+        "review_profile_affinity_dimensions": {
+            dimension: _round_component(score)
+            for dimension, score in review_profile_affinity.dimension_scores.items()
+        },
+        "review_profile_matched_segments": [
+            {
+                "dimension": segment.dimension,
+                "value_code": segment.value_code,
+                "strength": _round_component(segment.strength),
+                "segment_score": _round_component(segment.segment_score),
+                "applied_score": _round_component(segment.applied_score),
+                "effective_sample_size": round(segment.effective_sample_size, 6),
+                "review_count": segment.review_count,
+                "eligible": segment.eligible,
+                "sources": list(segment.sources),
+            }
+            for segment in review_profile_affinity.matched_segments
+        ],
         "skin_test_context_score": _round_component(skin_test_score.score),
         "skin_test_context_applied": skin_test_context is not None,
         "skin_test_context_axes": {
@@ -722,6 +840,8 @@ def _score_candidate(
             "market_signal": weights.market_signal,
             "skin_test_context": weights.skin_test_context,
             "behavior_personalization": weights.behavior_personalization,
+            "review_quality": weights.review_quality,
+            "review_profile_affinity": weights.review_profile_affinity,
         },
         "base_weights": _weights_to_dict(weight_resolution.base_weights),
         "applied_multipliers": _multipliers_to_dict(weight_resolution.multipliers),
@@ -810,7 +930,8 @@ def _build_weight_multipliers(
         values["ingredient_effect"] *= 1.04
         values["ingredient_evidence"] *= 1.12
     elif buying_criteria == "review":
-        values["market_signal"] *= 2.50
+        values["review_quality"] *= 1.35
+        values["review_profile_affinity"] *= 1.15
     elif buying_criteria == "value":
         values["price"] *= 1.60
 
@@ -834,7 +955,8 @@ def _build_weight_multipliers(
         values["concentration_fit"] *= 1.12
         values["functional_claim"] *= 1.15
     elif decision_trigger == "similar_review":
-        values["market_signal"] *= 2.50
+        values["review_quality"] *= 1.10
+        values["review_profile_affinity"] *= 1.60
 
     capped = {
         field: _cap_weight_multiplier(field, multiplier)
@@ -854,11 +976,39 @@ def _normalize_weights(
     total = sum(weighted_values.values())
     if total <= 0:
         return base_weights
-    return ScoreWeights(
+    normalized = ScoreWeights(
         **{
             field: weighted_values[field] / total
             for field in SCORE_WEIGHT_FIELDS
         }
+    )
+    return _cap_review_weight_share(normalized)
+
+
+def _cap_review_weight_share(weights: ScoreWeights) -> ScoreWeights:
+    review_total = weights.review_quality + weights.review_profile_affinity
+    if review_total <= REVIEW_WEIGHT_SHARE_CAP:
+        return weights
+    non_review_fields = tuple(
+        field
+        for field in SCORE_WEIGHT_FIELDS
+        if field not in {"review_quality", "review_profile_affinity"}
+    )
+    non_review_total = sum(getattr(weights, field) for field in non_review_fields)
+    if review_total <= 0.0 or non_review_total <= 0.0:
+        return weights
+    review_scale = REVIEW_WEIGHT_SHARE_CAP / review_total
+    non_review_scale = (1.0 - REVIEW_WEIGHT_SHARE_CAP) / non_review_total
+    return replace(
+        weights,
+        **{
+            field: (
+                getattr(weights, field) * review_scale
+                if field in {"review_quality", "review_profile_affinity"}
+                else getattr(weights, field) * non_review_scale
+            )
+            for field in SCORE_WEIGHT_FIELDS
+        },
     )
 
 
@@ -1201,11 +1351,56 @@ def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, 
     return {
         int(row.product_id): _MarketSignalInfo(
             popularity_score=_decimal_to_float(row.popularity_score),
-            review_count=int(row.review_count),
-            average_rating=_optional_decimal_to_float(row.average_rating),
         )
         for row in rows
     }
+
+
+def _load_review_metrics(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, _ReviewMetricInfo]:
+    if not product_ids:
+        return {}
+    rows = session.execute(
+        select(ProductReviewMetric).where(ProductReviewMetric.product_id.in_(product_ids))
+    ).scalars()
+    return {
+        int(row.product_id): _ReviewMetricInfo(
+            review_quality_score=_decimal_to_float(row.review_quality_score),
+            confidence=_decimal_to_float(row.confidence),
+            review_count=int(row.review_count),
+        )
+        for row in rows
+    }
+
+
+def _load_review_segments(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, dict[tuple[str, str], _ReviewSegmentInfo]]:
+    if not product_ids:
+        return {}
+    rows = session.execute(
+        select(ProductReviewSegmentMetric).where(
+            ProductReviewSegmentMetric.product_id.in_(product_ids),
+            ProductReviewSegmentMetric.dimension.in_(
+                REVIEW_AFFINITY_DIMENSION_WEIGHTS
+            ),
+        )
+    ).scalars()
+    by_product: dict[int, dict[tuple[str, str], _ReviewSegmentInfo]] = {}
+    for row in rows:
+        product_segments = by_product.setdefault(int(row.product_id), {})
+        key = str(row.dimension), str(row.value_code)
+        product_segments[key] = _ReviewSegmentInfo(
+            dimension=key[0],
+            value_code=key[1],
+            total_affinity_score=_decimal_to_float(row.total_affinity_score),
+            effective_sample_size=_decimal_to_float(row.effective_sample_size),
+            review_count=int(row.review_count),
+        )
+    return by_product
 
 
 def _load_behavior_events(
@@ -2064,6 +2259,208 @@ def _score_market_signal(market_signal: _MarketSignalInfo | None) -> float:
     if market_signal is None:
         return DEFAULT_PROFILE_SCORE
     return _clamp(market_signal.popularity_score / 100)
+
+
+def _build_review_affinity_targets(
+    intent: RecommendationIntent,
+    *,
+    skin_type: str | None,
+    sensitivity: str | None,
+    skin_test_context: SkinTestScoringContext | None,
+    saved_concerns: tuple[str, ...],
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+) -> tuple[_ReviewAffinityTarget, ...]:
+    target_values: dict[tuple[str, str], dict[str, object]] = {}
+    if manual_skin_type_explicit:
+        _add_review_affinity_target(
+            target_values,
+            "SKIN_TYPE",
+            _review_skin_type_code(skin_type),
+            strength=1.0,
+            source="manual_skin_type",
+        )
+    if manual_sensitivity_explicit:
+        _add_review_affinity_target(
+            target_values,
+            "SENSITIVITY",
+            _review_sensitivity_code(sensitivity),
+            strength=1.0,
+            source="manual_sensitivity",
+        )
+    for concern in intent.concerns:
+        _add_review_affinity_target(
+            target_values,
+            "SKIN_CONCERN",
+            concern.tag_id,
+            strength=1.0,
+            source="query_concern",
+        )
+    for concern_code in saved_concerns:
+        _add_review_affinity_target(
+            target_values,
+            "SKIN_CONCERN",
+            concern_code,
+            strength=0.75,
+            source="saved_concern",
+        )
+    if skin_test_context is not None:
+        _add_review_affinity_target(
+            target_values,
+            "SKIN_TYPE",
+            _review_skin_type_code(skin_test_context.mapped_skin_type),
+            strength=0.25,
+            source="skin_test",
+        )
+        _add_review_affinity_target(
+            target_values,
+            "SENSITIVITY",
+            _review_sensitivity_code(skin_test_context.mapped_sensitivity),
+            strength=0.25,
+            source="skin_test",
+        )
+        if _axis_winner(skin_test_context, "SR") == "S":
+            _add_review_affinity_target(
+                target_values,
+                "SKIN_CONCERN",
+                "concern_sensitive",
+                strength=0.25,
+                source="skin_test",
+            )
+        if _axis_winner(skin_test_context, "PN") == "P":
+            _add_review_affinity_target(
+                target_values,
+                "SKIN_CONCERN",
+                "concern_brightening_spots",
+                strength=0.25,
+                source="skin_test",
+            )
+        if _axis_winner(skin_test_context, "WT") == "W":
+            _add_review_affinity_target(
+                target_values,
+                "SKIN_CONCERN",
+                "concern_wrinkle_elasticity",
+                strength=0.25,
+                source="skin_test",
+            )
+
+    return tuple(
+        _ReviewAffinityTarget(
+            dimension=dimension,
+            value_code=value_code,
+            strength=float(payload["strength"]),
+            sources=tuple(sorted(payload["sources"])),
+        )
+        for (dimension, value_code), payload in sorted(target_values.items())
+    )
+
+
+def _add_review_affinity_target(
+    target_values: dict[tuple[str, str], dict[str, object]],
+    dimension: str,
+    value_code: str | None,
+    *,
+    strength: float,
+    source: str,
+) -> None:
+    normalized_value = (value_code or "").strip()
+    if not normalized_value:
+        return
+    key = dimension, normalized_value
+    existing = target_values.get(key)
+    if existing is None:
+        target_values[key] = {
+            "strength": _clamp(strength),
+            "sources": {source},
+        }
+        return
+    existing["strength"] = max(float(existing["strength"]), _clamp(strength))
+    sources = existing["sources"]
+    if isinstance(sources, set):
+        sources.add(source)
+
+
+def _score_review_profile_affinity(
+    segments: dict[tuple[str, str], _ReviewSegmentInfo],
+    targets: tuple[_ReviewAffinityTarget, ...],
+) -> _ReviewProfileAffinityScore:
+    targets_by_dimension: dict[str, list[_ReviewAffinityTarget]] = {
+        dimension: [] for dimension in REVIEW_AFFINITY_DIMENSION_WEIGHTS
+    }
+    for target in targets:
+        if target.dimension in targets_by_dimension:
+            targets_by_dimension[target.dimension].append(target)
+
+    dimension_scores: dict[str, float] = {}
+    matched_segments: list[_ReviewMatchedSegment] = []
+    applied = False
+    for dimension in REVIEW_AFFINITY_DIMENSION_WEIGHTS:
+        target_scores: list[float] = []
+        for target in targets_by_dimension[dimension]:
+            segment = segments.get((target.dimension, target.value_code))
+            if segment is None:
+                target_scores.append(0.5)
+                continue
+            eligible = (
+                segment.effective_sample_size
+                >= REVIEW_SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE
+            )
+            segment_score = _clamp(segment.total_affinity_score)
+            contribution_score = segment_score if eligible else 0.5
+            applied_score = _clamp(
+                0.5 + (target.strength * (contribution_score - 0.5))
+            )
+            target_scores.append(applied_score)
+            applied = applied or eligible
+            matched_segments.append(
+                _ReviewMatchedSegment(
+                    dimension=target.dimension,
+                    value_code=target.value_code,
+                    strength=target.strength,
+                    segment_score=segment_score,
+                    applied_score=applied_score,
+                    effective_sample_size=segment.effective_sample_size,
+                    review_count=segment.review_count,
+                    eligible=eligible,
+                    sources=target.sources,
+                )
+            )
+        dimension_scores[dimension] = (
+            sum(target_scores) / len(target_scores) if target_scores else 0.5
+        )
+
+    score = _weighted_average(
+        tuple(
+            (dimension_scores[dimension], weight)
+            for dimension, weight in REVIEW_AFFINITY_DIMENSION_WEIGHTS.items()
+        )
+    )
+    return _ReviewProfileAffinityScore(
+        score=_clamp(score),
+        applied=applied,
+        dimension_scores=dimension_scores,
+        matched_segments=tuple(matched_segments),
+    )
+
+
+def _review_skin_type_code(value: str | None) -> str | None:
+    normalized = _normalize_profile_value(value)
+    return {
+        "건성": "dry",
+        "지성": "oily",
+        "복합성": "combination",
+        "중성": "normal",
+        "수부지": "combination",
+    }.get(normalized)
+
+
+def _review_sensitivity_code(value: str | None) -> str | None:
+    normalized = _normalize_sensitivity_value(value)
+    return {
+        "낮음": "low",
+        "보통": "medium",
+        "높음": "high",
+    }.get(normalized)
 
 
 def _score_skin_test_context(

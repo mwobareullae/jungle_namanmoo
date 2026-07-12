@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
 from app.db.models.commerce import Inventory, ProductPopularityMetric, Seller
+from app.db.models.review import ProductReviewMetric
 from app.schemas.catalog_search import (
     CatalogSearchAppliedFilters,
     CatalogSearchFacetItem,
@@ -362,8 +363,8 @@ def _catalog_row_statement(
             Inventory.reserved_quantity,
             Inventory.safety_stock,
             Inventory.sales_status,
-            ProductPopularityMetric.average_rating,
-            ProductPopularityMetric.review_count,
+            ProductReviewMetric.average_rating.label("average_rating"),
+            ProductReviewMetric.review_count.label("review_count"),
             ProductPopularityMetric.popularity_score,
         )
         .join(Brand, Product.brand_id == Brand.id)
@@ -376,6 +377,7 @@ def _catalog_row_statement(
             (ProductPopularityMetric.product_id == Product.id)
             & (ProductPopularityMetric.window_days == POPULARITY_WINDOW_DAYS),
         )
+        .outerjoin(ProductReviewMetric, ProductReviewMetric.product_id == Product.id)
     )
 
 
@@ -417,7 +419,7 @@ def _apply_database_filters(statement: Any, filters: CatalogSearchFilters) -> An
     if filters.max_price is not None:
         statement = statement.where(_column(statement, "lowest_price") <= filters.max_price)
     if filters.min_rating is not None:
-        statement = statement.where(ProductPopularityMetric.average_rating >= filters.min_rating)
+        statement = statement.where(ProductReviewMetric.average_rating >= filters.min_rating)
     if filters.in_stock is True:
         statement = statement.where(
             Inventory.sales_status == "ON_SALE",
@@ -443,8 +445,8 @@ def _database_sort(parsed_query: CatalogSearchQuery, statement: Any) -> tuple[An
         return (_column(statement, "lowest_price").desc().nulls_last(), stable_id)
     if parsed_query.sort == CatalogSearchSort.RATING:
         return (
-            ProductPopularityMetric.average_rating.desc().nulls_last(),
-            ProductPopularityMetric.review_count.desc(),
+            ProductReviewMetric.average_rating.desc().nulls_last(),
+            ProductReviewMetric.review_count.desc(),
             stable_id,
         )
     normalized = normalize_search_text(parsed_query.text_query)

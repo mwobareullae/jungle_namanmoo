@@ -381,8 +381,8 @@ def test_seed_database_loads_optional_product_market_signals(tmp_path: Path) -> 
     assert metric.cart_add_count == 7
     assert metric.order_count == 12
     assert metric.units_sold == 12
-    assert metric.review_count == 20
-    assert metric.average_rating == Decimal("4.50")
+    assert metric.review_count == 0
+    assert metric.average_rating is None
     assert metric.popularity_score > 0
     assert metric.score_version == "mock_market_signals_v1"
 

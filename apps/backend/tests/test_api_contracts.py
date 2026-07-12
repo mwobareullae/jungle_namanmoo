@@ -16,6 +16,7 @@ from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
+from app.db.models.review import ProductReviewMetric
 from app.db.session import get_db
 from app.main import app
 from app.middleware.request_logging import request_logging_middleware
@@ -230,8 +231,8 @@ def test_get_popular_products_returns_metric_ranked_products(
                     cart_add_count=10,
                     order_count=5,
                     units_sold=6,
-                    review_count=20,
-                    average_rating=4.5,
+                    review_count=999,
+                    average_rating=1.0,
                     popularity_score=70,
                 ),
                 ProductPopularityMetric(
@@ -242,9 +243,21 @@ def test_get_popular_products_returns_metric_ranked_products(
                     cart_add_count=20,
                     order_count=9,
                     units_sold=12,
-                    review_count=40,
-                    average_rating=4.7,
+                    review_count=888,
+                    average_rating=1.5,
                     popularity_score=92,
+                ),
+                ProductReviewMetric(
+                    product_id=first_product.id,
+                    review_count=20,
+                    rating_count=20,
+                    average_rating=4.5,
+                ),
+                ProductReviewMetric(
+                    product_id=second_product.id,
+                    review_count=40,
+                    rating_count=40,
+                    average_rating=4.7,
                 ),
             ]
         )
@@ -306,6 +319,14 @@ def test_get_home_market_popular_returns_metric_section_when_metrics_exist(
                 review_count=20,
                 average_rating=4.5,
                 popularity_score=88,
+            )
+        )
+        session.add(
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=20,
+                rating_count=20,
+                average_rating=4.5,
             )
         )
         session.commit()
