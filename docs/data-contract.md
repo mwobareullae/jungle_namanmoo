@@ -538,6 +538,11 @@ DB 정규화 원칙:
 - 상품 집계는 `product_review_metrics`, 피부 타입·민감도·고민·톤별 집계는 `product_review_segment_metrics`가 담당합니다.
 - 집계 테이블은 원본 CSV 값을 그대로 적재하지 않고, 게시 상태의 원본 리뷰에서 재계산할 수 있는 파생 read model로 관리합니다.
 - 원본 변경 감지는 `source_content_hash`, 프로필 라벨 재매핑은 `profile_mapping_version`으로 구분합니다.
+- 자사몰 구매 리뷰는 `source=mubarelle`, `review_type=GENERAL`, `verified_purchase=true`로 저장하고 본인 배송완료 주문 상품의 `order_item_id`를 참조합니다.
+- 자사몰 구매 리뷰 본문은 공백 제거 후 1~2,000자이며 별점 1~5가 필수입니다. 외부 seed의 누락 가능성을 유지하기 위해 이 입력 제약은 API에서 강제합니다.
+- 자사몰 리뷰는 작성 시점의 저장 피부 타입·민감도·피부 고민을 `product_review_profile_labels`에 snapshot하며 이후 프로필 변경으로 과거 라벨을 바꾸지 않습니다.
+- 사용자 삭제는 `status=DELETED` tombstone으로 남기되 별점·본문·옵션·재구매·구매 인증·source metadata와 프로필 라벨을 제거합니다. 삭제 행은 공개 조회와 집계에서 제외합니다.
+- 같은 `order_item_id + review_type`에는 활성 리뷰 하나만 허용하며, 삭제 후 재작성은 기존 tombstone을 재활성화합니다.
 
 리뷰 집계 점수 원칙:
 
