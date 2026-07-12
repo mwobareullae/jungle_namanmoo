@@ -50,6 +50,7 @@ MVP recommendation:
 
 ```text
 manual run during local/dev verification
+1-day popularity: every 15 minutes
 7-day popularity: every 1 hour
 30-day popularity: once per day, for example 03:00 KST
 ```
@@ -57,6 +58,9 @@ manual run during local/dev verification
 Recommended scheduler commands:
 
 ```bash
+# every 15 minutes
+python -m app.cli.rollup_product_popularity --window-days 1
+
 # every hour
 python -m app.cli.rollup_product_popularity --window-days 7
 
@@ -70,6 +74,7 @@ Examples:
 
 | API use | Rollup command | Recommended execution |
 |---|---|---|
+| Daily best products | `--window-days 1` | Every 15 minutes |
 | Recent popular products | `--window-days 7` | Every 1 hour |
 | Steady popular products | `--window-days 30` | Once per day |
 
