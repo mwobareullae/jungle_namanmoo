@@ -9,6 +9,13 @@ import type { ProductListingItem } from "../types/product";
 
 const PAGE_SIZE = 20;
 
+const SKINCARE_FILTERS = [
+  { label: "전체", code: "" },
+  { label: "스킨/토너", code: "toner" },
+  { label: "앰플/세럼", code: "serum" },
+  { label: "크림", code: "cream" }
+] as const;
+
 const getCategoryTitle = (value?: string) => {
   if (!value) {
     return "";
@@ -41,6 +48,11 @@ function CategoryPage() {
   const { categoryTitle: rawTitle } = useParams();
   const categoryTitle = getCategoryTitle(rawTitle);
   const categoryCodes = useMemo(() => getCategoryCodesByGroupTitle(categoryTitle), [categoryTitle]);
+  const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+  const effectiveCategoryCodes = useMemo(
+    () => selectedCategoryCode ? [selectedCategoryCode] : categoryCodes,
+    [categoryCodes, selectedCategoryCode]
+  );
 
   const [products, setProducts] = useState<ProductCardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +61,7 @@ function CategoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadProducts = useCallback(async (page: number, append: boolean) => {
-    if (categoryCodes.length === 0) return;
+    if (effectiveCategoryCodes.length === 0) return;
     if (append) setIsLoadingMore(true);
     else setIsLoading(true);
 
@@ -57,7 +69,7 @@ function CategoryPage() {
       const response = await api.getProductListing({
         page,
         pageSize: PAGE_SIZE,
-        categoryCodes,
+        categoryCodes: effectiveCategoryCodes,
         sort: "popular"
       });
       const mapped = response.items.map((item, index) =>
@@ -76,7 +88,11 @@ function CategoryPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [categoryCodes]);
+  }, [effectiveCategoryCodes]);
+
+  useEffect(() => {
+    setSelectedCategoryCode("");
+  }, [categoryTitle]);
 
   useEffect(() => {
     if (categoryCodes.length === 0) {
@@ -103,6 +119,21 @@ function CategoryPage() {
           <span>{categoryTitle || "카테고리"}</span>
         </nav>
         <h1 className="category-page__title">{categoryTitle || "카테고리"}</h1>
+        {categoryTitle === "스킨케어" ? (
+          <div className="category-page__filters" aria-label="스킨케어 세부 카테고리" role="group">
+            {SKINCARE_FILTERS.map((filter) => (
+              <button
+                aria-pressed={selectedCategoryCode === filter.code}
+                className={selectedCategoryCode === filter.code ? "is-active" : ""}
+                key={filter.code || "all"}
+                onClick={() => setSelectedCategoryCode(filter.code)}
+                type="button"
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="product-grid">
           {isLoading ? (
             <div className="search-loading-state">불러오는 중...</div>

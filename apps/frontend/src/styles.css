@@ -8847,6 +8847,34 @@ html[data-app-mode="community"] .search-results-shell {
   padding: 28px 0;
 }
 
+.category-page__filters {
+  display: flex;
+  gap: 8px;
+  margin: -6px 0 24px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.category-page__filters button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #dfe5e8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #66737d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.category-page__filters button.is-active {
+  border-color: #171b1e;
+  background: #171b1e;
+  color: #ffffff;
+}
+
 .catalog-search-page__head {
   display: flex;
   align-items: end;
