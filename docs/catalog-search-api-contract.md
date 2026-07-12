@@ -27,6 +27,8 @@ GET /api/search/products
 | `page_size` | integer | `20` | 1~50 | 페이지당 상품 수 |
 | `brand` | string[] | 없음 | 반복 가능 | 브랜드 코드 또는 정규화 별칭 |
 | `category` | string[] | 없음 | 반복 가능 | 원본 카테고리 코드 또는 통합 그룹 코드 |
+| `feature` | string[] | 없음 | 반복 가능 | 상품 특징 코드. 같은 특징 그룹에서는 OR 조건으로 적용 |
+| `skin_type` | string[] | 없음 | 반복 가능 | 피부 타입 코드. 같은 피부 타입 그룹에서는 OR 조건으로 적용 |
 | `min_price` | integer | 없음 | 0 이상 | 최소 가격, KRW |
 | `max_price` | integer | 없음 | 0 이상 | 최대 가격, KRW |
 | `min_rating` | number | 없음 | 0~5 | 최소 평균 평점 |
@@ -36,7 +38,7 @@ GET /api/search/products
 브랜드와 카테고리는 같은 파라미터를 반복해서 전달한다.
 
 ```http
-GET /api/search/products?q=수분크림&brand=토리든&brand=라운드랩&category=skincare&max_price=30000
+GET /api/search/products?q=수분크림&brand=토리든&brand=라운드랩&category=skincare&feature=moisturizing_calming&skin_type=dry&max_price=30000
 ```
 
 API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 우선한다. `min_price > max_price`는 `400 INVALID_SEARCH_FILTER`로 거절한다.
@@ -84,6 +86,8 @@ API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 �
   "facets": {
     "brands": [{"value": "토리든", "label": "토리든", "count": 12}],
     "categories": [{"value": "skincare", "label": "스킨케어", "count": 20}],
+    "features": [{"value": "moisturizing_calming", "label": "보습·진정", "count": 14}],
+    "skin_types": [{"value": "dry", "label": "건성", "count": 9}],
     "price_ranges": [{"value": "10000_19999", "label": "1~2만원", "count": 8}],
     "availability": [
       {"value": "in_stock", "label": "판매 가능", "count": 18},
@@ -93,6 +97,8 @@ API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 �
   "applied_filters": {
     "brands": [],
     "categories": [],
+    "features": [],
+    "skin_types": [],
     "min_price": null,
     "max_price": null,
     "min_rating": null,
@@ -119,6 +125,21 @@ API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 �
 | `50000_plus` | `5만원 이상` | `price >= 50000` |
 
 통합 카테고리 그룹은 `skincare`, `cleansing`, `bodycare`, `haircare`, `beauty_tool`, `mask_pack`, `suncare`, `makeup`, `nail`, `fragrance`, `men`, `other`를 사용한다. 원본 코드 `unknown`, `accessory`는 `other`, `men_allinone`은 `men`으로 매핑한다.
+
+특징과 피부 타입 facet은 검색 결과에 존재하는 값만 반환한다. 각 값은 다음의 안정적인 API 코드로 요청한다.
+
+| 구분 | value | label | 판정 기준 |
+| --- | --- | --- | --- |
+| 특징 | `moisturizing_calming` | 보습·진정 | 보습·진정·장벽 강화 효능 중 하나 |
+| 특징 | `pore_care` | 모공 케어 | 피지 조절·피부결 정돈·모공 케어 효능 중 하나 |
+| 특징 | `trouble_care` | 트러블 케어 | 진정·피지 조절·트러블 케어 효능 중 하나 |
+| 특징 | `wrinkle_elasticity` | 주름·탄력 | 주름·탄력·안티에이징 효능 중 하나 |
+| 특징 | `brightening` | 브라이트닝 | 브라이트닝·미백·톤업 효능 중 하나 |
+| 피부 타입 | `dry` | 건성 | 상품 피부 태그 `건성` |
+| 피부 타입 | `oily` | 지성 | 상품 피부 태그 `지성` |
+| 피부 타입 | `combination` | 복합성 | 상품 피부 태그 `복합성` |
+| 피부 타입 | `dehydrated_oily` | 수부지 | 상품 피부 태그 `수부지` |
+| 피부 타입 | `normal` | 중성 | 상품 피부 태그 `중성` |
 
 ## 4. 검색어 제안
 
@@ -209,6 +230,12 @@ docker compose exec -T backend python -m app.cli.index_catalog_products_to_elast
 상품 한 건이 생성·수정·비활성화되거나 판매 상태가 `HIDDEN`으로 바뀌면 상품
 코드 기준으로 단건 재색인한다. 색인 대상에서 빠진 상품은 같은 명령이 기존
 문서를 삭제한다.
+
+`feature`, `skin_type` 필터를 배포할 때는 새 `feature_codes`, `skin_type_codes`
+키워드 필드를 포함하는 versioned index를 전체 재색인한 뒤 alias를 교체해야 한다.
+현재 alias가 새 필드를 갖지 않으면 Elasticsearch는 성공 응답으로 빈 결과를
+반환하므로 DB fallback으로 전환되지 않는다. 따라서 프론트 필터 노출보다 alias
+교체를 먼저 완료해야 한다.
 
 ```bash
 docker compose exec -T backend python -m app.cli.reindex_catalog_product prod_oy_a000000256045 --refresh

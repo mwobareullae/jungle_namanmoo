@@ -458,7 +458,7 @@ class PaymentAttempt(Base):
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False, index=True)
-    attempt_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempt_code: Mapped[str] = mapped_column(String(128), nullable=False)
     operation: Mapped[str] = mapped_column(String(20), nullable=False)
     provider: Mapped[str] = mapped_column(String(40), nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False)

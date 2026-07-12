@@ -46,6 +46,8 @@ class CatalogSearchFacetItem(BaseModel):
 class CatalogSearchFacets(BaseModel):
     brands: list[CatalogSearchFacetItem]
     categories: list[CatalogSearchFacetItem]
+    features: list[CatalogSearchFacetItem]
+    skin_types: list[CatalogSearchFacetItem]
     price_ranges: list[CatalogSearchFacetItem]
     availability: list[CatalogSearchFacetItem]
 
@@ -53,6 +55,8 @@ class CatalogSearchFacets(BaseModel):
 class CatalogSearchAppliedFilters(BaseModel):
     brands: list[str]
     categories: list[str]
+    features: list[str]
+    skin_types: list[str]
     min_price: int | None
     max_price: int | None
     min_rating: float | None

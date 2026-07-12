@@ -47,6 +47,12 @@ def test_catalog_document_batches_use_keyset_and_include_search_fields() -> None
     assert all(document["category_group"] for document in documents)
     assert all("aliases_compact" in document for document in documents)
     assert all("aliases_chosung" in document for document in documents)
+    assert all("feature_codes" in document for document in documents)
+    assert all("skin_type_codes" in document for document in documents)
+    first_document = next(document for document in documents if document["product_id"] == "prod_001")
+    assert "moisturizing_calming" in first_document["feature_codes"]
+    assert "dehydrated_oily" in first_document["skin_type_codes"]
+    assert "normal" in first_document["skin_type_codes"]
 
 
 def test_catalog_document_uses_review_metrics_for_rating_fields() -> None:
