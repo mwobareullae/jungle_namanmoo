@@ -68,22 +68,30 @@ function CatalogSearchPage() {
   const [isLoading, setIsLoading] = useState(Boolean(params.query));
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => setInputValue(params.query), [params.query]);
+  useEffect(() => {
+    queueMicrotask(() => setInputValue(params.query));
+  }, [params.query]);
 
   useEffect(() => {
     if (!params.query) {
-      setItems([]);
-      setTotalItems(0);
-      setTotalPages(0);
-      setCorrectedQuery(null);
-      setIsLoading(false);
-      setErrorMessage("");
+      queueMicrotask(() => {
+        setItems([]);
+        setTotalItems(0);
+        setTotalPages(0);
+        setCorrectedQuery(null);
+        setIsLoading(false);
+        setErrorMessage("");
+      });
       return;
     }
 
     let isMounted = true;
-    setIsLoading(true);
-    setErrorMessage("");
+    queueMicrotask(() => {
+      if (isMounted) {
+        setIsLoading(true);
+        setErrorMessage("");
+      }
+    });
 
     api.searchCatalog({ query: params.query, page: params.page, pageSize: PAGE_SIZE, sort: params.sort })
       .then((response) => {
@@ -113,7 +121,6 @@ function CatalogSearchPage() {
   useEffect(() => {
     const query = inputValue.trim();
     if (!query || query === params.query) {
-      setSuggestions([]);
       return;
     }
 

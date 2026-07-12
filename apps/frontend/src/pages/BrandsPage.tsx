@@ -14,7 +14,9 @@ function BrandsPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (isMounted) setIsLoading(true);
+    });
     const loadAllBrands = async () => {
       const allBrands: BrandListItem[] = [];
       const pageSize = 100;

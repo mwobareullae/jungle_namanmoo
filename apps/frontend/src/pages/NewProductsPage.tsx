@@ -60,7 +60,7 @@ function NewProductsPage() {
   }, []);
 
   useEffect(() => {
-    void loadProducts(1, false);
+    queueMicrotask(() => void loadProducts(1, false));
   }, [loadProducts]);
 
   useEffect(() => {

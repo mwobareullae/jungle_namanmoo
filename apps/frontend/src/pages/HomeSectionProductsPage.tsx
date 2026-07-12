@@ -50,7 +50,9 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
       ? api.getEvidencePicks({ limit: 20 })
       : api.getForYou({ limit: 20 });
 
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (isMounted) setIsLoading(true);
+    });
     request
       .then((section) => {
         if (!isMounted) return;

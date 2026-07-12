@@ -72,10 +72,13 @@ function BrandPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setProducts([]);
-    setNextPage(null);
-    setErrorMessage("");
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (!isMounted) return;
+      setProducts([]);
+      setNextPage(null);
+      setErrorMessage("");
+      setIsLoading(true);
+    });
 
     api.getBrands(decodedBrandName, 1, 100)
       .then(async (response) => {

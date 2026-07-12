@@ -28,7 +28,6 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   useEffect(() => {
     const normalized = query.trim();
     if (searchMode !== "general" || !normalized) {
-      setSuggestions([]);
       return;
     }
 
@@ -54,7 +53,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     if (!trimmedQuery) return;
 
     if (searchMode === "general") {
-      window.location.href = `/catalog-search?q=${encodeURIComponent(trimmedQuery)}`;
+      window.location.assign(`/catalog-search?q=${encodeURIComponent(trimmedQuery)}`);
       return;
     }
 
@@ -67,7 +66,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
       params.set("skin_type", profile.skin);
       params.set("sensitivity", profile.sensitivity);
     }
-    window.location.href = `/search?${params.toString()}`;
+      window.location.assign(`/search?${params.toString()}`);
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -77,7 +76,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
     setSuggestions([]);
     if (suggestion.type === "PRODUCT" && suggestion.product_id) {
-      window.location.href = `/product-detail?id=${encodeURIComponent(suggestion.product_id)}`;
+      window.location.assign(`/product-detail?id=${encodeURIComponent(suggestion.product_id)}`);
       return;
     }
     setQuery(suggestion.text);

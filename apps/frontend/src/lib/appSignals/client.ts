@@ -80,7 +80,7 @@ type TrackEventInput = {
   payload?: TrackEventPayload;
 };
 
-let pendingBatch: EventLogRequest[] = [];
+const pendingBatch: EventLogRequest[] = [];
 let batchTimer: number | null = null;
 
 const flushEventBatch = () => {

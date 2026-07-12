@@ -42,7 +42,6 @@ function HomeHero({
   useEffect(() => {
     const normalized = query.trim();
     if (searchMode !== "general" || !normalized) {
-      setSuggestions([]);
       return;
     }
 
@@ -153,7 +152,7 @@ function HomeHero({
     const normalized = query.trim();
     if (!normalized) return;
     if (searchMode === "general") {
-      window.location.href = `/catalog-search?q=${encodeURIComponent(normalized)}`;
+      window.location.assign(`/catalog-search?q=${encodeURIComponent(normalized)}`);
       return;
     }
     callOriginal("doSearch", searchMode);
@@ -162,7 +161,7 @@ function HomeHero({
   const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
     setSuggestions([]);
     if (suggestion.type === "PRODUCT" && suggestion.product_id) {
-      window.location.href = `/product-detail?id=${encodeURIComponent(suggestion.product_id)}`;
+      window.location.assign(`/product-detail?id=${encodeURIComponent(suggestion.product_id)}`);
       return;
     }
     setQuery(suggestion.text);
