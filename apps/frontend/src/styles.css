@@ -3403,20 +3403,18 @@ body {
 
 .general-search-results-head {
   display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 16px;
-  padding: 22px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
   border-bottom: 1px solid #eef2f4;
 }
-
-.general-search-results-head p { margin: 0; color: var(--ink); font-size: 16px; }
-.general-search-results-head span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
 
 .general-search-sort-tabs {
   display: flex;
   align-items: center;
-  width: 100%;
+  width: auto;
+  margin-left: auto;
   white-space: nowrap;
 }
 
@@ -3472,7 +3470,7 @@ body {
   .general-search-page { width: min(100% - 28px, 1180px); padding-top: 16px; }
   .general-search-layout { grid-template-columns: 1fr; }
   .general-search-filters { position: static; display: none; }
-  .general-search-results-head { padding: 18px; }
+  .general-search-results-head { align-items: flex-start; flex-direction: column; padding: 18px; }
   .general-search-sort-tabs { width: 100%; max-width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .general-search-sort-tabs button { padding: 0 10px; }
   .general-search-product { grid-template-columns: 82px minmax(0, 1fr); padding: 16px; }

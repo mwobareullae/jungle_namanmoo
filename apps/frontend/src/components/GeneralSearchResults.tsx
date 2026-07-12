@@ -121,8 +121,10 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
         <section className="general-search-results" aria-live="polite">
           <header className="general-search-results-head">
             <div>
-              <p><strong>&quot;{initialQuery}&quot;</strong> 검색 결과</p>
-              <span>{isLoading ? "상품을 찾는 중입니다" : `${pagination?.total_items ?? 0}개 제품`}</span>
+              <div className="results-query"><strong>&quot;{initialQuery}&quot;</strong> 검색 결과</div>
+              <div className="section-subtitle" style={{ marginTop: 4 }}>
+                {isLoading ? "상품을 찾는 중입니다" : `${pagination?.total_items ?? 0}개 제품`}
+              </div>
             </div>
             <div aria-label="일반 검색 결과 정렬" className="general-search-sort-tabs" role="tablist">
               {sortOptions.map((option) => (
