@@ -229,6 +229,7 @@ class ProductPopularityMetric(Base):
     cart_quantity_change_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     payment_failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     order_cancel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Deprecated compatibility columns. ProductReviewMetric is authoritative.
     review_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     average_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
     popularity_score: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False, default=0, server_default="0")

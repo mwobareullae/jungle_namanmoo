@@ -46,6 +46,8 @@ def test_catalog_search_request_contains_fixed_ranking_boosts_and_filters() -> N
     assert "brand_name^7" in should_text
     assert "ingredient_names^2" in should_text
     assert "0.10" in scored_query["script"]["source"]
+    assert "0.03 * rating / 5.0" in scored_query["script"]["source"]
+    assert "0.02 * reviewRatio" in scored_query["script"]["source"]
     assert "0.5" in scored_query["script"]["source"]
 
 
