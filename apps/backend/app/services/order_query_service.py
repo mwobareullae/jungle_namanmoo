@@ -113,6 +113,8 @@ def get_order_detail(
         currency=order.currency,
         ordered_at=order.ordered_at,
         paid_at=order.paid_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
         payment_expires_at=order.payment_expires_at,
         payment=OrderDetailPayment(
             payment_code=payment.payment_code,
@@ -222,6 +224,8 @@ def _to_list_item(order: Order, first_item: OrderItem | None) -> OrderListItem:
         item_count=order.item_count,
         ordered_at=order.ordered_at,
         paid_at=order.paid_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
         thumbnail_storage_key=first_item.thumbnail_storage_key_snapshot if first_item else None,
         title=_build_order_title(first_item, order.item_count),
     )
