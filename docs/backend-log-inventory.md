@@ -172,6 +172,11 @@ event:
 | `popular_products_completed` | `GET /api/products/popular` | `window_days`, `requested_limit`, `item_count`, `category_code`, `top_popularity_score` |
 | `product_detail_completed` | `GET /api/products/{product_id}` | `product_id`, `has_recommendation_context`, `can_purchase`, `sales_status`, `stock_status` |
 | `product_reviews_completed` | `GET /api/products/{product_id}/reviews` | `product_id`, `sort`, `limit`, `item_count`, `has_next`, `has_profile_filter` |
+| `product_review_create_completed` | `POST /api/products/{product_id}/reviews` | `product_id`, `review_id`, `review_count` |
+| `product_review_update_completed` | `PATCH /api/reviews/{review_id}` | `product_id`, `review_id`, `review_count` |
+| `product_review_delete_completed` | `DELETE /api/reviews/{review_id}` | `product_id`, `review_id`, `review_count` |
+| `product_review_catalog_sync_completed` | 리뷰 변경 후 ES 단건 동기화 | `product_id`, `action` |
+| `product_review_catalog_sync_failed` | 리뷰 저장 후 ES 단건 동기화 실패 | `product_id`, `error` |
 
 ### 추천 API
 
