@@ -100,6 +100,19 @@ export type HomeSection = {
   personalization_sources: string[];
 };
 
+export type HomeLayoutSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  endpoint: string;
+  lazy_load: boolean;
+};
+
+export type HomeLayoutResponse = {
+  sections: HomeLayoutSection[];
+};
+
 export type RecommendationSummary = {
   concern_text: string;
   skin_type: string;
