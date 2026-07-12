@@ -42,6 +42,7 @@ const RecentProducts = lazy(() =>
   import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts }))
 );
 const ReviewWritePage = lazy(() => import("./pages/mypage/ReviewWritePage"));
+const BrandsPage = lazy(() => import("./pages/BrandsPage"));
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -1082,6 +1083,7 @@ function App() {
           )}
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
+          {appMode !== "community" && <Route path="/brands" element={<BrandsPage />} />}
           {appMode !== "community" && (
             <Route path="/category/:categoryTitle" element={<CategoryPage />} />
           )}
