@@ -695,7 +695,7 @@ function HomeMainContent({
               className="results-header"
               style={
                 !isGeneralSearch
-                  ? { alignItems: "flex-start", flexDirection: "column", gap: 16, padding: "22px 24px" }
+                  ? { alignItems: "center", flexDirection: "row", gap: 18, padding: "18px 22px" }
                   : undefined
               }
             >
@@ -714,6 +714,7 @@ function HomeMainContent({
                   aria-label="AI 추천 결과 정렬"
                   className="general-search-sort-tabs"
                   role="tablist"
+                  style={{ marginLeft: "auto", width: "auto" }}
                 >
                   {[
                     { value: "score", label: "매칭 점수순" },
