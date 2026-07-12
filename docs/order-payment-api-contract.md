@@ -795,8 +795,8 @@ MVP automation boundary:
 - Pre-payment cancel is immediate.
 - Payment fail/expiry releases reserved inventory.
 - Mock payment success deducts inventory.
-- Paid order cancellation/refund/return/exchange requests are stored as statuses only.
-- Partial refund, return pickup, and exchange reshipment are later admin/PG/shipment work.
+- Paid order claim requests are stored in claim tables with status and event history.
+- Refund execution, return pickup, and exchange reshipment remain later admin/PG/shipment work.
 
 ## Cancellation processing
 
@@ -836,6 +836,9 @@ POST /api/order-claims/{claim_code}/withdraw
 Creating a claim records `REQUESTED` state and does not execute a refund,
 inventory restoration, pickup, or exchange shipment. Those operations require
 later administrator processing. Users can withdraw only a `REQUESTED` claim.
+
+Order list and detail responses expose `shipped_at` and `delivered_at`. These
+values are null until the corresponding fulfillment status is recorded.
 
 ## Frontend Responsibilities
 

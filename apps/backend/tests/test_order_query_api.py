@@ -119,6 +119,8 @@ def test_get_order_detail_returns_order_snapshots(
     assert data["payment"]["payment_code"] == created["payment_code"]
     assert data["payment"]["status"] == "READY"
     assert data["payment_expires_at"] is not None
+    assert data["shipped_at"] is None
+    assert data["delivered_at"] is None
     assert len(data["items"]) == 1
     item = data["items"][0]
     assert item["product_id"] == "prod_001"
