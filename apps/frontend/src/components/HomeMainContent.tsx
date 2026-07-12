@@ -685,59 +685,23 @@ function HomeMainContent({
       id="mainContent"
     >
       <div id="searchResultsSection" style={{ display: hasSearchState ? "block" : "none" }}>
-        <div className={`search-results-shell${isGeneralSearch ? " general-search-results" : ""}`}>
-          {!isGeneralSearch ? <aside aria-label="추천 조건" className="search-filter-sidebar" data-commerce-only>
-            <div className="filter-card">
-              <div className="filter-card-title">추천 기준</div>
-              <div className="filter-options">
-                <div className="filter-option">
-                  <span className="filter-dot" />
-                  <span id="filterConcern">{query || "피부 고민 분석"}</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-dot" />
-                  <span id="filterProfile">
-                    {initialProfile.skin} · 민감도 {initialProfile.sensitivity}
-                  </span>
-                </div>
-                <div className="filter-note">
-                  입력한 고민과 피부 조건을 기준으로 성분 효능 근거를 먼저 비교합니다.
-                </div>
-              </div>
-            </div>
-            <div className="filter-card">
-              <div className="filter-card-title">결과 기준</div>
-              <div className="filter-options">
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>성분 효능 근거</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>피부 타입 적합도</span>
-                </div>
-                <div className="filter-option">
-                  <span className="filter-check" />
-                  <span>가격 정보</span>
-                </div>
-                <div className="filter-note">표시되는 값은 추천 API 응답 기준입니다.</div>
-              </div>
-            </div>
-          </aside> : null}
+        <div
+          className={`search-results-shell${isGeneralSearch ? " general-search-results" : " ai-search-results"}`}
+          style={isGeneralSearch ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}
+        >
 
           <section className="search-results-panel">
-            <div className="results-header">
+            <div
+              className="results-header"
+              style={
+                !isGeneralSearch
+                  ? { alignItems: "flex-start", flexDirection: "column", gap: 16, padding: "22px 24px" }
+                  : undefined
+              }
+            >
               <div>
                 <div className="results-query">
-                  &quot;<strong id="queryDisplay">{query}</strong>
-                  &quot; 검색 결과 ·{" "}
-                  <span id="sortDisplay">
-                    {sortType === "price-low"
-                    ? "가격 낮은순"
-                      : sortType === "price-high"
-                        ? "가격 높은순"
-                        : isGeneralSearch ? "일반 검색" : "매칭 점수순"}
-                  </span>
+                  &quot;<strong id="queryDisplay">{query}</strong>&quot; 검색 결과
                 </div>
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
                   {isLoading
@@ -745,16 +709,30 @@ function HomeMainContent({
                     : isGeneralSearch ? `${pagination.total_items}개 제품을 찾았습니다` : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
-              {!isGeneralSearch ? <select
-                aria-label="검색 결과 정렬"
-                className="sort-select"
-                onChange={(event) => setSortType(event.target.value)}
-                value={sortType}
-              >
-                <option value="score">매칭 점수순</option>
-                <option value="price-low">가격 낮은순</option>
-                <option value="price-high">가격 높은순</option>
-              </select> : null}
+              {!isGeneralSearch ? (
+                <div
+                  aria-label="AI 추천 결과 정렬"
+                  className="general-search-sort-tabs"
+                  role="tablist"
+                >
+                  {[
+                    { value: "score", label: "매칭 점수순" },
+                    { value: "price-low", label: "낮은 가격순" },
+                    { value: "price-high", label: "높은 가격순" }
+                  ].map((option) => (
+                    <button
+                      aria-selected={sortType === option.value}
+                      className={sortType === option.value ? "active" : ""}
+                      key={option.value}
+                      onClick={() => setSortType(option.value)}
+                      role="tab"
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div
               className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`}
@@ -777,8 +755,9 @@ function HomeMainContent({
               ) : errorMessage ? (
                 <div className="search-empty">{errorMessage}</div>
               ) : sortedProducts.length ? (
-                sortedProducts.map((product) => (
+                sortedProducts.map((product, index) => (
                   <HomeProductCard
+                    displayRank={isGeneralSearch ? undefined : index + 1}
                     key={product.product_id}
                     product={product}
                     recommendationId={isGeneralSearch ? undefined : recommendation?.recommendation_id}
