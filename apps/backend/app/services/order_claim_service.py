@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 import secrets
 
@@ -7,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
 from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
-from app.schemas.claim import OrderClaimCreateRequest, OrderClaimItemRequest
+from app.schemas.claim import (
+    OrderClaimCreateRequest,
+    OrderClaimEligibilityItem,
+    OrderClaimEligibilityResponse,
+    OrderClaimItemRequest,
+)
 from app.schemas.common import ApiError
 
 
@@ -82,6 +86,60 @@ def list_claims(session: Session, user: User) -> list[OrderClaim]:
         .where(OrderClaim.user_id == user.id)
         .order_by(OrderClaim.created_at.desc(), OrderClaim.id.desc())
     ).scalars().all()
+
+
+def get_claim_eligibility(
+    session: Session,
+    user: User,
+    order_code: str,
+    *,
+    now: datetime | None = None,
+) -> OrderClaimEligibilityResponse:
+    checked_at = now or datetime.now(UTC)
+    order = _load_user_order(session, user.id, order_code, for_update=False)
+    items = session.execute(
+        select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.id.asc())
+    ).scalars().all()
+    if order.delivered_at is None:
+        return OrderClaimEligibilityResponse(
+            order_code=order.order_code,
+            eligible=False,
+            reason_code="CLAIM_NOT_ELIGIBLE",
+            claim_window_ends_at=None,
+            items=[],
+        )
+
+    delivered_at = order.delivered_at
+    if delivered_at.tzinfo is None:
+        delivered_at = delivered_at.replace(tzinfo=UTC)
+    window_ends_at = delivered_at + timedelta(days=CLAIM_WINDOW_DAYS)
+    if order.status != CLAIMABLE_ORDER_STATUS:
+        reason_code = "CLAIM_NOT_ELIGIBLE"
+        eligible = False
+    elif checked_at > window_ends_at:
+        reason_code = "CLAIM_WINDOW_EXPIRED"
+        eligible = False
+    else:
+        reason_code = None
+        eligible = True
+
+    claimed_quantities = _load_active_claim_quantities(session, order.id, [int(item.id) for item in items])
+    eligibility_items = [
+        OrderClaimEligibilityItem(
+            order_item_id=item.id,
+            ordered_quantity=item.quantity,
+            claimable_quantity=max(item.quantity - claimed_quantities.get(int(item.id), 0), 0),
+            status=item.status,
+        )
+        for item in items
+    ]
+    return OrderClaimEligibilityResponse(
+        order_code=order.order_code,
+        eligible=eligible,
+        reason_code=reason_code,
+        claim_window_ends_at=window_ends_at,
+        items=eligibility_items,
+    )
 
 
 def get_claim(session: Session, user: User, claim_code: str) -> OrderClaim:
@@ -176,21 +234,31 @@ def _validate_quantities(
     requested_items: dict[int, int],
     order_items: dict[int, OrderItem],
 ) -> None:
+    claimed_quantities = _load_active_claim_quantities(session, order_id, list(requested_items))
+    for item_id, quantity in requested_items.items():
+        available = order_items[item_id].quantity - claimed_quantities.get(item_id, 0)
+        if quantity > available:
+            raise ApiError(409, "CLAIM_QUANTITY_EXCEEDED", "Claim quantity exceeds the remaining quantity.")
+
+
+def _load_active_claim_quantities(
+    session: Session,
+    order_id: int,
+    order_item_ids: list[int],
+) -> dict[int, int]:
+    if not order_item_ids:
+        return {}
     active_claim_rows = session.execute(
         select(OrderClaimItem.order_item_id, func.sum(OrderClaimItem.quantity))
         .join(OrderClaim, OrderClaim.id == OrderClaimItem.claim_id)
         .where(
             OrderClaim.order_id == order_id,
             OrderClaim.status.in_(ACTIVE_CLAIM_STATUSES),
-            OrderClaimItem.order_item_id.in_(requested_items),
+            OrderClaimItem.order_item_id.in_(order_item_ids),
         )
         .group_by(OrderClaimItem.order_item_id)
     ).all()
-    claimed_quantities = {int(item_id): int(quantity or 0) for item_id, quantity in active_claim_rows}
-    for item_id, quantity in requested_items.items():
-        available = order_items[item_id].quantity - claimed_quantities.get(item_id, 0)
-        if quantity > available:
-            raise ApiError(409, "CLAIM_QUANTITY_EXCEEDED", "Claim quantity exceeds the remaining quantity.")
+    return {int(item_id): int(quantity or 0) for item_id, quantity in active_claim_rows}
 
 
 def _generate_claim_code(now: datetime) -> str:

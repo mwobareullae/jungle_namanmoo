@@ -44,3 +44,17 @@ class OrderClaimResponse(BaseModel):
 class OrderClaimListResponse(BaseModel):
     items: list[OrderClaimResponse]
 
+
+class OrderClaimEligibilityItem(BaseModel):
+    order_item_id: int
+    ordered_quantity: int
+    claimable_quantity: int
+    status: str
+
+
+class OrderClaimEligibilityResponse(BaseModel):
+    order_code: str
+    eligible: bool
+    reason_code: str | None
+    claim_window_ends_at: datetime | None
+    items: list[OrderClaimEligibilityItem]
