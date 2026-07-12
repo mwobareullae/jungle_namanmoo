@@ -209,12 +209,6 @@ type HomeSectionKey = "marketPopular" | "forYou" | "evidencePicks";
 
 const DEFAULT_HOME_SECTION_ORDER: HomeSectionKey[] = ["marketPopular", "evidencePicks", "forYou"];
 
-const HOME_SECTION_KEY_BY_ID: Record<string, HomeSectionKey | undefined> = {
-  market_popular: "marketPopular",
-  evidence_picks: "evidencePicks",
-  for_you: "forYou"
-};
-
 function HomeRankingSection({
   products,
   section
@@ -502,7 +496,6 @@ function HomeMainContent({
     forYou: showDefaultSection,
     evidencePicks: showDefaultSection
   });
-  const [homeSectionOrder, setHomeSectionOrder] = useState<HomeSectionKey[]>(DEFAULT_HOME_SECTION_ORDER);
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -675,20 +668,6 @@ function HomeMainContent({
     if (!showDefaultSection) return;
 
     const loadHome = async () => {
-      try {
-        const layout = await api.getHomeLayout();
-        const layoutOrder = layout.sections
-          .map((section) => HOME_SECTION_KEY_BY_ID[section.section_id])
-          .filter((sectionKey): sectionKey is HomeSectionKey => Boolean(sectionKey));
-        setHomeSectionOrder(
-          layoutOrder.length === DEFAULT_HOME_SECTION_ORDER.length
-            ? layoutOrder
-            : DEFAULT_HOME_SECTION_ORDER
-        );
-      } catch {
-        setHomeSectionOrder(DEFAULT_HOME_SECTION_ORDER);
-      }
-
       await Promise.all(DEFAULT_HOME_SECTION_ORDER.map(loadHomeSection));
     };
 
@@ -709,39 +688,6 @@ function HomeMainContent({
     Boolean(marketPopularSection?.products.length) ||
     Boolean(forYouSection?.products.length) ||
     Boolean(evidencePicksSection?.products.length);
-
-  const renderHomeSection = (sectionKey: HomeSectionKey, sectionIndex: number) => {
-    const section =
-      sectionKey === "marketPopular"
-        ? marketPopularSection
-        : sectionKey === "forYou"
-          ? forYouSection
-          : evidencePicksSection;
-
-    if (!section || section.products.length === 0) return null;
-
-    const products = section.products.map(mapHomeProductToCard);
-    if (sectionIndex === 0) {
-      return (
-        <HomeRankingSection
-          key={section.section_id}
-          products={products}
-          section={section}
-          sectionIndex={sectionIndex}
-        />
-      );
-    }
-    if (sectionIndex === 1) {
-      return <HomeOriginalGridSection key={section.section_id} products={products} section={section} />;
-    }
-    return (
-      <HomeDealSection
-        key={section.section_id}
-        products={products}
-        section={section}
-      />
-    );
-  };
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -967,7 +913,28 @@ function HomeMainContent({
           <HomeSectionLoadingSkeleton />
         ) : hasVisibleHomeSection ? (
           <div className="home-section-stack">
-            {homeSectionOrder.map(renderHomeSection)}
+            {marketPopularSection?.products.length ? (
+              <HomeRankingSection
+                key={marketPopularSection.section_id}
+                products={marketPopularSection.products.map(mapHomeProductToCard)}
+                section={marketPopularSection}
+                sectionIndex={0}
+              />
+            ) : null}
+            {forYouSection?.products.length ? (
+              <HomeOriginalGridSection
+                key={forYouSection.section_id}
+                products={forYouSection.products.map(mapHomeProductToCard)}
+                section={forYouSection}
+              />
+            ) : null}
+            {evidencePicksSection?.products.length ? (
+              <HomeDealSection
+                key={evidencePicksSection.section_id}
+                products={evidencePicksSection.products.map(mapHomeProductToCard)}
+                section={evidencePicksSection}
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
