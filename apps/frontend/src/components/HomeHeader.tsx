@@ -214,7 +214,7 @@ function HomeHeader() {
                       <circle cx="12" cy="7" r="4" />
                     </svg>
                   </span>
-                  {displayName}님
+                  <span className="header-user-name">{displayName}님</span>
                 </a>
                 <span aria-hidden="true" className="header-action-divider">
                   |
