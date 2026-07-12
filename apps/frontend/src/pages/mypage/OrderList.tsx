@@ -151,7 +151,7 @@ export default function OrderList() {
     setExpandedOrderCodes((current) => new Set(current).add(order.order_code));
   };
 
-  const handleReview = () => showToast("준비중입니다.");
+  const handleReview = (orderCode: string) => navigate(`/mypage/reviews?order_code=${encodeURIComponent(orderCode)}`);
   const handleUnavailableAction = () => showToast("준비중입니다.");
   const handleDeleteConfirm = () => {
     setDeleteTargetOrderCode(null);
@@ -432,7 +432,7 @@ export default function OrderList() {
                             className="mypage-order-action-button mypage-order-action-button--accent bg-white"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleReview();
+                              handleReview(order.order_code);
                             }}
                             style={styles.reviewButton}
                             type="button"

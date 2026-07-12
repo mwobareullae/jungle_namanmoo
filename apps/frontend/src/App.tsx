@@ -41,6 +41,7 @@ const WishList = lazy(() => import("./pages/mypage/WishList"));
 const RecentProducts = lazy(() =>
   import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts }))
 );
+const ReviewWritePage = lazy(() => import("./pages/mypage/ReviewWritePage"));
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -1040,6 +1041,16 @@ function App() {
                   <OrderDetail />
                 </ProtectedRoute>
               }
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/reviews"
+              element={(
+                <ProtectedRoute>
+                  <ReviewWritePage />
+                </ProtectedRoute>
+              )}
             />
           )}
           {appMode !== "community" && (
