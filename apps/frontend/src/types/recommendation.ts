@@ -40,6 +40,55 @@ export type RecommendationProfile = {
   avoidIngredients: string[];
 };
 
+export type SearchMode = "ai" | "general";
+
+export type CatalogSearchSort = "relevance" | "popular" | "newest" | "price_asc" | "price_desc" | "rating";
+
+export type CatalogSearchFacet = {
+  count: number;
+  label: string;
+  value: string;
+};
+
+export type CatalogSearchItem = {
+  brand: string;
+  category_code: string;
+  category_name: string;
+  lowest_price: number | null;
+  name: string;
+  product_id: string;
+  rating: number | null;
+  review_count: number;
+  sales_status: string;
+  thumbnail_url: string | null;
+};
+
+export type CatalogSearchResponse = {
+  facets: {
+    availability: CatalogSearchFacet[];
+    brands: CatalogSearchFacet[];
+    categories: CatalogSearchFacet[];
+    features: CatalogSearchFacet[];
+    price_ranges: CatalogSearchFacet[];
+    skin_types: CatalogSearchFacet[];
+  };
+  items: CatalogSearchItem[];
+  pagination: RecommendationPagination;
+  query: string;
+};
+
+export type CatalogSearchParams = {
+  brands?: string[];
+  categories?: string[];
+  features?: string[];
+  inStock?: boolean;
+  page?: number;
+  pageSize?: number;
+  query: string;
+  sort?: CatalogSearchSort;
+  skinTypes?: string[];
+};
+
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;

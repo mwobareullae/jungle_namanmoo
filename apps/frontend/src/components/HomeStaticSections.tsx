@@ -62,6 +62,12 @@ function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
     () => Array.from(new Set((recommendation?.products ?? []).flatMap((product) => product.key_ingredients))).slice(0, 6),
     [recommendation]
   );
+  const concerns = useMemo(() => {
+    const normalizedQuery = query.replace(/\s/g, "");
+    return (recommendation?.summary.concerns ?? []).filter(
+      (concern) => concern.replace(/\s/g, "") !== normalizedQuery
+    );
+  }, [query, recommendation]);
 
   const scoreItems = (recommendation?.products ?? []).slice(0, 4);
   const isActive = status !== "idle";
@@ -94,9 +100,9 @@ function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
           <Fragment>
             <div className="flow-card active">
               <div className="flow-step"><span className="step-num">1</span>피부 고민</div>
-              <h4 id="flowConcern">{query.length > 30 ? `${query.slice(0, 30)}...` : query || "입력된 고민"}</h4>
+              <h4 id="flowConcern">{concerns.length ? concerns.slice(0, 2).join(" · ") : "피부 고민 분석"}</h4>
               <div className="flow-tags" id="flowConcernTags">
-                {(recommendation?.summary.concerns ?? []).slice(0, 4).map((concern, index) => (
+                {concerns.slice(0, 4).map((concern, index) => (
                   <span className={`flow-tag${index < 2 ? " highlight" : ""}`} key={concern}>{concern}</span>
                 ))}
                 {recommendation ? (
