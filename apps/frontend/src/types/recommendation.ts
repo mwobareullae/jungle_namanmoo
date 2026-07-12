@@ -66,6 +66,8 @@ export type ProductCardItem = {
   evidence_tags: string[];
   key_ingredients: string[];
   risk_flags: string[];
+  sales_status?: string;
+  in_stock?: boolean;
   score_breakdown?: ScoreBreakdown;
 };
 

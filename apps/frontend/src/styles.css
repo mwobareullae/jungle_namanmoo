@@ -8612,6 +8612,24 @@ html[data-app-mode="community"] .search-results-shell {
   pointer-events: none;
 }
 
+.product-card.product-card-hit.is-sold-out .product-photo {
+  opacity: 0.46;
+  filter: grayscale(0.2);
+}
+
+.product-card-sold-out-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(28, 35, 42, 0.78);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .detail-page .detail-btn:disabled {
   cursor: not-allowed;
   opacity: 0.55;
