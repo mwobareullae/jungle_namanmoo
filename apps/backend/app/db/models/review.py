@@ -43,7 +43,8 @@ class ProductReview(Base):
             name="ck_product_reviews_helpful",
         ),
         CheckConstraint(
-            "rating is not null or (review_text is not null and length(trim(review_text)) > 0)",
+            "status = 'DELETED' or rating is not null or "
+            "(review_text is not null and length(trim(review_text)) > 0)",
             name="ck_product_reviews_content",
         ),
         UniqueConstraint(
@@ -56,6 +57,13 @@ class ProductReview(Base):
         Index(
             "ix_product_reviews_product_status_reviewed",
             "product_id",
+            "status",
+            "reviewed_at",
+            "id",
+        ),
+        Index(
+            "ix_product_reviews_user_status_reviewed",
+            "user_id",
             "status",
             "reviewed_at",
             "id",

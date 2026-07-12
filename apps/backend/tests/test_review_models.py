@@ -101,6 +101,26 @@ def test_review_model_rejects_rating_outside_range(db_engine: Engine) -> None:
             session.flush()
 
 
+def test_review_model_allows_content_free_deleted_tombstone(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        review = ProductReview(
+            review_code="rev_deleted_tombstone",
+            product_id=_product_id(session),
+            source="mubarelle",
+            source_review_id="rev_deleted_tombstone",
+            status="DELETED",
+            review_type="GENERAL",
+            rating=None,
+            review_text=None,
+        )
+        session.add(review)
+        session.commit()
+
+        assert review.status == "DELETED"
+        assert review.rating is None
+        assert review.review_text is None
+
+
 def test_review_model_rejects_duplicate_source_review(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         product_id = _product_id(session)
