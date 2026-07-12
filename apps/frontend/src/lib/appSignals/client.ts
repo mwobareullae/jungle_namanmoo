@@ -70,6 +70,61 @@ const toGaParams = (event: EventLogRequest): EventMetadata => ({
   page: event.page ?? null
 });
 
+const identityHeaders = () => ({
+  "X-MWBL-Anonymous-User-Id": getAnonymousUserId(),
+  "X-MWBL-Session-Id": getSessionId()
+});
+
+type TrackEventInput = {
+  eventName: OfficialEventName;
+  payload?: TrackEventPayload;
+};
+
+let pendingBatch: EventLogRequest[] = [];
+let batchTimer: number | null = null;
+
+const flushEventBatch = () => {
+  if (typeof window === "undefined" || pendingBatch.length === 0) return;
+  const events = pendingBatch.splice(0, 50);
+  if (batchTimer !== null) {
+    window.clearTimeout(batchTimer);
+    batchTimer = null;
+  }
+
+  void fetch(`${API_BASE_URL}/events/batch`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...identityHeaders()
+    },
+    keepalive: true,
+    body: JSON.stringify({ events })
+  }).catch(() => {
+    // Impression logging is best effort and must never block rendering.
+  });
+
+  if (pendingBatch.length > 0) {
+    batchTimer = window.setTimeout(flushEventBatch, 250);
+  }
+};
+
+export const trackEventBatch = (inputs: TrackEventInput[]) => {
+  if (typeof window === "undefined" || inputs.length === 0) return;
+
+  inputs.forEach(({ eventName, payload = {} }) => {
+    const event = buildEventLogRequest(eventName, payload);
+    trackGa4Event(eventName, toGaParams(event));
+    pendingBatch.push(event);
+  });
+
+  if (pendingBatch.length >= 50) {
+    flushEventBatch();
+  } else if (batchTimer === null) {
+    batchTimer = window.setTimeout(flushEventBatch, 250);
+  }
+};
+
 export const trackEvent = (eventName: OfficialEventName, payload: TrackEventPayload = {}) => {
   if (typeof window === "undefined") {
     return;
@@ -82,7 +137,8 @@ export const trackEvent = (eventName: OfficialEventName, payload: TrackEventPayl
     method: "POST",
     credentials: "include",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...identityHeaders()
     },
     keepalive: true,
     body: JSON.stringify(event)
