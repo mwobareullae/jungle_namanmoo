@@ -340,6 +340,22 @@ def start_shipment(session: Session, *, order_code: str) -> ShipmentTransitionRe
     )
 
 
+def complete_delivery(session: Session, *, order_code: str) -> ShipmentTransitionResult:
+    """배송중(SHIPPED) → 배송완료(DELIVERED, 최종 상태).
+
+    이미 DELIVERED 면 멱등 성공(updated_at 갱신 없음). SHIPPED 가 아니면 409.
+    결제 레코드가 없거나 승인(APPROVED)되지 않았으면 409. DELIVERED 는 최종 상태라
+    응답의 available_actions 는 항상 빈 목록이다.
+    """
+    return _transition_shipping_order(
+        session,
+        order_code=order_code,
+        expected_status=ORDER_STATUS_SHIPPED,
+        target_status=ORDER_STATUS_DELIVERED,
+        action=ACTION_COMPLETE_DELIVERY,
+    )
+
+
 def _transition_shipping_order(
     session: Session,
     *,
