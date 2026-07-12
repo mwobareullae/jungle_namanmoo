@@ -13,6 +13,7 @@ import type { OriginalPageKey } from "./originalPages";
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const BrandPage = lazy(() => import("./pages/BrandPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
+const CatalogSearchPage = lazy(() => import("./pages/CatalogSearchPage"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -1073,6 +1074,7 @@ function App() {
             <Route path="/category/:categoryTitle" element={<CategoryPage />} />
           )}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
+          {appMode !== "community" && <Route path="/catalog-search" element={<CatalogSearchPage />} />}
           <Route
             path="/products/popular"
             element={(

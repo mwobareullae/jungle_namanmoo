@@ -63,3 +63,58 @@ export type ProductListingResponse = {
   };
   sort: ProductListingSort;
 };
+
+export type CatalogSearchSort =
+  | "relevance"
+  | "popular"
+  | "newest"
+  | "price_asc"
+  | "price_desc"
+  | "rating";
+
+export type CatalogSearchItem = {
+  product_id: string;
+  brand: string;
+  name: string;
+  category_code: string;
+  category_group: string;
+  category_name: string;
+  thumbnail_url: string;
+  lowest_price: number | null;
+  rating: number | null;
+  review_count: number;
+  sales_status: string;
+};
+
+export type CatalogSearchResponse = {
+  query: string;
+  corrected_query: string | null;
+  items: CatalogSearchItem[];
+  pagination: ProductListingPagination;
+  facets: {
+    brands: { value: string; label: string; count: number }[];
+    categories: { value: string; label: string; count: number }[];
+    price_ranges: { value: string; label: string; count: number }[];
+    availability: { value: string; label: string; count: number }[];
+  };
+  applied_filters: {
+    brands: string[];
+    categories: string[];
+    min_price: number | null;
+    max_price: number | null;
+    min_rating: number | null;
+    in_stock: boolean | null;
+  };
+  sort: CatalogSearchSort;
+};
+
+export type CatalogSuggestionItem = {
+  text: string;
+  type: "PRODUCT" | "BRAND" | "CATEGORY" | "CORRECTION";
+  product_id: string | null;
+};
+
+export type CatalogSuggestionsResponse = {
+  query: string;
+  items: CatalogSuggestionItem[];
+};

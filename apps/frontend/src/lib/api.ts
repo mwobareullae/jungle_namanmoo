@@ -25,7 +25,14 @@ import type {
   AgentToolConfirmRequest,
   AgentToolConfirmResponse
 } from "../types/agent";
-import type { ProductListingResponse, ProductListingSort, PopularProductsResponse } from "../types/product";
+import type {
+  CatalogSearchResponse,
+  CatalogSearchSort,
+  CatalogSuggestionsResponse,
+  ProductListingResponse,
+  ProductListingSort,
+  PopularProductsResponse
+} from "../types/product";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
@@ -65,6 +72,13 @@ type RecommendationApi = {
     inStock?: boolean;
     sort?: ProductListingSort;
   }) => Promise<ProductListingResponse>;
+  searchCatalog: (params: {
+    query: string;
+    page?: number;
+    pageSize?: number;
+    sort?: CatalogSearchSort;
+  }) => Promise<CatalogSearchResponse>;
+  getCatalogSuggestions: (query: string, limit?: number) => Promise<CatalogSuggestionsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
@@ -540,6 +554,21 @@ export const api: RecommendationApi = {
     const query = searchParams.toString();
     const response = await fetchWithTimeout(`${API_BASE_URL}/products${query ? `?${query}` : ""}`);
     return parseJson<ProductListingResponse>(response);
+  },
+
+  async searchCatalog(params) {
+    const searchParams = new URLSearchParams({ q: params.query });
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    if (params.sort) searchParams.set("sort", params.sort);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
+    return parseJson<CatalogSearchResponse>(response);
+  },
+
+  async getCatalogSuggestions(query, limit = 8) {
+    const searchParams = new URLSearchParams({ q: query, limit: String(limit) });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/suggestions?${searchParams.toString()}`);
+    return parseJson<CatalogSuggestionsResponse>(response);
   },
 
   async getProduct(productId, recommendationId) {
