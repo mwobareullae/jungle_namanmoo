@@ -35,6 +35,11 @@ def _default_elasticsearch_products_alias() -> str:
     return f"{index_prefix}_products_current"
 
 
+def _default_elasticsearch_catalog_products_alias() -> str:
+    index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
+    return f"{index_prefix}_catalog_products_current"
+
+
 class Settings(BaseModel):
     app_name: str = os.getenv("APP_NAME", "mwobareullae")
     api_base_path: str = _normalize_api_base_path(os.getenv("API_BASE_PATH", "/api"))
@@ -83,6 +88,10 @@ class Settings(BaseModel):
     elasticsearch_products_alias: str = os.getenv(
         "ELASTICSEARCH_PRODUCTS_ALIAS",
         _default_elasticsearch_products_alias(),
+    )
+    elasticsearch_catalog_products_alias: str = os.getenv(
+        "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS",
+        _default_elasticsearch_catalog_products_alias(),
     )
     elasticsearch_timeout_seconds: float = float(
         os.getenv("ELASTICSEARCH_TIMEOUT_SECONDS", "2.0")

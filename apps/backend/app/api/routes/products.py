@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -9,7 +10,8 @@ from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogCreateRequest
-from app.schemas.product import PopularProductsResponse, ProductDetailResponse, ProductSearchResponse
+from app.schemas.product import PopularProductsResponse, ProductDetailResponse
+from app.schemas.review import ProductReviewsResponse
 from app.services.event_tracking import (
     anonymous_user_id_from_request,
     record_event_log_best_effort,
@@ -23,11 +25,10 @@ from app.services.popular_products_service import (
     get_popular_products_response,
 )
 from app.services.product_detail_service import get_product_detail_response
-from app.services.product_search_service import (
-    DEFAULT_PRODUCT_SEARCH_PAGE,
-    DEFAULT_PRODUCT_SEARCH_PAGE_SIZE,
-    MAX_PRODUCT_SEARCH_PAGE_SIZE,
-    get_product_search_response,
+from app.services.review_query_service import (
+    DEFAULT_REVIEW_LIMIT,
+    MAX_REVIEW_LIMIT,
+    get_product_reviews_response,
 )
 
 
@@ -69,21 +70,64 @@ def get_popular_products(
 
 
 @router.get(
-    "/products/search",
-    response_model=ProductSearchResponse,
+    "/products/{product_id}/reviews",
+    response_model=ProductReviewsResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
 )
-def search_products(
-    q: str = Query(min_length=1, max_length=200),
-    page: int = Query(DEFAULT_PRODUCT_SEARCH_PAGE, ge=1),
-    page_size: int = Query(DEFAULT_PRODUCT_SEARCH_PAGE_SIZE, ge=1, le=MAX_PRODUCT_SEARCH_PAGE_SIZE),
+def get_product_reviews(
+    request: Request,
+    product_id: str,
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=DEFAULT_REVIEW_LIMIT, ge=1, le=MAX_REVIEW_LIMIT),
+    sort: Literal["latest", "helpful", "rating_high", "rating_low"] = Query(
+        default="latest"
+    ),
+    rating: int | None = Query(default=None, ge=1, le=5),
+    review_type: Literal["GENERAL", "MONTH_USE"] | None = Query(default=None),
+    repurchase: bool | None = Query(default=None),
+    skin_type: str | None = Query(default=None, max_length=64),
+    sensitivity: str | None = Query(default=None, max_length=64),
+    skin_tone: str | None = Query(default=None, max_length=64),
+    concern: str | None = Query(default=None, max_length=64),
+    current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
-) -> ProductSearchResponse:
-    return get_product_search_response(
+) -> ProductReviewsResponse:
+    started_at = current_time()
+    response = get_product_reviews_response(
         session,
-        query=q,
-        page=page,
-        page_size=page_size,
+        product_code=product_id,
+        cursor=cursor,
+        limit=limit,
+        sort=sort,
+        rating=rating,
+        review_type=review_type,
+        repurchase=repurchase,
+        skin_type=skin_type,
+        sensitivity=sensitivity,
+        skin_tone=skin_tone,
+        concern=concern,
+        current_user_id=int(current_user.id) if current_user is not None else None,
     )
+    log_performance_event(
+        "product_reviews_completed",
+        request_id=request_id_from_request(request),
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "product_id": product_id,
+            "sort": sort,
+            "limit": limit,
+            "item_count": len(response.items),
+            "has_next": response.has_next,
+            "has_profile_filter": any(
+                value is not None
+                for value in (skin_type, sensitivity, skin_tone, concern)
+            ),
+        },
+    )
+    return response
 
 
 @router.get(

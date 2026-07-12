@@ -46,6 +46,12 @@ from app.db.models.recommendation import (
     RecommendationScoreEvidence,
     SearchCandidate,
 )
+from app.db.models.review import (
+    ProductReview,
+    ProductReviewMetric,
+    ProductReviewProfileLabel,
+    ProductReviewSegmentMetric,
+)
 from app.db.models.search import SearchDocument
 from app.db.models.skin import (
     BaumannTypeProfile,
@@ -109,6 +115,10 @@ __all__ = [
     "ProductIngredient",
     "ProductPopularityMetric",
     "ProductPrice",
+    "ProductReview",
+    "ProductReviewMetric",
+    "ProductReviewProfileLabel",
+    "ProductReviewSegmentMetric",
     "ProductSkinProfile",
     "PasswordResetToken",
     "RecommendationResult",

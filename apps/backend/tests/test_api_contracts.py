@@ -16,10 +16,12 @@ from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
+from app.db.models.review import ProductReviewMetric
 from app.db.session import get_db
 from app.main import app
 from app.middleware.request_logging import request_logging_middleware
 from app.services.db_seed import seed_database
+from app.services.elasticsearch_client import default_elasticsearch_client_provider
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -41,11 +43,12 @@ def db_engine() -> Engine:
 
 
 @pytest.fixture()
-def client(db_engine: Engine) -> TestClient:
+def client(db_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     def override_get_db():
         with Session(db_engine) as session:
             yield session
 
+    monkeypatch.setattr(default_elasticsearch_client_provider, "mode", "postgres")
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
@@ -228,8 +231,8 @@ def test_get_popular_products_returns_metric_ranked_products(
                     cart_add_count=10,
                     order_count=5,
                     units_sold=6,
-                    review_count=20,
-                    average_rating=4.5,
+                    review_count=999,
+                    average_rating=1.0,
                     popularity_score=70,
                 ),
                 ProductPopularityMetric(
@@ -240,9 +243,21 @@ def test_get_popular_products_returns_metric_ranked_products(
                     cart_add_count=20,
                     order_count=9,
                     units_sold=12,
-                    review_count=40,
-                    average_rating=4.7,
+                    review_count=888,
+                    average_rating=1.5,
                     popularity_score=92,
+                ),
+                ProductReviewMetric(
+                    product_id=first_product.id,
+                    review_count=20,
+                    rating_count=20,
+                    average_rating=4.5,
+                ),
+                ProductReviewMetric(
+                    product_id=second_product.id,
+                    review_count=40,
+                    rating_count=40,
+                    average_rating=4.7,
                 ),
             ]
         )
@@ -304,6 +319,14 @@ def test_get_home_market_popular_returns_metric_section_when_metrics_exist(
                 review_count=20,
                 average_rating=4.5,
                 popularity_score=88,
+            )
+        )
+        session.add(
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=20,
+                rating_count=20,
+                average_rating=4.5,
             )
         )
         session.commit()
@@ -861,7 +884,7 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
 
 
 def test_search_products_returns_product_cards(client: TestClient) -> None:
-    response = client.get("/api/products/search", params={"q": "수분 크림", "page_size": 2})
+    response = client.get("/api/search/products", params={"q": "수분 크림", "page_size": 2})
 
     assert response.status_code == 200
     data = response.json()
@@ -869,8 +892,9 @@ def test_search_products_returns_product_cards(client: TestClient) -> None:
     assert data["pagination"]["page"] == 1
     assert data["pagination"]["page_size"] == 2
     assert data["pagination"]["total_items"] >= len(data["items"])
-    assert data["diagnostics"]["backend"] == "database"
-    assert data["diagnostics"]["es_attempted"] is False
+    assert data["corrected_query"] is None
+    assert data["facets"]["price_ranges"]
+    assert data["applied_filters"]["categories"] == ["cream"]
     assert data["items"]
     first_item = data["items"][0]
     assert {
@@ -881,8 +905,25 @@ def test_search_products_returns_product_cards(client: TestClient) -> None:
         "category_name",
         "thumbnail_url",
         "lowest_price",
-        "match_source",
+        "sales_status",
     }.issubset(first_item)
+
+
+def test_legacy_product_search_endpoint_is_removed(client: TestClient) -> None:
+    response = client.get("/api/products/search", params={"q": "수분 크림"})
+
+    assert response.status_code == 404
+
+
+def test_catalog_search_suggestions_return_typed_items(client: TestClient) -> None:
+    response = client.get("/api/search/suggestions", params={"q": "라운", "limit": 8})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["query"] == "라운"
+    assert data["items"]
+    assert data["items"][0]["type"] in {"BRAND", "PRODUCT"}
+    assert len(data["items"]) <= 8
 
 
 def test_get_product_detail_includes_purchase_stock_info(
