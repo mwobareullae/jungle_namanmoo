@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from math import ceil
 from typing import Any
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, false, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice
 from app.db.models.commerce import Inventory, ProductPopularityMetric, Seller
 from app.db.models.review import ProductReviewMetric
+from app.db.models.taxonomy import Effect, IngredientEffect
 from app.schemas.catalog_search import (
     CatalogSearchAppliedFilters,
     CatalogSearchFacetItem,
@@ -26,6 +27,14 @@ from app.services.catalog_search_query import (
     CatalogSearchFilters,
     CatalogSearchQuery,
     parse_catalog_search_query,
+)
+from app.services.catalog_search_filters import (
+    feature_codes_for_effect_codes,
+    feature_effect_codes,
+    feature_filter_label,
+    skin_type_codes_for_tags,
+    skin_type_filter_label,
+    skin_type_tag_values,
 )
 from app.services.catalog_search_aliases import known_query_correction
 from app.services.catalog_search_recovery import (
@@ -83,6 +92,8 @@ def get_catalog_search_response(
     page_size: int = DEFAULT_CATALOG_SEARCH_PAGE_SIZE,
     brands: Iterable[str] = (),
     categories: Iterable[str] = (),
+    features: Iterable[str] = (),
+    skin_types: Iterable[str] = (),
     min_price: int | None = None,
     max_price: int | None = None,
     min_rating: float | None = None,
@@ -97,6 +108,8 @@ def get_catalog_search_response(
             query=query,
             brands=brands,
             categories=categories,
+            features=features,
+            skin_types=skin_types,
             min_price=min_price,
             max_price=max_price,
             min_rating=min_rating,
@@ -193,7 +206,7 @@ def get_catalog_search_response(
     response = _build_response(
         parsed_query,
         items=[_row_to_item(row) for row in page_rows],
-        facets=_facets_from_rows(fallback_rows),
+        facets=_facets_from_rows(session, fallback_rows),
         page=page,
         page_size=page_size,
         total_items=total_items,
@@ -351,6 +364,7 @@ def _catalog_row_statement(
             Product.id.label("product_db_id"),
             Product.product_code,
             Product.product_name,
+            Product.skin_type_tags,
             Product.thumbnail_url,
             Product.created_at,
             Brand.brand_code,
@@ -430,6 +444,38 @@ def _apply_database_filters(statement: Any, filters: CatalogSearchFilters) -> An
             )
             > 0,
         )
+    if filters.features:
+        matching_effect_codes = feature_effect_codes(filters.features)
+        if not matching_effect_codes:
+            statement = statement.where(false())
+        else:
+            matching_product_ids = (
+                select(ProductIngredient.product_id)
+                .join(
+                    IngredientEffect,
+                    ProductIngredient.ingredient_id == IngredientEffect.ingredient_id,
+                )
+                .join(Effect, IngredientEffect.effect_id == Effect.id)
+                .where(
+                    ProductIngredient.product_id == Product.id,
+                    Effect.is_active.is_(True),
+                    Effect.effect_code.in_(matching_effect_codes),
+                )
+            )
+            statement = statement.where(matching_product_ids.exists())
+    if filters.skin_types:
+        matching_tags = skin_type_tag_values(filters.skin_types)
+        if not matching_tags:
+            statement = statement.where(false())
+        else:
+            tag_conditions = [
+                func.lower(Product.skin_type_tags).like(
+                    f"%{_escape_like(tag.casefold())}%",
+                    escape="\\",
+                )
+                for tag in matching_tags
+            ]
+            statement = statement.where(or_(*tag_conditions))
     return statement
 
 
@@ -498,6 +544,11 @@ def _row_matches_filters(row: Any, filters: CatalogSearchFilters) -> bool:
         return False
     if filters.in_stock is True and not _row_in_stock(row):
         return False
+    if filters.skin_types:
+        matching_tags = set(skin_type_tag_values(filters.skin_types))
+        row_tags = _split_skin_type_tags(row.skin_type_tags)
+        if not matching_tags or not matching_tags.intersection(row_tags):
+            return False
     return True
 
 
@@ -561,6 +612,22 @@ def _facets_from_elasticsearch(
     return CatalogSearchFacets(
         brands=brands,
         categories=categories,
+        features=[
+            CatalogSearchFacetItem(
+                value=str(bucket.get("key")),
+                label=feature_filter_label(str(bucket.get("key"))),
+                count=int(bucket.get("doc_count") or 0),
+            )
+            for bucket in _aggregation_buckets(aggregations.get("features"))
+        ],
+        skin_types=[
+            CatalogSearchFacetItem(
+                value=str(bucket.get("key")),
+                label=skin_type_filter_label(str(bucket.get("key"))),
+                count=int(bucket.get("doc_count") or 0),
+            )
+            for bucket in _aggregation_buckets(aggregations.get("skin_types"))
+        ],
         price_ranges=[
             CatalogSearchFacetItem(value=value, label=label, count=price_counts.get(value, 0))
             for value, label, _, _ in _PRICE_FACETS
@@ -580,12 +647,25 @@ def _facets_from_elasticsearch(
     )
 
 
-def _facets_from_rows(rows: Sequence[Any]) -> CatalogSearchFacets:
+def _facets_from_rows(session: Session, rows: Sequence[Any]) -> CatalogSearchFacets:
     brand_counts = Counter(str(row.brand_code) for row in rows)
     brand_labels = {str(row.brand_code): str(row.brand_name) for row in rows}
     category_counts = Counter(category_group_for_code(str(row.category_code)) for row in rows)
     price_counts: Counter[str] = Counter()
     availability_counts: Counter[str] = Counter()
+    feature_counts = Counter(
+        feature_code
+        for feature_codes in _feature_codes_by_product_id(
+            session,
+            [int(row.product_db_id) for row in rows],
+        ).values()
+        for feature_code in feature_codes
+    )
+    skin_type_counts = Counter(
+        skin_type_code
+        for row in rows
+        for skin_type_code in skin_type_codes_for_tags(_split_skin_type_tags(row.skin_type_tags))
+    )
     for row in rows:
         if row.lowest_price is not None:
             price_bucket = _price_bucket(int(row.lowest_price))
@@ -607,6 +687,22 @@ def _facets_from_rows(rows: Sequence[Any]) -> CatalogSearchFacets:
                 count=count,
             )
             for value, count in category_counts.most_common()
+        ],
+        features=[
+            CatalogSearchFacetItem(
+                value=value,
+                label=feature_filter_label(value),
+                count=count,
+            )
+            for value, count in feature_counts.most_common()
+        ],
+        skin_types=[
+            CatalogSearchFacetItem(
+                value=value,
+                label=skin_type_filter_label(value),
+                count=count,
+            )
+            for value, count in skin_type_counts.most_common()
         ],
         price_ranges=[
             CatalogSearchFacetItem(value=value, label=label, count=price_counts[value])
@@ -654,6 +750,8 @@ def _build_response(
         applied_filters=CatalogSearchAppliedFilters(
             brands=list(parsed_query.filters.brand_codes),
             categories=list(parsed_query.filters.category_values),
+            features=list(parsed_query.filters.features),
+            skin_types=list(parsed_query.filters.skin_types),
             min_price=parsed_query.filters.min_price,
             max_price=parsed_query.filters.max_price,
             min_rating=parsed_query.filters.min_rating,
@@ -692,6 +790,38 @@ def _price_bucket(price: int) -> str | None:
             continue
         return value
     return None
+
+
+def _feature_codes_by_product_id(
+    session: Session,
+    product_db_ids: Sequence[int],
+) -> dict[int, tuple[str, ...]]:
+    if not product_db_ids:
+        return {}
+    effect_codes_by_product_id: dict[int, set[str]] = {}
+    for product_id, effect_code in session.execute(
+        select(ProductIngredient.product_id, Effect.effect_code)
+        .join(
+            IngredientEffect,
+            ProductIngredient.ingredient_id == IngredientEffect.ingredient_id,
+        )
+        .join(Effect, IngredientEffect.effect_id == Effect.id)
+        .where(
+            ProductIngredient.product_id.in_(product_db_ids),
+            Effect.is_active.is_(True),
+        )
+    ).all():
+        effect_codes_by_product_id.setdefault(int(product_id), set()).add(str(effect_code))
+    return {
+        product_id: feature_codes_for_effect_codes(effect_codes)
+        for product_id, effect_codes in effect_codes_by_product_id.items()
+    }
+
+
+def _split_skin_type_tags(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    return tuple(tag.strip() for tag in value.replace(",", ";").split(";") if tag.strip())
 
 
 def _all_known_category_codes() -> tuple[str, ...]:
