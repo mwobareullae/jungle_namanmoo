@@ -2,6 +2,8 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
+import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
+import { useAdminAccess } from "../features/admin/hooks/useAdminAccess";
 
 type AdminView =
   | "dashboard"
@@ -936,6 +938,7 @@ function getIngredientTone(status: IngredientReviewRow["status"]): BadgeTone {
 }
 
 function AdminDashboardPage() {
+  const access = useAdminAccess();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [selectedSellerId, setSelectedSellerId] = useState(MOCK_SELLERS[0].id);
   const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
@@ -957,7 +960,7 @@ function AdminDashboardPage() {
   const [selectedStockProductId, setSelectedStockProductId] = useState(initialProducts[1]?.id ?? initialProducts[0]?.id ?? "");
   const [stockFocusFilter, setStockFocusFilter] = useState<StockFocusFilter>("전체");
   const [stockChangeReason, setStockChangeReason] = useState("운영자 확인 후 간단 수정");
-  const [orders, setOrders] = useState<MockOrderRow[]>(mockOrderRows);
+  const [orders] = useState<MockOrderRow[]>(mockOrderRows);
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
   const [stockHistory, setStockHistory] = useState(stockHistoryRows);
   const [toast, setToast] = useState<AdminToast>(null);
@@ -2986,6 +2989,10 @@ function AdminDashboardPage() {
                       ? "셀러별 정산"
                       : "상품 등록";
 
+  if (access.status !== "authenticated") {
+    return <AdminAccessNotice status={access.status} retry={access.retry} />;
+  }
+
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar" aria-label="관리자 메뉴">
@@ -3108,8 +3115,6 @@ function AdminDashboardPage() {
         <AdminOrderStatusSection
           key="admin-order-status"
           active={activeView === "orderStatus"}
-          orders={orders}
-          setOrders={setOrders}
           onOperationLog={pushOperationLog}
         />
         {activeView === "sellers" && renderSellerList()}
