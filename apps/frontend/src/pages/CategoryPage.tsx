@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
 import { api } from "../lib/api";
 import { getCategoryCodesByGroupTitle } from "../lib/categoryMapping";
 import type { ProductCardItem } from "../types/recommendation";
-import type { PopularProductItem } from "../types/product";
+import type { ProductListingItem } from "../types/product";
 
 const PAGE_SIZE = 20;
-const POPULAR_LIMIT = 50;
 
 const getCategoryTitle = (value?: string) => {
   if (!value) {
@@ -22,10 +21,10 @@ const getCategoryTitle = (value?: string) => {
   }
 };
 
-const mapPopularItemToCard = (item: PopularProductItem, index: number): ProductCardItem => ({
+const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCardItem => ({
   product_id: item.product_id,
-  rank: index + 1,
-  total_score: item.popularity_score,
+  rank,
+  total_score: item.rating ?? 0,
   reason_summary: "",
   brand: item.brand,
   name: item.name,
@@ -42,68 +41,55 @@ function CategoryPage() {
   const categoryCodes = useMemo(() => getCategoryCodesByGroupTitle(categoryTitle), [categoryTitle]);
 
   const [products, setProducts] = useState<ProductCardItem[]>([]);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextPage, setNextPage] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadProducts = useCallback(async (page: number, append: boolean) => {
+    if (categoryCodes.length === 0) return;
+    if (append) setIsLoadingMore(true);
+    else setIsLoading(true);
 
-    if (categoryCodes.length === 0) {
-      Promise.resolve().then(() => {
-        if (!isMounted) return;
-        setProducts([]);
-        setVisibleCount(PAGE_SIZE);
-        setIsLoading(false);
-      setErrorMessage("존재하지 않는 카테고리입니다.");
+    try {
+      const response = await api.getProductListing({
+        page,
+        pageSize: PAGE_SIZE,
+        categoryCodes,
+        sort: "popular"
       });
-
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    Promise.resolve().then(() => {
-      if (!isMounted) return;
-      setIsLoading(true);
+      const mapped = response.items.map((item, index) =>
+        mapListingItemToCard(item, (page - 1) * PAGE_SIZE + index + 1)
+      );
+      setProducts((current) => (append ? [...current, ...mapped] : mapped));
+      setNextPage(response.pagination.has_next ? page + 1 : null);
       setErrorMessage("");
-      setVisibleCount(PAGE_SIZE);
-    });
-
-    Promise.all(
-      categoryCodes.map((categoryCode) => api.getPopularProducts({ categoryCode, limit: POPULAR_LIMIT }))
-    )
-      .then((responses) => {
-        if (!isMounted) return;
-
-        const seenProductIds = new Set<string>();
-        const mergedItems: PopularProductItem[] = [];
-        responses.forEach((response) => {
-          response.items.forEach((item) => {
-            if (seenProductIds.has(item.product_id)) return;
-            seenProductIds.add(item.product_id);
-            mergedItems.push(item);
-          });
-        });
-        mergedItems.sort((a, b) => b.popularity_score - a.popularity_score);
-
-        setProducts(mergedItems.map(mapPopularItemToCard));
-      })
-      .catch(() => {
-        if (!isMounted) return;
+    } catch {
+      if (!append) {
         setProducts([]);
+        setNextPage(null);
         setErrorMessage("상품을 불러오지 못했습니다.");
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+      }
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
   }, [categoryCodes]);
 
-  const visibleProducts = products.slice(0, visibleCount);
+  useEffect(() => {
+    if (categoryCodes.length === 0) {
+      setProducts([]);
+      setNextPage(null);
+      setIsLoading(false);
+      setErrorMessage("존재하지 않는 카테고리입니다.");
+      return;
+    }
+
+    setProducts([]);
+    setNextPage(null);
+    setErrorMessage("");
+    void loadProducts(1, false);
+  }, [categoryCodes, loadProducts]);
 
   return (
     <div className="category-page">
@@ -120,16 +106,21 @@ function CategoryPage() {
             <div className="search-loading-state">불러오는 중...</div>
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
-          ) : visibleProducts.length ? (
-            visibleProducts.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+          ) : products.length ? (
+            products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
           ) : (
             <div className="search-empty">표시할 상품이 없습니다.</div>
           )}
         </div>
-        {!isLoading && !errorMessage && visibleCount < products.length ? (
+        {!isLoading && !errorMessage && nextPage !== null ? (
           <div className="category-page__load-more">
-            <button className="page-btn nav" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)} type="button">
-              더보기
+            <button
+              className="page-btn nav"
+              disabled={isLoadingMore}
+              onClick={() => void loadProducts(nextPage, true)}
+              type="button"
+            >
+              {isLoadingMore ? "불러오는 중" : "더보기"}
             </button>
           </div>
         ) : null}
