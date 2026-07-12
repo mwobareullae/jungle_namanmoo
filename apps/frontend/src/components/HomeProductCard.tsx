@@ -7,6 +7,13 @@ type HomeProductCardProps = {
   product: ProductCardItem;
   recommendationId?: string;
   showScore?: boolean;
+  eventContext?: {
+    sectionId: string;
+    page: string;
+    source: string;
+    clickEvent: "home_product_click" | "search_result_click";
+    impressionEvent: "home_product_impression" | "search_result_impression";
+  };
 };
 
 const formatPrice = (price: number | null) =>
@@ -15,7 +22,7 @@ const formatPrice = (price: number | null) =>
 const hasUsableImageUrl = (url: string | null) =>
   Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
 
-function HomeProductCard({ product, recommendationId, showScore = false }: HomeProductCardProps) {
+function HomeProductCard({ product, recommendationId, showScore = false, eventContext }: HomeProductCardProps) {
   const searchParams = new URLSearchParams({ id: product.product_id });
   if (recommendationId) searchParams.set("recommendation_id", recommendationId);
   const currentParams = new URLSearchParams(window.location.search);
@@ -27,7 +34,16 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
 
   const openDetail = () => {
-    if (recommendationId) {
+    if (eventContext) {
+      trackEvent(eventContext.clickEvent, {
+        recommendationId,
+        productId: product.product_id,
+        rank: product.rank,
+        source: eventContext.source,
+        page: eventContext.page,
+        metadata: { section_id: eventContext.sectionId }
+      });
+    } else if (recommendationId) {
       trackEvent("recommendation_product_click", {
         recommendationId,
         productId: product.product_id,
@@ -47,6 +63,13 @@ function HomeProductCard({ product, recommendationId, showScore = false }: HomeP
       aria-label={`${product.brand} ${product.name} 상세 보기`}
       className={`product-card product-card-hit${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}`}
       data-agent-product-id={product.product_id}
+      data-event-page={eventContext?.page}
+      data-event-source={eventContext?.source}
+      data-impression-event={eventContext?.impressionEvent}
+      data-product-id={eventContext ? product.product_id : undefined}
+      data-rank={eventContext ? product.rank : undefined}
+      data-recommendation-id={eventContext ? recommendationId : undefined}
+      data-section-id={eventContext?.sectionId}
       onClick={openDetail}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {

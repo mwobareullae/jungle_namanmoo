@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
+import { observeProductImpressions } from "../lib/appSignals/impressions";
 import { navigateWithinApp } from "../lib/navigation";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
@@ -42,7 +43,21 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const openProductDetail = (product: ProductCardItem) => {
+type HomeProductEventContext = {
+  sectionId: string;
+  source: string;
+};
+
+const openProductDetail = (product: ProductCardItem, eventContext?: HomeProductEventContext) => {
+  if (eventContext) {
+    trackEvent("home_product_click", {
+      productId: product.product_id,
+      rank: product.rank,
+      page: "home",
+      source: eventContext.source,
+      metadata: { section_id: eventContext.sectionId }
+    });
+  }
   void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
 };
 
@@ -268,12 +283,18 @@ function HomeRankingSection({
                       <article
                         aria-label={`${product.brand} ${product.name} 상세 보기`}
                         className="home-ranking-card"
+                        data-event-page="home"
+                        data-event-source={section.section_id}
+                        data-impression-event="home_product_impression"
+                        data-product-id={product.product_id}
+                        data-rank={product.rank || displayRank}
+                        data-section-id={section.section_id}
                         key={product.product_id}
-                        onClick={() => openProductDetail(product)}
+                        onClick={() => openProductDetail(product, { sectionId: section.section_id, source: section.section_id })}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            openProductDetail(product);
+                            openProductDetail(product, { sectionId: section.section_id, source: section.section_id });
                           }
                         }}
                         role="link"
@@ -345,12 +366,18 @@ function HomeDealSection({
               <article
                 aria-label={`${product.brand} ${product.name} 상세 보기`}
                 className="home-deal-card"
+                data-event-page="home"
+                data-event-source={section.section_id}
+                data-impression-event="home_product_impression"
+                data-product-id={product.product_id}
+                data-rank={product.rank}
+                data-section-id={section.section_id}
                 key={product.product_id}
-                onClick={() => openProductDetail(product)}
+                onClick={() => openProductDetail(product, { sectionId: section.section_id, source: section.section_id })}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    openProductDetail(product);
+                    openProductDetail(product, { sectionId: section.section_id, source: section.section_id });
                   }
                 }}
                 role="link"
@@ -408,7 +435,19 @@ function HomeOriginalGridSection({
       </div>
       <div className="product-grid">
         {visibleProducts.length ? (
-          visibleProducts.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+          visibleProducts.map((product) => (
+            <HomeProductCard
+              eventContext={{
+                sectionId: section.section_id,
+                page: "home",
+                source: section.section_id,
+                clickEvent: "home_product_click",
+                impressionEvent: "home_product_impression"
+              }}
+              key={product.product_id}
+              product={product}
+            />
+          ))
         ) : (
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
@@ -649,6 +688,10 @@ function HomeMainContent({
     void loadHome();
   }, [loadHomeSection, showDefaultSection]);
 
+  useEffect(() => {
+    return observeProductImpressions();
+  }, [evidencePicksSection, forYouSection, isLoading, marketPopularSection, recommendation]);
+
   const isInitialHomeSectionLoading =
     !marketPopularSection &&
     !forYouSection &&
@@ -821,6 +864,13 @@ function HomeMainContent({
               ) : sortedProducts.length ? (
                 sortedProducts.map((product) => (
                   <HomeProductCard
+                    eventContext={{
+                      sectionId: "recommendation_results",
+                      page: "search",
+                      source: "recommendation_result",
+                      clickEvent: "search_result_click",
+                      impressionEvent: "search_result_impression"
+                    }}
                     key={product.product_id}
                     product={product}
                     recommendationId={recommendation?.recommendation_id}
