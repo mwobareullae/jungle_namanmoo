@@ -92,22 +92,26 @@ function CategoryPage() {
   }, [effectiveCategoryCodes]);
 
   useEffect(() => {
-    setSelectedCategoryCode("");
+    queueMicrotask(() => setSelectedCategoryCode(""));
   }, [categoryTitle]);
 
   useEffect(() => {
     if (categoryCodes.length === 0) {
-      setProducts([]);
-      setNextPage(null);
-      setIsLoading(false);
-      setErrorMessage("존재하지 않는 카테고리입니다.");
+      queueMicrotask(() => {
+        setProducts([]);
+        setNextPage(null);
+        setIsLoading(false);
+        setErrorMessage("존재하지 않는 카테고리입니다.");
+      });
       return;
     }
 
-    setProducts([]);
-    setNextPage(null);
-    setErrorMessage("");
-    void loadProducts(1, false);
+    queueMicrotask(() => {
+      setProducts([]);
+      setNextPage(null);
+      setErrorMessage("");
+    });
+    queueMicrotask(() => void loadProducts(1, false));
   }, [categoryCodes, loadProducts]);
 
   return (

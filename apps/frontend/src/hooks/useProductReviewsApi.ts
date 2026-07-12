@@ -108,7 +108,6 @@ export const useProductReviewsApi = (
 
   useEffect(() => {
     if (!productId) {
-      setReviews([]);
       return;
     }
 
@@ -132,7 +131,7 @@ export const useProductReviewsApi = (
   }, [productId]);
 
   return useMemo(
-    () => ({ reviews, summary: buildSummary(summary) }),
-    [reviews, summary],
+    () => ({ reviews: productId ? reviews : [], summary: buildSummary(summary) }),
+    [productId, reviews, summary],
   );
 };
