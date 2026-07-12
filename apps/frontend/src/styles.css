@@ -3315,6 +3315,139 @@ body {
   align-items: start;
 }
 
+.general-search-page {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 22px 0 64px;
+}
+
+.general-search-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.general-search-filters,
+.general-search-results {
+  border: 1px solid #e1e9ed;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.general-search-filters {
+  position: sticky;
+  top: 84px;
+  overflow: hidden;
+}
+
+.general-search-filter-head,
+.general-search-filters section,
+.general-search-stock-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid #eef2f4;
+}
+
+.general-search-filter-head strong,
+.general-search-filters h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.general-search-filter-head button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.general-search-stock-filter {
+  justify-content: flex-start;
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.general-search-filters section {
+  display: grid;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.general-search-filters section:last-child { border-bottom: 0; }
+
+.general-search-filter-list { display: grid; gap: 10px; }
+
+.general-search-filter-list label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  color: var(--ink2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.general-search-filter-list em { color: var(--faint); font-size: 12px; font-style: normal; }
+
+.general-search-results { overflow: hidden; }
+
+.general-search-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #eef2f4;
+}
+
+.general-search-results-head p { margin: 0; color: var(--ink); font-size: 16px; }
+.general-search-results-head span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.general-search-results-head select { min-height: 40px; padding: 0 30px 0 12px; border: 1px solid #dfe6ea; border-radius: 10px; background: #ffffff; color: var(--ink2); font: inherit; font-size: 13px; }
+
+.general-search-product-list { display: grid; }
+
+.general-search-product {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid #eef2f4;
+  cursor: pointer;
+}
+
+.general-search-product:hover { background: #fbfdfe; }
+.general-search-product > img { width: 112px; height: 112px; border: 1px solid #eef2f4; border-radius: 10px; object-fit: cover; }
+.general-search-product-copy { min-width: 0; }
+.general-search-product-copy > span { color: var(--muted); font-size: 13px; }
+.general-search-product-copy h2 { margin: 6px 0; color: var(--ink); font-size: 16px; line-height: 1.45; }
+.general-search-product-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+.general-search-product-price { display: grid; justify-items: end; gap: 8px; white-space: nowrap; }
+.general-search-product-price span { color: #0d6077; font-size: 12px; font-weight: 700; }
+.general-search-product-price span.sold-out { color: var(--muted); }
+.general-search-product-price strong { color: var(--ink); font-size: 16px; }
+.general-search-empty { padding: 72px 24px; color: var(--muted); text-align: center; }
+
+@media (max-width: 760px) {
+  .general-search-page { width: min(100% - 28px, 1180px); padding-top: 16px; }
+  .general-search-layout { grid-template-columns: 1fr; }
+  .general-search-filters { position: static; display: none; }
+  .general-search-results-head { padding: 18px; }
+  .general-search-product { grid-template-columns: 82px minmax(0, 1fr); padding: 16px; }
+  .general-search-product > img { width: 82px; height: 82px; }
+  .general-search-product-price { grid-column: 2; justify-items: start; grid-template-columns: auto auto; align-items: center; gap: 10px; }
+}
+
 .search-main-content {
   padding-top: 0;
 }

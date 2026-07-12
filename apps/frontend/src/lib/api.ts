@@ -1,5 +1,7 @@
 import type {
   ApiError,
+  CatalogSearchParams,
+  CatalogSearchResponse,
   HomeSection,
   ProductCardItem,
   ProductDetail,
@@ -51,6 +53,7 @@ type RecommendationApi = {
     limit?: number;
   }) => Promise<HomeSection>;
   searchCatalogProducts: (params: { page?: number; pageSize?: number; query: string }) => Promise<RecommendationResponse>;
+  getCatalogSearchProducts: (params: CatalogSearchParams) => Promise<CatalogSearchResponse>;
   getPopularProducts: (params?: { categoryCode?: string; limit?: number }) => Promise<PopularProductsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
@@ -486,6 +489,18 @@ export const api: RecommendationApi = {
         risk_flags: []
       }))
     };
+  },
+
+  async getCatalogSearchProducts(params) {
+    const searchParams = new URLSearchParams({ q: params.query });
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    if (params.sort) searchParams.set("sort", params.sort);
+    if (params.inStock) searchParams.set("in_stock", "true");
+    params.brands?.forEach((brand) => searchParams.append("brand", brand));
+    params.categories?.forEach((category) => searchParams.append("category", category));
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
+    return parseJson<CatalogSearchResponse>(response);
   },
 
   async getMarketPopular(params = {}) {
