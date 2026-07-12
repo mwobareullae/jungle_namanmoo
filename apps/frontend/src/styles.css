@@ -8517,6 +8517,27 @@ html[data-app-mode="community"] .search-results-shell {
   line-height: 1.2;
 }
 
+.category-page .product-grid,
+.catalog-search-page .product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px 18px;
+}
+
+@media (max-width: 900px) {
+  .category-page .product-grid,
+  .catalog-search-page .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .category-page .product-grid,
+  .catalog-search-page .product-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .new-products-page__description {
   margin: -12px 0 30px;
   color: #71808a;
