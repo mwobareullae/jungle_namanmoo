@@ -32,7 +32,9 @@ const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCa
   lowest_price: item.lowest_price,
   evidence_tags: [],
   key_ingredients: [],
-  risk_flags: []
+  risk_flags: [],
+  sales_status: item.sales_status,
+  in_stock: item.in_stock
 });
 
 function CategoryPage() {

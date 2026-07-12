@@ -32,6 +32,7 @@ function HomeProductCard({ product, recommendationId, showScore = false, eventCo
   if (sensitivity) searchParams.set("sensitivity", sensitivity);
   const detailUrl = `/product-detail?${searchParams.toString()}`;
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
+  const isSoldOut = product.in_stock === false || (product.sales_status !== undefined && product.sales_status !== "ON_SALE");
 
   const openDetail = () => {
     if (eventContext) {
@@ -61,7 +62,7 @@ function HomeProductCard({ product, recommendationId, showScore = false, eventCo
   return (
     <article
       aria-label={`${product.brand} ${product.name} 상세 보기`}
-      className={`product-card product-card-hit${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}`}
+      className={`product-card product-card-hit${showScore ? " search-product-card" : ""}${hasImage ? "" : " is-missing-image"}${isSoldOut ? " is-sold-out" : ""}`}
       data-agent-product-id={product.product_id}
       data-event-page={eventContext?.page}
       data-event-source={eventContext?.source}
@@ -83,6 +84,7 @@ function HomeProductCard({ product, recommendationId, showScore = false, eventCo
       <div className="product-img">
         <ProductThumbnail className="product-photo" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
         <div className="product-labels">
+          {isSoldOut ? <span className="product-card-sold-out-badge">일시품절</span> : null}
           {showScore && product.rank && product.rank <= 10 ? (
             <span className="label label-ai">{product.rank}위</span>
           ) : null}
