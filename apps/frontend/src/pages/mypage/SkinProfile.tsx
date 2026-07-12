@@ -1,10 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { avoidIngredientCategories } from "../../constants/avoidIngredientCategories";
+import ActivityToast from "../../components/ui/ActivityToast";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
+import { useActivityToast } from "../../hooks/useActivityToast";
 import { getMySkinProfile, updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
 import type { Sensitivity, SkinType } from "../../types/recommendation";
-import { MyPageLayout, MypageToastMessage, PageTitle, type MypageEventContext } from "./MyPageShell";
+import { MyPageLayout, PageTitle, type MypageEventContext } from "./MyPageShell";
 
 type SkinTypeId = "dry" | "oily" | "combination" | "dehydrated_oily" | "normal";
 type SensitivityId = "low" | "normal" | "high";
@@ -152,9 +154,8 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showSaveToast, setShowSaveToast] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const saveToastTimerRef = useRef<number | null>(null);
+  const { message: toastMessage, showToast } = useActivityToast();
   const canSave =
     Boolean(profile.skinType && profile.sensitivity) &&
     !isSameProfileDraft(profile, savedProfile);
@@ -195,14 +196,6 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (saveToastTimerRef.current !== null) {
-        window.clearTimeout(saveToastTimerRef.current);
-      }
-    };
-  }, []);
-
   const saveProfile = async () => {
     if (!canSave || isSaving) {
       return;
@@ -228,14 +221,7 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
       }
 
       onSubmitDraft?.(profile);
-      setShowSaveToast(true);
-      if (saveToastTimerRef.current !== null) {
-        window.clearTimeout(saveToastTimerRef.current);
-      }
-      saveToastTimerRef.current = window.setTimeout(() => {
-        setShowSaveToast(false);
-        saveToastTimerRef.current = null;
-      }, 2500);
+      showToast("피부 프로필을 저장했습니다.");
     } catch {
       setStatusMessage("피부 프로필 저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
@@ -370,7 +356,7 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
           ) : canSave ? "저장하기" : hasSavedProfile ? "저장완료" : "선택 후 저장"}
         </button>
       </div>
-      {showSaveToast ? <MypageToastMessage message="저장되었습니다" /> : null}
+      <ActivityToast message={toastMessage} />
     </MyPageLayout>
   );
 }
