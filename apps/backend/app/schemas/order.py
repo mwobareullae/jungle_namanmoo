@@ -58,6 +58,8 @@ class OrderListItem(BaseModel):
     item_count: int
     ordered_at: datetime
     paid_at: datetime | None
+    shipped_at: datetime | None
+    delivered_at: datetime | None
     thumbnail_storage_key: str | None
     title: str
 
@@ -119,6 +121,8 @@ class OrderDetailResponse(BaseModel):
     currency: str
     ordered_at: datetime
     paid_at: datetime | None
+    shipped_at: datetime | None
+    delivered_at: datetime | None
     payment_expires_at: datetime | None
     payment: OrderDetailPayment
     items: list[OrderDetailItem]

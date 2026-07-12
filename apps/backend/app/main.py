@@ -8,6 +8,7 @@ from app.api.routes import (
     agent,
     auth,
     cart,
+    claims,
     catalog,
     events,
     evidence_admin,
@@ -56,6 +57,7 @@ app.include_router(reviews.router, prefix=settings.api_base_path)
 app.include_router(search.router, prefix=settings.api_base_path)
 app.include_router(user_activity.router, prefix=settings.api_base_path)
 app.include_router(cart.router, prefix=settings.api_base_path)
+app.include_router(claims.router, prefix=settings.api_base_path)
 app.include_router(addresses.router, prefix=settings.api_base_path)
 app.include_router(orders.router, prefix=settings.api_base_path)
 app.include_router(payments.router, prefix=settings.api_base_path)
