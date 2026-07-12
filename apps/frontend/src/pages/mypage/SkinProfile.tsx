@@ -149,6 +149,7 @@ const draftFromSkinProfile = (profile: SkinProfileData, fallback: SkinProfileDra
 export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDraft }: SkinProfileProps) {
   const [profile, setProfile] = useState<SkinProfileDraft>(initialProfile);
   const [savedProfile, setSavedProfile] = useState<SkinProfileDraft>(initialProfile);
+  const [hasSavedProfile, setHasSavedProfile] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
@@ -171,7 +172,11 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
           const nextProfile = draftFromSkinProfile(savedProfile, emptyProfile);
           setProfile(nextProfile);
           setSavedProfile(nextProfile);
+          setHasSavedProfile(true);
           setStatusMessage(null);
+        } else {
+          setHasSavedProfile(false);
+          setStatusMessage("아직 저장된 피부 프로필이 없습니다. 피부 타입과 민감도를 선택해 주세요.");
         }
       })
       .catch(() => {
@@ -219,6 +224,7 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
         const nextProfile = draftFromSkinProfile(savedProfile, emptyProfile);
         setProfile(nextProfile);
         setSavedProfile(nextProfile);
+        setHasSavedProfile(true);
       }
 
       onSubmitDraft?.(profile);
@@ -361,7 +367,7 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
               <span aria-hidden="true" className="skin-profile-save-spinner" />
               저장 중
             </>
-          ) : canSave ? "저장하기" : "저장완료"}
+          ) : canSave ? "저장하기" : hasSavedProfile ? "저장완료" : "선택 후 저장"}
         </button>
       </div>
       {showSaveToast ? <MypageToastMessage message="저장되었습니다" /> : null}
