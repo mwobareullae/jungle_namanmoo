@@ -179,13 +179,13 @@ def test_get_home_layout_returns_section_endpoints(client: TestClient) -> None:
     data = response.json()
     assert [section["section_id"] for section in data["sections"]] == [
         "market_popular",
-        "evidence_picks",
         "for_you",
+        "evidence_picks",
     ]
     assert [section["endpoint"] for section in data["sections"]] == [
         "/api/home/market-popular",
-        "/api/home/evidence-picks",
         "/api/home/for-you",
+        "/api/home/evidence-picks",
     ]
     assert all(section["lazy_load"] is True for section in data["sections"])
 

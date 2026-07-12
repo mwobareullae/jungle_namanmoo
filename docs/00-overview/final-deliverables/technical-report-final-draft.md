@@ -302,7 +302,7 @@ leakage_flags
 split
 ```
 
-실제 CSV/JSON 계약을 확정할 때는 `docs/data-contract.md`를 함께 갱신한다.
+실제 CSV/JSON 계약을 확정할 때는 `docs/data/data-contract.md`를 함께 갱신한다.
 
 리뷰 사용 권한을 확인하고 작성자 식별 정보와 원문에 포함된 개인정보를 제거한다.
 
