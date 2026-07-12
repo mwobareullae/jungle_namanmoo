@@ -385,6 +385,143 @@ def test_review_create_requires_login_and_nonblank_text(client: TestClient) -> N
     assert invalid.status_code == 400
 
 
+def test_review_owner_can_update_without_changing_original_reviewed_at(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-update@example.com", nickname="update-owner")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-update@example.com",
+        item_status="DELIVERED",
+    )
+    created = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 2,
+            "review_text": "처음 후기",
+            "is_repurchase_review": False,
+        },
+    ).json()
+    review_id = created["review_id"]
+    original_reviewed_at = created["review"]["reviewed_at"]
+
+    response = client.patch(
+        f"/api/reviews/{review_id}",
+        json={
+            "rating": 5,
+            "review_text": "  수정한 후기  ",
+            "is_repurchase_review": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["review"]["rating"] == 5
+    assert data["review"]["review_text"] == "수정한 후기"
+    assert data["review"]["is_repurchase_review"] is True
+    assert data["review"]["reviewed_at"] == original_reviewed_at
+    assert data["review_summary"]["average_rating"] == 3.6
+
+
+def test_review_delete_redacts_content_updates_rollup_and_allows_recreate(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-delete@example.com", nickname="delete-owner")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-delete@example.com",
+        item_status="DELIVERED",
+    )
+    created = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "삭제할 후기",
+        },
+    ).json()
+    review_id = created["review_id"]
+
+    deleted = client.delete(f"/api/reviews/{review_id}")
+
+    assert deleted.status_code == 200
+    assert deleted.json()["status"] == "DELETED"
+    assert deleted.json()["review"] is None
+    assert deleted.json()["review_summary"]["review_count"] == 4
+    assert review_id not in {
+        item["review_id"]
+        for item in client.get("/api/products/prod_001/reviews").json()["items"]
+    }
+    with Session(db_engine) as session:
+        review = session.scalar(
+            select(ProductReview).where(ProductReview.review_code == review_id)
+        )
+        label_count = int(
+            session.scalar(
+                select(func.count(ProductReviewProfileLabel.id)).where(
+                    ProductReviewProfileLabel.review_id == review.id
+                )
+            )
+            or 0
+        )
+        assert review.status == "DELETED"
+        assert review.rating is None
+        assert review.review_text is None
+        assert review.verified_purchase is None
+        assert label_count == 0
+
+    repeated_delete = client.delete(f"/api/reviews/{review_id}")
+    assert repeated_delete.status_code == 200
+    assert repeated_delete.json()["review_summary"]["review_count"] == 4
+
+    recreated = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 4,
+            "review_text": "다시 작성한 후기",
+        },
+    )
+    assert recreated.status_code == 201
+    assert recreated.json()["review_id"] == review_id
+    assert recreated.json()["review_summary"]["review_count"] == 5
+
+
+def test_other_user_cannot_update_or_delete_review(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="review-owner@example.com", nickname="real-owner")
+    order_item_id = _create_order_item(
+        db_engine,
+        email="review-owner@example.com",
+        item_status="DELIVERED",
+    )
+    review_id = client.post(
+        "/api/products/prod_001/reviews",
+        json={
+            "order_item_id": order_item_id,
+            "rating": 5,
+            "review_text": "내 후기",
+        },
+    ).json()["review_id"]
+
+    _signup(client, email="review-attacker@example.com", nickname="attacker")
+    patch_response = client.patch(
+        f"/api/reviews/{review_id}",
+        json={"review_text": "가로챈 후기"},
+    )
+    delete_response = client.delete(f"/api/reviews/{review_id}")
+
+    assert patch_response.status_code == 404
+    assert patch_response.json()["error"]["code"] == "REVIEW_NOT_FOUND"
+    assert delete_response.status_code == 404
+    assert delete_response.json()["error"]["code"] == "REVIEW_NOT_FOUND"
+
+
 def _review(
     review_code: str,
     product_id: int,

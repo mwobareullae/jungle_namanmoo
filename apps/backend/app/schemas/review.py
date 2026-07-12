@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProductReviewSummary(BaseModel):
@@ -70,6 +70,32 @@ class ProductReviewCreateRequest(BaseModel):
         if not normalized:
             raise ValueError("리뷰 본문은 1자 이상이어야 합니다.")
         return normalized
+
+
+class ProductReviewUpdateRequest(BaseModel):
+    rating: int | None = Field(default=None, ge=1, le=5)
+    review_text: str | None = Field(default=None, min_length=1, max_length=2000)
+    is_repurchase_review: bool | None = None
+
+    @field_validator("review_text")
+    @classmethod
+    def normalize_review_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("리뷰 본문은 1자 이상이어야 합니다.")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_patch_fields(self) -> "ProductReviewUpdateRequest":
+        if not self.model_fields_set:
+            raise ValueError("수정할 리뷰 필드를 하나 이상 입력해 주세요.")
+        if "rating" in self.model_fields_set and self.rating is None:
+            raise ValueError("별점은 null로 변경할 수 없습니다.")
+        if "review_text" in self.model_fields_set and self.review_text is None:
+            raise ValueError("리뷰 본문은 null로 변경할 수 없습니다.")
+        return self
 
 
 class ProductReviewMutationResponse(BaseModel):

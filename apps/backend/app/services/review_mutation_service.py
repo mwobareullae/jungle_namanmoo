@@ -19,6 +19,7 @@ from app.schemas.review import (
     ProductReviewItem,
     ProductReviewMutationResponse,
     ProductReviewProfileLabel as ProductReviewProfileLabelSchema,
+    ProductReviewUpdateRequest,
 )
 from app.services.review_query_service import get_product_review_summary
 from app.services.review_rollup import rollup_product_review_metrics
@@ -153,6 +154,93 @@ def create_purchase_review(
     )
 
 
+def update_purchase_review(
+    session: Session,
+    *,
+    review_code: str,
+    current_user: User,
+    request: ProductReviewUpdateRequest,
+) -> ProductReviewMutationResponse:
+    review, product = _load_owned_review_for_update(
+        session,
+        review_code=review_code,
+        user_id=int(current_user.id),
+    )
+    if review.status != "PUBLISHED":
+        raise ApiError(
+            409,
+            "REVIEW_NOT_EDITABLE",
+            "공개 중인 본인 리뷰만 수정할 수 있습니다.",
+        )
+
+    now = datetime.now(UTC)
+    if "rating" in request.model_fields_set:
+        review.rating = request.rating
+    if "review_text" in request.model_fields_set:
+        review.review_text = request.review_text
+    if "is_repurchase_review" in request.model_fields_set:
+        review.is_repurchase_review = request.is_repurchase_review
+    review.updated_at = now
+
+    labels = _load_profile_label_rows(session, int(review.id))
+    rollup_product_review_metrics(session, product_id=int(product.id), computed_at=now)
+    session.commit()
+    return ProductReviewMutationResponse(
+        review=_to_review_item(review, labels, current_user),
+        review_id=review.review_code,
+        product_id=product.product_code,
+        status=review.status,
+        review_summary=get_product_review_summary(session, int(product.id)),
+    )
+
+
+def delete_purchase_review(
+    session: Session,
+    *,
+    review_code: str,
+    current_user: User,
+) -> ProductReviewMutationResponse:
+    review, product = _load_owned_review_for_update(
+        session,
+        review_code=review_code,
+        user_id=int(current_user.id),
+        allow_deleted=True,
+    )
+    if review.status != "DELETED":
+        now = datetime.now(UTC)
+        review.status = "DELETED"
+        review.rating = None
+        review.review_text = None
+        review.option_text = None
+        review.is_repurchase_review = None
+        review.verified_purchase = None
+        review.helpful_count = 0
+        review.source_has_photo = None
+        review.source_badge_labels_json = None
+        review.source_metadata_json = None
+        review.source_collected_at = None
+        review.source_content_hash = None
+        review.profile_mapping_version = None
+        review.published_at = None
+        review.deleted_at = now
+        review.updated_at = now
+        session.execute(
+            delete(ProductReviewProfileLabel).where(
+                ProductReviewProfileLabel.review_id == int(review.id)
+            )
+        )
+        rollup_product_review_metrics(session, product_id=int(product.id), computed_at=now)
+        session.commit()
+
+    return ProductReviewMutationResponse(
+        review=None,
+        review_id=review.review_code,
+        product_id=product.product_code,
+        status="DELETED",
+        review_summary=get_product_review_summary(session, int(product.id)),
+    )
+
+
 def _load_owned_order_item(
     session: Session,
     *,
@@ -176,6 +264,42 @@ def _load_owned_order_item(
         )
     order_item, product = row
     return order_item, product
+
+
+def _load_owned_review_for_update(
+    session: Session,
+    *,
+    review_code: str,
+    user_id: int,
+    allow_deleted: bool = False,
+) -> tuple[ProductReview, Product]:
+    identity = session.execute(
+        select(ProductReview.product_id)
+        .where(
+            ProductReview.review_code == review_code,
+            ProductReview.user_id == user_id,
+            ProductReview.source == FIRST_PARTY_REVIEW_SOURCE,
+        )
+    ).scalar_one_or_none()
+    if identity is None:
+        raise ApiError(404, "REVIEW_NOT_FOUND", "리뷰를 찾을 수 없습니다.")
+    _lock_product(session, int(identity))
+    row = session.execute(
+        select(ProductReview, Product)
+        .join(Product, Product.id == ProductReview.product_id)
+        .where(
+            ProductReview.review_code == review_code,
+            ProductReview.user_id == user_id,
+            ProductReview.source == FIRST_PARTY_REVIEW_SOURCE,
+        )
+        .with_for_update()
+    ).first()
+    if row is None:
+        raise ApiError(404, "REVIEW_NOT_FOUND", "리뷰를 찾을 수 없습니다.")
+    review, product = row
+    if review.status == "DELETED" and not allow_deleted:
+        raise ApiError(404, "REVIEW_NOT_FOUND", "리뷰를 찾을 수 없습니다.")
+    return review, product
 
 
 def _lock_product(session: Session, product_id: int) -> None:
@@ -232,6 +356,22 @@ def _snapshot_profile_labels(
                 )
             )
     return labels
+
+
+def _load_profile_label_rows(
+    session: Session,
+    review_id: int,
+) -> list[ProductReviewProfileLabel]:
+    return list(
+        session.execute(
+            select(ProductReviewProfileLabel)
+            .where(ProductReviewProfileLabel.review_id == review_id)
+            .order_by(
+                ProductReviewProfileLabel.dimension,
+                ProductReviewProfileLabel.value_code,
+            )
+        ).scalars()
+    )
 
 
 def _profile_label(
