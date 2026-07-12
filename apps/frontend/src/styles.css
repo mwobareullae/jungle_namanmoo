@@ -8961,6 +8961,17 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 14px;
 }
 
+.legal-document-page__main {
+  width: min(960px, 100%);
+}
+
+.legal-document-page__content {
+  padding: 32px;
+  border: 1px solid #e1e6e9;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
 @media (max-width: 900px) {
   .brand-index-page__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8974,6 +8985,10 @@ html[data-app-mode="community"] .search-results-shell {
 
   .brand-index-page__grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .legal-document-page__content {
+    padding: 22px 18px;
   }
 }
 

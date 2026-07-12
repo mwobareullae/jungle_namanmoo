@@ -9,7 +9,9 @@ const accountLinks = [
   ["마이페이지", "/mypage"],
   ["찜한 상품", "/mypage/wishlist"],
   ["최근 본 상품", "/mypage/recent"],
-  ["주문/배송내역", "/mypage/orders"]
+  ["주문/배송내역", "/mypage/orders"],
+  ["이용약관", "/terms"],
+  ["개인정보처리방침", "/privacy"]
 ] as const;
 
 function AppFooter() {
@@ -38,7 +40,7 @@ function AppFooter() {
         </div>
 
         <div className="footer-col">
-          <h5>내 정보</h5>
+          <h5>내 정보·약관</h5>
           <ul>
             {accountLinks.map(([label, href]) => (
               <li key={label}>
