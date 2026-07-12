@@ -163,7 +163,7 @@ function ReviewWritePage() {
 
   return (
     <MyPageLayout>
-      <PageTitle title="리뷰 작성" />
+      <PageTitle title="리뷰 관리" />
       <div className="review-write-page">
         <div className="review-write-page__tabs" role="tablist" aria-label="리뷰 메뉴">
           <button
