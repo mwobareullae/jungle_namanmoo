@@ -8517,6 +8517,13 @@ html[data-app-mode="community"] .search-results-shell {
   line-height: 1.2;
 }
 
+.new-products-page__description {
+  margin: -12px 0 30px;
+  color: #71808a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .category-page__load-more {
   display: flex;
   justify-content: center;

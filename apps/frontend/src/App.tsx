@@ -20,6 +20,7 @@ const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
 const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
+const NewProductsPage = lazy(() => import("./pages/NewProductsPage"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const Addresses = lazy(() => import("./pages/mypage/Addresses"));
@@ -1083,6 +1084,7 @@ function App() {
               </Suspense>
             )}
           />
+          {appMode !== "community" && <Route path="/products/new" element={<NewProductsPage />} />}
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>
