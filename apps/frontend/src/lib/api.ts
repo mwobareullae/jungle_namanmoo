@@ -28,6 +28,7 @@ import type {
 } from "../types/agent";
 import type {
   BrandListResponse,
+  CategoryListResponse,
   CatalogSearchResponse,
   CatalogSearchSort,
   CatalogSuggestionsResponse,
@@ -76,6 +77,7 @@ type RecommendationApi = {
     sort?: ProductListingSort;
   }) => Promise<ProductListingResponse>;
   getBrands: (query?: string, page?: number, pageSize?: number) => Promise<BrandListResponse>;
+  getCategories: () => Promise<CategoryListResponse>;
   searchCatalog: (params: {
     query: string;
     page?: number;
@@ -621,6 +623,11 @@ export const api: RecommendationApi = {
     if (query.trim()) searchParams.set("q", query.trim());
     const response = await fetchWithTimeout(`${API_BASE_URL}/brands?${searchParams.toString()}`);
     return parseJson<BrandListResponse>(response);
+  },
+
+  async getCategories() {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/categories`);
+    return parseJson<CategoryListResponse>(response);
   },
 
   async searchCatalog(params) {

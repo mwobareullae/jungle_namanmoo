@@ -3,6 +3,16 @@ type OriginalRuntime = Record<string, (...args: unknown[]) => void>;
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
 const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
+let categoryMenuScrollY = 0;
+
+const lockCategoryMenuScroll = () => {
+  if (document.body.classList.contains("category-menu-open")) return;
+  categoryMenuScrollY = window.scrollY;
+};
+
+const unlockCategoryMenuScroll = () => {
+  window.scrollTo(0, categoryMenuScrollY);
+};
 
 const getHeaderBottom = () => {
   const header = document.querySelector(
@@ -43,6 +53,7 @@ const openCategoryMenuFallback = () => {
 
   panel?.classList.add("active");
   backdrop?.classList.add("active");
+  lockCategoryMenuScroll();
   document.body.classList.add("category-menu-open");
   button?.setAttribute("aria-expanded", "true");
 };
@@ -51,6 +62,7 @@ const closeCategoryMenuFallback = () => {
   document.getElementById("categoryPanel")?.classList.remove("active");
   document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
   document.body.classList.remove("category-menu-open");
+  unlockCategoryMenuScroll();
   document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
 };
 
