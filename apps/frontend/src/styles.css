@@ -9881,7 +9881,7 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .agent-floating-entry.is-open {
-  z-index: 172;
+  z-index: 1201;
 }
 
 .agent-chat-popup {
@@ -9995,9 +9995,13 @@ html[data-app-mode="community"] .search-results-shell {
   display: grid;
   flex: 1 1 auto;
   gap: 0;
+  min-width: 0;
   min-height: 0;
   padding: 8px 22px 14px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .agent-chat-section-label {
@@ -10182,7 +10186,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-thread {
   display: grid;
   min-height: 100%;
-  align-content: end;
+  align-content: start;
   gap: 10px;
   padding: 6px 0 4px;
 }
