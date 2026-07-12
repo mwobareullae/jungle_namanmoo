@@ -8896,6 +8896,87 @@ html[data-app-mode="community"] .search-results-shell {
   color: #ffffff;
 }
 
+.brand-index-page__search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.brand-index-page__search input {
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid #dfe5e8;
+  border-radius: 12px;
+  background: #ffffff;
+  font: inherit;
+}
+
+.brand-index-page__search button {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #171b1e;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.brand-index-page__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.brand-index-page__card {
+  display: grid;
+  gap: 8px;
+  min-height: 104px;
+  align-content: center;
+  padding: 18px;
+  border: 1px solid #e1e6e9;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1a1a1a;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.brand-index-page__card:hover,
+.brand-index-page__card:focus-visible {
+  border-color: #94e0f8;
+  outline: none;
+}
+
+.brand-index-page__card span {
+  color: #7a8791;
+  font-size: 12px;
+}
+
+.brand-index-page__skeleton {
+  height: 104px;
+  border-radius: 14px;
+}
+
+@media (max-width: 900px) {
+  .brand-index-page__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .brand-index-page__search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .brand-index-page__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .catalog-search-page__head {
   display: flex;
   align-items: end;

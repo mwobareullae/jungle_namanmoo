@@ -64,6 +64,16 @@ export type ProductListingResponse = {
   sort: ProductListingSort;
 };
 
+export type BrandListItem = {
+  code: string;
+  name: string;
+  product_count: number;
+};
+
+export type BrandListResponse = {
+  items: BrandListItem[];
+};
+
 export type CatalogSearchSort =
   | "relevance"
   | "popular"
