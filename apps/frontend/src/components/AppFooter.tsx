@@ -1,24 +1,13 @@
-const footerUtilityLinks = ["회사소개", "이용약관", "개인정보처리방침"];
-
 const supportLinks = [
-  ["주문배송", "/mypage/orders"],
-  ["교환반품 안내", "/#defaultSection"],
-  ["1:1 문의", "/#defaultSection"]
+  ["Q&A", "/#defaultSection"],
+  ["교환·반품 안내", "/#defaultSection"]
 ] as const;
+
+const policyLinks = ["이용약관", "개인정보처리방침"];
 
 function AppFooter() {
   return (
     <footer>
-      <nav className="footer-utility" aria-label="푸터 주요 링크">
-        <div className="footer-utility-inner">
-          {footerUtilityLinks.map((item) => (
-            <a href="/#defaultSection" key={item}>
-              {item}
-            </a>
-          ))}
-        </div>
-      </nav>
-
       <div className="footer-inner">
         <div className="footer-brand">
           <a className="logo" href="/">
@@ -41,10 +30,15 @@ function AppFooter() {
           </ul>
         </div>
 
-        <div className="footer-company" aria-label="회사 안내">
-          <strong>뭐바를래</strong>
-          <p>성분 근거 기반 뷰티 커머스</p>
-          <p>피부 고민에 맞는 제품을 찾아보세요.</p>
+        <div className="footer-col">
+          <h5>약관·정보</h5>
+          <ul>
+            {policyLinks.map((label) => (
+              <li key={label}>
+                <a href="/#defaultSection">{label}</a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
