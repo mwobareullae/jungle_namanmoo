@@ -21,7 +21,7 @@ import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import { useProductReviews } from "../hooks/useProductReviews";
+import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type {
   IngredientEvidence,
   ProductDetail,
@@ -492,7 +492,10 @@ function ProductDetailSpaPage() {
   const [likedReviewIds, setLikedReviewIds] = useState<Set<string>>(() => new Set());
   const [reviewSkinTypeFilter, setReviewSkinTypeFilter] = useState("");
   const restoredHashProductRef = useRef<string | null>(null);
-  const { reviews: productReviews, summary: reviewSummary } = useProductReviews(product?.product_id ?? productId);
+  const { reviews: productReviews, summary: reviewSummary } = useProductReviewsApi(
+    product?.product_id ?? productId,
+    product?.review_summary,
+  );
 
   useEffect(() => installHomeRuntime(), []);
 
@@ -1489,7 +1492,9 @@ function ProductDetailSpaPage() {
                   <div className="product-review-rating-bars" aria-label="별점 분포">
                     {[5, 4, 3, 2, 1].map((score) => {
                       const count = reviewSummary.ratingDistribution[score as 1 | 2 | 3 | 4 | 5];
-                      const percent = Math.round((count / reviewSummary.totalCount) * 100);
+                      const percent = reviewSummary.totalCount > 0
+                        ? Math.round((count / reviewSummary.totalCount) * 100)
+                        : 0;
                       return (
                         <div className="product-review-rating-row" key={score}>
                           <span>{score}</span>

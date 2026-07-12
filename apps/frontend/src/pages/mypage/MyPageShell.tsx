@@ -36,12 +36,12 @@ export type MypageUserSummary = {
 
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
   label: string;
   group: 1 | 2 | 3;
 };
@@ -54,6 +54,7 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/skin-profile", label: "피부 프로필", group: 1 },
   { path: "/mypage/wishlist", label: "찜한 상품", group: 2 },
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
+  { path: "/mypage/reviews", label: "리뷰 관리", group: 2 },
   { path: "/mypage/orders", label: "주문/배송내역", group: 3 },
   { path: "/mypage/addresses", label: "배송지 관리", group: 3 },
   { path: "/mypage/settings", label: "개인정보 설정", group: 3 }
@@ -605,15 +606,6 @@ function getImageAccentColor(image: HTMLImageElement) {
   }
 }
 
-export function MypageToastMessage({ message }: { message: string }) {
-  return (
-    <div style={styles.toast} role="status" aria-live="polite">
-      <span style={styles.toastDot} />
-      <span>{message}</span>
-    </div>
-  );
-}
-
 function ProfileAvatar({ size }: { size: "small" | "large" }) {
   const isLarge = size === "large";
 
@@ -976,33 +968,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     fontWeight: 700,
     lineHeight: 1.35
-  },
-  toast: {
-    position: "fixed",
-    left: "50%",
-    bottom: 40,
-    zIndex: 1000,
-    transform: "translateX(-50%)",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 48,
-    padding: "0 18px",
-    borderRadius: 999,
-    border: "1px solid rgba(148, 224, 248, 0.42)",
-    background: "rgba(255, 255, 255, 0.96)",
-    color: "#1f2a32",
-    boxShadow: "0 12px 32px rgba(16, 28, 42, 0.12)",
-    fontSize: 14,
-    fontWeight: 500,
-    lineHeight: 1.45
-  },
-  toastDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#94e0f8",
-    flex: "0 0 auto"
   },
   quickGrid: {
     display: "grid",

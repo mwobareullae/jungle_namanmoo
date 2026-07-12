@@ -186,6 +186,16 @@ const getHeaderBottom = () => {
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
 const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
+let categoryMenuScrollY = 0;
+
+const lockCategoryMenuScroll = () => {
+  if (document.body.classList.contains("category-menu-open")) return;
+  categoryMenuScrollY = window.scrollY;
+};
+
+const unlockCategoryMenuScroll = () => {
+  window.scrollTo(0, categoryMenuScrollY);
+};
 
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
   const headerBottom = getHeaderBottom();
@@ -229,6 +239,7 @@ const installFunctions = () => {
     document.getElementById("categoryPanel")?.classList.remove("active");
     document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
     document.body.classList.remove("category-menu-open");
+    unlockCategoryMenuScroll();
     document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
   };
   runtime.openCategoryMenu = () => {
@@ -237,6 +248,7 @@ const installFunctions = () => {
     const button = document.querySelector(".category-menu-btn");
 
     if (panel) updateCategoryPanelLayout(panel);
+    lockCategoryMenuScroll();
 
     panel?.classList.add("active");
     backdrop?.classList.add("active");
@@ -257,6 +269,7 @@ const installFunctions = () => {
     panel?.classList.remove("active");
     backdrop?.classList.remove("active");
     document.body.classList.remove("category-menu-open");
+    unlockCategoryMenuScroll();
     button?.setAttribute("aria-expanded", "false");
   };
   runtime.showToast = (message) => showToast(String(message));
@@ -402,6 +415,7 @@ export const installHomeRuntime = (initialProfile?: RecommendationProfile) => {
     window.removeEventListener("scroll", handleCategoryPanelViewportChange);
     document.getElementById("recentConcernList")?.removeEventListener("click", handleRecentClick);
     document.body.classList.remove("category-menu-open");
+    unlockCategoryMenuScroll();
     categoryPanel
       ?.querySelectorAll("a")
       .forEach((link) => link.removeEventListener("click", getRuntime().closeCategoryMenu));
