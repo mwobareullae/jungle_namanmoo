@@ -35,6 +35,10 @@ from app.services.catalog_search_text import (
     normalize_search_text,
 )
 from app.services.catalog_search_aliases import equivalent_brand_values
+from app.services.catalog_search_filters import (
+    feature_codes_for_effect_codes,
+    skin_type_codes_for_tags,
+)
 from app.services.elasticsearch_client import (
     ElasticsearchClientProvider,
     default_elasticsearch_client_provider,
@@ -163,6 +167,8 @@ CATALOG_PRODUCT_INDEX_MAPPING: dict[str, Any] = {
             "ingredient_aliases": {"type": "text", "analyzer": "catalog_nori"},
             "effect_names": {"type": "text", "analyzer": "catalog_nori"},
             "effect_aliases": {"type": "text", "analyzer": "catalog_nori"},
+            "feature_codes": {"type": "keyword"},
+            "skin_type_codes": {"type": "keyword"},
             "aliases": {"type": "text", "analyzer": "catalog_nori"},
             "aliases_compact": {"type": "keyword", "normalizer": "catalog_keyword"},
             "aliases_chosung": {
@@ -509,6 +515,7 @@ def _base_product_row_statement() -> Any:
             Product.id.label("product_db_id"),
             Product.product_code,
             Product.product_name,
+            Product.skin_type_tags,
             Product.thumbnail_url,
             Product.is_recommendable,
             Product.released_at,
@@ -544,6 +551,7 @@ class _BatchContext:
     ingredient_aliases: dict[int, tuple[str, ...]]
     effect_names: dict[int, tuple[str, ...]]
     effect_aliases: dict[int, tuple[str, ...]]
+    effect_codes: dict[int, tuple[str, ...]]
 
 
 def _load_batch_context(
@@ -630,6 +638,7 @@ def _load_batch_context(
         select(
             ProductIngredient.product_id,
             Effect.id.label("effect_db_id"),
+            Effect.effect_code,
             Effect.name,
         )
         .join(IngredientEffect, ProductIngredient.ingredient_id == IngredientEffect.ingredient_id)
@@ -649,11 +658,13 @@ def _load_batch_context(
     )
     effect_names_by_product: dict[int, set[str]] = defaultdict(set)
     effect_aliases_by_product: dict[int, set[str]] = defaultdict(set)
+    effect_codes_by_product: dict[int, set[str]] = defaultdict(set)
     for row in effect_rows:
         product_id = int(row.product_id)
         effect_id = int(row.effect_db_id)
         effect_names_by_product[product_id].add(row.name)
         effect_aliases_by_product[product_id].update(effect_alias_values.get(effect_id, ()))
+        effect_codes_by_product[product_id].add(row.effect_code)
 
     return _BatchContext(
         prices=prices,
@@ -665,6 +676,7 @@ def _load_batch_context(
         ingredient_aliases=_freeze_values(ingredient_aliases_by_product),
         effect_names=_freeze_values(effect_names_by_product),
         effect_aliases=_freeze_values(effect_aliases_by_product),
+        effect_codes=_freeze_values(effect_codes_by_product),
     )
 
 
@@ -686,6 +698,8 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
     ingredient_aliases = context.ingredient_aliases.get(product_db_id, ())
     effect_names = context.effect_names.get(product_db_id, ())
     effect_aliases = context.effect_aliases.get(product_db_id, ())
+    effect_codes = context.effect_codes.get(product_db_id, ())
+    skin_type_tags = _split_skin_type_tags(row.skin_type_tags)
     aliases = tuple(sorted(set((*brand_aliases, *category_aliases, *ingredient_aliases, *effect_aliases))))
     rating, review_count = context.reviews.get(product_db_id, (None, 0))
     popularity_score = context.popularity.get(product_db_id, 0.0)
@@ -730,6 +744,8 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         "ingredient_aliases": list(ingredient_aliases),
         "effect_names": list(effect_names),
         "effect_aliases": list(effect_aliases),
+        "feature_codes": list(feature_codes_for_effect_codes(effect_codes)),
+        "skin_type_codes": list(skin_type_codes_for_tags(skin_type_tags)),
         "aliases": list(aliases),
         "aliases_compact": [compact_search_text(alias) for alias in aliases],
         "aliases_chosung": [extract_chosung(alias) for alias in aliases],
@@ -759,6 +775,12 @@ def _alias_values_by_owner(rows: Sequence[Any]) -> dict[int, tuple[str, ...]]:
 
 def _freeze_values(values: dict[int, set[str]]) -> dict[int, tuple[str, ...]]:
     return {owner_id: tuple(sorted(owner_values)) for owner_id, owner_values in values.items()}
+
+
+def _split_skin_type_tags(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    return tuple(tag.strip() for tag in value.replace(",", ";").split(";") if tag.strip())
 
 
 def _create_catalog_index(client: Any, index_name: str) -> None:

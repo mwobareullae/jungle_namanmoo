@@ -109,6 +109,7 @@ const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 const homeQuickQuestions = [
   "이 성분, 내 피부에 맞을까?",
   "이번 주 예산 3만원 루틴 짜줘",
+  "지금 쓰는 제품과 같이 써도 될까?",
 ];
 
 const productQuickQuestions = [
@@ -846,6 +847,7 @@ function AgentFloatingButton({
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const chatPopupRef = useRef<HTMLElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -955,6 +957,26 @@ function AgentFloatingButton({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (chatPopupRef.current?.contains(target) || triggerButtonRef.current?.contains(target)) {
+        return;
+      }
+      closeChat();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen]);
 
   useEffect(() => {
@@ -1373,12 +1395,13 @@ function AgentFloatingButton({
             aria-labelledby="agent-chat-title"
             className={`agent-chat-popup${isOpen ? " is-visible" : ""}`}
             id="agent-chat-popup"
+            ref={chatPopupRef}
             role="dialog"
           >
             <span className="agent-chat-popup__tail" aria-hidden="true" />
             <div className={`agent-chat-popup__head${isThreadView ? " has-back" : ""}`}>
               <span className="agent-chat-popup__avatar" aria-hidden="true">
-                <img alt="" src="/mwobareullae-rabbit-chat.png" />
+                <img alt="" src="/mwobareullae-rabbit-chat-sky.png" />
               </span>
               <div className="agent-chat-popup__title">
                 <h2 id="agent-chat-title">뭐바를래 AI</h2>
