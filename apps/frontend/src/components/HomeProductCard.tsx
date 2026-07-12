@@ -4,6 +4,7 @@ import { navigateWithinApp } from "../lib/navigation";
 import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
+  displayRank?: number;
   product: ProductCardItem;
   recommendationId?: string;
   showScore?: boolean;
@@ -22,7 +23,7 @@ const formatPrice = (price: number | null) =>
 const hasUsableImageUrl = (url: string | null) =>
   Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
 
-function HomeProductCard({ product, recommendationId, showScore = false, eventContext }: HomeProductCardProps) {
+function HomeProductCard({ displayRank, product, recommendationId, showScore = false, eventContext }: HomeProductCardProps) {
   const searchParams = new URLSearchParams({ id: product.product_id });
   if (recommendationId) searchParams.set("recommendation_id", recommendationId);
   const currentParams = new URLSearchParams(window.location.search);
@@ -33,6 +34,7 @@ function HomeProductCard({ product, recommendationId, showScore = false, eventCo
   const detailUrl = `/product-detail?${searchParams.toString()}`;
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
   const isSoldOut = product.in_stock === false || (product.sales_status !== undefined && product.sales_status !== "ON_SALE");
+  const rankForDisplay = displayRank ?? product.rank;
 
   const openDetail = () => {
     if (eventContext) {
@@ -85,8 +87,8 @@ function HomeProductCard({ product, recommendationId, showScore = false, eventCo
         <ProductThumbnail className="product-photo" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
         <div className="product-labels">
           {isSoldOut ? <span className="product-card-sold-out-badge">일시품절</span> : null}
-          {showScore && product.rank && product.rank <= 10 ? (
-            <span className="label label-ai">{product.rank}위</span>
+          {showScore && rankForDisplay && rankForDisplay <= 10 ? (
+            <span className="label label-ai">{rankForDisplay}위</span>
           ) : null}
         </div>
         {showScore ? (

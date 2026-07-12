@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
-import type { RecommendationProfile } from "../types/recommendation";
+import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 
 const setSearch = (text: string) => callOriginal("setSearch", text);
 
@@ -34,6 +34,7 @@ function HomeHero({
   const [query, setQuery] = useState(initialQuery);
   const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>("ai");
 
   useEffect(() => {
     if (query.trim()) return;
@@ -118,12 +119,17 @@ function HomeHero({
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    callOriginal("handleSearch", event);
+    if (event.key === "Enter") callOriginal("doSearch", searchMode);
   };
 
   const handleExampleClick = (text: string) => {
     setQuery(text);
     setSearch(text);
+  };
+
+  const selectSearchMode = (mode: SearchMode) => {
+    setSearchMode(mode);
+    callOriginal("setSearchMode", mode);
   };
 
   return (
@@ -144,6 +150,10 @@ function HomeHero({
           className={`search-container${isSuggestionsOpen ? " suggestions-open" : ""}`}
           ref={searchContainerRef}
         >
+          <div aria-label="검색 방식" className="search-mode-tabs" role="tablist">
+            <button aria-selected={searchMode === "general"} className={searchMode === "general" ? "active" : ""} onClick={() => selectSearchMode("general")} role="tab" type="button">일반 검색</button>
+            <button aria-selected={searchMode === "ai"} className={searchMode === "ai" ? "active" : ""} onClick={() => selectSearchMode("ai")} role="tab" type="button">AI 추천</button>
+          </div>
           <div className="search-combo">
             <div className="search-box" id="searchBox">
               <div className="search-icon">
@@ -161,7 +171,7 @@ function HomeHero({
                   <path d="m21 21-4.35-4.35" />
                 </svg>
               </div>
-              {!hasSavedProfile ? (
+              {searchMode === "ai" && !hasSavedProfile ? (
                 <button
                   className="search-profile-chip"
                   id="searchProfileChip"
@@ -177,11 +187,11 @@ function HomeHero({
                 onClick={openSuggestions}
                 onFocus={openSuggestions}
                 onKeyDown={handleSearchKey}
-                placeholder={placeholder}
+                placeholder={searchMode === "ai" ? placeholder : "상품명, 브랜드, 성분을 검색하세요"}
                 type="text"
                 value={query}
               />
-              <button className="search-btn" onClick={() => callOriginal("doSearch")} type="button">
+              <button className="search-btn" onClick={() => callOriginal("doSearch", searchMode)} type="button">
                 <svg
                   fill="none"
                   height="14"
@@ -194,7 +204,7 @@ function HomeHero({
                 >
                   <path d="m22 2-7 20-4-9-9-4z" />
                 </svg>
-                추천 찾기
+                {searchMode === "ai" ? "AI 추천 받기" : "검색"}
               </button>
             </div>
 
@@ -205,7 +215,7 @@ function HomeHero({
             >
               <div className="suggest-section">
                 <div className="suggest-header">
-                  <span>최근 고민</span>
+                  <span>{searchMode === "ai" ? "최근 AI 추천" : "최근 검색어"}</span>
                   <button
                     className="recent-clear"
                     id="recentClearButton"
@@ -218,7 +228,7 @@ function HomeHero({
                 <div className="recent-list" id="recentConcernList" />
               </div>
 
-              {!hasSavedProfile ? (
+              {searchMode === "ai" && !hasSavedProfile ? (
                 <div className="suggest-section">
                   <div className="profile-picker-grid">
                     <div className="profile-picker-group">

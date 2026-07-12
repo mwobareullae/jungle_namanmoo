@@ -20,6 +20,8 @@ def test_catalog_search_request_contains_fixed_ranking_boosts_and_filters() -> N
             max_price=20_000,
             min_rating=4.0,
             in_stock=True,
+            features=("moisturizing_calming",),
+            skin_types=("dehydrated_oily",),
         ),
         sort=CatalogSearchSort.RELEVANCE,
     )
@@ -36,6 +38,8 @@ def test_catalog_search_request_contains_fixed_ranking_boosts_and_filters() -> N
     assert {"range": {"lowest_price": {"gte": 10_000, "lte": 20_000}}} in bool_query["filter"]
     assert {"range": {"rating": {"gte": 4.0}}} in bool_query["filter"]
     assert {"term": {"in_stock": True}} in bool_query["filter"]
+    assert {"terms": {"feature_codes": ["moisturizing_calming"]}} in bool_query["filter"]
+    assert {"terms": {"skin_type_codes": ["dehydrated_oily"]}} in bool_query["filter"]
 
     should_text = str(bool_query["should"])
     assert "40.0" in should_text
@@ -74,6 +78,8 @@ def test_catalog_search_request_uses_stable_non_relevance_sort() -> None:
         "categories",
         "price_ranges",
         "availability",
+        "features",
+        "skin_types",
     }
 
 

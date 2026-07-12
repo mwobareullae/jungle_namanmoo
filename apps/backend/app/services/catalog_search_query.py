@@ -96,6 +96,8 @@ class CatalogSearchFilters:
     max_price: int | None
     min_rating: float | None
     in_stock: bool | None
+    features: tuple[str, ...] = ()
+    skin_types: tuple[str, ...] = ()
 
     @property
     def category_values(self) -> tuple[str, ...]:
@@ -136,6 +138,8 @@ def parse_catalog_search_query(
     query: str,
     brands: Iterable[str] = (),
     categories: Iterable[str] = (),
+    features: Iterable[str] = (),
+    skin_types: Iterable[str] = (),
     min_price: int | None = None,
     max_price: int | None = None,
     min_rating: float | None = None,
@@ -162,6 +166,8 @@ def parse_catalog_search_query(
         category_codes, category_groups = _resolve_category_values(session, explicit_categories)
     else:
         category_codes, category_groups = _detect_categories(compact_query)
+    explicit_features = _dedupe(features)
+    explicit_skin_types = _dedupe(skin_types)
 
     resolved_min_price = min_price if min_price is not None else parsed_min_price
     resolved_max_price = max_price if max_price is not None else parsed_max_price
@@ -182,6 +188,8 @@ def parse_catalog_search_query(
             max_price=resolved_max_price,
             min_rating=resolved_min_rating,
             in_stock=resolved_in_stock,
+            features=explicit_features,
+            skin_types=explicit_skin_types,
         ),
         sort=resolved_sort,
     )
