@@ -492,7 +492,8 @@ function HomeMainContent({
       nextQuery: string,
       profile: RecommendationProfile,
       page = 1,
-      recommendationId?: string
+      recommendationId?: string,
+      shouldScrollToResults = mode !== "search"
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
@@ -506,11 +507,13 @@ function HomeMainContent({
           detail: { status: "loading", query: trimmedQuery, recommendation: null }
         })
       );
-      window.requestAnimationFrame(() => {
-        document
-          .getElementById("searchResultsSection")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      if (shouldScrollToResults) {
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById("searchResultsSection")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
 
       try {
         const response = isGeneralSearch
@@ -602,7 +605,7 @@ function HomeMainContent({
   useEffect(() => {
     if (initialQuery) {
       queueMicrotask(() => {
-        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId);
+        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId, false);
       });
     }
   }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
@@ -673,7 +676,7 @@ function HomeMainContent({
       recommendation.recommendation_id !== "fallback-original-design"
         ? recommendation.recommendation_id
         : initialRecommendationId;
-    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId);
+    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId, true);
   };
 
   return (
