@@ -338,6 +338,7 @@ excessive     -> 0.4 + 주의 문구
 | `brand` | 브랜드명 |
 | `name` | 상품명 |
 | `category` | 상품 카테고리. 예: `toner`, `serum`, `cream`, `lotion` |
+| `released_at` | 선택. 실제 출시일 또는 출시 시각. ISO-8601 형식 (`2026-07-12` 또는 `2026-07-12T00:00:00Z`). 신상품 정렬의 우선 기준 |
 | `is_recommendable` | 기본 AI 추천 후보 포함 여부. `true`면 일반 추천 후보, `false`면 카탈로그에는 남기되 기본 추천에서는 제외 |
 | `recommend_exclude_reason` | `is_recommendable=false`인 이유. 예: `male_targeted`, `all_in_one`, `eye_neck_specific`, `spot_treatment`, `missing_ingredients`, `data_quality_review`, `duplicate_variant_hidden`, `mixed_set_composition`. 여러 값은 `;`로 구분 |
 | `skin_type_tags` | 권장 피부 타입 태그 |

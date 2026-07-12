@@ -10,7 +10,7 @@ from app.services.product_image_service import load_thumbnail_storage_keys
 
 DEFAULT_POPULAR_WINDOW_DAYS = 7
 DEFAULT_POPULAR_LIMIT = 10
-MAX_POPULAR_LIMIT = 50
+MAX_POPULAR_LIMIT = 100
 
 
 def get_popular_products_response(

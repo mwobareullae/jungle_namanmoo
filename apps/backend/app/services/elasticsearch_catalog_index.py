@@ -190,6 +190,7 @@ CATALOG_PRODUCT_INDEX_MAPPING: dict[str, Any] = {
             "in_stock": {"type": "boolean"},
             "is_recommendable": {"type": "boolean"},
             "thumbnail_url": {"type": "keyword", "index": False},
+            "released_at": {"type": "date"},
             "created_at": {"type": "date"},
             "updated_at": {"type": "date"},
         },
@@ -510,6 +511,7 @@ def _base_product_row_statement() -> Any:
             Product.product_name,
             Product.thumbnail_url,
             Product.is_recommendable,
+            Product.released_at,
             Product.created_at,
             Product.updated_at,
             Brand.id.label("brand_db_id"),
@@ -741,6 +743,7 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         "in_stock": in_stock,
         "is_recommendable": bool(row.is_recommendable),
         "thumbnail_url": row.thumbnail_url,
+        "released_at": row.released_at.isoformat() if row.released_at is not None else None,
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
