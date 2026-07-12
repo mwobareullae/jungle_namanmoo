@@ -4,6 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
 import Skeleton from "../components/ui/Skeleton";
 import { api } from "../lib/api";
+import { getProductImageUrl } from "../lib/imageUrls";
 import type { CatalogSearchItem, CatalogSearchSort, CatalogSuggestionItem } from "../types/product";
 import type { ProductCardItem } from "../types/recommendation";
 
@@ -45,7 +46,7 @@ const mapSearchItemToCard = (item: CatalogSearchItem, rank: number): ProductCard
   reason_summary: "",
   brand: item.brand,
   name: item.name,
-  thumbnail_url: item.thumbnail_url,
+  thumbnail_url: getProductImageUrl(item.thumbnail_url, "w400") || null,
   lowest_price: item.lowest_price,
   evidence_tags: [],
   key_ingredients: [],
