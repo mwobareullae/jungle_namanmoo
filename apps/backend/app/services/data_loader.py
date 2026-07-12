@@ -2,7 +2,7 @@ import csv
 import json
 import logging
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
@@ -450,6 +450,7 @@ def _parse_product(row: dict[str, str], file_name: str, line_number: int) -> Pro
         functional_cosmetic_claims=_split_values(row.get("functional_cosmetic_claims", "")),
         functional_claim_confidence=_optional_text(row.get("functional_claim_confidence")),
         functional_claim_basis=_optional_text(row.get("functional_claim_basis")),
+        released_at=_optional_release_datetime(row.get("released_at"), file_name, line_number),
         is_recommendable=_optional_bool(
             row.get("is_recommendable"),
             "is_recommendable",
@@ -1190,6 +1191,23 @@ def _optional_datetime(
         raise DataLoadError(f"{file_name}:{line_number} {key} 값은 ISO 8601 datetime이어야 합니다.") from exc
     if parsed.utcoffset() is None:
         raise DataLoadError(f"{file_name}:{line_number} {key} 값에는 timezone이 필요합니다.")
+    return parsed
+
+
+def _optional_release_datetime(value: object, file_name: str, line_number: int) -> datetime | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    try:
+        if "T" not in text and " " not in text:
+            return datetime.combine(date.fromisoformat(text), time.min, tzinfo=UTC)
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DataLoadError(
+            f"{file_name}:{line_number} released_at은 ISO 8601 날짜 또는 datetime이어야 합니다."
+        ) from exc
+    if parsed.utcoffset() is None:
+        raise DataLoadError(f"{file_name}:{line_number} released_at datetime에는 timezone이 필요합니다.")
     return parsed
 
 

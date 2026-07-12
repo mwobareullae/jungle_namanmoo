@@ -34,6 +34,7 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.products[0].functional_claim_confidence == "not_applicable"
     assert catalog.products[0].is_recommendable is True
     assert catalog.products[0].recommend_exclude_reason is None
+    assert catalog.products[0].released_at is None
     assert catalog.products[1].functional_cosmetic_status == "FUNCTIONAL_CONFIRMED"
     assert catalog.products[1].functional_claim_confidence == "unknown"
     assert catalog.product_prices[0].price == 19900
@@ -137,6 +138,26 @@ def test_load_data_catalog_reads_product_recommendation_eligibility(tmp_path: Pa
     assert catalog.products[0].recommend_exclude_reason == "missing_ingredients"
     assert catalog.products[1].is_recommendable is True
     assert catalog.products[1].recommend_exclude_reason is None
+
+
+def test_load_data_catalog_reads_optional_product_release_timestamp(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    products_csv = data_dir / "products.csv"
+    with products_csv.open(encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = [*reader.fieldnames, "released_at"]
+        rows = list(reader)
+    rows[0]["released_at"] = "2026-07-12"
+    with products_csv.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    catalog = load_data_catalog(data_dir)
+
+    assert catalog.products[0].released_at is not None
+    assert catalog.products[0].released_at.date().isoformat() == "2026-07-12"
 
 
 def test_load_data_catalog_applies_brand_corrections_without_rewriting_products_csv(tmp_path: Path) -> None:
