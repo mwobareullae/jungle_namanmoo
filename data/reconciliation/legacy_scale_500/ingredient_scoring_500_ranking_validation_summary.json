@@ -1,10 +1,29 @@
 {
-  "validation_version": "mwbl-legacy-scale-500-ranking-audit-v1",
-  "validated_on": "2026-07-13",
-  "status": "pass_with_runtime_interaction_merge_blocker",
-  "full_validation_sha256": "0ebc99674e140153382c0a47594bea5f5254376a0e9d0bb2f930c0918454d648",
+  "validation_version": "mwbl-legacy-scale-500-ranking-audit-v2",
+  "validated_on": "2026-07-14",
+  "status": "pass",
+  "transition": "34 ingredients/72 pairs with coupled evidence top3 -> 187 ingredients/245 pairs with independent evidence top3",
+  "selection_policy": {
+    "ingredient_effect": "top3 effect_score",
+    "ingredient_evidence": "independent top3 authority-adjusted evidence_score",
+    "decays": [
+      1.0,
+      0.5,
+      0.25
+    ],
+    "effect_cap": 1.2,
+    "final_clamp": 1.0,
+    "score_evidence_explanation": "effect top3; unchanged by the numeric evidence top3 selection"
+  },
+  "input_sha256": {
+    "baseline_effect": "ddb884a0ec14893814bf9c6236f2d7871b0210eb8afa0f254645fc226f37eb50",
+    "baseline_evidence": "c5697bccafbbd9071be5f0af352118ab5809939e244c8b98274bf06c46926c1e",
+    "runtime_effect": "132b25778c820f2cc414e2e56bb4f6d414435e89391b66bd8c9feae91b86d6cd",
+    "runtime_evidence": "5b54ec6842f3987913ea2277beeb33ecfece8c5798d0957d7ec8f59f1c9b8d1b",
+    "canonical_mapping": "d51fe5528e6be040dd681c296dc4a71bcbf5679d61e7cba655ffa669fade3ce5",
+    "frozen_466_cohort": "ea898929076adfc6e0da3986cf38e4095f5685ba3b96176811026eae379f53d6"
+  },
   "populations": {
-    "all_products_with_ingredient_rows": 65955,
     "runtime_recommendable_with_price": 10164
   },
   "data_invariants": {
@@ -27,87 +46,207 @@
   "runtime_recommendable_effect_axis_summary": [
     {
       "effect_id": "effect_brightening",
-      "baseline_reach_pct": 37.35,
-      "expanded_reach_pct": 41.77,
-      "baseline_saturation_pct": 4.46,
-      "expanded_saturation_pct": 5.92,
-      "changed_product_pct": 9.54,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 77,
-      "evidence_worsened_count": 81,
-      "combined_worsened_count": 7,
-      "minimum_combined_point_delta": -4.4065
+      "effect_name": "미백·톤",
+      "baseline_reach_pct": 37.3475,
+      "expanded_reach_pct": 41.7749,
+      "baseline_saturation_pct": 4.4569,
+      "expanded_saturation_pct": 5.9229,
+      "effect_comparison": {
+        "changed_count": 970,
+        "changed_pct": 9.5435,
+        "improved_count": 970,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.95
+      },
+      "evidence_comparison": {
+        "changed_count": 959,
+        "changed_pct": 9.4353,
+        "improved_count": 959,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.3375
+      },
+      "combined_comparison": {
+        "changed_count": 1022,
+        "changed_pct": 10.0551,
+        "improved_count": 1022,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 30.775
+      },
+      "top_100_effect_overlap_count": 77
     },
     {
       "effect_id": "effect_moisture_barrier",
-      "baseline_reach_pct": 90.77,
-      "expanded_reach_pct": 97.93,
-      "baseline_saturation_pct": 65.55,
-      "expanded_saturation_pct": 75.86,
-      "changed_product_pct": 30.1,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 86,
-      "evidence_worsened_count": 204,
-      "combined_worsened_count": 93,
-      "minimum_combined_point_delta": -5.1435
+      "effect_name": "보습·장벽",
+      "baseline_reach_pct": 90.7713,
+      "expanded_reach_pct": 97.9339,
+      "baseline_saturation_pct": 65.5549,
+      "expanded_saturation_pct": 75.856,
+      "effect_comparison": {
+        "changed_count": 3059,
+        "changed_pct": 30.0964,
+        "improved_count": 3059,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.925
+      },
+      "evidence_comparison": {
+        "changed_count": 1369,
+        "changed_pct": 13.4691,
+        "improved_count": 1369,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.3125
+      },
+      "combined_comparison": {
+        "changed_count": 3260,
+        "changed_pct": 32.074,
+        "improved_count": 3260,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 28.55
+      },
+      "top_100_effect_overlap_count": 86
     },
     {
       "effect_id": "effect_acne_sebum",
-      "baseline_reach_pct": 39.94,
-      "expanded_reach_pct": 52.28,
-      "baseline_saturation_pct": 0.58,
-      "expanded_saturation_pct": 1.16,
-      "changed_product_pct": 24.97,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 58,
-      "evidence_worsened_count": 41,
-      "combined_worsened_count": 10,
-      "minimum_combined_point_delta": -1.0125
+      "effect_name": "여드름·피지",
+      "baseline_reach_pct": 39.9449,
+      "expanded_reach_pct": 52.2826,
+      "baseline_saturation_pct": 0.5805,
+      "expanded_saturation_pct": 1.161,
+      "effect_comparison": {
+        "changed_count": 2538,
+        "changed_pct": 24.9705,
+        "improved_count": 2538,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.8
+      },
+      "evidence_comparison": {
+        "changed_count": 1631,
+        "changed_pct": 16.0468,
+        "improved_count": 1631,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.26875
+      },
+      "combined_comparison": {
+        "changed_count": 2670,
+        "changed_pct": 26.2692,
+        "improved_count": 2670,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 25.075
+      },
+      "top_100_effect_overlap_count": 58
     },
     {
       "effect_id": "effect_wrinkle",
-      "baseline_reach_pct": 71.62,
-      "expanded_reach_pct": 73.11,
-      "baseline_saturation_pct": 2.71,
-      "expanded_saturation_pct": 9.53,
-      "changed_product_pct": 13.33,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 66,
-      "evidence_worsened_count": 849,
-      "combined_worsened_count": 391,
-      "minimum_combined_point_delta": -5.5845
+      "effect_name": "주름·탄력",
+      "baseline_reach_pct": 71.6155,
+      "expanded_reach_pct": 73.111,
+      "baseline_saturation_pct": 2.7056,
+      "expanded_saturation_pct": 9.5336,
+      "effect_comparison": {
+        "changed_count": 1355,
+        "changed_pct": 13.3314,
+        "improved_count": 1355,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.95
+      },
+      "evidence_comparison": {
+        "changed_count": 1292,
+        "changed_pct": 12.7115,
+        "improved_count": 1292,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.3375
+      },
+      "combined_comparison": {
+        "changed_count": 1932,
+        "changed_pct": 19.0083,
+        "improved_count": 1932,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 30.775
+      },
+      "top_100_effect_overlap_count": 66
     },
     {
       "effect_id": "effect_calming",
-      "baseline_reach_pct": 89.37,
-      "expanded_reach_pct": 92.98,
-      "baseline_saturation_pct": 1.03,
-      "expanded_saturation_pct": 1.47,
-      "changed_product_pct": 47.49,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 66,
-      "evidence_worsened_count": 3613,
-      "combined_worsened_count": 1243,
-      "minimum_combined_point_delta": -3.1035
+      "effect_name": "진정",
+      "baseline_reach_pct": 89.3743,
+      "expanded_reach_pct": 92.9752,
+      "baseline_saturation_pct": 1.0331,
+      "expanded_saturation_pct": 1.466,
+      "effect_comparison": {
+        "changed_count": 4827,
+        "changed_pct": 47.4911,
+        "improved_count": 4827,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.7575
+      },
+      "evidence_comparison": {
+        "changed_count": 4268,
+        "changed_pct": 41.9913,
+        "improved_count": 4268,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.2625
+      },
+      "combined_comparison": {
+        "changed_count": 5828,
+        "changed_pct": 57.3396,
+        "improved_count": 5828,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 24.225
+      },
+      "top_100_effect_overlap_count": 66
     },
     {
       "effect_id": "effect_exfoliation",
-      "baseline_reach_pct": 76.5,
-      "expanded_reach_pct": 77.19,
-      "baseline_saturation_pct": 1.29,
-      "expanded_saturation_pct": 1.29,
-      "changed_product_pct": 5.44,
-      "effect_only_worsened_count": 0,
-      "top_100_overlap_count": 100,
-      "evidence_worsened_count": 7,
-      "combined_worsened_count": 0,
-      "minimum_combined_point_delta": 0.0
+      "effect_name": "각질",
+      "baseline_reach_pct": 76.4955,
+      "expanded_reach_pct": 77.194,
+      "baseline_saturation_pct": 1.2889,
+      "expanded_saturation_pct": 1.2889,
+      "effect_comparison": {
+        "changed_count": 553,
+        "changed_pct": 5.4408,
+        "improved_count": 553,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.3
+      },
+      "evidence_comparison": {
+        "changed_count": 9,
+        "changed_pct": 0.0885,
+        "improved_count": 9,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 0.014
+      },
+      "combined_comparison": {
+        "changed_count": 559,
+        "changed_pct": 5.4998,
+        "improved_count": 559,
+        "worsened_count": 0,
+        "minimum_delta": 0.0,
+        "maximum_delta": 7.8
+      },
+      "top_100_effect_overlap_count": 100
     }
   ],
-  "merge_blocker": {
+  "resolved_issue": {
     "code": "effect_ranked_top3_reused_for_evidence",
-    "description": "The runtime ranks the top three ingredients by effect_score and reuses those rows and decays for the evidence component. A newly activated effect row can therefore displace a higher-evidence ingredient and lower the combined score.",
-    "recommended_resolution": "Select evidence top-three independently or explicitly accept the non-monotonic behavior, then rerun this 10164-product audit.",
-    "scoring_formula_changed_in_this_pr": false
-  }
+    "resolution": "Evidence top3 is selected independently by authority-adjusted evidence score.",
+    "remaining_separate_issue": "moisture top3 clamp saturation is tracked separately and is not changed here."
+  },
+  "validation_payload_sha256": "b7a93e6c1a82c8cd2ac80f50ad9f64c5ac077001df33da0742bc96223f572950"
 }
