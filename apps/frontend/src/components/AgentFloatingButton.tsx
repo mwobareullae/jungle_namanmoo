@@ -933,7 +933,73 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   return null;
 };
 
-const applyAgentUiAction = (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
+const waitForAgentInteraction = (milliseconds: number) => new Promise<void>((resolve) => {
+  window.setTimeout(resolve, milliseconds);
+});
+
+const findVisibleAgentTarget = (selector: string) => Array.from(document.querySelectorAll<HTMLElement>(selector))
+  .find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }) ?? null;
+
+const resolveAgentInteractionTarget = (action: AgentUiAction) => {
+  if (typeof document === "undefined") return null;
+  if (action.type === "show_cart") return findVisibleAgentTarget("[data-agent-cart-target]");
+  if (action.type !== "navigate") return null;
+
+  if (action.target === "home") return findVisibleAgentTarget("[data-agent-home-target]");
+  if (action.target === "login") return findVisibleAgentTarget("[data-agent-login-target]");
+  if (action.target === "checkout") return findVisibleAgentTarget("[data-agent-checkout-target]");
+  if (action.target === "product_detail") {
+    const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
+    return productId
+      ? findVisibleAgentTarget(`[data-agent-product-id="${CSS.escape(productId)}"]`)
+      : null;
+  }
+  return null;
+};
+
+const playAgentClickInteraction = async (target: HTMLElement | null) => {
+  if (!target || typeof window === "undefined") return;
+
+  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  await waitForAgentInteraction(180);
+  const rect = target.getBoundingClientRect();
+  target.classList.add("is-agent-interaction-target");
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    await waitForAgentInteraction(180);
+    target.classList.remove("is-agent-interaction-target");
+    return;
+  }
+
+  const cursor = document.createElement("span");
+  cursor.className = "agent-visual-cursor";
+  cursor.setAttribute("aria-hidden", "true");
+  const destinationX = rect.left + rect.width / 2;
+  const destinationY = rect.top + rect.height / 2;
+  cursor.style.left = `${Math.min(window.innerWidth - 28, destinationX + 88)}px`;
+  cursor.style.top = `${Math.min(window.innerHeight - 28, destinationY + 72)}px`;
+  document.body.appendChild(cursor);
+
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => {
+    cursor.style.left = `${destinationX}px`;
+    cursor.style.top = `${destinationY}px`;
+    resolve();
+  }));
+  await waitForAgentInteraction(420);
+  cursor.classList.add("is-clicking");
+  target.classList.add("is-agent-clicked");
+  await waitForAgentInteraction(180);
+  cursor.remove();
+  target.classList.remove("is-agent-clicked", "is-agent-interaction-target");
+};
+
+const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
+  const interactionTarget = resolveAgentInteractionTarget(action);
+  await playAgentClickInteraction(interactionTarget);
+
   if (action.type === "show_cart" && typeof window !== "undefined") {
     const currentProductId = new URLSearchParams(window.location.search).get("id");
     window.dispatchEvent(new CustomEvent(AGENT_SHOW_CART_EVENT, {
@@ -1374,7 +1440,7 @@ function AgentFloatingButton({
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action, response.items, response.message);
+      await applyAgentUiAction(response.ui_action, response.items, response.message);
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1424,7 +1490,7 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action);
+      await applyAgentUiAction(response.ui_action);
       const orderCode = readString(response.ui_action.payload.order_code);
       const orderStatus = readString(response.ui_action.payload.status);
       if (action === "confirm" && approvalMessage.toolName === "cancel_recent_order" && orderCode && orderStatus === "CANCEL_REQUESTED") {

@@ -659,6 +659,7 @@ function CartPage() {
                 </p>
                 <button
                   className="checkout-btn-main"
+                  data-agent-checkout-target
                   disabled={
                     selectedItems.length === 0 ||
                     isAuthLoading ||
