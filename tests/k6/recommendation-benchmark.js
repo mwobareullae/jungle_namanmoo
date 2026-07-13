@@ -31,8 +31,21 @@ export const options = {
 };
 
 export function setup() {
-  if (!USER_FIXTURE.auth_required || AUTH_COOKIE) {
-    return { authCookie: AUTH_COOKIE };
+  if (!USER_FIXTURE.auth_required) {
+    return { authCookies: AUTH_COOKIE ? [AUTH_COOKIE] : [] };
+  }
+
+  if (AUTH_COOKIE) {
+    return { authCookies: [AUTH_COOKIE] };
+  }
+
+  if (USER_FIXTURE.email_list_env) {
+    const emails = resolveEmailList(USER_FIXTURE);
+    const password = __ENV[USER_FIXTURE.password_env] || "";
+    if (!emails.length || !password) {
+      throw new Error(`Credentials are required for USER_TYPE=${USER_TYPE}`);
+    }
+    return { authCookies: emails.map((email) => loginBenchmarkUser(email, password)) };
   }
 
   const email = __ENV[USER_FIXTURE.email_env] || "";
@@ -40,7 +53,31 @@ export function setup() {
   if (!email || !password) {
     throw new Error(`Credentials are required for USER_TYPE=${USER_TYPE}`);
   }
+  return { authCookies: [loginBenchmarkUser(email, password)] };
+}
 
+function resolveEmailList(userFixture) {
+  const configuredEmails = (__ENV[userFixture.email_list_env] || "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+  if (configuredEmails.length) {
+    return configuredEmails;
+  }
+
+  const count = Number(__ENV[userFixture.email_count_env] || userFixture.generated_email_count || "0");
+  const prefix = __ENV[userFixture.email_prefix_env] || userFixture.generated_email_prefix || "";
+  const domain = __ENV[userFixture.email_domain_env] || userFixture.generated_email_domain || "";
+  if (!count || !prefix || !domain) {
+    return [];
+  }
+  return Array.from({ length: count }, (_, index) => {
+    const paddedIndex = String(index + 1).padStart(2, "0");
+    return `${prefix}_${paddedIndex}@${domain}`;
+  });
+}
+
+function loginBenchmarkUser(email, password) {
   const response = http.post(
     `${BASE_URL}/auth/login`,
     JSON.stringify({ email, password }),
@@ -58,7 +95,7 @@ export function setup() {
   if (!authCookie) {
     throw new Error("Benchmark login response did not include a session cookie");
   }
-  return { authCookie };
+  return authCookie;
 }
 
 export default function (data) {
@@ -67,15 +104,23 @@ export default function (data) {
   const avoidIngredients = __ENV.AVOID_INGREDIENTS
     ? __ENV.AVOID_INGREDIENTS.split(",").filter(Boolean)
     : requestContext.avoid_ingredients || [];
-  const payload = JSON.stringify({
+  const payloadObject = {
     concern_text: requestCase.query,
-    skin_type: __ENV.SKIN_TYPE || requestContext.skin_type,
-    sensitivity: __ENV.SENSITIVITY || requestContext.sensitivity,
     avoid_ingredients: avoidIngredients,
-  });
+  };
+  const skinType = __ENV.SKIN_TYPE || requestContext.skin_type;
+  const sensitivity = __ENV.SENSITIVITY || requestContext.sensitivity;
+  if (skinType !== undefined) {
+    payloadObject.skin_type = skinType;
+  }
+  if (sensitivity !== undefined) {
+    payloadObject.sensitivity = sensitivity;
+  }
+  const payload = JSON.stringify(payloadObject);
   const headers = { "Content-Type": "application/json" };
-  if (data?.authCookie) {
-    headers.Cookie = data.authCookie;
+  const authCookie = pickAuthCookie(data);
+  if (authCookie) {
+    headers.Cookie = authCookie;
   }
 
   const response = http.post(`${BASE_URL}/recommendations?page=1&page_size=10`, payload, {
@@ -93,6 +138,14 @@ export default function (data) {
     "recommendation status is 200": (res) => res.status === 200,
     "recommendation has products": () => Array.isArray(body?.products) && body.products.length > 0,
   });
+}
+
+function pickAuthCookie(data) {
+  const authCookies = data?.authCookies || [];
+  if (!authCookies.length) {
+    return "";
+  }
+  return authCookies[(__VU + __ITER) % authCookies.length];
 }
 
 function parseJson(response) {
