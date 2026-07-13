@@ -160,10 +160,16 @@ function CartPage() {
       }
     };
 
+    const handleCartUpdated = () => {
+      void loadCart();
+    };
+
     void loadCart();
+    window.addEventListener("cart:updated", handleCartUpdated);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("cart:updated", handleCartUpdated);
     };
   }, [isAgentCheckout, requestedAgentCartItemIds]);
 
