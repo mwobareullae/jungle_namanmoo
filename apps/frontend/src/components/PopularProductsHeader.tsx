@@ -2,10 +2,9 @@ type Category = { code: string; label: string; icon?: string };
 
 const categories: Category[] = [
   { code: "", label: "전체" },
-  { code: "toner", label: "토너", icon: "/category-icons/toner.png" },
-  { code: "serum", label: "세럼", icon: "/category-icons/serum.png" },
-  { code: "cream", label: "크림", icon: "/category-icons/cream.png" },
-  { code: "sunscreen", label: "선크림", icon: "/category-icons/sunscreen.png" }
+  { code: "ampoule", label: "앰플", icon: "/category-icons/serum.png" },
+  { code: "skin", label: "스킨", icon: "/category-icons/toner.png" },
+  { code: "lotion", label: "로션", icon: "/category-icons/cream.png" }
 ];
 
 const getCurrentMonthWeekLabel = () => {
@@ -40,7 +39,7 @@ function PopularProductsHeader({
   return (
     <>
       <div className="popular-products-kicker">{getCurrentMonthWeekLabel()}</div>
-      <h1>많이 본 BEST</h1>
+      <h1>많이 본 상품</h1>
       <div className="popular-category-tabs" role="tablist" aria-label="상품 카테고리">
         {categories.map((item) => (
           <button
