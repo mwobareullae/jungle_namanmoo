@@ -8,7 +8,7 @@
 | --- | --- |
 | 한 문장 | AI 추천 결과를 실제 구매 행동으로 연결할 수 있는 Spring 기반 1P 자사몰을 완성한다. |
 | AI 책임 | 피부 고민/프로필을 받아 추천 결과, 추천 이유, 상품 상세 근거를 제공한다. |
-| Commerce 책임 | 회원, 찜, 장바구니, checkout, 결제 mock, 주문, 재고, 관리자 출고를 처리한다. |
+| Commerce 책임 | 회원, 찜, 장바구니, checkout, Toss 결제, 주문, 재고, 관리자 출고를 처리한다. |
 | 핵심 경계 | FastAPI는 추천을 계산하고, Spring은 구매 상태를 변경한다. |
 
 ## 현재 FastAPI 계약
@@ -242,7 +242,7 @@ Spring은 이 payload를 받은 뒤 `product_id` 기준으로 현재 판매 가�
 | `wishlist_added` | Spring | `member_id`, `product_id`, `source`, `recommendation_id` |
 | `cart_item_added` | Spring | `member_id`, `product_id`, `quantity`, `source`, `recommendation_id` |
 | `checkout_started` | Spring | `member_id`, `cart_id`, `order_draft_id` |
-| `payment_mock_completed` | Spring | `member_id`, `order_id`, `payment_status` |
+| `payment_completed` | FastAPI | `user_id`, `order_code`, `payment_status`, `provider=TOSS` |
 | `order_completed` | Spring | `member_id`, `order_id`, `order_status` |
 
 ## 에러 경계
@@ -254,7 +254,7 @@ Spring은 이 payload를 받은 뒤 `product_id` 기준으로 현재 판매 가�
 | 상품 없음 | FastAPI/Spring | `404 NOT_FOUND` |
 | 추천 상품이 판매 불가 | Spring | `409 PRODUCT_UNAVAILABLE` |
 | 재고 부족 | Spring | `409 OUT_OF_STOCK` |
-| mock 결제 실패 | Spring | `402 PAYMENT_FAILED` 또는 `409 PAYMENT_REJECTED` |
+| Toss 결제 실패 | FastAPI | Toss confirm 결과에 따라 `409 PAYMENT_REJECTED`, `502 TOSS_PAYMENT_ERROR` 등 표준 오류 응답 |
 
 ## 침범 금지선
 
@@ -283,7 +283,7 @@ Spring은 이 payload를 받은 뒤 `product_id` 기준으로 현재 판매 가�
 | AI agent가 직접 장바구니에 담기 | P2는 사용자가 버튼으로 구매 행동을 확정해야 한다. |
 | 실시간 외부 가격 동기화 | P2는 seed/관리자 가격 기준으로 충분하다. |
 | 다중 셀러 offer 경쟁 | P2는 1P 자사몰이므로 단일 판매자 기준이다. |
-| 실제 PG 결제 | P2는 mock/sandbox 결제로 주문 완료 흐름을 보여준다. |
+| 실제 PG 결제 | P2는 Toss sandbox 또는 운영 자격 증명으로 동일한 주문 완료 흐름을 제공한다. Mock 결제 실행은 금지한다. |
 | Elasticsearch 운영 클러스터 | P2 검색/추천은 FastAPI DB/pgvector 기반으로 방어한다. |
 
 ## 완료 기준

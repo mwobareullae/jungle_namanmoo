@@ -17,6 +17,7 @@ function ProductDetailHero({
   isAddingToCart,
   isNarrativeDetailOpen,
   isNarrativeLoading,
+  showAiNarrative,
   showRecommendationCriteria,
   isProductSoldOut,
   isWishlistPending,
@@ -72,7 +73,7 @@ function ProductDetailHero({
             <span className="detail-tag" key={tag}>{tag}</span>
           ))}
         </div>
-        <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
+        {showAiNarrative ? <div className={`detail-match ai-narrative-card${isNarrativeLoading ? " loading" : ""}`}>
           <div className="ai-narrative-head">
             <span className="ai-narrative-head-icon" aria-hidden="true">
               <svg height="18" viewBox="0 0 18 18" width="18">
@@ -141,7 +142,7 @@ function ProductDetailHero({
               </div>
             ) : null}
           </div>
-        </div>
+        </div> : null}
         {showRecommendationCriteria ? <RecommendationCriteriaPanel product={product} /> : null}
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}

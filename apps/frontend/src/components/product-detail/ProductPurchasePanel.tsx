@@ -12,7 +12,7 @@ function ProductPurchasePanel({
   return (
     <>
       <div data-commerce-only className="detail-cta-row">
-        <button className="detail-btn" disabled={isAddingToCart || isProductSoldOut} type="button" onClick={onAddToCart}>
+        <button className="detail-btn" data-agent-cart-target disabled={isAddingToCart || isProductSoldOut} type="button" onClick={onAddToCart}>
           {isProductSoldOut ? "일시품절" : isAddingToCart ? "담는 중..." : "장바구니"}
         </button>
         <button

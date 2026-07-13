@@ -2,10 +2,12 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "r
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
+import AgentCommerceOverlay from "./components/AgentCommerceOverlay";
 import AppFooter from "./components/AppFooter";
 import HomeHeader from "./components/HomeHeader";
 import PopularProductsHeader from "./components/PopularProductsHeader";
 import Skeleton from "./components/ui/Skeleton";
+import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
@@ -835,7 +837,7 @@ function LegacyApp() {
 function GlobalAgentEntry() {
   const location = useLocation();
   const { user, isAuthLoading } = useAuth();
-  const [hasSavedSkinProfile, setHasSavedSkinProfile] = useState(false);
+  const [savedSkinProfile, setSavedSkinProfile] = useState<Awaited<ReturnType<typeof getSavedSkinProfile>>>(null);
   const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
 
   const hasTemporarySkinProfile = useMemo(() => {
@@ -850,7 +852,7 @@ function GlobalAgentEntry() {
 
     if (!user) {
       const timerId = window.setTimeout(() => {
-        setHasSavedSkinProfile(false);
+        setSavedSkinProfile(null);
         setIsSkinProfileResolved(true);
       }, 0);
       return () => window.clearTimeout(timerId);
@@ -860,7 +862,7 @@ function GlobalAgentEntry() {
 
     getSavedSkinProfile().then((profile) => {
       if (isMounted) {
-        setHasSavedSkinProfile(Boolean(profile));
+        setSavedSkinProfile(profile);
         setIsSkinProfileResolved(true);
       }
     });
@@ -874,7 +876,7 @@ function GlobalAgentEntry() {
     return null;
   }
 
-  const skinProfileStatus = hasSavedSkinProfile
+  const skinProfileStatus = savedSkinProfile
     ? "saved"
     : hasTemporarySkinProfile
       ? "temporary"
@@ -883,6 +885,27 @@ function GlobalAgentEntry() {
         : "empty";
 
   const path = location.pathname;
+  const quickQuestionContext = path.startsWith("/product-detail")
+    ? "productDetail"
+    : path === "/cart"
+      ? "cart"
+      : path.startsWith("/checkout")
+        ? "checkout"
+        : path.startsWith("/payment-complete") || path.startsWith("/mypage/orders")
+          ? "order"
+          : path.startsWith("/mypage/skin-profile") || path.startsWith("/skin-test")
+            ? "skinProfile"
+            : path.startsWith("/mypage/wishlist")
+              ? "wishlist"
+              : path.startsWith("/mypage/recent")
+                ? "recent"
+                : path.startsWith("/login") || path.startsWith("/signup")
+                  ? "auth"
+                  : path === "/mypage" || path.startsWith("/mypage/")
+                    ? "mypage"
+                    : /search|category|products|brands/.test(path)
+                      ? "productList"
+                      : "home";
   const agentSurface = path.startsWith("/product-detail")
     ? "productDetail"
     : /recommend|skin-test|recommendations/.test(path)
@@ -893,6 +916,8 @@ function GlobalAgentEntry() {
 
   return (
     <AgentFloatingButton
+      quickQuestionContext={quickQuestionContext}
+      skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       surface={agentSurface}
     />
@@ -900,7 +925,8 @@ function GlobalAgentEntry() {
 }
 
 function GlobalFooter() {
-  return <AppFooter />;
+  const location = useLocation();
+  return <AppFooter variant={location.pathname === "/" ? "home" : "default"} />;
 }
 
 function RouteLoadingFallback() {
@@ -975,7 +1001,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
-    <>
+    <ProductComparisonProvider>
       <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
@@ -1123,9 +1149,10 @@ function App() {
           <Route path="*" element={<LegacyApp />} />
         </Routes>
       </Suspense>
+      <AgentCommerceOverlay />
       <GlobalFooter />
       <GlobalAgentEntry />
-    </>
+    </ProductComparisonProvider>
   );
 }
 
