@@ -7,7 +7,8 @@ export type AgentToolName =
   | "get_cart"
   | "add_to_cart"
   | "prepare_checkout"
-  | "prepare_order";
+  | "prepare_order"
+  | "compose_cart";
 
 export type AgentToolCallStatus =
   | "PROPOSED"

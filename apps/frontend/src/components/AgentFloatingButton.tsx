@@ -553,6 +553,15 @@ const getApprovalCopy = (toolName?: AgentToolName | null) => {
     };
   }
 
+  if (toolName === "compose_cart") {
+    return {
+      approveLabel: "장바구니 반영",
+      description: "선택한 상품들을 실제 장바구니에 추가하기 전에 확인이 필요해요.",
+      rejectLabel: "구성만 보기",
+      title: "이 구성으로 장바구니에 담을까요?",
+    };
+  }
+
   return {
     approveLabel: "승인",
     description: "이 작업은 진행 전에 확인이 필요해요.",
@@ -731,6 +740,7 @@ const getResultTitle = (action: AgentUiAction) => {
   if (action.target === "similar_products") return "비슷한 상품";
   if (action.target === "refined_products") return "조건에 맞는 상품";
   if (action.type === "show_products") return "상품 결과";
+  if (action.target === "agent_confirmation") return "추천 장바구니 구성";
   return "처리 결과";
 };
 
@@ -1465,6 +1475,13 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       await applyAgentUiAction(response.ui_action);
+      if (action === "confirm" && approvalMessage.toolName === "compose_cart") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+        const cartTarget = findVisibleAgentTarget("[data-agent-cart-navigation-target]");
+        await playAgentClickInteraction(cartTarget);
+        await navigateWithinApp("/cart");
+      }
       const orderCode = readString(response.ui_action.payload.order_code);
       const orderStatus = readString(response.ui_action.payload.status);
       if (action === "confirm" && approvalMessage.toolName === "cancel_recent_order" && orderCode && orderStatus === "CANCEL_REQUESTED") {
@@ -1579,8 +1596,10 @@ function AgentFloatingButton({
         {message.resolved ? (
           <span className="agent-chat-approval-state">
             {message.resolved === "approved"
-              ? message.toolName === "cancel_recent_order" ? "취소 처리 중" : "승인됨"
-              : "취소 안 함"}
+              ? message.toolName === "cancel_recent_order"
+                ? "취소 처리 중"
+                : message.toolName === "compose_cart" ? "반영됨" : "승인됨"
+              : message.toolName === "compose_cart" ? "반영 안 함" : "취소 안 함"}
           </span>
         ) : null}
       </div>
