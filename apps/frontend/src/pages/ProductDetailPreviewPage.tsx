@@ -1,6 +1,7 @@
 import "./ProductDetailPreviewPage.css";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import HomeHeader from "../components/HomeHeader";
+import ProductComparisonPanel from "../components/ProductComparisonPanel";
 import { api } from "../lib/api";
 import type { ProductDetail } from "../types/recommendation";
 import type { ProductListingItem } from "../types/product";
@@ -23,6 +24,7 @@ import CaretRightIcon from "../components/ui/CaretRightIcon";
 import CaretDownIcon from "../components/ui/CaretDownIcon";
 import CaretUpIcon from "../components/ui/CaretUpIcon";
 import RecommendationCriteriaPanel from "../components/product-detail/RecommendationCriteriaPanel";
+import { useProductComparison } from "../contexts/ProductComparisonContext";
 
 const tabs = ["상세정보", "성분정보", "리뷰", "점수분석", "Q&A"];
 const scoreLabels: Record<string, string> = { ingredient_effect_score: "성분 효능", ingredient_evidence_score: "근거 신뢰도", concentration_fit_score: "함량 적합도", skin_type_match_score: "피부 타입", sensitivity_score: "민감도", price_value_score: "가격 가치", keyword_score: "키워드", vector_score: "유사도", search_match_score: "검색 일치" };
@@ -49,8 +51,12 @@ function EvidenceIcon({ icon }: { icon: EvidenceIconKey }) {
 
 function ProductDetailPreviewPage() {
   const recommendationId = new URLSearchParams(window.location.search).get("recommendation_id");
+  const productId = new URLSearchParams(window.location.search).get("id");
   const [activeTab, setActiveTab] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [comparisonProducts, setComparisonProducts] = useState<ProductDetail[]>([]);
+  const [comparisonErrorMessage, setComparisonErrorMessage] = useState("");
+  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedEvidenceEffect, setSelectedEvidenceEffect] = useState<string | null>(null);
@@ -65,6 +71,7 @@ function ProductDetailPreviewPage() {
   const [reviewCursor, setReviewCursor] = useState<string | null>(null);
   const [isPurchasePending, setIsPurchasePending] = useState(false);
   const { user } = useAuth();
+  const { clearComparison, comparisonIntent } = useProductComparison();
   const { message: toastMessage, showToast } = useActivityToast();
   const reviewApi = useProductReviewsApi(product?.product_id, product?.review_summary, {
     cursor: reviewCursor,
@@ -83,8 +90,10 @@ function ProductDetailPreviewPage() {
     [hasScoreAnalysis],
   );
 
+  const activeComparison = comparisonIntent?.sourceProductId === productId ? comparisonIntent : null;
+  const activeComparisonCreatedAt = activeComparison?.createdAt;
+
   useEffect(() => {
-    const productId = new URLSearchParams(window.location.search).get("id");
     if (!productId) return;
     let isMounted = true;
     api.getProduct(productId, recommendationId ?? undefined).then(async (response) => {
@@ -111,7 +120,57 @@ function ProductDetailPreviewPage() {
     return () => {
       isMounted = false;
     };
-  }, [recommendationId]);
+  }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!activeComparison) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadComparisonProducts = async () => {
+      setIsComparisonLoading(true);
+      setComparisonErrorMessage("");
+
+      const responses = await Promise.all(activeComparison.compareProductIds.map(async (compareProductId) => {
+        try {
+          return await api.getProduct(compareProductId, recommendationId ?? undefined);
+        } catch {
+          return null;
+        }
+      }));
+
+      if (!isMounted) return;
+      const loadedProducts = responses.filter((response): response is ProductDetail => response !== null);
+      setComparisonProducts(loadedProducts);
+      if (loadedProducts.length === 0) {
+        setComparisonErrorMessage("비교 상품 정보를 불러오지 못했습니다.");
+      } else if (loadedProducts.length < activeComparison.compareProductIds.length) {
+        setComparisonErrorMessage("일부 비교 상품 정보를 불러오지 못했습니다.");
+      }
+      setIsComparisonLoading(false);
+    };
+
+    void loadComparisonProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeComparison, recommendationId]);
+
+  useEffect(() => {
+    if (!activeComparisonCreatedAt || !product) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("productComparisonPanel")?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeComparisonCreatedAt, product]);
 
   useEffect(() => {
     let isMounted = true;
@@ -312,6 +371,23 @@ function ProductDetailPreviewPage() {
           <div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending} type="button" onClick={() => void handlePurchase()}>{isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜하기</button><button data-agent-cart-target type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div>
         </div>
       </section>
+
+      {product && activeComparison ? (
+        <ProductComparisonPanel
+          differences={activeComparison.differences}
+          errorMessage={comparisonErrorMessage}
+          expectedProductCount={activeComparison.compareProductIds.length + 1}
+          initiallyPriceOnly
+          isLoading={isComparisonLoading}
+          onClose={clearComparison}
+          products={[product, ...comparisonProducts]}
+          recommendationReason={activeComparison.recommendationReason}
+          sensitivity={new URLSearchParams(window.location.search).get("sensitivity") ?? undefined}
+          skinType={new URLSearchParams(window.location.search).get("skin_type") ?? undefined}
+          source={activeComparison.source}
+          summary={activeComparison.summary}
+        />
+      ) : null}
 
       {(!recommendationId && hasProductReviews) || (recommendationId && product) ? <section className="naver-preview-review-strip">{!recommendationId && hasProductReviews ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button" onClick={handleShowAllReviews}>리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section> : null}
 

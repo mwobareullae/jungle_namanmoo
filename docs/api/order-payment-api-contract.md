@@ -4,7 +4,7 @@ Backend owner: R3 Wonwoo
 
 ## Purpose
 
-This document fixes the backend contract for order creation, inventory reservation, Toss payment, and order lookup.
+This document fixes the backend contract for order creation, inventory reservation, payment mock, and order lookup.
 
 It follows the current commerce direction:
 
@@ -22,12 +22,12 @@ Included in this stage:
 - Selected-cart-item checkout preview.
 - Order creation.
 - Inventory reservation on order creation.
-- Toss payment-window request and server-side payment confirmation.
+- Mock payment success/failure.
 - Toss payment confirm request/response boundary validation.
 - Toss payment attempt tracking and uncertain-state recovery.
 - Toss webhook receipt with duplicate-event protection.
 - Toss payment lookup reconciliation.
-- Toss cancellation processing for `CANCEL_REQUESTED` orders.
+- Full Toss/Mock cancellation processing for `CANCEL_REQUESTED` orders.
 - Payment expiration handling through service logic and confirm-time checks.
 - Order list/detail.
 - Pre-payment cancel.
@@ -54,8 +54,8 @@ Deferred / advanced:
 - Inventory is reserved when the order is created.
 - Inventory is actually deducted only after payment approval.
 - Failed, expired, or canceled pending payments release reserved inventory.
-- New order requests accept only the `TOSS` provider.
-- Legacy Mock confirm/fail routes are disabled and always return `410 MOCK_PAYMENT_DISABLED`.
+- New orders accept only `MOCK` and `TOSS` providers.
+- Mock confirm/fail APIs can change only `MOCK` payments.
 - Toss webhook payloads never directly finalize payment; the backend verifies the payment through the Toss lookup API.
 - `CONFIRMING` and `UNKNOWN` payments retain inventory reservations until lookup reconciliation confirms a terminal result.
 
@@ -67,7 +67,7 @@ Deferred / advanced:
 3. Frontend calls POST /api/orders with the same selected cart_item_ids.
 4. Backend creates PENDING_PAYMENT order and READY payment.
 5. Backend reserves inventory.
-6. Frontend opens the Toss payment window with order_code/payment_code.
+6. Frontend starts mock/Toss payment with order_code/payment_code.
 7. Payment confirm succeeds or fails.
 8. Backend updates order, payment, inventory, inventory_movements, and payment_events.
 ```
@@ -132,16 +132,14 @@ MOCK
 TOSS
 ```
 
-`MOCK` remains in the database and historical service code only for existing records and migration compatibility. New order requests reject it with `UNSUPPORTED_PAYMENT_PROVIDER`, and its public confirm/fail routes return `410 MOCK_PAYMENT_DISABLED`.
-
-The following values also remain reserved in the current database enum for compatibility, but new order requests reject them with `UNSUPPORTED_PAYMENT_PROVIDER`:
+The following values remain reserved in the current database enum for compatibility, but new order requests reject them with `UNSUPPORTED_PAYMENT_PROVIDER`:
 
 ```text
 KAKAO_PAY
 NAVER_PAY
 ```
 
-The active payment implementation is Toss. Sandbox or production mode is selected only by deployment credentials; the API contract is identical.
+MVP implementation priority is `MOCK`, then Toss sandbox.
 
 ## Public Codes
 
@@ -333,7 +331,7 @@ Request using saved address:
 {
   "cart_item_ids": [12, 15],
   "address_id": 3,
-  "payment_provider": "TOSS"
+  "payment_provider": "MOCK"
 }
 ```
 
@@ -353,7 +351,7 @@ Request using direct shipping address:
     "save_to_address_book": true,
     "set_as_default": false
   },
-  "payment_provider": "TOSS"
+  "payment_provider": "MOCK"
 }
 ```
 
@@ -381,7 +379,7 @@ Response:
   "status": "PENDING_PAYMENT",
   "payment": {
     "payment_code": "pay_20260705_p8a1z6cn",
-    "provider": "TOSS",
+    "provider": "MOCK",
     "status": "READY",
     "amount": 41000,
     "currency": "KRW"
@@ -532,7 +530,7 @@ Response:
   "currency": "KRW",
   "payment": {
     "payment_code": "pay_20260705_p8a1z6cn",
-    "provider": "TOSS",
+    "provider": "MOCK",
     "status": "APPROVED",
     "approved_at": "2026-07-05T12:01:00+09:00"
   },
@@ -552,36 +550,63 @@ Behavior:
 - Immediate cancel releases reserved inventory.
 - Payment status becomes `CANCELED`.
 - If order is already `PAID`, do not auto-refund in MVP.
-- Paid orders move to `CANCEL_REQUESTED`.
+- Paid orders move to `CANCEL_REQUESTED`, and an `order_cancel_requests` row (`status="REQUESTED"`) is created in the same transaction for admin review (see `admin-dashboard-milestone-plan.md` P1-M1.5-B).
+- Calling this again while the order is already `CANCEL_REQUESTED` is idempotent and returns the existing request's `request_code` unchanged.
+- If the order is `CANCEL_REQUESTED` but has no matching `order_cancel_requests` row (data inconsistency), responds `409 ORDER_CANCEL_REQUEST_NOT_FOUND` instead of a silent success.
 
-Response:
+Response — immediate cancel (`PENDING_PAYMENT` → `CANCELED`), no cancel request record involved:
 
 ```json
 {
   "order_code": "ord_20260705_k7x9q2m4",
-  "status": "CANCELED"
+  "status": "CANCELED",
+  "request_code": null
 }
 ```
 
+Response — paid order requests cancellation (`PAID` → `CANCEL_REQUESTED`):
+
+```json
+{
+  "order_code": "ord_20260705_k7x9q2m4",
+  "status": "CANCEL_REQUESTED",
+  "request_code": "ocr_20260713_gkViqrBo"
+}
+```
+
+Calling the endpoint again for the same `CANCEL_REQUESTED` order returns `200` with the same `request_code` (no new record is created).
+
 ## `POST /api/payments/{payment_code}/mock/confirm`
 
-Disabled legacy endpoint. It is retained only so old clients receive an explicit contract error instead of an ambiguous 404.
+Completes mock payment.
 
 Requires:
 
 - Login.
 - The payment belongs to the current user's order.
 
-Behavior: always returns HTTP `410` without changing payment, order, or inventory state.
+Behavior:
+
+- Verifies the payment provider is `MOCK`.
+- Verifies order is `PENDING_PAYMENT`.
+- Verifies payment is `READY`.
+- Verifies current time is before `payment_expires_at`.
+- Changes payment to `APPROVED`.
+- Changes order to `PAID`.
+- Converts reserved inventory to actual stock deduction.
+- Records `inventory_movements`.
+- Records `payment_events`.
+- Idempotent if already approved.
 
 Response:
 
 ```json
 {
-  "error": {
-    "code": "MOCK_PAYMENT_DISABLED",
-    "message": "Mock payment is disabled."
-  }
+  "order_code": "ord_20260705_k7x9q2m4",
+  "payment_code": "pay_20260705_p8a1z6cn",
+  "order_status": "PAID",
+  "payment_status": "APPROVED",
+  "approved_at": "2026-07-05T12:01:00+09:00"
 }
 ```
 
@@ -589,16 +614,24 @@ Response:
 
 Fails mock payment.
 
-Behavior: always returns HTTP `410` without changing payment, order, or inventory state.
+Behavior:
+
+- Verifies the payment provider is `MOCK`.
+- Changes payment to `FAILED`.
+- Changes order to `PAYMENT_FAILED`.
+- Releases reserved inventory.
+- Records `inventory_movements`.
+- Records `payment_events`.
+- Idempotent if already failed.
 
 Response:
 
 ```json
 {
-  "error": {
-    "code": "MOCK_PAYMENT_DISABLED",
-    "message": "Mock payment is disabled."
-  }
+  "order_code": "ord_20260705_k7x9q2m4",
+  "payment_code": "pay_20260705_p8a1z6cn",
+  "order_status": "PAYMENT_FAILED",
+  "payment_status": "FAILED"
 }
 ```
 
@@ -632,7 +665,7 @@ Behavior:
 - Requires the Toss response to contain matching `paymentKey`, `orderId`, and integer `totalAmount`, with `status = DONE`.
 - Stores `provider_payment_key`.
 - Stores a payment event with a deterministic SHA-256-based event id so provider key length cannot exceed the DB event-id limit.
-- Applies the successful-payment DB transition after Toss approval.
+- Applies the same successful-payment DB transition as mock confirm.
 
 Hardening deferred:
 
@@ -776,37 +809,40 @@ MVP automation boundary:
 
 - Pre-payment cancel is immediate.
 - Payment fail/expiry releases reserved inventory.
-- Toss payment success deducts inventory.
+- Mock payment success deducts inventory.
 - Paid order claim requests are stored in claim tables with status and event history.
 - Refund execution, return pickup, and exchange reshipment remain later admin/PG/shipment work.
 
 ## Cancellation processing
 
 `POST /api/orders/{order_code}/cancel` does not call an external payment
-provider. For a paid order it records `CANCEL_REQUESTED` and returns. The
-operational processor then handles full cancellation:
+provider. For a paid order it records `CANCEL_REQUESTED` and creates an
+`order_cancel_requests` row (`status = REQUESTED`) in the same transaction,
+returning its `request_code`.
+
+**Update (2026-07-13):** full cancellation is no longer processed by an
+unattended batch job. An administrator reviews each request through the admin
+API and decides:
 
 ```text
-# One-off/manual processing
-python -m app.cli.cancel_requested_orders --limit 100
-python -m app.cli.cancel_requested_orders --limit 100 --reason "customer requested cancellation"
-python -m app.cli.cancel_requested_orders --limit 100 --dry-run
-
-# Continuous processing (the Docker Compose cancel-worker service runs this)
-python -m app.cli.cancel_requested_orders_worker
+GET  /api/admin/order-cancel-requests
+GET  /api/admin/order-cancel-requests/{request_code}
+POST /api/admin/order-cancel-requests/{request_code}/approve
+POST /api/admin/order-cancel-requests/{request_code}/reject
 ```
 
-The continuous worker polls every `CANCEL_WORKER_INTERVAL_SECONDS` (default:
-5 seconds) and processes up to `CANCEL_WORKER_BATCH_SIZE` orders (default: 20)
-per iteration. `CANCEL_WORKER_REASON` supplies the reason sent to Toss. These
-settings are operational controls only and do not change the API contract.
+Approving a `MOCK` payment cancels it synchronously: the order and order
+items move to `CANCELED`, the payment moves to `CANCELED`, and the sold
+quantity is restored to inventory with a `SALE_CANCEL` movement. Approving a
+non-`MOCK` payment is rejected with `409 MOCK_CANCEL_PROVIDER_MISMATCH` —
+external (`TOSS`, etc.) provider cancellation still needs a dedicated
+processor and is out of scope until a real PG integration exists. Rejecting a
+request requires a `rejection_reason` and returns the order to `PAID`, so the
+customer can re-request cancellation or the order can continue to shipment.
 
-Historical `MOCK` rows are processed locally only for backward compatibility. New `TOSS` payments call the Toss cancel API and are finalized only when the response has `status = CANCELED`. A
-network failure, provider error, missing payment key, or invalid response
-keeps the order at `CANCEL_REQUESTED` and records an `UNKNOWN` cancel attempt
-for a later retry. Full cancellation marks the order and order items as
-`CANCELED`, marks the payment as `CANCELED`, and restores the sold quantity to
-inventory with a `SALE_CANCEL` movement.
+The previous `python -m app.cli.cancel_requested_orders` batch script
+(unattended, no admin review) has been removed — it predates the admin
+approval flow above and does not exist in this codebase anymore.
 
 ## Order claim API
 
@@ -844,7 +880,7 @@ values are null until the corresponding fulfillment status is recorded.
 
 ## Later Revisit
 
-Revisit these after the Toss payment and core order/inventory flow are stable:
+Revisit these after mock payment and core order/inventory flow are stable:
 
 - Toss/Kakao external API transaction boundary.
 - External payment success but DB transition failure recovery.

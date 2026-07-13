@@ -48,6 +48,7 @@ class OrderCreateResponse(BaseModel):
 class OrderCancelResponse(BaseModel):
     order_code: str
     status: str
+    request_code: str | None = None
 
 
 class OrderListItem(BaseModel):

@@ -11,14 +11,20 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentAttempt, PaymentEvent
+from app.db.models.commerce import (
+    Inventory,
+    InventoryMovement,
+    Order,
+    OrderCancelRequest,
+    OrderItem,
+    Payment,
+    PaymentEvent,
+)
 from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.api.routes.payments import get_toss_payments_client
 from app.main import app
 from app.services.db_seed import seed_database
-from app.services.payment_cancel_service import cancel_requested_orders
-from app.services.toss_payments_client import TossPaymentsClientError
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -73,7 +79,11 @@ def test_cancel_pending_payment_order_releases_reserved_stock(
         logs.close()
 
     assert response.status_code == 200
-    assert response.json() == {"order_code": pending["order_code"], "status": "CANCELED"}
+    assert response.json() == {
+        "order_code": pending["order_code"],
+        "status": "CANCELED",
+        "request_code": None,
+    }
     log_payload = next(line for line in logs.json_lines if line["event"] == "order_cancel_completed")
     assert log_payload["request_id"] == "order-cancel-request"
     assert log_payload["order_status"] == "CANCELED"
@@ -163,7 +173,10 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     response = client.post(f"/api/orders/{pending['order_code']}/cancel")
 
     assert response.status_code == 200
-    assert response.json() == {"order_code": pending["order_code"], "status": "CANCEL_REQUESTED"}
+    body = response.json()
+    assert body["order_code"] == pending["order_code"]
+    assert body["status"] == "CANCEL_REQUESTED"
+    assert body["request_code"] is not None
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
@@ -174,6 +187,9 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
         events = session.execute(select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)).scalars().all()
         event_log = session.execute(
             select(EventLog).where(EventLog.event_name == "order_cancelled", EventLog.order_id == order.id)
+        ).scalar_one()
+        cancel_request = session.execute(
+            select(OrderCancelRequest).where(OrderCancelRequest.order_id == order.id)
         ).scalar_one()
 
     assert order.status == "CANCEL_REQUESTED"
@@ -186,109 +202,127 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert event_log.metadata_json["order_status"] == "CANCEL_REQUESTED"
     assert event_log.metadata_json["payment_status"] == "APPROVED"
+    assert cancel_request.request_code == body["request_code"]
+    assert cancel_request.status == "REQUESTED"
+    assert cancel_request.user_id == order.user_id
+    assert cancel_request.processed_at is None
 
 
-def test_cancel_requested_mock_order_restores_paid_stock(
+def test_cancel_requested_order_replay_returns_same_request_code(
     client: TestClient,
     db_engine: Engine,
 ) -> None:
     pending = _create_pending_order(
         client,
         db_engine,
-        email="cancel-requested-mock@example.com",
-        nickname="cancel-requested-mock",
-        quantity=2,
-    )
-    confirm = _confirm_toss_payment(client, pending)
-    assert confirm.status_code == 200
-    with Session(db_engine) as session:
-        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
-        payment.provider = "MOCK"
-        session.commit()
-    cancel = client.post(f"/api/orders/{pending['order_code']}/cancel")
-    assert cancel.status_code == 200
-    with Session(db_engine) as session:
-        result = cancel_requested_orders(session, toss_client=_FakeCancelClient())
-        session.commit()
-        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
-        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
-        item = session.execute(select(OrderItem).where(OrderItem.order_id == order.id)).scalar_one()
-        attempt = session.execute(
-            select(PaymentAttempt).where(
-                PaymentAttempt.payment_id == payment.id,
-                PaymentAttempt.operation == "CANCEL",
-            )
-        ).scalar_one()
-        inventory = _load_inventory(session, "prod_001")
-
-    assert result.canceled_count == 1
-    assert order.status == "CANCELED"
-    assert payment.status == "CANCELED"
-    assert item.status == "CANCELED"
-    assert attempt.operation == "CANCEL"
-    assert attempt.status == "CANCELED"
-    assert inventory.stock_quantity == 10
-    assert inventory.reserved_quantity == 0
-
-
-@pytest.mark.parametrize(
-    ("client_error", "expected_order_status", "expected_attempt_status"),
-    [
-        (None, "CANCELED", "CANCELED"),
-        (TossPaymentsClientError("TOSS_CANCEL_REQUEST_FAILED", "temporary"), "CANCEL_REQUESTED", "UNKNOWN"),
-    ],
-)
-def test_cancel_requested_toss_processes_provider_result(
-    client: TestClient,
-    db_engine: Engine,
-    client_error: TossPaymentsClientError | None,
-    expected_order_status: str,
-    expected_attempt_status: str,
-) -> None:
-    pending = _create_pending_order(
-        client,
-        db_engine,
-        email=f"cancel-requested-toss-{expected_attempt_status.lower()}@example.com",
-        nickname=f"cancel-requested-toss-{expected_attempt_status.lower()}",
+        email="cancel-replay@example.com",
+        nickname="cancel-replay",
         quantity=1,
     )
     assert _confirm_toss_payment(client, pending).status_code == 200
-    assert client.post(f"/api/orders/{pending['order_code']}/cancel").status_code == 200
+
+    first = client.post(f"/api/orders/{pending['order_code']}/cancel")
+    second = client.post(f"/api/orders/{pending['order_code']}/cancel")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["request_code"] is not None
+    assert second.json()["request_code"] == first.json()["request_code"]
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        cancel_requests = session.execute(
+            select(OrderCancelRequest).where(OrderCancelRequest.order_id == order.id)
+        ).scalars().all()
+
+    assert len(cancel_requests) == 1
+
+
+def test_cancel_requested_order_without_request_record_returns_409(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="cancel-orphan@example.com",
+        nickname="cancel-orphan",
+        quantity=1,
+    )
+    assert _confirm_toss_payment(client, pending).status_code == 200
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        order.status = "CANCEL_REQUESTED"
+        session.commit()
+
+    logs = _capture_performance_logs()
+    try:
+        response = client.post(f"/api/orders/{pending['order_code']}/cancel")
+    finally:
+        logs.close()
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "ORDER_CANCEL_REQUEST_NOT_FOUND"
+    failure_log = next(line for line in logs.json_lines if line["event"] == "order_cancel_failed")
+    assert failure_log["error_code"] == "ORDER_CANCEL_REQUEST_NOT_FOUND"
+    assert not any(line["event"] == "order_cancel_completed" for line in logs.json_lines)
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        cancel_requests = session.execute(
+            select(OrderCancelRequest).where(OrderCancelRequest.order_id == order.id)
+        ).scalars().all()
+
+    assert order.status == "CANCEL_REQUESTED"
+    assert cancel_requests == []
+
+
+def test_paid_order_cancel_rolls_back_when_request_row_creation_fails(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
+        with Session(db_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app, raise_server_exceptions=False) as boom_client:
+            pending = _create_pending_order(
+                boom_client,
+                db_engine,
+                email="cancel-rollback@example.com",
+                nickname="cancel-rollback",
+                quantity=1,
+            )
+            assert _confirm_toss_payment(boom_client, pending).status_code == 200
+
+            original_flush = Session.flush
+
+            def _boom_flush(self: Session, *args: object, **kwargs: object) -> None:
+                if any(isinstance(obj, OrderCancelRequest) for obj in self.new):
+                    raise RuntimeError("flush boom")
+                return original_flush(self, *args, **kwargs)
+
+            monkeypatch.setattr(Session, "flush", _boom_flush)
+
+            response = boom_client.post(f"/api/orders/{pending['order_code']}/cancel")
+
+        assert response.status_code == 500
+    finally:
+        app.dependency_overrides.clear()
 
     with Session(db_engine) as session:
-        result = cancel_requested_orders(
-            session,
-            toss_client=_FakeCancelClient(
-                response={"paymentKey": "toss_cancel_key", "status": "CANCELED"},
-                error=client_error,
-            ),
-        )
-        session.commit()
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
-        attempt = session.execute(
-            select(PaymentAttempt).where(
-                PaymentAttempt.payment_id == payment.id,
-                PaymentAttempt.operation == "CANCEL",
-            )
-        ).scalar_one()
+        cancel_requests = session.execute(
+            select(OrderCancelRequest).where(OrderCancelRequest.order_id == order.id)
+        ).scalars().all()
+        inventory = _load_inventory(session, "prod_001")
 
-    assert result.canceled_count == (1 if expected_order_status == "CANCELED" else 0)
-    assert result.unknown_count == (1 if expected_order_status == "CANCEL_REQUESTED" else 0)
-    assert order.status == expected_order_status
-    assert payment.status == ("CANCELED" if expected_order_status == "CANCELED" else "APPROVED")
-    assert attempt.status == expected_attempt_status
-
-
-class _FakeCancelClient:
-    def __init__(self, response: dict | None = None, error: TossPaymentsClientError | None = None) -> None:
-        self.response = response or {"status": "CANCELED"}
-        self.error = error
-
-    def cancel_payment(self, *, payment_key: str, cancel_reason: str) -> dict:
-        if self.error is not None:
-            raise self.error
-        return self.response
+    assert order.status == "PAID"
+    assert cancel_requests == []
+    assert payment.status == "APPROVED"
+    assert inventory.stock_quantity == 9
+    assert inventory.reserved_quantity == 0
 
 
 def test_cancel_order_ownership_is_enforced(

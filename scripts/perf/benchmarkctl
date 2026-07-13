@@ -38,6 +38,7 @@ Usage:
   scripts/perf/benchmarkctl prepare <1000|5000|10000|80000>
   scripts/perf/benchmarkctl verify <1000|5000|10000|80000>
   scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl seed-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
   scripts/perf/benchmarkctl build <source_dir> [output_root]
   scripts/perf/benchmarkctl collect <run_id> [dataset]
@@ -95,6 +96,10 @@ backend_exec() {
     -e "DATABASE_URL=$BENCHMARK_DATABASE_URL" \
     -e "DATA_DIR=$DATA_DIR" \
     -e "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=$ELASTICSEARCH_ALIAS" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD=${BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD:-}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_COUNT=${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX=${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN=${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}" \
     "$BACKEND_SERVICE" "$@"
 }
 
@@ -197,6 +202,38 @@ verify_elasticsearch() {
     "expected Elasticsearch count=$expected, got $count"
 }
 
+switch_elasticsearch_alias() {
+  local payload
+  payload="$(python3 - "$ELASTICSEARCH_INDEX" "$ELASTICSEARCH_ALIAS" <<'PY'
+import json
+import sys
+
+index_name, alias_name = sys.argv[1:3]
+print(
+    json.dumps(
+        {
+            "actions": [
+                {
+                    "remove": {
+                        "index": "*",
+                        "alias": alias_name,
+                        "must_exist": False,
+                    }
+                },
+                {"add": {"index": index_name, "alias": alias_name}},
+            ]
+        }
+    )
+)
+PY
+)"
+  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    -H "Content-Type: application/json" \
+    -X POST "http://127.0.0.1:9200/_aliases" \
+    -d "$payload" >/dev/null
+  echo "elasticsearch alias switched: $ELASTICSEARCH_ALIAS -> $ELASTICSEARCH_INDEX"
+}
+
 prepare() {
   require_benchmark_database
   verify_data_dir
@@ -224,6 +261,7 @@ prepare() {
 activate() {
   require_benchmark_database
   print_context
+  switch_elasticsearch_alias
   BENCHMARK_DATABASE_URL="$BENCHMARK_DATABASE_URL" \
     BENCHMARK_DATA_DIR="$DATA_DIR" \
     BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS" \
@@ -294,6 +332,85 @@ with SessionLocal() as session:
             raise SystemExit(f"benchmark user context is missing: {key} ({email})")
         print(f"benchmark_user={key} status=ready")
 PY
+  verify_full_personalized_users
+}
+
+verify_full_personalized_users() {
+  backend_exec python - \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAILS:-}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+raw_emails, count_raw, prefix, domain = sys.argv[1:5]
+emails = [email.strip() for email in raw_emails.split(",") if email.strip()]
+if not emails:
+    count = int(count_raw or "10")
+    emails = [f"{prefix}_{index:02d}@{domain}" for index in range(1, count + 1)]
+
+checks = {
+    "skin_profile": "select count(*) from skin_profiles where user_id = :user_id",
+    "skin_test": (
+        "select count(*) from skin_profiles "
+        "where user_id = :user_id and latest_skin_test_result_id is not null"
+    ),
+    "event_logs": "select count(*) from event_logs where user_id = :user_id",
+    "wishlists": "select count(*) from wishlists where user_id = :user_id",
+    "recent_views": "select count(*) from recent_views where user_id = :user_id",
+    "cart_items": (
+        "select count(*) from carts c join cart_items ci on ci.cart_id = c.id "
+        "where c.user_id = :user_id and c.status = 'ACTIVE'"
+    ),
+    "orders": (
+        "select count(*) from orders o join order_items oi on oi.order_id = o.id "
+        "where o.user_id = :user_id and o.status = 'DELIVERED' and oi.status = 'DELIVERED'"
+    ),
+    "reviews": (
+        "select count(*) from product_reviews "
+        "where user_id = :user_id and status = 'PUBLISHED'"
+    ),
+}
+
+with SessionLocal() as session:
+    for email in emails:
+        user = session.execute(
+            text("select id from users where email = :email and status = 'ACTIVE'"),
+            {"email": email},
+        ).first()
+        if user is None:
+            raise SystemExit(f"full-personalized benchmark user is missing or inactive: {email}")
+        user_id = int(user[0])
+        missing = []
+        counts = {}
+        for label, sql in checks.items():
+            count = int(session.execute(text(sql), {"user_id": user_id}).scalar_one())
+            counts[label] = count
+            if count < 1:
+                missing.append(label)
+        if missing:
+            raise SystemExit(
+                f"full-personalized context is missing for {email}: {','.join(missing)}"
+            )
+        count_text = ",".join(f"{key}={value}" for key, value in sorted(counts.items()))
+        print(f"benchmark_user=full-personalized email={email} status=ready {count_text}")
+PY
+}
+
+seed_users() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  [[ -n "${BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD:-}" ]] || die \
+    "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD must be set in the benchmark config file"
+  backend_exec python -m app.cli.seed_benchmark_users \
+    --count "${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    --email-prefix "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    --email-domain "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}"
+  verify_full_personalized_users
 }
 
 collect() {
@@ -398,6 +515,7 @@ case "$COMMAND" in
   activate) load_profile "${2:-}"; activate ;;
   verify) load_profile "${2:-}"; verify ;;
   verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
+  seed-users) load_profile "${2:-}"; seed_users ;;
   build) build "${2:-}" "${3:-}" ;;
   collect) collect "${2:-}" "${3:-}" ;;
   help|-h|--help) usage ;;

@@ -1,0 +1,149 @@
+{
+  "policy_version": "mwbl-legacy-scale-500-v1",
+  "cohort_ingredient_count": 500,
+  "existing_ingredient_count": 34,
+  "new_cohort_ingredient_count": 466,
+  "score_active_ingredient_count": 187,
+  "new_score_active_ingredient_count": 153,
+  "evaluated_without_six_axis_signal_count": 313,
+  "effect_pair_count": 245,
+  "existing_effect_pair_count": 72,
+  "new_effect_pair_count": 173,
+  "evidence_row_count": 107,
+  "existing_evidence_row_count": 72,
+  "new_paper_evidence_row_count": 35,
+  "official_function_prior_pair_count": 144,
+  "paper_override_pair_count": 35,
+  "effect_score_counts": {
+    "30": 85,
+    "32": 46,
+    "33": 7,
+    "35": 15,
+    "37": 2,
+    "38": 1,
+    "40": 8,
+    "42": 7,
+    "43": 1,
+    "44": 4,
+    "45": 2,
+    "46": 2,
+    "48": 4,
+    "50": 21,
+    "52": 7,
+    "54": 1,
+    "55": 5,
+    "58": 3,
+    "60": 5,
+    "62": 1,
+    "65": 3,
+    "66": 1,
+    "68": 1,
+    "70": 9,
+    "72": 3,
+    "74": 1
+  },
+  "effect_pair_counts": {
+    "effect_acne_sebum": 16,
+    "effect_brightening": 14,
+    "effect_calming": 27,
+    "effect_exfoliation": 8,
+    "effect_moisture_barrier": 161,
+    "effect_wrinkle": 19
+  },
+  "legacy_axis_floors": {
+    "effect_brightening": 43,
+    "effect_moisture_barrier": 32,
+    "effect_acne_sebum": 40,
+    "effect_wrinkle": 42,
+    "effect_calming": 33,
+    "effect_exfoliation": 30
+  },
+  "legacy_global_floor": 30,
+  "paper_effect_score_mapping": {
+    "primary": 70,
+    "supporting": 50,
+    "limited_medical": 35
+  },
+  "human_approval_gate_used": false,
+  "full_text_gate_used": false,
+  "existing_34_scores_changed": false,
+  "product_coverage": {
+    "product_count": 65955,
+    "versions": {
+      "baseline_34": {
+        "any_scored_ingredient_product_count": 54673,
+        "any_scored_ingredient_product_pct": 82.89,
+        "effect_product_coverage": {
+          "effect_acne_sebum": {
+            "product_count": 17131,
+            "product_pct": 25.97
+          },
+          "effect_brightening": {
+            "product_count": 14806,
+            "product_pct": 22.45
+          },
+          "effect_calming": {
+            "product_count": 52367,
+            "product_pct": 79.4
+          },
+          "effect_exfoliation": {
+            "product_count": 41416,
+            "product_pct": 62.79
+          },
+          "effect_moisture_barrier": {
+            "product_count": 53509,
+            "product_pct": 81.13
+          },
+          "effect_wrinkle": {
+            "product_count": 30872,
+            "product_pct": 46.81
+          }
+        }
+      },
+      "expanded": {
+        "any_scored_ingredient_product_count": 63625,
+        "any_scored_ingredient_product_pct": 96.47,
+        "effect_product_coverage": {
+          "effect_acne_sebum": {
+            "product_count": 22379,
+            "product_pct": 33.93
+          },
+          "effect_brightening": {
+            "product_count": 16316,
+            "product_pct": 24.74
+          },
+          "effect_calming": {
+            "product_count": 57128,
+            "product_pct": 86.62
+          },
+          "effect_exfoliation": {
+            "product_count": 41654,
+            "product_pct": 63.16
+          },
+          "effect_moisture_barrier": {
+            "product_count": 63359,
+            "product_pct": 96.06
+          },
+          "effect_wrinkle": {
+            "product_count": 32433,
+            "product_pct": 49.17
+          }
+        }
+      }
+    }
+  },
+  "input_sha256": {
+    "baseline_effect": "ddb884a0ec14893814bf9c6236f2d7871b0210eb8afa0f254645fc226f37eb50",
+    "baseline_evidence": "c5697bccafbbd9071be5f0af352118ab5809939e244c8b98274bf06c46926c1e",
+    "cohort": "ea898929076adfc6e0da3986cf38e4095f5685ba3b96176811026eae379f53d6",
+    "ingredient_metadata": "308687ad4672e57c5ed74820ce0e2fa2822b57d4ac4c1b48e2da3301ad5bfbfa",
+    "screening": "b7b13826d22d1824211d03b2d806e068c7312b2bd0f665c4cea73f52af1abdfb",
+    "paper_overrides": "ed90de02d70976f456724b4a763acb2b30d5bda41ae97dd4a5cd8825da31ca6e"
+  },
+  "output_sha256": {
+    "ingredient_effect_500_legacy_scale.csv": "132b25778c820f2cc414e2e56bb4f6d414435e89391b66bd8c9feae91b86d6cd",
+    "ingredient_evidence_500_legacy_scale.csv": "5b54ec6842f3987913ea2277beeb33ecfece8c5798d0957d7ec8f59f1c9b8d1b",
+    "ingredient_effect_500_legacy_scale_audit.csv": "2c8d21050e760b2b8b7bf9bfa31dcd1ce7a3ecd94e084a7ae325fe60ecdf5a9d",
+    "ingredient_score_500_legacy_scale.csv": "5da2048ed823f4825a242a5dafead1dbc35cb291f01cdab263bbda9eb69e4e5f"
+  }
+}

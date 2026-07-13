@@ -1,7 +1,7 @@
-# 백엔드 추천 스코어링 v4
+# 백엔드 추천 스코어링 v6
 
 이 문서는 현재 백엔드가 실제 추천 API에서 사용하는 점수 계산식을 기록한다.
-현재 scoring version은 `v4_review_personalization`이다. 아래 값은 동적 배수를 적용하기 전 기본 가중치다.
+현재 scoring version은 `v6_independent_evidence_top3`이다. 아래 값은 동적 배수를 적용하기 전 기본 가중치다.
 
 ## 총점 공식
 
@@ -65,6 +65,11 @@ adjusted_evidence = evidence_score / 100 * source_authority_score
 - `evidence_score`는 성분 근거 CSV의 원 점수다.
 - `source_authority_score`는 논문, 고시, 출처 신뢰도를 반영하는 보정값이다.
 - 같은 성분/효능에 근거가 여러 개 있으면 보정 후 점수가 높은 근거를 대표로 사용한다.
+- 상품의 효능축별 성분근거는 `adjusted_evidence`가 높은 성분 3개를 성분효능 top3와
+  독립적으로 선발한다.
+- 독립 근거 top3에도 `1.0 / 0.5 / 0.25` 감쇠와 `cap=1.2`, 최종 `1.0` clamp를 적용한다.
+- 고객 설명용 `score_evidence`, 추천 사유, `key_ingredients`는 효능점수에 기여한 effect
+  top3를 사용한다. 이는 숫자상 `ingredient_evidence_score`를 계산한 근거 top3와 별도다.
 
 ## 함량 점수
 

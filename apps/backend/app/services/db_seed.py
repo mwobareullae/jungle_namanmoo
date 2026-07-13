@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -165,6 +165,7 @@ def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None
         row_count=(
             len(catalog.ingredients)
             + len(catalog.ingredient_aliases)
+            + len(catalog.ingredient_canonical_mappings)
             + len(catalog.ingredient_effects)
             + len(catalog.ingredient_effect_ranges)
             + len(catalog.ingredient_evidence)
@@ -172,6 +173,7 @@ def seed_catalog(session: Session, catalog: DataCatalog, *, data_dir: str | None
         ),
         ingredients_count=len(catalog.ingredients),
         ingredient_aliases_count=ingredient_alias_count,
+        ingredient_canonical_mappings_count=len(catalog.ingredient_canonical_mappings),
         ingredient_evidence_count=len(catalog.ingredient_evidence),
     )
 
@@ -279,6 +281,7 @@ def _catalog_row_counts(catalog: DataCatalog, *, data_dir: str | Path | None = N
         "product_skin_profiles.csv": len(catalog.product_skin_profiles),
         "ingredients.csv": len(catalog.ingredients),
         "ingredient_aliases.csv": len(catalog.ingredient_aliases),
+        "ingredient_canonical_mappings.csv": len(catalog.ingredient_canonical_mappings),
         "ingredient_effect.csv": len(catalog.ingredient_effects),
         "ingredient_effect_ranges.csv": len(catalog.ingredient_effect_ranges),
         "ingredient_evidence.csv": len(catalog.ingredient_evidence),
@@ -1073,10 +1076,33 @@ def _seed_product_ingredients(
     batch_values: list[dict[str, object]] = []
     seen_pairs: set[tuple[int, int]] = set()
     records = _iter_product_ingredient_records(catalog, data_dir)
+    canonical_by_source = {
+        mapping.source_ingredient_id: mapping.canonical_id
+        for mapping in catalog.ingredient_canonical_mappings
+        if mapping.source_ingredient_name is None
+    }
+    canonical_by_source_name = {
+        (mapping.source_ingredient_id, _normalize_text(mapping.source_ingredient_name)): mapping.canonical_id
+        for mapping in catalog.ingredient_canonical_mappings
+        if mapping.source_ingredient_name is not None
+    }
+    if total_row_count > 0:
+        _delete_mapped_source_product_ingredients(
+            session,
+            {
+                mapping.source_ingredient_id
+                for mapping in catalog.ingredient_canonical_mappings
+            },
+            ingredients_by_code,
+        )
 
     for processed_row_count, record in enumerate(records, 1):
         product = products_by_code[record.product_id]
-        ingredient = ingredients_by_code[record.ingredient_id]
+        ingredient_code = canonical_by_source_name.get(
+            (record.ingredient_id, _normalize_text(record.ingredient_name)),
+            canonical_by_source.get(record.ingredient_id, record.ingredient_id),
+        )
+        ingredient = ingredients_by_code[ingredient_code]
         pair = (product.id, ingredient.id)
         if pair in seen_pairs:
             _log_product_ingredient_progress(
@@ -1121,6 +1147,25 @@ def _seed_product_ingredients(
         _upsert_product_ingredient_batch(session, batch_values)
     session.flush()
     return len(seen_pairs)
+
+
+def _delete_mapped_source_product_ingredients(
+    session: Session,
+    source_codes: set[str],
+    ingredients_by_code: dict[str, IngredientRow],
+) -> None:
+    source_database_ids = [
+        ingredients_by_code[source_code].id
+        for source_code in source_codes
+    ]
+    if not source_database_ids:
+        return
+    session.execute(
+        delete(ProductIngredientRow).where(
+            ProductIngredientRow.ingredient_id.in_(source_database_ids)
+        )
+    )
+    session.flush()
 
 
 def _iter_product_ingredient_records(catalog: DataCatalog, data_dir: str | None):
