@@ -22,6 +22,7 @@ from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_pipeline import score_breakdown_to_api
 from app.services.repository import load_repository
 from app.services.scoring import (
+    SCORING_VERSION,
     SkinTestScoringContext,
     load_behavior_personalization_context,
     load_skin_test_scoring_context,
@@ -51,10 +52,17 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
 
     assert [product.product_id for product in scored_products] == ["prod_001", "prod_002"]
     top = scored_products[0]
+    assert SCORING_VERSION == "v6_independent_evidence_top3"
+    assert len(SCORING_VERSION) <= 40
     assert top.rank == 1
     assert top.total_score > 70
     assert top.score_breakdown["ingredient_effect_score"] == pytest.approx(1.0)
     assert top.score_breakdown["ingredient_evidence_score"] == pytest.approx(0.9478)
+    assert top.score_breakdown["ingredient_effect_selection_policy"] == "top3_effect_score"
+    assert (
+        top.score_breakdown["ingredient_evidence_selection_policy"]
+        == "independent_top3_effective_evidence_score"
+    )
     assert top.score_breakdown["skin_profile_score"] == pytest.approx(0.788)
     assert top.score_breakdown["risk_penalty"] == 0.0
     assert set(top.key_ingredients) >= {"글리세린", "세라마이드엔피"}

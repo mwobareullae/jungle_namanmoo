@@ -120,6 +120,14 @@ def build_seed_subset(
         selected_product_ids,
     )
     selected_ingredient_ids = {row["ingredient_id"] for row in product_ingredient_rows}
+    mapping_rows = _filter_csv_by_values(
+        source_dir / "ingredient_canonical_mappings.csv",
+        output_dir / "ingredient_canonical_mappings.csv",
+        "source_ingredient_id",
+        selected_ingredient_ids,
+        optional=True,
+    )
+    selected_ingredient_ids.update(row["canonical_id"] for row in mapping_rows)
 
     _filter_csv_by_values(
         source_dir / "ingredients.csv",
