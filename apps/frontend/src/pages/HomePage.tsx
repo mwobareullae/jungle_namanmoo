@@ -3,7 +3,6 @@ import HomeHero from "../components/HomeHero";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
-import AppFooter from "../components/AppFooter";
 import SkinTestPromptModal from "../components/SkinTestPromptModal";
 import { useAuth } from "../contexts/useAuth";
 import { HomeMatchResult } from "../components/HomeStaticSections";
@@ -135,9 +134,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
         ) : section.id === "maincontent" ? (
           <HomeMainContent key={section.id} initialProfile={profile} />
         ) : section.id === "howitworks" || section.id === "ingredients" ? null : section.id ===
-          "footer" ? (
-          <AppFooter key={section.id} />
-        ) : (
+          "footer" ? null : (
           <div
             className="spa-origin-section"
             dangerouslySetInnerHTML={{ __html: section.html }}

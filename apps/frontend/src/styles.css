@@ -7359,6 +7359,79 @@ footer {
   font-family: var(--font-ui);
 }
 
+footer {
+  padding: 0 72px;
+  border-top: 0;
+  background: #f8fafb;
+  color: #3d463f;
+}
+
+footer .footer-inner {
+  grid-template-columns: minmax(420px, 1fr) 160px 160px;
+  gap: 44px;
+  width: min(1180px, 100%);
+  padding: 72px 0 64px;
+}
+
+footer .footer-support h5,
+footer .footer-col h5 {
+  margin-bottom: 28px;
+  color: #3d463f;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+footer .footer-support strong {
+  display: block;
+  margin-bottom: 18px;
+  color: #3d463f;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+footer .footer-support p,
+footer .footer-company {
+  margin: 0 0 10px;
+  color: #68716a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+footer .footer-brand .logo {
+  margin-bottom: 28px;
+  color: #3d463f;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+footer .footer-desc,
+footer .footer-bottom {
+  display: none;
+}
+
+footer .footer-col ul {
+  gap: 14px;
+}
+
+footer .footer-col a {
+  color: #68716a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+footer .footer-service,
+footer .footer-policy {
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  footer { padding: 0 24px; }
+  footer .footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
+  footer .footer-service,
+  footer .footer-policy { text-align: left; }
+}
+
 .footer-inner {
   display: grid;
   grid-template-columns: minmax(260px, 1.35fr) repeat(2, minmax(150px, 0.72fr));
@@ -9661,6 +9734,109 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 /* ===== PRODUCT DETAIL LAYOUT OVERRIDES ===== */
+
+/* ===== NAVER PRODUCT DETAIL PREVIEW ===== */
+.naver-preview-page {
+  min-height: 100vh;
+  padding: 0 32px 96px;
+  background: #fff;
+  color: #222;
+}
+
+.naver-preview-storebar,
+.naver-preview-hero,
+.naver-preview-tabs,
+.naver-preview-content {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.naver-preview-storebar {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  min-height: 62px;
+  border-bottom: 1px solid #ededed;
+  color: #555;
+  font-size: 13px;
+}
+
+.naver-preview-storebar__divider { width: 1px; height: 14px; background: #ddd; }
+
+.naver-preview-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 460px) minmax(0, 1fr) 210px;
+  gap: 42px;
+  padding: 42px 0 56px;
+}
+
+.naver-preview-gallery__main {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid #eee;
+  background: #f8f8f8;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.naver-preview-gallery__thumbs { display: flex; gap: 8px; margin-top: 12px; }
+.naver-preview-gallery__thumbs button {
+  width: 58px;
+  height: 58px;
+  border: 1px solid #eee;
+  background: #fafafa;
+  color: #999;
+  font-size: 10px;
+}
+.naver-preview-gallery__thumbs button.is-active { border-color: #222; }
+
+.naver-preview-summary { min-width: 0; }
+.naver-preview-eyebrow { margin: 0 0 12px; color: #777; font-size: 14px; }
+.naver-preview-summary h1 { margin: 0; font-size: 25px; line-height: 1.4; }
+.naver-preview-rating { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; }
+.naver-preview-rating span { color: #f5a623; letter-spacing: 1px; }
+.naver-preview-rating button { padding: 0; border: 0; background: transparent; color: #777; font: inherit; text-decoration: underline; }
+.naver-preview-price { display: grid; gap: 5px; margin-top: 28px; padding-bottom: 22px; border-bottom: 1px solid #eee; }
+.naver-preview-price del { color: #999; font-size: 13px; }
+.naver-preview-price strong { font-size: 30px; }
+.naver-preview-price span { color: #555; font-size: 13px; }
+.naver-preview-benefit, .naver-preview-delivery { display: grid; grid-template-columns: 58px 1fr; gap: 12px; padding: 18px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.naver-preview-benefit span, .naver-preview-delivery span { color: #777; }
+.naver-preview-benefit p, .naver-preview-delivery p { margin: 0; line-height: 1.5; }
+.naver-preview-quantity { display: flex; justify-content: space-between; align-items: center; padding: 22px 0 12px; font-size: 13px; }
+.naver-preview-quantity > div { display: inline-flex; align-items: center; border: 1px solid #ddd; }
+.naver-preview-quantity button { width: 28px; height: 28px; border: 0; background: #fff; font-size: 17px; }
+.naver-preview-quantity span { width: 30px; text-align: center; font-size: 12px; }
+.naver-preview-total { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; }
+.naver-preview-total span { color: #777; font-size: 13px; }
+.naver-preview-total strong { font-size: 22px; }
+
+.naver-preview-actions { align-self: end; display: grid; gap: 10px; }
+.naver-preview-actions button { min-height: 48px; border: 1px solid #d7d7d7; background: #fff; color: #222; font: inherit; font-size: 13px; font-weight: 700; }
+.naver-preview-actions__primary { border-color: #16c784 !important; background: #16c784 !important; color: #fff !important; }
+.naver-preview-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.naver-preview-actions__contact { color: #555 !important; font-weight: 500 !important; }
+
+.naver-preview-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #222; border-bottom: 1px solid #ddd; }
+.naver-preview-tabs a { padding: 20px 10px; color: #777; font-size: 14px; text-align: center; text-decoration: none; }
+.naver-preview-tabs a.is-active { color: #222; font-weight: 700; box-shadow: inset 0 2px #222; }
+.naver-preview-content { max-width: 860px; padding-top: 48px; }
+.naver-preview-content__section { padding: 44px 0; border-bottom: 1px solid #eee; }
+.naver-preview-content__heading span { color: #999; font-size: 12px; }
+.naver-preview-content__heading h2 { margin: 8px 0 24px; font-size: 22px; }
+.naver-preview-detail-placeholder, .naver-preview-question-placeholder { display: grid; place-items: center; min-height: 260px; background: #fafafa; color: #aaa; font-size: 13px; }
+.naver-preview-review-summary { display: grid; gap: 8px; padding: 28px; border: 1px solid #eee; }
+.naver-preview-review-summary strong { font-size: 34px; }
+.naver-preview-review-summary span { color: #f5a623; letter-spacing: 2px; }
+.naver-preview-review-summary p { margin: 6px 0 0; color: #777; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .naver-preview-page { padding: 0 18px 64px; }
+  .naver-preview-hero { grid-template-columns: 1fr; gap: 24px; padding-top: 24px; }
+  .naver-preview-gallery { max-width: 520px; }
+  .naver-preview-actions { align-self: stretch; }
+}
 
 .detail-page {
   background: #ffffff;
