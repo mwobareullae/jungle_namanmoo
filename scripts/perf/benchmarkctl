@@ -12,10 +12,17 @@ fi
 PROFILE_DIR="$SCRIPT_DIR/profiles"
 DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DIR")-benchmark"
 CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
+CONFIG_K6_RESULT_FILE="${BENCHMARK_K6_RESULT_FILE-}"
+CONFIG_K6_RESULT_FILE_SET="${BENCHMARK_K6_RESULT_FILE+x}"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
+fi
+
+# Command-line environment overrides must win over values in the config file.
+if [[ "$CONFIG_K6_RESULT_FILE_SET" == "x" ]]; then
+  BENCHMARK_K6_RESULT_FILE="$CONFIG_K6_RESULT_FILE"
 fi
 
 BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
