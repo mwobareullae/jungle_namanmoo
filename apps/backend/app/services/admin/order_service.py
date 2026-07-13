@@ -288,15 +288,14 @@ def _recommendation_ids(items: list[OrderItem]) -> list[str]:
 # 순서 고정: PAID → PREPARING_SHIPMENT → SHIPPED → DELIVERED. 건너뛰기·되돌리기 불가.
 # 세 전이 모두 결제 승인(Payment.status == APPROVED)을 먼저 확인한다(2026-07-13 결정).
 # Order 와 그 하위 OrderItem 을 같은 트랜잭션에서 함께 바꾸고, 서비스는 flush 까지만 한다
-# (commit 은 router 담당). 성공/실패 성능 로그는 세 전이 함수가 완성된 뒤 Chunk 4에서
-# router·공통 처리로 추가한다 — 이 단계에서는 로그를 남기지 않는다.
+# (commit 과 성공/실패 성능 로그는 router 담당, apps/backend/app/api/routes/admin/orders.py).
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class ShipmentTransitionResult:
-    """서비스 반환값. response 는 API 응답 그대로, 나머지는 이후 Chunk 4에서 router 가
-    commit 이후 성능 로그를 남길 때 쓰는 부가 정보.
+    """서비스 반환값. response 는 API 응답 그대로, 나머지는 router 가 commit 이후
+    성능 로그를 남길 때 쓰는 부가 정보.
 
     updated_item_count 는 이번 전이에서 **실제로 상태를 바꾼 OrderItem 행 수**다
     (order.item_count 저장값이 아니라 UPDATE rowcount). 멱등 재요청은 아무 행도 바꾸지
@@ -365,11 +364,16 @@ def _transition_shipping_order(
     action: str,
 ) -> ShipmentTransitionResult:
     order = _load_order_for_update(session, order_code)
-    payment = _load_payment_for_order(session, int(order.id))
     previous_status = order.status
 
-    # 멱등: 이미 목표 상태면 갱신 없이 성공 반환(updated_at 유지, 바뀐 행 0)
+    # 멱등: 이미 목표 상태면 갱신 없이 성공 반환(updated_at 유지, 바뀐 행 0). 쓰기가
+    # 없는 순수 조회이므로 Payment 는 잠그지 않는다(응답의 available_actions 계산에만 씀).
+    # item_count 정합성은 이 경로도 똑같이 확인한다 — 그래야 "같은 손상 데이터인데
+    # 어느 상태에서 접근했느냐에 따라 통과 여부가 갈리는" 상황이 안 생긴다.
     if order.status == target_status:
+        payment = _load_payment_for_order(session, int(order.id), lock=False)
+        if _count_order_items(session, int(order.id)) != order.item_count:
+            raise ApiError(409, "ORDER_ITEMS_INCONSISTENT", "Order items are inconsistent.")
         return ShipmentTransitionResult(
             response=_to_shipment_response(order, payment),
             previous_status=previous_status,
@@ -378,14 +382,17 @@ def _transition_shipping_order(
             action=action,
         )
 
-    # 순서 고정: 기대 상태가 아니면 건너뛰기·되돌리기·그 외 상태 모두 차단
+    # 순서 고정: 기대 상태가 아니면 건너뛰기·되돌리기·그 외 상태 모두 차단.
+    # Payment 조회(+잠금)보다 먼저 검사한다 — 어차피 거부될 요청이 결제 행 잠금을
+    # 불필요하게 붙잡지 않도록.
     _require_status(
         order.status == expected_status,
         "ORDER_SHIPPING_TRANSITION_NOT_ALLOWED",
         f"Order status must be {expected_status} for this action.",
     )
 
-    # 결제 승인 확인 (세 전이 공통)
+    # 여기서부터 실제로 상태를 바꾸므로 Payment 도 잠근다(결제 승인 확인 + 쓰기 공통)
+    payment = _load_payment_for_order(session, int(order.id), lock=True)
     if payment is None:
         raise ApiError(409, "ORDER_PAYMENT_NOT_FOUND", "Payment record not found for this order.")
     _require_status(
@@ -402,10 +409,11 @@ def _transition_shipping_order(
         .where(OrderItem.order_id == order.id)
         .values(status=target_status, updated_at=now)
     )
-    updated_count = result.rowcount or 0
-    # 저장된 item_count 와 실제 바뀐 행 수가 다르면 데이터가 어긋난 것 —
+    updated_count = result.rowcount
+    # rowcount 는 PEP 249상 "확인 불가"일 때 -1일 수 있다 — `or 0`으로는 안 걸러진다
+    # (-1은 참으로 평가됨). None/음수/item_count 불일치를 모두 같은 오류로 취급한다.
     # router 가 롤백하면 방금 바꾼 Order 상태도 함께 취소된다.
-    if updated_count != order.item_count:
+    if updated_count is None or updated_count < 0 or updated_count != order.item_count:
         raise ApiError(409, "ORDER_ITEMS_INCONSISTENT", "Order items are inconsistent.")
     session.flush()
 
@@ -435,12 +443,21 @@ def _load_order_for_update(session: Session, order_code: str) -> Order:
     return order
 
 
-def _load_payment_for_order(session: Session, order_id: int) -> Payment | None:
-    # Order 를 잠근 뒤 Payment 도 함께 잠근다(order_cancel_service 와 동일 순서).
-    # 배송 승인 검증과 commit 사이에 결제가 CANCELED/REFUNDED 로 바뀌는 경쟁을 막는다.
+def _load_payment_for_order(session: Session, order_id: int, *, lock: bool) -> Payment | None:
+    # 쓰기 경로(lock=True)는 Order 를 잠근 뒤 Payment 도 함께 잠근다(order_cancel_service
+    # 와 동일 순서) — 배송 승인 검증과 commit 사이에 결제가 CANCELED/REFUNDED 로 바뀌는
+    # 경쟁을 막는다. 멱등 재요청처럼 아무것도 안 바꾸는 순수 조회는 lock=False 로 호출해
+    # 불필요한 행 잠금을 피한다.
+    statement = select(Payment).where(Payment.order_id == order_id)
+    if lock:
+        statement = statement.with_for_update()
+    return session.execute(statement).scalar_one_or_none()
+
+
+def _count_order_items(session: Session, order_id: int) -> int:
     return session.execute(
-        select(Payment).where(Payment.order_id == order_id).with_for_update()
-    ).scalar_one_or_none()
+        select(func.count()).select_from(OrderItem).where(OrderItem.order_id == order_id)
+    ).scalar_one()
 
 
 def _to_shipment_response(order: Order, payment: Payment | None) -> AdminOrderShipmentActionResponse:

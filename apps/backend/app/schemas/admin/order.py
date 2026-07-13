@@ -60,6 +60,15 @@ AdminShipmentResultStatus = Literal[
     "DELIVERED",
 ]
 
+# 배송 전이 응답에서 실제로 나올 수 있는 다음 액션만 허용(START_PREPARATION 제외).
+# 전이가 성공한 시점엔 주문이 이미 PREPARING_SHIPMENT 이상이라 START_PREPARATION 은
+# 나올 수 없다 — order_status 를 좁힌 것과 같은 이유로, M1.5-B가 취소·반품·환불·교환
+# 액션을 AdminOrderAction 에 추가해도 배송 응답에 섞여 나오는 걸 타입이 막아준다.
+AdminShipmentNextAction = Literal[
+    "START_SHIPMENT",
+    "COMPLETE_DELIVERY",
+]
+
 
 class AdminOrderListItem(BaseModel):
     id: int
@@ -121,7 +130,7 @@ class AdminOrderShipmentActionResponse(BaseModel):
 
     order_code: str
     order_status: AdminShipmentResultStatus
-    available_actions: list[AdminOrderAction] = Field(
+    available_actions: list[AdminShipmentNextAction] = Field(
         ...,
         description="전이 후 상태 기준으로 이어서 할 수 있는 다음 액션. 목록 조회와 동일 규칙(결제 승인 확인 포함).",
     )
