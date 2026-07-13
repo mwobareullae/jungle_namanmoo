@@ -4,6 +4,7 @@ import { navigateWithinApp } from "../lib/navigation";
 import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getOrderDetail } from "../lib/orderApi";
+import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import type {
   AgentChatResponse,
   AgentContext,
@@ -933,10 +934,6 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   return null;
 };
 
-const waitForAgentInteraction = (milliseconds: number) => new Promise<void>((resolve) => {
-  window.setTimeout(resolve, milliseconds);
-});
-
 const findVisibleAgentTarget = (selector: string) => Array.from(document.querySelectorAll<HTMLElement>(selector))
   .find((element) => {
     const rect = element.getBoundingClientRect();
@@ -946,6 +943,9 @@ const findVisibleAgentTarget = (selector: string) => Array.from(document.querySe
 const resolveAgentInteractionTarget = (action: AgentUiAction) => {
   if (typeof document === "undefined") return null;
   if (action.type === "show_cart") return findVisibleAgentTarget("[data-agent-cart-target]");
+  if (action.type === "show_checkout_preview") {
+    return findVisibleAgentTarget("[data-agent-cart-navigation-target]");
+  }
   if (action.type !== "navigate") return null;
 
   if (action.target === "home") return findVisibleAgentTarget("[data-agent-home-target]");
@@ -960,42 +960,6 @@ const resolveAgentInteractionTarget = (action: AgentUiAction) => {
   return null;
 };
 
-const playAgentClickInteraction = async (target: HTMLElement | null) => {
-  if (!target || typeof window === "undefined") return;
-
-  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-  await waitForAgentInteraction(180);
-  const rect = target.getBoundingClientRect();
-  target.classList.add("is-agent-interaction-target");
-
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    await waitForAgentInteraction(180);
-    target.classList.remove("is-agent-interaction-target");
-    return;
-  }
-
-  const cursor = document.createElement("span");
-  cursor.className = "agent-visual-cursor";
-  cursor.setAttribute("aria-hidden", "true");
-  const destinationX = rect.left + rect.width / 2;
-  const destinationY = rect.top + rect.height / 2;
-  cursor.style.left = `${Math.min(window.innerWidth - 28, destinationX + 88)}px`;
-  cursor.style.top = `${Math.min(window.innerHeight - 28, destinationY + 72)}px`;
-  document.body.appendChild(cursor);
-
-  await new Promise<void>((resolve) => window.requestAnimationFrame(() => {
-    cursor.style.left = `${destinationX}px`;
-    cursor.style.top = `${destinationY}px`;
-    resolve();
-  }));
-  await waitForAgentInteraction(420);
-  cursor.classList.add("is-clicking");
-  target.classList.add("is-agent-clicked");
-  await waitForAgentInteraction(180);
-  cursor.remove();
-  target.classList.remove("is-agent-clicked", "is-agent-interaction-target");
-};
-
 const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
   const interactionTarget = resolveAgentInteractionTarget(action);
   await playAgentClickInteraction(interactionTarget);
@@ -1005,6 +969,19 @@ const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseIte
     window.dispatchEvent(new CustomEvent(AGENT_SHOW_CART_EVENT, {
       detail: { cart: action.payload, highlightProductId: currentProductId },
     }));
+    return;
+  }
+
+  if (action.type === "show_checkout_preview" && typeof window !== "undefined") {
+    const rawItems = Array.isArray(action.payload.items) ? action.payload.items : [];
+    const cartItemIds = rawItems.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const id = (item as Record<string, unknown>).id;
+      return typeof id === "number" && Number.isInteger(id) ? [id] : [];
+    });
+    const params = new URLSearchParams({ agent_checkout: "1" });
+    cartItemIds.forEach((id) => params.append("cart_item_ids", String(id)));
+    await navigateWithinApp(`/cart?${params.toString()}`);
     return;
   }
 
@@ -1433,6 +1410,10 @@ function AgentFloatingButton({
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
+      if (response.ui_action.type === "show_checkout_preview") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
       await applyAgentUiAction(response.ui_action, response.items, response.message);
     } catch (error) {
       setMessages((currentMessages) =>
