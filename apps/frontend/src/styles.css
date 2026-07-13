@@ -13979,6 +13979,11 @@ html[data-app-mode="community"] .search-results-shell {
   font-family: "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
+.checkout-page.cart-page {
+  flex: 1 0 auto;
+  background: #ffffff;
+}
+
 .commerce-page-header {
   display: flex;
   align-items: flex-end;
