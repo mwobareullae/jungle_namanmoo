@@ -78,17 +78,18 @@ function NewProductsPage() {
   }, [isLoading, isLoadingMore, loadMoreError, loadProducts, nextPage]);
 
   return (
-    <div className="category-page new-products-page">
+    <div className="popular-products-page new-products-page">
       <HomeHeader />
-      <main className="category-page__main">
+      <main className="popular-products-shell">
         <nav className="category-page__breadcrumb" aria-label="신상품 경로">
           <Link to="/">홈</Link>
           <span aria-hidden="true">&gt;</span>
           <span>신상품</span>
         </nav>
-        <h1 className="category-page__title">신상품</h1>
+        <div className="popular-products-kicker">NEW ARRIVALS</div>
+        <h1>신상품</h1>
         <p className="new-products-page__description">최근 출시된 상품부터 확인해 보세요.</p>
-        <div className="product-grid">
+        <div className="popular-products-grid new-products-page__grid">
           {isLoading ? (
             <div className="search-loading-state">불러오는 중...</div>
           ) : errorMessage ? (
