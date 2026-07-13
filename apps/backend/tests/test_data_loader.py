@@ -49,6 +49,7 @@ def test_load_data_catalog_reads_example_files() -> None:
     assert catalog.product_skin_profiles[0].sensitive_fit == pytest.approx(0.8)
     assert catalog.ingredients[0].name_ko == "판테놀"
     assert catalog.ingredient_aliases == ()
+    assert catalog.ingredient_canonical_mappings == ()
     assert catalog.ingredient_effects[0].effect_score == 90
     assert catalog.ingredient_effect_ranges[0].ingredient_id == "ing_niacinamide"
     assert catalog.ingredient_effect_ranges[0].optimal_min == pytest.approx(4.0)
@@ -193,6 +194,42 @@ def test_load_data_catalog_reads_optional_ingredient_aliases(tmp_path: Path) -> 
     assert catalog.ingredient_aliases[2].ingredient_id == "ing_panthenol"
     assert catalog.ingredient_aliases[2].alias == "비타민B5"
     assert catalog.ingredient_aliases[2].confidence == "medium"
+
+
+def test_load_data_catalog_reads_optional_ingredient_canonical_mappings(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    with (data_dir / "ingredients.csv").open("a", encoding="utf-8") as handle:
+        handle.write("ing_pending_panthenol,판테놀 원문,Panthenol raw,pending source,\n")
+    (data_dir / "ingredient_canonical_mappings.csv").write_text(
+        "source_ingredient_id,source_ingredient_name,canonical_id,mapping_type,confidence,source\n"
+        "ing_pending_panthenol,,ing_panthenol,official_exact,high,KCIA 2026-06-30\n",
+        encoding="utf-8",
+    )
+
+    catalog = load_data_catalog(data_dir)
+
+    assert len(catalog.ingredient_canonical_mappings) == 1
+    mapping = catalog.ingredient_canonical_mappings[0]
+    assert mapping.source_ingredient_id == "ing_pending_panthenol"
+    assert mapping.canonical_id == "ing_panthenol"
+    assert mapping.mapping_type == "official_exact"
+
+
+def test_loader_rejects_duplicate_canonical_mapping_source(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    copytree(EXAMPLES_DIR, data_dir)
+    with (data_dir / "ingredients.csv").open("a", encoding="utf-8") as handle:
+        handle.write("ing_pending_panthenol,판테놀 원문,Panthenol raw,pending source,\n")
+    (data_dir / "ingredient_canonical_mappings.csv").write_text(
+        "source_ingredient_id,source_ingredient_name,canonical_id,mapping_type,confidence,source\n"
+        "ing_pending_panthenol,,ing_panthenol,official_exact,high,KCIA\n"
+        "ing_pending_panthenol,,ing_glycerin,official_exact,high,KCIA\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataLoadError, match="source ID와 name 조합이 중복"):
+        load_data_catalog(data_dir)
 
 
 def test_load_data_catalog_reads_optional_product_image_assets(tmp_path: Path) -> None:

@@ -1,0 +1,8 @@
+product_id,canonical_id,kept_ingredient_name,kept_display_order,source_row_count,source_ingredient_ids,source_ingredient_names,source_display_orders,source_concentration_texts,source_normalized_concentrations,concentration_policy
+prod_bm_464d9346186f56,asiaticoside,아시아티코사이드,19,2,ing_pending_e81d4e5d2311; ing_pending_35006ed60aa6,아시아티코사이드; Asiaticoside,19; 41,,,none
+prod_bm_f1ba26cdda3a62,asiaticoside,아시아티코사이드,19,2,ing_pending_e81d4e5d2311; ing_pending_35006ed60aa6,아시아티코사이드; Asiaticoside,19; 41,,,none
+prod_oy_a000000202906,asiaticoside,아시아티코사이드,58,2,ing_pending_33c182c05f59; ing_pending_35006ed60aa6,아시아티코사이드; Asiaticoside,58; 122,,,none
+prod_oy_a000000202908,asiaticoside,아시아티코사이드,56,2,ing_pending_33c182c05f59; ing_pending_35006ed60aa6,아시아티코사이드; Asiaticoside,56; 124,아시아티코사이드 40 ppb,0.000004 %,single_numeric_preserved
+prod_oy_a000000216227,gluconolactone,글루코노락톤,39,2,ing_pending_5b50fe940d19; ing_pending_a9820c0a0b40,글루코노락톤; GLUCONOLACTONE,39; 98,,,none
+prod_oy_a000000216227,asiaticoside,아시아티코사이드,46,2,ing_pending_33c182c05f59; ing_pending_97d99791ed02,아시아티코사이드; ASIATICOSIDE,46; 104,,,none
+prod_oy_a000000217547,asiaticoside,아시아티코사이드,58,2,ing_pending_33c182c05f59; ing_pending_35006ed60aa6,아시아티코사이드; Asiaticoside,58; 122,,,none
