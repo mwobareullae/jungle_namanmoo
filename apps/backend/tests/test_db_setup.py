@@ -240,6 +240,8 @@ def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:
         "rating_effective_sample_size",
         "repurchase_effective_sample_size",
         "month_use_effective_sample_size",
+        "bayesian_photo_rate",
+        "photo_rate_score",
         "confidence",
         "review_quality_score",
         "score_version",
