@@ -2,7 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+if REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  :
+else
+  # The deployed server copy may not contain .git; benchmarkctl lives two
+  # directories below the repository root in that case.
+  REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
 PROFILE_DIR="$SCRIPT_DIR/profiles"
 CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$SCRIPT_DIR/config.benchmark.env}"
 
