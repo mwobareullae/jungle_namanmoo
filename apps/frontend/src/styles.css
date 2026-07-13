@@ -2431,6 +2431,13 @@ body,
   margin: 0;
 }
 
+#root {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+
 html {
   overflow-y: scroll;
 }
@@ -7371,7 +7378,7 @@ header .btn-login:hover {
 }
 
 footer {
-  margin-top: 0;
+  margin-top: auto;
   padding: 0 40px;
   border-top: 1px solid var(--color-edge);
   background: #ffffff;
