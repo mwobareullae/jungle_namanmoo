@@ -139,7 +139,7 @@ export default function (data) {
   const hasProducts = Array.isArray(body?.products) && body.products.length > 0;
   if ((response.status !== 200 || !hasProducts) && failureSampleCount < FAILURE_SAMPLE_LIMIT) {
     failureSampleCount += 1;
-    console.error(
+    console.log(
       JSON.stringify({
         event: "recommendation_benchmark_failure_sample",
         dataset: DATASET,

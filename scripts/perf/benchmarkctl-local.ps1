@@ -195,10 +195,13 @@ foreach ($envName in @(
 $k6Args += $K6Script
 $k6ExitCode = 0
 $RunFinishedAt = $null
+$previousErrorActionPreference = $ErrorActionPreference
 try {
+    $ErrorActionPreference = "Continue"
     & k6 @k6Args 2>&1 | Tee-Object -FilePath $LocalK6Output
     $k6ExitCode = $LASTEXITCODE
 } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
     $RunFinishedAt = (Get-Date).ToUniversalTime().ToString("o")
     Write-Host "[8/11] 서버 resource monitor 종료"
     $monitorStopCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' ' + $RemoteCtl + ' monitor-stop ' + $RunId + ' ' + $Dataset
