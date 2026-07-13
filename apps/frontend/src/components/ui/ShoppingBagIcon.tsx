@@ -1,4 +1,4 @@
-import { ShoppingCart } from "@phosphor-icons/react";
+import { ShoppingBag } from "@phosphor-icons/react";
 
 type ShoppingBagIconProps = {
   size?: number;
@@ -6,7 +6,7 @@ type ShoppingBagIconProps = {
 };
 
 function ShoppingBagIcon({ size = 12, className }: ShoppingBagIconProps) {
-  return <ShoppingCart aria-hidden="true" className={className} size={size} weight="regular" />;
+  return <ShoppingBag aria-hidden="true" className={className} size={size} weight="regular" />;
 }
 
 export default ShoppingBagIcon;

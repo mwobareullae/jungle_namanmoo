@@ -1382,12 +1382,20 @@ function AgentFloatingButton({
         <div
           className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
         >
-          <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
-            피부 고민을 같이 찾아볼까요?
-          </button>
-          <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
-            궁금한 성분을 물어보세요
-          </button>
+          {surface === "productDetail" ? (
+            <button onClick={() => handleTeaserClick("비슷한 상품 비교해줘")} type="button">
+              비슷한 상품 비교해줘
+            </button>
+          ) : (
+            <>
+              <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
+                피부 고민을 같이 찾아볼까요?
+              </button>
+              <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
+                궁금한 성분을 물어보세요
+              </button>
+            </>
+          )}
         </div>
         {isChatMounted ? (
           <section
