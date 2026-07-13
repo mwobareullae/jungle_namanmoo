@@ -180,7 +180,7 @@ verify_elasticsearch() {
   expected="$(expected_product_count)"
   count="$(compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
     "http://127.0.0.1:9200/$ELASTICSEARCH_ALIAS/_count" \
-    | python -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
   echo "elasticsearch_alias_count=$count"
   [[ "$count" == "$expected" ]] || die \
     "expected Elasticsearch count=$expected, got $count"
