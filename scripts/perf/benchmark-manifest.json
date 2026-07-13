@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "datasets": [
+    {"label": "1000", "product_count": 1000, "profile": "scripts/perf/profiles/benchmark-1000.env"},
+    {"label": "5000", "product_count": 5000, "profile": "scripts/perf/profiles/benchmark-5000.env"},
+    {"label": "10000", "product_count": 10000, "profile": "scripts/perf/profiles/benchmark-10000.env"},
+    {"label": "80000", "product_count": 80000, "profile": "scripts/perf/profiles/benchmark-80000.env"}
+  ],
+  "selection": {
+    "product_ids": "server-local dataset manifest",
+    "related_rows": "selected by product_id",
+    "random_sampling": false
+  }
+}
