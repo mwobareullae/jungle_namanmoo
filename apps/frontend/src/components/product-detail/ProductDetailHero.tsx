@@ -17,6 +17,7 @@ function ProductDetailHero({
   isAddingToCart,
   isNarrativeDetailOpen,
   isNarrativeLoading,
+  showRecommendationCriteria,
   isProductSoldOut,
   isWishlistPending,
   mainImageUrl,
@@ -141,7 +142,7 @@ function ProductDetailHero({
             ) : null}
           </div>
         </div>
-        <RecommendationCriteriaPanel product={product} />
+        {showRecommendationCriteria ? <RecommendationCriteriaPanel product={product} /> : null}
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}
           cartMessage={cartMessage}
