@@ -152,8 +152,35 @@ def build_mapping_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
     return mappings
 
 
-def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
+def merge_mapping_rows(
+    path: Path,
+    new_rows: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    existing_rows = read_csv(path) if path.exists() else []
     rows_by_key: dict[tuple[str, str], dict[str, str]] = {}
+    for row in [*existing_rows, *new_rows]:
+        key = (row["source_ingredient_id"], normalize(row["source_ingredient_name"]))
+        prior = rows_by_key.get(key)
+        if prior is None:
+            rows_by_key[key] = row
+            continue
+        if prior["canonical_id"] != row["canonical_id"]:
+            raise ValueError(
+                "기존 canonical mapping과 신규 proposal이 충돌합니다: "
+                f"{row['source_ingredient_id']}/{row['source_ingredient_name']} "
+                f"{prior['canonical_id']} != {row['canonical_id']}"
+            )
+    return sorted(
+        rows_by_key.values(),
+        key=lambda row: (
+            row["source_ingredient_id"],
+            normalize(row["source_ingredient_name"]),
+        ),
+    )
+
+
+def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
+    candidates_by_key: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     for row in selected:
         if row["proposed_action"] != "create_canonical":
             continue
@@ -187,14 +214,18 @@ def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[
                         f"sha256={row['source_document_sha256'][:12]}"
                     ),
                 }
-                prior = rows_by_key.get(key)
-                if prior is not None and prior["canonical_id"] != mapping["canonical_id"]:
-                    raise ValueError(
-                        "같은 broad source/name이 둘 이상의 exact canonical과 충돌합니다: "
-                        f"{family_id}/{alias}"
-                    )
-                rows_by_key[key] = mapping
-    return list(rows_by_key.values())
+                if mapping not in candidates_by_key[key]:
+                    candidates_by_key[key].append(mapping)
+
+    rows: list[dict[str, str]] = []
+    for candidates in candidates_by_key.values():
+        owners = {candidate["canonical_id"] for candidate in candidates}
+        if len(owners) != 1:
+            # An old INCI label can legitimately refer to multiple modern
+            # substances (for example, Ceramide 2). Keep that label broad.
+            continue
+        rows.append(candidates[0])
+    return rows
 
 
 def official_alias_candidates(
@@ -306,13 +337,11 @@ def apply_batch(
 ) -> ApplyStats:
     selected = selected_rows(read_csv(proposals_path))
     before, added, after = append_ingredients(ingredients_path, selected)
-    mapping_rows = build_mapping_rows(selected)
-    mapping_rows.extend(build_exact_name_override_rows(selected))
-    mapping_rows.sort(
-        key=lambda row: (
-            row["source_ingredient_id"],
-            normalize(row["source_ingredient_name"]),
-        )
+    new_mapping_rows = build_mapping_rows(selected)
+    new_mapping_rows.extend(build_exact_name_override_rows(selected))
+    mapping_rows = merge_mapping_rows(
+        mappings_path,
+        new_mapping_rows,
     )
     write_csv(mappings_path, MAPPING_FIELDS, mapping_rows)
     aliases_added, aliases_reassigned, conflicts = update_aliases(
