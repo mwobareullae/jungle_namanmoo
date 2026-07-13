@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { AGENT_SHOW_CART_EVENT, AGENT_SHOW_CHECKOUT_EVENT } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { getOrderDetail } from "../lib/orderApi";
 import type {
   AgentChatResponse,
   AgentContext,
@@ -1424,6 +1425,11 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       applyAgentUiAction(response.ui_action);
+      const orderCode = readString(response.ui_action.payload.order_code);
+      const orderStatus = readString(response.ui_action.payload.status);
+      if (action === "confirm" && approvalMessage.toolName === "cancel_recent_order" && orderCode && orderStatus === "CANCEL_REQUESTED") {
+        void pollCanceledOrder(orderCode);
+      }
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1433,6 +1439,35 @@ function AgentFloatingButton({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const pollCanceledOrder = async (orderCode: string) => {
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      try {
+        const order = await getOrderDetail(orderCode);
+        if (order.status === "CANCEL_REQUESTED") continue;
+        if (order.status !== "CANCELED") return;
+
+        const timestamp = Date.now();
+        setMessages((currentMessages) => [
+          ...currentMessages.map((message) =>
+            message.kind === "result"
+              ? {
+                  ...message,
+                  items: message.items.map((item) =>
+                    item.itemType === "order" && item.id === orderCode ? { ...item, subtitle: "CANCELED" } : item,
+                  ),
+                }
+              : message,
+          ),
+          createAssistantMessage(`assistant-canceled-${timestamp}`, "주문 취소가 완료됐어요."),
+        ].slice(-MAX_STORED_AGENT_MESSAGES));
+        return;
+      } catch {
+        // A transient lookup failure is retried within the bounded polling window.
+      }
     }
   };
 
@@ -1501,7 +1536,13 @@ function AgentFloatingButton({
             {message.rejectLabel}
           </button>
         </div>
-        {message.resolved ? <span className="agent-chat-approval-state">{message.resolved === "approved" ? "승인됨" : "취소됨"}</span> : null}
+        {message.resolved ? (
+          <span className="agent-chat-approval-state">
+            {message.resolved === "approved"
+              ? message.toolName === "cancel_recent_order" ? "취소 처리 중" : "승인됨"
+              : "취소 안 함"}
+          </span>
+        ) : null}
       </div>
     );
   };
