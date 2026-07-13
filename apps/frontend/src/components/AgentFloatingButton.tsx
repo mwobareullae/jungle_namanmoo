@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
-import { AGENT_SHOW_CART_EVENT, AGENT_SHOW_CHECKOUT_EVENT } from "../lib/agentUiEvents";
+import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getOrderDetail } from "../lib/orderApi";
 import type {
@@ -1004,13 +1004,6 @@ const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseIte
     const currentProductId = new URLSearchParams(window.location.search).get("id");
     window.dispatchEvent(new CustomEvent(AGENT_SHOW_CART_EVENT, {
       detail: { cart: action.payload, highlightProductId: currentProductId },
-    }));
-    return;
-  }
-
-  if (action.type === "show_checkout_preview" && typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(AGENT_SHOW_CHECKOUT_EVENT, {
-      detail: { preview: action.payload },
     }));
     return;
   }
