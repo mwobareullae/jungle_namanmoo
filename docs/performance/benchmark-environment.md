@@ -33,7 +33,7 @@ data/generated-subsets/benchmark-80000/
 서버에서만 `scripts/perf/config.env`를 만든다. 이 파일은 Git에 커밋하지 않는다.
 
 ```bash
-cp scripts/perf/config.example.env scripts/perf/config.env
+cp scripts/perf/config.benchmark.example.env scripts/perf/config.env
 ```
 
 benchmark DB URL은 일반 dev DB가 아닌 benchmark 전용 DB를 사용한다.
@@ -46,6 +46,11 @@ BENCHMARK_LOG_TAIL=5000
 ```
 
 `BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
+
+`BENCHMARK_RDS_METRICS_ENABLED=true`로 설정하면 `collect`가 기존
+`collect_rds_metrics.sh`를 사용해 CloudWatch RDS 지표를
+`database/rds-metrics.json`에 저장한다. AWS CLI와 EC2 IAM 권한이 없으면
+이 옵션은 `false`로 둔다.
 
 ## 데이터셋 준비와 검증
 
