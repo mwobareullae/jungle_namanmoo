@@ -197,6 +197,38 @@ verify_elasticsearch() {
     "expected Elasticsearch count=$expected, got $count"
 }
 
+switch_elasticsearch_alias() {
+  local payload
+  payload="$(python3 - "$ELASTICSEARCH_INDEX" "$ELASTICSEARCH_ALIAS" <<'PY'
+import json
+import sys
+
+index_name, alias_name = sys.argv[1:3]
+print(
+    json.dumps(
+        {
+            "actions": [
+                {
+                    "remove": {
+                        "index": "*",
+                        "alias": alias_name,
+                        "must_exist": False,
+                    }
+                },
+                {"add": {"index": index_name, "alias": alias_name}},
+            ]
+        }
+    )
+)
+PY
+)"
+  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    -H "Content-Type: application/json" \
+    -X POST "http://127.0.0.1:9200/_aliases" \
+    -d "$payload" >/dev/null
+  echo "elasticsearch alias switched: $ELASTICSEARCH_ALIAS -> $ELASTICSEARCH_INDEX"
+}
+
 prepare() {
   require_benchmark_database
   verify_data_dir
@@ -224,6 +256,7 @@ prepare() {
 activate() {
   require_benchmark_database
   print_context
+  switch_elasticsearch_alias
   BENCHMARK_DATABASE_URL="$BENCHMARK_DATABASE_URL" \
     BENCHMARK_DATA_DIR="$DATA_DIR" \
     BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS" \
