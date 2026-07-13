@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
+import ProductThumbnail from "../components/ProductThumbnail";
 import Skeleton from "../components/ui/Skeleton";
 import { api } from "../lib/api";
+import { trackEvent } from "../lib/appSignals/client";
 import { observeProductImpressions } from "../lib/appSignals/impressions";
+import { navigateWithinApp } from "../lib/navigation";
 import type { HomeSectionProduct, ProductCardItem } from "../types/recommendation";
 
 type HomeSectionProductsPageProps = {
@@ -35,6 +38,93 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   key_ingredients: product.tags,
   risk_flags: []
 });
+
+const formatPrice = (price: number | null) =>
+  price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
+
+function DealCard({ product, source }: { product: ProductCardItem; source: string }) {
+  const openDetail = () => {
+    trackEvent("search_result_click", {
+      productId: product.product_id,
+      rank: product.rank,
+      source,
+      page: "recommendation_result",
+      metadata: { section_id: source }
+    });
+    void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
+  };
+
+  return (
+    <article
+      aria-label={`${product.brand} ${product.name} 상세 보기`}
+      className="home-deal-card"
+      data-event-page="recommendation_result"
+      data-event-source={source}
+      data-impression-event="search_result_impression"
+      data-product-id={product.product_id}
+      data-rank={product.rank}
+      data-section-id={source}
+      onClick={openDetail}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openDetail();
+        }
+      }}
+      role="link"
+      tabIndex={0}
+    >
+      <div className="home-deal-media">
+        <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+      </div>
+      <div className="home-deal-body">
+        <div className="home-ranking-brand">{product.brand}</div>
+        <div className="home-deal-name">{product.name}</div>
+        <div className="home-deal-tags">
+          {product.key_ingredients.slice(0, 2).map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+        <div className="home-deal-price">{formatPrice(product.lowest_price)}</div>
+      </div>
+    </article>
+  );
+}
+
+function DealSkeletons() {
+  return Array.from({ length: 8 }, (_, index) => (
+    <article className="home-deal-card home-deal-loading-card" key={index} aria-hidden="true">
+      <Skeleton className="home-deal-media" />
+      <div className="home-deal-body">
+        <Skeleton className="home-ranking-brand" />
+        <Skeleton className="home-deal-name" />
+        <div className="home-deal-tags">
+          <Skeleton as="span" />
+          <Skeleton as="span" />
+        </div>
+        <Skeleton className="home-deal-price" />
+      </div>
+    </article>
+  ));
+}
+
+function ProductSkeletons() {
+  return Array.from({ length: 8 }, (_, index) => (
+    <article className="product-card product-card-loading" key={index} aria-hidden="true">
+      <Skeleton className="product-img" />
+      <div className="product-info">
+        <Skeleton className="skeleton-line skeleton-brand" />
+        <Skeleton className="skeleton-line skeleton-title" />
+        <Skeleton className="skeleton-line skeleton-title short" />
+        <div className="skeleton-pill-row">
+          <Skeleton className="skeleton-pill" />
+          <Skeleton className="skeleton-pill" />
+        </div>
+        <Skeleton className="skeleton-price" />
+      </div>
+    </article>
+  ));
+}
 
 function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) {
   const config = pageConfig[sectionType];
@@ -87,39 +177,50 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
           <span>{title}</span>
         </nav>
         <h1 className="category-page__title">{title}</h1>
-        {subtitle ? <p className="new-products-page__description">{subtitle}</p> : null}
-        <div className="product-grid">
-          {isLoading ? (
-            Array.from({ length: 8 }, (_, index) => (
-              <article className="product-card product-card-loading" key={index} aria-hidden="true">
-                <Skeleton className="product-img" />
-                <div className="product-info">
-                  <Skeleton className="skeleton-line skeleton-brand" />
-                  <Skeleton className="skeleton-line skeleton-title" />
-                  <Skeleton className="skeleton-price" />
-                </div>
-              </article>
-            ))
-          ) : errorMessage ? (
-            <div className="search-empty">{errorMessage}</div>
-          ) : products.length > 0 ? (
-            products.map((product) => (
-              <HomeProductCard
-                eventContext={{
-                  sectionId: config.source,
-                  page: "recommendation_result",
-                  source: config.source,
-                  clickEvent: "search_result_click",
-                  impressionEvent: "search_result_impression"
-                }}
-                key={product.product_id}
-                product={product}
-              />
-            ))
-          ) : (
-            <div className="search-empty">표시할 상품이 없습니다.</div>
-          )}
-        </div>
+        {subtitle ? <p className="new-products-page__description" style={{ textAlign: "left" }}>{subtitle}</p> : null}
+        {sectionType === "for-you" ? (
+          <section className="home-api-section home-deal-section home-section-products-page__section">
+            <div className="home-deal-grid">
+              {isLoading ? (
+                <DealSkeletons />
+              ) : errorMessage ? (
+                <div className="search-empty">{errorMessage}</div>
+              ) : products.length > 0 ? (
+                products.map((product) => (
+                  <DealCard key={product.product_id} product={product} source={config.source} />
+                ))
+              ) : (
+                <div className="search-empty">표시할 상품이 없습니다.</div>
+              )}
+            </div>
+          </section>
+        ) : (
+          <section className="home-api-section home-original-section home-personal-section home-section-products-page__section">
+            <div className="product-grid">
+              {isLoading ? (
+                <ProductSkeletons />
+              ) : errorMessage ? (
+                <div className="search-empty">{errorMessage}</div>
+              ) : products.length > 0 ? (
+                products.map((product) => (
+                  <HomeProductCard
+                    eventContext={{
+                      sectionId: config.source,
+                      page: "recommendation_result",
+                      source: config.source,
+                      clickEvent: "search_result_click",
+                      impressionEvent: "search_result_impression"
+                    }}
+                    key={product.product_id}
+                    product={product}
+                  />
+                ))
+              ) : (
+                <div className="search-empty">표시할 상품이 없습니다.</div>
+              )}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

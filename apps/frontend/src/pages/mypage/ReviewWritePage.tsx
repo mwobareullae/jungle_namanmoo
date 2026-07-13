@@ -4,6 +4,7 @@ import ConfirmModal from "../../components/ui/ConfirmModal";
 import Skeleton from "../../components/ui/Skeleton";
 import { useActivityToast } from "../../hooks/useActivityToast";
 import { getProductImageUrl } from "../../lib/imageUrls";
+import { clearAgentReviewDraft, readAgentReviewDraft } from "../../lib/agentDrafts";
 import {
   createProductReview,
   deleteProductReview,
@@ -34,11 +35,23 @@ function ReviewWritePage() {
 
   useEffect(() => {
     let isMounted = true;
+    const agentDraft = readAgentReviewDraft();
     Promise.all([getReviewableOrderItems(), getMyProductReviews()])
       .then(([reviewableResponse, reviewsResponse]) => {
         if (isMounted) {
-          setItems(reviewableResponse.items.filter((item) => item.can_write));
+          const reviewableItems = reviewableResponse.items.filter((item) => item.can_write);
+          setItems(reviewableItems);
           setMyReviews(reviewsResponse.items);
+          const draftItem = agentDraft
+            ? reviewableItems.find((item) => item.order_item_id === agentDraft.order_item_id)
+            : null;
+          if (agentDraft && draftItem) {
+            setSelectedItem(draftItem);
+            setRating(agentDraft.rating);
+            setReviewText(agentDraft.review_text);
+            setIsRepurchase(agentDraft.is_repurchase_review);
+            clearAgentReviewDraft();
+          }
         }
       })
       .catch(() => {
