@@ -4727,6 +4727,17 @@ body {
   outline: none;
 }
 
+.skin-test-question-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.skin-test-question-actions .skin-test-primary-button {
+  min-width: 148px;
+  gap: 12px;
+}
+
 .skin-test-primary-button:disabled,
 .skin-test-secondary-button:disabled {
   cursor: not-allowed;
