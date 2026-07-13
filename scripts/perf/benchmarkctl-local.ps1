@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("1000", "5000", "10000", "80000")]
     [string]$Dataset = "1000",
@@ -23,9 +23,12 @@ function Read-EnvFile([string]$Path) {
     $values = @{}
     foreach ($line in Get-Content -LiteralPath $Path) {
         if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
-        if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') { continue }
-        $name = $Matches[1]
-        $value = $Matches[2].Trim()
+        $match = [regex]::Match($line, '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$')
+        if (-not $match.Success) {
+            continue
+        }
+        $name = $match.Groups[1].Value
+        $value = $match.Groups[2].Value.Trim()
         if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
             ($value.StartsWith("'") -and $value.EndsWith("'"))) {
             $value = $value.Substring(1, $value.Length - 2)
@@ -96,27 +99,35 @@ $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS }
 
 Write-Host "[3/6] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
 $k6Args = @(
-    "run", $K6Script,
+    "run",
+    "--summary-export", $LocalK6Summary,
     "-e", "BASE_URL=$BaseUrl",
     "-e", "DATASET=$Dataset",
     "-e", "USER_TYPE=$UserType",
     "-e", "VUS=$effectiveVus",
     "-e", "DURATION=$effectiveDuration",
-    "-e", "SLA_MS=$sla",
-    "--summary-export", $LocalK6Summary
+    "-e", "SLA_MS=$sla"
 )
-foreach ($name in @(
+foreach ($envName in @(
     "BENCHMARK_PROFILE_USER_EMAIL", "BENCHMARK_PROFILE_USER_PASSWORD",
     "BENCHMARK_SKIN_TEST_USER_EMAIL", "BENCHMARK_SKIN_TEST_USER_PASSWORD",
     "BENCHMARK_BEHAVIOR_USER_EMAIL", "BENCHMARK_BEHAVIOR_USER_PASSWORD",
     "AUTH_COOKIE", "SKIN_TYPE", "SENSITIVITY", "AVOID_INGREDIENTS"
 )) {
-    if ($Config.ContainsKey($name) -and $Config[$name]) {
-        $k6Args += @("-e", "$name=$($Config[$name])")
+    if ($Config.ContainsKey($envName)) {
+        $envValue = [string]$Config.Item($envName)
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+            $k6Args += @("-e", "${envName}=${envValue}")
+        }
     }
 }
+$k6Args += $K6Script
 & k6 @k6Args
-if ($LASTEXITCODE -ne 0) { throw "k6 실행 실패" }
+$k6ExitCode = $LASTEXITCODE
+if ($k6ExitCode -ne 0) { throw "k6 실행 실패: exit_code=$k6ExitCode" }
+if (-not (Test-Path -LiteralPath $LocalK6Summary)) {
+    throw "k6 summary file was not created: $LocalK6Summary"
+}
 
 Write-Host "[4/6] k6 결과를 서버로 업로드"
 Invoke-Scp @(
