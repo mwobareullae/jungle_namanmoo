@@ -4,6 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import type { AuthUser } from "../contexts/authContextValue";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
@@ -11,6 +12,10 @@ import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
 type SignupErrorResponse = {
   code?: string;
   message?: string;
+};
+
+type SignupSuccessResponse = {
+  user?: AuthUser;
 };
 
 type EmailCheckResponse = {
@@ -97,7 +102,7 @@ const getStoredSignupAgreements = (): SignupAgreements | null => {
 function SignupInfoPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refreshAuthenticatedUser } = useAuth();
+  const { refreshAuthenticatedUser, setAuthenticatedUser } = useAuth();
   const agreements = (location.state?.agreements as SignupAgreements | undefined) ?? getStoredSignupAgreements();
 
   const [email, setEmail] = useState("");
@@ -388,11 +393,15 @@ function SignupInfoPage() {
 
       sessionStorage.removeItem(SIGNUP_AGREEMENTS_STORAGE_KEY);
       try {
-        const nextUser = await refreshAuthenticatedUser();
+        const signupResult = (await response.json().catch(() => null)) as SignupSuccessResponse | null;
+        const nextUser = signupResult?.user ?? await refreshAuthenticatedUser();
 
         if (!nextUser) {
           setErrorMessage("회원가입은 완료됐지만 로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.");
           return;
+        }
+        if (signupResult?.user) {
+          setAuthenticatedUser(signupResult.user);
         }
       } catch {
         setErrorMessage("회원가입은 완료됐지만 로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.");

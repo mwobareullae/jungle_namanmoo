@@ -3,8 +3,10 @@ import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../contexts/authContextValue";
 import { Checkbox } from "../../components/ui/checkbox";
+import ActivityToast from "../../components/ui/ActivityToast";
+import { useActivityToast } from "../../hooks/useActivityToast";
 import { getMarketingConsent, updateMarketingConsent } from "../../lib/consentApi";
-import { MyPageLayout, MypageToastMessage, PageTitle } from "./MyPageShell";
+import { MyPageLayout, PageTitle } from "./MyPageShell";
 
 type SettingRowProps = {
   label: string;
@@ -27,7 +29,7 @@ function SettingRow({ label, value, description }: SettingRowProps) {
 export default function MyPageSettings() {
   const authContext = useContext(AuthContext);
   const navigate = useNavigate();
-  const [toastMessage, setToastMessage] = useState("");
+  const { message: toastMessage, showToast } = useActivityToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   // null: 아직 안 불러왔거나 API가 없어서(백엔드 미구현) 못 불러온 상태 — 이땐 안내 문구로 대체
   const [marketingConsent, setMarketingConsent] = useState<boolean | null>(null);
@@ -67,9 +69,9 @@ export default function MyPageSettings() {
     try {
       const savedValue = await updateMarketingConsent(nextValue);
       setMarketingConsent(savedValue);
-      setToastMessage(savedValue ? "마케팅 알림 수신에 동의했습니다." : "마케팅 알림 수신을 거부했습니다.");
+      showToast(savedValue ? "마케팅 알림 수신에 동의했습니다." : "마케팅 알림 수신을 거부했습니다.");
     } catch {
-      setToastMessage("마케팅 알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      showToast("마케팅 알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsMarketingConsentSaving(false);
     }
@@ -85,7 +87,7 @@ export default function MyPageSettings() {
       await authContext.logout();
       navigate("/login", { replace: true });
     } catch {
-      setToastMessage("로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      showToast("로그아웃에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsLoggingOut(false);
     }
@@ -188,7 +190,7 @@ export default function MyPageSettings() {
         </section>
       </div>
 
-      {toastMessage ? <MypageToastMessage message={toastMessage} /> : null}
+      <ActivityToast message={toastMessage} />
     </MyPageLayout>
   );
 }

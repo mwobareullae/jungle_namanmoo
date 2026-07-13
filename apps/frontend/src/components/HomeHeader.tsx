@@ -7,7 +7,6 @@ import { callOriginal } from "../lib/originalRuntime";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
 
 function HomeHeader() {
-  const defaultSectionHref = "/#defaultSection";
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -15,6 +14,9 @@ function HomeHeader() {
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isPopularPage = location.pathname === "/products/popular";
+  const isNewProductsPage = location.pathname === "/products/new";
+  const isCatalogSearchPage = location.pathname === "/catalog-search";
+  const isBrandsPage = location.pathname === "/brands";
   const isSkinTestPage = location.pathname.startsWith("/skin-test");
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
   const isCategoryHoverArea = (target: EventTarget | null) => {
@@ -120,16 +122,36 @@ function HomeHeader() {
             </a>
           </div>
           <nav>
-            <a href={defaultSectionHref}>신상품</a>
+            <a className={isNewProductsPage ? "nav-active" : ""} href="/products/new">신상품</a>
             <a className={isPopularPage ? "nav-active" : ""} href="/products/popular">베스트</a>
-            <a href={defaultSectionHref}>브랜드</a>
-            <a href={defaultSectionHref}>쿠폰</a>
+            <a className={isBrandsPage ? "nav-active" : ""} href="/brands">브랜드</a>
             <a className={isSkinTestPage ? "nav-ai" : ""} href="/skin-test">
               맞춤 추천
             </a>
           </nav>
           <div className="header-actions">
             <button
+              aria-label="일반 상품 검색으로 이동"
+              className={`icon-btn${isCatalogSearchPage ? " nav-active" : ""}`}
+              onClick={() => navigate("/catalog-search")}
+              type="button"
+            >
+              <svg
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="18"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </button>
+            <button
+              aria-label="찜한 상품으로 이동"
               className="icon-btn"
               data-commerce-only
               onClick={handleWishlistClick}
@@ -191,7 +213,7 @@ function HomeHeader() {
                       <circle cx="12" cy="7" r="4" />
                     </svg>
                   </span>
-                  {displayName}님
+                  <span className="header-user-name">{displayName}님</span>
                 </a>
                 <span aria-hidden="true" className="header-action-divider">
                   |

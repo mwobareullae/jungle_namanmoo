@@ -1,9 +1,19 @@
-const supportLinks = [
-  ["Q&A", "/#defaultSection"],
-  ["교환·반품 안내", "/#defaultSection"]
+const shoppingLinks = [
+  ["신상품", "/products/new"],
+  ["베스트", "/products/popular"],
+  ["상품 검색", "/catalog-search"],
+  ["맞춤 추천", "/skin-test"]
 ] as const;
 
-const policyLinks = ["이용약관", "개인정보처리방침"];
+const accountLinks = [
+  ["마이페이지", "/mypage"],
+  ["찜한 상품", "/mypage/wishlist"],
+  ["최근 본 상품", "/mypage/recent"],
+  ["주문/배송내역", "/mypage/orders"],
+  ["반품·교환·환불", "/returns"],
+  ["이용약관", "/terms"],
+  ["개인정보처리방침", "/privacy"]
+] as const;
 
 function AppFooter() {
   return (
@@ -19,10 +29,10 @@ function AppFooter() {
             더 나은 선택을 돕습니다.
           </p>
         </div>
-        <div className="footer-col footer-support">
-          <h5>고객지원</h5>
+        <div className="footer-col">
+          <h5>쇼핑</h5>
           <ul>
-            {supportLinks.map(([label, href]) => (
+            {shoppingLinks.map(([label, href]) => (
               <li key={label}>
                 <a href={href}>{label}</a>
               </li>
@@ -31,11 +41,11 @@ function AppFooter() {
         </div>
 
         <div className="footer-col">
-          <h5>약관·정보</h5>
+          <h5>내 정보·약관</h5>
           <ul>
-            {policyLinks.map((label) => (
+            {accountLinks.map(([label, href]) => (
               <li key={label}>
-                <a href="/#defaultSection">{label}</a>
+                <a href={href}>{label}</a>
               </li>
             ))}
           </ul>

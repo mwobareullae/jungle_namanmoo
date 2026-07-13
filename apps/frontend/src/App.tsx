@@ -13,13 +13,16 @@ import type { OriginalPageKey } from "./originalPages";
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const BrandPage = lazy(() => import("./pages/BrandPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
+const CatalogSearchPage = lazy(() => import("./pages/CatalogSearchPage"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const MyPageShell = lazy(() => import("./pages/mypage/MyPageShell"));
 const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
+const NewProductsPage = lazy(() => import("./pages/NewProductsPage"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
+const ReturnRequestPage = lazy(() => import("./pages/mypage/ReturnRequestPage"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const Addresses = lazy(() => import("./pages/mypage/Addresses"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
@@ -27,6 +30,7 @@ const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
 const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
+const ReturnPolicyPage = lazy(() => import("./pages/ReturnPolicyPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 const SkinProfile = lazy(() => import("./pages/mypage/SkinProfile"));
 const SkinTestPage = lazy(() => import("./pages/SkinTestPage"));
@@ -39,6 +43,10 @@ const WishList = lazy(() => import("./pages/mypage/WishList"));
 const RecentProducts = lazy(() =>
   import("./pages/mypage/WishList").then((module) => ({ default: module.RecentProducts }))
 );
+const ReviewWritePage = lazy(() => import("./pages/mypage/ReviewWritePage"));
+const BrandsPage = lazy(() => import("./pages/BrandsPage"));
+const LegalDocumentPage = lazy(() => import("./pages/LegalDocumentPage"));
+const HomeSectionProductsPage = lazy(() => import("./pages/HomeSectionProductsPage"));
 
 const appMode = import.meta.env.VITE_APP_MODE === "community" ? "community" : "commerce";
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
@@ -1042,6 +1050,26 @@ function App() {
           )}
           {appMode !== "community" && (
             <Route
+              path="/mypage/orders/:orderCode/return-request"
+              element={(
+                <ProtectedRoute>
+                  <ReturnRequestPage />
+                </ProtectedRoute>
+              )}
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/reviews"
+              element={(
+                <ProtectedRoute>
+                  <ReviewWritePage />
+                </ProtectedRoute>
+              )}
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
               path="/mypage/settings"
               element={
                 <ProtectedRoute>
@@ -1069,10 +1097,15 @@ function App() {
           )}
           {appMode !== "community" && <Route path="/admin" element={<AdminDashboardPage />} />}
           {appMode !== "community" && <Route path="/brand/:brandName" element={<BrandPage />} />}
+          {appMode !== "community" && <Route path="/brands" element={<BrandsPage />} />}
+          <Route path="/terms" element={<LegalDocumentPage documentType="terms" />} />
+          <Route path="/privacy" element={<LegalDocumentPage documentType="privacy" />} />
+          <Route path="/returns" element={<ReturnPolicyPage />} />
           {appMode !== "community" && (
             <Route path="/category/:categoryTitle" element={<CategoryPage />} />
           )}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
+          {appMode !== "community" && <Route path="/catalog-search" element={<CatalogSearchPage />} />}
           <Route
             path="/products/popular"
             element={(
@@ -1081,6 +1114,9 @@ function App() {
               </Suspense>
             )}
           />
+          {appMode !== "community" && <Route path="/products/new" element={<NewProductsPage />} />}
+          <Route path="/products/evidence-picks" element={<HomeSectionProductsPage sectionType="evidence-picks" />} />
+          <Route path="/products/for-you" element={<HomeSectionProductsPage sectionType="for-you" />} />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>

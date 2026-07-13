@@ -1,7 +1,7 @@
 import type {
   ApiError,
   CatalogSearchParams,
-  CatalogSearchResponse,
+  CatalogSearchResponse as RecommendationCatalogSearchResponse,
   HomeSection,
   ProductCardItem,
   ProductDetail,
@@ -26,7 +26,16 @@ import type {
   AgentToolConfirmRequest,
   AgentToolConfirmResponse
 } from "../types/agent";
-import type { PopularProductsResponse } from "../types/product";
+import type {
+  BrandListResponse,
+  CategoryListResponse,
+  CatalogSearchResponse,
+  CatalogSearchSort,
+  CatalogSuggestionsResponse,
+  ProductListingResponse,
+  ProductListingSort,
+  PopularProductsResponse
+} from "../types/product";
 import { getProductImageUrl } from "./imageUrls";
 
 type RecommendationApi = {
@@ -53,8 +62,29 @@ type RecommendationApi = {
     limit?: number;
   }) => Promise<HomeSection>;
   searchCatalogProducts: (params: { page?: number; pageSize?: number; query: string }) => Promise<RecommendationResponse>;
-  getCatalogSearchProducts: (params: CatalogSearchParams) => Promise<CatalogSearchResponse>;
+  getCatalogSearchProducts: (params: CatalogSearchParams) => Promise<RecommendationCatalogSearchResponse>;
   getPopularProducts: (params?: { categoryCode?: string; limit?: number }) => Promise<PopularProductsResponse>;
+  getProductListing: (params?: {
+    page?: number;
+    pageSize?: number;
+    brandCodes?: string[];
+    categoryCodes?: string[];
+    categoryGroups?: string[];
+    minPrice?: number;
+    maxPrice?: number;
+    minRating?: number;
+    inStock?: boolean;
+    sort?: ProductListingSort;
+  }) => Promise<ProductListingResponse>;
+  getBrands: (query?: string, page?: number, pageSize?: number) => Promise<BrandListResponse>;
+  getCategories: () => Promise<CategoryListResponse>;
+  searchCatalog: (params: {
+    query: string;
+    page?: number;
+    pageSize?: number;
+    sort?: CatalogSearchSort;
+  }) => Promise<CatalogSearchResponse>;
+  getCatalogSuggestions: (query: string, limit?: number) => Promise<CatalogSuggestionsResponse>;
   getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
@@ -176,6 +206,18 @@ type BackendProductDetailResponse = {
     sales_status: string;
     stock_status: string;
     available_quantity: number | null;
+  };
+  review_summary: {
+    review_count: number;
+    average_rating: number | null;
+    rating_distribution: Record<string, number>;
+    general_review_count: number;
+    month_use_review_count: number;
+    repurchase_known_count: number;
+    repurchase_review_count: number;
+    repurchase_rate: number | null;
+    profile_labeled_review_count: number;
+    last_reviewed_at: string | null;
   };
   ingredients: {
     name: string;
@@ -360,6 +402,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     ingredients: response.ingredients.map(mapProductIngredient),
     purchase_url: lowestPrice?.product_url ?? null,
     purchase_info: response.purchase_info,
+    review_summary: response.review_summary,
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,
@@ -502,7 +545,7 @@ export const api: RecommendationApi = {
     params.features?.forEach((feature) => searchParams.append("feature", feature));
     params.skinTypes?.forEach((skinType) => searchParams.append("skin_type", skinType));
     const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
-    return parseJson<CatalogSearchResponse>(response);
+    return parseJson<RecommendationCatalogSearchResponse>(response);
   },
 
   async getMarketPopular(params = {}) {
@@ -555,6 +598,51 @@ export const api: RecommendationApi = {
       `${API_BASE_URL}/products/popular${query ? `?${query}` : ""}`
     );
     return mapPopularProducts(await parseJson<PopularProductsResponse>(response));
+  },
+
+  async getProductListing(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    params.brandCodes?.forEach((code) => searchParams.append("brand_code", code));
+    params.categoryCodes?.forEach((code) => searchParams.append("category_code", code));
+    params.categoryGroups?.forEach((group) => searchParams.append("category_group", group));
+    if (params.minPrice !== undefined) searchParams.set("min_price", String(params.minPrice));
+    if (params.maxPrice !== undefined) searchParams.set("max_price", String(params.maxPrice));
+    if (params.minRating !== undefined) searchParams.set("min_rating", String(params.minRating));
+    if (params.inStock !== undefined) searchParams.set("in_stock", String(params.inStock));
+    if (params.sort) searchParams.set("sort", params.sort);
+
+    const query = searchParams.toString();
+    const response = await fetchWithTimeout(`${API_BASE_URL}/products${query ? `?${query}` : ""}`);
+    return parseJson<ProductListingResponse>(response);
+  },
+
+  async getBrands(query = "", page = 1, pageSize = 100) {
+    const searchParams = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (query.trim()) searchParams.set("q", query.trim());
+    const response = await fetchWithTimeout(`${API_BASE_URL}/brands?${searchParams.toString()}`);
+    return parseJson<BrandListResponse>(response);
+  },
+
+  async getCategories() {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/categories`);
+    return parseJson<CategoryListResponse>(response);
+  },
+
+  async searchCatalog(params) {
+    const searchParams = new URLSearchParams({ q: params.query });
+    if (params.page) searchParams.set("page", String(params.page));
+    if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    if (params.sort) searchParams.set("sort", params.sort);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/products?${searchParams.toString()}`);
+    return parseJson<CatalogSearchResponse>(response);
+  },
+
+  async getCatalogSuggestions(query, limit = 8) {
+    const searchParams = new URLSearchParams({ q: query, limit: String(limit) });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search/suggestions?${searchParams.toString()}`);
+    return parseJson<CatalogSuggestionsResponse>(response);
   },
 
   async getProduct(productId, recommendationId) {

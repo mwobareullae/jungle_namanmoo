@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
+import { observeProductImpressions } from "../lib/appSignals/impressions";
 import { navigateWithinApp } from "../lib/navigation";
 import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
@@ -43,7 +44,31 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const openProductDetail = (product: ProductCardItem) => {
+const getHomeSectionHref = (sectionId: string) => {
+  if (sectionId === "market_popular") return "/products/popular";
+  if (sectionId === "evidence_picks") return "/products/evidence-picks";
+  if (sectionId === "for_you") return "/products/for-you";
+  return "/catalog-search";
+};
+
+const getHomeSectionKicker = (sectionId: string) =>
+  sectionId === "for_you" ? "맞춤 추천 섹션" : "성분 근거 기준 큐레이션";
+
+type HomeProductEventContext = {
+  sectionId: string;
+  source: string;
+};
+
+const openProductDetail = (product: ProductCardItem, eventContext?: HomeProductEventContext) => {
+  if (eventContext) {
+    trackEvent("home_product_click", {
+      productId: product.product_id,
+      rank: product.rank,
+      page: "home",
+      source: eventContext.source,
+      metadata: { section_id: eventContext.sectionId }
+    });
+  }
   void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
 };
 
@@ -120,10 +145,12 @@ function ProductSkeletonList({
   );
 }
 
-function HomeSectionLoadingSkeleton() {
+type HomeSectionKey = "marketPopular" | "forYou" | "evidencePicks";
+
+function HomeSectionLoadingSkeleton({ sectionKey }: { sectionKey: HomeSectionKey }) {
   return (
     <div className="home-section-stack home-loading-stack" aria-label="상품 섹션 로딩 중">
-      <section className="home-api-section home-ranking-section home-loading-section">
+      {sectionKey === "marketPopular" ? <section className="home-api-section home-ranking-section home-loading-section">
         <HomeLoadingSectionHead />
         <div className="home-ranking-wrap">
           <div className="home-ranking-rail home-ranking-loading-rail">
@@ -139,16 +166,9 @@ function HomeSectionLoadingSkeleton() {
             ))}
           </div>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="home-api-section home-original-section home-personal-section home-loading-section">
-        <HomeLoadingSectionHead />
-        <div className="product-grid" id="defaultProductGrid">
-          <ProductSkeletonList count={8} />
-        </div>
-      </section>
-
-      <section className="home-api-section home-deal-section home-loading-section">
+      {sectionKey === "forYou" ? <section className="home-api-section home-deal-section tone-mint home-loading-section">
         <HomeLoadingSectionHead />
         <div className="home-deal-grid">
           {Array.from({ length: 8 }, (_, index) => (
@@ -166,7 +186,14 @@ function HomeSectionLoadingSkeleton() {
             </article>
           ))}
         </div>
-      </section>
+      </section> : null}
+
+      {sectionKey === "evidencePicks" ? <section className="home-api-section home-original-section home-personal-section home-loading-section">
+        <HomeLoadingSectionHead />
+        <div className="product-grid" id="defaultProductGrid">
+          <ProductSkeletonList count={8} />
+        </div>
+      </section> : null}
     </div>
   );
 }
@@ -184,17 +211,13 @@ function HomeLoadingSectionHead() {
   );
 }
 
-function HomeSectionErrorState() {
-  return (
-    <section className="home-section-error-state" aria-live="polite">
-      <div className="home-section-error-icon" aria-hidden="true">
-        !
-      </div>
-      <h2>상품을 불러오지 못했습니다.</h2>
-      <p>잠시 후 새로고침 해주세요.</p>
-    </section>
-  );
-}
+const DEFAULT_HOME_SECTION_ORDER: HomeSectionKey[] = ["marketPopular", "evidencePicks", "forYou"];
+
+type ForYouFilters = {
+  skinType: string;
+};
+
+const FOR_YOU_SKIN_TYPES = ["건성", "지성", "복합성", "수부지", "중성"];
 
 function HomeRankingSection({
   products,
@@ -236,7 +259,11 @@ function HomeRankingSection({
         <div>
           <div className="home-section-kicker">피부 조건 기준 큐레이션</div>
           <div className="section-title">{section.title}</div>
-          <div className="section-subtitle">{section.subtitle}</div>
+          <div className="section-subtitle">
+            {section.section_id === "for_you"
+              ? "피부 프로필과 행동 신호를 함께 본 맞춤 후보"
+              : section.subtitle}
+          </div>
         </div>
         <a className="home-see-all" href="/products/popular">
           전체보기
@@ -271,12 +298,18 @@ function HomeRankingSection({
                       <article
                         aria-label={`${product.brand} ${product.name} 상세 보기`}
                         className="home-ranking-card"
+                        data-event-page="home"
+                        data-event-source={section.section_id}
+                        data-impression-event="home_product_impression"
+                        data-product-id={product.product_id}
+                        data-rank={product.rank || displayRank}
+                        data-section-id={section.section_id}
                         key={product.product_id}
-                        onClick={() => openProductDetail(product)}
+                        onClick={() => openProductDetail(product, { sectionId: section.section_id, source: section.section_id })}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            openProductDetail(product);
+                            openProductDetail(product, { sectionId: section.section_id, source: section.section_id });
                           }
                         }}
                         role="link"
@@ -321,26 +354,50 @@ function HomeRankingSection({
 
 function HomeDealSection({
   products,
-  section
+  section,
+  toneMint = false,
+  forYouFilters,
+  onForYouFilterChange
 }: {
   products: ProductCardItem[];
   section: HomeSection;
+  toneMint?: boolean;
+  forYouFilters?: ForYouFilters;
+  onForYouFilterChange?: (key: keyof ForYouFilters, value: string) => void;
 }) {
   const visibleProducts = products.slice(0, 8);
 
   return (
-    <section className="home-api-section home-deal-section">
+    <section className={`home-api-section home-deal-section${toneMint ? " tone-mint" : ""}`}>
       <div className="home-section-head">
         <div>
-          <div className="home-section-kicker">맞춤 추천 섹션</div>
+          <div className="home-section-kicker">{getHomeSectionKicker(section.section_id)}</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
           전체보기
           <span aria-hidden="true">→</span>
         </a>
       </div>
+      {section.section_id === "for_you" && forYouFilters && onForYouFilterChange ? (
+        <div className="home-for-you-filters" aria-label="맞춤 추천 조건">
+          <div className="home-for-you-filter-group">
+            <div className="home-for-you-chips" role="group" aria-label="피부 타입 선택">
+              {FOR_YOU_SKIN_TYPES.map((value) => (
+                <button
+                  className={forYouFilters.skinType === value ? "active" : ""}
+                  key={value}
+                  onClick={() => onForYouFilterChange("skinType", value)}
+                  type="button"
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="home-deal-grid">
         {visibleProducts.length ? (
           visibleProducts.map((product) => {
@@ -348,12 +405,18 @@ function HomeDealSection({
               <article
                 aria-label={`${product.brand} ${product.name} 상세 보기`}
                 className="home-deal-card"
+                data-event-page="home"
+                data-event-source={section.section_id}
+                data-impression-event="home_product_impression"
+                data-product-id={product.product_id}
+                data-rank={product.rank}
+                data-section-id={section.section_id}
                 key={product.product_id}
-                onClick={() => openProductDetail(product)}
+                onClick={() => openProductDetail(product, { sectionId: section.section_id, source: section.section_id })}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    openProductDetail(product);
+                    openProductDetail(product, { sectionId: section.section_id, source: section.section_id });
                   }
                 }}
                 role="link"
@@ -379,7 +442,7 @@ function HomeDealSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
-      <a className="home-section-more" href="/#defaultSection">
+      <a className="home-section-more" href={getHomeSectionHref(section.section_id)}>
         {section.title} 전체보기
         <span aria-hidden="true">→</span>
       </a>
@@ -400,18 +463,30 @@ function HomeOriginalGridSection({
     <section className="home-api-section home-original-section home-personal-section">
       <div className="home-section-head">
         <div>
-          <div className="home-section-kicker">피부 조건 기준 추천</div>
+          <div className="home-section-kicker">{getHomeSectionKicker(section.section_id)}</div>
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href="/#defaultSection">
+        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
           전체보기
           <span aria-hidden="true">→</span>
         </a>
       </div>
       <div className="product-grid">
         {visibleProducts.length ? (
-          visibleProducts.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+          visibleProducts.map((product) => (
+            <HomeProductCard
+              eventContext={{
+                sectionId: section.section_id,
+                page: "home",
+                source: section.section_id,
+                clickEvent: "home_product_click",
+                impressionEvent: "home_product_impression"
+              }}
+              key={product.product_id}
+              product={product}
+            />
+          ))
         ) : (
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
@@ -455,9 +530,19 @@ function HomeMainContent({
   const [isLoading, setIsLoading] = useState(false);
   const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
   const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
+  const [forYouSections, setForYouSections] = useState<Record<string, HomeSection | null>>({});
+  const [forYouLoading, setForYouLoading] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, showDefaultSection]))
+  );
   const [evidencePicksSection, setEvidencePicksSection] = useState<HomeSection | null>(null);
-  const [isHomeSectionLoading, setIsHomeSectionLoading] = useState(showDefaultSection);
-  const [homeSectionError, setHomeSectionError] = useState("");
+  const [homeSectionLoading, setHomeSectionLoading] = useState<Record<HomeSectionKey, boolean>>({
+    marketPopular: showDefaultSection,
+    forYou: showDefaultSection,
+    evidencePicks: showDefaultSection
+  });
+  const [forYouFilters, setForYouFilters] = useState<ForYouFilters>({
+    skinType: "건성"
+  });
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
   const isGeneralSearch = initialSearchMode === "general";
@@ -610,46 +695,74 @@ function HomeMainContent({
     }
   }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
 
+  const loadHomeSection = useCallback(
+    async (sectionKey: HomeSectionKey) => {
+      setHomeSectionLoading((current) => ({ ...current, [sectionKey]: true }));
+
+      try {
+        if (sectionKey === "marketPopular") {
+          setMarketPopularSection(await api.getMarketPopular({ limit: 10 }));
+        } else if (sectionKey === "forYou") {
+          setForYouLoading(Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, true])));
+          const prefetched = await Promise.all(
+            FOR_YOU_SKIN_TYPES.map(async (skinType) => {
+              try {
+                const section = await api.getForYou({ skinType, limit: 10 });
+                setForYouSections((current) => ({ ...current, [skinType]: section }));
+                if (skinType === "건성") setForYouSection(section);
+                return [skinType, section] as const;
+              } catch {
+                return [skinType, null] as const;
+              } finally {
+                setForYouLoading((current) => ({ ...current, [skinType]: false }));
+              }
+            })
+          );
+          const nextSections = Object.fromEntries(prefetched) as Record<string, HomeSection | null>;
+          setForYouSections(nextSections);
+          setForYouSection(nextSections["건성"] ?? null);
+        } else {
+          setEvidencePicksSection(await api.getEvidencePicks({ limit: 10 }));
+        }
+      } catch {
+        if (sectionKey === "marketPopular") setMarketPopularSection(null);
+        else if (sectionKey === "forYou") setForYouSection(null);
+        else setEvidencePicksSection(null);
+      } finally {
+        setHomeSectionLoading((current) => ({ ...current, [sectionKey]: false }));
+      }
+    },
+    []
+  );
+
+  const updateForYouFilter = (key: keyof ForYouFilters, value: string) => {
+    setForYouFilters((current) => ({ ...current, [key]: value }));
+    if (key === "skinType") {
+      setForYouSection(forYouSections[value] ?? null);
+    }
+  };
+
   useEffect(() => {
     if (!showDefaultSection) return;
 
-    let isMounted = true;
-
-    const loadHomeSections = async () => {
-      setIsHomeSectionLoading(true);
-      setHomeSectionError("");
-
-      try {
-        const [marketPopular, forYou, evidencePicks] = await Promise.all([
-          api.getMarketPopular({ limit: 10 }),
-          api.getForYou({
-            skinType: initialProfile.skin,
-            sensitivity: initialProfile.sensitivity,
-            limit: 10
-          }),
-          api.getEvidencePicks({ limit: 10 })
-        ]);
-        if (!isMounted) return;
-        setMarketPopularSection(marketPopular);
-        setForYouSection(forYou);
-        setEvidencePicksSection(evidencePicks);
-      } catch {
-        if (!isMounted) return;
-        setMarketPopularSection(null);
-        setForYouSection(null);
-        setEvidencePicksSection(null);
-        setHomeSectionError("인기 상품을 불러오지 못했습니다.");
-      } finally {
-        if (isMounted) setIsHomeSectionLoading(false);
-      }
+    const loadHome = async () => {
+      await Promise.all(DEFAULT_HOME_SECTION_ORDER.map(loadHomeSection));
     };
 
-    loadHomeSections();
+    void loadHome();
+  }, [loadHomeSection, showDefaultSection]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [initialProfile.sensitivity, initialProfile.skin, showDefaultSection]);
+  useEffect(() => {
+    return observeProductImpressions();
+  }, [evidencePicksSection, forYouSection, isLoading, marketPopularSection, recommendation]);
+
+  const hasVisibleHomeSection =
+    Boolean(marketPopularSection?.products.length) ||
+    Boolean(forYouSection?.products.length) ||
+    Boolean(evidencePicksSection?.products.length);
+  const selectedForYouSection =
+    forYouSections[forYouFilters.skinType] ?? (forYouFilters.skinType === "건성" ? forYouSection : null);
+  const selectedForYouLoading = forYouLoading[forYouFilters.skinType] ?? homeSectionLoading.forYou;
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -759,6 +872,13 @@ function HomeMainContent({
                 sortedProducts.map((product, index) => (
                   <HomeProductCard
                     displayRank={isGeneralSearch ? undefined : index + 1}
+                    eventContext={{
+                      sectionId: "recommendation_results",
+                      page: "search",
+                      source: "recommendation_result",
+                      clickEvent: "search_result_click",
+                      impressionEvent: "search_result_impression"
+                    }}
                     key={product.product_id}
                     product={product}
                     recommendationId={isGeneralSearch ? undefined : recommendation?.recommendation_id}
@@ -844,38 +964,35 @@ function HomeMainContent({
         id="defaultSection"
         style={{ display: showDefaultSection && !hasSearchState ? "block" : "none" }}
       >
-        {isHomeSectionLoading ? (
-          <HomeSectionLoadingSkeleton />
-        ) : homeSectionError ? (
-          <HomeSectionErrorState />
-        ) : marketPopularSection || forYouSection || evidencePicksSection ? (
+        {hasVisibleHomeSection || Object.values(homeSectionLoading).some(Boolean) ? (
           <div className="home-section-stack">
-            {marketPopularSection ? (
+            {marketPopularSection?.products.length ? (
               <HomeRankingSection
                 key={marketPopularSection.section_id}
                 products={marketPopularSection.products.map(mapHomeProductToCard)}
                 section={marketPopularSection}
                 sectionIndex={0}
               />
-            ) : null}
-            {forYouSection ? (
-              <HomeOriginalGridSection
-                key={forYouSection.section_id}
-                products={forYouSection.products.map(mapHomeProductToCard)}
-                section={forYouSection}
-              />
-            ) : null}
-            {evidencePicksSection ? (
+            ) : homeSectionLoading.marketPopular ? <HomeSectionLoadingSkeleton sectionKey="marketPopular" /> : null}
+            {selectedForYouSection?.products.length ? (
               <HomeDealSection
+                key={selectedForYouSection.section_id}
+                products={selectedForYouSection.products.map(mapHomeProductToCard)}
+                section={selectedForYouSection}
+                toneMint
+                forYouFilters={forYouFilters}
+                onForYouFilterChange={updateForYouFilter}
+              />
+            ) : selectedForYouLoading ? <HomeSectionLoadingSkeleton sectionKey="forYou" /> : null}
+            {evidencePicksSection?.products.length ? (
+              <HomeOriginalGridSection
                 key={evidencePicksSection.section_id}
                 products={evidencePicksSection.products.map(mapHomeProductToCard)}
                 section={evidencePicksSection}
               />
-            ) : null}
+            ) : homeSectionLoading.evidencePicks ? <HomeSectionLoadingSkeleton sectionKey="evidencePicks" /> : null}
           </div>
-        ) : (
-          <div className="empty-state">표시할 섹션이 없습니다.</div>
-        )}
+        ) : null}
       </div>
     </main>
   );
