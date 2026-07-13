@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { createOrderClaim, getClaimEligibility } from "../../lib/claimApi";
 import { getOrderDetail } from "../../lib/orderApi";
+import type { OrderClaimEligibilityResponse, OrderClaimType } from "../../types/claim";
 import type { OrderDetailResponse } from "../../types/order";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
-type RequestType = "RETURN" | "EXCHANGE" | "REFUND";
+type RequestType = OrderClaimType;
 
 const requestTypeLabels: Record<RequestType, string> = {
   RETURN: "반품",
@@ -15,6 +17,7 @@ const requestTypeLabels: Record<RequestType, string> = {
 function ReturnRequestPage() {
   const { orderCode = "" } = useParams();
   const [order, setOrder] = useState<OrderDetailResponse | null>(null);
+  const [eligibility, setEligibility] = useState<OrderClaimEligibilityResponse | null>(null);
   const [selectedItemId, setSelectedItemId] = useState("");
   const [requestType, setRequestType] = useState<RequestType>("RETURN");
   const [reason, setReason] = useState("");
@@ -25,18 +28,38 @@ function ReturnRequestPage() {
 
   useEffect(() => {
     if (!orderCode) return;
-    getOrderDetail(orderCode)
-      .then((response) => {
+    Promise.all([getOrderDetail(orderCode), getClaimEligibility(orderCode)])
+      .then(([response, claimEligibility]) => {
         setOrder(response);
-        setSelectedItemId(String(response.items[0]?.id ?? ""));
+        setEligibility(claimEligibility);
+        const firstEligibleItem = claimEligibility.items.find((item) => item.claimable_quantity > 0);
+        setSelectedItemId(String(firstEligibleItem?.order_item_id ?? ""));
       })
       .catch(() => setNotice("주문 정보를 불러오지 못했습니다."))
       .finally(() => setIsLoading(false));
   }, [orderCode]);
 
-  const submitRequest = (event: FormEvent) => {
+  const submitRequest = async (event: FormEvent) => {
     event.preventDefault();
-    setNotice("신청 API 연결 후 접수할 수 있습니다. 입력한 내용은 아직 전송되지 않았습니다.");
+    const itemId = Number(selectedItemId);
+    const eligibleItem = eligibility?.items.find((item) => item.order_item_id === itemId);
+    if (!order || !eligibleItem || eligibleItem.claimable_quantity < 1) {
+      setNotice("신청 가능한 상품을 선택해 주세요.");
+      return;
+    }
+
+    try {
+      const response = await createOrderClaim({
+        order_code: order.order_code,
+        claim_type: requestType,
+        reason_code: reason,
+        reason_detail: detail.trim() || null,
+        items: [{ order_item_id: itemId, quantity: 1 }]
+      });
+      setNotice(`신청이 접수되었습니다. 신청번호 ${response.claim_code}`);
+    } catch {
+      setNotice("신청을 접수하지 못했습니다. 주문 상태와 신청 가능 기간을 확인해 주세요.");
+    }
   };
 
   return (
@@ -52,7 +75,12 @@ function ReturnRequestPage() {
           배송 완료된 주문만 반품·교환·환불을 신청할 수 있습니다.
         </section>
       ) : null}
-      {!isLoading && order && order.status === "DELIVERED" ? (
+      {!isLoading && order && order.status === "DELIVERED" && eligibility && !eligibility.eligible ? (
+        <section className="return-request-card">
+          현재 이 주문은 반품·교환·환불 신청 대상이 아닙니다.
+        </section>
+      ) : null}
+      {!isLoading && order && order.status === "DELIVERED" && eligibility?.eligible ? (
         <form className="return-request-card return-request-form" onSubmit={submitRequest}>
           <div className="return-request-order-summary">
             <span>주문번호</span>
@@ -62,7 +90,7 @@ function ReturnRequestPage() {
           <label>
             <span>신청 상품</span>
             <select value={selectedItemId} onChange={(event) => setSelectedItemId(event.target.value)}>
-              {order.items.map((item) => (
+              {order.items.filter((item) => (eligibility?.items.find((candidate) => candidate.order_item_id === item.id)?.claimable_quantity ?? 0) > 0).map((item) => (
                 <option key={item.id} value={item.id}>{item.brand_name} · {item.product_name} · {item.quantity}개</option>
               ))}
             </select>
@@ -109,7 +137,7 @@ function ReturnRequestPage() {
             ) : null}
           </label>
 
-          <div className="return-request-api-note">백엔드 신청 API 연결 전 UI 골격입니다. 사진 첨부와 실제 접수는 API 계약 후 연결됩니다.</div>
+          <div className="return-request-api-note">배송 완료 후 신청 가능 기간과 상품별 잔여 수량을 확인해 접수합니다. 사진 첨부는 현재 API 계약에 포함되지 않습니다.</div>
           {notice ? <p className="return-request-notice" role="status">{notice}</p> : null}
           <button className="return-request-submit" disabled={!selectedItemId || !reason} type="submit">신청 내용 확인</button>
         </form>

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("1000", "5000", "10000", "80000")]
     [string]$Dataset = "1000",
@@ -23,9 +23,12 @@ function Read-EnvFile([string]$Path) {
     $values = @{}
     foreach ($line in Get-Content -LiteralPath $Path) {
         if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
-        if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') { continue }
-        $name = $Matches[1]
-        $value = $Matches[2].Trim()
+        $match = [regex]::Match($line, '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$')
+        if (-not $match.Success) {
+            continue
+        }
+        $name = $match.Groups[1].Value
+        $value = $match.Groups[2].Value.Trim()
         if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
             ($value.StartsWith("'") -and $value.EndsWith("'"))) {
             $value = $value.Substring(1, $value.Length - 2)
@@ -59,6 +62,23 @@ function Invoke-Scp([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "SCP 명령 실패" }
 }
 
+function Wait-HttpReady([string]$Url, [int]$TimeoutSeconds = 90) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $status = & curl.exe -s -o NUL -w "%{http_code}" --max-time 2 $Url
+            if ($status -eq "200") {
+                Write-Host "backend health ready: $Url"
+                return
+            }
+        } catch {
+            # Retry until the backend finishes restarting.
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "backend health check timed out: $Url"
+}
+
 $Config = Read-EnvFile $ConfigPath
 $RemoteAppDir = Require-Config $Config "REMOTE_APP_DIR"
 $RemoteRuntimeRoot = Require-Config $Config "REMOTE_BENCHMARK_ROOT"
@@ -77,59 +97,79 @@ $RemoteCtl = "$RemoteAppDir/scripts/perf/benchmarkctl"
 New-Item -ItemType Directory -Force $LocalRunDir | Out-Null
 
 if ($Prepare) {
-    Write-Host "[1/6] 서버 benchmark subset 생성 및 준비"
-    $prepareCommand = 'cd ' + $RemoteAppDir + ' && ' + $RemoteCtl + ' build ' + $RemoteAppDir + '/data && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' prepare ' + $Dataset
+    Write-Host "[1/7] 서버 benchmark subset 생성"
+    $buildCommand = 'cd ' + $RemoteAppDir + ' && ' + $RemoteCtl + ' build ' + $RemoteAppDir + '/data'
+    Invoke-Ssh $buildCommand $Config
+} else {
+    Write-Host "[1/7] 서버 benchmark subset 생성 생략"
+}
+
+Write-Host "[2/7] benchmark backend 활성화"
+$activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
+Invoke-Ssh $activateCommand $Config
+$HealthUrl = $BaseUrl.TrimEnd("/") + "/health"
+Wait-HttpReady $HealthUrl
+
+if ($Prepare) {
+    Write-Host "[3/7] 서버 benchmark DB 준비"
+    $prepareCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' prepare ' + $Dataset
     Invoke-Ssh $prepareCommand $Config
 } else {
-    Write-Host "[1/6] 서버 benchmark 상태 검증"
+    Write-Host "[3/7] 서버 benchmark 상태 검증"
     $verifyCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' verify ' + $Dataset
     Invoke-Ssh $verifyCommand $Config
 }
-
-Write-Host "[2/6] benchmark backend 활성화"
-$activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
-Invoke-Ssh $activateCommand $Config
 
 $effectiveVus = if ($Vus -gt 0) { $Vus } elseif ($Config.ContainsKey("VUS") -and $Config.VUS) { $Config.VUS } else { "1" }
 $effectiveDuration = if ($Duration) { $Duration } elseif ($Config.ContainsKey("DURATION") -and $Config.DURATION) { $Config.DURATION } else { "30s" }
 $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS } else { "3000" }
 
-Write-Host "[3/6] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
+Write-Host "[4/7] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
 $k6Args = @(
-    "run", $K6Script,
+    "run",
+    "--summary-export", $LocalK6Summary,
     "-e", "BASE_URL=$BaseUrl",
     "-e", "DATASET=$Dataset",
     "-e", "USER_TYPE=$UserType",
     "-e", "VUS=$effectiveVus",
     "-e", "DURATION=$effectiveDuration",
-    "-e", "SLA_MS=$sla",
-    "--summary-export", $LocalK6Summary
+    "-e", "SLA_MS=$sla"
 )
-foreach ($name in @(
+foreach ($envName in @(
     "BENCHMARK_PROFILE_USER_EMAIL", "BENCHMARK_PROFILE_USER_PASSWORD",
     "BENCHMARK_SKIN_TEST_USER_EMAIL", "BENCHMARK_SKIN_TEST_USER_PASSWORD",
     "BENCHMARK_BEHAVIOR_USER_EMAIL", "BENCHMARK_BEHAVIOR_USER_PASSWORD",
     "AUTH_COOKIE", "SKIN_TYPE", "SENSITIVITY", "AVOID_INGREDIENTS"
 )) {
-    if ($Config.ContainsKey($name) -and $Config[$name]) {
-        $k6Args += @("-e", "$name=$($Config[$name])")
+    if ($Config.ContainsKey($envName)) {
+        $envValue = [string]$Config.Item($envName)
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+            $k6Args += @("-e", "${envName}=${envValue}")
+        }
     }
 }
+$k6Args += $K6Script
 & k6 @k6Args
-if ($LASTEXITCODE -ne 0) { throw "k6 실행 실패" }
+$k6ExitCode = $LASTEXITCODE
+if (-not (Test-Path -LiteralPath $LocalK6Summary)) {
+    throw "k6 summary file was not created: $LocalK6Summary"
+}
+if ($k6ExitCode -ne 0) {
+    Write-Warning "k6 exited with code $k6ExitCode; collecting benchmark artifacts before failing."
+}
 
-Write-Host "[4/6] k6 결과를 서버로 업로드"
+Write-Host "[5/7] k6 결과를 서버로 업로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey,
     $LocalK6Summary,
     "${Remote}:$RemoteK6Summary"
 )
 
-Write-Host "[5/6] 서버에서 결과 collect"
+Write-Host "[6/7] 서버에서 결과 collect"
 $collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
-Write-Host "[6/6] 수집 결과 다운로드"
+Write-Host "[7/7] 수집 결과 다운로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey, "-r",
     "${Remote}:$RemoteRuntimeRoot/runs/$RunId",
@@ -137,3 +177,6 @@ Invoke-Scp @(
 )
 
 Write-Host "완료: $LocalResultRoot\$RunId"
+if ($k6ExitCode -ne 0) {
+    throw "k6 실행 실패: exit_code=$k6ExitCode"
+}

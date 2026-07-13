@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import ProductDetailActionButtons from "./ProductDetailActionButtons";
 import ProductPurchasePanel from "./ProductPurchasePanel";
+import RecommendationCriteriaPanel from "./RecommendationCriteriaPanel";
 import type { ProductDetailHeroProps } from "./types";
 
 function ProductDetailHero({
@@ -16,6 +17,7 @@ function ProductDetailHero({
   isAddingToCart,
   isNarrativeDetailOpen,
   isNarrativeLoading,
+  showRecommendationCriteria,
   isProductSoldOut,
   isWishlistPending,
   mainImageUrl,
@@ -140,6 +142,7 @@ function ProductDetailHero({
             ) : null}
           </div>
         </div>
+        {showRecommendationCriteria ? <RecommendationCriteriaPanel product={product} /> : null}
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}
           cartMessage={cartMessage}

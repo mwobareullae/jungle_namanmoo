@@ -38,8 +38,13 @@ tests/k6/commerce-smoke.js
 
 - `GET /api/health`
 - `GET /api/products/popular`
+- `GET /api/products` 신상품 목록
+- `GET /api/products` 필터·정렬 목록
 - `GET /api/products/{product_id}`
-- `GET /api/search/products`
+- `GET /api/products/{product_id}/reviews` 최신순
+- `GET /api/products/{product_id}/reviews` 피부 타입 필터
+- `GET /api/search/products` 기본 검색
+- `GET /api/search/products` feature·skin type 필터 검색
 - `GET /api/search/suggestions`
 - `GET /api/home/layout`
 - `GET /api/home/market-popular`
@@ -54,6 +59,7 @@ tests/k6/commerce-smoke.js
 장바구니 쓰기 요청은 익명 cart row를 생성하므로 기본 비활성화입니다.
 추천 narrative 요청은 기본 활성화하되 `use_llm=false`로 실행합니다. OpenAI 비용과 외부 API 지연을 기준선에 섞지 않기 위한 설정입니다.
 로그인 사용자용 `/api/home/for-you`는 `AUTH_HOME_FOR_YOU=true`와 `AUTH_COOKIE`를 설정한 경우에만 추가 실행합니다.
+`AUTH_COOKIE`가 있으면 익명 추천 요청을 유지하면서 로그인 추천 요청도 `recommendations_post_auth`로 추가 실행합니다.
 
 ## 사전 조건
 
@@ -211,11 +217,12 @@ PRODUCT_IDS=prod_oy_a000000163734,prod_oy_a000000250344 \
 k6 run tests/k6/commerce-smoke.js
 ```
 
-### 로그인 홈 추천 포함
+### 로그인 홈·추천 포함
 
-로그인 사용자 기준 `/api/home/for-you`를 포함하려면 브라우저에서 얻은 session cookie를 전달합니다.
+로그인 사용자 기준 `/api/home/for-you`와 추천 생성을 포함하려면 브라우저에서 얻은 session cookie를 전달합니다.
 기본 실행은 비로그인 fallback/선택 조건 for-you만 호출하고, 아래 두 값이 모두 있을 때만 로그인 `home_for_you_auth` 시나리오가 추가됩니다.
-실행 여부는 `report.md`의 `Auth home for-you` 행에서 확인합니다.
+`AUTH_COOKIE`가 있으면 `AUTH_HOME_FOR_YOU` 값과 관계없이 익명 추천에 더해 `recommendations_post_auth`가 실행됩니다.
+실행 여부는 `report.md`의 `Auth home for-you`, `Auth recommendation` 행에서 확인합니다.
 
 ```bash
 BASE_URL=https://dev.api.mubarelle.com/api \
@@ -252,6 +259,12 @@ latency:
   - health
   - popular products
   - product detail
+- `type=catalog_listing` p95 < 3000ms
+  - newest product listing
+  - filtered/sorted product listing
+- `type=product_reviews` p95 < 3000ms
+  - latest product reviews
+  - skin type filtered product reviews
 - `type=home` p95 < 3000ms
   - home layout
   - home market popular
@@ -260,15 +273,23 @@ latency:
   - home for-you selected conditions
   - home for-you auth
 - `type=search` p95 < 3000ms
-  - product search
   - recommendation create
   - recommendation page
   - recommendation narrative
+- `type=catalog_search` p95 < 500ms
+  - basic product search
+  - feature/skin type filtered product search
+- `type=catalog_suggestions` p95 < 200ms
+  - search suggestions
 - `type=write` p95 < 3000ms
   - anonymous cart add
   - checkout preview
 
 k6 threshold 실패 시 해당 run은 실패로 봅니다.
+
+## 이번 smoke에서 제외하는 상태 변경 API
+
+주문 클레임, 리뷰 작성·수정·삭제, 주문 결제·환불은 인증 사용자와 사전 데이터 상태가 필요하고 DB를 변경합니다. 기본 `commerce-smoke.js`에는 섞지 않으며 별도 상태 변경·동시성 스크립트에서 검증합니다.
 
 ## 관측 지표
 
