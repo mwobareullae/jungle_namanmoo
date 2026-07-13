@@ -68,6 +68,8 @@ Usage:
   scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl seed-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl monitor-start <run_id> <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl monitor-stop <run_id> <1000|5000|10000|80000>
   scripts/perf/benchmarkctl build <source_dir> [output_root]
   scripts/perf/benchmarkctl collect <run_id> [dataset]
 
@@ -441,6 +443,132 @@ seed_users() {
   verify_full_personalized_users
 }
 
+monitor_start() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local resources_dir="$result_dir/resources"
+  local elasticsearch_dir="$result_dir/elasticsearch"
+  local pid_file="$resources_dir/monitor.pid"
+  local docker_interval="${BENCHMARK_DOCKER_STATS_INTERVAL_SECONDS:-1}"
+  local es_interval="${BENCHMARK_ES_STATS_INTERVAL_SECONDS:-5}"
+  mkdir -p "$resources_dir" "$elasticsearch_dir"
+
+  if [[ -f "$pid_file" ]]; then
+    local existing_pid
+    existing_pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+      die "monitor is already running: pid=$existing_pid"
+    fi
+  fi
+
+  cat >"$resources_dir/monitor-context.txt" <<EOF
+run_id=$run_id
+dataset=$DATASET_LABEL
+started_at=${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}
+docker_stats_interval_seconds=$docker_interval
+elasticsearch_stats_interval_seconds=$es_interval
+EOF
+  printf 'timestamp,name,cpu_percent,mem_usage,mem_percent\n' >"$resources_dir/docker-stats.csv"
+  : >"$elasticsearch_dir/node-stats.ndjson"
+
+  DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" nohup bash -c '
+set +e
+data_host_dir="$1"
+compose_file_1="$2"
+compose_file_2="$3"
+elasticsearch_service="$4"
+resources_dir="$5"
+elasticsearch_dir="$6"
+docker_interval="$7"
+es_interval="$8"
+docker_stats_file="$resources_dir/docker-stats.csv"
+docker_stats_error_file="$resources_dir/docker-stats.err"
+es_stats_file="$elasticsearch_dir/node-stats.ndjson"
+es_stats_error_file="$elasticsearch_dir/node-stats.err"
+tick=0
+while true; do
+  ts="$(date -u -Is)"
+  docker stats --no-stream --format "{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}" 2>>"$docker_stats_error_file" \
+    | while IFS= read -r row; do
+        if [[ -n "$row" ]]; then
+          printf "%s,%s\n" "$ts" "$row"
+        fi
+      done >>"$docker_stats_file"
+
+  if (( tick % es_interval == 0 )); then
+    tmp_file="$elasticsearch_dir/node-stats.$$.tmp"
+    if DATA_HOST_DIR="$data_host_dir" docker compose -f "$compose_file_1" -f "$compose_file_2" \
+      exec -T "$elasticsearch_service" \
+      curl -fsS "http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process" >"$tmp_file" 2>>"$es_stats_error_file"; then
+      python3 - "$ts" "$tmp_file" >>"$es_stats_file" <<'"'"'PY'"'"'
+import json
+import sys
+
+timestamp, path = sys.argv[1:3]
+with open(path, encoding="utf-8") as handle:
+    stats = json.load(handle)
+print(json.dumps({"timestamp": timestamp, "stats": stats}, ensure_ascii=False))
+PY
+    fi
+    rm -f "$tmp_file"
+  fi
+
+  tick=$((tick + docker_interval))
+  sleep "$docker_interval"
+done
+' _ \
+    "$BENCHMARK_DATA_HOST_DIR" \
+    "$REPO_DIR/docker-compose.yml" \
+    "$REPO_DIR/docker-compose.benchmark.yml" \
+    "$ELASTICSEARCH_SERVICE" \
+    "$resources_dir" \
+    "$elasticsearch_dir" \
+    "$docker_interval" \
+    "$es_interval" \
+    >"$resources_dir/monitor.log" 2>&1 &
+
+  echo "$!" >"$pid_file"
+  echo "monitor_started=$result_dir pid=$(cat "$pid_file")"
+}
+
+monitor_stop() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local resources_dir="$result_dir/resources"
+  local pid_file="$resources_dir/monitor.pid"
+  local stopped_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+
+  if [[ ! -f "$pid_file" ]]; then
+    echo "monitor_not_running=$result_dir"
+    return 0
+  fi
+
+  local pid
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    sleep 1
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  fi
+  rm -f "$pid_file"
+  echo "stopped_at=$stopped_at" >"$resources_dir/monitor-stopped-at.txt"
+  echo "monitor_stopped=$result_dir"
+}
+
 collect() {
   local run_id="${1:-}"
   local dataset="${2:-${DATASET_LABEL:-}}"
@@ -452,13 +580,16 @@ collect() {
 
   local result_dir="$RESULT_ROOT/$run_id"
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
+  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   local k6_result_present=false
   local k6_exit_code_json="null"
   local embedding_coverage="null"
   local actual_product_count="$PRODUCT_COUNT"
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
   print_context | tee "$result_dir/context.txt"
-  compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
+  if ! compose logs --no-color --since "$started_at" --until "$finished_at" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1; then
+    compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
+  fi
   grep '"event":"db_slow_query"' "$result_dir/backend/backend.log" >"$result_dir/database/slow-query.log" || true
   backend_exec python - <<'PY' >"$result_dir/database/counts.json" 2>&1 || true
 import json
@@ -487,9 +618,23 @@ PY
     actual_product_count="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("products", 0))' "$result_dir/database/counts.json" 2>/dev/null || printf '%s' "$PRODUCT_COUNT")"
     embedding_coverage="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])).get("embedding_coverage")))' "$result_dir/database/counts.json" 2>/dev/null || printf 'null')"
   fi
-  docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
+  if [[ -f "$result_dir/resources/docker-stats.csv" ]]; then
+    docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats-final.csv" || true
+  else
+    docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
+  fi
   compose ps >"$result_dir/resources/compose-ps.txt" 2>&1 || true
-  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  docker ps --format '{{.Names}}' \
+    | grep '^mwobareullae-' \
+    | while IFS= read -r container_name; do
+        docker inspect "$container_name" \
+          --format='{{.Name}} status={{.State.Status}} restart={{.RestartCount}} oom={{.State.OOMKilled}} exit_code={{.State.ExitCode}}'
+      done >"$result_dir/resources/container-health.txt" 2>&1 || true
+  if [[ -f "$result_dir/elasticsearch/node-stats.ndjson" ]]; then
+    compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats-final.json" || true
+  else
+    compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  fi
   if [[ "${BENCHMARK_RDS_METRICS_ENABLED:-false}" == "true" && -x "$SCRIPT_DIR/collect_rds_metrics.sh" ]]; then
     local rds_end_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
     "$SCRIPT_DIR/collect_rds_metrics.sh" "$started_at" "$rds_end_at" "$result_dir/database/rds-metrics.json" || true
@@ -501,7 +646,6 @@ PY
   if [[ "${BENCHMARK_K6_EXIT_CODE:-}" =~ ^-?[0-9]+$ ]]; then
     k6_exit_code_json="$BENCHMARK_K6_EXIT_CODE"
   fi
-  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   cat >"$result_dir/manifest.json" <<EOF
 {
   "run_id": "$(safe_label "$run_id")",
@@ -549,6 +693,8 @@ case "$COMMAND" in
   verify) load_profile "${2:-}"; verify ;;
   verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
   seed-users) load_profile "${2:-}"; seed_users ;;
+  monitor-start) monitor_start "${2:-}" "${3:-}" ;;
+  monitor-stop) monitor_stop "${2:-}" "${3:-}" ;;
   build) build "${2:-}" "${3:-}" ;;
   collect) collect "${2:-}" "${3:-}" ;;
   help|-h|--help) usage ;;
