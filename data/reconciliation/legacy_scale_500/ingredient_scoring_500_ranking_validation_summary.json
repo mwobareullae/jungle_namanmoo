@@ -1,0 +1,113 @@
+{
+  "validation_version": "mwbl-legacy-scale-500-ranking-audit-v1",
+  "validated_on": "2026-07-13",
+  "status": "pass_with_runtime_interaction_merge_blocker",
+  "full_validation_sha256": "0ebc99674e140153382c0a47594bea5f5254376a0e9d0bb2f930c0918454d648",
+  "populations": {
+    "all_products_with_ingredient_rows": 65955,
+    "runtime_recommendable_with_price": 10164
+  },
+  "data_invariants": {
+    "baseline_ingredient_count": 34,
+    "baseline_pair_count": 72,
+    "baseline_rows_exactly_preserved": true,
+    "fixed_cohort_count": 500,
+    "expanded_active_ingredient_count": 187,
+    "expanded_pair_count": 245,
+    "new_active_ingredient_count": 153,
+    "new_pair_count": 173,
+    "expanded_evidence_row_count": 107,
+    "effect_score_min": 30,
+    "effect_score_max": 74,
+    "unknown_effect_id_count": 0,
+    "missing_ingredient_id_count": 0,
+    "official_prior_cross_axis_leakage_count": 0,
+    "deterministic_rebuild_matches_runtime": true
+  },
+  "runtime_recommendable_effect_axis_summary": [
+    {
+      "effect_id": "effect_brightening",
+      "baseline_reach_pct": 37.35,
+      "expanded_reach_pct": 41.77,
+      "baseline_saturation_pct": 4.46,
+      "expanded_saturation_pct": 5.92,
+      "changed_product_pct": 9.54,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 77,
+      "evidence_worsened_count": 81,
+      "combined_worsened_count": 7,
+      "minimum_combined_point_delta": -4.4065
+    },
+    {
+      "effect_id": "effect_moisture_barrier",
+      "baseline_reach_pct": 90.77,
+      "expanded_reach_pct": 97.93,
+      "baseline_saturation_pct": 65.55,
+      "expanded_saturation_pct": 75.86,
+      "changed_product_pct": 30.1,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 86,
+      "evidence_worsened_count": 204,
+      "combined_worsened_count": 93,
+      "minimum_combined_point_delta": -5.1435
+    },
+    {
+      "effect_id": "effect_acne_sebum",
+      "baseline_reach_pct": 39.94,
+      "expanded_reach_pct": 52.28,
+      "baseline_saturation_pct": 0.58,
+      "expanded_saturation_pct": 1.16,
+      "changed_product_pct": 24.97,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 58,
+      "evidence_worsened_count": 41,
+      "combined_worsened_count": 10,
+      "minimum_combined_point_delta": -1.0125
+    },
+    {
+      "effect_id": "effect_wrinkle",
+      "baseline_reach_pct": 71.62,
+      "expanded_reach_pct": 73.11,
+      "baseline_saturation_pct": 2.71,
+      "expanded_saturation_pct": 9.53,
+      "changed_product_pct": 13.33,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 66,
+      "evidence_worsened_count": 849,
+      "combined_worsened_count": 391,
+      "minimum_combined_point_delta": -5.5845
+    },
+    {
+      "effect_id": "effect_calming",
+      "baseline_reach_pct": 89.37,
+      "expanded_reach_pct": 92.98,
+      "baseline_saturation_pct": 1.03,
+      "expanded_saturation_pct": 1.47,
+      "changed_product_pct": 47.49,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 66,
+      "evidence_worsened_count": 3613,
+      "combined_worsened_count": 1243,
+      "minimum_combined_point_delta": -3.1035
+    },
+    {
+      "effect_id": "effect_exfoliation",
+      "baseline_reach_pct": 76.5,
+      "expanded_reach_pct": 77.19,
+      "baseline_saturation_pct": 1.29,
+      "expanded_saturation_pct": 1.29,
+      "changed_product_pct": 5.44,
+      "effect_only_worsened_count": 0,
+      "top_100_overlap_count": 100,
+      "evidence_worsened_count": 7,
+      "combined_worsened_count": 0,
+      "minimum_combined_point_delta": 0.0
+    }
+  ],
+  "merge_blocker": {
+    "code": "effect_ranked_top3_reused_for_evidence",
+    "description": "The runtime ranks the top three ingredients by effect_score and reuses those rows and decays for the evidence component. A newly activated effect row can therefore displace a higher-evidence ingredient and lower the combined score.",
+    "recommended_resolution": "Select evidence top-three independently or explicitly accept the non-monotonic behavior, then rerun this 10164-product audit.",
+    "scoring_formula_changed_in_this_pr": false
+  }
+}

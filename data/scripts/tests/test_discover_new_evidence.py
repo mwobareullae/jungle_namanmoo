@@ -117,7 +117,7 @@ class EvidenceDiscoveryTests(unittest.TestCase):
         self.assertEqual(client.retry_count, 1)
         self.assertEqual(opener.calls, 2)
 
-    def test_current_72_pair_contract_builds_queries_without_network(self):
+    def test_current_runtime_pair_contract_builds_queries_without_network(self):
         repo_root = SCRIPT_DIR.parents[1]
         pairs = read_csv_rows(repo_root / "data/ingredient_effect.csv")
         ingredient_ids = {row["ingredient_id"] for row in pairs}
@@ -127,7 +127,8 @@ class EvidenceDiscoveryTests(unittest.TestCase):
             ingredient_ids,
         )
 
-        self.assertEqual(len(pairs), 72)
+        self.assertEqual(len(pairs), 245)
+        self.assertEqual(len(ingredient_ids), 187)
         self.assertEqual(set(terms), ingredient_ids)
         for row in pairs:
             query = build_pair_query(terms[row["ingredient_id"]], row["effect_id"])

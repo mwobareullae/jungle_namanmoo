@@ -17,6 +17,7 @@ from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.db.models.review import ProductReviewMetric
+from app.db.models.taxonomy import IngredientEvidence
 from app.db.session import get_db
 from app.main import app
 from app.middleware.request_logging import request_logging_middleware
@@ -885,9 +886,38 @@ def test_get_product_detail_returns_general_db_detail(client: TestClient) -> Non
     assert data["purchase_info"]["stock_status"] == "UNKNOWN"
     assert data["purchase_info"]["can_purchase"] is False
     assert data["ingredients"]
-    assert data["evidence"]["ingredient_evidence"]
-    assert data["sources"]
+    assert data["evidence"]["ingredient_evidence"] == []
+    assert data["sources"] == []
     assert data["product"]["cart_handoff"] is None
+
+
+def test_get_product_detail_exposes_only_accepted_current_evidence(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        evidence_rows = session.scalars(
+            select(IngredientEvidence).order_by(IngredientEvidence.id.asc())
+        ).all()
+        accepted = evidence_rows[0]
+        accepted.review_status = "accepted"
+        accepted.is_current = True
+        accepted.reviewed_by = "test-reviewer"
+        accepted.reviewed_at = datetime(2026, 7, 13, tzinfo=UTC)
+        accepted_title = accepted.source_title
+        rejected = evidence_rows[1]
+        rejected.review_status = "rejected"
+        rejected.is_current = True
+        rejected.reviewed_by = "test-reviewer"
+        rejected.reviewed_at = datetime(2026, 7, 13, tzinfo=UTC)
+        session.commit()
+
+    response = client.get("/api/products/prod_001")
+
+    assert response.status_code == 200
+    evidence = response.json()["evidence"]["ingredient_evidence"]
+    assert len(evidence) == 1
+    assert evidence[0]["source_title"] == accepted_title
 
 
 def test_search_products_returns_product_cards(client: TestClient) -> None:
