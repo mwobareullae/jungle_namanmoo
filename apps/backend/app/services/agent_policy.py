@@ -21,7 +21,7 @@ class AgentToolPolicy:
 
 ALLOWED_UI_ACTION_TARGETS: dict[AgentUiActionType, frozenset[str]] = {
     "noop": frozenset(),
-    "navigate": frozenset({"home", "login", "product_detail", "order_detail", "checkout"}),
+    "navigate": frozenset({"home", "login", "product_detail", "order_detail", "checkout", "review_write"}),
     "open_modal": frozenset({"agent_confirmation", "order_cancel_confirm", "order_create_confirm"}),
     "show_products": frozenset({"product_results", "similar_products", "refined_products"}),
     "show_product_comparison": frozenset({"product_comparison"}),
@@ -121,6 +121,15 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         allowed_ui_actions=frozenset({"open_modal", "show_cart"}),
         max_result_items=4,
         timeout_ms=3000,
+    ),
+    "prepare_review_draft": AgentToolPolicy(
+        tool_name="prepare_review_draft",
+        risk_level="READ",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"navigate"}),
+        max_result_items=1,
+        timeout_ms=2000,
     ),
 }
 

@@ -20,6 +20,7 @@ from app.services.agent_product_tools import (
     FIND_SIMILAR_PRODUCTS_TOOL,
     REFINE_PRODUCT_RESULTS_TOOL,
 )
+from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_tool_dispatcher import execute_agent_tool
 
 
@@ -54,6 +55,10 @@ Use tools this way:
 - Call prepare_order only when context.page is checkout and the user explicitly asks
   to create or continue the reviewed order. It creates a confirmation step and only
   creates a TOSS order after confirmation.
+- If the user asks for help writing a review, call prepare_review_draft only when
+  they supplied a real rating or concrete personal experience. Use only what the
+  user said; never invent product use, effects, duration, or repurchase intent. The
+  tool fills the review form, and the user always submits the public review.
 
 If required context is missing, ask for the missing information in one short Korean
 sentence. If no tool is needed, answer briefly in Korean.
@@ -154,6 +159,7 @@ async def run_openai_agent_chat(
             compose_cart,
             prepare_checkout,
             prepare_order,
+            prepare_review_draft,
         ],
     )
 
@@ -468,4 +474,27 @@ async def prepare_order(
         ctx,
         tool_name=PREPARE_ORDER_TOOL,
         arguments={"cart_item_ids": cart_item_ids, "address_id": address_id},
+    )
+
+
+@function_tool(name_override=PREPARE_REVIEW_DRAFT_TOOL)
+async def prepare_review_draft(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    rating: int,
+    review_text: str,
+    order_code: str | None = None,
+    product_id: str | None = None,
+    is_repurchase_review: bool = False,
+) -> str:
+    """Fill a purchased-product review form from the user's stated experience."""
+    return _execute_tool(
+        ctx,
+        tool_name=PREPARE_REVIEW_DRAFT_TOOL,
+        arguments={
+            "order_code": order_code,
+            "product_id": product_id,
+            "rating": rating,
+            "review_text": review_text,
+            "is_repurchase_review": is_repurchase_review,
+        },
     )

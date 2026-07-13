@@ -37,6 +37,7 @@ from app.services.agent_product_tools import (
     find_similar_products,
     refine_product_results,
 )
+from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL, prepare_review_draft
 
 
 class OrderStatusLookupArgs(BaseModel):
@@ -108,6 +109,16 @@ class ComposeCartArgs(BaseModel):
     sensitivity: str | None = Field(default=None, max_length=40)
 
 
+class PrepareReviewDraftArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_code: str | None = Field(default=None, max_length=40)
+    product_id: str | None = Field(default=None, max_length=128)
+    rating: int = Field(..., ge=1, le=5)
+    review_text: str = Field(..., min_length=1, max_length=2000)
+    is_repurchase_review: bool = False
+
+
 ToolArgs = (
     OrderStatusLookupArgs
     | CancelRecentOrderArgs
@@ -118,6 +129,7 @@ ToolArgs = (
     | AddToCartArgs
     | CheckoutArgs
     | ComposeCartArgs
+    | PrepareReviewDraftArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
@@ -130,6 +142,7 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     PREPARE_CHECKOUT_TOOL: CheckoutArgs,
     PREPARE_ORDER_TOOL: CheckoutArgs,
     COMPOSE_CART_TOOL: ComposeCartArgs,
+    PREPARE_REVIEW_DRAFT_TOOL: PrepareReviewDraftArgs,
 }
 
 
@@ -362,6 +375,21 @@ def _execute_parsed_tool(
             request_id=request_id,
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,
+        )
+
+    if tool_name == PREPARE_REVIEW_DRAFT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, PrepareReviewDraftArgs)
+        return prepare_review_draft(
+            session,
+            user,
+            conversation_id=conversation_id,
+            order_code=args.order_code,
+            product_id=args.product_id,
+            rating=args.rating,
+            review_text=args.review_text,
+            is_repurchase_review=args.is_repurchase_review,
         )
 
     raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")

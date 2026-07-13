@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
+import { storeAgentReviewDraft } from "../lib/agentDrafts";
 import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getOrderDetail } from "../lib/orderApi";
@@ -994,6 +995,12 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   if (action.target === "home") return "/";
   if (action.target === "login") return "/login";
   if (action.target === "checkout") return "/checkout";
+  if (action.target === "review_write") {
+    const orderCode = readString(action.payload.order_code);
+    const params = new URLSearchParams({ agent_draft: "1" });
+    if (orderCode) params.set("order_code", orderCode);
+    return `/mypage/reviews?${params.toString()}`;
+  }
   if (action.target === "product_detail") {
     const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
     return productId ? `/product-detail?id=${encodeURIComponent(productId)}` : null;
@@ -1076,6 +1083,10 @@ const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseIte
       },
     }));
     return;
+  }
+
+  if (action.type === "navigate" && action.target === "review_write") {
+    storeAgentReviewDraft(action.payload);
   }
 
   const url = resolveNavigateUrl(action);

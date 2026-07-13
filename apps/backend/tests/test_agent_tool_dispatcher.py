@@ -21,6 +21,7 @@ from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
+from tests.test_review_api import _create_order_item
 
 
 @pytest.fixture()
@@ -122,6 +123,33 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+
+
+def test_prepare_review_draft_uses_reviewable_purchase_without_creating_review(db_engine: Engine) -> None:
+    email = "agent-review@example.com"
+    with Session(db_engine) as session:
+        session.add(User(email=email, display_name="agent-review"))
+        session.commit()
+    order_item_id = _create_order_item(db_engine, email=email, item_status="DELIVERED")
+
+    with Session(db_engine) as session:
+        user = session.scalar(select(User).where(User.email == email))
+        response = execute_agent_tool(
+            session,
+            tool_name="prepare_review_draft",
+            arguments={
+                "rating": 4,
+                "review_text": "보습감은 좋았지만 마무리가 조금 끈적였어요.",
+            },
+            user=user,
+            conversation_id="conv_review",
+        )
+
+    assert response.ui_action.type == "navigate"
+    assert response.ui_action.target == "review_write"
+    assert response.ui_action.payload["order_item_id"] == order_item_id
+    assert response.ui_action.payload["rating"] == 4
+    assert response.ui_action.payload["review_text"] == "보습감은 좋았지만 마무리가 조금 끈적였어요."
 
 
 def test_compose_cart_requires_confirmation_before_bulk_add(db_engine: Engine) -> None:
