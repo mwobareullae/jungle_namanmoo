@@ -836,7 +836,7 @@ function LegacyApp() {
 function GlobalAgentEntry() {
   const location = useLocation();
   const { user, isAuthLoading } = useAuth();
-  const [hasSavedSkinProfile, setHasSavedSkinProfile] = useState(false);
+  const [savedSkinProfile, setSavedSkinProfile] = useState<Awaited<ReturnType<typeof getSavedSkinProfile>>>(null);
   const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
 
   const hasTemporarySkinProfile = useMemo(() => {
@@ -851,7 +851,7 @@ function GlobalAgentEntry() {
 
     if (!user) {
       const timerId = window.setTimeout(() => {
-        setHasSavedSkinProfile(false);
+        setSavedSkinProfile(null);
         setIsSkinProfileResolved(true);
       }, 0);
       return () => window.clearTimeout(timerId);
@@ -861,7 +861,7 @@ function GlobalAgentEntry() {
 
     getSavedSkinProfile().then((profile) => {
       if (isMounted) {
-        setHasSavedSkinProfile(Boolean(profile));
+        setSavedSkinProfile(profile);
         setIsSkinProfileResolved(true);
       }
     });
@@ -875,7 +875,7 @@ function GlobalAgentEntry() {
     return null;
   }
 
-  const skinProfileStatus = hasSavedSkinProfile
+  const skinProfileStatus = savedSkinProfile
     ? "saved"
     : hasTemporarySkinProfile
       ? "temporary"
@@ -894,6 +894,7 @@ function GlobalAgentEntry() {
 
   return (
     <AgentFloatingButton
+      skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       surface={agentSurface}
     />

@@ -17,6 +17,11 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
+  skinProfile?: {
+    avoidIngredients?: string[];
+    sensitivity: string;
+    skin: string;
+  };
   skinProfileStatus?: "empty" | "saved" | "temporary";
   surface?: "home" | "productDetail" | "context" | "minimal";
 };
@@ -500,7 +505,7 @@ const resolveAgentPage = (pathname: string) => {
   return "home";
 };
 
-function buildAgentContext(): AgentContext {
+function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]): AgentContext {
   if (typeof window === "undefined") {
     return {};
   }
@@ -516,8 +521,9 @@ function buildAgentContext(): AgentContext {
   const pageSize = readNumber(params.get("page_size"));
   const page = readNumber(params.get("page"));
 
-  if (skinType) filters.skin_type = skinType;
-  if (sensitivity) filters.sensitivity = sensitivity;
+  if (skinType || skinProfile?.skin) filters.skin_type = skinType ?? skinProfile?.skin;
+  if (sensitivity || skinProfile?.sensitivity) filters.sensitivity = sensitivity ?? skinProfile?.sensitivity;
+  if (skinProfile?.avoidIngredients?.length) filters.avoid_ingredients = skinProfile.avoidIngredients;
   if (pageSize) filters.page_size = pageSize;
   if (page) filters.page = page;
 
@@ -1022,6 +1028,7 @@ const setAgentCartTargetBusy = (active: boolean) => {
 
 function AgentFloatingButton({
   isAgentResponding = false,
+  skinProfile,
   skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
@@ -1249,13 +1256,13 @@ function AgentFloatingButton({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || typeof window === "undefined") {
+    if (!isOpen || isSubmitting || typeof window === "undefined") {
       return undefined;
     }
 
     const animationFrame = window.requestAnimationFrame(() => chatInputRef.current?.focus());
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [isOpen]);
+  }, [isOpen, isSubmitting]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1393,7 +1400,7 @@ function AgentFloatingButton({
 
     try {
       const response = await api.sendAgentMessage({
-        context: buildAgentContext(),
+        context: buildAgentContext(skinProfile),
         conversation_id: requestConversationId,
         last_tool_result: lastToolResult,
         message: nextMessage,
