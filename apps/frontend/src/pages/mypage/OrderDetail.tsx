@@ -98,7 +98,7 @@ export default function OrderDetail() {
               thumbnail_url: item.thumbnail_url,
               lowest_price: item.lowest_price,
               evidence_tags: item.tags,
-              key_ingredients: [],
+              key_ingredients: item.tags,
               risk_flags: [],
               in_stock: true
             }))
@@ -268,8 +268,11 @@ export default function OrderDetail() {
         {recommendedProducts.length > 0 ? (
           <section className="order-detail-recommendations" aria-labelledby="orderRecommendationsTitle" style={styles.recommendationCard}>
             <div style={styles.cardHeader}>
-              <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
-              <span style={styles.cardCount}>맞춤 추천</span>
+              <div className="order-detail-recommendations__heading">
+                <span className="order-detail-recommendations__eyebrow">FOR YOU</span>
+                <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
+              </div>
+              <span className="order-detail-recommendations__badge">피부 프로필 맞춤</span>
             </div>
             <div className="product-grid order-detail-recommendations__grid">
               {recommendedProducts.slice(0, 4).map((product) => (
