@@ -12444,7 +12444,7 @@ html[data-app-mode="community"] .search-results-shell {
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 8px;
   align-items: center;
-  margin: 0 16px 16px;
+  margin: 20px 16px 16px;
   border: 1px solid #dfe9ee;
   border-radius: 16px;
   background: #f0f7fa;
