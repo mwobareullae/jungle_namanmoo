@@ -1,0 +1,62 @@
+{
+  "approved_alias_types": [
+    "en",
+    "inci",
+    "synonym"
+  ],
+  "book_metadata_rebuilt_at_utc": "2026-07-13T06:41:16Z",
+  "efetch_attempt_count": 117,
+  "efetch_retry_count": 0,
+  "effect_terms_in_query": false,
+  "esearch_and_efetch_request_count": 583,
+  "esearch_and_efetch_retry_count": 0,
+  "failed_query_count": 0,
+  "frozen_cohort_row_count": 466,
+  "frozen_cohort_unique_ingredient_count": 466,
+  "ingredient_id_fallback_used": false,
+  "input_sha256": {
+    "data/ingredient_aliases.csv": "c4c4fede5fbaa1b2303be329b8ae78c3cdbc99b2b25d17676e66c49c90a1c7d2",
+    "data/ingredients.csv": "5d5a5257fcb24c4f25b42e050b9536f797858d09932564ab932f036cd5113ab7",
+    "data/reconciliation/ingredient_evidence_adjudication_466.csv": "ea898929076adfc6e0da3986cf38e4095f5685ba3b96176811026eae379f53d6"
+  },
+  "metadata_complete_row_count": 13460,
+  "metadata_error_row_count": 0,
+  "output_sha256": {
+    "pubmed_candidates_466_v1_1_fresh.csv": "0b9272865ef5ae129be413e888e66aee24a8dadf176a79ef2ae6d7a44cf46112",
+    "pubmed_query_log_466_v1_1_fresh.csv": "0df86e80eea9868a1d16fbf805ea2d0e20668d635c87a9a4eb7cd816b5f49197"
+  },
+  "pagination_status_counts": {
+    "capped_at_retrieval_limit": 96,
+    "complete": 370
+  },
+  "pipeline_version": "mwbl-ingredient-evidence-filter-v1.1-fresh-pubmed",
+  "pubmed_book_article_followup_count": 50,
+  "query_log_row_count": 466,
+  "query_version": "mwbl-pubmed-ingredient-skin-context-v1.1",
+  "request_interval_seconds": 0.36,
+  "retrieval_cap_per_ingredient": 100,
+  "retrieved_ingredient_pmid_row_count": 13460,
+  "review_status": "candidate_unverified",
+  "run_completed_at_utc": "2026-07-13T06:41:16Z",
+  "run_started_at_utc": "2026-07-13T06:21:13Z",
+  "runtime_score_change": "none",
+  "skin_context_terms": [
+    "skin",
+    "topical",
+    "cutaneous",
+    "dermal",
+    "epidermis",
+    "epidermal",
+    "stratum corneum",
+    "corneocyte",
+    "keratinocyte",
+    "dermatology",
+    "dermatitis",
+    "cosmetic"
+  ],
+  "source": "pubmed",
+  "successful_query_count": 466,
+  "total_reported_hits_sum": 174552,
+  "unique_metadata_paper_count": 11483,
+  "unique_retrieved_pmid_count": 11483
+}

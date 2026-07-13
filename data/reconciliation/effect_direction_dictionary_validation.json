@@ -1,0 +1,17 @@
+{
+  "dictionary_path": "data/effect_direction_dictionary.csv",
+  "dictionary_sha256": "3af99cf832628c40f8cb229d8cad8c911cca9a71d60245bc469676accc86a619",
+  "policy_version": "mwbl-effect-direction-v1",
+  "entry_count": 181,
+  "entries_by_cue_type": {
+    "decrease": 28,
+    "improvement": 12,
+    "increase": 18,
+    "null": 70,
+    "uncertain": 46,
+    "worsening": 7
+  },
+  "max_cue_distance_tokens": 10,
+  "runtime_scoring_changed": false,
+  "validation_status": "passed"
+}

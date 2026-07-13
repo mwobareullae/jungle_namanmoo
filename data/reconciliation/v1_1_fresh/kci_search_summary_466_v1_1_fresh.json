@@ -1,0 +1,27 @@
+{
+  "candidate_row_count": 0,
+  "frozen_cohort_row_count": 466,
+  "input_sha256": {
+    "data/ingredient_aliases.csv": "c4c4fede5fbaa1b2303be329b8ae78c3cdbc99b2b25d17676e66c49c90a1c7d2",
+    "data/ingredients.csv": "5d5a5257fcb24c4f25b42e050b9536f797858d09932564ab932f036cd5113ab7",
+    "data/reconciliation/ingredient_evidence_adjudication_466.csv": "ea898929076adfc6e0da3986cf38e4095f5685ba3b96176811026eae379f53d6"
+  },
+  "output_sha256": {
+    "kci_candidates_466_v1_1_fresh.csv": "5dff72b6ddc155c2a9548c55b7024b057ca43508900702be7af6522d8374c259",
+    "kci_query_log_466_v1_1_fresh.csv": "4dcc75a574bce494cdf1bb750fed424bd95340fe1d85466f6e68b7cd00cfda64"
+  },
+  "pipeline_version": "mwbl-ingredient-evidence-filter-v1.1-fresh-kci",
+  "query_log_row_count": 466,
+  "request_status_counts": {
+    "access_unavailable": 466
+  },
+  "review_status": "candidate_unverified",
+  "robots_decision": "collection_prohibited_for_user_agent_star",
+  "robots_evidence_text": "User-agent: googlebot\nAllow: /\n\nUser-agent: *\nDisallow: /\n\nSitemap: https://www.kci.go.kr/kciportal/ci/sitemap_kci_article.xml\n",
+  "robots_fetched_at_utc": "2026-07-13T06:45:49Z",
+  "robots_sha256": "d220f330732f1f47afbdd06b61fc3739164627b94f8cf365f9eefddcd3951911",
+  "robots_url": "https://www.kci.go.kr/robots.txt",
+  "runtime_score_change": "none",
+  "search_requests_sent": 0,
+  "source": "kci"
+}

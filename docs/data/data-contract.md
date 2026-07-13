@@ -38,6 +38,8 @@
 | `data/ingredients.csv` | CSV | 성분 기본 정보 |
 | `data/ingredient_aliases.csv` | CSV | raw 성분 표기와 canonical 성분 ID의 매핑 |
 | `data/ingredient_canonical_mappings.csv` | CSV | pending source 또는 broad exact 표기를 승인된 canonical 성분 ID로 연결하는 매핑 |
+| `data/effect_outcome_dictionary.csv` | CSV | 논문 결과 표현을 기존 6효능에 안전하게 연결하기 위한 검수 용어 사전 |
+| `data/effect_direction_dictionary.csv` | CSV | 결과 변화 표현을 증가·감소·무효·불확실로 분류하는 검수 방향 사전 |
 | `data/ingredient_effect.csv` | CSV | 성분과 효능의 매핑 |
 | `data/ingredient_evidence.csv` | CSV | 성분 효능 근거와 근거 등급 |
 | `data/ingredient_effect_ranges.csv` | CSV | 성분-효능별 유효/적정/과다 함량 범위 |
@@ -217,21 +219,262 @@ Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredien
 
 이 파일은 검수 완료 매핑만 담는 append-oriented 정본입니다. 기존 매핑을 제거하거나 대상을 바꿀 때는 과거 canonical 연결 정리가 필요하므로 별도 데이터 정리와 검증을 수행해야 합니다.
 
-### `data/reconciliation/ingredient_effect_pubmed_screening.csv`
+### canonicalization 80% 배치 산출물
 
-canonical 성분을 실제 논문 원문 검토 대상으로 보낼지 결정하는 재현용 사전검사 산출물입니다.
-런타임 seed 정본이 아니며 점수와 근거 승인을 만들지 않습니다.
+- `data/reconciliation/ingredient_canonicalization_top4000_80pct.csv`는 기존 exact/wildcard 매핑을 적용한 뒤에도 남는 pending source ID를 상품행 빈도순으로 정리한 검수 인벤토리입니다.
+- `data/reconciliation/ingredient_canonicalization_proposals_80pct.csv`는 KCIA 표준명·영문명·구명칭 exact 일치 중 상품 성분행 커버리지가 80%에 도달하는 지점까지만 `selected_for_target=Y`로 선택합니다.
+- `data/reconciliation/ingredient_canonicalization_validation.json`은 전체 상품 성분행에서 실제 매핑 커버리지와 중복 collapse 수를 재계산한 결과입니다.
+- 같은 구명칭이 둘 이상의 최신 canonical을 가리키면 exact override와 alias 자동 재배정을 건너뛰고 broad 또는 pending 상태로 남깁니다.
 
-- 기존 `ingredient_effect.csv` 조합은 그대로 유지합니다.
-- `BLEACHING`, `SOOTHING`처럼 직접적인 CosIng 기능은 초기 검색 후보로 유지합니다.
-- 보습 기능과 `ANTI-SEBORRHEIC`, `KERATOLYTIC`은 성분명이 논문 제목에 명시되고 인체·국소 적용 신호가 있는 PubMed 논문 후보가 최소 1편 있을 때만 원문 검토 대상으로 선택합니다.
-- 검색 결과는 `candidate_unverified`보다 앞선 사전 선별이며, 사람의 원문 검수 전에는 근거나 점수로 사용하지 않습니다.
-- 후보 수를 목표 숫자에 맞추지 않고 위 기준을 통과한 수만 보존합니다.
+### 성분 우선 논문 카탈로그 (현재 검토 방식)
 
-`ingredient_role_review.csv`와 `ingredient_effect_watchlist_proposal.csv`는 이 파일에서
-`selected_for_paper_review=Y`인 조합만 후보로 표시합니다. `score_change`는 항상 `none`입니다.
-`ingredient_canonical_expansion_proposals_initial.csv`는 canonical 인식 범위를 넓힐 때 사용한
-과포함 초기 산출물이며 최종 논문 검토 명단으로 사용하지 않습니다.
+논문 검토는 성분×6효능 조합을 먼저 만들지 않습니다. 상품 사용량 상위 canonical
+성분을 먼저 고르고, 정확한 성분명과 피부 문맥으로 PubMed를 검색한 뒤 성분별 최대
+3편을 선택합니다. 논문의 원문 결과 문장을 보존한 다음에만 기존 효능축 또는 새 효능
+후보로 분류합니다.
+
+- `ingredient_paper_targets_500.csv`: 상품 사용량 상위 500개 성분, 실제 검색어·검색식,
+  검색 결과 수와 선택 논문 수를 기록합니다.
+- `ingredient_paper_candidates_500.csv`: 성분별 최대 3편의 대표 검토 후보입니다. 제목에
+  정확한 성분명이 있으면 `title_exact`, 초록에 있으면 `abstract_exact`로 구분합니다.
+  논문 역할은 `direct_effect`, `safety_evidence`, `formulation_evidence`,
+  `mechanism_evidence`, `reference_evidence`를 복수로 기록할 수 있습니다.
+- `ingredient_paper_outcomes_500.csv`: 잘리지 않은 결과 문장과 사후 분류를 보존합니다.
+  `mapped_existing_effect`, `new_effect_candidate`, `mechanism_only`, `unclear` 중 하나를
+  사용하며, 직접 관계·리뷰 요약·기전 문맥도 별도 기록합니다. 방향은 대표
+  `direction`과 효능별 상세 `direction_by_effect_json`, 충돌 여부 `direction_conflict`,
+  규칙 버전 `direction_policy_version`을 함께 기록합니다.
+- `ingredient_new_effect_candidates.csv`: 기존 6축에 억지로 넣지 않은 결과를 효능명별로
+  집계한 관찰 목록입니다. 이 파일의 항목은 새 효능축 승인이나 점수 반영을 뜻하지 않습니다.
+- `ingredient_paper_screening_all_500.csv`: 검색된 논문 전체의 역할, 대표 선택 여부와
+  제외 사유를 보존하는 감사 파일입니다. 대표 3편에 들지 않은 행은 근거 정본이나 점수
+  입력이 아니며, 자동 필터가 무엇을 제외했는지 재검토할 때만 사용합니다.
+- `ingredient_evidence_adjudication_466.csv`: 기존 런타임 점수 성분 34개를 제외한
+  상위 466개 성분의 **기계 초기 선별 원장**입니다. 최종 과학 판정이 아니며 모든
+  행은 `status_scope=machine_screening_only`입니다. 모든 성분이 한 행을 가지며
+  `score_candidate_positive`, `score_candidate_supporting`, `negative_or_null`,
+  `new_effect_candidate`, `abstract_insufficient`, `formulation_only`,
+  `reject_wrong_scope`, `no_evidence_found` 중 하나를 `primary_status`로 기록합니다.
+  `no_evidence_found`는 논문을 찾지 못한 경우와 초록 정보가 부족한 경우를 섞지 않기
+  위한 명시적 상태입니다.
+- `ingredient_evidence_representatives_466.csv`: 위 466개 성분별 대표 논문 최대 3편과
+  C03~C14 기계 판정, 통계 표지, 방향, 정정 표지, 전문 확인 상태를 보존합니다.
+  `score_candidate_*`도 전문 확인 전에는 `candidate_unverified`이며 런타임 점수에
+  자동 반영되지 않습니다.
+- `ingredient_evidence_adjudication_466_summary.json`: 기존 34개 + 신규 검토 466개 =
+  총 500개 포트폴리오의 초기 선별 집계와 검색하지 못한 외부 소스를 기록합니다.
+  `adjudication_complete=false`, 전문 확인·효능 매핑·방향 판정 건수를 함께 기록해
+  초기 선별 결과를 최종 점수 가능 개수로 오인하지 않도록 합니다.
+
+복합제·운반체·성분 목록의 단순 언급은 직접 단일성분 효능으로 연결하지 않지만
+`formulation_evidence`로는 보존할 수 있습니다. 식품·포장 문맥, 경로 불일치와 분석법처럼
+피부 근거 역할이 없는 논문만 대표 후보에서 제외합니다. 연구설계는 인체 국소 SR/메타(1), RCT(2), 대조·비무작위 임상(3),
+관찰·사용시험(4), 적출·인공피부(5), 동물(6), in vitro(7), 일반 리뷰·참고(8)로
+기계 분류하되, 전 행은 `candidate_unverified`이고 `score_change=none`입니다.
+기존 `ingredient_effect.csv`, `ingredient_evidence.csv`, DB와 추천 점수는 변경하지 않습니다.
+
+#### 성분 근거 필터 계약 v1.1
+
+정본 규칙은 `docs/ingredient-evidence-filter-contract-v1.1.md`입니다. v1.1은 v1의
+평탄화된 `primary_status`를 점수 판정 정본으로 사용하지 않고, 서로 독립적인 상태축을
+보존합니다. `primary_status`가 남아 있는 경우 화면·이전 도구 호환을 위한 파생 표시값일
+뿐이며 scoring 입력으로 사용할 수 없습니다.
+
+v1.1 대상 manifest는 기존 v1 원장의 순서 있는 466개 ID를 동결해 승계합니다. 상위 500개
+입력과 런타임 34개의 실제 교집합은 28개여서 비런타임 후보는 472개이며, 후순위 6개는
+기존 v1 용량 기준 밖입니다. 따라서 대상 수를 단순히 `500-34`로 재계산하지 않습니다.
+
+- `eligibility_status`: 성분·경로·설계·단일성분 분리·논문 유효성 적격 여부
+- `verification_status`: 전문 확인, 초록 전용, 정정 대기, 유효성 보류 상태
+- `applicability_status`: 일반 피부, 질환 한정, 유발시험 한정, 안전성 전용 범위
+- `effect_mapping_status`: 기존 효능 매핑, 새 효능 후보, 미매핑 결과 여부
+- `outcome_direction`: 결과 단위의 `positive`, `negative`,
+  `no_detectable_difference`, `unclear`, `not_applicable`
+- `score_status`: `score_candidate_positive`, `score_candidate_supporting`,
+  `not_scoreable`
+- `review_status`: `candidate_unverified`, `reviewer1_complete`,
+  `reviewer2_complete`, `adjudicated`
+- `runtime_score_change`: 이번 v1.1 재검색·재판정에서는 항상 `none`
+
+전문을 확인하지 않은 긍정·보조 신호는 `machine_signal_status`에 보존하지만
+`score_status=not_scoreable`로 둡니다. `no_evidence_found`는 효능 최종 상태가 아니라
+소스별 `search_status=zero_results`로 기록합니다. 모든 검색 소스는 `success`,
+`success_protocol_capped`, `zero_results`, `partial`, `technical_failure`,
+`access_unavailable`, `not_attempted`
+중 하나와 실패 사유·검색식·검색 건수·페이지 수집 완료 여부를 남깁니다.
+v1.1은 frozen 466을 여섯 소스에서 새로 검색하고 `input_provenance`,
+`query_contract_status`, `rerun_required`를 함께 기록합니다. 승인어 전용 검색임을 검증하지
+못했거나 선언한 retrieval 프로토콜이 부분·실패·미실행이면 `rerun_required=Y`이며 C02
+검색 완료로 간주하지 않습니다. `success_protocol_capped`는 사전 고정한 relevance cap까지
+오류 없이 수집한 상태이며 `pagination_complete=false`를 유지합니다. 공식 API 자격 또는
+robots 정책 때문에 현재 실행자가 해결할 수 없는 접근 제한은 근거와 사유를 기록한 뒤
+`access_unavailable`, `rerun_required=N`으로 닫을 수 있습니다.
+
+v1 산출물은 덮어쓰지 않습니다. v1.1은 아래 새 파일로 생성합니다.
+
+- `ingredient_evidence_adjudication_466_v1_1.csv`: 성분별 v1.1 상태 요약
+- `ingredient_evidence_representatives_466_v1_1.csv`: 대표 출판물과 논문 단위 제한·검증 상태
+- `ingredient_evidence_outcome_results_466_v1_1.csv`: 성분×연구×비교×결과×시점 판정 원장
+- `ingredient_evidence_search_runs_466_v1_1.csv`: 성분×소스 검색 실행 원장
+- `ingredient_evidence_adjudication_466_v1_1_summary.json`: manifest·사전 SHA와 전체 집계
+- `ingredient_evidence_v1_1_validation.json`: 466×6 검색, 키 유일성, 승인 질의,
+  `candidate_unverified`, 런타임 불변식의 자동 검증 결과
+
+원시 fresh 검색은 `data/reconciliation/v1_1_fresh/`에 소스별로 보존합니다.
+
+- `{source}_query_log_466_v1_1_fresh.csv`: 각 소스의 성분별 정확히 466행 실행 원장.
+  공통 필드는 `query_id`, `source`, `ingredient_rank`, `ingredient_id`, `approved_search_terms`,
+  `search_query`, `query_sha256`, `started_at_utc`, `completed_at_utc`, `raw_hit_count`,
+  `retrieval_cap`, `returned_count`, `pagination_status`, `pagination_complete`,
+  `request_status`, `error_message`, `query_contract_status`, `rerun_required`,
+  `review_status`, `runtime_score_change`, `pipeline_version`입니다.
+- `{source}_candidates_466_v1_1_fresh.csv`: 성분×소스 record 후보 원장입니다. PMID·PMCID·DOI·
+  source record ID가 없으면 정규화 제목으로 식별하며, `title`, `abstract`, `journal`,
+  `publication_date/year`, `authors`, `source_url`, `search_query`, `review_status`,
+  `runtime_score_change`를 보존합니다.
+- `{source}_search_summary_466_v1_1_fresh.json`: 실행·오류·cap·후보 건수와 입력/출력 SHA 집계입니다.
+
+`ingredient_evidence_outcome_results_466_v1_1.csv`에서는 결과 문장, 효능 매핑, 방향,
+통계 contrast를 같은 `outcome_result_id`에 연결합니다. 초록에서 확인할 수 없는 군,
+시점, 효과추정치, CI, p값은 추정하지 않고 `not_extracted` 또는 빈 값으로 보존합니다.
+논문 단위의 다른 문장에 p값이 있다는 이유로 해당 결과를 통계적으로 지지된 것으로
+승격하지 않습니다.
+초록 단계 ID는 `outcome_id_status=provisional_abstract`이며 전역 유일한 결정적 SHA-256
+기반 ID입니다. 전문에서 비교·지표·시점을 정규화한 뒤 최종 ID로 바꿀 때 매핑을 보존합니다.
+
+재현성을 위해 모든 v1.1 행은 다음 해시를 기록합니다.
+
+- 정확한 466개 대상 manifest의 `manifest_version`, `manifest_sha256`
+- `data/ingredients.csv`와 `data/ingredient_aliases.csv`의 순서 고정 bundle SHA-256
+- `data/effect_outcome_dictionary.csv` SHA-256
+- `data/effect_direction_dictionary.csv` SHA-256
+
+사전 bundle SHA는 summary에 포함된 파일 순서와 개별 파일 SHA로 다시 계산할 수 있어야
+합니다. AI가 제안한 성분·결과 표현은 사전에 자동 추가하지 않으며, 독립 검수와 지정된
+사람의 최종 판정 전에는 `unmapped_outcome` 또는 검토 후보로만 남깁니다.
+
+### `data/effect_outcome_dictionary.csv`
+
+논문 제목·초록·결과 문장의 표현을 기존 6효능에 연결할 때 사용하는 단일 정본입니다.
+성분명 동의어를 관리하는 `ingredient_aliases.csv`와 목적이 다릅니다. 검색에 사용할 수 있는
+넓은 표현과 실제 효능 매핑에 사용할 수 있는 측정 결과를 분리합니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `effect_id` | 기존 6효능 ID |
+| `outcome_concept_id` | 같은 측정 개념을 묶는 내부 ID |
+| `term` | 논문에서 사용하는 결과·지표·척도·기기·기전 표현 |
+| `term_type` | `outcome`, `metric`, `scale`, `abbreviation`, `instrument`, `method`, `context`, `mechanism` |
+| `positive_direction` | 유리한 변화 방향. `increase`, `decrease`, `parameter_specific`, `not_applicable` |
+| `required_context` | 짧거나 모호한 표현에 함께 있어야 하는 문맥. `|`로 복수 표현 |
+| `forbidden_context` | 함께 있으면 매핑하지 않는 문맥. `|`로 복수 표현 |
+| `discovery_use` | 논문 검색식 확장에 사용할 수 있으면 `Y` |
+| `mapping_use` | 측정 결과 문장에서 기존 효능으로 매핑할 수 있으면 `Y` |
+| `source_type` | 용어 근거 유형. `guideline`, `measurement_guidance`, `validation_study`, `internal_mapping_policy`, `internal_guardrail` |
+| `source_reference` | PMID 또는 공식 문서 URL |
+| `review_status` | `approved`, `context_only`, `mechanism_only`, `ambiguous_review` |
+| `notes` | 오인 방지 조건과 검수 메모 |
+
+운영 규칙:
+
+- `mapping_use=Y`는 결과·지표·척도·문맥 조건을 충족한 승인 표현에만 허용합니다.
+- 매칭은 NFKC 정규화 후 영문·숫자 토큰 경계로 수행합니다. 부분 문자열은 매칭하지 않습니다.
+- 같은 구간에서 승인 표현이 겹치면 가장 긴 표현만 채택하고, 최종 `effect_id`는 중복 제거합니다.
+- `mapping_use=N`인 짧은 문맥·기기·기전 용어는 더 긴 `mapping_use=Y` 결과를 무효화하지 않습니다.
+- 기기명(`Mexameter`, `PRIMOS`, `D-Squame`)은 어떤 채널을 측정했는지 알 수 없으므로 단독 매핑하지 않습니다.
+- 해부·질환·기전 표현(`stratum corneum`, `dermatitis`, `tyrosinase`, `collagen`)은 검색에는 사용할 수 있지만 단독 효능으로 확정하지 않습니다.
+- 약어(`IGA`, `ITA`)는 `required_context`가 같은 문장에 있을 때만 매핑합니다.
+- `positive_direction`은 각 **term**의 유리한 값 방향이며 `outcome_concept_id` 전체에 일괄 적용하지 않습니다.
+- 이 파일은 결과 개념을 6효능에 매핑할 뿐, 논문이 실제로 증가·감소·무효를 보고했는지 판정하는 방향 어휘 사전은 아닙니다. 기계 방향 판정은 별도 후보 필드이며 사람 승인 전 점수에 쓰지 않습니다.
+- 각질 지표는 증가·감소의 의미가 프로토콜마다 달라 전부 `parameter_specific`입니다. v1 각질축은 자동 긍정 판정 없이 수동 검토만 허용합니다.
+- 외부 문헌 출처는 해당 지표·척도·측정 개념의 근거를 뜻합니다. 문자열을 같은 효능으로 묶은 내부 결정은 `internal_mapping_policy`, 단독 매핑 금지는 `internal_guardrail`로 구분합니다.
+- `discovery_use`는 기존 성분×효능쌍 주간 검색식 확장에 사용합니다. 성분 우선 검색은 확증편향을 막기 위해 이 컬럼을 사용하지 않고 성분명+피부 문맥으로 검색합니다.
+- `forbidden_context`는 `skin barrier recovery`와 `barrier recovery time`처럼 방향이 달라지는 검증된 문장 충돌에만 사용합니다. 식품·치과·경구·복합제 등 넓은 범위 배제는 논문 단위 필터가 담당합니다.
+- 이 사전은 후보 발견·결과 분류용이며 `ingredient_effect.csv`, `ingredient_evidence.csv` 또는 런타임 점수를 직접 변경하지 않습니다.
+- `effect_outcome_dictionary.py` 검증을 통과한 사전만 수집·매핑 스크립트에서 사용합니다.
+- 사전의 6개 `effect_id`는 `ingredient_effect.csv`와 `concern_to_effect.json` 양쪽에 모두 존재해야 합니다.
+
+### `data/effect_direction_dictionary.csv`
+
+결과 문장의 변화어를 지표별 유리한 방향과 결합해 `positive`, `negative`, `null`,
+`unclear` 후보를 만드는 내부 언어 정책입니다. 이 사전은 과학 근거 출처가 아니라
+재현 가능한 기계 판정 규칙이며 모든 결과는 사람 승인 전 `candidate_unverified`입니다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `cue_id` | 방향 표현 고유 ID |
+| `term` | 논문 결과 문장의 변화·무효·불확실 표현 |
+| `cue_type` | `increase`, `decrease`, `improvement`, `worsening`, `null`, `uncertain` |
+| `priority` | 겹치는 표현의 판정 우선순위. 무효·불확실 표현이 단순 변화어보다 높음 |
+| `required_context` | 같은 문장에 필요한 문맥. `|`로 복수 표현 |
+| `forbidden_context` | 함께 있으면 적용하지 않는 문맥 |
+| `source_type` | `internal_language_policy` 또는 `internal_statistical_policy` |
+| `source_reference` | 현재 `POLICY:effect-direction-v1` |
+| `review_status` | 검수된 행은 `approved` |
+| `notes` | 표현의 판정 의미와 제한 |
+
+판정 규칙:
+
+- 결과 지표와 방향 표현은 같은 세미콜론 절 안에서 최대 10토큰 이내인 경우만 연결합니다.
+- `no significant difference`, `not significantly lower` 같은 긴 표현은 내부의 `lower`보다 우선합니다.
+- `no`, `not`, `never`, `without`, `failed`, `lacked`, `absence of`가 방향 표현 앞 4토큰 안에 있으면 부정 스코프로 처리해 `null`로 보냅니다. `and`, `but`, `while`, `whereas`는 부정 스코프 경계입니다.
+- `may improve`, `trend toward`, `suggested` 같은 hedge 표현은 단순 `improve`, `lower`보다 우선하며 `unclear`입니다. 다만 같은 절에 명확한 `significant(ly)`, 유의한 p값, CI 또는 효과크기 표지가 있고 구체적 변화어가 있으면 변화 결과를 우선합니다.
+- `lower arm`, `higher concentration`, `elevated temperature`처럼 비교어 다음에 해부·용량·환경 명사가 오는 경우는 방향 큐로 사용하지 않습니다.
+- 지표의 `positive_direction=increase`이면 실제 증가가 positive이고 감소가 negative입니다. `decrease` 지표는 반대로 판정합니다.
+- `improvement`와 `worsening`은 명시적 저자 방향으로 처리하지만 `parameter_specific` 각질 지표는 자동 positive/negative로 승격하지 않습니다.
+- 한 문장에 여러 지표가 있으면 지표별 방향을 `direction_by_effect_json`에 보존합니다. 같은 효능 안에서 방향이 갈리면 대표 `direction=unclear`, `direction_conflict=Y`입니다.
+- 방향 표현이 없거나 연결 거리가 멀면 추측하지 않고 `unclear`로 둡니다.
+- v1 방향 사전은 영어 초록 전용입니다. 한국어 초록은 별도 한국어 사전 승인 전 자동 방향 판정 대상에서 제외하고 `unclear` 또는 수동 검토로 보냅니다.
+- 이 사전은 후보 방향만 만들며 DB·런타임 점수·승인 상태를 변경하지 않습니다.
+
+### 성분 우선 논문 점수 적격성 검토
+
+`assess_ingredient_score_eligibility.py`는 대표 논문 유무와 무관하게 PubMed 결과가 있는
+성분 전체를 같은 규칙으로 재검사합니다. 이 단계는 런타임 점수 입력이 아니라 검토용
+분류이며, 모든 결과는 `candidate_unverified`와 `runtime_score_change=none`을 유지합니다.
+
+- `ingredient_score_eligibility_370.csv`: 성분별로 긍정 효능, 위험 감점, 기전 보조,
+  새 효능축, 제형·참고·안전 신호 여부와 최종 검토 결정을 기록합니다.
+- `ingredient_score_claim_candidates.csv`: 판정에 사용한 PMID, 원문 결과 문장, 효능축,
+  방향과 권장 사용 범위를 보존합니다.
+- `ingredient_score_eligibility_summary.json`: 대표 후보가 있던 성분과 원시 검색 결과만
+  있던 성분을 나눠 결정 건수를 집계합니다.
+
+인체 국소 1~4등급의 직접 긍정 결과만 효능 점수 검토 후보가 될 수 있습니다. 불확실한
+표현, 복합제, 일반 리뷰와 제형 근거는 단일성분 긍정 점수가 아닙니다. 명확한 인체 국소
+이상반응 제목만 위험 감점 검토 후보로 분리하며, 일반적인 안전성 언급은 점수로 쓰지
+않습니다. 기전 연구는 단독 효능 점수가 아니라 보조 근거로만 기록합니다.
+
+### 다중 소스 논문 점수 퍼널
+
+`prepare_ingredient_multisource_targets.py`는 초기 500개 중 PubMed 제목·초록에서 정확한
+성분명이 한 번도 확인되지 않은 18개를 **논문 검토 대상에서만** 제외합니다. canonical
+성분과 상품 연결은 삭제하지 않습니다. 유지 대상은 `ingredient_paper_targets_482.csv`,
+제외 감사표는 `ingredient_paper_targets_excluded_18.csv`입니다.
+
+`search_ingredient_evidence_multisource.py`는 482개를 소스별로 검색하고 원본 메타데이터와
+쿼리 로그를 분리 저장합니다. 현재 482개 전체가 완료된 공통 소스는 PubMed, Europe PMC의
+비-PubMed 레코드, Crossref입니다. OpenAlex 부분 결과는 전체 비교에서 제외하며 KCI/RISS는
+API 키가 설정되지 않으면 실행하지 않습니다.
+
+- `ingredient_multisource_<source>_482.csv`: 소스별 논문 후보 메타데이터
+- `ingredient_multisource_<source>_query_log_482.csv`: 성분별 요청 성공·검색 건수 감사표
+- `ingredient_multisource_screening_482.csv`: PMID·DOI·제목 중복 제거 후 논문별 필터 판정
+- `ingredient_multisource_score_eligibility_482.csv`: 성분별 최초 탈락 필터와 최종 후보 여부
+- `ingredient_multisource_filter_funnel_482.csv`: 필터별 탈락 수와 잔존 수
+- `ingredient_multisource_summary_482.json`: 소스 범위·한계·집계 결과
+
+필터는 같은 논문에 순차 적용합니다. 다른 논문들의 장점을 합쳐 통과시키지 않습니다.
+순서는 정확한 성분 형태, 인체 피부 도포, 비복합제, 검수된 결과 사전 기준 기존 6효능 직접 측정, 긍정 방향,
+불확실 표현 제외, tier 1~4 단독 근거입니다. 모든 결과는 `candidate_unverified`이고 런타임
+점수 변경은 없습니다.
+
+### 이전 조합 우선 실험 산출물
+
+`ingredient_effect_pubmed_screening.csv`, `ingredient_research_portfolio_500.csv`,
+`ingredient_effect_portfolio_500.csv`, `ingredient_effect_business_score_proposal_500.csv`,
+`ingredient_effect_business_score_impact_500.json`은 6축 조합 우선 접근을 검토한 실험
+산출물입니다. 현재 성분 우선 논문 카탈로그의 입력이나 런타임 정본으로 사용하지 않습니다.
 
 ### `data/ingredient_effect.csv`
 

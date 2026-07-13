@@ -180,7 +180,7 @@ def merge_mapping_rows(
 
 
 def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[str, str]]:
-    rows_by_key: dict[tuple[str, str], dict[str, str]] = {}
+    candidates_by_key: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     for row in selected:
         if row["proposed_action"] != "create_canonical":
             continue
@@ -214,14 +214,18 @@ def build_exact_name_override_rows(selected: list[dict[str, str]]) -> list[dict[
                         f"sha256={row['source_document_sha256'][:12]}"
                     ),
                 }
-                prior = rows_by_key.get(key)
-                if prior is not None and prior["canonical_id"] != mapping["canonical_id"]:
-                    raise ValueError(
-                        "같은 broad source/name이 둘 이상의 exact canonical과 충돌합니다: "
-                        f"{family_id}/{alias}"
-                    )
-                rows_by_key[key] = mapping
-    return list(rows_by_key.values())
+                if mapping not in candidates_by_key[key]:
+                    candidates_by_key[key].append(mapping)
+
+    rows: list[dict[str, str]] = []
+    for candidates in candidates_by_key.values():
+        owners = {candidate["canonical_id"] for candidate in candidates}
+        if len(owners) != 1:
+            # An old INCI label can legitimately refer to multiple modern
+            # substances (for example, Ceramide 2). Keep that label broad.
+            continue
+        rows.append(candidates[0])
+    return rows
 
 
 def official_alias_candidates(

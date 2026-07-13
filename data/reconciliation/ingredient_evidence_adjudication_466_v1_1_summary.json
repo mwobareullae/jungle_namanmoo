@@ -1,0 +1,56 @@
+{
+  "generated_on": "2026-07-13",
+  "policy_version": "mwbl-ingredient-evidence-adjudication-v1.1",
+  "manifest_version": "mwbl-ingredient-evidence-targets-466-v1.1",
+  "manifest_sha256": "7779d9ebab29447f8465881efcb23b09a0f2f3751f524d19b389205ce650f26d",
+  "ingredient_dictionary_sha256": "0ff05c147e6aeef899378f8d3c9c3ef8d09d9464f8b26fd18227cbbc5e5ad561",
+  "ingredient_dictionary_files": [
+    {
+      "file": "ingredients.csv",
+      "sha256": "5d5a5257fcb24c4f25b42e050b9536f797858d09932564ab932f036cd5113ab7"
+    },
+    {
+      "file": "ingredient_aliases.csv",
+      "sha256": "c4c4fede5fbaa1b2303be329b8ae78c3cdbc99b2b25d17676e66c49c90a1c7d2"
+    }
+  ],
+  "outcome_dictionary_sha256": "8b210cfd9ce5ee7d91b57739103e01050b5e0ea0284c72f16c0aa874aec18bc7",
+  "direction_dictionary_sha256": "3af99cf832628c40f8cb229d8cad8c911cca9a71d60245bc469676accc86a619",
+  "workflow_status": "search_completed_with_retry_items_machine_screening_complete",
+  "adjudication_complete": false,
+  "portfolio_ingredient_count": 500,
+  "existing_runtime_ingredient_count": 34,
+  "adjudicated_ingredient_count": 466,
+  "non_runtime_candidates_outside_466_capacity": 6,
+  "representative_paper_count": 1398,
+  "outcome_result_count": 111,
+  "search_run_count": 2796,
+  "search_run_rerun_required_count": 932,
+  "ingredient_search_rerun_required_count": 466,
+  "query_contract_status_counts": {
+    "approved_terms_only": 1864,
+    "not_applicable_not_run": 932
+  },
+  "full_text_checked_count": 0,
+  "representative_effect_mapped_count": 7,
+  "representative_direction_determined_count": 0,
+  "primary_status_counts": {
+    "abstract_insufficient": 163,
+    "formulation_only": 123,
+    "reject_wrong_scope": 180
+  },
+  "score_status_counts": {
+    "not_scoreable": 466
+  },
+  "source_status": {
+    "pubmed": "success_protocol_capped",
+    "europe_pmc": "success_protocol_capped",
+    "crossref": "success_protocol_capped",
+    "openalex": "access_unavailable",
+    "kci": "provenance_incomplete",
+    "riss": "provenance_incomplete"
+  },
+  "status_note": "Search zero-results are stored only in search_status. Abstract-only positive or supporting signals are retained in machine_signal_status and remain not_scoreable.",
+  "review_status": "candidate_unverified",
+  "runtime_changed": false
+}

@@ -1,0 +1,371 @@
+cohort,ingredient_id,name_ko,name_en,product_count,raw_pubmed_hit_count,representative_paper_count,benefit_candidate_count,uncertain_effect_count,conflict_or_zero_candidate_count,mechanism_support_count,risk_candidate_count,safety_signal_count,new_effect_candidate_count,formulation_paper_count,reference_paper_count,best_benefit_tier,candidate_effect_ids,candidate_new_effects,candidate_pmids,score_eligibility_decision,recommended_runtime_use,can_change_benefit_score_now,review_status,runtime_score_change
+representative_180,glycerin,글리세린,Glycerin,38427,50,2,0,0,0,0,0,1,0,1,0,,,,31840548,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,phenoxyethanol,페녹시에탄올,Phenoxyethanol,28403,50,2,0,0,0,0,0,2,0,1,0,,,,31588615|34921565,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,butylene_glycol,부틸렌글라이콜,Butylene Glycol,26098,49,1,0,0,0,0,0,1,0,0,0,,,,32342510,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,tocopherol,토코페롤,Tocopherol,25877,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ethylhexylglycerin,에틸헥실글리세린,Ethylhexylglycerin,24596,20,1,0,0,0,0,1,10,0,0,0,,,,12492553|17680873|19780779|24407069|26876063|26899807|34570737|35318977|38017612|40241678,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,citric_acid,시트릭애씨드,Citric Acid,21835,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,caprylyl_glycol,카프릴릴글라이콜,Caprylyl Glycol,21124,16,1,0,0,0,0,0,1,0,0,0,,,,32468581,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hyaluronic_acid,히알루론산,Hyaluronic Acid,16824,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,dimethicone,디메치콘,Dimethicone,16684,50,3,0,0,0,0,0,2,0,2,0,,,,24861370|29430705,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,limonene,리모넨,Limonene,16657,50,1,0,0,0,0,0,3,0,0,0,,,,20163165|31433385|42020135,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,linalool,리날룰,Linalool,16306,50,1,0,0,0,0,0,5,0,0,0,,,,30098535|31313746|36890088|41713461|42020135,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_benzoate,소듐벤조에이트,Sodium Benzoate,14591,50,2,0,0,0,0,0,1,0,0,0,,,,16867007,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,potassium_sorbate,포타슘솔베이트,Potassium Sorbate,14077,32,1,0,0,0,0,0,2,0,1,0,,,,16128766|33656744,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,1_2_hexanediol,"1,2-헥산다이올","1,2-Hexanediol",13987,24,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,disodium_edta,다이소듐이디티에이,Disodium EDTA,13862,17,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,xanthan_gum,잔탄검,Xanthan Gum,13776,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,tocopheryl_acetate,토코페릴아세테이트,Tocopheryl Acetate,13298,50,1,0,0,0,0,0,0,0,2,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,caprylic_capric_triglyceride,카프릴릭/카프릭트라이글리세라이드,Caprylic/Capric Triglyceride,13261,25,2,0,0,0,0,0,2,0,1,0,,,,32542693|34862627,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,propanediol,프로판다이올,Propanediol,12794,50,1,0,0,0,0,0,1,0,0,0,,,,29761730,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,panthenol,판테놀,Panthenol,12738,50,2,0,0,0,0,0,7,0,8,0,,,,35318981|36177798|36705646|38186043|39129125|39714944|40682399,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,silica,실리카,Silica,12318,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_chloride,소듐클로라이드,Sodium Chloride,11564,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_hydroxide,소듐하이드록사이드,Sodium Hydroxide,10880,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,niacinamide,나이아신아마이드,Niacinamide,10393,50,3,4,0,0,0,0,2,0,3,1,2,effect_brightening|effect_wrinkle,,12100180|16029679|16596767|26488693,full_text_benefit_score_review,possible_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,pentylene_glycol,펜틸렌글라이콜,Pentylene Glycol,9887,20,1,0,0,0,0,0,9,0,0,0,,,,12755747|18186759|18559782|19780779|20546226|28483712|31840261|34455582|36125394,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,disteardimonium_hectorite,다이스테아다이모늄헥토라이트,Disteardimonium Hectorite,8426,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,citronellol,시트로넬올,Citronellol,8409,50,2,0,0,0,0,0,2,0,1,0,,,,20137738|35671905,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,mica,마이카,Mica,8184,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,cetearyl_alcohol,세테아릴알코올,Cetearyl Alcohol,8000,27,1,0,0,0,0,0,2,0,0,0,,,,10985638|27617733,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,carbomer,카보머,Carbomer,7987,50,2,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,geraniol,제라니올,Geraniol,7955,50,2,0,0,0,0,0,3,0,0,0,,,,20137738|23510343|31566752,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,squalane,스쿠알란,Squalane,7887,42,3,0,0,0,0,0,3,0,0,0,,,,19371265|37752766|41427219,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,aluminum_hydroxide,알루미늄하이드록사이드,Aluminum Hydroxide,7465,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,helianthus_annuus_sunflower_seed_oil,해바라기씨오일,Helianthus Annuus (Sunflower) Seed Oil,7098,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cholesterol_fatty_acids,콜레스테롤/지방산,Cholesterol / Fatty Acids,7056,48,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,butyrospermum_parkii_shea_butter,시어버터,Butyrospermum Parkii (Shea) Butter,7024,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,triethoxycaprylylsilane,트라이에톡시카프릴릴실레인,Triethoxycaprylylsilane,7011,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,glyceryl_stearate,글리세릴스테아레이트,Glyceryl Stearate,6922,22,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,dipropylene_glycol,다이프로필렌글라이콜,Dipropylene Glycol,6761,37,1,0,0,0,0,0,2,0,0,0,,,,9686981|35320588,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,fragrance_perfume_parfum,향료,Fragrance|Perfume|Parfum,6642,50,1,0,0,0,0,0,3,0,0,0,,,,3884673|32445606|35014095,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hydrogenated_lecithin,하이드로제네이티드레시틴,Hydrogenated Lecithin,6561,19,1,0,0,0,0,0,1,0,0,0,,,,11358109,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hexyl_cinnamal,헥실신남알,Hexyl Cinnamal,6489,12,1,0,0,0,0,0,1,0,0,0,,,,24988491,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,pentaerythrityl_tetra_di_t_butyl_hydroxyhydrocinnamate,펜타에리스리틸테트라-다이-t-부틸하이드록시하이드로신나 메이트,Pentaerythrityl Tetra-di-t-butyl Hydroxyhydrocinnamate,6228,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,propylene_glycol,프로필렌글라이콜,Propylene Glycol,6174,50,3,0,0,0,0,3,8,0,1,0,,,,7094572|7842679|16283903|29059092|29064881|36702195|37100088|42380076,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,benzyl_alcohol,벤질알코올,Benzyl Alcohol,6169,50,1,0,0,0,0,1,9,0,0,0,,,,8593115|10594301|22036973|29243541|34994406|35080274|35292984|36287992|41649135,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,hydroxyacetophenone,하이드록시아세토페논,Hydroxyacetophenone,6028,19,1,0,0,0,0,0,6,0,0,0,,,,14744423|29341188|36718024|40451211|41740968|41795014,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_citrate,소듐시트레이트,Sodium Citrate,6013,50,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,lecithin,레시틴,Lecithin,5969,50,1,0,0,0,0,0,2,0,1,0,,,,11358109|41987370,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,allantoin,알란토인,Allantoin,5914,50,2,0,0,0,0,0,1,0,2,0,,,,33811776,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,adenosine,아데노신,Adenosine,5774,50,2,0,0,0,0,0,1,0,0,0,,,,38146080,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,arginine,알지닌,Arginine,5512,50,3,0,0,0,0,0,1,0,2,0,,,,39458612,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,citral,시트랄,Citral,5510,50,3,0,0,0,0,0,2,0,0,0,,,,18353514|31566752,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,aha,AHA,Alpha Hydroxy Acids,5270,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sorbitan_isostearate,솔비탄아이소스테아레이트,Sorbitan Isostearate,5244,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,chlorphenesin,클로페네신,Chlorphenesin,5149,25,1,0,0,0,0,0,2,0,0,0,,,,24861369|35916838,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,cetyl_alcohol,세틸알코올,Cetyl Alcohol,5107,50,1,0,0,0,0,0,3,0,0,0,,,,9034687|15059111|21291645,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,trimethylsiloxysilicate,트라이메틸실록시실리케이트,Trimethylsiloxysilicate,5074,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,benzyl_salicylate,벤질살리실레이트,Benzyl Salicylate,5017,34,1,0,0,0,0,0,6,0,0,0,,,,5580289|23529141|29943414|30211732|31081128|33351203,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,isododecane,아이소도데케인,Isododecane,5008,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sodium_hyaluronate,소듐하이알루로네이트,Sodium Hyaluronate,4731,50,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,synthetic_fluorphlogopite,합성플루오르플로고파이트,Synthetic Fluorphlogopite,4598,1,1,0,0,0,0,0,1,0,0,0,,,,26684795,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,polysorbate_20,폴리솔베이트20,Polysorbate 20,4507,30,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,propylene_carbonate,프로필렌카보네이트,Propylene Carbonate,4481,17,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,tin_oxide,틴옥사이드,Tin Oxide,4311,50,1,0,0,0,0,0,2,0,0,0,,,,2960483|3158472,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,maltodextrin,말토덱스트린,Maltodextrin,4238,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,cetyl_peg_ppg_10_1_dimethicone,세틸피이지/피피지-10/1다이메티콘,Cetyl PEG/PPG-10/1 Dimethicone,4225,1,1,0,0,0,0,0,1,0,0,0,,,,29430705,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,betaine,베타인,Betaine,4117,50,1,0,0,0,0,0,3,0,0,0,,,,11753899|18627690|38911545,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,tromethamine,트로메타민,Tromethamine,4055,50,1,0,0,0,0,0,1,0,0,0,,,,29761730,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,salicylic_acid_bha,살리실산/BHA,Salicylic Acid / BHA,3956,50,1,0,0,0,0,0,4,0,0,0,,,,24472429|26347269|38465458|39968706,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,ethylhexyl_palmitate,에틸헥실팔미테이트,Ethylhexyl Palmitate,3952,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,hydroxycitronellal,하이드록시시트로넬알,Hydroxycitronellal,3950,47,1,0,0,0,0,0,4,0,0,0,,,,3264801|20795681|31812735|40350025,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,magnesium_sulfate,마그네슘설페이트,Magnesium Sulfate,3837,50,2,0,0,0,0,0,1,0,0,0,,,,29761729,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,glyceryl_caprylate,글리세릴카프릴레이트,Glyceryl Caprylate,3834,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,polysorbate_60,폴리솔베이트60,Polysorbate 60,3724,12,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hexylene_glycol,헥실렌글라이콜,Hexylene Glycol,3707,16,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,coumarin,쿠마린,Coumarin,3628,50,1,0,0,0,0,0,1,0,0,0,,,,10418958,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,octyldodecanol,옥틸도데칸올,Octyldodecanol,3622,17,1,0,0,0,0,1,3,0,0,0,,,,9165214|12653724|40545374,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,caffeine,카페인,Caffeine,3594,50,2,0,0,0,0,0,0,0,1,1,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,alpha_isomethyl_ionone,알파-아이소메틸아이오논,Alpha-Isomethyl Ionone,3582,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,titanium_dioxide,티타늄디옥사이드,Titanium Dioxide,3526,50,1,0,0,0,0,0,1,0,0,0,,,,38133390,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_phytate,소듐파이테이트,Sodium Phytate,3487,7,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,benzyl_benzoate,벤질벤조에이트,Benzyl Benzoate,3475,50,2,0,0,0,0,0,2,0,2,0,,,,17439567|36097258,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,hydroxyethylcellulose,하이드록시에틸셀룰로오스,Hydroxyethylcellulose,3444,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,peptides,펩타이드,Peptides,3343,50,3,0,0,0,0,0,0,1,1,2,,,wound_healing,34382523,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+raw_hit_190,green_tea,녹차,Green Tea,3296,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ceramides,세라마이드,Ceramides,3270,50,3,0,0,0,0,0,0,0,0,1,,,,,reference_only_no_score,no_benefit_score,N,candidate_unverified,none
+raw_hit_190,phenyl_trimethicone,페닐트라이메티콘,Phenyl Trimethicone,3264,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sodium_dehydroacetate,소듐데하이드로아세테이트,Sodium Dehydroacetate,3209,9,1,0,0,0,0,0,3,0,0,0,,,,22077436|27133632|38913451,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sodium_pca,소듐피씨에이,Sodium PCA,3194,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,cyclopentasiloxane,사이클로펜타실록세인,Cyclopentasiloxane,3191,9,1,0,0,0,0,0,1,0,0,0,,,,27845160,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,cetrimonium_chloride,세트리모늄클로라이드,Cetrimonium Chloride,3176,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,behentrimonium_chloride,베헨트라이모늄클로라이드,Behentrimonium Chloride,3094,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,trehalose,트레할로오스,Trehalose,3069,50,3,0,0,0,0,0,0,0,1,1,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,benzoic_acid,벤조익애씨드,Benzoic Acid,3052,50,1,0,0,0,0,0,2,0,0,0,,,,29243541|41971566,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,diisostearyl_malate,다이아이소스테아릴말레이트,Diisostearyl Malate,3046,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,guar_hydroxypropyltrimonium_chloride,구아하이드록시프로필트라이모늄클로라이드,Guar Hydroxypropyltrimonium Chloride,2976,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cocos_nucifera_coconut_oil,코코넛야자오일,Cocos Nucifera (Coconut) Oil,2936,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isopropyl_alcohol,아이소프로필알코올,Isopropyl Alcohol,2897,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ceramide_np,세라마이드엔피,Ceramide NP,2859,50,2,0,0,0,0,0,1,0,4,0,,,,26206496,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,alumina,알루미나,Alumina,2856,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,coco_caprylate_caprate,코코-카프릴레이트/카프레이트,Coco-Caprylate/Caprate,2735,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,peg_100_stearate,피이지-100스테아레이트,PEG-100 Stearate,2700,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,glycine,글라이신,Glycine,2677,50,3,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,aloe_barbadensis_leaf_juice,알로에베라잎즙,Aloe Barbadensis Leaf Juice,2637,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,dipotassium_glycyrrhizate,다이포타슘글리시리제이트,Dipotassium Glycyrrhizate,2637,9,1,0,0,0,0,0,1,0,0,0,,,,28612442,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,cocamidopropyl_betaine,코카미도프로필베타인,Cocamidopropyl Betaine,2631,50,1,0,0,0,0,0,7,0,0,0,,,,11753899|15573642|18627690|21392028|22364510|36372425|38911545,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,ascorbic_acid,비타민C,Ascorbic Acid,2627,50,2,0,0,0,0,0,2,0,1,0,,,,36200216|40522526,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,tetrasodium_glutamate_diacetate,테트라소듐글루타메이트다이아세테이트,Tetrasodium Glutamate Diacetate,2616,1,1,0,0,0,0,0,1,0,0,0,,,,41104883,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hydrogenated_polyisobutene,하이드로제네이티드폴리아이소부텐,Hydrogenated Polyisobutene,2614,4,1,0,0,0,0,0,1,0,0,0,,,,19101833,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sorbitan_olivate,솔비탄올리베이트,Sorbitan Olivate,2612,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,leuconostoc_radish_root_ferment_filtrate,류코노스톡/무발효여과물,Leuconostoc/Radish Root Ferment Filtrate,2611,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,stearyl_alcohol,스테아릴알코올,Stearyl Alcohol,2607,35,2,0,0,0,0,1,7,0,0,0,,,,233882|4414163|4814942|11722503|28703348|33759209|35174533,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,ammonium_acryloyldimethyltaurate_vp_copolymer,암모늄아크릴로일다이메틸타우레이트/브이피코폴리머,Ammonium Acryloyldimethyltaurate/VP Copolymer,2544,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_lactate,소듐락테이트,Sodium Lactate,2510,25,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,methylpropanediol,메틸프로판다이올,Methylpropanediol,2495,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,serine,세린,Serine,2484,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,dehydroacetic_acid,데하이드로아세틱애씨드,Dehydroacetic Acid,2418,15,1,0,0,0,0,0,1,0,0,0,,,,38913451,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,ascorbyl_palmitate,아스코빌팔미테이트,Ascorbyl Palmitate,2347,50,2,0,0,0,0,0,0,0,2,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,behenyl_alcohol,베헤닐알코올,Behenyl Alcohol,2336,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,centella_asiatica_extract,병풀추출물,Centella Asiatica Extract,2328,48,2,0,0,0,0,0,4,0,1,0,,,,1387057|7821029|8706410|38567908,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sorbic_acid,소르빅애씨드,Sorbic Acid,2318,50,1,0,0,0,0,0,7,0,2,0,,,,8789230|10072345|11722489|18342097|20045976|33656744|35243653,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,decyl_glucoside,데실글루코사이드,Decyl Glucoside,2311,39,1,0,0,0,0,0,6,0,0,0,,,,20059495|20136897|23340401|31566773|34374433|39977112,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,argania_spinosa_kernel_oil,아르간커넬오일,Argania Spinosa Kernel Oil,2310,4,1,0,0,0,0,0,0,0,3,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,kaolin,카올린,Kaolin,2306,50,1,0,0,0,0,0,1,0,0,0,,,,32322315,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,hydrolyzed_hyaluronic_acid,하이드롤라이즈드하이알루로닉애씨드,Hydrolyzed Hyaluronic Acid,2185,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,triethyl_citrate,트라이에틸시트레이트,Triethyl Citrate,2184,29,2,0,0,0,0,0,1,0,3,0,,,,12396673,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sorbitol,솔비톨,Sorbitol,2180,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,polyglyceryl_10_laurate,폴리글리세릴-10라우레이트,Polyglyceryl-10 Laurate,2178,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,peg_40_hydrogenated_castor_oil,피이지-40하이드로제네이티드캐스터오일,PEG-40 Hydrogenated Castor Oil,2164,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,tetrasodium_edta,테트라소듐이디티에이,Tetrasodium EDTA,2163,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,lactobacillus_ferment,락토바실러스발효물,Lactobacillus Ferment,2124,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,bisabolol,비사보롤,Bisabolol,2108,50,3,0,0,0,0,1,3,0,2,0,,,,20137740|20199429|21504695,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,sodium_stearoyl_glutamate,소듐스테아로일글루타메이트,Sodium Stearoyl Glutamate,2093,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,glucose,글루코오스,Glucose,2086,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,c12_15_alkyl_benzoate,C12-15알킬벤조에이트,C12-15 Alkyl Benzoate,2065,4,1,0,0,0,0,0,1,0,0,0,,,,25943945,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,isopropyl_myristate,아이소프로필미리스테이트,Isopropyl Myristate,2061,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,biotin,바이오틴,Biotin,2057,50,1,0,0,0,0,0,1,0,0,0,,,,37749781,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,stearic_acid,스테아릭애씨드,Stearic Acid,2046,50,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,amodimethicone,아모다이메티콘,Amodimethicone,1991,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,acrylates_copolymer,아크릴레이트코폴리머,Acrylates Copolymer,1981,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,isohexadecane,아이소헥사데칸,Isohexadecane,1980,10,1,0,0,0,0,0,1,0,0,0,,,,15186389,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,proline,프롤린,Proline,1959,50,3,0,0,0,0,0,1,0,0,1,,,,36376455,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,ricinus_communis_castor_seed_oil,피마자씨오일,Ricinus Communis (Castor) Seed Oil,1949,2,1,0,0,0,0,0,1,0,0,0,,,,40932363,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,polyquaternium_10,폴리쿼터늄-10,Polyquaternium-10,1948,9,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,polyquaternium_7,폴리쿼터늄-7,Polyquaternium-7,1935,3,1,0,0,0,0,0,1,0,0,0,,,,11846753,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,potassium_hydroxide,포타슘하이드록사이드,Potassium Hydroxide,1932,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isononyl_isononanoate,아이소노닐아이소노나노에이트,Isononyl Isononanoate,1929,7,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,xylitol,자일리톨,Xylitol,1921,50,3,0,0,0,0,0,2,0,1,1,,,,26370610|39555956,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,beta_glucan,베타-글루칸,Beta-Glucan,1920,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,jojoba_esters,호호바에스터,Jojoba Esters,1916,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,dimethiconol,다이메티콘올,Dimethiconol,1907,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,alanine,알라닌,Alanine,1897,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sodium_polyacrylate,소듐폴리아크릴레이트,Sodium Polyacrylate,1875,27,1,0,0,0,0,1,1,0,0,0,,,,39187930,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,aloe_barbadensis_leaf_extract,알로에베라잎추출물,Aloe Barbadensis Leaf Extract,1871,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,dextrin,덱스트린,Dextrin,1868,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,phytosphingosine,피토스핑고신,Phytosphingosine,1863,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,polyglyceryl_4_isostearate,폴리글리세릴-4아이소스테아레이트,Polyglyceryl-4 Isostearate,1858,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,polysilicone_11,폴리실리콘-11,Polysilicone-11,1858,1,1,0,0,0,0,0,1,0,0,0,,,,38471032,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,madecassoside,마데카소사이드,Madecassoside,1855,50,3,0,0,0,0,0,0,0,2,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,coco_glucoside,코코-글루코사이드,Coco-Glucoside,1841,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,threonine,트레오닌,Threonine,1832,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,eugenol,유제놀,Eugenol,1823,50,2,0,0,0,0,0,2,0,0,0,,,,9084914|37922503,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sorbitan_oleate,솔비탄올리에이트,Sorbitan Oleate,1803,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,pha,PHA,Polyhydroxy Acids,1801,20,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cellulose_gum,셀룰로오스검,Cellulose Gum,1753,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,iron_oxide_red,적색산화철,Iron Oxide Red,1739,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,histidine,히스티딘,Histidine,1733,50,1,0,0,0,0,0,1,0,0,0,,,,37107176,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,disodium_phosphate,다이소듐포스페이트,Disodium Phosphate,1704,33,2,0,0,0,0,0,1,0,2,0,,,,17624252,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hydrolyzed_collagen,하이드롤라이즈드콜라겐,Hydrolyzed Collagen,1691,50,3,0,0,0,0,0,1,0,2,0,,,,36547800,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,centella_asiatica,센텔라/병풀,Centella Asiatica Extracts,1678,50,3,0,0,0,0,0,1,0,3,1,,,,40682399,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,boron_nitride,보론나이트라이드,Boron Nitride,1674,43,1,0,0,0,0,0,1,0,0,0,,,,26684796,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,aspartic_acid,아스파틱애씨드,Aspartic Acid,1670,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,linalyl_acetate,리날릴아세테이트,Linalyl Acetate,1658,50,1,0,0,0,0,0,1,0,0,0,,,,32386094,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,isostearic_acid,아이소스테아릭애씨드,Isostearic Acid,1655,13,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cetyl_ethylhexanoate,세틸에틸헥사노에이트,Cetyl Ethylhexanoate,1651,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,phenylalanine,페닐알라닌,Phenylalanine,1634,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sorbitan_sesquioleate,솔비탄세스퀴올리에이트,Sorbitan Sesquioleate,1624,30,2,0,0,0,0,1,8,0,3,0,,,,17577361|18279159|19134436|24117742|35245949|36255387|36305668|41552910,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,aminomethyl_propanol,아미노메틸프로판올,Aminomethyl Propanol,1613,4,1,0,0,0,0,0,1,0,0,0,,,,19966147,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,asiaticoside,아시아티코사이드,Asiaticoside,1602,50,2,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,polysorbate_80,폴리솔베이트80,Polysorbate 80,1601,50,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,glycol_distearate,글라이콜다이스테아레이트,Glycol Distearate,1596,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,menthol,멘톨,Menthol,1596,50,2,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,valine,발린,Valine,1579,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cyclohexasiloxane,사이클로헥사실록세인,Cyclohexasiloxane,1546,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,methicone,메티콘,Methicone,1537,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isoleucine,아이소류신,Isoleucine,1526,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sucrose,수크로오스,Sucrose,1520,50,1,0,0,0,0,0,0,0,2,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,ethylhexyl_methoxycinnamate,에칠헥실메톡시신나메이트,Ethylhexyl Methoxycinnamate,1519,50,1,0,0,0,0,0,0,0,2,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,potassium_cetyl_phosphate,포타슘세틸포스페이트,Potassium Cetyl Phosphate,1517,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,polyethylene,폴리에틸렌,Polyethylene,1516,50,1,0,0,0,0,0,3,0,0,0,,,,7179288|16011869|26191379,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sodium_gluconate,소듐글루코네이트,Sodium Gluconate,1498,10,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,glutamic_acid,글루타믹애씨드,Glutamic Acid,1483,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,methyl_methacrylate_crosspolymer,메틸메타크릴레이트크로스폴리머,Methyl Methacrylate Crosspolymer,1479,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,butyloctyl_salicylate,부틸옥틸살리실레이트,Butyloctyl Salicylate,1471,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,bis_diglyceryl_polyacyladipate_2,비스-다이글리세릴폴리아실아디페이트-2,Bis-Diglyceryl Polyacyladipate-2,1449,1,1,0,0,0,0,0,1,0,0,0,,,,33576070,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,alcohol_denat,변성알코올,Alcohol Denat.,1444,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,talc,탤크,Talc,1442,50,1,0,0,0,0,0,1,0,0,0,,,,26227892,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,saccharide_isomerate,사카라이드아이소머레이트,Saccharide Isomerate,1433,7,2,0,0,0,0,0,2,0,3,0,,,,41211697|41243164,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,polyglyceryl_3_diisostearate,폴리글리세릴-3다이아이소스테아레이트,Polyglyceryl-3 Diisostearate,1430,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,zinc_stearate,징크스테아레이트,Zinc Stearate,1430,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cellulose,셀룰로오스,Cellulose,1427,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,tribehenin,트라이베헤닌,Tribehenin,1415,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,iron_oxide_black,흑색산화철,Iron Oxide Black,1413,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ethylhexyl_salicylate,에칠헥실살리실레이트,Ethylhexyl Salicylate,1385,50,1,0,0,0,0,1,3,0,0,0,,,,20233542|25898701|31081128,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,sodium_cocoyl_isethionate,소듐코코일이세티오네이트,Sodium Cocoyl Isethionate,1375,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_acetylated_hyaluronate,소듐아세틸레이티드하이알루로네이트,Sodium Acetylated Hyaluronate,1371,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_phosphate,소듐포스페이트,Sodium Phosphate,1370,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,polyisobutene,폴리아이소부텐,Polyisobutene,1354,9,1,0,0,0,0,0,1,0,0,0,,,,19101833,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,asiatic_acid,아시아틱애씨드,Asiatic Acid,1334,50,3,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,laureth_7,라우레스-7,Laureth-7,1322,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,madecassic_acid,마데카식애씨드,Madecassic Acid,1319,32,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,methylparaben,메틸파라벤,Methylparaben,1315,50,1,0,0,0,0,0,3,0,0,0,,,,16487285|19101832|36949725,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,amyl_cinnamal,아밀신남알,Amyl Cinnamal,1292,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sodium_metabisulfite,소듐메타바이설파이트,Sodium Metabisulfite,1287,50,2,0,0,0,0,0,6,0,1,0,,,,19825102|22320666|23039002|35715879|37130320|38934159,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,lysine,라이신,Lysine,1273,50,2,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,urea,유레아,Urea,1257,50,2,0,0,0,0,0,5,0,3,0,,,,24314769|33249708|34596890|37776363|38465394,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,triethylhexanoin,트라이에틸헥사노인,Triethylhexanoin,1247,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,cetearyl_glucoside,세테아릴글루코사이드,Cetearyl Glucoside,1237,11,1,0,0,0,0,0,1,0,0,0,,,,34628676,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,hydrolyzed_rice_protein,하이드롤라이즈드쌀단백질,Hydrolyzed Rice Protein,1236,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,butyl_methoxydibenzoylmethane,부틸메톡시디벤조일메탄,Butyl Methoxydibenzoylmethane,1224,50,1,0,0,0,0,0,0,0,4,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,tetrahexyldecyl_ascorbate,테트라헥실데실아스코베이트,Tetrahexyldecyl Ascorbate,1210,13,2,0,0,0,0,0,1,0,2,0,,,,35194790,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,vanillin,바닐린,Vanillin,1208,50,2,0,0,0,0,0,2,0,0,0,,,,33273232|37453556,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,hydrolyzed_soy_protein,하이드롤라이즈드콩단백질,Hydrolyzed Soy Protein,1204,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,coco_betaine,코코-베타인,Coco-Betaine,1199,4,1,0,0,0,0,1,2,0,0,0,,,,38448283|41488827,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,octyldodecyl_stearoyl_stearate,옥틸도데실스테아로일스테아레이트,Octyldodecyl Stearoyl Stearate,1189,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,polybutene,폴리부텐,Polybutene,1188,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,moringa_oleifera_seed_oil,드럼스틱씨오일,Moringa Oleifera Seed Oil,1174,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,caprylhydroxamic_acid,카프릴하이드록사믹애씨드,Caprylhydroxamic Acid,1164,6,2,0,0,0,0,0,1,0,1,0,,,,40673532,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,camellia_sinensis_leaf_extract,녹차추출물,Camellia Sinensis Leaf Extract,1161,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,caprylyl_capryl_glucoside,카프릴릴/카프릴글루코사이드,Caprylyl/Capryl Glucoside,1145,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,scutellaria_baicalensis_root_extract,황금추출물,Scutellaria Baicalensis Root Extract,1143,3,1,0,0,0,0,0,1,0,0,0,,,,35462423,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,cetyl_esters,세틸에스터,Cetyl Esters,1141,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,glycereth_26,글리세레스-26,Glycereth-26,1140,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,pinene,피넨,Pinene,1132,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,calcium_gluconate,칼슘글루코네이트,Calcium Gluconate,1131,50,3,0,0,0,0,0,1,1,1,0,,,wound_healing,27189091|30127880,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+representative_180,triethanolamine,트라이에탄올아민,Triethanolamine,1122,50,2,0,0,0,0,0,2,0,0,0,,,,7672740|19397616,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_laureth_sulfate,소듐라우레스설페이트,Sodium Laureth Sulfate,1113,22,1,0,0,0,0,0,2,0,0,0,,,,12641575|20634505,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,hydrogenated_castor_oil,하이드로제네이티드캐스터오일,Hydrogenated Castor Oil,1105,46,1,0,0,0,0,0,2,0,0,0,,,,17441854|19958732,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,tartrazine,황색4호,Tartrazine,1101,50,1,0,0,0,0,0,3,0,0,0,,,,2239641|41846460|42331133,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,phospholipids,포스포리피드,Phospholipids,1099,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_methyl_cocoyl_taurate,소듐메틸코코일타우레이트,Sodium Methyl Cocoyl Taurate,1088,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,glutathione,글루타티온,Glutathione,1081,50,3,0,1,0,0,0,5,0,1,3,,,,27088927|29445569|30895708|32373172|39444151|41416233,uncertain_effect_review_only,no_score_until_effect_is_confirmed,N,candidate_unverified,none
+raw_hit_190,glyceryl_oleate,글리세릴올리에이트,Glyceryl Oleate,1066,7,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,hydrolyzed_wheat_protein,하이드롤라이즈드밀단백질,Hydrolyzed Wheat Protein,1054,29,2,0,0,0,0,0,4,0,4,0,,,,10871108|17244090|17868230|29761728,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,magnesium_chloride,마그네슘클로라이드,Magnesium Chloride,1054,46,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,lauryl_glucoside,라우릴글루코사이드,Lauryl Glucoside,1050,24,2,0,0,0,0,0,2,0,1,0,,,,28766797|33090453,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,corallina_officinalis_extract,참산호말추출물,Corallina Officinalis Extract,1036,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,glyceryl_stearate_citrate,글리세릴스테아레이트시트레이트,Glyceryl Stearate Citrate,1035,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,bis_ethylhexyloxyphenol_methoxyphenyl_triazine,비스-에칠헥실옥시페놀메톡시페닐트리아진,Bis-Ethylhexyloxyphenol Methoxyphenyl Triazine,1030,17,1,0,0,0,0,0,2,0,0,0,,,,35306675|39011994,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,anhydroxylitol,안하이드로자일리톨,Anhydroxylitol,1027,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,palmitic_acid,팔미틱애씨드,Palmitic Acid,1027,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,retinol,레티놀,Retinol,1027,50,3,0,0,0,0,0,5,0,2,0,,,,35778881|40360842|40586182|40905519|41320371,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sclerotium_gum,스클레로튬검,Sclerotium Gum,1026,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ascorbyl_glucoside,아스코빌글루코사이드,Ascorbyl Glucoside,1023,16,1,0,0,0,0,0,1,0,0,0,,,,39513541,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,rosa_canina_fruit_oil,로즈힙열매오일,Rosa Canina Fruit Oil,1019,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,xylitylglucoside,자일리틸글루코사이드,Xylitylglucoside,1008,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isopropyl_titanium_triisostearate,아이소프로필티타늄트라이아이소스테아레이트,Isopropyl Titanium Triisostearate,1007,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,microcrystalline_wax,마이크로크리스탈린왁스,Microcrystalline Wax,1005,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hydrolyzed_keratin,하이드롤라이즈드케라틴,Hydrolyzed Keratin,1003,10,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cholesterol,콜레스테롤,Cholesterol,981,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,hydroxyethyl_urea,하이드록시에틸우레아,Hydroxyethyl Urea,967,3,1,0,0,0,0,0,1,0,0,0,,,,38465394,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,magnesium_stearate,마그네슘스테아레이트,Magnesium Stearate,956,10,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hydrogenated_vegetable_oil,하이드로제네이티드식물성오일,Hydrogenated Vegetable Oil,952,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,diethylamino_hydroxybenzoyl_hexyl_benzoate,디에칠아미노하이드록시벤조일헥실벤조에이트,Diethylamino Hydroxybenzoyl Hexyl Benzoate,943,22,1,0,0,0,0,0,1,0,0,0,,,,35506507,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,paraffin,파라핀,Paraffin,943,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isopropyl_palmitate,아이소프로필팔미테이트,Isopropyl Palmitate,942,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,retinyl_palmitate,레티닐팔미테이트,Retinyl Palmitate,939,50,2,0,0,0,0,0,2,0,3,0,,,,32353979|39580684,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,mannitol,만니톨,Mannitol,935,50,2,0,0,0,0,0,1,0,0,1,,,,39555956,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,ocimum_sanctum_leaf_extract,홀리바질잎추출물,Ocimum Sanctum Leaf Extract,930,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ethylhexyl_triazone,에칠헥실트리아존,Ethylhexyl Triazone,928,26,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,sorbitan_stearate,솔비탄스테아레이트,Sorbitan Stearate,926,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,butylphenyl_methylpropional,부틸페닐메틸프로피오날,Butylphenyl Methylpropional,925,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hydrogen_dimethicone,하이드로젠다이메티콘,Hydrogen Dimethicone,922,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,mentha_piperita_peppermint_oil,페퍼민트오일,Mentha Piperita (Peppermint) Oil,912,3,1,0,0,0,0,0,1,0,0,0,,,,39172635,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,magnesium_aluminum_silicate,마그네슘알루미늄실리케이트,Magnesium Aluminum Silicate,910,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,sodium_ascorbyl_phosphate,소듐아스코빌포스페이트,Sodium Ascorbyl Phosphate,910,22,1,0,0,0,0,0,0,2,2,0,,,photoprotection|wound_healing,14730375|32245517,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+representative_180,phytic_acid,파이틱애씨드,Phytic Acid,909,50,2,0,0,0,0,0,0,1,3,0,,,skin_microbiome,40631934,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+raw_hit_190,ulmus_davidiana_root_extract,당느릅나무뿌리추출물,Ulmus Davidiana Root Extract,906,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,calendula_officinalis_flower_extract,포트마리골드꽃추출물,Calendula Officinalis Flower Extract,901,11,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,theobroma_cacao_cocoa_seed_butter,카카오씨버터,Theobroma Cacao (Cocoa) Seed Butter,901,26,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,polymethyl_methacrylate,폴리메틸메타크릴레이트,Polymethyl Methacrylate,893,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hexyl_laurate,헥실라우레이트,Hexyl Laurate,891,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,houttuynia_cordata_extract,약모밀추출물,Houttuynia Cordata Extract,891,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,phytosterols,피토스테롤,Phytosterols,886,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,portulaca_oleracea_extract,쇠비름추출물,Portulaca Oleracea Extract,885,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,caramel,카라멜,Caramel,883,14,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,farnesol,파네솔,Farnesol,879,50,3,0,0,0,0,0,1,0,0,0,,,,20858058,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,potassium_chloride,포타슘클로라이드,Potassium Chloride,879,50,1,0,0,0,0,0,1,0,0,0,,,,8281795,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,sodium_c14_16_olefin_sulfonate,소듐C14-16올레핀설포네이트,Sodium C14-16 Olefin Sulfonate,877,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,capryloyl_salicylic_acid,카프릴로일살리실릭애씨드,Capryloyl Salicylic Acid,874,6,2,0,0,0,0,0,2,0,1,0,,,,27154246|38465458,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,eucalyptus_globulus_leaf_oil,유칼립투스잎오일,Eucalyptus Globulus Leaf Oil,866,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cyanocobalamin,사이아노코발아민,Cyanocobalamin,865,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,dicaprylyl_ether,다이카프릴릴에터,Dicaprylyl Ether,861,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,peg_60_hydrogenated_castor_oil,피이지-60하이드로제네이티드캐스터오일,PEG-60 Hydrogenated Castor Oil,855,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_dna,소듐디엔에이,Sodium DNA,847,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,pullulan,풀루란,Pullulan,846,50,1,0,0,0,0,0,0,1,0,0,,,wound_healing,31978478,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+raw_hit_190,algin,알진,Algin,844,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,microcrystalline_cellulose,마이크로크리스탈린셀룰로오스,Microcrystalline Cellulose,841,42,1,0,0,0,0,0,1,0,0,0,,,,27456597,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,fructooligosaccharides,프룩토올리고사카라이드,Fructooligosaccharides,827,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,synthetic_beeswax,합성비즈왁스,Synthetic Beeswax,827,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,propylparaben,프로필파라벤,Propylparaben,826,50,2,0,0,0,0,0,1,0,1,0,,,,34274358,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,acacia_senegal_gum,아라비아고무나무검,Acacia Senegal Gum,824,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,ectoin,엑토인,Ectoin,823,16,1,0,0,0,0,0,0,0,1,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,phenethyl_alcohol,페네틸알코올,Phenethyl Alcohol,823,10,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,gluconolactone,글루코노락톤,Gluconolactone,818,26,3,1,0,0,0,0,0,0,1,0,4,effect_moisture_barrier,,33769633,full_text_benefit_score_review,possible_after_full_text_and_human_approval,N,candidate_unverified,none
+raw_hit_190,polyglyceryl_4_caprate,폴리글리세릴-4카프레이트,Polyglyceryl-4 Caprate,817,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,acetyl_glucosamine,아세틸글루코사민,Acetyl Glucosamine,802,50,1,0,0,0,0,0,0,0,4,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,acetyl_hexapeptide_8,아세틸헥사펩타이드-8,Acetyl Hexapeptide-8,798,22,2,0,0,0,0,0,1,0,1,0,,,,23146065,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,potassium_hyaluronate,포타슘하이알루로네이트,Potassium Hyaluronate,795,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,acetic_acid,아세틱애씨드,Acetic Acid,788,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,leucine,류신,Leucine,783,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,dibutyl_adipate,다이부틸아디페이트,Dibutyl Adipate,779,6,1,0,0,0,0,0,1,0,0,0,,,,16835133,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,hydroxypropyl_starch_phosphate,하이드록시프로필스타치포스페이트,Hydroxypropyl Starch Phosphate,779,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_lauroyl_lactylate,소듐라우로일락틸레이트,Sodium Lauroyl Lactylate,777,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,melaleuca_alternifolia_tea_tree_leaf_oil,티트리잎오일,Melaleuca Alternifolia (Tea Tree) Leaf Oil,773,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,zinc_pca,징크PCA,Zinc PCA,772,8,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,brilliant_blue_fcf,청색1호,Brilliant Blue FCF,770,10,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,fructose,프룩토오스,Fructose,769,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,zingiber_officinale_ginger_root_extract,생강추출물,Zingiber Officinale (Ginger) Root Extract,768,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,vp_eicosene_copolymer,브이피/에이코신코폴리머,VP/Eicosene Copolymer,765,3,1,0,0,0,0,0,1,0,0,0,,,,15186394,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,polyglutamic_acid,폴리글루타믹애씨드,Polyglutamic Acid,756,40,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,palmitoyl_tripeptide_5,팔미토일트라이펩타이드-5,Palmitoyl Tripeptide-5,752,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,tyrosine,타이로신,Tyrosine,752,50,2,0,0,0,0,0,1,0,0,0,,,,35081305,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,zinc_oxide,징크옥사이드,Zinc Oxide,750,50,1,0,0,0,0,0,1,0,0,0,,,,41718133,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_lauroyl_glutamate,소듐라우로일글루타메이트,Sodium Lauroyl Glutamate,745,3,1,0,0,0,0,0,1,0,0,0,,,,8033544,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,3_o_ethyl_ascorbic_acid,3-O-에틸아스코빅애씨드,3-O-Ethyl Ascorbic Acid,742,18,2,0,0,0,0,0,1,0,0,1,,,,31066077,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,aluminum_starch_octenylsuccinate,알루미늄전분옥테닐석시네이트,Aluminum Starch Octenylsuccinate,741,2,1,0,0,0,0,0,1,0,0,0,,,,37774506,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,oenothera_biennis_evening_primrose_oil,달맞이꽃오일,Oenothera Biennis (Evening Primrose) Oil,733,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,methionine,메티오닌,Methionine,728,50,2,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,vp_hexadecene_copolymer,브이피/헥사데센코폴리머,VP/Hexadecene Copolymer,724,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,licorice_extract,감초추출물,Licorice Extract,720,43,2,0,0,0,0,0,2,0,0,0,,,,31045935|33913165,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,geranyl_acetate,제라닐아세테이트,Geranyl Acetate,715,22,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,paeonia_lactiflora_root_extract,작약뿌리추출물,Paeonia Lactiflora Root Extract,711,3,1,0,0,0,0,0,1,0,0,0,,,,38615840,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,sodium_lauroyl_sarcosinate,소듐라우로일사코시네이트,Sodium Lauroyl Sarcosinate,711,7,1,0,0,0,0,0,1,0,0,0,,,,15811039,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,dimethyl_isosorbide,다이메틸아이소소바이드,Dimethyl Isosorbide,710,34,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,cetyl_palmitate,세틸팔미테이트,Cetyl Palmitate,709,33,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,polyglyceryl_3_methylglucose_distearate,폴리글리세릴-3메틸글루코오스다이스테아레이트,Polyglyceryl-3 Methylglucose Distearate,708,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,propylene_glycol_dicaprylate_dicaprate,프로필렌글라이콜다이카프릴레이트/다이카프레이트,Propylene Glycol Dicaprylate/Dicaprate,698,4,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,algae_extract,조류추출물,Algae Extract,693,14,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,tridecyl_trimellitate,트라이데실트라이멜리테이트,Tridecyl Trimellitate,692,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,diisopropyl_sebacate,다이아이소프로필세바케이트,Diisopropyl Sebacate,682,2,1,0,0,0,0,0,1,0,0,0,,,,2946543,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,erythritol,에리스리톨,Erythritol,679,45,3,0,0,0,0,0,1,0,1,0,,,,41688218,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,cocamidopropyl_hydroxysultaine,코카미도프로필하이드록시설테인,Cocamidopropyl Hydroxysultaine,668,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,trisodium_edta,트라이소듐이디티에이,Trisodium EDTA,668,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,bakuchiol,바쿠치올,Bakuchiol,666,50,1,0,0,0,0,0,0,0,7,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+representative_180,polyacrylamide,폴리아크릴아마이드,Polyacrylamide,666,50,1,0,0,0,0,0,1,0,0,0,,,,37766629,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,peg_8,피이지-8,PEG-8,665,27,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,hydrolyzed_silk,하이드롤라이즈드실크,Hydrolyzed Silk,660,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,copper_tripeptide_1,카퍼트라이펩타이드-1,Copper Tripeptide-1,656,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,disodium_cocoamphodiacetate,다이소듐코코암포다이아세테이트,Disodium Cocoamphodiacetate,655,3,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,isopentyldiol,아이소펜틸다이올,Isopentyldiol,655,5,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,disodium_laureth_sulfosuccinate,다이소듐라우레스설포석시네이트,Disodium Laureth Sulfosuccinate,651,6,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,glyceryl_glucoside,글리세릴글루코사이드,Glyceryl Glucoside,651,6,1,0,0,0,0,0,0,0,3,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,terpineol,터피네올,Terpineol,647,50,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,tridecane,트라이데케인,Tridecane,645,14,1,0,0,0,0,0,1,0,0,0,,,,15902969,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,pantolactone,판토락톤,Pantolactone,643,2,1,0,0,0,0,0,1,0,0,0,,,,35946606,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+representative_180,cysteine,시스테인,Cysteine,641,50,1,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,barium_sulfate,바륨설페이트,Barium Sulfate,640,41,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,arachidyl_alcohol,아라키딜알코올,Arachidyl Alcohol,637,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,sodium_acetate,소듐아세테이트,Sodium Acetate,636,50,0,0,0,0,0,0,0,1,0,0,,,antimicrobial_skin,31275281,new_effect_axis_review,no_score_until_effect_axis_is_approved,N,candidate_unverified,none
+raw_hit_190,laminaria_japonica_extract,다시마추출물,Laminaria Japonica Extract,634,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,magnesium_ascorbyl_phosphate,마그네슘아스코빌포스페이트,Magnesium Ascorbyl Phosphate,626,37,1,0,0,0,0,0,0,0,4,0,,,,,formulation_only_no_ingredient_score,no_single_ingredient_benefit_score,N,candidate_unverified,none
+raw_hit_190,polyquaternium_51,폴리쿼터늄-51,Polyquaternium-51,626,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,steareth_20,스테아레스-20,Steareth-20,623,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+raw_hit_190,ethylene_propylene_copolymer,에틸렌/프로필렌코폴리머,Ethylene/Propylene Copolymer,616,2,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,beeswax,비즈왁스,Beeswax,613,50,2,0,0,0,0,0,1,0,1,0,,,,41663074,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,cocamide_mipa,코카마이드미파,Cocamide MIPA,609,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none
+representative_180,petrolatum_mineral_oil,페트롤라툼/미네랄오일,Petrolatum / Mineral Oil,607,50,1,0,0,0,0,1,1,0,0,0,,,,15365273,full_text_risk_penalty_review,risk_only_after_full_text_and_human_approval,N,candidate_unverified,none
+representative_180,methylisothiazolinone,메칠이소치아졸리논,Methylisothiazolinone,606,50,2,0,0,0,0,0,3,0,1,0,,,,23340392|25907379|31170842,safety_signal_review_only,no_score_until_adverse_direction_is_confirmed,N,candidate_unverified,none
+raw_hit_190,vp_va_copolymer,브이피/브이에이코폴리머,VP/VA Copolymer,604,1,0,0,0,0,0,0,0,0,0,0,,,,,not_scoreable_from_current_hits,no_score,N,candidate_unverified,none

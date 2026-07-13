@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from discover_new_evidence import PaperMetadata  # noqa: E402
 from screen_effect_review_candidates import (  # noqa: E402
     PairCandidate,
+    assess_paper_candidate,
     is_human_topical_focused,
     screen_candidates,
 )
@@ -44,8 +45,11 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
         )
 
         self.assertTrue(is_human_topical_focused(paper, ["Sodium Lactate"]))
+        assessment = assess_paper_candidate(paper, ["Sodium Lactate"])
+        self.assertEqual(assessment.evidence_tier, 3)
+        self.assertEqual(assessment.relation_scope, "title_exact")
 
-    def test_formulation_mention_without_title_focus_does_not_qualify(self):
+    def test_formulation_mention_in_abstract_is_retained_with_limitation(self):
         paper = PaperMetadata(
             pmid="1",
             title="A Moisturizer for Atopic Dermatitis",
@@ -53,7 +57,22 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
             abstract="Patients applied a cream containing butylene glycol.",
         )
 
-        self.assertFalse(is_human_topical_focused(paper, ["Butylene Glycol"]))
+        assessment = assess_paper_candidate(paper, ["Butylene Glycol"])
+        self.assertEqual(assessment.evidence_tier, 3)
+        self.assertEqual(assessment.relation_scope, "abstract_exact")
+        self.assertEqual(assessment.applicability, "combination_or_formulation")
+
+    def test_formulation_language_from_audit_is_not_treated_as_single_ingredient(self):
+        for marker in ("enriched", "adjuvant", "loaded", "3-in-1", "multi-modal"):
+            with self.subTest(marker=marker):
+                paper = PaperMetadata(
+                    pmid="1",
+                    title=f"A {marker} topical cream study",
+                    publication_types=("Randomized Controlled Trial",),
+                    abstract="Adult participants applied a Centella Asiatica cream to the skin.",
+                )
+                assessment = assess_paper_candidate(paper, ["Centella Asiatica"])
+                self.assertEqual(assessment.applicability, "combination_or_formulation")
 
     def test_oral_or_injectable_title_does_not_qualify_as_topical(self):
         oral = PaperMetadata(
@@ -77,7 +96,7 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
             pmid="1",
             title="Topical Sulfur for Acne",
             publication_types=("Review",),
-            abstract="Clinical trials in patients used topical cream preparations.",
+            abstract="Randomized clinical trials in patients used topical cream preparations.",
         )
         animal = PaperMetadata(
             pmid="2",
@@ -87,9 +106,26 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
         )
 
         self.assertFalse(is_human_topical_focused(review, ["Sulfur"]))
+        self.assertEqual(assess_paper_candidate(review, ["Sulfur"]).evidence_tier, 8)
         self.assertFalse(is_human_topical_focused(animal, ["Sodium Lactate"]))
 
-    def test_direct_signal_is_selected_without_pubmed_request(self):
+    def test_animal_signal_wins_over_ambiguous_subject_wording(self):
+        paper = PaperMetadata(
+            pmid="3",
+            title="Topical Geraniol in Mice With Atopic Dermatitis",
+            publication_types=("Journal Article",),
+            abstract=(
+                "The subjects received geraniol lotion on the skin and inflammation decreased."
+            ),
+        )
+
+        assessment = assess_paper_candidate(paper, ["Geraniol"])
+
+        self.assertEqual(assessment.evidence_tier, 6)
+        self.assertEqual(assessment.evidence_kind, "animal")
+        self.assertFalse(is_human_topical_focused(paper, ["Geraniol"]))
+
+    def test_direct_signal_is_searched_and_retained_as_cosing_only_without_paper(self):
         candidate = PairCandidate(
             ingredient_id="alpha_arbutin",
             name_en="Alpha-Arbutin",
@@ -109,8 +145,8 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
         )
 
         self.assertEqual(rows[0]["selected_for_paper_review"], "Y")
-        self.assertEqual(rows[0]["screening_status"], "direct_cosing_signal")
-        self.assertEqual(client.request_count, 0)
+        self.assertEqual(rows[0]["screening_status"], "cosing_only")
+        self.assertEqual(client.request_count, 1)
 
     def test_conditional_signal_requires_qualified_paper(self):
         candidate = PairCandidate(
@@ -139,8 +175,9 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
 
         self.assertEqual(rows[0]["selected_for_paper_review"], "Y")
         self.assertEqual(rows[0]["human_topical_pmids"], "1")
+        self.assertEqual(rows[0]["best_evidence_tier"], "3")
 
-    def test_conditional_signal_rejects_nonfocused_hit(self):
+    def test_conditional_signal_keeps_abstract_exact_formulation_hit(self):
         candidate = PairCandidate(
             ingredient_id="butylene_glycol",
             name_en="Butylene Glycol",
@@ -165,8 +202,10 @@ class ScreenEffectReviewCandidatesTests(unittest.TestCase):
             retmax_per_pair=20,
         )
 
-        self.assertEqual(rows[0]["selected_for_paper_review"], "N")
-        self.assertEqual(rows[0]["screening_status"], "no_human_topical_pubmed_candidate")
+        self.assertEqual(rows[0]["selected_for_paper_review"], "Y")
+        self.assertEqual(rows[0]["screening_status"], "evidence_tier_3")
+        self.assertEqual(rows[0]["best_relation_scope"], "abstract_exact")
+        self.assertEqual(rows[0]["best_applicability"], "combination_or_formulation")
 
 
 if __name__ == "__main__":

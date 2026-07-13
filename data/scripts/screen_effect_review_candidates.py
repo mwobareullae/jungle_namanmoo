@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Screen canonical ingredient/effect pairs before paper review.
+"""Collect and tier PubMed signals for canonical ingredient/effect pairs.
 
-Existing runtime pairs are preserved. BLEACHING and SOOTHING remain direct
-search signals. Broad moisture signals, ANTI-SEBORRHEIC, and KERATOLYTIC must
-have at least one ingredient-focused human topical PubMed candidate.
-
-This script never approves evidence or changes runtime scores.
+The search is intentionally broad. Exact ingredient mentions in titles and
+abstracts are recorded separately, study design is classified from tier 1 to
+8, and formulation or route limitations remain explicit. This script never
+approves evidence or changes runtime scores.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ from discover_new_evidence import (
 )
 
 
-SCREENING_VERSION = "mwbl-effect-review-screen-v1"
+SCREENING_VERSION = "mwbl-effect-review-screen-v2-tiered"
 ALL_HISTORY_START = date(1900, 1, 1)
 DEFAULT_RETMAX_PER_PAIR = 50
 
@@ -59,8 +58,8 @@ HUMAN_PUBLICATION_TYPES = {
 }
 
 HUMAN_TEXT_RE = re.compile(
-    r"\b(patient|patients|participant|participants|volunteer|volunteers|women|men|"
-    r"randomi[sz]ed|double-blind|split-face|clinical trial)\b",
+    r"\b(patient|patients|participant|participants|subject|subjects|volunteer|volunteers|"
+    r"women|men|adults|randomi[sz]ed|double-blind|split-face|clinical trial|consumer test)\b",
     re.IGNORECASE,
 )
 TOPICAL_TEXT_RE = re.compile(
@@ -71,10 +70,42 @@ TOPICAL_TEXT_RE = re.compile(
 )
 NON_TOPICAL_TITLE_RE = re.compile(
     r"\b(oral|supplement|supplementation|ingestion|dietary|injectable|injection|"
-    r"mesotherapy|filler|microneedle)\b",
+    r"mesotherapy|fillers?|microneedle)\b",
+    re.IGNORECASE,
+)
+TOPICAL_ROUTE_TITLE_RE = re.compile(
+    r"\b(topical|cream|lotion|ointment|emulsion|moisturi[sz]er|skin application)\b",
     re.IGNORECASE,
 )
 REVIEW_PUBLICATION_TYPES = {"review", "systematic review", "meta-analysis"}
+SYSTEMATIC_PUBLICATION_TYPES = {"systematic review", "meta-analysis"}
+RANDOMIZED_PUBLICATION_TYPES = {"randomized controlled trial"}
+CONTROLLED_PUBLICATION_TYPES = {"controlled clinical trial"}
+CLINICAL_PUBLICATION_TYPES = HUMAN_PUBLICATION_TYPES | {
+    "comparative study",
+    "observational study",
+}
+EX_VIVO_RE = re.compile(
+    r"\b(ex vivo|skin explant|human skin equivalent|reconstructed human epidermis|"
+    r"artificial skin|3d skin model)\b",
+    re.IGNORECASE,
+)
+ANIMAL_RE = re.compile(
+    r"\b(mouse|mice|rat|rats|rabbit|rabbits|guinea pig|porcine|dog|dogs|canine|"
+    r"animal model|in vivo murine)\b",
+    re.IGNORECASE,
+)
+IN_VITRO_RE = re.compile(
+    r"\b(in vitro|cell culture|cell line|stem cells?|keratinocyte|fibroblast|melanocyte|"
+    r"melanogenesis assay)\b",
+    re.IGNORECASE,
+)
+COMBINATION_RE = re.compile(
+    r"\b(combination|combined with|multi[- ]ingredient|containing|formulated with|"
+    r"blend of|complex of|loaded|enriched|adjuvant|3[- ]in[- ]1|multi[- ]modal)\b",
+    re.IGNORECASE,
+)
+TIER_BASE_SIGNAL = {1: 100, 2: 90, 3: 78, 4: 60, 5: 40, 6: 25, 7: 20, 8: 10}
 
 SCREENING_FIELDS = [
     "ingredient_id",
@@ -88,6 +119,15 @@ SCREENING_FIELDS = [
     "raw_pubmed_pmids",
     "human_topical_pmids",
     "human_topical_titles_json",
+    "best_evidence_tier",
+    "best_evidence_kind",
+    "best_relation_scope",
+    "best_applicability",
+    "best_pmid",
+    "best_title",
+    "best_signal_score",
+    "tier_counts_json",
+    "candidate_papers_json",
     "screening_status",
     "selected_for_paper_review",
     "review_status",
@@ -123,6 +163,16 @@ class PairCandidate:
     selection_policy: str
 
 
+@dataclass(frozen=True)
+class PaperAssessment:
+    paper: PaperMetadata
+    evidence_tier: int
+    evidence_kind: str
+    relation_scope: str
+    applicability: str
+    signal_score: int
+
+
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -152,29 +202,102 @@ def title_mentions_ingredient(title: str, ingredient_terms: Sequence[str]) -> bo
     return False
 
 
+def ingredient_mention_scope(
+    paper: PaperMetadata,
+    ingredient_terms: Sequence[str],
+) -> str:
+    if title_mentions_ingredient(paper.title, ingredient_terms):
+        return "title_exact"
+    if title_mentions_ingredient(paper.abstract, ingredient_terms):
+        return "abstract_exact"
+    return "unconfirmed"
+
+
+def assess_paper_candidate(
+    paper: PaperMetadata,
+    ingredient_terms: Sequence[str],
+) -> PaperAssessment:
+    relation_scope = ingredient_mention_scope(paper, ingredient_terms)
+    text = f"{paper.title} {paper.abstract}"
+    publication_types = {value.casefold() for value in paper.publication_types}
+    is_review = bool(publication_types & REVIEW_PUBLICATION_TYPES)
+    has_human_publication_type = bool(publication_types & HUMAN_PUBLICATION_TYPES)
+    is_human = has_human_publication_type or bool(
+        HUMAN_TEXT_RE.search(text)
+    )
+    is_topical = bool(TOPICAL_TEXT_RE.search(text))
+    has_animal_signal = bool(ANIMAL_RE.search(text))
+    route_mismatch = bool(NON_TOPICAL_TITLE_RE.search(paper.title)) and not bool(
+        TOPICAL_ROUTE_TITLE_RE.search(paper.title)
+    )
+
+    if publication_types & SYSTEMATIC_PUBLICATION_TYPES and is_human and is_topical:
+        tier, kind = 1, "human_topical_systematic_review"
+    elif is_review:
+        tier, kind = 8, "review_or_reference"
+    elif has_animal_signal and not has_human_publication_type:
+        tier, kind = 6, "animal"
+    elif (
+        publication_types & RANDOMIZED_PUBLICATION_TYPES
+        or re.search(r"\brandomi[sz]ed\b", text, re.IGNORECASE)
+    ) and is_human and is_topical:
+        tier, kind = 2, "human_topical_rct"
+    elif (
+        publication_types & (CONTROLLED_PUBLICATION_TYPES | CLINICAL_PUBLICATION_TYPES)
+        or re.search(r"\b(controlled|split-face|clinical trial)\b", text, re.IGNORECASE)
+    ) and is_human and is_topical:
+        tier, kind = 3, "human_topical_clinical"
+    elif is_human and is_topical:
+        tier, kind = 4, "human_topical_observational_or_use_test"
+    elif EX_VIVO_RE.search(text):
+        tier, kind = 5, "ex_vivo_or_artificial_skin"
+    elif has_animal_signal:
+        tier, kind = 6, "animal"
+    elif IN_VITRO_RE.search(text):
+        tier, kind = 7, "in_vitro"
+    else:
+        tier, kind = 8, "review_or_reference"
+
+    if route_mismatch:
+        applicability = "route_mismatch"
+    elif COMBINATION_RE.search(text):
+        applicability = "combination_or_formulation"
+    elif tier <= 4:
+        applicability = "human_topical"
+    elif tier <= 7:
+        applicability = "mechanistic"
+    else:
+        applicability = "reference_only"
+
+    score = TIER_BASE_SIGNAL[tier]
+    if relation_scope == "title_exact":
+        score += 5
+    elif relation_scope == "unconfirmed":
+        score = 0
+    if applicability == "combination_or_formulation":
+        score = round(score * 0.65)
+    elif applicability == "route_mismatch":
+        score = round(score * 0.20)
+    return PaperAssessment(
+        paper=paper,
+        evidence_tier=tier,
+        evidence_kind=kind,
+        relation_scope=relation_scope,
+        applicability=applicability,
+        signal_score=min(score, 100),
+    )
+
+
 def is_human_topical_focused(
     paper: PaperMetadata,
     ingredient_terms: Sequence[str],
 ) -> bool:
-    if not paper.abstract or not title_mentions_ingredient(paper.title, ingredient_terms):
-        return False
-    if NON_TOPICAL_TITLE_RE.search(paper.title) and not re.search(
-        r"\b(topical|cream|lotion|serum|ointment|emulsion|moisturi[sz]er)\b",
-        paper.title,
-        re.IGNORECASE,
-    ):
-        return False
-    text = f"{paper.title} {paper.abstract}"
-    publication_types = {value.casefold() for value in paper.publication_types}
-    if publication_types & REVIEW_PUBLICATION_TYPES and not (
-        publication_types & HUMAN_PUBLICATION_TYPES
-    ):
-        return False
-    is_human = bool(publication_types & HUMAN_PUBLICATION_TYPES) or bool(
-        HUMAN_TEXT_RE.search(text)
+    assessment = assess_paper_candidate(paper, ingredient_terms)
+    return (
+        assessment.evidence_tier <= 4
+        and assessment.relation_scope != "unconfirmed"
+        and assessment.applicability != "route_mismatch"
     )
-    is_topical = bool(TOPICAL_TEXT_RE.search(text))
-    return is_human and is_topical
 
 
 def is_direct_signal(effect_id: str, matched_functions: Sequence[str]) -> bool:
@@ -226,16 +349,16 @@ def screen_candidates(
     retmax_per_pair: int,
     progress: Callable[[int, int, PairCandidate, int], None] | None = None,
 ) -> list[dict[str, str]]:
-    conditional = [
+    searched = [
         candidate
         for candidate in candidates
-        if candidate.selection_policy == "human_topical_pubmed_required"
+        if candidate.selection_policy != "existing_runtime"
     ]
     raw_pmids: dict[tuple[str, str], list[str]] = {}
     queries: dict[tuple[str, str], str] = {}
     all_pmids: set[str] = set()
 
-    for index, candidate in enumerate(conditional, start=1):
+    for index, candidate in enumerate(searched, start=1):
         key = (candidate.ingredient_id, candidate.effect_id)
         query = build_pair_query(ingredient_terms[candidate.ingredient_id], candidate.effect_id)
         pmids = client.search(
@@ -248,7 +371,7 @@ def screen_candidates(
         raw_pmids[key] = pmids
         all_pmids.update(pmids)
         if progress:
-            progress(index, len(conditional), candidate, len(pmids))
+            progress(index, len(searched), candidate, len(pmids))
 
     papers = client.fetch(sorted(all_pmids)) if all_pmids else {}
     output: list[dict[str, str]] = []
@@ -256,27 +379,47 @@ def screen_candidates(
         key = (candidate.ingredient_id, candidate.effect_id)
         terms = ingredient_terms[candidate.ingredient_id]
         found = raw_pmids.get(key, [])
-        qualified = [
-            papers[pmid]
+        assessments = [
+            assess_paper_candidate(papers[pmid], terms)
             for pmid in found
-            if pmid in papers and is_human_topical_focused(papers[pmid], terms)
+            if pmid in papers
         ]
+        assessments = [assessment for assessment in assessments if assessment.signal_score > 0]
+        assessments.sort(
+            key=lambda item: (
+                -item.signal_score,
+                item.evidence_tier,
+                0 if item.relation_scope == "title_exact" else 1,
+                item.paper.pmid,
+            )
+        )
+        best = assessments[0] if assessments else None
+        qualified = [
+            assessment.paper
+            for assessment in assessments
+            if assessment.evidence_tier <= 4
+            and assessment.applicability != "route_mismatch"
+        ]
+        tier_counts: dict[str, int] = {}
+        for assessment in assessments:
+            key_name = str(assessment.evidence_tier)
+            tier_counts[key_name] = tier_counts.get(key_name, 0) + 1
 
         if candidate.selection_policy == "existing_runtime":
             selected = True
             status = "existing_runtime"
             review_status = "existing_runtime"
-        elif candidate.selection_policy == "direct_cosing_signal":
+        elif best is not None:
             selected = True
-            status = "direct_cosing_signal"
+            status = f"evidence_tier_{best.evidence_tier}"
             review_status = "candidate_unverified"
-        elif qualified:
+        elif candidate.signal_functions:
             selected = True
-            status = "human_topical_pubmed_candidate"
+            status = "cosing_only"
             review_status = "candidate_unverified"
         else:
             selected = False
-            status = "no_human_topical_pubmed_candidate"
+            status = "no_pubmed_signal"
             review_status = "not_selected"
 
         output.append(
@@ -293,6 +436,34 @@ def screen_candidates(
                 "human_topical_pmids": "|".join(paper.pmid for paper in qualified),
                 "human_topical_titles_json": json.dumps(
                     [{"pmid": paper.pmid, "title": paper.title} for paper in qualified],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+                "best_evidence_tier": str(best.evidence_tier) if best else "",
+                "best_evidence_kind": best.evidence_kind if best else "",
+                "best_relation_scope": best.relation_scope if best else "",
+                "best_applicability": best.applicability if best else "",
+                "best_pmid": best.paper.pmid if best else "",
+                "best_title": best.paper.title if best else "",
+                "best_signal_score": str(best.signal_score) if best else "0",
+                "tier_counts_json": json.dumps(
+                    tier_counts,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+                "candidate_papers_json": json.dumps(
+                    [
+                        {
+                            "pmid": assessment.paper.pmid,
+                            "tier": assessment.evidence_tier,
+                            "kind": assessment.evidence_kind,
+                            "relation_scope": assessment.relation_scope,
+                            "applicability": assessment.applicability,
+                            "signal_score": assessment.signal_score,
+                            "title": assessment.paper.title,
+                        }
+                        for assessment in assessments
+                    ],
                     ensure_ascii=False,
                     separators=(",", ":"),
                 ),

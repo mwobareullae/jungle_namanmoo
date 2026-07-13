@@ -1,0 +1,36 @@
+{
+  "generated_on": "2026-07-13",
+  "policy_version": "mwbl-score-eligibility-review-v1",
+  "raw_hit_ingredient_count": 370,
+  "claim_candidate_row_count": 329,
+  "cohorts": {
+    "raw_hit_190": {
+      "ingredient_count": 193,
+      "decision_counts": {
+        "new_effect_axis_review": 1,
+        "not_scoreable_from_current_hits": 192
+      }
+    },
+    "representative_180": {
+      "ingredient_count": 177,
+      "decision_counts": {
+        "formulation_only_no_ingredient_score": 25,
+        "full_text_benefit_score_review": 2,
+        "full_text_risk_penalty_review": 11,
+        "new_effect_axis_review": 5,
+        "not_scoreable_from_current_hits": 10,
+        "reference_only_no_score": 1,
+        "safety_signal_review_only": 122,
+        "uncertain_effect_review_only": 1
+      }
+    }
+  },
+  "runtime_changed": false,
+  "notes": [
+    "All rows remain candidate_unverified.",
+    "Benefit candidates still require full-text review and human approval.",
+    "A general safety signal is not a positive efficacy or risk score.",
+    "A safety mention becomes a risk candidate only for a clear human-topical adverse title.",
+    "Formulation and reference evidence do not create a single-ingredient benefit score."
+  ]
+}

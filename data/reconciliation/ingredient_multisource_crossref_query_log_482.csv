@@ -1,0 +1,483 @@
+source,ingredient_id,name_en,search_query,raw_hit_count,returned_count,request_status,error_message,pipeline_version
+crossref,1_2_hexanediol,"1,2-Hexanediol","""1,2-Hexanediol"" skin topical",439884,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,3_o_ethyl_ascorbic_acid,3-O-Ethyl Ascorbic Acid,"""3-O-Ethyl Ascorbic Acid"" skin topical",1698450,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,acacia_senegal_gum,Acacia Senegal Gum,"""Acacia Senegal Gum"" skin topical",492447,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,acetic_acid,Acetic Acid,"""Acetic Acid"" skin topical",1641935,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,acetyl_glucosamine,Acetyl Glucosamine,"""Acetyl Glucosamine"" skin topical",475119,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,acetyl_hexapeptide_8,Acetyl Hexapeptide-8,"""Acetyl Hexapeptide-8"" skin topical",471433,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,acrylates_c10_30_alkyl_acrylate_crosspolymer,Acrylates/C10-30 Alkyl Acrylate Crosspolymer,"""acrylates c10 30 alkyl acrylate crosspolymer"" skin topical",2697832,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,adenosine,Adenosine,"""Adenosine"" skin topical",493153,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aha,Alpha Hydroxy Acids,"""Alpha Hydroxy Acids"" skin topical",1055503,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,alanine,Alanine,"""Alanine"" skin topical",457054,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,alcohol,Alcohol,"""Alcohol"" skin topical",717475,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,alcohol_denat,Alcohol Denat.,"""Alcohol Denat."" skin topical",718086,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,algae_extract,Algae Extract,"""Algae Extract"" skin topical",677146,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,algin,Algin,"""Algin"" skin topical",440065,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,allantoin,Allantoin,"""Allantoin"" skin topical",440174,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aloe_barbadensis_leaf_extract,Aloe Barbadensis Leaf Extract,"""Aloe Barbadensis Leaf Extract"" skin topical",799579,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aloe_barbadensis_leaf_juice,Aloe Barbadensis Leaf Juice,"""Aloe Barbadensis Leaf Juice"" skin topical",657476,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aloe_barbadensis_leaf_juice_powder,Aloe Barbadensis Leaf Juice Powder,"""Aloe Barbadensis Leaf Juice Powder"" skin topical",882109,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,alpha_isomethyl_ionone,Alpha-Isomethyl Ionone,"""Alpha-Isomethyl Ionone"" skin topical",615831,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,alumina,Alumina,"""Alumina"" skin topical",496352,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aluminum_hydroxide,Aluminum Hydroxide,"""Aluminum Hydroxide"" skin topical",649583,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aluminum_starch_octenylsuccinate,Aluminum Starch Octenylsuccinate,"""Aluminum Starch Octenylsuccinate"" skin topical",692641,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aminomethyl_propanol,Aminomethyl Propanol,"""Aminomethyl Propanol"" skin topical",449836,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ammonium_polyacryloyldimethyl_taurate,Ammonium Polyacryloyldimethyl Taurate,"""Ammonium Polyacryloyldimethyl Taurate"" skin topical",497908,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,amodimethicone,Amodimethicone,"""Amodimethicone"" skin topical",439402,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,amyl_cinnamal,Amyl Cinnamal,"""Amyl Cinnamal"" skin topical",440975,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,anhydroxylitol,Anhydroxylitol,"""Anhydroxylitol"" skin topical",439406,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,arachidyl_alcohol,Arachidyl Alcohol,"""Arachidyl Alcohol"" skin topical",717488,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,argania_spinosa_kernel_oil,Argania Spinosa Kernel Oil,"""Argania Spinosa Kernel Oil"" skin topical",1144704,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,arginine,Arginine,"""Arginine"" skin topical",473394,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ascorbic_acid,Ascorbic Acid,"""Ascorbic Acid"" skin topical",1638832,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ascorbyl_glucoside,Ascorbyl Glucoside,"""Ascorbyl Glucoside"" skin topical",445930,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ascorbyl_palmitate,Ascorbyl Palmitate,"""Ascorbyl Palmitate"" skin topical",444868,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,asiatic_acid,Asiatic Acid,"""Asiatic Acid"" skin topical",1666492,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,asiaticoside,Asiaticoside,"""Asiaticoside"" skin topical",439849,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,aspartic_acid,Aspartic Acid,"""Aspartic Acid"" skin topical",1640631,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,auricula_vitis_labrusca_fruit_helianthus_tuberosus_tub_kcia_6682,Auricula/Vitis Labrusca Fruit/Helianthus Tuberosus Tuber Ferment Extract Isoamyl Laurate,"""Isoamyl Laurate"" skin topical",441048,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,avena_sativa_oat_kernel_extract,Avena Sativa (Oat) Kernel Extract,"""avena sativa oat kernel extract"" skin topical",776238,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,bakuchiol,Bakuchiol,"""Bakuchiol"" skin topical",439644,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,barium_sulfate,Barium Sulfate,"""Barium Sulfate"" skin topical",554640,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,beeswax,Beeswax,"""Beeswax"" skin topical",440983,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,behentrimonium_chloride,Behentrimonium Chloride,"""Behentrimonium Chloride"" skin topical",592550,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,behentrimonium_methosulfate,Behentrimonium Methosulfate,"""Behentrimonium Methosulfate"" skin topical",439565,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,behenyl_alcohol,Behenyl Alcohol,"""Behenyl Alcohol"" skin topical",717504,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,benzoic_acid,Benzoic Acid,"""Benzoic Acid"" skin topical",1640411,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,benzyl_alcohol,Benzyl Alcohol,"""Benzyl Alcohol"" skin topical",740466,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,benzyl_benzoate,Benzyl Benzoate,"""Benzyl Benzoate"" skin topical",473888,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,benzyl_glycol,Benzyl Glycol,"""Benzyl Glycol"" skin topical",515064,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,benzyl_salicylate,Benzyl Salicylate,"""Benzyl Salicylate"" skin topical",472479,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,beta_glucan,Beta-Glucan,"""Beta-Glucan"" skin topical",632279,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,betaine,Betaine,"""Betaine"" skin topical",446122,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,bht,BHT,"""BHT"" skin topical",440331,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,biosaccharide_gum_1,Biosaccharide Gum-1,"""Biosaccharide Gum-1"" skin topical",466451,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,biotin,Biotin,"""Biotin"" skin topical",448507,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,bis_diglyceryl_polyacyladipate_2,Bis-Diglyceryl Polyacyladipate-2,"""Bis-Diglyceryl Polyacyladipate-2"" skin topical",738167,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,bis_ethylhexyloxyphenol_methoxyphenyl_triazine,Bis-Ethylhexyloxyphenol Methoxyphenyl Triazine,"""Bis-Ethylhexyloxyphenol Methoxyphenyl Triazine"" skin topical",756532,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,bisabolol,Bisabolol,"""Bisabolol"" skin topical",439790,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,boron_nitride,Boron Nitride,"""Boron Nitride"" skin topical",598028,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,brilliant_blue_fcf,Brilliant Blue FCF,"""Brilliant Blue FCF"" skin topical",635667,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butyl_methoxydibenzoylmethane,Butyl Methoxydibenzoylmethane,"""Butyl Methoxydibenzoylmethane"" skin topical",480228,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butylene_ethylene_styrene_copolymer,Butylene/Ethylene/Styrene Copolymer,"""butylene ethylene styrene copolymer"" skin topical",613632,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butylene_glycol,Butylene Glycol,"""Butylene Glycol"" skin topical",494216,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butylene_glycol_dicaprylate_dicaprate,Butylene Glycol Dicaprylate/Dicaprate,"""butylene glycol dicaprylate dicaprate"" skin topical",494249,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butyloctyl_salicylate,Butyloctyl Salicylate,"""Butyloctyl Salicylate"" skin topical",445842,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,butylphenyl_methylpropional,Butylphenyl Methylpropional,"""Butylphenyl Methylpropional"" skin topical",440341,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,c11_15_alketh_7,C11-15 Alketh-7,"""C11-15 Alketh-7"" skin topical",3928192,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,c12_15_alkyl_benzoate,C12-15 Alkyl Benzoate,"""C12-15 Alkyl Benzoate"" skin topical",4004157,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,c13_15_alkane,C13-15 Alkane,"""C13-15 Alkane"" skin topical",3935904,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,c9_12_alkane,C9-12 Alkane,"""C9-12 Alkane"" skin topical",6234446,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caffeine,Caffeine,"""Caffeine"" skin topical",462313,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,calcium_aluminum_borosilicate,Calcium Aluminum Borosilicate,"""Calcium Aluminum Borosilicate"" skin topical",891057,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,calcium_gluconate,Calcium Gluconate,"""Calcium Gluconate"" skin topical",717010,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,calcium_sodium_borosilicate,Calcium Sodium Borosilicate,"""Calcium Sodium Borosilicate"" skin topical",986413,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,calendula_officinalis_flower_extract,Calendula Officinalis Flower Extract,"""Calendula Officinalis Flower Extract"" skin topical",699857,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,camellia_japonica_seed_oil,Camellia Japonica Seed Oil,"""Camellia Japonica Seed Oil"" skin topical",1326682,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,camellia_sinensis_leaf_extract,Camellia Sinensis Leaf Extract,"""Camellia Sinensis Leaf Extract"" skin topical",814147,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caprylhydroxamic_acid,Caprylhydroxamic Acid,"""Caprylhydroxamic Acid"" skin topical",1638406,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caprylic_capric_triglyceride,Caprylic/Capric Triglyceride,"""caprylic capric triglyceride"" skin topical",455645,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,capryloyl_salicylic_acid,Capryloyl Salicylic Acid,"""Capryloyl Salicylic Acid"" skin topical",1639095,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caprylyl_capryl_glucoside,Caprylyl/Capryl Glucoside,"""caprylyl capryl glucoside"" skin topical",445313,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caprylyl_glycol,Caprylyl Glycol,"""Caprylyl Glycol"" skin topical",488496,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caprylyl_methicone,Caprylyl Methicone,"""Caprylyl Methicone"" skin topical",439430,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,caramel,Caramel,"""Caramel"" skin topical",440190,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,carbomer,Carbomer,"""Carbomer"" skin topical",439722,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,carthamus_tinctorius_safflower_seed_oil,Carthamus Tinctorius (Safflower) Seed Oil,"""carthamus tinctorius safflower seed oil"" skin topical",1265602,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cellulose,Cellulose,"""Cellulose"" skin topical",553148,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cellulose_gum,Cellulose Gum,"""Cellulose Gum"" skin topical",579754,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,centella_asiatica,Centella Asiatica Extracts,"""Centella Asiatica Extracts"" skin topical",554730,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,centella_asiatica_extract,Centella Asiatica Extract,"""Centella Asiatica Extract"" skin topical",640229,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ceramide_np,Ceramide NP,"""Ceramide NP"" skin topical",485002,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ceramides,Ceramides,"""Ceramides"" skin topical",440858,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetearyl_alcohol,Cetearyl Alcohol,"""Cetearyl Alcohol"" skin topical",717499,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetearyl_glucoside,Cetearyl Glucoside,"""Cetearyl Glucoside"" skin topical",445299,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetearyl_olivate,Cetearyl Olivate,"""Cetearyl Olivate"" skin topical",439438,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetrimonium_chloride,Cetrimonium Chloride,"""Cetrimonium Chloride"" skin topical",592628,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetyl_alcohol,Cetyl Alcohol,"""Cetyl Alcohol"" skin topical",718108,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetyl_esters,Cetyl Esters,"""Cetyl Esters"" skin topical",515431,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetyl_ethylhexanoate,Cetyl Ethylhexanoate,"""Cetyl Ethylhexanoate"" skin topical",440354,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetyl_palmitate,Cetyl Palmitate,"""Cetyl Palmitate"" skin topical",445235,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cetyl_peg_ppg_10_1_dimethicone,Cetyl PEG/PPG-10/1 Dimethicone,"""cetyl peg ppg 10 1 dimethicone"" skin topical",6618739,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,chamomilla_recutita_matricaria_flower_extract,Chamomilla Recutita (Matricaria) Flower Extract,"""Anthemis Nobilis Flower Extract"" skin topical",690295,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,chlorphenesin,Chlorphenesin,"""Chlorphenesin"" skin topical",439480,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cholesterol,Cholesterol,"""Cholesterol"" skin topical",530065,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cholesterol_fatty_acids,Cholesterol / Fatty Acids,"""Behenic Acid"" skin topical",1638413,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,chondrus_crispus_extract,Chondrus Crispus Extract,"""Chondrus Crispus Extract"" skin topical",637891,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citral,Citral,"""Citral"" skin topical",440911,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citric_acid,Citric Acid,"""Citric Acid"" skin topical",1639016,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citronellol,Citronellol,"""Citronellol"" skin topical",439776,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrullus_lanatus_watermelon_fruit_extract,Citrullus Lanatus (Watermelon) Fruit Extract,"""citrullus lanatus watermelon fruit extract"" skin topical",791440,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrus_aurantium_bergamia_bergamot_fruit_oil,Citrus Aurantium Bergamia (Bergamot) Fruit Oil,"""citrus aurantium bergamia bergamot fruit oil"" skin topical",1250309,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrus_aurantium_dulcis_orange_fruit_extract,Citrus Aurantium Dulcis (Orange) Fruit Extract,"""citrus aurantium dulcis orange fruit extract"" skin topical",869402,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrus_aurantium_dulcis_orange_peel_oil,Citrus Aurantium Dulcis (Orange) Peel Oil,"""citrus aurantium dulcis orange peel oil"" skin topical",1180574,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrus_limon_lemon_fruit_extract,Citrus Limon (Lemon) Fruit Extract,"""citrus limon lemon fruit extract"" skin topical",837632,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,citrus_limon_lemon_peel_oil,Citrus Limon (Lemon) Peel Oil,"""citrus limon lemon peel oil"" skin topical",1149582,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cocamidopropyl_betaine,Cocamidopropyl Betaine,"""Cocamidopropyl Betaine"" skin topical",446149,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coccinia_indica_fruit_extract,Coccinia Indica Fruit Extract,"""Coccinia Indica Fruit Extract"" skin topical",804860,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coco_betaine,Coco-Betaine,"""Coco-Betaine"" skin topical",455014,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coco_caprylate_caprate,Coco-Caprylate/Caprate,"""coco caprylate caprate"" skin topical",448788,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coco_glucoside,Coco-Glucoside,"""Coco-Glucoside"" skin topical",454162,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coconut_acid,Coconut Acid,"""Coconut Acid"" skin topical",1658517,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cocos_nucifera_coconut_oil,Cocos Nucifera (Coconut) Oil,"""cocos nucifera coconut oil"" skin topical",1082910,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coffea_arabica_coffee_seed_extract,Coffea Arabica (Coffee) Seed Extract,"""coffea arabica coffee seed extract"" skin topical",901925,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,copernicia_cerifera_carnauba_wax,Copernicia Cerifera (Carnauba) Wax,"""copernicia cerifera carnauba wax"" skin topical",459113,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,copper_tripeptide_1,Copper Tripeptide-1,"""Copper Tripeptide-1"" skin topical",771399,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,corallina_officinalis_extract,Corallina Officinalis Extract,"""Corallina Officinalis Extract"" skin topical",648944,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,coumarin,Coumarin,"""Coumarin"" skin topical",452552,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cucumis_sativus_cucumber_fruit_extract,Cucumis Sativus (Cucumber) Fruit Extract,"""cucumis sativus cucumber fruit extract"" skin topical",813770,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,curcuma_longa_turmeric_root_extract,Curcuma Longa (Turmeric) Root Extract,"""curcuma longa turmeric root extract"" skin topical",838881,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cyanocobalamin,Cyanocobalamin,"""Cyanocobalamin"" skin topical",440201,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cyclohexasiloxane,Cyclohexasiloxane,"""Cyclohexasiloxane"" skin topical",439401,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cyclopentasiloxane,Cyclopentasiloxane,"""Cyclopentasiloxane"" skin topical",439414,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,cysteine,Cysteine,"""Cysteine"" skin topical",474258,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,daucus_carota_sativa_carrot_root_extract,Daucus Carota Sativa (Carrot) Root Extract,"""daucus carota sativa carrot root extract"" skin topical",880238,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,decyl_glucoside,Decyl Glucoside,"""Decyl Glucoside"" skin topical",446088,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dehydroacetic_acid,Dehydroacetic Acid,"""Dehydroacetic Acid"" skin topical",1638415,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dextrin,Dextrin,"""Dextrin"" skin topical",440517,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dibutyl_adipate,Dibutyl Adipate,"""Dibutyl Adipate"" skin topical",444628,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dicaprylyl_carbonate,Dicaprylyl Carbonate,"""Dicaprylyl Carbonate"" skin topical",522731,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,diethylamino_hydroxybenzoyl_hexyl_benzoate,Diethylamino Hydroxybenzoyl Hexyl Benzoate,"""Diethylamino Hydroxybenzoyl Hexyl Benzoate"" skin topical",453160,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,diglycerin,Diglycerin,"""Diglycerin"" skin topical",439406,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,diisopropyl_sebacate,Diisopropyl Sebacate,"""Diisopropyl Sebacate"" skin topical",442000,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,diisostearyl_malate,Diisostearyl Malate,"""Diisostearyl Malate"" skin topical",444681,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethicone,Dimethicone,"""Dimethicone"" skin topical",439551,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethicone_crosspolymer,Dimethicone Crosspolymer,"""Dimethicone Crosspolymer"" skin topical",439574,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethicone_peg_10_15_crosspolymer,Dimethicone/PEG-10/15 Crosspolymer,"""dimethicone peg 10 15 crosspolymer"" skin topical",9979677,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethicone_vinyl_dimethicone_crosspolymer,Dimethicone/Vinyl Dimethicone Crosspolymer,"""dimethicone vinyl dimethicone crosspolymer"" skin topical",508439,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethiconol,Dimethiconol,"""Dimethiconol"" skin topical",439414,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dimethyl_isosorbide,Dimethyl Isosorbide,"""Dimethyl Isosorbide"" skin topical",508254,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,diphenylsiloxy_phenyl_trimethicone,Diphenylsiloxy Phenyl Trimethicone,"""Diphenylsiloxy Phenyl Trimethicone"" skin topical",504799,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dipotassium_glycyrrhizate,Dipotassium Glycyrrhizate,"""Dipotassium Glycyrrhizate"" skin topical",440289,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,dipropylene_glycol,Dipropylene Glycol,"""Dipropylene Glycol"" skin topical",488505,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disodium_cocoamphodiacetate,Disodium Cocoamphodiacetate,"""Disodium Cocoamphodiacetate"" skin topical",443650,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disodium_edta,Disodium EDTA,"""Disodium EDTA"" skin topical",454735,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disodium_laureth_sulfosuccinate,Disodium Laureth Sulfosuccinate,"""Disodium Laureth Sulfosuccinate"" skin topical",444257,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disodium_phosphate,Disodium Phosphate,"""Disodium Phosphate"" skin topical",599585,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disodium_stearoyl_glutamate,Disodium Stearoyl Glutamate,"""Disodium Stearoyl Glutamate"" skin topical",495528,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,disteardimonium_hectorite,Disteardimonium Hectorite,"""Disteardimonium Hectorite"" skin topical",439875,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ectoin,Ectoin,"""Ectoin"" skin topical",439423,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,erythritol,Erythritol,"""Erythritol"" skin topical",440954,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylene_propylene_copolymer,Ethylene/Propylene Copolymer,"""ethylene propylene copolymer"" skin topical",594782,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylene_propylene_styrene_copolymer,Ethylene/Propylene/Styrene Copolymer,"""ethylene propylene styrene copolymer"" skin topical",624866,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylhexyl_methoxycinnamate,Ethylhexyl Methoxycinnamate,"""Ethylhexyl Methoxycinnamate"" skin topical",445215,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylhexyl_palmitate,Ethylhexyl Palmitate,"""Ethylhexyl Palmitate"" skin topical",450058,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylhexyl_salicylate,Ethylhexyl Salicylate,"""Ethylhexyl Salicylate"" skin topical",451384,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylhexyl_triazone,Ethylhexyl Triazone,"""Ethylhexyl Triazone"" skin topical",445019,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ethylhexylglycerin,Ethylhexylglycerin,"""Ethylhexylglycerin"" skin topical",439410,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,eucalyptus_globulus_leaf_oil,Eucalyptus Globulus Leaf Oil,"""Eucalyptus Globulus Leaf Oil"" skin topical",1256114,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,eugenol,Eugenol,"""Eugenol"" skin topical",444205,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,euphorbia_cerifera_candelilla_wax,Euphorbia Cerifera (Candelilla) Wax,"""euphorbia cerifera candelilla wax"" skin topical",466046,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,farnesol,Farnesol,"""Farnesol"" skin topical",440201,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ficus_carica_fig_fruit_extract,Ficus Carica (Fig) Fruit Extract,"""ficus carica fig fruit extract"" skin topical",854450,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,fragrance_perfume_parfum,Fragrance|Perfume|Parfum,"""Perfume"" skin topical",441150,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,fructooligosaccharides,Fructooligosaccharides,"""Fructooligosaccharides"" skin topical",440355,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,fructose,Fructose,"""Fructose"" skin topical",458505,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,gardenia_florida_fruit_extract,Gardenia Florida Fruit Extract,"""Gardenia Florida Fruit Extract"" skin topical",854326,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,geraniol,Geraniol,"""Geraniol"" skin topical",440638,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,geranyl_acetate,Geranyl Acetate,"""Geranyl Acetate"" skin topical",514829,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,gluconolactone,Gluconolactone,"""Gluconolactone"" skin topical",439552,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glucose,Glucose,"""Glucose"" skin topical",674268,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glutamic_acid,Glutamic Acid,"""Glutamic Acid"" skin topical",1639843,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glutathione,Glutathione,"""Glutathione"" skin topical",484745,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glycerin,Glycerin,"""Glycerin"" skin topical",441960,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_acrylate_acrylic_acid_copolymer,Glyceryl Acrylate/Acrylic Acid Copolymer,"""glyceryl acrylate acrylic acid copolymer"" skin topical",1712598,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_caprylate,Glyceryl Caprylate,"""Glyceryl Caprylate"" skin topical",442097,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_glucoside,Glyceryl Glucoside,"""Glyceryl Glucoside"" skin topical",447648,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_oleate,Glyceryl Oleate,"""Glyceryl Oleate"" skin topical",445257,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_stearate,Glyceryl Stearate,"""Glyceryl Stearate"" skin topical",444132,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_stearate_citrate,Glyceryl Stearate Citrate,"""Glyceryl Stearate Citrate"" skin topical",466876,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glyceryl_stearate_se,Glyceryl Stearate SE,"""Glyceryl Stearate SE"" skin topical",586055,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glycine,Glycine,"""Glycine"" skin topical",476638,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glycine_soja_soybean_oil,Glycine Soja (Soybean) Oil,"""glycine soja soybean oil"" skin topical",1179551,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,glycol_distearate,Glycol Distearate,"""Glycol Distearate"" skin topical",488549,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,green_tea,Green Tea,"""Green Tea"" skin topical",1218302,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,guar_hydroxypropyltrimonium_chloride,Guar Hydroxypropyltrimonium Chloride,"""Guar Hydroxypropyltrimonium Chloride"" skin topical",597349,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hdi_trimethylol_hexyllactone_crosspolymer,HDI/Trimethylol Hexyllactone Crosspolymer,"""hdi trimethylol hexyllactone crosspolymer"" skin topical",440689,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,helianthus_annuus_sunflower_extract,Helianthus Annuus (Sunflower) Extract,"""helianthus annuus sunflower extract"" skin topical",661669,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,helianthus_annuus_sunflower_seed_extract,Helianthus Annuus (Sunflower) Seed Extract,"""helianthus annuus sunflower seed extract"" skin topical",865414,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hexyl_cinnamal,Hexyl Cinnamal,"""Hexyl Cinnamal"" skin topical",442351,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hexyl_laurate,Hexyl Laurate,"""Hexyl Laurate"" skin topical",443147,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hexylene_glycol,Hexylene Glycol,"""Hexylene Glycol"" skin topical",488541,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hibiscus_sabdariffa_flower_extract,Hibiscus Sabdariffa Flower Extract,"""Hibiscus Sabdariffa Flower Extract"" skin topical",693472,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,histidine,Histidine,"""Histidine"" skin topical",455929,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,houttuynia_cordata_extract,Houttuynia Cordata Extract,"""Houttuynia Cordata Extract"" skin topical",637620,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hyaluronic_acid,Hyaluronic Acid,"""Hyaluronic Acid"" skin topical",1638734,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogen_dimethicone,Hydrogen Dimethicone,"""Hydrogen Dimethicone"" skin topical",952622,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_castor_oil,Hydrogenated Castor Oil,"""Hydrogenated Castor Oil"" skin topical",1082867,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_lecithin,Hydrogenated Lecithin,"""Hydrogenated Lecithin"" skin topical",460117,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_olive_oil_unsaponifiables,Hydrogenated Olive Oil Unsaponifiables,"""Hydrogenated Olive Oil Unsaponifiables"" skin topical",1110033,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_polydecene,Hydrogenated Polydecene,"""Hydrogenated Polydecene"" skin topical",453815,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_polyisobutene,Hydrogenated Polyisobutene,"""Hydrogenated Polyisobutene"" skin topical",453930,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrogenated_vegetable_oil,Hydrogenated Vegetable Oil,"""Hydrogenated Vegetable Oil"" skin topical",1126048,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_collagen,Hydrolyzed Collagen,"""Hydrolyzed Collagen"" skin topical",523883,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_glycosaminoglycans,Hydrolyzed Glycosaminoglycans,"""Hydrolyzed Glycosaminoglycans"" skin topical",449799,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_hyaluronic_acid,Hydrolyzed Hyaluronic Acid,"""Hydrolyzed Hyaluronic Acid"" skin topical",1643664,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_keratin,Hydrolyzed Keratin,"""Hydrolyzed Keratin"" skin topical",452774,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_rice_protein,Hydrolyzed Rice Protein,"""Hydrolyzed Rice Protein"" skin topical",2087197,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_silk,Hydrolyzed Silk,"""Hydrolyzed Silk"" skin topical",486394,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_sodium_hyaluronate,Hydrolyzed Sodium Hyaluronate,"""Hydrolyzed Sodium Hyaluronate"" skin topical",720894,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_soy_protein,Hydrolyzed Soy Protein,"""Hydrolyzed Soy Protein"" skin topical",1837027,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_vegetable_protein,Hydrolyzed Vegetable Protein,"""Hydrolyzed Vegetable Protein"" skin topical",1877136,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_vegetable_protein_pg_propyl_silanetriol,Hydrolyzed Vegetable Protein PG-Propyl Silanetriol,"""Hydrolyzed Vegetable Protein PG-Propyl Silanetriol"" skin topical",1903076,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydrolyzed_wheat_protein,Hydrolyzed Wheat Protein,"""Hydrolyzed Wheat Protein"" skin topical",1991216,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxyacetophenone,Hydroxyacetophenone,"""Hydroxyacetophenone"" skin topical",439964,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxycitronellal,Hydroxycitronellal,"""Hydroxycitronellal"" skin topical",439439,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxyethyl_acrylate_sodium_acryloyldimethyl_taurate_copolymer,Hydroxyethyl Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,"""hydroxyethyl acrylate sodium acryloyldimethyl taurate copolymer"" skin topical",783344,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxyethyl_urea,Hydroxyethyl Urea,"""Hydroxyethyl Urea"" skin topical",500953,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxyethylcellulose,Hydroxyethylcellulose,"""Hydroxyethylcellulose"" skin topical",439662,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxypropyl_guar_hydroxypropyltrimonium_chloride,Hydroxypropyl Guar Hydroxypropyltrimonium Chloride,"""Hydroxypropyl Guar Hydroxypropyltrimonium Chloride"" skin topical",603722,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxypropyl_starch_phosphate,Hydroxypropyl Starch Phosphate,"""Hydroxypropyl Starch Phosphate"" skin topical",681619,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,hydroxypropyltrimonium_hyaluronate,Hydroxypropyltrimonium Hyaluronate,"""Hydroxypropyltrimonium Hyaluronate"" skin topical",442396,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,iron_oxide_black,Iron Oxide Black,"""Iron Oxide Black"" skin topical",1909719,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,iron_oxide_yellow,Iron Oxide Yellow,"""Iron Oxide Yellow"" skin topical",1449032,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isododecane,Isododecane,"""Isododecane"" skin topical",439405,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isohexadecane,Isohexadecane,"""Isohexadecane"" skin topical",439398,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isoleucine,Isoleucine,"""Isoleucine"" skin topical",442192,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isononyl_isononanoate,Isononyl Isononanoate,"""Isononyl Isononanoate"" skin topical",439492,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isopentyldiol,Isopentyldiol,"""Isopentyldiol"" skin topical",439399,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isopropyl_alcohol,Isopropyl Alcohol,"""Isopropyl Alcohol"" skin topical",724064,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isopropyl_myristate,Isopropyl Myristate,"""Isopropyl Myristate"" skin topical",449148,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isopropyl_palmitate,Isopropyl Palmitate,"""Isopropyl Palmitate"" skin topical",452483,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isopropyl_titanium_triisostearate,Isopropyl Titanium Triisostearate,"""Isopropyl Titanium Triisostearate"" skin topical",592742,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,isostearic_acid,Isostearic Acid,"""Isostearic Acid"" skin topical",1638413,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,jojoba_esters,Jojoba Esters,"""Jojoba Esters"" skin topical",515729,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,kaolin,Kaolin,"""Kaolin"" skin topical",447197,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lactobacillus_ferment,Lactobacillus Ferment,"""Lactobacillus Ferment"" skin topical",477491,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lactobacillus_ferment_lysate,Lactobacillus Ferment Lysate,"""Lactobacillus Ferment Lysate"" skin topical",481550,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,laminaria_japonica_extract,Laminaria Japonica Extract,"""Laminaria Japonica Extract"" skin topical",692704,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,laminaria_saccharina_extract,Laminaria Saccharina Extract,"""Laminaria Saccharina Extract"" skin topical",638954,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,laureth_7,Laureth-7,"""Laureth-7"" skin topical",439508,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lauroyl_lysine,Lauroyl Lysine,"""Lauroyl Lysine"" skin topical",469714,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lauryl_glucoside,Lauryl Glucoside,"""Lauryl Glucoside"" skin topical",446893,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,Lauryl PEG-9 Polydimethylsiloxyethyl Dimethicone,"""Lauryl PEG-9 Polydimethylsiloxyethyl Dimethicone"" skin topical",465678,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lavandula_angustifolia_lavender_oil,Lavandula Angustifolia (Lavender) Oil,"""lavandula angustifolia lavender oil"" skin topical",1073743,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lecithin,Lecithin,"""Lecithin"" skin topical",445724,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,leucine,Leucine,"""Leucine"" skin topical",454682,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,licorice_extract,Licorice Extract,"""Licorice Extract"" skin topical",637882,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,limnanthes_alba_meadowfoam_seed_oil,Limnanthes Alba (Meadowfoam) Seed Oil,"""limnanthes alba meadowfoam seed oil"" skin topical",1292923,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,limonene,Limonene,"""Limonene"" skin topical",442701,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,linalool,Linalool,"""Linalool"" skin topical",440858,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,linalyl_acetate,Linalyl Acetate,"""Linalyl Acetate"" skin topical",514331,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,lysine,Lysine,"""Lysine"" skin topical",469217,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,madecassic_acid,Madecassic Acid,"""Madecassic Acid"" skin topical",1638408,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,madecassoside,Madecassoside,"""Madecassoside"" skin topical",439524,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_aluminum_silicate,Magnesium Aluminum Silicate,"""Magnesium Aluminum Silicate"" skin topical",763177,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_ascorbyl_phosphate,Magnesium Ascorbyl Phosphate,"""Magnesium Ascorbyl Phosphate"" skin topical",711494,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_chloride,Magnesium Chloride,"""Magnesium Chloride"" skin topical",709112,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_myristate,Magnesium Myristate,"""Magnesium Myristate"" skin topical",560011,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_stearate,Magnesium Stearate,"""Magnesium Stearate"" skin topical",560332,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,magnesium_sulfate,Magnesium Sulfate,"""Magnesium Sulfate"" skin topical",638148,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,maltodextrin,Maltodextrin,"""Maltodextrin"" skin topical",441566,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,mangifera_indica_mango_seed_butter,Mangifera Indica (Mango) Seed Butter,"""mangifera indica mango seed butter"" skin topical",702621,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,mannitol,Mannitol,"""Mannitol"" skin topical",445862,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,melia_azadirachta_flower_extract,Melia Azadirachta Flower Extract,"""Melia Azadirachta Flower Extract"" skin topical",695227,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,melia_azadirachta_leaf_extract,Melia Azadirachta Leaf Extract,"""Melia Azadirachta Leaf Extract"" skin topical",797677,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,mentha_piperita_peppermint_oil,Mentha Piperita (Peppermint) Oil,"""mentha piperita peppermint oil"" skin topical",1068052,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,menthol,Menthol,"""Menthol"" skin topical",442745,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methicone,Methicone,"""Methicone"" skin topical",439410,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methionine,Methionine,"""Methionine"" skin topical",461198,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methyl_gluceth_20,Methyl Gluceth-20,"""Methyl Gluceth-20"" skin topical",3477682,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methyl_methacrylate_crosspolymer,Methyl Methacrylate Crosspolymer,"""Methyl Methacrylate Crosspolymer"" skin topical",676615,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methyl_trimethicone,Methyl Trimethicone,"""Methyl Trimethicone"" skin topical",659187,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methylisothiazolinone,Methylisothiazolinone,"""Methylisothiazolinone"" skin topical",439749,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methylparaben,Methylparaben,"""Methylparaben"" skin topical",439861,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,methylpropanediol,Methylpropanediol,"""Methylpropanediol"" skin topical",439398,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,mica,Mica,"""Mica"" skin topical",448841,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,microcrystalline_cellulose,Microcrystalline Cellulose,"""Microcrystalline Cellulose"" skin topical",557939,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,microcrystalline_wax,Microcrystalline Wax,"""Microcrystalline Wax"" skin topical",466189,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,moringa_oleifera_seed_oil,Moringa Oleifera Seed Oil,"""Moringa Oleifera Seed Oil"" skin topical",1278048,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,neopentyl_glycol_diheptanoate,Neopentyl Glycol Diheptanoate,"""Neopentyl Glycol Diheptanoate"" skin topical",489135,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,niacinamide,Niacinamide,"""Niacinamide"" skin topical",439830,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,nylon_12,Nylon-12,"""Nylon-12"" skin topical",6233208,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ocimum_sanctum_leaf_extract,Ocimum Sanctum Leaf Extract,"""Ocimum Sanctum Leaf Extract"" skin topical",796687,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,octyldodecanol,Octyldodecanol,"""Octyldodecanol"" skin topical",439406,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,octyldodecyl_stearoyl_stearate,Octyldodecyl Stearoyl Stearate,"""Octyldodecyl Stearoyl Stearate"" skin topical",443693,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,oenothera_biennis_evening_primrose_oil,Oenothera Biennis (Evening Primrose) Oil,"""oenothera biennis evening primrose oil"" skin topical",1074416,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,olea_europaea_olive_fruit_oil,Olea Europaea (Olive) Fruit Oil,"""olea europaea olive fruit oil"" skin topical",1253890,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,oryza_sativa_rice_bran_oil,Oryza Sativa (Rice) Bran Oil,"""oryza sativa rice bran oil"" skin topical",1368600,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,paeonia_lactiflora_root_extract,Paeonia Lactiflora Root Extract,"""Paeonia Lactiflora Root Extract"" skin topical",825048,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,palmitic_acid,Palmitic Acid,"""Palmitic Acid"" skin topical",1638691,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,palmitoyl_tripeptide_5,Palmitoyl Tripeptide-5,"""Palmitoyl Tripeptide-5"" skin topical",443478,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,panthenol,Panthenol,"""Panthenol"" skin topical",439552,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pantolactone,Pantolactone,"""Pantolactone"" skin topical",439554,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,paraffin,Paraffin,"""Paraffin"" skin topical",454651,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pca,PCA,"""PCA"" skin topical",458373,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_100_stearate,PEG-100 Stearate,"""PEG-100 Stearate"" skin topical",1322204,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_10_dimethicone,PEG-10 Dimethicone,"""PEG-10 Dimethicone"" skin topical",6613087,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_40_hydrogenated_castor_oil,PEG-40 Hydrogenated Castor Oil,"""PEG-40 Hydrogenated Castor Oil"" skin topical",2776893,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_60_hydrogenated_castor_oil,PEG-60 Hydrogenated Castor Oil,"""PEG-60 Hydrogenated Castor Oil"" skin topical",2252470,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_8,PEG-8,"""PEG-8"" skin topical",463880,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_9_polydimethylsiloxyethyl_dimethicone,PEG-9 Polydimethylsiloxyethyl Dimethicone,"""PEG-9 Polydimethylsiloxyethyl Dimethicone"" skin topical",464033,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peg_ppg_18_18_dimethicone,PEG/PPG-18/18 Dimethicone,"""peg ppg 18 18 dimethicone"" skin topical",3392036,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pelargonium_graveolens_flower_oil,Pelargonium Graveolens Flower Oil,"""Pelargonium Graveolens Flower Oil"" skin topical",1119539,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pentaerythrityl_tetraethylhexanoate,Pentaerythrityl Tetraethylhexanoate,"""Pentaerythrityl Tetraethylhexanoate"" skin topical",439512,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pentaerythrityl_tetraisostearate,Pentaerythrityl Tetraisostearate,"""Pentaerythrityl Tetraisostearate"" skin topical",439513,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pentylene_glycol,Pentylene Glycol,"""Pentylene Glycol"" skin topical",488524,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,peptides,Peptides,"""Peptides"" skin topical",575636,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,persea_gratissima_avocado_oil,Persea Gratissima (Avocado) Oil,"""persea gratissima avocado oil"" skin topical",1070355,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,petrolatum_mineral_oil,Petrolatum / Mineral Oil,"""Petroleum Jelly"" skin topical",640252,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pha,Polyhydroxy Acids,"""Polyhydroxy Acids"" skin topical",817962,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phenethyl_alcohol,Phenethyl Alcohol,"""Phenethyl Alcohol"" skin topical",719839,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phenoxyethanol,Phenoxyethanol,"""Phenoxyethanol"" skin topical",439741,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phenyl_trimethicone,Phenyl Trimethicone,"""Phenyl Trimethicone"" skin topical",504798,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phenylalanine,Phenylalanine,"""Phenylalanine"" skin topical",453063,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phospholipids,Phospholipids,"""Phospholipids"" skin topical",453446,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phytic_acid,Phytic Acid,"""Phytic Acid"" skin topical",1638452,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phytosphingosine,Phytosphingosine,"""Phytosphingosine"" skin topical",439744,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,phytosterols,Phytosterols,"""Phytosterols"" skin topical",440964,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pinene,Pinene,"""Pinene"" skin topical",442623,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pogostemon_cablin_oil,Pogostemon Cablin Oil,"""Pogostemon Cablin Oil"" skin topical",1063229,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyacrylamide,Polyacrylamide,"""Polyacrylamide"" skin topical",453404,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyacrylate_crosspolymer_6,Polyacrylate Crosspolymer-6,"""Polyacrylate Crosspolymer-6"" skin topical",442041,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polybutene,Polybutene,"""Polybutene"" skin topical",439932,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyethylene,Polyethylene,"""Polyethylene"" skin topical",516239,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglutamic_acid,Polyglutamic Acid,"""Polyglutamic Acid"" skin topical",1638428,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglycerin_3,Polyglycerin-3,"""Polyglycerin-3"" skin topical",439415,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_10_laurate,Polyglyceryl-10 Laurate,"""Polyglyceryl-10 Laurate"" skin topical",6590415,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_10_oleate,Polyglyceryl-10 Oleate,"""Polyglyceryl-10 Oleate"" skin topical",6592938,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_10_stearate,Polyglyceryl-10 Stearate,"""Polyglyceryl-10 Stearate"" skin topical",6591877,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_2_triisostearate,Polyglyceryl-2 Triisostearate,"""Polyglyceryl-2 Triisostearate"" skin topical",439497,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_3_diisostearate,Polyglyceryl-3 Diisostearate,"""Polyglyceryl-3 Diisostearate"" skin topical",439503,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_3_methylglucose_distearate,Polyglyceryl-3 Methylglucose Distearate,"""Polyglyceryl-3 Methylglucose Distearate"" skin topical",439749,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_3_polyricinoleate,Polyglyceryl-3 Polyricinoleate,"""Polyglyceryl-3 Polyricinoleate"" skin topical",439577,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_4_caprate,Polyglyceryl-4 Caprate,"""Polyglyceryl-4 Caprate"" skin topical",439684,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_4_diisostearate_polyhydroxystearate_sebacate,Polyglyceryl-4 Diisostearate/Polyhydroxystearate/Sebacate,"""polyglyceryl 4 diisostearate polyhydroxystearate sebacate"" skin topical",440306,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_4_isostearate,Polyglyceryl-4 Isostearate,"""Polyglyceryl-4 Isostearate"" skin topical",439566,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyglyceryl_6_polyricinoleate,Polyglyceryl-6 Polyricinoleate,"""Polyglyceryl-6 Polyricinoleate"" skin topical",439577,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyhydroxystearic_acid,Polyhydroxystearic Acid,"""Polyhydroxystearic Acid"" skin topical",1638408,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyisobutene,Polyisobutene,"""Polyisobutene"" skin topical",439520,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polymethyl_methacrylate,Polymethyl Methacrylate,"""Polymethyl Methacrylate"" skin topical",474715,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polymethylsilsesquioxane,Polymethylsilsesquioxane,"""Polymethylsilsesquioxane"" skin topical",439567,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyquaternium_10,Polyquaternium-10,"""Polyquaternium-10"" skin topical",6589609,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyquaternium_37,Polyquaternium-37,"""Polyquaternium-37"" skin topical",2226583,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyquaternium_51,Polyquaternium-51,"""Polyquaternium-51"" skin topical",1845663,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polyquaternium_7,Polyquaternium-7,"""Polyquaternium-7"" skin topical",439494,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polysilicone_11,Polysilicone-11,"""Polysilicone-11"" skin topical",6292038,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polysorbate_20,Polysorbate 20,"""Polysorbate 20"" skin topical",3263607,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polysorbate_60,Polysorbate 60,"""Polysorbate 60"" skin topical",1590151,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,polysorbate_80,Polysorbate 80,"""Polysorbate 80"" skin topical",1286758,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,portulaca_oleracea_extract,Portulaca Oleracea Extract,"""Portulaca Oleracea Extract"" skin topical",646880,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,potassium_cetyl_phosphate,Potassium Cetyl Phosphate,"""Potassium Cetyl Phosphate"" skin topical",714057,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,potassium_chloride,Potassium Chloride,"""Potassium Chloride"" skin topical",707478,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,potassium_hyaluronate,Potassium Hyaluronate,"""Potassium Hyaluronate"" skin topical",562662,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,potassium_hydroxide,Potassium Hydroxide,"""Potassium Hydroxide"" skin topical",597080,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,potassium_sorbate,Potassium Sorbate,"""Potassium Sorbate"" skin topical",560131,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ppg_26_buteth_26,PPG-26-Buteth-26,"""PPG-26-Buteth-26"" skin topical",2722900,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,proline,Proline,"""Proline"" skin topical",457958,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,propanediol,Propanediol,"""Propanediol"" skin topical",442854,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,propylene_carbonate,Propylene Carbonate,"""Propylene Carbonate"" skin topical",542284,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,propylene_glycol,Propylene Glycol,"""Propylene Glycol"" skin topical",506882,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,propylene_glycol_dicaprylate_dicaprate,Propylene Glycol Dicaprylate/Dicaprate,"""propylene glycol dicaprylate dicaprate"" skin topical",506915,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,propylparaben,Propylparaben,"""Propylparaben"" skin topical",439621,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,prunus_amygdalus_dulcis_sweet_almond_oil,Prunus Amygdalus Dulcis (Sweet Almond) Oil,"""prunus amygdalus dulcis sweet almond oil"" skin topical",1152975,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,prunus_armeniaca_apricot_kernel_oil,Prunus Armeniaca (Apricot) Kernel Oil,"""prunus armeniaca apricot kernel oil"" skin topical",1157206,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pullulan,Pullulan,"""Pullulan"" skin topical",441624,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,pvp,PVP,"""PVP"" skin topical",445367,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,retinol,Retinol,"""Retinol"" skin topical",445355,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,retinyl_palmitate,Retinyl Palmitate,"""Retinyl Palmitate"" skin topical",445064,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ricinus_communis_castor_seed_oil,Ricinus Communis (Castor) Seed Oil,"""ricinus communis castor seed oil"" skin topical",1276563,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,rosmarinus_officinalis_rosemary_leaf_extract,Rosmarinus Officinalis (Rosemary) Leaf Extract,"""rosmarinus officinalis rosemary leaf extract"" skin topical",807657,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,rosmarinus_officinalis_rosemary_leaf_oil,Rosmarinus Officinalis (Rosemary) Leaf Oil,"""rosmarinus officinalis rosemary leaf oil"" skin topical",1253813,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,saccharide_isomerate,Saccharide Isomerate,"""Saccharide Isomerate"" skin topical",441426,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,salicylic_acid_bha,Salicylic Acid / BHA,"""Salicylic Acid"" skin topical",1639079,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,salix_alba_willow_bark_extract,Salix Alba (Willow) Bark Extract,"""salix alba willow bark extract"" skin topical",701052,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sclerotium_gum,Sclerotium Gum,"""Sclerotium Gum"" skin topical",468734,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,scutellaria_baicalensis_root_extract,Scutellaria Baicalensis Root Extract,"""Scutellaria Baicalensis Root Extract"" skin topical",825573,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,serine,Serine,"""Serine"" skin topical",467514,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,silica,Silica,"""Silica"" skin topical",592998,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,silica_dimethyl_silylate,Silica Dimethyl Silylate,"""Silica Dimethyl Silylate"" skin topical",658883,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,silica_silylate,Silica Silylate,"""Silica Silylate"" skin topical",592999,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,simmondsia_chinensis_jojoba_seed_oil,Simmondsia Chinensis (Jojoba) Seed Oil,"""simmondsia chinensis jojoba seed oil"" skin topical",1275006,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_acetate,Sodium Acetate,"""Sodium Acetate"" skin topical",786854,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_acetylated_hyaluronate,Sodium Acetylated Hyaluronate,"""Sodium Acetylated Hyaluronate"" skin topical",720439,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_acrylate_sodium_acryloyldimethyl_taurate_copolymer,Sodium Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,"""sodium acrylate sodium acryloyldimethyl taurate copolymer"" skin topical",773762,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_ascorbyl_phosphate,Sodium Ascorbyl Phosphate,"""Sodium Ascorbyl Phosphate"" skin topical",866768,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_benzoate,Sodium Benzoate,"""Sodium Benzoate"" skin topical",721047,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_chloride,Sodium Chloride,"""Sodium Chloride"" skin topical",852082,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_citrate,Sodium Citrate,"""Sodium Citrate"" skin topical",735155,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_cocoyl_glutamate,Sodium Cocoyl Glutamate,"""Sodium Cocoyl Glutamate"" skin topical",763567,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_cocoyl_isethionate,Sodium Cocoyl Isethionate,"""Sodium Cocoyl Isethionate"" skin topical",714301,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_dehydroacetate,Sodium Dehydroacetate,"""Sodium Dehydroacetate"" skin topical",714083,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_dna,Sodium DNA,"""Sodium DNA"" skin topical",1334352,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_gluconate,Sodium Gluconate,"""Sodium Gluconate"" skin topical",717073,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_hyaluronate,Sodium Hyaluronate,"""Sodium Hyaluronate"" skin topical",715552,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_hyaluronate_crosspolymer,Sodium Hyaluronate Crosspolymer,"""Sodium Hyaluronate Crosspolymer"" skin topical",715577,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_hydroxide,Sodium Hydroxide,"""Sodium Hydroxide"" skin topical",748853,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_lactate,Sodium Lactate,"""Sodium Lactate"" skin topical",748345,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_laureth_sulfate,Sodium Laureth Sulfate,"""Sodium Laureth Sulfate"" skin topical",786581,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_lauroyl_glutamate,Sodium Lauroyl Glutamate,"""Sodium Lauroyl Glutamate"" skin topical",763898,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_lauroyl_lactylate,Sodium Lauroyl Lactylate,"""Sodium Lauroyl Lactylate"" skin topical",714487,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_lauroyl_sarcosinate,Sodium Lauroyl Sarcosinate,"""Sodium Lauroyl Sarcosinate"" skin topical",714502,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_metabisulfite,Sodium Metabisulfite,"""Sodium Metabisulfite"" skin topical",714184,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_methyl_cocoyl_taurate,Sodium Methyl Cocoyl Taurate,"""Sodium Methyl Cocoyl Taurate"" skin topical",932424,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_pca,Sodium PCA,"""Sodium PCA"" skin topical",733042,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_phosphate,Sodium Phosphate,"""Sodium Phosphate"" skin topical",866212,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_phytate,Sodium Phytate,"""Sodium Phytate"" skin topical",716428,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_polyacrylate,Sodium Polyacrylate,"""Sodium Polyacrylate"" skin topical",716220,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_polyacryloyldimethyl_taurate,Sodium Polyacryloyldimethyl Taurate,"""Sodium Polyacryloyldimethyl Taurate"" skin topical",714112,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sodium_stearoyl_glutamate,Sodium Stearoyl Glutamate,"""Sodium Stearoyl Glutamate"" skin topical",765315,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,solanum_melongena_eggplant_fruit_extract,Solanum Melongena (Eggplant) Fruit Extract,"""solanum melongena eggplant fruit extract"" skin topical",813693,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbic_acid,Sorbic Acid,"""Sorbic Acid"" skin topical",1638494,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitan_isostearate,Sorbitan Isostearate,"""Sorbitan Isostearate"" skin topical",439973,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitan_oleate,Sorbitan Oleate,"""Sorbitan Oleate"" skin topical",443375,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitan_olivate,Sorbitan Olivate,"""Sorbitan Olivate"" skin topical",439903,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitan_sesquioleate,Sorbitan Sesquioleate,"""Sorbitan Sesquioleate"" skin topical",439903,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitan_stearate,Sorbitan Stearate,"""Sorbitan Stearate"" skin topical",442270,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sorbitol,Sorbitol,"""Sorbitol"" skin topical",444032,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,squalane,Squalane,"""Squalane"" skin topical",439731,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,stearalkonium_hectorite,Stearalkonium Hectorite,"""Stearalkonium Hectorite"" skin topical",439881,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,stearamidopropyl_dimethylamine,Stearamidopropyl Dimethylamine,"""Stearamidopropyl Dimethylamine"" skin topical",440962,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,steareth_20,Steareth-20,"""Steareth-20"" skin topical",3262794,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,stearic_acid,Stearic Acid,"""Stearic Acid"" skin topical",1638754,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,stearyl_alcohol,Stearyl Alcohol,"""Stearyl Alcohol"" skin topical",717928,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,sucrose,Sucrose,"""Sucrose"" skin topical",463864,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,synthetic_beeswax,Synthetic Beeswax,"""Synthetic Beeswax"" skin topical",736596,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,synthetic_fluorphlogopite,Synthetic Fluorphlogopite,"""Synthetic Fluorphlogopite"" skin topical",735064,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,synthetic_wax,Synthetic Wax,"""Synthetic Wax"" skin topical",754261,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,talc,Talc,"""Talc"" skin topical",443670,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tartrazine,Tartrazine,"""Tartrazine"" skin topical",440686,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,terpineol,Terpineol,"""Terpineol"" skin topical",439861,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tetrahexyldecyl_ascorbate,Tetrahexyldecyl Ascorbate,"""Tetrahexyldecyl Ascorbate"" skin topical",445896,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tetramethyl_acetyloctahydronaphthalenes,Tetramethyl Acetyloctahydronaphthalenes,"""Tetramethyl Acetyloctahydronaphthalenes"" skin topical",445571,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tetrasodium_edta,Tetrasodium EDTA,"""Tetrasodium EDTA"" skin topical",451015,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tetrasodium_glutamate_diacetate,Tetrasodium Glutamate Diacetate,"""Tetrasodium Glutamate Diacetate"" skin topical",492299,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,theobroma_cacao_cocoa_seed_butter,Theobroma Cacao (Cocoa) Seed Butter,"""Cocoa butter"" skin topical",464528,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,theobroma_cacao_cocoa_seed_extract,Theobroma Cacao (Cocoa) Seed Extract,"""theobroma cacao cocoa seed extract"" skin topical",863736,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,threonine,Threonine,"""Threonine"" skin topical",448466,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tin_oxide,Tin Oxide,"""Tin Oxide"" skin topical",1049608,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,titanium_dioxide,Titanium Dioxide,"""Titanium Dioxide"" skin topical",721403,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tocopherol,Tocopherol,"""Tocopherol"" skin topical",449553,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tocopheryl_acetate,Tocopheryl Acetate,"""Tocopheryl Acetate"" skin topical",514831,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trehalose,Trehalose,"""Trehalose"" skin topical",445802,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tribehenin,Tribehenin,"""Tribehenin"" skin topical",439398,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tridecane,Tridecane,"""Tridecane"" skin topical",439704,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trideceth_12,Trideceth-12,"""Trideceth-12"" skin topical",6221420,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trideceth_6,Trideceth-6,"""Trideceth-6"" skin topical",439404,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,triethanolamine,Triethanolamine,"""Triethanolamine"" skin topical",440806,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,triethoxycaprylylsilane,Triethoxycaprylylsilane,"""Triethoxycaprylylsilane"" skin topical",439395,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,triethyl_citrate,Triethyl Citrate,"""Triethyl Citrate"" skin topical",463532,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,triethylhexanoin,Triethylhexanoin,"""Triethylhexanoin"" skin topical",439396,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trihydroxystearin,Trihydroxystearin,"""Trihydroxystearin"" skin topical",439398,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trimethylsiloxysilicate,Trimethylsiloxysilicate,"""Trimethylsiloxysilicate"" skin topical",439400,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trisodium_edta,Trisodium EDTA,"""Trisodium EDTA"" skin topical",451623,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,trisodium_ethylenediamine_disuccinate,Trisodium Ethylenediamine Disuccinate,"""Trisodium Ethylenediamine Disuccinate"" skin topical",447856,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tromethamine,Tromethamine,"""Tromethamine"" skin topical",440205,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,tyrosine,Tyrosine,"""Tyrosine"" skin topical",512423,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,ulmus_davidiana_root_extract,Ulmus Davidiana Root Extract,"""Ulmus Davidiana Root Extract"" skin topical",824728,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,urea,Urea,"""Urea"" skin topical",490814,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vaccinium_angustifolium_blueberry_fruit_extract,Vaccinium Angustifolium (Blueberry) Fruit Extract,"""vaccinium angustifolium blueberry fruit extract"" skin topical",793387,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,valine,Valine,"""Valine"" skin topical",443933,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vanillin,Vanillin,"""Vanillin"" skin topical",443804,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vinyl_dimethicone_methicone_silsesquioxane_crosspolymer,Vinyl Dimethicone/Methicone Silsesquioxane Crosspolymer,"""vinyl dimethicone methicone silsesquioxane crosspolymer"" skin topical",511813,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vitis_vinifera_grape_fruit_extract,Vitis Vinifera (Grape) Fruit Extract,"""vitis vinifera grape fruit extract"" skin topical",816284,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vitis_vinifera_grape_seed_oil,Vitis Vinifera (Grape) Seed Oil,"""vitis vinifera grape seed oil"" skin topical",1295292,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,vp_eicosene_copolymer,VP/Eicosene Copolymer,"""vp eicosene copolymer"" skin topical",492642,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,water,Water,"""Water"" skin topical",2225514,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,xanthan_gum,Xanthan Gum,"""Xanthan Gum"" skin topical",467905,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,xylitol,Xylitol,"""Xylitol"" skin topical",442797,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,xylitylglucoside,Xylitylglucoside,"""Xylitylglucoside"" skin topical",439395,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,zea_mays_corn_starch,Zea Mays (Corn) Starch,"""zea mays corn starch"" skin topical",623857,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,zinc_oxide,Zinc Oxide,"""Zinc Oxide"" skin topical",1166827,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,zinc_pca,Zinc PCA,"""Zinc PCA"" skin topical",676611,25,ok,,mwbl-ingredient-multisource-discovery-v1
+crossref,zinc_stearate,Zinc Stearate,"""Zinc Stearate"" skin topical",659847,25,ok,,mwbl-ingredient-multisource-discovery-v1

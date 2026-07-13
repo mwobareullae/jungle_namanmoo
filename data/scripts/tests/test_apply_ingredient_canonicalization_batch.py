@@ -10,10 +10,38 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from apply_ingredient_canonicalization_batch import apply_batch, read_csv  # noqa: E402
+from apply_ingredient_canonicalization_batch import (  # noqa: E402
+    apply_batch,
+    build_exact_name_override_rows,
+    read_csv,
+)
 
 
 class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
+    def test_skips_ambiguous_legacy_name_override(self):
+        rows = [
+            self._proposal_row(
+                canonical_id="ceramide_ns",
+                code="8380",
+                standard_en="Ceramide NS",
+                old_en="Ceramide 2",
+            ),
+            self._proposal_row(
+                canonical_id="ceramide_ng",
+                code="9356",
+                standard_en="Ceramide NG",
+                old_en="Ceramide 2",
+            ),
+        ]
+
+        mappings = build_exact_name_override_rows(rows)
+
+        self.assertNotIn("Ceramide 2", {row["source_ingredient_name"] for row in mappings})
+        self.assertEqual(
+            {row["source_ingredient_name"] for row in mappings},
+            {"Ceramide NS", "Ceramide NG"},
+        )
+
     def test_applies_exact_rows_idempotently_and_reassigns_family_alias(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -129,6 +157,26 @@ class ApplyIngredientCanonicalizationBatchTests(unittest.TestCase):
             writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows)
+
+    @staticmethod
+    def _proposal_row(
+        *,
+        canonical_id: str,
+        code: str,
+        standard_en: str,
+        old_en: str,
+    ) -> dict[str, str]:
+        return {
+            "kcia_ingredient_code": code,
+            "kcia_standard_name_ko": "",
+            "kcia_standard_name_en": standard_en,
+            "kcia_old_names_ko": "",
+            "kcia_old_names_en": old_en,
+            "proposed_action": "create_canonical",
+            "proposed_canonical_id": canonical_id,
+            "related_scoring_family_ids": "ceramides",
+            "source_document_sha256": "abcdef1234567890",
+        }
 
 
 if __name__ == "__main__":

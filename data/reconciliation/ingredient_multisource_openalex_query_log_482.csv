@@ -1,0 +1,51 @@
+source,ingredient_id,name_en,search_query,raw_hit_count,returned_count,request_status,error_message,pipeline_version
+openalex,1_2_hexanediol,"1,2-Hexanediol","""1,2-Hexanediol"" skin topical",137,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,aha,Alpha Hydroxy Acids,"""Alpha Hydroxy Acids"" skin topical",960,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,alcohol,Alcohol,"""Alcohol"" skin topical",56707,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,allantoin,Allantoin,"""Allantoin"" skin topical",1149,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,aluminum_hydroxide,Aluminum Hydroxide,"""Aluminum Hydroxide"" skin topical",788,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,benzyl_alcohol,Benzyl Alcohol,"""Benzyl Alcohol"" skin topical",1354,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,butylene_glycol,Butylene Glycol,"""Butylene Glycol"" skin topical",404,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,caprylic_capric_triglyceride,Caprylic/Capric Triglyceride,"""caprylic capric triglyceride"" skin topical",528,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,caprylyl_glycol,Caprylyl Glycol,"""Caprylyl Glycol"" skin topical",181,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,carbomer,Carbomer,"""Carbomer"" skin topical",2355,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,cetearyl_alcohol,Cetearyl Alcohol,"""Cetearyl Alcohol"" skin topical",464,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,cholesterol_fatty_acids,Cholesterol / Fatty Acids,"""Behenic Acid"" skin topical",305,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,citral,Citral,"""Citral"" skin topical",1507,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,citric_acid,Citric Acid,"""Citric Acid"" skin topical",5680,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,citronellol,Citronellol,"""Citronellol"" skin topical",854,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,dimethicone,Dimethicone,"""Dimethicone"" skin topical",853,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,dipropylene_glycol,Dipropylene Glycol,"""Dipropylene Glycol"" skin topical",150,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,disodium_edta,Disodium EDTA,"""Disodium EDTA"" skin topical",416,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,disteardimonium_hectorite,Disteardimonium Hectorite,"""Disteardimonium Hectorite"" skin topical",5,5,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,ethylhexylglycerin,Ethylhexylglycerin,"""Ethylhexylglycerin"" skin topical",216,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,fragrance_perfume_parfum,Fragrance|Perfume|Parfum,"""Perfume"" skin topical",4492,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,geraniol,Geraniol,"""Geraniol"" skin topical",1870,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,glycerin,Glycerin,"""Glycerin"" skin topical",5558,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,glyceryl_stearate,Glyceryl Stearate,"""Glyceryl Stearate"" skin topical",430,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,hexyl_cinnamal,Hexyl Cinnamal,"""Hexyl Cinnamal"" skin topical",57,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,hyaluronic_acid,Hyaluronic Acid,"""Hyaluronic Acid"" skin topical",19136,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,hydrogenated_lecithin,Hydrogenated Lecithin,"""Hydrogenated Lecithin"" skin topical",106,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,hydroxyacetophenone,Hydroxyacetophenone,"""Hydroxyacetophenone"" skin topical",112,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,lecithin,Lecithin,"""Lecithin"" skin topical",6233,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,limonene,Limonene,"""Limonene"" skin topical",4149,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,linalool,Linalool,"""Linalool"" skin topical",3159,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,mica,Mica,"""Mica"" skin topical",1673,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,niacinamide,Niacinamide,"""Niacinamide"" skin topical",2305,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,panthenol,Panthenol,"""Panthenol"" skin topical",864,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,pentylene_glycol,Pentylene Glycol,"""Pentylene Glycol"" skin topical",140,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,phenoxyethanol,Phenoxyethanol,"""Phenoxyethanol"" skin topical",1263,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,potassium_sorbate,Potassium Sorbate,"""Potassium Sorbate"" skin topical",519,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,propanediol,Propanediol,"""Propanediol"" skin topical",671,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,propylene_glycol,Propylene Glycol,"""Propylene Glycol"" skin topical",9020,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,silica,Silica,"""Silica"" skin topical",15045,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,sodium_benzoate,Sodium Benzoate,"""Sodium Benzoate"" skin topical",964,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,sodium_chloride,Sodium Chloride,"""Sodium Chloride"" skin topical",7924,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,sodium_citrate,Sodium Citrate,"""Sodium Citrate"" skin topical",3280,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,sodium_hydroxide,Sodium Hydroxide,"""Sodium Hydroxide"" skin topical",5209,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,squalane,Squalane,"""Squalane"" skin topical",370,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,tocopherol,Tocopherol,"""Tocopherol"" skin topical",8697,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,tocopheryl_acetate,Tocopheryl Acetate,"""Tocopheryl Acetate"" skin topical",571,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,triethoxycaprylylsilane,Triethoxycaprylylsilane,"""Triethoxycaprylylsilane"" skin topical",23,23,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,water,Water,"""Water"" skin topical",132400,25,ok,,mwbl-ingredient-multisource-discovery-v1
+openalex,xanthan_gum,Xanthan Gum,"""Xanthan Gum"" skin topical",2390,25,ok,,mwbl-ingredient-multisource-discovery-v1

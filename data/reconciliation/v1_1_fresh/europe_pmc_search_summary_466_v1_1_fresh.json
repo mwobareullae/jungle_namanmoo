@@ -1,0 +1,32 @@
+{
+  "access_unavailable_ingredient_count": 0,
+  "candidate_file": "europe_pmc_candidates_466_v1_1_fresh.csv",
+  "candidate_file_sha256": "2e0f1fcbf06e7cba7f4e1d2f412a4a6323950fbe737994dfa86317e7caa87b1b",
+  "candidate_row_count": 2349,
+  "cohort_size": 466,
+  "completed_at_utc": "2026-07-13T06:31:53+00:00",
+  "context_terms": [
+    "skin",
+    "topical"
+  ],
+  "effect_terms_used": [],
+  "error_ingredient_count": 0,
+  "errors": [],
+  "ingredients_with_candidates": 167,
+  "logged_ingredient_count": 466,
+  "manifest_sha256": "7779d9ebab29447f8465881efcb23b09a0f2f3751f524d19b389205ce650f26d",
+  "pagination_complete_count": 446,
+  "pipeline_version": "mwbl-ingredient-multisource-discovery-v1.1-fresh",
+  "reported_source_total_sum": 5848,
+  "retrieval_cap_per_ingredient": 50,
+  "retrieval_cap_reached_count": 20,
+  "review_status": "candidate_unverified",
+  "runtime_score_change": "none",
+  "search_log_file": "europe_pmc_query_log_466_v1_1_fresh.csv",
+  "search_log_file_sha256": "55f6fed687187179b07f1b98b5dea6fe264d010be9be9fce8caee866e17389d3",
+  "source": "europe_pmc",
+  "source_status": "complete",
+  "started_at_utc": "2026-07-13T06:26:07+00:00",
+  "successful_ingredient_count": 466,
+  "term_policy": "canonical names plus high-confidence approved English INCI/synonym/en aliases; no ingredient_id fallback"
+}

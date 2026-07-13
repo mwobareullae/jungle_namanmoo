@@ -1,0 +1,8 @@
+stage_order,filter_id,filter_name_ko,input_ingredient_count,filtered_ingredient_count,remaining_ingredient_count,note
+1,exact_single_ingredient,정확한 단일성분,500,82,418,Sequential first-failure count; the same paper must pass every prior stage.
+2,human_skin_topical,인체 피부 도포 연구,418,104,314,Sequential first-failure count; the same paper must pass every prior stage. Animal/cell-only evidence is removed here.
+3,not_combination_product,복합제품이 아님,314,34,280,Sequential first-failure count; the same paper must pass every prior stage.
+4,direct_existing_effect,기존 6효능 중 하나를 직접 측정,280,265,15,Sequential first-failure count; the same paper must pass every prior stage.
+5,positive_result,긍정적인 결과,15,2,13,Sequential first-failure count; the same paper must pass every prior stage.
+6,certain_result,불확실 표현이 아님,13,2,11,Sequential first-failure count; the same paper must pass every prior stage.
+7,standalone_evidence_tier,동물·세포·일반 리뷰 단독 점수 금지,11,7,4,Sequential first-failure count; the same paper must pass every prior stage. General reviews and tiers 5-8 cannot stand alone.

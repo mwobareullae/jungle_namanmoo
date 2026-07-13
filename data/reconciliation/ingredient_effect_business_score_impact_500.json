@@ -1,0 +1,782 @@
+{
+  "simulation_only": true,
+  "runtime_files_changed": false,
+  "approval_gate": "candidate_unverified rows contribute zero until accepted",
+  "scoring_policy": {
+    "effect_cap": 1.2,
+    "top_ingredient_decays": [
+      1.0,
+      0.5,
+      0.25
+    ],
+    "ingredient_effect_weight": 0.26
+  },
+  "runtime_guarded": {
+    "total_products": 65955,
+    "changed_products": 0,
+    "changed_product_pct": 0.0,
+    "current_pair_count": 72,
+    "proposed_pair_count": 72,
+    "new_provisional_pair_count": 0,
+    "effect_summary": {},
+    "top_impacts": []
+  },
+  "counterfactual_if_all_review_candidates_accepted": {
+    "total_products": 65955,
+    "changed_products": 31024,
+    "changed_product_pct": 47.0381,
+    "current_pair_count": 72,
+    "proposed_pair_count": 147,
+    "new_provisional_pair_count": 75,
+    "effect_summary": {
+      "effect_acne_sebum": {
+        "changed_products": 3323,
+        "median_total_point_delta": 1.56,
+        "p95_total_point_delta": 2.08,
+        "max_total_point_delta": 3.12
+      },
+      "effect_brightening": {
+        "changed_products": 23,
+        "median_total_point_delta": 1.04,
+        "p95_total_point_delta": 2.08,
+        "max_total_point_delta": 2.08
+      },
+      "effect_calming": {
+        "changed_products": 2772,
+        "median_total_point_delta": 1.04,
+        "p95_total_point_delta": 2.08,
+        "max_total_point_delta": 3.12
+      },
+      "effect_exfoliation": {
+        "changed_products": 2269,
+        "median_total_point_delta": 0.52,
+        "p95_total_point_delta": 1.04,
+        "max_total_point_delta": 2.08
+      },
+      "effect_moisture_barrier": {
+        "changed_products": 26952,
+        "median_total_point_delta": 1.04,
+        "p95_total_point_delta": 2.86,
+        "max_total_point_delta": 3.64
+      }
+    },
+    "top_impacts": [
+      {
+        "product_id": "cultbeauty_2a84319e988da4",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_2dd8fac442b403",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_3116a984fc2133",
+        "changed_effect_ids": [
+          "effect_acne_sebum",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_6450aae9cb76e0",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_6db1de13738974",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_71ed7b2369532a",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_7d27d581a99999",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_89fa4802b32a02",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_bd5c20db1d2415",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_c250d1604add0d",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_dd0b2b9ad801b3",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_de251b4270b5dc",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_ecd28d6c6e1ac6",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_ee22cb7df3b95c",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "cultbeauty_f3e9deafb7d365",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "dermstore_4cf7911f963cef",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_0f51f8b9d8ef04",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_250cf43f53bef6",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_4be0576b97f313",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_5f46101be372ca",
+        "changed_effect_ids": [
+          "effect_acne_sebum",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_9b40e75e239c06",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_9f57d0f0fc26a6",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_aa1375319eddea",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_ace7908d6a5242",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_b1eacbc4b664c5",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_c468aa2eac18b1",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_d8253d4f1f4414",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_df003b6ac0a220",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "lookfantastic_e8587ad5b75aab",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_bm_19a06b7c2e9827",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_bm_5ff0f012ab4965",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_bm_7a496752df77fe",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_bm_c8a5415e06fe3f",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000013147",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000013148",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000013150",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000014483",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000014953",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000102991",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000110010",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000117624",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000122218",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000137068",
+        "changed_effect_ids": [
+          "effect_acne_sebum",
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000137593",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000138432",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000146604",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000147554",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000148568",
+        "changed_effect_ids": [
+          "effect_acne_sebum",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000150730",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000151670",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000151816",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000155647",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000157781",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000160585",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000162644",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000162828",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000163334",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000163335",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000168433",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000170323",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000174062",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000177495",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000180162",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000180511",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000180512",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000180563",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000180854",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000182564",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000183673",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000184159",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000185472",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000185946",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000186445",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000186712",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000186909",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000187535",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000188390",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000189569",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000190147",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000190781",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000195979",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000199157",
+        "changed_effect_ids": [
+          "effect_calming",
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000201165",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000204102",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000204107",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000204208",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000206372",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000207982",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000208425",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000209129",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000209313",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000209380",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000209988",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000210959",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000211175",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000211266",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000211815",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000212084",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000212117",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      },
+      {
+        "product_id": "prod_oy_a000000212414",
+        "changed_effect_ids": [
+          "effect_moisture_barrier"
+        ],
+        "max_single_effect_total_point_delta": 3.64
+      }
+    ]
+  }
+}

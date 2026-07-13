@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import re
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -42,9 +43,11 @@ def build_inventory(
     *,
     limit: int = 300,
     mapped_source_ids: set[str] | None = None,
+    mapped_source_names: set[tuple[str, str]] | None = None,
 ) -> tuple[list[dict[str, str]], dict[str, int]]:
     alias_lookup = load_alias_lookup(aliases_path)
     mapped_source_ids = mapped_source_ids or set()
+    mapped_source_names = mapped_source_names or set()
     counts: Counter[str] = Counter()
     products: dict[str, set[str]] = defaultdict(set)
     names: dict[str, Counter[str]] = defaultdict(Counter)
@@ -60,6 +63,8 @@ def build_inventory(
                 if ingredient_id in mapped_source_ids:
                     continue
                 ingredient_name = row["ingredient_name"].strip()
+                if (ingredient_id, normalize_mapping_name(ingredient_name)) in mapped_source_names:
+                    continue
                 counts[ingredient_id] += 1
                 products[ingredient_id].add(row["product_id"].strip())
                 names[ingredient_id][ingredient_name] += 1
@@ -123,15 +128,30 @@ def build_inventory(
     return output, stats
 
 
-def load_mapped_source_ids(path: Path) -> set[str]:
+def normalize_mapping_name(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value or "").casefold()
+    return "".join(normalized.split())
+
+
+def load_mapping_keys(path: Path) -> tuple[set[str], set[tuple[str, str]]]:
     if not path.exists():
-        return set()
+        return set(), set()
     with path.open(newline="", encoding="utf-8-sig") as handle:
-        return {
-            row["source_ingredient_id"].strip()
-            for row in csv.DictReader(handle)
-            if not row.get("source_ingredient_name", "").strip()
-        }
+        rows = list(csv.DictReader(handle))
+    wildcard_ids = {
+        row["source_ingredient_id"].strip()
+        for row in rows
+        if not row.get("source_ingredient_name", "").strip()
+    }
+    exact_names = {
+        (
+            row["source_ingredient_id"].strip(),
+            normalize_mapping_name(row.get("source_ingredient_name", "")),
+        )
+        for row in rows
+        if row.get("source_ingredient_name", "").strip()
+    }
+    return wildcard_ids, exact_names
 
 
 def classify_candidate(
@@ -188,11 +208,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=300)
     args = parser.parse_args()
 
+    mapped_source_ids, mapped_source_names = load_mapping_keys(args.mappings)
     rows, stats = build_inventory(
         args.product_ingredients,
         args.aliases,
         limit=args.limit,
-        mapped_source_ids=load_mapped_source_ids(args.mappings),
+        mapped_source_ids=mapped_source_ids,
+        mapped_source_names=mapped_source_names,
     )
     write_inventory(args.output, rows)
     print(

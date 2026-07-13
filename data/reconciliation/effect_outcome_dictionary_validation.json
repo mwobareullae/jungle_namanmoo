@@ -1,0 +1,34 @@
+{
+  "dictionary_path": "data/effect_outcome_dictionary.csv",
+  "dictionary_sha256": "8b210cfd9ce5ee7d91b57739103e01050b5e0ea0284c72f16c0aa874aec18bc7",
+  "entry_count": 164,
+  "effect_count": 6,
+  "entries_by_effect": {
+    "effect_acne_sebum": 28,
+    "effect_brightening": 32,
+    "effect_calming": 28,
+    "effect_exfoliation": 19,
+    "effect_moisture_barrier": 29,
+    "effect_wrinkle": 28
+  },
+  "entries_by_review_status": {
+    "ambiguous_review": 9,
+    "approved": 111,
+    "context_only": 31,
+    "mechanism_only": 13
+  },
+  "entries_by_source_type": {
+    "guideline": 12,
+    "internal_guardrail": 53,
+    "internal_mapping_policy": 9,
+    "measurement_guidance": 14,
+    "validation_study": 76
+  },
+  "unique_source_reference_count": 24,
+  "pubmed_source_reference_count": 22,
+  "approved_mapping_entry_count": 111,
+  "discovery_entry_count": 164,
+  "standalone_blocked_entry_count": 53,
+  "runtime_scoring_changed": false,
+  "validation_status": "passed"
+}

@@ -1,0 +1,85 @@
+{
+  "generated_on": "2026-07-13",
+  "policy_version": "mwbl-multisource-score-funnel-v1",
+  "input_ingredient_count": 482,
+  "excluded_before_search_count": 18,
+  "source_ingredient_counts": {
+    "crossref": 482,
+    "europe_pmc": 191,
+    "pubmed": 352
+  },
+  "deduplicated_paper_count": 20937,
+  "final_score_candidate_count": 4,
+  "filter_funnel": [
+    {
+      "stage_order": 1,
+      "filter_id": "exact_single_ingredient",
+      "filter_name_ko": "정확한 단일성분",
+      "input_ingredient_count": 482,
+      "filtered_ingredient_count": 75,
+      "remaining_ingredient_count": 407,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage."
+    },
+    {
+      "stage_order": 2,
+      "filter_id": "human_skin_topical",
+      "filter_name_ko": "인체 피부 도포 연구",
+      "input_ingredient_count": 407,
+      "filtered_ingredient_count": 95,
+      "remaining_ingredient_count": 312,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage. Animal/cell-only evidence is removed here."
+    },
+    {
+      "stage_order": 3,
+      "filter_id": "not_combination_product",
+      "filter_name_ko": "복합제품이 아님",
+      "input_ingredient_count": 312,
+      "filtered_ingredient_count": 33,
+      "remaining_ingredient_count": 279,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage."
+    },
+    {
+      "stage_order": 4,
+      "filter_id": "direct_existing_effect",
+      "filter_name_ko": "기존 6효능 중 하나를 직접 측정",
+      "input_ingredient_count": 279,
+      "filtered_ingredient_count": 264,
+      "remaining_ingredient_count": 15,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage."
+    },
+    {
+      "stage_order": 5,
+      "filter_id": "positive_result",
+      "filter_name_ko": "긍정적인 결과",
+      "input_ingredient_count": 15,
+      "filtered_ingredient_count": 2,
+      "remaining_ingredient_count": 13,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage."
+    },
+    {
+      "stage_order": 6,
+      "filter_id": "certain_result",
+      "filter_name_ko": "불확실 표현이 아님",
+      "input_ingredient_count": 13,
+      "filtered_ingredient_count": 2,
+      "remaining_ingredient_count": 11,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage."
+    },
+    {
+      "stage_order": 7,
+      "filter_id": "standalone_evidence_tier",
+      "filter_name_ko": "동물·세포·일반 리뷰 단독 점수 금지",
+      "input_ingredient_count": 11,
+      "filtered_ingredient_count": 7,
+      "remaining_ingredient_count": 4,
+      "note": "Sequential first-failure count; the same paper must pass every prior stage. General reviews and tiers 5-8 cannot stand alone."
+    }
+  ],
+  "source_limitations": {
+    "openalex": "Partial 50-ingredient result excluded from the common 482 analysis after free daily budget exhaustion.",
+    "kci": "Not queried: KCI_API_KEY is not configured.",
+    "riss": "Not queried: RISS_API_KEY is not configured."
+  },
+  "review_status": "candidate_unverified",
+  "runtime_changed": false
+}
