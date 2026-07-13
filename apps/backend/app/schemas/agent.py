@@ -9,6 +9,10 @@ AgentToolName = Literal[
     "find_similar_products",
     "compare_products",
     "refine_product_results",
+    "get_cart",
+    "add_to_cart",
+    "prepare_checkout",
+    "prepare_order",
 ]
 
 AgentToolCallStatus = Literal[
@@ -28,6 +32,9 @@ AgentUiActionType = Literal[
     "show_products",
     "show_product_comparison",
     "show_order_status",
+    "show_cart",
+    "show_checkout_preview",
+    "open_payment",
 ]
 
 
@@ -43,6 +50,8 @@ class AgentContext(BaseModel):
     search_query: str | None = Field(default=None, max_length=255)
     filters: dict[str, Any] = Field(default_factory=dict)
     order_code: str | None = Field(default=None, max_length=40)
+    cart_item_ids: list[int] = Field(default_factory=list, max_length=100)
+    address_id: int | None = Field(default=None, ge=1)
 
 
 class AgentChatRequest(BaseModel):

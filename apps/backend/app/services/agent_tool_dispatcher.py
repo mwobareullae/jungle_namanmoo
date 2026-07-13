@@ -17,6 +17,16 @@ from app.services.agent_order_tools import (
     lookup_order_status,
     prepare_recent_order_cancel,
 )
+from app.services.agent_commerce_tools import (
+    ADD_TO_CART_TOOL,
+    GET_CART_TOOL,
+    PREPARE_CHECKOUT_TOOL,
+    PREPARE_ORDER_TOOL,
+    add_agent_cart_item,
+    get_agent_cart,
+    prepare_agent_checkout,
+    prepare_agent_order,
+)
 from app.services.agent_policy import get_tool_policy, validate_tool_access
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
@@ -68,12 +78,35 @@ class RefineProductResultsArgs(BaseModel):
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
 
 
+class GetCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AddToCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(..., min_length=1, max_length=128)
+    quantity: int = Field(default=1, ge=1, le=99)
+    recommendation_id: str | None = Field(default=None, max_length=128)
+    recommendation_rank: int | None = Field(default=None, ge=1)
+
+
+class CheckoutArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cart_item_ids: list[int] | None = Field(default=None, max_length=100)
+    address_id: int | None = Field(default=None, ge=1)
+
+
 ToolArgs = (
     OrderStatusLookupArgs
     | CancelRecentOrderArgs
     | FindSimilarProductsArgs
     | CompareProductsArgs
     | RefineProductResultsArgs
+    | GetCartArgs
+    | AddToCartArgs
+    | CheckoutArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
@@ -81,6 +114,10 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     FIND_SIMILAR_PRODUCTS_TOOL: FindSimilarProductsArgs,
     COMPARE_PRODUCTS_TOOL: CompareProductsArgs,
     REFINE_PRODUCT_RESULTS_TOOL: RefineProductResultsArgs,
+    GET_CART_TOOL: GetCartArgs,
+    ADD_TO_CART_TOOL: AddToCartArgs,
+    PREPARE_CHECKOUT_TOOL: CheckoutArgs,
+    PREPARE_ORDER_TOOL: CheckoutArgs,
 }
 
 
@@ -253,6 +290,49 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             effect_keywords=args.effect_keywords,
+        )
+
+    if tool_name == GET_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        _require_args(arguments, GetCartArgs)
+        return get_agent_cart(session, user, conversation_id=conversation_id)
+
+    if tool_name == ADD_TO_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, AddToCartArgs)
+        return add_agent_cart_item(
+            session,
+            user,
+            conversation_id=conversation_id,
+            product_id=args.product_id,
+            quantity=args.quantity,
+            recommendation_id=args.recommendation_id,
+            recommendation_rank=args.recommendation_rank,
+        )
+
+    if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, CheckoutArgs)
+        if tool_name == PREPARE_CHECKOUT_TOOL:
+            return prepare_agent_checkout(
+                session,
+                user,
+                conversation_id=conversation_id,
+                cart_item_ids=args.cart_item_ids,
+                address_id=args.address_id,
+            )
+        return prepare_agent_order(
+            session,
+            user,
+            conversation_id=conversation_id,
+            cart_item_ids=args.cart_item_ids,
+            address_id=args.address_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
         )
 
     raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")

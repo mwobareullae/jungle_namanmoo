@@ -13,6 +13,7 @@ from app.db.models.auth import User
 from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentUiAction
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import CANCEL_RECENT_ORDER_TOOL, ORDER_STATUS_LOOKUP_TOOL
+from app.services.agent_commerce_tools import ADD_TO_CART_TOOL, GET_CART_TOOL, PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
     FIND_SIMILAR_PRODUCTS_TOOL,
@@ -39,6 +40,11 @@ Use tools this way:
 - If the user asks to cancel a recent order or the current order, call
   cancel_recent_order. This tool only prepares a confirmation step; it does not
   execute cancellation by itself.
+- If the user asks what is in the cart, call get_cart.
+- If the user asks to add the current product, call add_to_cart with the product ID.
+- If the user asks for the expected checkout total, call prepare_checkout.
+- If the user asks to order or pay for the cart, call prepare_order. It creates a
+  confirmation step and only creates a TOSS order after confirmation.
 
 If required context is missing, ask for the missing information in one short Korean
 sentence. If no tool is needed, answer briefly in Korean.
@@ -52,8 +58,10 @@ Cosmetic wording guardrails:
   ingredient concentrations that are not present in tool results.
 - If mentioning functional cosmetics, say that a functional-notified ingredient or
   claim is present; do not say the product will improve, cure, or guarantee results.
-- Do not include purchase-store CTAs or imply that mwobareullae brokers purchases.
-  Focus on reducing decision anxiety and explaining which product is easier to choose.
+- Purchase actions must use the registered cart, checkout, and order tools. Never
+  claim that an order or payment succeeded unless the backend tool result says so.
+- A TOSS order may be created only after confirmation, and payment itself is always
+  completed by the user in the Toss payment window.
 
 Skin type argument mapping:
 - dry -> dry
@@ -117,6 +125,10 @@ async def run_openai_agent_chat(
             refine_product_results,
             order_status_lookup,
             cancel_recent_order,
+            get_cart,
+            add_to_cart,
+            prepare_checkout,
+            prepare_order,
         ],
     )
 
@@ -342,4 +354,59 @@ async def cancel_recent_order(
         ctx,
         tool_name=CANCEL_RECENT_ORDER_TOOL,
         arguments={"order_code": order_code},
+    )
+
+
+@function_tool(name_override=GET_CART_TOOL)
+async def get_cart(ctx: RunContextWrapper[CommerceAgentContext]) -> str:
+    """Show the authenticated user's active cart."""
+    return _execute_tool(ctx, tool_name=GET_CART_TOOL, arguments={})
+
+
+@function_tool(name_override=ADD_TO_CART_TOOL)
+async def add_to_cart(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    product_id: str,
+    quantity: int = 1,
+    recommendation_id: str | None = None,
+    recommendation_rank: int | None = None,
+) -> str:
+    """Add one purchasable product to the authenticated user's cart."""
+    return _execute_tool(
+        ctx,
+        tool_name=ADD_TO_CART_TOOL,
+        arguments={
+            "product_id": product_id,
+            "quantity": quantity,
+            "recommendation_id": recommendation_id,
+            "recommendation_rank": recommendation_rank,
+        },
+    )
+
+
+@function_tool(name_override=PREPARE_CHECKOUT_TOOL)
+async def prepare_checkout(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    cart_item_ids: list[int] | None = None,
+    address_id: int | None = None,
+) -> str:
+    """Revalidate the cart and show the checkout total before ordering."""
+    return _execute_tool(
+        ctx,
+        tool_name=PREPARE_CHECKOUT_TOOL,
+        arguments={"cart_item_ids": cart_item_ids, "address_id": address_id},
+    )
+
+
+@function_tool(name_override=PREPARE_ORDER_TOOL)
+async def prepare_order(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    cart_item_ids: list[int] | None = None,
+    address_id: int | None = None,
+) -> str:
+    """Prepare a confirmation step for creating a TOSS order."""
+    return _execute_tool(
+        ctx,
+        tool_name=PREPARE_ORDER_TOOL,
+        arguments={"cart_item_ids": cart_item_ids, "address_id": address_id},
     )

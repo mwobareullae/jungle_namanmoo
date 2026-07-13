@@ -130,8 +130,19 @@ def confirm_agent_tool_call(
     action: str,
 ) -> AgentToolConfirmResponse:
     started_at = time.perf_counter()
-    validate_tool_access(CANCEL_RECENT_ORDER_TOOL, user_id=user.id)
     tool_call = _load_user_tool_call_for_update(session, user.id, tool_call_id)
+    validate_tool_access(tool_call.tool_name, user_id=user.id)
+
+    from app.services.agent_commerce_tools import PREPARE_ORDER_TOOL
+
+    if tool_call.tool_name == PREPARE_ORDER_TOOL:
+        return _confirm_prepared_order_tool_call(
+            session,
+            user,
+            tool_call=tool_call,
+            action=action,
+            started_at=started_at,
+        )
 
     if tool_call.tool_name != CANCEL_RECENT_ORDER_TOOL:
         raise ApiError(400, "AGENT_TOOL_CONFIRM_UNSUPPORTED", "This tool call cannot be confirmed.")
@@ -223,6 +234,87 @@ def confirm_agent_tool_call(
         message=_build_cancel_executed_message(cancel_response.status),
         ui_action=ui_action,
     )
+
+
+def _confirm_prepared_order_tool_call(
+    session: Session,
+    user: User,
+    *,
+    tool_call: AgentToolCall,
+    action: str,
+    started_at: float,
+) -> AgentToolConfirmResponse:
+    from app.services.agent_commerce_tools import execute_confirmed_agent_order
+
+    if tool_call.status == "EXECUTED":
+        output = dict(tool_call.output_json or {})
+        return AgentToolConfirmResponse(
+            tool_call_id=tool_call.tool_call_id,
+            status="EXECUTED",
+            message="이미 생성된 주문이에요. Toss 결제를 진행해 주세요.",
+            ui_action=AgentUiAction(type="open_payment", target="toss_payment", payload=output),
+        )
+    if tool_call.status not in {"AWAITING_CONFIRMATION", "CONFIRMED"}:
+        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "This tool call cannot be confirmed.")
+
+    now = datetime.now(UTC)
+    if tool_call.expires_at is not None and _as_utc(tool_call.expires_at) <= now:
+        tool_call.status = "EXPIRED"
+        tool_call.error_code = "AGENT_TOOL_CALL_EXPIRED"
+        tool_call.error_message = "This confirmation request has expired."
+        tool_call.updated_at = now
+        tool_call.latency_ms = _elapsed_ms(started_at)
+        session.flush()
+        return AgentToolConfirmResponse(
+            tool_call_id=tool_call.tool_call_id,
+            status="EXPIRED",
+            message="주문 확인 시간이 만료됐어요. 다시 요청해 주세요.",
+            ui_action=AgentUiAction(),
+            error=AgentError(code="AGENT_TOOL_CALL_EXPIRED", message="This confirmation request has expired.", retryable=True),
+        )
+    if action == "reject":
+        tool_call.status = "REJECTED"
+        tool_call.updated_at = now
+        tool_call.latency_ms = _elapsed_ms(started_at)
+        session.flush()
+        return AgentToolConfirmResponse(
+            tool_call_id=tool_call.tool_call_id,
+            status="REJECTED",
+            message="주문을 생성하지 않았어요.",
+            ui_action=AgentUiAction(),
+        )
+    if action != "confirm":
+        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "Invalid confirmation action.")
+
+    tool_call.status = "CONFIRMED"
+    tool_call.confirmed_at = now
+    tool_call.updated_at = now
+    session.flush()
+    try:
+        response = execute_confirmed_agent_order(session, user, tool_call)
+    except ApiError as exc:
+        tool_call.status = "FAILED"
+        tool_call.error_code = exc.code
+        tool_call.error_message = exc.message
+        tool_call.updated_at = datetime.now(UTC)
+        tool_call.latency_ms = _elapsed_ms(started_at)
+        session.flush()
+        return AgentToolConfirmResponse(
+            tool_call_id=tool_call.tool_call_id,
+            status="FAILED",
+            message="주문을 생성하지 못했어요.",
+            ui_action=AgentUiAction(),
+            error=AgentError(code=exc.code, message=exc.message, retryable=False),
+        )
+
+    completed_at = datetime.now(UTC)
+    tool_call.status = "EXECUTED"
+    tool_call.executed_at = completed_at
+    tool_call.output_json = dict(response.ui_action.payload)
+    tool_call.updated_at = completed_at
+    tool_call.latency_ms = _elapsed_ms(started_at)
+    session.flush()
+    return response
 
 
 def _load_order_detail_for_tool(

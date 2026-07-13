@@ -22,10 +22,13 @@ class AgentToolPolicy:
 ALLOWED_UI_ACTION_TARGETS: dict[AgentUiActionType, frozenset[str]] = {
     "noop": frozenset(),
     "navigate": frozenset({"home", "login", "product_detail", "order_detail", "checkout"}),
-    "open_modal": frozenset({"agent_confirmation", "order_cancel_confirm"}),
+    "open_modal": frozenset({"agent_confirmation", "order_cancel_confirm", "order_create_confirm"}),
     "show_products": frozenset({"product_results", "similar_products", "refined_products"}),
     "show_product_comparison": frozenset({"product_comparison"}),
     "show_order_status": frozenset({"order_status"}),
+    "show_cart": frozenset({"cart"}),
+    "show_checkout_preview": frozenset({"checkout_preview"}),
+    "open_payment": frozenset({"toss_payment"}),
 }
 
 AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
@@ -72,6 +75,42 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         requires_confirmation=False,
         allowed_ui_actions=frozenset({"noop", "show_products"}),
         max_result_items=10,
+        timeout_ms=2500,
+    ),
+    "get_cart": AgentToolPolicy(
+        tool_name="get_cart",
+        risk_level="READ",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"show_cart"}),
+        max_result_items=0,
+        timeout_ms=1500,
+    ),
+    "add_to_cart": AgentToolPolicy(
+        tool_name="add_to_cart",
+        risk_level="WRITE",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"show_cart"}),
+        max_result_items=0,
+        timeout_ms=1500,
+    ),
+    "prepare_checkout": AgentToolPolicy(
+        tool_name="prepare_checkout",
+        risk_level="READ",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"show_checkout_preview", "navigate"}),
+        max_result_items=0,
+        timeout_ms=2000,
+    ),
+    "prepare_order": AgentToolPolicy(
+        tool_name="prepare_order",
+        risk_level="WRITE",
+        requires_auth=True,
+        requires_confirmation=True,
+        allowed_ui_actions=frozenset({"open_modal", "open_payment"}),
+        max_result_items=0,
         timeout_ms=2500,
     ),
 }
