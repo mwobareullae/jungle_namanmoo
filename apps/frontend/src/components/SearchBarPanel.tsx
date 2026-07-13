@@ -86,6 +86,15 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     setIsSuggestionsOpen(true);
   };
 
+  const handleSearchFocus = () => {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    setIsSuggestionsOpen(true);
+    requestAnimationFrame(() => {
+      window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" });
+    });
+  };
+
   const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
     setSuggestions([]);
     if (suggestion.type === "PRODUCT" && suggestion.product_id) {
@@ -133,7 +142,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
               <input
                 autoComplete="off"
                 id="searchInput"
-                onFocus={() => setIsSuggestionsOpen(true)}
+                onFocus={handleSearchFocus}
                 onKeyDown={handleSearchKey}
                 onChange={(event) => handleQueryChange(event.target.value)}
                 placeholder={searchMode === "ai" ? "예: 민감하고 자주 붉어져요" : "상품명, 브랜드, 성분을 검색하세요"}

@@ -3011,16 +3011,17 @@ body {
 
 .search-mode-suggestions {
   position: absolute;
-  top: 78px;
+  top: calc(100% - 1px);
   right: 0;
   left: 0;
   z-index: 30;
   display: grid;
   overflow: hidden;
   border: 1px solid #dfe9ee;
-  border-radius: 12px;
+  border-top: 0;
+  border-radius: 0 0 22px 22px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 50, 62, 0.12);
+  box-shadow: none;
 }
 
 .search-mode-suggestions button {
