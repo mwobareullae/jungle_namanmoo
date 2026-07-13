@@ -1408,7 +1408,7 @@ function AgentFloatingButton({
   const renderStatusMessage = (message: AgentChatStatusMessage) => (
     message.steps.some((step) => step.status === "active") ? (
       <div className="agent-chat-typing" key={message.id} aria-label="답변을 준비하고 있어요">
-        <img alt="" src="/mwobareullae-rabbit-chat.png" />
+        <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" />
         <span className="agent-chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
       </div>
     ) : (
@@ -1547,16 +1547,16 @@ function AgentFloatingButton({
   const renderTextMessage = (message: AgentChatTextMessage) => (
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
       <div className={`agent-chat-message-line ${message.role}`}>
-        {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat.png" /> : null}
+        {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" /> : null}
         <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
       </div>
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button aria-label="좋아요" type="button">
+            <button aria-label="좋아요" className="agent-chat-actions__button--like" type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 14v13H6V14h4Zm0 13h11.1a3 3 0 0 0 2.92-2.3l1.35-5.76A3 3 0 0 0 22.45 15H18l.66-4.62A3 3 0 0 0 15.7 7L10 14v13Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="별로예요" type="button">
+            <button aria-label="별로예요" className="agent-chat-actions__button--dislike" type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
             <button aria-label="다시 생성" onClick={handleRegenerate} type="button">
