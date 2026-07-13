@@ -20,6 +20,7 @@ from app.services.admin.order_claim_service import (
     get_admin_claim,
     list_admin_claims,
     reject_admin_claim,
+    start_admin_claim,
 )
 
 
@@ -95,6 +96,21 @@ def post_order_claim_reject(
         lambda: reject_admin_claim(session, claim_code, rejection_reason=body.rejection_reason),
         action="REJECT",
         claim_code=claim_code,
+    )
+
+
+@router.post(
+    "/order-claims/{claim_code}/start",
+    response_model=AdminOrderClaimActionResponse,
+    responses=_ACTION_RESPONSES,
+)
+def post_order_claim_start(
+    claim_code: str,
+    session: Session = Depends(get_db),
+) -> AdminOrderClaimActionResponse:
+    """클레임 처리 시작 — APPROVED→IN_PROGRESS. 인증/인가는 admin_router 공통 가드가 적용."""
+    return _run_claim_decision(
+        session, lambda: start_admin_claim(session, claim_code), action="START", claim_code=claim_code
     )
 
 

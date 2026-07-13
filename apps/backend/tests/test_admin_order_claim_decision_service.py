@@ -1,7 +1,7 @@
-"""관리자 클레임 승인·거절 서비스 테스트 (M1.5-B).
+"""관리자 클레임 승인·거절·처리시작 서비스 테스트 (M1.5-B).
 
-REQUESTED→APPROVED / REQUESTED→REJECTED 전이와 멱등·상태 불일치·이벤트 기록을 검증한다.
-처리시작(START)·완료(COMPLETE)는 이후 청크에서 다룬다.
+REQUESTED→APPROVED / REQUESTED→REJECTED / APPROVED→IN_PROGRESS 전이와
+멱등·상태 불일치·이벤트 기록을 검증한다. 완료(COMPLETE)는 이후 청크에서 다룬다.
 """
 
 from collections.abc import Generator
@@ -17,7 +17,7 @@ from app.db.base import Base
 from app.db.models.auth import User
 from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
 from app.schemas.common import ApiError
-from app.services.admin.order_claim_service import approve_admin_claim, reject_admin_claim
+from app.services.admin.order_claim_service import approve_admin_claim, reject_admin_claim, start_admin_claim
 
 
 @pytest.fixture()
@@ -257,3 +257,59 @@ def test_reject_rolls_back_when_session_is_rolled_back(session: Session) -> None
     reloaded = session.execute(select(OrderClaim).where(OrderClaim.id == claim.id)).scalar_one()
     assert reloaded.status == "REQUESTED"
     assert len(_events(session, claim.id)) == 1
+
+
+# ---- 처리 시작 ----
+
+
+def test_start_transitions_approved_to_in_progress_and_logs_event(session: Session) -> None:
+    claim = _make_claim(session, status="APPROVED")
+    session.commit()
+
+    response = start_admin_claim(session, claim.claim_code)
+    session.commit()
+
+    assert response.status == "IN_PROGRESS"
+    assert response.available_actions == ["COMPLETE"]
+    reloaded = session.execute(select(OrderClaim).where(OrderClaim.id == claim.id)).scalar_one()
+    assert reloaded.status == "IN_PROGRESS"
+    events = _events(session, claim.id)
+    assert len(events) == 2
+    assert events[1].from_status == "APPROVED"
+    assert events[1].to_status == "IN_PROGRESS"
+    assert events[1].actor_type == "ADMIN"
+    assert events[1].actor_id is None
+
+
+def test_start_is_idempotent_and_does_not_duplicate_event(session: Session) -> None:
+    claim = _make_claim(session, status="APPROVED")
+    session.commit()
+
+    first = start_admin_claim(session, claim.claim_code)
+    session.commit()
+    second = start_admin_claim(session, claim.claim_code)
+    session.commit()
+
+    assert first.status == "IN_PROGRESS"
+    assert second.status == "IN_PROGRESS"
+    assert len(_events(session, claim.id)) == 2
+
+
+@pytest.mark.parametrize("status", ["REQUESTED", "REJECTED", "COMPLETED", "WITHDRAWN"])
+def test_start_rejects_non_approved_claim(session: Session, status: str) -> None:
+    claim = _make_claim(session, status=status)
+    session.commit()
+
+    with pytest.raises(ApiError) as exc_info:
+        start_admin_claim(session, claim.claim_code)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "CLAIM_NOT_APPROVED"
+
+
+def test_start_not_found_raises_404(session: Session) -> None:
+    with pytest.raises(ApiError) as exc_info:
+        start_admin_claim(session, "clm_does_not_exist")
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "CLAIM_NOT_FOUND"
