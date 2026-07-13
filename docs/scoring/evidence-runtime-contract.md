@@ -1,7 +1,13 @@
 # 뭐바를래 근거 데이터 런타임 계약 (초안)
 
 > 작성일: 2026-07-11
-> 상태: 데이터 매핑 원칙과 PR A 상태 구조 승인 완료. accepted-only 점수 게이트와 API 변경은 후속 PR 전까지 적용하지 않는다.
+> 상태: **점수 게이트 부분 폐기됨.** 2026-07-13 `mwbl-legacy-scale-500-v1` 결정으로
+> `accepted-only`, 사람 adjudication, 전문 확인을 런타임 점수의 운영 승인 조건으로
+> 사용하지 않는다. `review_status`는 감사 메타데이터로만 유지한다. 아래의 accepted-only
+> 전환안은 과거 검토 기록이며 구현 계획이 아니다. 현재 정본은
+> `docs/scoring/legacy-scale-500-scoring.md`이다.
+> 단, 고객 화면의 논문 제목·요약·출처 노출은 점수 활성과 별개이며
+> `accepted + is_current=true`인 근거만 허용한다.
 > 정책 정본: `docs/scoring/evidence-policy.md`
 > 코드 확인 기준: `origin/dev` (`ffe69e1`)
 

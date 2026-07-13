@@ -1,0 +1,246 @@
+ingredient_rank,ingredient_id,name_ko,name_en,effect_id,effect_name,effect_score,score_origin,score_basis,official_signal_strength,official_signal_functions,paper_evidence_class,paper_key,evidence_score,runtime_score_active,human_approval_gate_used,full_text_gate_used
+0,niacinamide,나이아신아마이드,Niacinamide,effect_brightening,미백·톤,70,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:12100180,95,Y,N,N
+0,niacinamide,나이아신아마이드,Niacinamide,effect_moisture_barrier,보습·장벽,65,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:10971324,85,Y,N,N
+0,niacinamide,나이아신아마이드,Niacinamide,effect_acne_sebum,여드름·피지,50,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:16766489,70,Y,N,N
+0,niacinamide,나이아신아마이드,Niacinamide,effect_wrinkle,주름·탄력,45,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18492135,70,Y,N,N
+0,niacinamide,나이아신아마이드,Niacinamide,effect_calming,진정,40,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18492135,60,Y,N,N
+0,salicylic_acid_bha,살리실산/BHA,Salicylic Acid / BHA,effect_acne_sebum,여드름·피지,70,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:32356369,78,Y,N,N
+0,salicylic_acid_bha,살리실산/BHA,Salicylic Acid / BHA,effect_exfoliation,각질,60,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:salicylic_acid_bha:effect_exfoliation,76,Y,N,N
+0,aha,AHA,Alpha Hydroxy Acids,effect_exfoliation,각질,65,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:8651713,78,Y,N,N
+0,aha,AHA,Alpha Hydroxy Acids,effect_wrinkle,주름·탄력,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:8642081,62,Y,N,N
+0,aha,AHA,Alpha Hydroxy Acids,effect_moisture_barrier,보습·장벽,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:8818186,60,Y,N,N
+0,pha,PHA,Polyhydroxy Acids,effect_exfoliation,각질,55,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:15002657,66,Y,N,N
+0,pha,PHA,Polyhydroxy Acids,effect_moisture_barrier,보습·장벽,48,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:pha:effect_moisture_barrier,60,Y,N,N
+0,pha,PHA,Polyhydroxy Acids,effect_wrinkle,주름·탄력,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:15002656,54,Y,N,N
+0,pha,PHA,Polyhydroxy Acids,effect_calming,진정,35,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:15002656,48,Y,N,N
+0,zinc_pca,징크PCA,Zinc PCA,effect_acne_sebum,여드름·피지,48,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:3207614,50,Y,N,N
+0,zinc_pca,징크PCA,Zinc PCA,effect_moisture_barrier,보습·장벽,32,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:zinc_pca:effect_moisture_barrier,42,Y,N,N
+0,glycerin,글리세린,Glycerin,effect_moisture_barrier,보습·장벽,72,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:10598752,85,Y,N,N
+0,glycerin,글리세린,Glycerin,effect_calming,진정,40,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18510666,58,Y,N,N
+0,glycerin,글리세린,Glycerin,effect_exfoliation,각질,30,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:glycerin:effect_exfoliation,48,Y,N,N
+0,panthenol,판테놀,Panthenol,effect_moisture_barrier,보습·장벽,60,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:10965426,76,Y,N,N
+0,panthenol,판테놀,Panthenol,effect_calming,진정,55,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:12113650,72,Y,N,N
+0,ceramides,세라마이드,Ceramides,effect_moisture_barrier,보습·장벽,74,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:33984185,88,Y,N,N
+0,ceramides,세라마이드,Ceramides,effect_calming,진정,40,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:40408261,60,Y,N,N
+0,cholesterol_fatty_acids,콜레스테롤/지방산,Cholesterol / Fatty Acids,effect_moisture_barrier,보습·장벽,60,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:8618046,72,Y,N,N
+0,cholesterol_fatty_acids,콜레스테롤/지방산,Cholesterol / Fatty Acids,effect_calming,진정,35,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:cholesterol_fatty_acids:effect_calming,52,Y,N,N
+0,hyaluronic_acid,히알루론산,Hyaluronic Acid,effect_moisture_barrier,보습·장벽,68,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:hyaluronic_acid:effect_moisture_barrier,78,Y,N,N
+0,hyaluronic_acid,히알루론산,Hyaluronic Acid,effect_wrinkle,주름·탄력,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:22052267,60,Y,N,N
+0,hyaluronic_acid,히알루론산,Hyaluronic Acid,effect_calming,진정,38,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:hyaluronic_acid:effect_calming,55,Y,N,N
+0,squalane,스쿠알란,Squalane,effect_moisture_barrier,보습·장벽,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:squalane:effect_moisture_barrier,48,Y,N,N
+0,dimethicone,디메치콘,Dimethicone,effect_moisture_barrier,보습·장벽,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:dimethicone:effect_moisture_barrier,64,Y,N,N
+0,dimethicone,디메치콘,Dimethicone,effect_calming,진정,33,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:dimethicone:effect_calming,52,Y,N,N
+0,petrolatum_mineral_oil,페트롤라툼/미네랄오일,Petrolatum / Mineral Oil,effect_moisture_barrier,보습·장벽,72,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:1564142,80,Y,N,N
+0,petrolatum_mineral_oil,페트롤라툼/미네랄오일,Petrolatum / Mineral Oil,effect_calming,진정,37,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:petrolatum_mineral_oil:effect_calming,56,Y,N,N
+0,urea,유레아,Urea,effect_moisture_barrier,보습·장벽,66,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:urea:effect_moisture_barrier,76,Y,N,N
+0,urea,유레아,Urea,effect_exfoliation,각질,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:urea:effect_exfoliation,70,Y,N,N
+0,urea,유레아,Urea,effect_calming,진정,37,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:urea:effect_calming,56,Y,N,N
+0,centella_asiatica,센텔라/병풀,Centella Asiatica Extracts,effect_calming,진정,60,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:27168678,72,Y,N,N
+0,centella_asiatica,센텔라/병풀,Centella Asiatica Extracts,effect_wrinkle,주름·탄력,44,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18503551,56,Y,N,N
+0,centella_asiatica,센텔라/병풀,Centella Asiatica Extracts,effect_moisture_barrier,보습·장벽,44,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:27168678,54,Y,N,N
+0,madecassoside,마데카소사이드,Madecassoside,effect_calming,진정,58,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:madecassoside:effect_calming,72,Y,N,N
+0,madecassoside,마데카소사이드,Madecassoside,effect_wrinkle,주름·탄력,44,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:madecassoside:effect_wrinkle,62,Y,N,N
+0,madecassoside,마데카소사이드,Madecassoside,effect_moisture_barrier,보습·장벽,44,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18503551,54,Y,N,N
+0,tea_tree,티트리,Tea Tree,effect_acne_sebum,여드름·피지,54,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:tea_tree:effect_acne_sebum,66,Y,N,N
+0,allantoin,알란토인,Allantoin,effect_calming,진정,50,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:allantoin:effect_calming,62,Y,N,N
+0,allantoin,알란토인,Allantoin,effect_moisture_barrier,보습·장벽,40,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:allantoin:effect_moisture_barrier,55,Y,N,N
+0,colloidal_oatmeal,콜로이달오트밀,Colloidal Oatmeal,effect_calming,진정,58,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:colloidal_oatmeal:effect_calming,74,Y,N,N
+0,colloidal_oatmeal,콜로이달오트밀,Colloidal Oatmeal,effect_moisture_barrier,보습·장벽,46,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:colloidal_oatmeal:effect_moisture_barrier,62,Y,N,N
+0,bisabolol,비사보롤,Bisabolol,effect_brightening,미백·톤,58,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:20642768,85,Y,N,N
+0,green_tea,녹차,Green Tea,effect_acne_sebum,여드름·피지,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:green_tea:effect_acne_sebum,66,Y,N,N
+0,green_tea,녹차,Green Tea,effect_calming,진정,46,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:green_tea:effect_calming,60,Y,N,N
+0,green_tea,녹차,Green Tea,effect_wrinkle,주름·탄력,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:green_tea:effect_wrinkle,54,Y,N,N
+0,retinol,레티놀,Retinol,effect_wrinkle,주름·탄력,70,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:17515510,88,Y,N,N
+0,retinol,레티놀,Retinol,effect_brightening,미백·톤,48,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:29947134,72,Y,N,N
+0,retinol,레티놀,Retinol,effect_exfoliation,각질,50,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:7561157,64,Y,N,N
+0,retinol,레티놀,Retinol,effect_acne_sebum,여드름·피지,40,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:19134126,45,Y,N,N
+0,retinal,레티날,Retinal,effect_wrinkle,주름·탄력,72,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:29663701,82,Y,N,N
+0,retinal,레티날,Retinal,effect_exfoliation,각질,48,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:retinal:effect_exfoliation,58,Y,N,N
+0,retinal,레티날,Retinal,effect_brightening,미백·톤,43,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:retinal:effect_brightening,55,Y,N,N
+0,adenosine,아데노신,Adenosine,effect_wrinkle,주름·탄력,55,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18489289,95,Y,N,N
+0,peptides,펩타이드,Peptides,effect_wrinkle,주름·탄력,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18492182,65,Y,N,N
+0,ascorbic_acid,비타민C,Ascorbic Acid,effect_brightening,미백·톤,62,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:12823436,72,Y,N,N
+0,ascorbic_acid,비타민C,Ascorbic Acid,effect_wrinkle,주름·탄력,45,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:12823436,65,Y,N,N
+0,arbutin,알부틴,Arbutin,effect_brightening,미백·톤,60,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:34356362,80,Y,N,N
+0,tranexamic_acid,트라넥사믹애씨드,Tranexamic Acid,effect_brightening,미백·톤,65,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:38843906,82,Y,N,N
+0,kojic_acid,코직애씨드,Kojic Acid,effect_brightening,미백·톤,50,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,LEGACY:kojic_acid:effect_brightening,60,Y,N,N
+0,licorice_extract,감초추출물,Licorice Extract,effect_brightening,미백·톤,55,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:9870547,78,Y,N,N
+0,licorice_extract,감초추출물,Licorice Extract,effect_calming,진정,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:9870547,48,Y,N,N
+0,phytosphingosine,피토스핑고신,Phytosphingosine,effect_moisture_barrier,보습·장벽,55,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:28936777,72,Y,N,N
+0,phytosphingosine,피토스핑고신,Phytosphingosine,effect_acne_sebum,여드름·피지,42,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:18489348,65,Y,N,N
+0,glutathione,글루타티온,Glutathione,effect_brightening,미백·톤,50,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:25378941,75,Y,N,N
+0,beta_glucan,베타-글루칸,Beta-Glucan,effect_moisture_barrier,보습·장벽,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:33128496,68,Y,N,N
+0,dipotassium_glycyrrhizate,다이포타슘글리시리제이트,Dipotassium Glycyrrhizate,effect_calming,진정,52,existing_34_unchanged,historical_manual_score_preserved,,,existing_runtime,PMID:40735556,70,Y,N,N
+3,butylene_glycol,부틸렌글라이콜,Butylene Glycol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+4,tocopherol,토코페롤,Tocopherol,effect_calming,진정,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:9767255,35,Y,N,N
+4,tocopherol,토코페롤,Tocopherol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+7,caprylyl_glycol,카프릴릴글라이콜,Caprylyl Glycol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+18,caprylic_capric_triglyceride,카프릴릭/카프릭트라이글리세라이드,Caprylic/Capric Triglyceride,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+19,propanediol,프로판다이올,Propanediol,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:37699769,35,Y,N,N
+22,sodium_chloride,소듐클로라이드,Sodium Chloride,effect_moisture_barrier,보습·장벽,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,DOI:10.1159/000056331,25,Y,N,N
+31,cetearyl_alcohol,세테아릴알코올,Cetearyl Alcohol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+35,aluminum_hydroxide,알루미늄하이드록사이드,Aluminum Hydroxide,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+36,helianthus_annuus_sunflower_seed_oil,해바라기씨오일,Helianthus Annuus (Sunflower) Seed Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT+SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+40,glyceryl_stearate,글리세릴스테아레이트,Glyceryl Stearate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+46,propylene_glycol,프로필렌글라이콜,Propylene Glycol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+SKIN CONDITIONING - HUMECTANT,,,0,Y,N,N
+50,lecithin,레시틴,Lecithin,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+57,simmondsia_chinensis_jojoba_seed_oil,호호바씨오일,Simmondsia Chinensis (Jojoba) Seed Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+59,cetyl_alcohol,세틸알코올,Cetyl Alcohol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+60,trimethylsiloxysilicate,트라이메틸실록시실리케이트,Trimethylsiloxysilicate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+62,isododecane,아이소도데케인,Isododecane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+63,sodium_hyaluronate,소듐하이알루로네이트,Sodium Hyaluronate,effect_moisture_barrier,보습·장벽,50,official_function_prior+ai_paper_override,"max(official_prior:32,paper_supporting:50)",high,HUMECTANT,supporting,PMID:24724824,35,Y,N,N
+71,betaine,베타인,Betaine,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+SKIN CONDITIONING - HUMECTANT,,,0,Y,N,N
+77,ethylhexyl_palmitate,에틸헥실팔미테이트,Ethylhexyl Palmitate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+80,glyceryl_caprylate,글리세릴카프릴레이트,Glyceryl Caprylate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+84,octyldodecanol,옥틸도데칸올,Octyldodecanol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+85,caffeine,카페인,Caffeine,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:18489298,35,Y,N,N
+94,phenyl_trimethicone,페닐트라이메티콘,Phenyl Trimethicone,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+98,sodium_pca,소듐피씨에이,Sodium PCA,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+99,cyclopentasiloxane,사이클로펜타실록세인,Cyclopentasiloxane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+103,trehalose,트레할로오스,Trehalose,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+MOISTURISING,,,0,Y,N,N
+105,diisostearyl_malate,다이아이소스테아릴말레이트,Diisostearyl Malate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+111,ceramide_np,세라마이드엔피,Ceramide NP,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:18717861,35,Y,N,N
+114,coco_caprylate_caprate,코코-카프릴레이트/카프레이트,Coco-Caprylate/Caprate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+122,hydrogenated_polyisobutene,하이드로제네이티드폴리아이소부텐,Hydrogenated Polyisobutene,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+124,leuconostoc_radish_root_ferment_filtrate,류코노스톡/무발효여과물,Leuconostoc/Radish Root Ferment Filtrate,effect_acne_sebum,여드름·피지,40,official_function_prior,legacy_axis_floor:40,high,ANTI-SEBORRHEIC,,,0,Y,N,N
+125,stearyl_alcohol,스테아릴알코올,Stearyl Alcohol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+128,sodium_lactate,소듐락테이트,Sodium Lactate,effect_exfoliation,각질,30,official_function_prior,legacy_axis_floor:30,high,KERATOLYTIC,,,0,Y,N,N
+128,sodium_lactate,소듐락테이트,Sodium Lactate,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+135,behenyl_alcohol,베헤닐알코올,Behenyl Alcohol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+136,centella_asiatica_extract,병풀추출물,Centella Asiatica Extract,effect_calming,진정,50,official_function_prior+ai_paper_override,"max(official_prior:33,paper_supporting:50)",high,SOOTHING,supporting,PMID:27168678,35,Y,N,N
+136,centella_asiatica_extract,병풀추출물,Centella Asiatica Extract,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:27168678,35,Y,N,N
+139,argania_spinosa_kernel_oil,아르간커넬오일,Argania Spinosa Kernel Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+141,hydrolyzed_hyaluronic_acid,하이드롤라이즈드하이알루로닉애씨드,Hydrolyzed Hyaluronic Acid,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+143,sorbitol,솔비톨,Sorbitol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+152,glucose,글루코오스,Glucose,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+153,c12_15_alkyl_benzoate,C12-15알킬벤조에이트,C12-15 Alkyl Benzoate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+154,isopropyl_myristate,아이소프로필미리스테이트,Isopropyl Myristate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+157,cetearyl_olivate,세테아릴올리베이트,Cetearyl Olivate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+159,glycine_soja_soybean_oil,돌콩오일,Glycine Soja (Soybean) Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+161,isohexadecane,아이소헥사데칸,Isohexadecane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+167,isononyl_isononanoate,아이소노닐아이소노나노에이트,Isononyl Isononanoate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+168,xylitol,자일리톨,Xylitol,effect_acne_sebum,여드름·피지,40,official_function_prior,legacy_axis_floor:40,high,ANTI-SEBORRHEIC,,,0,Y,N,N
+168,xylitol,자일리톨,Xylitol,effect_moisture_barrier,보습·장벽,50,official_function_prior+ai_paper_override,"max(official_prior:32,paper_supporting:50)",high,HUMECTANT+SKIN CONDITIONING - HUMECTANT,supporting,PMID:21569743,35,Y,N,N
+170,jojoba_esters,호호바에스터,Jojoba Esters,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+170,jojoba_esters,호호바에스터,Jojoba Esters,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,MOISTURISING,,,0,Y,N,N
+171,dimethiconol,다이메티콘올,Dimethiconol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,MOISTURISING,,,0,Y,N,N
+173,sodium_polyacrylate,소듐폴리아크릴레이트,Sodium Polyacrylate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+174,aloe_barbadensis_leaf_extract,알로에베라잎추출물,Aloe Barbadensis Leaf Extract,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+188,histidine,히스티딘,Histidine,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+189,silica_dimethyl_silylate,실리카다이메틸실릴레이트,Silica Dimethyl Silylate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+192,hydrolyzed_collagen,하이드롤라이즈드콜라겐,Hydrolyzed Collagen,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+195,dicaprylyl_carbonate,다이카프릴릴카보네이트,Dicaprylyl Carbonate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+200,cetyl_ethylhexanoate,세틸에틸헥사노에이트,Cetyl Ethylhexanoate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+203,vitis_vinifera_grape_seed_oil,포도씨오일,Vitis Vinifera (Grape) Seed Oil,effect_moisture_barrier,보습·장벽,35,official_function_prior+ai_paper_override,"max(official_prior:30,paper_limited_medical:35)",medium,SKIN CONDITIONING - EMOLLIENT,limited_medical,DOI:10.58860/ijsh.v4i7.321,25,Y,N,N
+206,pvp,피브이피,PVP,effect_wrinkle,주름·탄력,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:29799810,35,Y,N,N
+207,asiaticoside,아시아티코사이드,Asiaticoside,effect_wrinkle,주름·탄력,70,ai_paper_override,paper_primary:70,,,primary,RISS:3c639e159ba37097ffe0bdc3ef48d419,50,Y,N,N
+209,glycol_distearate,글라이콜다이스테아레이트,Glycol Distearate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+210,menthol,멘톨,Menthol,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+214,cyclohexasiloxane,사이클로헥사실록세인,Cyclohexasiloxane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+215,methicone,메티콘,Methicone,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+218,sucrose,수크로오스,Sucrose,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+218,sucrose,수크로오스,Sucrose,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+224,glutamic_acid,글루타믹애씨드,Glutamic Acid,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+230,curcuma_longa_turmeric_root_extract,울금뿌리추출물,Curcuma Longa (Turmeric) Root Extract,effect_acne_sebum,여드름·피지,50,ai_paper_override,paper_supporting:50,,,supporting,DOI:10.4314/tjpr.v12i5.1,35,Y,N,N
+231,bis_diglyceryl_polyacyladipate_2,비스-다이글리세릴폴리아실아디페이트-2,Bis-Diglyceryl Polyacyladipate-2,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+233,talc,탤크,Talc,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+235,sodium_hyaluronate_crosspolymer,소듐하이알루로네이트크로스폴리머,Sodium Hyaluronate Crosspolymer,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+236,saccharide_isomerate,사카라이드아이소머레이트,Saccharide Isomerate,effect_calming,진정,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:41211697,25,Y,N,N
+236,saccharide_isomerate,사카라이드아이소머레이트,Saccharide Isomerate,effect_moisture_barrier,보습·장벽,35,official_function_prior+ai_paper_override,"max(official_prior:32,paper_limited_medical:35)",high,HUMECTANT,limited_medical,PMID:41211697,25,Y,N,N
+241,tribehenin,트라이베헤닌,Tribehenin,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+246,hydrogenated_polydecene,하이드로제네이티드폴리데센,Hydrogenated Polydecene,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+248,sodium_acetylated_hyaluronate,소듐아세틸레이티드하이알루로네이트,Sodium Acetylated Hyaluronate,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+248,sodium_acetylated_hyaluronate,소듐아세틸레이티드하이알루로네이트,Sodium Acetylated Hyaluronate,effect_wrinkle,주름·탄력,70,ai_paper_override,paper_primary:70,,,primary,PMID:34708918,50,Y,N,N
+249,sodium_phosphate,소듐포스페이트,Sodium Phosphate,effect_acne_sebum,여드름·피지,40,official_function_prior,legacy_axis_floor:40,high,ANTI-SEBORRHEIC,,,0,Y,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,effect_acne_sebum,여드름·피지,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,DOI:10.58837/chula.the.2023.814,25,Y,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,effect_brightening,미백·톤,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:38158144,25,Y,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,effect_calming,진정,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,DOI:10.58837/chula.the.2023.814,25,Y,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,effect_moisture_barrier,보습·장벽,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,DOI:10.58837/chula.the.2023.814,25,Y,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,effect_wrinkle,주름·탄력,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:38158144,25,Y,N,N
+263,silica_silylate,실리카실릴레이트,Silica Silylate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+274,hydrolyzed_soy_protein,하이드롤라이즈드콩단백질,Hydrolyzed Soy Protein,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+277,octyldodecyl_stearoyl_stearate,옥틸도데실스테아로일스테아레이트,Octyldodecyl Stearoyl Stearate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+282,moringa_oleifera_seed_oil,드럼스틱씨오일,Moringa Oleifera Seed Oil,effect_moisture_barrier,보습·장벽,70,official_function_prior+ai_paper_override,"max(official_prior:30,paper_primary:70)",medium,SKIN CONDITIONING - EMOLLIENT,primary,DOI:10.3390/cosmetics8010002,50,Y,N,N
+283,cucumis_sativus_cucumber_fruit_extract,오이열매추출물,Cucumis Sativus (Cucumber) Fruit Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+285,camellia_sinensis_leaf_extract,녹차추출물,Camellia Sinensis Leaf Extract,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+288,scutellaria_baicalensis_root_extract,황금추출물,Scutellaria Baicalensis Root Extract,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+288,scutellaria_baicalensis_root_extract,황금추출물,Scutellaria Baicalensis Root Extract,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+289,cetyl_esters,세틸에스터,Cetyl Esters,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+290,glycereth_26,글리세레스-26,Glycereth-26,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+297,hydrogenated_castor_oil,하이드로제네이티드캐스터오일,Hydrogenated Castor Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+303,pca,피씨에이,PCA,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+MOISTURISING,,,0,Y,N,N
+305,glyceryl_oleate,글리세릴올리에이트,Glyceryl Oleate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+306,polyglycerin_3,폴리글리세린-3,Polyglycerin-3,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+313,glyceryl_stearate_citrate,글리세릴스테아레이트시트레이트,Glyceryl Stearate Citrate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+316,anhydroxylitol,안하이드로자일리톨,Anhydroxylitol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+317,palmitic_acid,팔미틱애씨드,Palmitic Acid,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+321,rosa_canina_fruit_oil,로즈힙열매오일,Rosa Canina Fruit Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+323,xylitylglucoside,자일리틸글루코사이드,Xylitylglucoside,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+324,isopropyl_titanium_triisostearate,아이소프로필티타늄트라이아이소스테아레이트,Isopropyl Titanium Triisostearate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+326,hydrolyzed_keratin,하이드롤라이즈드케라틴,Hydrolyzed Keratin,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+327,camellia_japonica_seed_oil,동백나무씨오일,Camellia Japonica Seed Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+331,cholesterol,콜레스테롤,Cholesterol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+332,hydroxyethyl_urea,하이드록시에틸우레아,Hydroxyethyl Urea,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+333,coconut_acid,코코넛애씨드,Coconut Acid,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+334,pentaerythrityl_tetraisostearate,펜타에리스리틸테트라아이소스테아레이트,Pentaerythrityl Tetraisostearate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+335,magnesium_stearate,마그네슘스테아레이트,Magnesium Stearate,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,MOISTURISING,,,0,Y,N,N
+336,hydrogenated_vegetable_oil,하이드로제네이티드식물성오일,Hydrogenated Vegetable Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+339,isopropyl_palmitate,아이소프로필팔미테이트,Isopropyl Palmitate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+340,retinyl_palmitate,레티닐팔미테이트,Retinyl Palmitate,effect_acne_sebum,여드름·피지,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:34211271,25,Y,N,N
+341,mannitol,만니톨,Mannitol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+MOISTURISING,,,0,Y,N,N
+349,sodium_ascorbyl_phosphate,소듐아스코빌포스페이트,Sodium Ascorbyl Phosphate,effect_acne_sebum,여드름·피지,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:18492184,25,Y,N,N
+349,sodium_ascorbyl_phosphate,소듐아스코빌포스페이트,Sodium Ascorbyl Phosphate,effect_wrinkle,주름·탄력,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:32383548,35,Y,N,N
+353,theobroma_cacao_cocoa_seed_butter,카카오씨버터,Theobroma Cacao (Cocoa) Seed Butter,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT+SKIN PROTECTING,,,0,Y,N,N
+355,hexyl_laurate,헥실라우레이트,Hexyl Laurate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+357,glyceryl_acrylate_acrylic_acid_copolymer,글리세릴아크릴레이트/아크릴릭애씨드코폴리머,Glyceryl Acrylate/Acrylic Acid Copolymer,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+358,phytosterols,피토스테롤,Phytosterols,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:18528589,35,Y,N,N
+364,citrus_limon_lemon_fruit_extract,레몬추출물,Citrus Limon (Lemon) Fruit Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+365,capryloyl_salicylic_acid,카프릴로일살리실릭애씨드,Capryloyl Salicylic Acid,effect_brightening,미백·톤,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:19146601,35,Y,N,N
+365,capryloyl_salicylic_acid,카프릴로일살리실릭애씨드,Capryloyl Salicylic Acid,effect_wrinkle,주름·탄력,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:19146601,35,Y,N,N
+369,dicaprylyl_ether,다이카프릴릴에터,Dicaprylyl Ether,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+375,zea_mays_corn_starch,옥수수전분,Zea Mays (Corn) Starch,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+379,fructooligosaccharides,프룩토올리고사카라이드,Fructooligosaccharides,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+383,ectoin,엑토인,Ectoin,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:17519560,35,Y,N,N
+385,salix_alba_willow_bark_extract,흰버드나무껍질추출물,Salix Alba (Willow) Bark Extract,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+386,gluconolactone,글루코노락톤,Gluconolactone,effect_acne_sebum,여드름·피지,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:1303072,25,Y,N,N
+386,gluconolactone,글루코노락톤,Gluconolactone,effect_moisture_barrier,보습·장벽,50,ai_paper_override,paper_supporting:50,,,supporting,PMID:37335807,35,Y,N,N
+389,acetyl_glucosamine,아세틸글루코사민,Acetyl Glucosamine,effect_brightening,미백·톤,70,ai_paper_override,paper_primary:70,,,primary,PMID:17348991,50,Y,N,N
+390,acetyl_hexapeptide_8,아세틸헥사펩타이드-8,Acetyl Hexapeptide-8,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+391,butylene_glycol_dicaprylate_dicaprate,부틸렌글라이콜다이카프릴레이트/다이카프레이트,Butylene Glycol Dicaprylate/Dicaprate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+396,euphorbia_cerifera_candelilla_wax,칸데릴라왁스,Euphorbia Cerifera (Candelilla) Wax,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N
+399,dibutyl_adipate,다이부틸아디페이트,Dibutyl Adipate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+401,hydrogenated_olive_oil_unsaponifiables,하이드로제네이티드올리브오일불검화물,Hydrogenated Olive Oil Unsaponifiables,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+407,fructose,프룩토오스,Fructose,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+415,zinc_oxide,징크옥사이드,Zinc Oxide,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+421,hydrolyzed_glycosaminoglycans,하이드롤라이즈드글라이코사미노글리칸,Hydrolyzed Glycosaminoglycans,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+424,oenothera_biennis_evening_primrose_oil,달맞이꽃오일,Oenothera Biennis (Evening Primrose) Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+428,copernicia_cerifera_carnauba_wax,카나우바왁스,Copernicia Cerifera (Carnauba) Wax,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+436,cetyl_palmitate,세틸팔미테이트,Cetyl Palmitate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+439,propylene_glycol_dicaprylate_dicaprate,프로필렌글라이콜다이카프릴레이트/다이카프레이트,Propylene Glycol Dicaprylate/Dicaprate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+441,algae_extract,조류추출물,Algae Extract,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+442,tridecyl_trimellitate,트라이데실트라이멜리테이트,Tridecyl Trimellitate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+444,avena_sativa_oat_kernel_extract,귀리커넬추출물,Avena Sativa (Oat) Kernel Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+445,diisopropyl_sebacate,다이아이소프로필세바케이트,Diisopropyl Sebacate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+446,neopentyl_glycol_diheptanoate,네오펜틸글라이콜다이헵타노에이트,Neopentyl Glycol Diheptanoate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+448,erythritol,에리스리톨,Erythritol,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+MOISTURISING,,,0,Y,N,N
+449,laminaria_saccharina_extract,슈가켈프추출물,Laminaria Saccharina Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+451,helianthus_annuus_sunflower_extract,해바라기추출물,Helianthus Annuus (Sunflower) Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+455,bakuchiol,바쿠치올,Bakuchiol,effect_acne_sebum,여드름·피지,35,ai_paper_override,paper_limited_medical:35,,,limited_medical,PMID:33683079,25,Y,N,N
+455,bakuchiol,바쿠치올,Bakuchiol,effect_brightening,미백·톤,70,ai_paper_override,paper_primary:70,,,primary,DOI:10.1111/jocd.71000,50,Y,N,N
+455,bakuchiol,바쿠치올,Bakuchiol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+455,bakuchiol,바쿠치올,Bakuchiol,effect_wrinkle,주름·탄력,70,ai_paper_override,paper_primary:70,,,primary,DOI:10.1111/jocd.71000,50,Y,N,N
+457,peg_8,피이지-8,PEG-8,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+458,methyl_gluceth_20,메틸글루세스-20,Methyl Gluceth-20,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT+MOISTURISING,,,0,Y,N,N
+460,ficus_carica_fig_fruit_extract,무화과추출물,Ficus Carica (Fig) Fruit Extract,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+461,hydrolyzed_silk,하이드롤라이즈드실크,Hydrolyzed Silk,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+471,glyceryl_glucoside,글리세릴글루코사이드,Glyceryl Glucoside,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+474,tridecane,트라이데케인,Tridecane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+475,pantolactone,판토락톤,Pantolactone,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+478,arachidyl_alcohol,아라키딜알코올,Arachidyl Alcohol,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+481,laminaria_japonica_extract,다시마추출물,Laminaria Japonica Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+482,vaccinium_angustifolium_blueberry_fruit_extract,로우스위트블루베리추출물,Vaccinium Angustifolium (Blueberry) Fruit Extract,effect_calming,진정,33,official_function_prior,legacy_axis_floor:33,high,SOOTHING,,,0,Y,N,N
+482,vaccinium_angustifolium_blueberry_fruit_extract,로우스위트블루베리추출물,Vaccinium Angustifolium (Blueberry) Fruit Extract,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN PROTECTING,,,0,Y,N,N
+483,oryza_sativa_rice_bran_oil,쌀겨오일,Oryza Sativa (Rice) Bran Oil,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+486,pentaerythrityl_tetraethylhexanoate,펜타에리스리틸테트라에틸헥사노에이트,Pentaerythrityl Tetraethylhexanoate,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT,,,0,Y,N,N
+488,diglycerin,다이글리세린,Diglycerin,effect_moisture_barrier,보습·장벽,32,official_function_prior,legacy_axis_floor:32,high,HUMECTANT,,,0,Y,N,N
+491,c9_12_alkane,C9-12알케인,C9-12 Alkane,effect_moisture_barrier,보습·장벽,30,official_function_prior,legacy_global_floor:30,medium,SKIN CONDITIONING - EMOLLIENT+SKIN CONDITIONING - OCCLUSIVE,,,0,Y,N,N

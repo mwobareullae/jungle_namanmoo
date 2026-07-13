@@ -29,7 +29,7 @@ from app.services.scoring_policy import (
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v4_review_personalization"
+SCORING_VERSION = "v5_legacy_scale_500"
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
 FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
@@ -2814,7 +2814,13 @@ def _build_score_evidence(
             ingredient = contribution.ingredient
             evidence = ingredient.evidence
             contribution_score = _round_component(contribution.effect_component)
-            reason = f"{ingredient.ingredient_name} 성분이 {ingredient.effect_name} 효능에 기여"
+            if evidence is None:
+                reason = (
+                    f"{ingredient.ingredient_name} 성분이 공식 성분 기능 분류 기반 "
+                    f"{ingredient.effect_name} 점수에 기여"
+                )
+            else:
+                reason = f"{ingredient.ingredient_name} 성분이 {ingredient.effect_name} 효능 근거에 기여"
             score_evidence.append(
                 ScoreEvidence(
                     ingredient_id=ingredient.ingredient_id,
@@ -2840,6 +2846,11 @@ def _build_reason_summary(score_evidence: tuple[ScoreEvidence, ...]) -> str:
         return "검색 조건과 상품 정보를 기준으로 추천 후보에 포함됐습니다."
 
     top = score_evidence[0]
+    if top.evidence_id is None:
+        return (
+            f"{top.ingredient_name} 성분이 공식 성분 기능 분류 기반 "
+            f"{top.effect_name} 점수에 가장 크게 기여했습니다."
+        )
     return f"{top.ingredient_name} 성분이 {top.effect_name} 효능 근거에 가장 크게 기여했습니다."
 
 
