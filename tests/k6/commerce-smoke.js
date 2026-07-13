@@ -29,6 +29,8 @@ const SUGGESTION_QUERIES = (__ENV.SUGGESTION_QUERIES || "토리,라운,수분,�
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const SEARCH_FEATURE_FILTER = __ENV.SEARCH_FEATURE_FILTER || "moisturizing_calming";
+const SEARCH_SKIN_TYPE_FILTER = __ENV.SEARCH_SKIN_TYPE_FILTER || "dehydrated_oily";
 const NARRATIVE_ENABLED =
   (__ENV.NARRATIVE || __ENV.ENABLE_RECOMMENDATION_NARRATIVE || "true").toLowerCase() === "true";
 const NARRATIVE_USE_LLM = (__ENV.NARRATIVE_USE_LLM || "false").toLowerCase() === "true";
@@ -90,6 +92,8 @@ export const options = {
     "http_req_duration{type:fast}": [`p(95)<${SLA_MS}`],
     "http_req_duration{type:home}": [`p(95)<${SLA_MS}`],
     "http_req_duration{type:search}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:catalog_listing}": [`p(95)<${SLA_MS}`],
+    "http_req_duration{type:product_reviews}": [`p(95)<${SLA_MS}`],
     "http_req_duration{type:catalog_search}": [`p(95)<${CATALOG_SEARCH_SLA_MS}`],
     "http_req_duration{type:catalog_suggestions}": [`p(95)<${CATALOG_SUGGESTIONS_SLA_MS}`],
     ...(CART_WRITES_ENABLED ? { "http_req_duration{type:write}": [`p(95)<${SLA_MS}`] } : {}),
@@ -171,6 +175,22 @@ export function catalogSearchJourney() {
     });
   });
 
+  group("catalog_product_search_filtered", () => {
+    const query = pick(SEARCH_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/search/products?q=${encodeURIComponent(query)}` +
+        `&feature=${encodeURIComponent(SEARCH_FEATURE_FILTER)}` +
+        `&skin_type=${encodeURIComponent(SEARCH_SKIN_TYPE_FILTER)}` +
+        "&page=1&page_size=20",
+      { tags: { endpoint: "catalog_product_search_filtered", type: "catalog_search" } },
+    );
+    debugFailedResponse("catalog_product_search_filtered", response);
+    check(response, {
+      "filtered catalog product search 200": (res) => res.status === 200,
+      "filtered catalog product search contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
   group("catalog_search_suggestions", () => {
     const query = pick(SUGGESTION_QUERIES);
     const response = http.get(
@@ -206,6 +226,30 @@ export function userJourney(data) {
     }
   });
 
+  group("product_listing_newest", () => {
+    const response = http.get(
+      `${BASE_URL}/products?page=1&page_size=20&sort=newest&in_stock=true`,
+      { tags: { endpoint: "product_listing_newest", type: "catalog_listing" } },
+    );
+    debugFailedResponse("product_listing_newest", response);
+    check(response, {
+      "newest product listing 200": (res) => res.status === 200,
+      "newest product listing contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
+  group("product_listing_filtered", () => {
+    const response = http.get(
+      `${BASE_URL}/products?page=1&page_size=20&sort=popular&min_rating=4&in_stock=true`,
+      { tags: { endpoint: "product_listing_filtered", type: "catalog_listing" } },
+    );
+    debugFailedResponse("product_listing_filtered", response);
+    check(response, {
+      "filtered product listing 200": (res) => res.status === 200,
+      "filtered product listing contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
   const detailProductId = pick(popularProductIds.length ? popularProductIds : data.productIds);
   group("product_detail", () => {
     const response = http.get(`${BASE_URL}/products/${encodeURIComponent(detailProductId)}`, {
@@ -218,6 +262,31 @@ export function userJourney(data) {
     });
   });
 
+  group("product_reviews_latest", () => {
+    const response = http.get(
+      `${BASE_URL}/products/${encodeURIComponent(detailProductId)}/reviews?limit=20&sort=latest`,
+      { tags: { endpoint: "product_reviews_latest", type: "product_reviews" } },
+    );
+    debugFailedResponse("product_reviews_latest", response);
+    check(response, {
+      "latest product reviews 200": (res) => res.status === 200,
+      "latest product reviews contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
+  group("product_reviews_skin_filtered", () => {
+    const response = http.get(
+      `${BASE_URL}/products/${encodeURIComponent(detailProductId)}/reviews` +
+        `?limit=20&sort=helpful&skin_type=${encodeURIComponent("건성")}`,
+      { tags: { endpoint: "product_reviews_skin_filtered", type: "product_reviews" } },
+    );
+    debugFailedResponse("product_reviews_skin_filtered", response);
+    check(response, {
+      "skin filtered product reviews 200": (res) => res.status === 200,
+      "skin filtered product reviews contract": (res) => Array.isArray(parseJson(res)?.items),
+    });
+  });
+
   group("product_search", () => {
     const query = pick(SEARCH_QUERIES);
     const response = http.get(
@@ -227,6 +296,22 @@ export function userJourney(data) {
     debugFailedResponse("product_search", response);
     check(response, {
       "product search 200": (res) => res.status === 200,
+    });
+  });
+
+  group("product_search_filtered", () => {
+    const query = pick(SEARCH_QUERIES);
+    const response = http.get(
+      `${BASE_URL}/search/products?q=${encodeURIComponent(query)}` +
+        `&feature=${encodeURIComponent(SEARCH_FEATURE_FILTER)}` +
+        `&skin_type=${encodeURIComponent(SEARCH_SKIN_TYPE_FILTER)}` +
+        "&page=1&page_size=20",
+      { tags: { endpoint: "catalog_product_search_filtered", type: "catalog_search" } },
+    );
+    debugFailedResponse("product_search_filtered", response);
+    check(response, {
+      "filtered product search 200": (res) => res.status === 200,
+      "filtered product search contract": (res) => Array.isArray(parseJson(res)?.items),
     });
   });
 
@@ -317,10 +402,11 @@ export function userJourney(data) {
   let recommendationId = null;
   let recommendedProductIds = [];
   group("recommendations_post", () => {
-    const payload = JSON.stringify(pick(RECOMMENDATION_CASES));
+    const recommendationCase = pick(RECOMMENDATION_CASES);
+    const payload = JSON.stringify(recommendationCase);
     const response = http.post(`${BASE_URL}/recommendations?page=1&page_size=10`, payload, {
       headers: { "Content-Type": "application/json" },
-      tags: { endpoint: "recommendations_post", type: "search" },
+      tags: { endpoint: "recommendations_post_anonymous", type: "search" },
     });
     const body = parseJson(response);
     debugFailedResponse("recommendations_post", response);
@@ -331,6 +417,22 @@ export function userJourney(data) {
     if (ok) {
       recommendationId = body?.recommendation_id || null;
       recommendedProductIds = body?.products?.map((product) => product.product_id).filter(Boolean) || [];
+    }
+
+    if (AUTH_COOKIE) {
+      const authResponse = http.post(`${BASE_URL}/recommendations?page=1&page_size=10`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: AUTH_COOKIE,
+        },
+        tags: { endpoint: "recommendations_post_auth", type: "search" },
+      });
+      const authBody = parseJson(authResponse);
+      debugFailedResponse("recommendations_post_auth", authResponse);
+      check(authResponse, {
+        "authenticated recommend 200": (res) => res.status === 200,
+        "authenticated recommend has products": () => (authBody?.products || []).length > 0,
+      });
     }
   });
 

@@ -1,10 +1,13 @@
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import HomeProductCard from "../../components/HomeProductCard";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import { api } from "../../lib/api";
 import { getProductImageUrl } from "../../lib/imageUrls";
 import { cancelOrder, getOrderDetail } from "../../lib/orderApi";
 import type { OrderDetailResponse } from "../../types/order";
+import type { ProductCardItem } from "../../types/recommendation";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
 const statusLabelMap: Record<string, string> = {
@@ -64,6 +67,7 @@ export default function OrderDetail() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelErrorMessage, setCancelErrorMessage] = useState("");
+  const [recommendedProducts, setRecommendedProducts] = useState<ProductCardItem[]>([]);
 
   const loadOrderDetail = useCallback(async () => {
     if (!orderCode) {
@@ -78,6 +82,28 @@ export default function OrderDetail() {
     try {
       const response = await getOrderDetail(orderCode);
       setOrder(response);
+      const recommendations = await api.getForYou({ limit: 8 }).catch(() => null);
+      if (recommendations) {
+        const orderedProductIds = new Set(response.items.map((item) => item.product_id));
+        setRecommendedProducts(
+          recommendations.products
+            .filter((item) => !orderedProductIds.has(item.product_id))
+            .map((item, index) => ({
+              product_id: item.product_id,
+              rank: index + 1,
+              total_score: item.display_score,
+              reason_summary: item.reason_summary,
+              brand: item.brand,
+              name: item.name,
+              thumbnail_url: item.thumbnail_url,
+              lowest_price: item.lowest_price,
+              evidence_tags: item.tags,
+              key_ingredients: [],
+              risk_flags: [],
+              in_stock: true
+            }))
+        );
+      }
     } catch (error) {
       setOrder(null);
       setErrorMessage(error instanceof Error ? error.message : "주문 상세를 불러오지 못했습니다.");
@@ -140,6 +166,7 @@ export default function OrderDetail() {
           </button>
         </section>
       ) : order ? (
+        <>
         <div style={styles.detailGrid}>
           <section style={styles.card} aria-labelledby="orderInfoTitle">
             <div style={styles.cardHeader}>
@@ -238,6 +265,20 @@ export default function OrderDetail() {
             </div>
           </section>
         </div>
+        {recommendedProducts.length > 0 ? (
+          <section className="order-detail-recommendations" aria-labelledby="orderRecommendationsTitle" style={styles.recommendationCard}>
+            <div style={styles.cardHeader}>
+              <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
+              <span style={styles.cardCount}>맞춤 추천</span>
+            </div>
+            <div className="product-grid order-detail-recommendations__grid">
+              {recommendedProducts.slice(0, 4).map((product) => (
+                <HomeProductCard key={product.product_id} product={product} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+        </>
       ) : null}
       {cancelErrorMessage ? <p style={styles.cancelError} role="alert">{cancelErrorMessage}</p> : null}
       <ConfirmModal
@@ -318,6 +359,13 @@ const styles: Record<string, CSSProperties> = {
   detailGrid: {
     display: "grid",
     gap: 18
+  },
+  recommendationCard: {
+    marginTop: 18,
+    padding: 24,
+    border: "1px solid #eeeeee",
+    borderRadius: 18,
+    background: "#ffffff"
   },
   card: {
     padding: 24,
@@ -410,7 +458,7 @@ const styles: Record<string, CSSProperties> = {
   thumbnail: {
     width: 88,
     height: 88,
-    borderRadius: 14,
+    borderRadius: 8,
     background: "#f7f8f9",
     overflow: "hidden"
   },
