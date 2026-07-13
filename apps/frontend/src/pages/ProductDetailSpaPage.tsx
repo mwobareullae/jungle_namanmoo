@@ -905,22 +905,6 @@ function ProductDetailSpaPage() {
   const hasProductReviews = reviewSummary.totalCount > 0 || productReviews.length > 0;
   const currentReviewPage = reviewPage;
 
-  useEffect(() => {
-    if (isReviewLoading || hasProductReviews || activeTab !== "#reviews") {
-      return undefined;
-    }
-
-    const animationFrame = window.requestAnimationFrame(() => {
-      setActiveTab("#description");
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}${window.location.search}#description`,
-      );
-    });
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [activeTab, hasProductReviews, isReviewLoading]);
-
   const handleGoBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -1249,9 +1233,7 @@ function ProductDetailSpaPage() {
             <nav className="detail-tabs" aria-label="상품 상세 탭">
               <a className={tabClassName("#description")} href="#description" onClick={handleTabClick("#description")}>상품 설명</a>
               <a className={tabClassName("#ingredients")} href="#ingredients" onClick={handleTabClick("#ingredients")}>성분</a>
-              {hasProductReviews ? (
-                <a className={tabClassName("#reviews")} href="#reviews" onClick={handleTabClick("#reviews")}>리뷰</a>
-              ) : null}
+              <a className={tabClassName("#reviews")} href="#reviews" onClick={handleTabClick("#reviews")}>리뷰</a>
               <a className={tabClassName("#qna")} href="#qna" onClick={handleTabClick("#qna")}>QnA</a>
             </nav>
 
@@ -1505,7 +1487,7 @@ function ProductDetailSpaPage() {
                   ) : null}
                 </div>
               </section>
-              {hasProductReviews ? <section className={panelClassName("#reviews")} id="reviews">
+              <section className={panelClassName("#reviews")} id="reviews">
                 <div className="product-review-head">
                   <div>
                     <h2>리뷰</h2>
@@ -1761,8 +1743,8 @@ function ProductDetailSpaPage() {
                     })
                   ) : (
                     <div className="product-review-empty">
-                      <strong>조건에 맞는 리뷰가 없습니다.</strong>
-                      <p>필터를 조금 넓혀서 다시 확인해보세요.</p>
+                      <strong>{hasProductReviews ? "조건에 맞는 리뷰가 없습니다." : "리뷰가 없습니다."}</strong>
+                      <p>{hasProductReviews ? "필터를 조금 넓혀서 다시 확인해보세요." : "등록된 리뷰가 아직 없습니다."}</p>
                     </div>
                   )}
                 </div>
@@ -1801,7 +1783,7 @@ function ProductDetailSpaPage() {
                   </div>
                 ) : null}
 
-              </section> : null}
+              </section>
 
               <section className={panelClassName("#qna")} id="qna">
                 <h2>QnA</h2>

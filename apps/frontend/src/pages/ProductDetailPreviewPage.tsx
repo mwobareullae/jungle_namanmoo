@@ -11,6 +11,7 @@ import { useAuth } from "../contexts/useAuth";
 import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { addCartItem } from "../lib/cartApi";
+import { navigateWithinApp } from "../lib/navigation";
 import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type { ProductReview } from "../hooks/useProductReviews";
 import HeartIcon from "../components/ui/HeartIcon";
@@ -62,6 +63,7 @@ function ProductDetailPreviewPage() {
   const [reviewRepurchase, setReviewRepurchase] = useState(false);
   const [reviewSkinType, setReviewSkinType] = useState("");
   const [reviewCursor, setReviewCursor] = useState<string | null>(null);
+  const [isPurchasePending, setIsPurchasePending] = useState(false);
   const { user } = useAuth();
   const { message: toastMessage, showToast } = useActivityToast();
   const reviewApi = useProductReviewsApi(product?.product_id, product?.review_summary, {
@@ -73,11 +75,12 @@ function ProductDetailPreviewPage() {
   });
   const hasProductReviews = (product?.review_summary?.review_count ?? 0) > 0 || reviewApi.reviews.length > 0;
   const hasAiRecommendationSummary = Boolean(recommendationId && product?.reason_summary?.trim());
+  const hasScoreAnalysis = Boolean(product?.score_breakdown);
   const visibleTabs = useMemo(
     () => tabs
       .map((label, index) => ({ index, label }))
-      .filter((tab) => tab.index !== 2 || hasProductReviews),
-    [hasProductReviews],
+      .filter((tab) => tab.index !== 3 || hasScoreAnalysis),
+    [hasScoreAnalysis],
   );
 
   useEffect(() => {
@@ -169,18 +172,48 @@ function ProductDetailPreviewPage() {
     }
   };
 
-  const handlePurchase = () => {
-    if (product?.purchase_url) window.location.assign(product.purchase_url);
-    else showToast("구매 가능한 상품 URL이 없습니다.");
+  const handlePurchase = async () => {
+    if (!product || isPurchasePending) return;
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+    if (product.purchase_info && !product.purchase_info.can_purchase) {
+      showToast("현재 구매할 수 없는 상품입니다.");
+      return;
+    }
+
+    setIsPurchasePending(true);
+    try {
+      const updatedCart = await addCartItem({
+        product_id: product.product_id,
+        quantity,
+        source: "product_detail",
+        recommendation_id: recommendationId,
+      });
+      window.dispatchEvent(new Event("cart:updated"));
+      const checkoutItem = updatedCart.items.find((item) => item.product_id === product.product_id);
+      if (!checkoutItem) throw new Error("주문서로 이동할 상품을 찾지 못했습니다.");
+      await navigateWithinApp(`/checkout?cart_item_ids=${checkoutItem.id}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "구매하기 처리에 실패했습니다.");
+    } finally {
+      setIsPurchasePending(false);
+    }
   };
 
   const handleAddToCart = async () => {
     if (!product) return;
     try {
-      await addCartItem({ product_id: product.product_id, quantity, source: "product_detail_preview" });
+      await addCartItem({
+        product_id: product.product_id,
+        quantity,
+        source: "product_detail",
+        recommendation_id: recommendationId,
+      });
       window.dispatchEvent(new Event("cart:updated"));
       showToast("장바구니에 담았습니다.");
-      window.location.assign("/cart");
+      await navigateWithinApp("/cart");
     } catch {
       showToast("장바구니 담기에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
@@ -198,8 +231,9 @@ function ProductDetailPreviewPage() {
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]) {
-          const nextIndex = sections.indexOf(visible[0].target as HTMLElement);
-          if (nextIndex >= 0) setActiveTab(nextIndex);
+          const sectionId = (visible[0].target as HTMLElement).id;
+          const nextIndex = Number(sectionId.replace("preview-", ""));
+          if (Number.isInteger(nextIndex)) setActiveTab(nextIndex);
         }
       },
       { rootMargin: "-88px 0px -55% 0px", threshold: 0.1 },
@@ -210,13 +244,13 @@ function ProductDetailPreviewPage() {
   }, [visibleTabs]);
 
   useEffect(() => {
-    if (hasProductReviews || activeTab !== 2) return undefined;
+    if (hasScoreAnalysis || activeTab !== 3) return undefined;
     const animationFrame = window.requestAnimationFrame(() => {
       setActiveTab(0);
       window.history.replaceState(null, "", "#preview-0");
     });
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [activeTab, hasProductReviews]);
+  }, [activeTab, hasScoreAnalysis]);
 
   const handleTabClick = (event: MouseEvent<HTMLAnchorElement>, index: number) => {
     event.preventDefault();
@@ -225,6 +259,17 @@ function ProductDetailPreviewPage() {
     setActiveTab(index);
     window.history.replaceState(null, "", `#preview-${index}`);
     window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
+  };
+
+  const handleShowAllReviews = () => {
+    const reviewSection = document.getElementById("preview-2");
+    if (!reviewSection) return;
+    setActiveTab(2);
+    window.history.replaceState(null, "", "#preview-2");
+    window.scrollTo({
+      top: reviewSection.getBoundingClientRect().top + window.scrollY - 88,
+      behavior: "smooth",
+    });
   };
 
   const reviewSummary = product?.review_summary;
@@ -264,24 +309,24 @@ function ProductDetailPreviewPage() {
           <div className="naver-preview-single-price"><span>판매가</span><strong>{product?.lowest_price?.toLocaleString() ?? "-"}{product?.lowest_price !== null && product?.lowest_price !== undefined ? "원" : ""}</strong></div>
           <div className="naver-preview-info-row naver-preview-brand-row"><b>브랜드</b><a href={`/brand/${encodeURIComponent(product?.brand ?? "믹순")}`}><span>{product?.brand ?? "믹순"} <CaretRightIcon size={14} /></span></a></div>
           {hasAiRecommendationSummary ? <section className="naver-preview-ai-summary"><h2>AI 추천 요약</h2><strong>내 피부 고민 기준 추천 근거예요</strong><b className="naver-preview-ai-score">{Math.round(product?.total_score ?? 0)}점</b><p>{product?.reason_summary}</p>{product?.score_breakdown?.concentration_warning ? <div className="naver-preview-ai-notice"><span aria-hidden="true">i</span>{product.score_breakdown.concentration_warning}</div> : null}</section> : null}
-          <div className="naver-preview-buy-grid"><button className="buy" type="button" onClick={handlePurchase}>구매하기</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜하기</button><button data-agent-cart-target type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div>
+          <div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending} type="button" onClick={() => void handlePurchase()}>{isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜하기</button><button data-agent-cart-target type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div>
         </div>
       </section>
 
-      {(!recommendationId && hasProductReviews) || (recommendationId && product) ? <section className="naver-preview-review-strip">{!recommendationId && hasProductReviews ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button">리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section> : null}
+      {(!recommendationId && hasProductReviews) || (recommendationId && product) ? <section className="naver-preview-review-strip">{!recommendationId && hasProductReviews ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button" onClick={handleShowAllReviews}>리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section> : null}
 
       <nav className="naver-preview-tabs">{visibleTabs.map((tab) => <a className={tab.index === activeTab ? "active" : ""} href={`#preview-${tab.index}`} key={tab.label} onClick={(event) => handleTabClick(event, tab.index)}>{tab.label}</a>)}</nav>
       <section className="naver-preview-detail-layout">
         <div className="naver-preview-detail-main">
           <div className="naver-preview-warning">ⓘ 판매자 안내 및 현금 결제, 개인정보 유도 시 결제/입력하지 마시고 즉시 신고해주세요.</div>
           <article id="preview-0"><h2>상세정보</h2>{product?.image_urls?.length ? <><div className={`naver-preview-detail-images${isDetailsExpanded ? " is-expanded" : ""}`}>{product.image_urls.slice(1).map((imageUrl) => <img key={imageUrl} src={imageUrl} alt={`${product.name} 상세 이미지`} />)}</div>{product.image_urls.length > 2 ? <button className="naver-preview-detail-expand" type="button" onClick={() => setIsDetailsExpanded((expanded) => !expanded)}>{isDetailsExpanded ? "상세정보 접기" : "상세정보 펼쳐보기"}{isDetailsExpanded ? <CaretUpIcon size={24} /> : <CaretDownIcon size={24} />}</button> : null}</> : <div className="naver-preview-empty">상세 이미지를 불러오는 중입니다.</div>}</article>
-          {brandProducts.length ? <section className="naver-preview-brand-products" aria-label="같은 브랜드 상품"><div className="naver-preview-brand-products-head"><h2>이 브랜드의 다른 상품</h2><a href={`/brand/${encodeURIComponent(product?.brand ?? "")}`}>더보기</a></div><div className="naver-preview-brand-product-grid">{brandProducts.map((item) => { const isWished = wishedProductIds.has(item.product_id); return <a className="naver-preview-brand-product-card" href={`/product-detail-preview?id=${encodeURIComponent(item.product_id)}`} key={item.product_id}><div className="naver-preview-brand-product-image">{item.thumbnail_url ? <img src={getProductImageUrl(item.thumbnail_url, "w400")} alt={item.name} /> : <span>이미지 없음</span>}<button className={`naver-preview-brand-wishlist${isWished ? " is-wished" : ""}`} type="button" aria-label={isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`} aria-pressed={isWished} disabled={pendingWishlistProductIds.has(item.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(item.product_id); }}><HeartIcon size={12} /></button></div><strong>{item.brand}</strong><p>{item.name}</p>{item.lowest_price !== null ? <b>{item.lowest_price.toLocaleString("ko-KR")}원</b> : <b>가격 정보 없음</b>}</a>; })}</div></section> : null}
+          {brandProducts.length ? <section className="naver-preview-brand-products" aria-label="같은 브랜드 상품"><div className="naver-preview-brand-products-head"><h2>이 브랜드의 다른 상품</h2><a href={`/brand/${encodeURIComponent(product?.brand ?? "")}`}>더보기</a></div><div className="naver-preview-brand-product-grid">{brandProducts.map((item) => { const isWished = wishedProductIds.has(item.product_id); return <a className="naver-preview-brand-product-card" href={`/product-detail?id=${encodeURIComponent(item.product_id)}`} key={item.product_id}><div className="naver-preview-brand-product-image">{item.thumbnail_url ? <img src={getProductImageUrl(item.thumbnail_url, "w400")} alt={item.name} /> : <span>이미지 없음</span>}<button className={`naver-preview-brand-wishlist${isWished ? " is-wished" : ""}`} type="button" aria-label={isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`} aria-pressed={isWished} disabled={pendingWishlistProductIds.has(item.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(item.product_id); }}><HeartIcon size={12} /></button></div><strong>{item.brand}</strong><p>{item.name}</p>{item.lowest_price !== null ? <b>{item.lowest_price.toLocaleString("ko-KR")}원</b> : <b>가격 정보 없음</b>}</a>; })}</div></section> : null}
           <article id="preview-1" className="naver-preview-ingredients"><h2>성분정보</h2><div className="naver-preview-ingredient-block"><h3>전성분</h3><div className="naver-preview-ingredient-copy">{product?.ingredients?.length ? product.ingredients.map((ingredient, index) => <span key={`${ingredient.name}-${index}`}>{ingredient.name}{index < product.ingredients.length - 1 ? ", " : ""}</span>) : <span className="naver-preview-empty-copy">성분 정보를 불러오는 중입니다.</span>}</div>{product?.ingredients?.length ? <p className="naver-preview-ingredient-note">해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.</p> : null}</div><div className="naver-preview-ingredient-block"><h3>성분 근거</h3>{ingredientEvidenceGroups.length ? <div className="naver-preview-evidence-grid">{ingredientEvidenceGroups.map((group) => <button aria-pressed={selectedEvidenceEffect === group.effect} className={`naver-preview-evidence-card${selectedEvidenceEffect === group.effect ? " is-selected" : ""}`} key={group.effect} type="button" onClick={() => setSelectedEvidenceEffect(group.effect)}><div className="naver-preview-evidence-icon" aria-hidden="true"><EvidenceIcon icon={getEvidenceIconKey(group.effect)} /></div><strong>{group.effect}</strong><span>관련 성분 {group.items.length}개</span></button>)}</div> : <div className="naver-preview-empty">표시할 성분 효능 근거가 없습니다.</div>}{selectedEvidenceEffect ? <div className="naver-preview-evidence-detail" role="dialog" aria-label={`${selectedEvidenceEffect} 성분 근거`}><div className="naver-preview-evidence-detail-head"><div><span>선택한 근거</span><strong>{selectedEvidenceEffect}</strong></div><button type="button" aria-label="성분 근거 닫기" onClick={() => setSelectedEvidenceEffect(null)}>×</button></div>{ingredientEvidenceGroups.find((group) => group.effect === selectedEvidenceEffect)?.items.map((evidence) => <div className="naver-preview-evidence-detail-item" key={`${evidence.ingredient_name}-${evidence.source_title}`}><strong>{evidence.ingredient_name}</strong><p>{evidence.evidence_text}</p>{evidence.source_title ? <small>출처: {evidence.source_title}</small> : null}</div>)}</div> : null}</div></article>
-          {hasProductReviews ? <article id="preview-2" className="naver-preview-reviews"><h2>리뷰</h2><div className="naver-preview-review-controls"><select aria-label="리뷰 정렬" value={reviewSort} onChange={(event) => { setReviewCursor(null); setReviewSort(event.target.value as typeof reviewSort); }}><option value="helpful">추천순</option><option value="latest">최신순</option><option value="rating_high">평점 높은순</option><option value="rating_low">평점 낮은순</option></select><select aria-label="리뷰 유형" value={reviewType} onChange={(event) => { setReviewCursor(null); setReviewType(event.target.value as typeof reviewType); }}><option value="ALL">전체 리뷰</option><option value="GENERAL">일반 리뷰</option><option value="MONTH_USE">한달 사용 리뷰</option></select><label><input type="checkbox" checked={reviewRepurchase} onChange={(event) => { setReviewCursor(null); setReviewRepurchase(event.target.checked); }} /> 재구매</label><select aria-label="피부 타입" value={reviewSkinType} onChange={(event) => { setReviewCursor(null); setReviewSkinType(event.target.value); }}><option value="">전체 피부 타입</option>{["건성", "지성", "복합성", "수부지", "중성", "민감성"].map((type) => <option value={type} key={type}>{type}</option>)}</select></div>{reviewApi.isLoading && reviewApi.reviews.length === 0 ? <div className="naver-preview-empty">리뷰를 불러오는 중입니다.</div> : null}{reviewApi.errorMessage ? <div className="naver-preview-empty">리뷰를 불러오지 못했습니다.</div> : null}<div className="naver-preview-review-list">{reviewApi.reviews.map((review: ProductReview) => <article className="naver-preview-review-card" key={review.id}><div className="naver-preview-review-card-head"><strong>{review.nickname}</strong><span><StarIcon size={14} /> {review.rating.toFixed(1)}</span></div><div className="naver-preview-review-meta">{review.skinType}{review.isRepurchase ? " · 재구매" : ""}{review.usedOverMonth ? " · 한달 사용" : ""} · {review.createdAt}</div><p>{review.body}</p>{review.photos.length ? <div className="naver-preview-review-photos">{review.photos.slice(0, 3).map((photo) => <img src={photo} alt="리뷰 첨부 이미지" key={photo} />)}</div> : null}<small>도움돼요 {review.likeCount}</small></article>)}</div>{reviewApi.hasNext && reviewApi.nextCursor ? <button className="naver-preview-review-more" type="button" onClick={() => setReviewCursor(reviewApi.nextCursor)}>다음 리뷰 보기</button> : null}</article> : null}
-          <article id="preview-3" className="naver-preview-score-analysis"><h2>점수분석</h2><div className="naver-preview-score-intro"><strong>이 상품을 추천한 근거를 확인해보세요</strong><span>{product?.reason_summary ?? "점수 분석을 준비 중입니다."}</span></div>{product?.score_breakdown ? <div className="naver-preview-score-grid">{Object.entries(scoreLabels).map(([key, label]) => { const value = product.score_breakdown?.[key as keyof typeof product.score_breakdown]; return typeof value === "number" ? <div className="naver-preview-score-card" key={key}><span>{label}</span><strong>{Math.round(value)}점</strong></div> : null; })}</div> : <div className="naver-preview-empty">점수 분석을 불러오는 중입니다.</div>}{product?.score_breakdown?.risk_penalty && product.score_breakdown.risk_penalty < 0 ? <div className="naver-preview-score-warning">주의 항목으로 {Math.abs(product.score_breakdown.risk_penalty)}점이 감점되었습니다.</div> : null}</article>
+          <article id="preview-2" className="naver-preview-reviews"><h2>리뷰</h2>{hasProductReviews ? <div className="naver-preview-review-controls"><select aria-label="리뷰 정렬" value={reviewSort} onChange={(event) => { setReviewCursor(null); setReviewSort(event.target.value as typeof reviewSort); }}><option value="helpful">추천순</option><option value="latest">최신순</option><option value="rating_high">평점 높은순</option><option value="rating_low">평점 낮은순</option></select><select aria-label="리뷰 유형" value={reviewType} onChange={(event) => { setReviewCursor(null); setReviewType(event.target.value as typeof reviewType); }}><option value="ALL">전체 리뷰</option><option value="GENERAL">일반 리뷰</option><option value="MONTH_USE">한달 사용 리뷰</option></select><label><input type="checkbox" checked={reviewRepurchase} onChange={(event) => { setReviewCursor(null); setReviewRepurchase(event.target.checked); }} /> 재구매</label><select aria-label="피부 타입" value={reviewSkinType} onChange={(event) => { setReviewCursor(null); setReviewSkinType(event.target.value); }}><option value="">전체 피부 타입</option>{["건성", "지성", "복합성", "수부지", "중성", "민감성"].map((type) => <option value={type} key={type}>{type}</option>)}</select></div> : null}{reviewApi.isLoading && reviewApi.reviews.length === 0 ? <div className="naver-preview-empty">리뷰를 불러오는 중입니다.</div> : null}{reviewApi.errorMessage ? <div className="naver-preview-empty">리뷰를 불러오지 못했습니다.</div> : null}{!reviewApi.isLoading && !reviewApi.errorMessage && reviewApi.reviews.length === 0 ? <div className="naver-preview-empty">{hasProductReviews ? "조건에 맞는 리뷰가 없습니다." : "리뷰가 없습니다."}</div> : null}<div className="naver-preview-review-list">{reviewApi.reviews.map((review: ProductReview) => <article className="naver-preview-review-card" key={review.id}><div className="naver-preview-review-card-head"><strong>{review.nickname}</strong><span><StarIcon size={14} /> {review.rating.toFixed(1)}</span></div><div className="naver-preview-review-meta">{review.skinType}{review.isRepurchase ? " · 재구매" : ""}{review.usedOverMonth ? " · 한달 사용" : ""} · {review.createdAt}</div><p>{review.body}</p>{review.photos.length ? <div className="naver-preview-review-photos">{review.photos.slice(0, 3).map((photo) => <img src={photo} alt="리뷰 첨부 이미지" key={photo} />)}</div> : null}<small>도움돼요 {review.likeCount}</small></article>)}</div>{reviewApi.hasNext && reviewApi.nextCursor ? <button className="naver-preview-review-more" type="button" onClick={() => setReviewCursor(reviewApi.nextCursor)}>다음 리뷰 보기</button> : null}</article>
+          {hasScoreAnalysis ? <article id="preview-3" className="naver-preview-score-analysis"><h2>점수분석</h2><div className="naver-preview-score-intro"><strong>이 상품을 추천한 근거를 확인해보세요</strong><span>{product?.reason_summary}</span></div><div className="naver-preview-score-grid">{Object.entries(scoreLabels).map(([key, label]) => { const value = product?.score_breakdown?.[key as keyof typeof product.score_breakdown]; return typeof value === "number" ? <div className="naver-preview-score-card" key={key}><span>{label}</span><strong>{Math.round(value)}점</strong></div> : null; })}</div>{product?.score_breakdown?.risk_penalty && product.score_breakdown.risk_penalty < 0 ? <div className="naver-preview-score-warning">주의 항목으로 {Math.abs(product.score_breakdown.risk_penalty)}점이 감점되었습니다.</div> : null}</article> : null}
           <article id="preview-4" className="naver-preview-qna"><h2>Q&amp;A</h2><details><summary>주의사항</summary><p>상품별 사용법과 성분 정보를 확인한 뒤 피부 상태에 맞게 사용해 주세요.</p></details><details><summary>배송 안내</summary><p>배송 정보와 도착 예정일은 주문 시점과 배송지에 따라 달라질 수 있습니다.</p></details><details><summary>교환·반품 안내</summary><p>교환·반품 조건은 상품 상태와 신청 시점에 따라 달라질 수 있습니다.</p></details></article>
         </div>
-        <aside className="naver-preview-sticky-buy"><div className="naver-preview-quantity"><b>수량 선택</b><div><button type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button type="button" aria-label="수량 늘리기" onClick={() => setQuantity((value) => value + 1)}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong>{((product?.lowest_price ?? 199000) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" type="button" onClick={handlePurchase}>구매하기</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button data-agent-cart-target type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
+        <aside className="naver-preview-sticky-buy"><div className="naver-preview-quantity"><b>수량 선택</b><div><button type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button type="button" aria-label="수량 늘리기" onClick={() => setQuantity((value) => value + 1)}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong>{((product?.lowest_price ?? 0) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending} type="button" onClick={() => void handlePurchase()}>{isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button data-agent-cart-target type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
       </section>
       <div className="naver-preview-floating"><button type="button" aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑</button></div>
       <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
