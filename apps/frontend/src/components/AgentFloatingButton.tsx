@@ -1110,6 +1110,7 @@ function AgentFloatingButton({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
   const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(readStoredMessages()));
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
@@ -1122,6 +1123,7 @@ function AgentFloatingButton({
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const teaserTimerRef = useRef<number | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
   const teaserVisibilityFrameRef = useRef<number | null>(null);
   const hasDismissedTeaserRef = useRef(false);
   const previousSurfaceRef = useRef(surface);
@@ -1324,6 +1326,12 @@ function AgentFloatingButton({
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen]);
+
+  useEffect(() => () => {
+    if (copyFeedbackTimerRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen || isSubmitting || typeof window === "undefined") {
@@ -1556,13 +1564,6 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       await applyAgentUiAction(response.ui_action);
-      if (action === "confirm" && approvalMessage.toolName === "compose_cart") {
-        setIsOpen(false);
-        await waitForAgentInteraction(260);
-        const cartTarget = findVisibleAgentTarget("[data-agent-cart-navigation-target]");
-        await playAgentClickInteraction(cartTarget);
-        await navigateWithinApp("/cart");
-      }
       const orderCode = readString(response.ui_action.payload.order_code);
       const orderStatus = readString(response.ui_action.payload.status);
       if (action === "confirm" && approvalMessage.toolName === "cancel_recent_order" && orderCode && orderStatus === "CANCEL_REQUESTED") {
@@ -1623,13 +1624,57 @@ function AgentFloatingButton({
     }
   };
 
-  const handleRegenerate = () => {
-    handleRetry(lastSentMessage);
+  const getMessagePrompt = (messageId: string) => {
+    const messageIndex = messages.findIndex((message) => message.id === messageId);
+    if (messageIndex < 0) return lastSentMessage;
+
+    for (let index = messageIndex - 1; index >= 0; index -= 1) {
+      const previousMessage = messages[index];
+      if (previousMessage.kind === "chat" && previousMessage.role === "user") {
+        return previousMessage.content;
+      }
+    }
+
+    return lastSentMessage;
   };
 
-  const handleCopyAnswer = (content: string) => {
-    if (typeof window !== "undefined" && window.navigator.clipboard) {
-      window.navigator.clipboard.writeText(content).catch(() => undefined);
+  const handleRegenerate = (messageId: string) => {
+    handleRetry(getMessagePrompt(messageId));
+  };
+
+  const handleCopyAnswer = async (messageId: string, content: string) => {
+    let copied = false;
+
+    if (typeof window !== "undefined" && window.navigator.clipboard?.writeText) {
+      try {
+        await window.navigator.clipboard.writeText(content);
+        copied = true;
+      } catch {
+        // Clipboard permission can be unavailable, so the DOM fallback runs below.
+      }
+    }
+
+    if (!copied && typeof document !== "undefined" && typeof document.execCommand === "function") {
+      const textarea = document.createElement("textarea");
+      textarea.value = content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      copied = document.execCommand("copy");
+      textarea.remove();
+    }
+
+    if (copied) {
+      setCopiedMessageId(messageId);
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+      copyFeedbackTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageId(null);
+        copyFeedbackTimerRef.current = null;
+      }, 1600);
     }
   };
 
@@ -1807,11 +1852,20 @@ function AgentFloatingButton({
             <button aria-label="별로예요" type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" transform="translate(0 3)" /></svg>
             </button>
-            <button aria-label="다시 생성" onClick={handleRegenerate} type="button">
+            <button aria-label="다시 생성" disabled={isSubmitting} onClick={() => handleRegenerate(message.id)} type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M25 12a10 10 0 1 0 1 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" /><path d="M25 6v6h-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="복사" onClick={() => handleCopyAnswer(message.content)} type="button">
-              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><rect height="15" rx="2" stroke="currentColor" strokeWidth="1.8" width="15" x="11" y="11" /><path d="M21 11V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" /></svg>
+            <button
+              aria-label={copiedMessageId === message.id ? "복사됨" : "복사"}
+              onClick={() => void handleCopyAnswer(message.id, message.content)}
+              title={copiedMessageId === message.id ? "복사됨" : "답변 복사"}
+              type="button"
+            >
+              {copiedMessageId === message.id ? (
+                <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="m7 16 6 6L25 10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>
+              ) : (
+                <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><rect height="15" rx="2" stroke="currentColor" strokeWidth="1.8" width="15" x="11" y="11" /><path d="M21 11V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" /></svg>
+              )}
             </button>
           </div>
         </>
