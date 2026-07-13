@@ -921,6 +921,7 @@ function AgentFloatingButton({
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatPopupRef = useRef<HTMLElement | null>(null);
+  const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const teaserRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
@@ -1188,11 +1189,16 @@ function AgentFloatingButton({
     }
 
     const animationFrame = window.requestAnimationFrame(() => {
-      threadEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      const chatBody = chatBodyRef.current;
+      if (chatBody) {
+        chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "auto" });
+      } else {
+        threadEndRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+      }
     });
 
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [isOpen, isThreadView, messages]);
+  }, [isOpen, isSubmitting, isThreadView, messages]);
 
   const appendMessages = (nextMessages: AgentChatMessage[]) => {
     setMessages((currentMessages) => [...currentMessages, ...nextMessages].slice(-MAX_STORED_AGENT_MESSAGES));
@@ -1586,7 +1592,7 @@ function AgentFloatingButton({
               ) : null}
             </div>
 
-            <div className="agent-chat-popup__body">
+            <div className="agent-chat-popup__body" ref={chatBodyRef}>
               {isThreadView ? (
                 <div className="agent-chat-thread" aria-live="polite">
                   {messages.map((message) => renderMessage(message))}
