@@ -952,6 +952,15 @@ const findVisibleAgentTarget = (selector: string) => Array.from(document.querySe
     return rect.width > 0 && rect.height > 0;
   }) ?? null;
 
+const renderInlineMarkdown = (content: string) => content
+  .split(/(\*\*[^*]+\*\*)/g)
+  .filter(Boolean)
+  .map((part, index) => (
+    part.startsWith("**") && part.endsWith("**")
+      ? <strong key={`${index}-${part}`}>{part.slice(2, -2)}</strong>
+      : part
+  ));
+
 const resolveAgentInteractionTarget = (action: AgentUiAction) => {
   if (typeof document === "undefined") return null;
   if (action.type === "show_cart") return findVisibleAgentTarget("[data-agent-cart-target]");
@@ -1724,7 +1733,9 @@ function AgentFloatingButton({
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
       <div className={`agent-chat-message-line ${message.role}`}>
         {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat.png" /> : null}
-        <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
+        <div className={`agent-chat-message ${message.role}`}>
+          {message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content}
+        </div>
       </div>
       {message.role === "assistant" && message.showActions ? (
         <>
