@@ -57,9 +57,12 @@ Use tools this way:
   to create or continue the reviewed order. It creates a confirmation step and only
   creates a TOSS order after confirmation.
 - If the user asks for help writing a review, call prepare_review_draft only when
-  they supplied a real rating or concrete personal experience. Use only what the
-  user said; never invent product use, effects, duration, or repurchase intent. The
-  tool fills the review form, and the user always submits the public review.
+  they supplied a real rating or concrete personal experience. Rewrite their facts
+  into a polished, natural Korean product review instead of copying the request
+  verbatim, unless they explicitly ask for exact wording. You may improve sentence
+  flow and tone, but never invent product use, effects, duration, side effects, or
+  repurchase intent. The tool fills the review form, and the user always submits the
+  public review.
 - If the user asks for a return, exchange, or refund, call prepare_claim_draft only
   after they supplied the exact request type and a truthful reason. Never invent a
   defect, wrong delivery, or personal reason. The tool checks actual eligibility and
@@ -492,7 +495,7 @@ async def prepare_review_draft(
     product_id: str | None = None,
     is_repurchase_review: bool = False,
 ) -> str:
-    """Fill a purchased-product review form from the user's stated experience."""
+    """Polish the user's stated experience and fill a purchased-product review form."""
     return _execute_tool(
         ctx,
         tool_name=PREPARE_REVIEW_DRAFT_TOOL,
