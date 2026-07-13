@@ -79,3 +79,7 @@ class AdminOrderCancelRequestActionResponse(BaseModel):
         max_length=0,
         description="승인·거절 직후 요청은 항상 종단 상태이므로 [] 만 허용한다(계약으로 강제).",
     )
+
+
+class AdminCancelRequestRejectBody(BaseModel):
+    rejection_reason: str = Field(..., min_length=1, max_length=2000)

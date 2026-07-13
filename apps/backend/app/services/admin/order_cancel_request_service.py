@@ -1,10 +1,12 @@
-"""관리자 취소 요청 목록·상세 조회 서비스 (P1-M1.5-B, 조회 전용).
+"""관리자 취소 요청 목록·상세 조회 및 승인·거절 서비스 (P1-M1.5-B).
 
 order_cancel_requests 는 고객이 결제완료 주문을 취소 신청할 때
-order_cancel_service.cancel_order() 가 생성한다. 이 서비스는 조회만 담당하며,
-승인·거절 실행은 payment_cancel_service.cancel_paid_order() 를 재사용하는
-별도 서비스에서 처리한다.
+order_cancel_service.cancel_order() 가 생성한다. 승인은
+payment_cancel_service.cancel_paid_order() 를 재사용해 실제 취소를 처리하고,
+거절은 Order 를 PAID 로 되돌려 배송·재신청이 가능한 상태로 복구한다.
 """
+
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,15 +14,21 @@ from sqlalchemy.orm import Session
 from app.db.models.auth import User
 from app.db.models.commerce import Order, OrderCancelRequest, OrderItem, Payment
 from app.schemas.admin.order_cancel_request import (
+    AdminOrderCancelRequestActionResponse,
     AdminOrderCancelRequestDetailResponse,
     AdminOrderCancelRequestItem,
     AdminOrderCancelRequestListResponse,
 )
 from app.schemas.common import ApiError
+from app.services.payment_cancel_service import cancel_paid_order
 
 
 CANCEL_REQUEST_STATUSES = {"REQUESTED", "APPROVED", "REJECTED"}
+CANCEL_REQUEST_STATUS_REQUESTED = "REQUESTED"
+CANCEL_REQUEST_STATUS_APPROVED = "APPROVED"
+CANCEL_REQUEST_STATUS_REJECTED = "REJECTED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
+ORDER_STATUS_PAID = "PAID"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_PROVIDER_MOCK = "MOCK"
 
@@ -84,6 +92,116 @@ def get_admin_cancel_request(session: Session, request_code: str) -> AdminOrderC
         product_summary=_product_summary(order_items, order.item_count),
         total_amount=order.total_amount,
         currency=order.currency,
+    )
+
+
+def approve_admin_cancel_request(session: Session, request_code: str) -> AdminOrderCancelRequestActionResponse:
+    """취소 요청 승인. Order→Payment→Inventory 잠금·실행은 cancel_paid_order() 에 위임한다.
+
+    OrderCancelRequest 는 이 함수 안에서만 잠그므로(다른 코드 경로가 손대지 않음), Order/Payment/
+    Inventory 보다 나중에 잠그더라도 교착 위험은 없다 — 잠금 대상 집합이 겹치는 다른 트랜잭션이 없기 때문.
+    """
+    request = _load_cancel_request_for_update(session, request_code)
+    if request.status == CANCEL_REQUEST_STATUS_REJECTED:
+        raise ApiError(409, "CANCEL_REQUEST_ALREADY_REJECTED", "Cancel request was already rejected.")
+
+    order = _load_order_readonly(session, request.order_id)
+    result = cancel_paid_order(session, order.order_code)
+
+    now = datetime.now(UTC)
+    if request.status != CANCEL_REQUEST_STATUS_APPROVED:
+        request.status = CANCEL_REQUEST_STATUS_APPROVED
+        request.processed_at = now
+        request.updated_at = now
+        session.flush()
+
+    return _to_action_response(request, order_status=result.order_status, order_code=order.order_code)
+
+
+def reject_admin_cancel_request(
+    session: Session, request_code: str, *, rejection_reason: str
+) -> AdminOrderCancelRequestActionResponse:
+    """취소 요청 거절. Order 를 CANCEL_REQUESTED→PAID 로 되돌려 배송·재신청이 가능하게 한다."""
+    normalized_reason = rejection_reason.strip()
+    if not normalized_reason:
+        raise ApiError(400, "REJECTION_REASON_REQUIRED", "Rejection reason is required.")
+
+    request = _load_cancel_request_for_update(session, request_code)
+    if request.status == CANCEL_REQUEST_STATUS_APPROVED:
+        raise ApiError(409, "CANCEL_REQUEST_ALREADY_APPROVED", "Cancel request was already approved.")
+
+    order = _load_order_for_update(session, request.order_id)
+
+    if request.status == CANCEL_REQUEST_STATUS_REJECTED:
+        if order.status != ORDER_STATUS_PAID:
+            raise ApiError(409, "ORDER_CANCEL_STATE_INCONSISTENT", "Order is not in the expected rejected state.")
+        return _to_action_response(request, order_status=order.status, order_code=order.order_code)
+
+    payment = _load_payment_for_update(session, order.id)
+    if order.status != ORDER_STATUS_CANCEL_REQUESTED or payment is None or payment.status != PAYMENT_STATUS_APPROVED:
+        raise ApiError(
+            409,
+            "ORDER_CANCEL_STATE_INCONSISTENT",
+            "Order and payment are not in a rejectable state.",
+        )
+
+    now = datetime.now(UTC)
+    order.status = ORDER_STATUS_PAID
+    order.updated_at = now
+    request.status = CANCEL_REQUEST_STATUS_REJECTED
+    request.decision_reason = normalized_reason
+    request.processed_at = now
+    request.updated_at = now
+    session.flush()
+
+    return _to_action_response(request, order_status=order.status, order_code=order.order_code)
+
+
+def _load_cancel_request_for_update(session: Session, request_code: str) -> OrderCancelRequest:
+    normalized_code = request_code.strip()
+    if not normalized_code:
+        raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
+    request = session.execute(
+        select(OrderCancelRequest).where(OrderCancelRequest.request_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if request is None:
+        raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
+    return request
+
+
+def _load_order_readonly(session: Session, order_id: int) -> Order:
+    order = session.execute(select(Order).where(Order.id == order_id)).scalar_one_or_none()
+    if order is None:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
+    return order
+
+
+def _load_order_for_update(session: Session, order_id: int) -> Order:
+    order = session.execute(
+        select(Order).where(Order.id == order_id).with_for_update()
+    ).scalar_one_or_none()
+    if order is None:
+        raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
+    return order
+
+
+def _load_payment_for_update(session: Session, order_id: int) -> Payment | None:
+    return session.execute(
+        select(Payment).where(Payment.order_id == order_id).with_for_update()
+    ).scalar_one_or_none()
+
+
+def _to_action_response(
+    request: OrderCancelRequest, *, order_status: str, order_code: str
+) -> AdminOrderCancelRequestActionResponse:
+    return AdminOrderCancelRequestActionResponse(
+        request_code=request.request_code,
+        order_code=order_code,
+        status=request.status,
+        order_status=order_status,
+        decision_reason=request.decision_reason,
+        processed_at=request.processed_at,
+        available_actions=[],
     )
 
 
