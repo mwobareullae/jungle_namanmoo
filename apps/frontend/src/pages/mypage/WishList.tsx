@@ -18,6 +18,8 @@ import {
 } from "../../lib/activityApi";
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
 import { useActivityToast, wishlistToastMessage } from "../../hooks/useActivityToast";
+import { api } from "../../lib/api";
+import type { HomeSectionProduct } from "../../types/recommendation";
 
 type ProductListMode = "wishlist" | "recent";
 type WishlistSort = "recent";
@@ -47,51 +49,6 @@ type ProductListProps = {
   onSortChange?: (sort: WishlistSort) => void;
 };
 
-const recommendedItems: MypageProductListItem[] = [
-  {
-    id: "wish-1",
-    productId: "prod_wish_1",
-    brand: "라운드랩",
-    name: "1025 독도 토너 500ml",
-    price: 19800,
-    originalPrice: 30000,
-    discountRate: 34,
-    deliveryLabel: "무료배송",
-    thumbnailUrl: null,
-    tags: ["수분", "저자극"],
-    isWished: true,
-    eventContext: { page: "mypage_wishlist", source: "wishlist", sectionId: "wishlist_list", productId: "prod_wish_1", rank: 1 }
-  },
-  {
-    id: "wish-2",
-    productId: "prod_wish_2",
-    brand: "아누아",
-    name: "어성초 77 수딩 토너",
-    price: 21900,
-    originalPrice: 29000,
-    discountRate: 24,
-    deliveryLabel: "3,000원",
-    thumbnailUrl: null,
-    tags: ["진정", "피부결"],
-    isWished: true,
-    eventContext: { page: "mypage_wishlist", source: "wishlist", sectionId: "wishlist_list", productId: "prod_wish_2", rank: 2 }
-  },
-  {
-    id: "wish-3",
-    productId: "prod_wish_3",
-    brand: "닥터지",
-    name: "레드 블레미쉬 클리어 수딩 크림",
-    price: 24000,
-    originalPrice: 32000,
-    discountRate: 25,
-    deliveryLabel: "무료배송",
-    thumbnailUrl: null,
-    tags: ["장벽", "민감"],
-    isWished: true,
-    eventContext: { page: "mypage_wishlist", source: "wishlist", sectionId: "wishlist_list", productId: "prod_wish_3", rank: 3 }
-  }
-];
-
 const sortTabs: { id: WishlistSort; label: string }[] = [
   { id: "recent", label: "최근순" }
 ];
@@ -120,6 +77,27 @@ const mapActivityItem = (
     source: mode === "wishlist" ? "wishlist" : "recent_products",
     sectionId: mode === "wishlist" ? "wishlist_list" : "recent_list",
     productId: item.productId,
+    rank: index + 1
+  }
+});
+
+const mapRecommendedItem = (item: HomeSectionProduct, index: number): MypageProductListItem => ({
+  id: `recommendation-${item.product_id}`,
+  productId: item.product_id,
+  brand: item.brand,
+  name: item.name,
+  price: item.lowest_price ?? 0,
+  originalPrice: item.original_price ?? undefined,
+  discountRate: item.discount_rate ?? undefined,
+  deliveryLabel: "무료배송",
+  thumbnailUrl: item.thumbnail_url,
+  tags: item.tags,
+  isWished: false,
+  eventContext: {
+    page: "mypage_wishlist",
+    source: "personalized_recommendation",
+    sectionId: "mypage_personalized_recommendations",
+    productId: item.product_id,
     rank: index + 1
   }
 });
@@ -164,6 +142,7 @@ function MypageProductList({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const [recommendedItems, setRecommendedItems] = useState<MypageProductListItem[]>([]);
   const { message: toastMessage, showToast } = useActivityToast();
   const [pageState, setPageState] = useState<{ mode: ProductListMode; currentPage: number }>(() => ({
     mode,
@@ -175,6 +154,20 @@ function MypageProductList({
   const emptyTitle = isRecent ? "최근 본 상품이 없어요" : "아직 찜한 상품이 없어요";
   const emptyDescription = isRecent ? "상품을 둘러보면 최근 본 상품이 여기에 모여요." : "피부 타입에 맞는 제품을 찾아 찜해보세요.";
   const todayDateLabel = getTodayDateLabel();
+
+  useEffect(() => {
+    let isMounted = true;
+    void api.getForYou({ limit: 4 })
+      .then((section) => {
+        if (isMounted) setRecommendedItems(section.products.map(mapRecommendedItem));
+      })
+      .catch(() => {
+        if (isMounted) setRecommendedItems([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const displayItems = useMemo(() => {
     return [...listItems].sort((a, b) => {
       const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
