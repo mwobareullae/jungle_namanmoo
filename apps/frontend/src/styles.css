@@ -2082,6 +2082,12 @@
   min-width: 0;
 }
 
+.admin-order-action-grid .admin-order-shipment-button {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
 .admin-order-timeline {
   display: grid;
   gap: 12px;
