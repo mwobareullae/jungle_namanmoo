@@ -62,34 +62,24 @@ function Invoke-Scp([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "SCP 명령 실패" }
 }
 
-function ConvertTo-ShellSingleQuoted([string]$Value) {
-    if ($Value.Contains("'")) {
-        throw "쉘 single quote로 감쌀 수 없는 값입니다: $Value"
-    }
-    return "'$Value'"
-}
-
 function Set-RemoteBenchmarkDatabase([string]$Dataset, [string]$RemoteConfig, [hashtable]$Config) {
     $databaseName = "mubarelle_bench_$Dataset"
-    $quotedConfig = ConvertTo-ShellSingleQuoted $RemoteConfig
-    $quotedDatabaseName = ConvertTo-ShellSingleQuoted $databaseName
-    $remoteCommand = @(
-        "set -euo pipefail",
-        "config=$quotedConfig",
-        "database=$quotedDatabaseName",
-        "line=`$(grep -E '^BENCHMARK_DATABASE_URL=' `"`$config`" | tail -n 1 || true)",
-        "if [ -z `"`$line`" ]; then echo `"BENCHMARK_DATABASE_URL missing in `$config`" >&2; exit 1; fi",
-        'url="${line#BENCHMARK_DATABASE_URL=}"',
-        'url="${url%\"}"',
-        'url="${url#\"}"',
+    $remoteScript = @(
+        'set -euo pipefail',
+        "config='$RemoteConfig'",
+        "database='$databaseName'",
+        'line=$(grep -E ''^BENCHMARK_DATABASE_URL='' "$config" | tail -n 1 || true)',
+        'if [ -z "$line" ]; then echo "BENCHMARK_DATABASE_URL missing in $config" >&2; exit 1; fi',
+        'url=$(printf ''%s\n'' "${line#BENCHMARK_DATABASE_URL=}" | tr -d ''"'')',
         'base="${url%/*}"',
         'new_url="${base}/${database}"',
         'tmp="${config}.tmp.$$"',
-        "awk -v new_url=`"`$new_url`" 'BEGIN { replaced=0 } /^BENCHMARK_DATABASE_URL=/ { print `"BENCHMARK_DATABASE_URL=\`"`" new_url `"\`"`"; replaced=1; next } { print } END { if (!replaced) exit 42 }' `"`$config`" > `"`$tmp`"",
-        "mv `"`$tmp`" `"`$config`"",
+        'awk -v new_url="$new_url" ''BEGIN { replaced=0 } /^BENCHMARK_DATABASE_URL=/ { print "BENCHMARK_DATABASE_URL=" new_url; replaced=1; next } { print } END { if (!replaced) exit 42 }'' "$config" > "$tmp"',
+        'mv "$tmp" "$config"',
         'echo "benchmark database set: ${database}"'
-    ) -join "; "
-
+    ) -join "`n"
+    $encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
+    $remoteCommand = "printf %s $encodedScript | base64 -d | bash"
     Invoke-Ssh $remoteCommand $Config
 }
 
