@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
-import GeneralSearchResults from "../components/GeneralSearchResults";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import SearchBarPanel from "../components/SearchBarPanel";
@@ -87,8 +86,8 @@ function SearchPage() {
         initialQuery={keyword}
         initialSearchMode={searchMode}
       />
-      {searchMode === "ai" ? <HomeMatchResult compact /> : null}
-      {searchMode === "general" ? <GeneralSearchResults initialPage={page} initialQuery={keyword} pageSize={pageSize} /> : <HomeMainContent
+      <HomeMatchResult compact />
+      <HomeMainContent
         initialProfile={profile}
         initialQuery={isProfileResolved ? keyword : ""}
         initialPage={page}
@@ -97,7 +96,7 @@ function SearchPage() {
         pageSize={pageSize}
         mode="search"
         showDefaultSection={false}
-      />}
+      />
     </div>
   );
 }

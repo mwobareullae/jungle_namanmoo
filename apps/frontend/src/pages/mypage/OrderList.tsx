@@ -151,11 +151,11 @@ export default function OrderList() {
     setExpandedOrderCodes((current) => new Set(current).add(order.order_code));
   };
 
-  const handleReview = () => showToast("준비중입니다.");
-  const handleUnavailableAction = () => showToast("준비중입니다.");
+  const handleReview = (orderCode: string) => navigate(`/mypage/reviews?order_code=${encodeURIComponent(orderCode)}`);
+  const handleUnavailableAction = () => showToast("준비 중입니다.");
   const handleDeleteConfirm = () => {
     setDeleteTargetOrderCode(null);
-    showToast("주문 내역 삭제 기능은 준비중입니다.");
+    showToast("주문 내역 삭제 기능은 준비 중입니다.");
   };
 
   const handleReorder = async (order: OrderListItem) => {
@@ -186,7 +186,18 @@ export default function OrderList() {
       if (!cartItem) throw new Error("장바구니 상품을 찾지 못했습니다.");
       navigate(`/checkout?cart_item_ids=${cartItem.id}`);
     } catch {
-      showToast("바로 구매하기 기능은 준비중입니다.");
+      showToast("바로 구매에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+  };
+
+  const handleOrderBuyNow = async (order: OrderListItem) => {
+    try {
+      const detail = await getOrderDetail(order.order_code);
+      const item = detail.items[0];
+      if (!item) throw new Error("주문 상품을 찾지 못했습니다.");
+      await handleItemBuyNow(item);
+    } catch {
+      showToast("바로 구매에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -245,6 +256,7 @@ export default function OrderList() {
                 const thumbnailUrl = getProductImageUrl(order.thumbnail_storage_key, "w400");
                 const displayTitle = removeAdditionalItemSuffix(order.title);
                 const isCompletedOrder = order.status === "PAID" || order.status === "DELIVERED";
+                const canWriteReview = order.status === "DELIVERED";
                 const isShippingOrder = order.status === "PREPARING_SHIPMENT" || order.status === "SHIPPED";
                 const isExpiredOrder = order.status === "EXPIRED";
                 return (
@@ -424,15 +436,15 @@ export default function OrderList() {
                       <div
                         style={{
                           ...styles.orderActions,
-                          ...(isCompletedOrder ? styles.orderActionsThree : {})
+                          ...(canWriteReview ? styles.orderActionsThree : {})
                         }}
                       >
-                        {isCompletedOrder ? (
+                        {canWriteReview ? (
                           <button
                             className="mypage-order-action-button mypage-order-action-button--accent bg-white"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleReview();
+                              handleReview(order.order_code);
                             }}
                             style={styles.reviewButton}
                             type="button"
@@ -468,7 +480,7 @@ export default function OrderList() {
                             className="mypage-order-action-button mypage-order-action-button--neutral bg-white"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleUnavailableAction();
+                              void handleOrderBuyNow(order);
                             }}
                             style={styles.reorderButton}
                             type="button"

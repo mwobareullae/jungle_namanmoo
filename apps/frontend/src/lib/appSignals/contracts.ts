@@ -1,6 +1,10 @@
 export type OfficialEventName =
   | "home_view"
   | "page_view"
+  | "home_product_impression"
+  | "home_product_click"
+  | "search_result_impression"
+  | "search_result_click"
   | "recommendation_product_click"
   | "recommendation_product_impression"
   | "search_no_result";
