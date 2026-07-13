@@ -38,6 +38,7 @@ def get_toss_payments_client() -> TossPaymentsClient:
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
     },
 )
 def post_mock_payment_confirm(
@@ -45,6 +46,15 @@ def post_mock_payment_confirm(
     http_request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
+) -> PaymentActionResponse:
+    raise ApiError(410, "MOCK_PAYMENT_DISABLED", "Mock payment is disabled.")
+
+
+def _disabled_post_mock_payment_confirm(
+    payment_code: str,
+    http_request: Request,
+    current_user: User,
+    session: Session,
 ) -> PaymentActionResponse:
     _record_payment_started_event_log(
         session,
@@ -77,6 +87,7 @@ def post_mock_payment_confirm(
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
     },
 )
 def post_mock_payment_fail(
@@ -84,6 +95,15 @@ def post_mock_payment_fail(
     http_request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
+) -> PaymentActionResponse:
+    raise ApiError(410, "MOCK_PAYMENT_DISABLED", "Mock payment is disabled.")
+
+
+def _disabled_post_mock_payment_fail(
+    payment_code: str,
+    http_request: Request,
+    current_user: User,
+    session: Session,
 ) -> PaymentActionResponse:
     response = fail_mock_payment(session, current_user, payment_code)
     session.commit()

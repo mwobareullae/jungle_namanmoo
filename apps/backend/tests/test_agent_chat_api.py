@@ -1,4 +1,5 @@
 from collections.abc import Generator
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +11,15 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.schemas.agent import AgentChatResponse, AgentUiAction
+from app.schemas.agent import (
+    AgentChatRequest,
+    AgentContextResultItem,
+    AgentConversationMessage,
+    AgentLastToolResult,
+    AgentChatResponse,
+    AgentUiAction,
+)
+from app.services.agent_openai_runner import _build_agent_input
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -42,6 +51,30 @@ def client(db_engine: Engine) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+def test_agent_input_includes_bounded_conversation_context() -> None:
+    request = AgentChatRequest(
+        message="그중 두 번째를 비교해줘",
+        recent_messages=[
+            AgentConversationMessage(role="user", content="비슷한 상품 보여줘"),
+            AgentConversationMessage(role="assistant", content="두 상품을 찾았어요."),
+        ],
+        last_tool_result=AgentLastToolResult(
+            action_type="show_products",
+            target="similar_products",
+            items=[
+                AgentContextResultItem(item_type="product", id="prod_001", title="첫 번째 상품"),
+                AgentContextResultItem(item_type="product", id="prod_002", title="두 번째 상품"),
+            ],
+        ),
+    )
+
+    payload = json.loads(_build_agent_input(request))
+
+    assert payload["recent_messages"][-1] == {"role": "assistant", "content": "두 상품을 찾았어요."}
+    assert payload["last_tool_result"]["items"][1]["id"] == "prod_002"
+    assert payload["message"] == "그중 두 번째를 비교해줘"
 
 
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -275,7 +275,7 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": f"agent-live-order-{email}"},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
     )
     assert order_response.status_code == 200
     return order_response.json()

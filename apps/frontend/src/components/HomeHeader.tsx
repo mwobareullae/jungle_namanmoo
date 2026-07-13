@@ -126,7 +126,7 @@ function HomeHeader() {
                 <path d="M4 7h16M4 12h16M4 17h16" />
               </svg>
             </button>
-            <a className="logo" href="/">
+            <a className="logo" data-agent-home-target href="/">
               뭐바를래
             </a>
           </div>
@@ -181,6 +181,7 @@ function HomeHeader() {
             </button>
             <button
               className="icon-btn"
+              data-agent-cart-navigation-target
               data-commerce-only
               aria-label="장바구니로 이동"
               onClick={() => navigate("/cart")}
@@ -256,6 +257,7 @@ function HomeHeader() {
             ) : (
               <a
                 className="btn-login"
+                data-agent-login-target
                 data-auth-state="guest"
                 data-commerce-only
                 href="#"

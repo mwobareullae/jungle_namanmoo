@@ -22,6 +22,7 @@ from app.db.models.commerce import (
 )
 from app.db.models.events import EventLog
 from app.db.session import get_db
+from app.api.routes.payments import get_toss_payments_client
 from app.main import app
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
@@ -166,7 +167,7 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
         nickname="cancel-paid",
         quantity=2,
     )
-    confirm_response = client.post(f"/api/payments/{pending['payment_code']}/mock/confirm")
+    confirm_response = _confirm_toss_payment(client, pending)
     assert confirm_response.status_code == 200
 
     response = client.post(f"/api/orders/{pending['order_code']}/cancel")
@@ -198,7 +199,7 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     assert inventory.reserved_quantity == 0
     assert [movement.movement_type for movement in movements] == ["RESERVE", "SALE_CONFIRM"]
     assert len(events) == 1
-    assert events[0].event_type == "MOCK_PAYMENT_APPROVED"
+    assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert event_log.metadata_json["order_status"] == "CANCEL_REQUESTED"
     assert event_log.metadata_json["payment_status"] == "APPROVED"
     assert cancel_request.request_code == body["request_code"]
@@ -218,7 +219,7 @@ def test_cancel_requested_order_replay_returns_same_request_code(
         nickname="cancel-replay",
         quantity=1,
     )
-    assert client.post(f"/api/payments/{pending['payment_code']}/mock/confirm").status_code == 200
+    assert _confirm_toss_payment(client, pending).status_code == 200
 
     first = client.post(f"/api/orders/{pending['order_code']}/cancel")
     second = client.post(f"/api/orders/{pending['order_code']}/cancel")
@@ -247,7 +248,7 @@ def test_cancel_requested_order_without_request_record_returns_409(
         nickname="cancel-orphan",
         quantity=1,
     )
-    assert client.post(f"/api/payments/{pending['payment_code']}/mock/confirm").status_code == 200
+    assert _confirm_toss_payment(client, pending).status_code == 200
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         order.status = "CANCEL_REQUESTED"
@@ -292,7 +293,7 @@ def test_paid_order_cancel_rolls_back_when_request_row_creation_fails(
                 nickname="cancel-rollback",
                 quantity=1,
             )
-            assert boom_client.post(f"/api/payments/{pending['payment_code']}/mock/confirm").status_code == 200
+            assert _confirm_toss_payment(boom_client, pending).status_code == 200
 
             original_flush = Session.flush
 
@@ -369,14 +370,39 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": f"order-{email}"},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
     )
     assert order_response.status_code == 200
     data = order_response.json()
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],
+        "amount": data["total"],
     }
+
+
+def _confirm_toss_payment(client: TestClient, pending: dict):
+    app.dependency_overrides[get_toss_payments_client] = lambda: _FakeTossConfirmClient()
+    return client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_cancel_key",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+
+class _FakeTossConfirmClient:
+    def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
+        return {
+            "paymentKey": payment_key,
+            "orderId": order_code,
+            "totalAmount": amount,
+            "status": "DONE",
+            "method": "카드",
+            "approvedAt": "2026-07-05T12:00:00+09:00",
+        }
 
 
 def _signup(client: TestClient, *, email: str, nickname: str) -> None:
