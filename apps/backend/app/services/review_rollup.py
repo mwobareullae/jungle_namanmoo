@@ -19,7 +19,7 @@ from app.db.models.review import (
 )
 
 
-REVIEW_SCORE_VERSION = "review_quality_v1"
+REVIEW_SCORE_VERSION = "review_quality_v2"
 REVIEW_PRIOR_STRENGTH = 20.0
 SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE = 5.0
 REVIEW_STREAM_BATCH_SIZE = 5000
@@ -71,6 +71,10 @@ class _ReviewAccumulator:
     repurchase_weight_square_sum: float = 0.0
     profile_labeled_review_count: int = 0
     source_photo_marker_count: int = 0
+    photo_known_count: int = 0
+    photo_weighted_sum: float = 0.0
+    photo_weight_sum: float = 0.0
+    photo_weight_square_sum: float = 0.0
     helpful_count_sum: int = 0
     weight_sum: float = 0.0
     weight_square_sum: float = 0.0
@@ -135,6 +139,13 @@ class _ReviewAccumulator:
                 self.repurchase_review_count += 1
                 self.repurchase_weighted_sum += weight
 
+        if source_has_photo is not None:
+            self.photo_known_count += 1
+            self.photo_weight_sum += weight
+            self.photo_weight_square_sum += weight * weight
+            if source_has_photo:
+                self.photo_weighted_sum += weight
+
     @property
     def average_rating(self) -> float | None:
         return _safe_divide(self.rating_sum, self.rating_count)
@@ -169,6 +180,17 @@ class _ReviewAccumulator:
     @property
     def weighted_repurchase_rate(self) -> float | None:
         return _safe_divide(self.repurchase_weighted_sum, self.repurchase_weight_sum)
+
+    @property
+    def weighted_photo_rate(self) -> float | None:
+        return _safe_divide(self.photo_weighted_sum, self.photo_weight_sum)
+
+    @property
+    def photo_effective_sample_size(self) -> float:
+        return kish_effective_sample_size(
+            self.photo_weight_sum,
+            self.photo_weight_square_sum,
+        )
 
     @property
     def effective_sample_size(self) -> float:
@@ -293,9 +315,22 @@ def calculate_review_weight(
     reviewed_at: datetime | None,
     computed_at: datetime,
 ) -> float:
+    # OliveYoung seed에서는 수집분 전량이 MONTH_USE이고 구매인증 원본값도 없어
+    # 두 필드가 리뷰 간 신뢰도를 구분하지 못한다. 자사몰 구매 리뷰의
+    # verified_purchase는 실제 주문 검증 신호이므로 기존 배율을 유지한다.
     source_weight = 1.0
-    month_use_weight = 1.15 if review_type == "MONTH_USE" else 1.0
-    verified_weight = 1.10 if verified_purchase is True else 1.0
+    normalized_source = (source or "").strip().casefold()
+    uses_nondiscriminating_seed_signals = normalized_source == "oliveyoung"
+    month_use_weight = (
+        1.0
+        if uses_nondiscriminating_seed_signals
+        else (1.15 if review_type == "MONTH_USE" else 1.0)
+    )
+    verified_weight = (
+        1.0
+        if uses_nondiscriminating_seed_signals
+        else (1.10 if verified_purchase is True else 1.0)
+    )
     normalized_helpful_count = max(0, int(helpful_count or 0))
     helpful_ratio = min(
         math.log1p(normalized_helpful_count) / math.log(21.0),
@@ -368,14 +403,16 @@ def calculate_review_quality_score(
     *,
     rating_score: float | None,
     repurchase_score: float | None,
-    month_consistency_score: float | None,
+    photo_rate_score: float | None,
     effective_sample_size: float,
 ) -> tuple[float, float]:
+    # review-scoring-revision 4.1: 일반후기 0건으로 일관성 축은 상시 None(G1)이라 제거하고,
+    # 실존 신호인 사진리뷰율을 0.05로 신설. 일반후기 수집 재개 시 복원 재배분은 팀 논의 대상.
     quality_signal = _available_weighted_average(
         (
-            (rating_score, 0.70),
+            (rating_score, 0.75),
             (repurchase_score, 0.20),
-            (month_consistency_score, 0.10),
+            (photo_rate_score, 0.05),
         ),
         default=0.5,
     )
@@ -633,16 +670,30 @@ def _apply_product_metric(
         if bayesian_repurchase_rate is not None
         else 0.5
     )
+    # 일관성 값 자체는 진단 지표로 컬럼에 계속 보존한다(품질점수 합성에서만 제외).
     month_consistency_score = calculate_month_consistency_score(
         accumulator.general_weighted_average_rating,
         accumulator.month_weighted_average_rating,
+    )
+    category_prior_photo_rate = category_accumulator.weighted_photo_rate
+    bayesian_photo_rate = calculate_bayesian_mean(
+        accumulator.weighted_photo_rate,
+        accumulator.photo_effective_sample_size,
+        category_prior_photo_rate,
+    )
+    photo_rate_score = (
+        _clamp(bayesian_photo_rate)
+        if bayesian_photo_rate is not None
+        else None
     )
     review_quality_score, confidence = calculate_review_quality_score(
         rating_score=rating_score if accumulator.rating_count else None,
         repurchase_score=(
             repurchase_score if accumulator.repurchase_known_count else None
         ),
-        month_consistency_score=month_consistency_score,
+        photo_rate_score=(
+            photo_rate_score if accumulator.photo_known_count else None
+        ),
         effective_sample_size=accumulator.effective_sample_size,
     )
 
@@ -687,6 +738,8 @@ def _apply_product_metric(
     metric.rating_score = _score_decimal(rating_score)
     metric.repurchase_score = _score_decimal(repurchase_score)
     metric.month_consistency_score = _score_decimal(month_consistency_score)
+    metric.bayesian_photo_rate = _score_decimal(bayesian_photo_rate)
+    metric.photo_rate_score = _score_decimal(photo_rate_score)
     metric.confidence = _score_decimal(confidence)
     metric.review_quality_score = _score_decimal(review_quality_score)
     metric.last_reviewed_at = accumulator.last_reviewed_at
