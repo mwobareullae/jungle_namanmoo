@@ -45,8 +45,25 @@ function NewProductsPage() {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!user) { setWishedProductIds(new Set()); return; }
-    getMyWishlist().then((items) => setWishedProductIds(new Set(items.map((item) => item.productId)))).catch(() => setWishedProductIds(new Set()));
+    let isMounted = true;
+    if (!user) {
+      queueMicrotask(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+    getMyWishlist()
+      .then((items) => {
+        if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const toggleWishlist = async (productId: string) => {

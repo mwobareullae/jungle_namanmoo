@@ -42,15 +42,21 @@ function HomeHero({
 
   useEffect(() => {
     const normalized = query.trim();
+    let isMounted = true;
     if (searchMode !== "general" || !normalized) {
-      setSuggestions([]);
-      setIsSuggestionsLoading(false);
-      return;
+      queueMicrotask(() => {
+        if (!isMounted) return;
+        setSuggestions([]);
+        setIsSuggestionsLoading(false);
+      });
+      return () => {
+        isMounted = false;
+      };
     }
 
-    let isMounted = true;
-    setIsSuggestionsLoading(true);
     const timer = window.setTimeout(() => {
+      if (!isMounted) return;
+      setIsSuggestionsLoading(true);
       api.getCatalogSuggestions(normalized)
         .then((response) => {
           if (isMounted) setSuggestions(response.items);
