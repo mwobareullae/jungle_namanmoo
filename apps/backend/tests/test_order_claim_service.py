@@ -119,6 +119,108 @@ def test_create_claim_rejects_quantity_already_reserved_by_active_claim(db_engin
     assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
 
 
+def test_create_claim_rejects_quantity_already_completed_by_prior_claim(db_engine: Engine) -> None:
+    # 이미 COMPLETED(처리 완료)된 클레임의 수량은 다시 청구할 수 없어야 한다.
+    # CLAIM_QUANTITY_CONSUMING_STATUSES 가 COMPLETED 를 빼놓았을 때는 이미 환불된 수량을
+    # 같은 상품에 대해 재청구할 수 있는 버그가 있었다.
+    with Session(db_engine) as session:
+        user, order, item = _create_delivered_order(session)
+        claim = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
+            ),
+        )
+        claim.status = "COMPLETED"
+        session.commit()
+
+        with pytest.raises(ApiError) as error:
+            create_claim(
+                session,
+                user,
+                OrderClaimCreateRequest(
+                    order_code=order.order_code,
+                    claim_type="EXCHANGE",
+                    reason_code="SIZE",
+                    items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
+                ),
+            )
+
+    assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
+
+
+def test_create_claim_rejects_mixed_return_and_exchange_double_claim(db_engine: Engine) -> None:
+    # 같은 상품 수량을 환불로 전부 청구한 뒤, 남은 게 없는데 교환으로 또 청구할 수 없어야
+    # 한다 — 수량 합산이 claim_type(resolution)과 무관하게 order_item_id 단위로 이뤄져야 한다.
+    with Session(db_engine) as session:
+        user, order, item = _create_delivered_order(session)
+        create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
+            ),
+        )
+        session.commit()
+
+        with pytest.raises(ApiError) as error:
+            create_claim(
+                session,
+                user,
+                OrderClaimCreateRequest(
+                    order_code=order.order_code,
+                    claim_type="EXCHANGE",
+                    reason_code="SIZE",
+                    items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
+                ),
+            )
+
+    assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
+
+
+@pytest.mark.parametrize("prior_status", ["REJECTED", "WITHDRAWN"])
+def test_create_claim_allows_quantity_after_rejected_or_withdrawn_claim(
+    db_engine: Engine, prior_status: str
+) -> None:
+    # REJECTED/WITHDRAWN 은 수량을 소비한 것으로 치지 않으므로, 그 수량은 다시 청구할 수 있어야 한다.
+    with Session(db_engine) as session:
+        user, order, item = _create_delivered_order(session)
+        first = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
+            ),
+        )
+        first.status = prior_status
+        session.commit()
+
+        second = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="EXCHANGE",
+                reason_code="SIZE",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
+            ),
+        )
+        second_status = second.status
+        session.commit()
+
+    assert second_status == "REQUESTED"
+
+
 def test_withdraw_claim_is_only_allowed_while_requested(db_engine: Engine) -> None:
     now = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
     with Session(db_engine) as session:
