@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "key": "anonymous",
+      "auth_required": false,
+      "description": "No saved profile, skin test, or behavior context"
+    },
+    {
+      "key": "profile",
+      "auth_required": true,
+      "email_env": "BENCHMARK_PROFILE_USER_EMAIL",
+      "password_env": "BENCHMARK_PROFILE_USER_PASSWORD",
+      "description": "Saved skin type, sensitivity, and avoided ingredients"
+    },
+    {
+      "key": "skin-test",
+      "auth_required": true,
+      "email_env": "BENCHMARK_SKIN_TEST_USER_EMAIL",
+      "password_env": "BENCHMARK_SKIN_TEST_USER_PASSWORD",
+      "description": "Latest skin test result with inferred axes"
+    },
+    {
+      "key": "behavior",
+      "auth_required": true,
+      "email_env": "BENCHMARK_BEHAVIOR_USER_EMAIL",
+      "password_env": "BENCHMARK_BEHAVIOR_USER_PASSWORD",
+      "description": "Fixed search, wishlist, cart, purchase, and review context"
+    }
+  ],
+  "credentials": "Provide values only in the server-local benchmark config; never commit them."
+}
