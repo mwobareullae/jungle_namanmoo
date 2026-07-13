@@ -2728,6 +2728,17 @@ body {
   gap: 46px 22px;
 }
 
+.new-products-page__description {
+  margin: -18px 0 28px;
+  color: #737b84;
+  font-size: 15px;
+  text-align: center;
+}
+
+.new-products-page__grid .product-card {
+  min-width: 0;
+}
+
 .popular-product-card {
   min-width: 0;
   cursor: pointer;
@@ -8949,13 +8960,6 @@ html[data-app-mode="community"] .search-results-shell {
   .catalog-search-page .product-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-.new-products-page__description {
-  margin: -12px 0 30px;
-  color: #71808a;
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 .new-products-page__load-state {
