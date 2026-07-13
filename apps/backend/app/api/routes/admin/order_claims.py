@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.session import get_db
 from app.schemas.admin.order_claim import (
+    AdminClaimCompleteBody,
     AdminClaimRejectBody,
     AdminOrderClaimActionResponse,
     AdminOrderClaimDetailResponse,
@@ -17,6 +18,7 @@ from app.services.admin.order_claim_service import (
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE,
     approve_admin_claim,
+    complete_admin_claim,
     get_admin_claim,
     list_admin_claims,
     reject_admin_claim,
@@ -111,6 +113,28 @@ def post_order_claim_start(
     """클레임 처리 시작 — APPROVED→IN_PROGRESS. 인증/인가는 admin_router 공통 가드가 적용."""
     return _run_claim_decision(
         session, lambda: start_admin_claim(session, claim_code), action="START", claim_code=claim_code
+    )
+
+
+@router.post(
+    "/order-claims/{claim_code}/complete",
+    response_model=AdminOrderClaimActionResponse,
+    responses=_ACTION_RESPONSES,
+)
+def post_order_claim_complete(
+    claim_code: str,
+    body: AdminClaimCompleteBody,
+    session: Session = Depends(get_db),
+) -> AdminOrderClaimActionResponse:
+    """클레임 완료 — IN_PROGRESS→COMPLETED. REFUND/RETURN 은 MOCK 환불·재고 복구,
+
+    EXCHANGE 는 상태만 완료 처리. 인증/인가는 admin_router 공통 가드가 적용.
+    """
+    return _run_claim_decision(
+        session,
+        lambda: complete_admin_claim(session, claim_code, restock=body.restock),
+        action="COMPLETE",
+        claim_code=claim_code,
     )
 
 

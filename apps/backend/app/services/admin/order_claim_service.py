@@ -20,12 +20,14 @@ from app.schemas.admin.order_claim import (
     AdminOrderClaimListResponse,
 )
 from app.schemas.common import ApiError
+from app.services.refund_service import process_mock_refund, recompute_order_item_status
 
 
 CLAIM_STATUS_REQUESTED = "REQUESTED"
 CLAIM_STATUS_APPROVED = "APPROVED"
 CLAIM_STATUS_REJECTED = "REJECTED"
 CLAIM_STATUS_IN_PROGRESS = "IN_PROGRESS"
+CLAIM_STATUS_COMPLETED = "COMPLETED"
 
 
 CLAIM_STATUSES = {"REQUESTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "WITHDRAWN"}
@@ -177,10 +179,60 @@ def start_admin_claim(session: Session, claim_code: str) -> AdminOrderClaimActio
     return _to_action_response(claim, order_code=order_code)
 
 
+def complete_admin_claim(
+    session: Session, claim_code: str, *, restock: bool
+) -> AdminOrderClaimActionResponse:
+    """클레임 완료. IN_PROGRESS→COMPLETED.
+
+    REFUND/RETURN 은 refund_service.process_mock_refund() 를 재사용해 누적 환불 한도·재고
+    복구·OrderItem 상태 확정까지 처리한다(그 함수 내부가 Order→Payment→Claim→Inventory 순서로
+    잠근다 — 여기서 Claim 을 먼저 잠그면 순서가 뒤집히므로 claim_type 만 잠금 없이 미리 확인한다).
+    EXCHANGE 는 결제·재고 변화 없이 Claim 만 잠그고 상태만 완료 처리한다.
+    """
+    claim_type = _peek_claim_type(session, claim_code)
+
+    if claim_type == "EXCHANGE":
+        claim, order_code = _load_claim_for_update(session, claim_code)
+        if claim.status == CLAIM_STATUS_COMPLETED:
+            return _to_action_response(claim, order_code=order_code)
+        if claim.status != CLAIM_STATUS_IN_PROGRESS:
+            raise ApiError(409, "CLAIM_NOT_IN_PROGRESS", "Claim is not in progress.")
+        _complete_exchange_claim(session, claim, now=datetime.now(UTC))
+        return _to_action_response(claim, order_code=order_code)
+
+    process_mock_refund(session, claim_code, restock=restock)
+    claim, order_code = _load_claim_for_update(session, claim_code)
+    return _to_action_response(claim, order_code=order_code)
+
+
+def _peek_claim_type(session: Session, claim_code: str) -> str:
+    normalized_code = claim_code.strip()
+    if not normalized_code:
+        raise ApiError(404, "CLAIM_NOT_FOUND", "Claim was not found.")
+    claim_type = session.execute(
+        select(OrderClaim.claim_type).where(OrderClaim.claim_code == normalized_code)
+    ).scalar_one_or_none()
+    if claim_type is None:
+        raise ApiError(404, "CLAIM_NOT_FOUND", "Claim was not found.")
+    return claim_type
+
+
+def _complete_exchange_claim(session: Session, claim: OrderClaim, *, now: datetime) -> None:
+    claim_items = _load_claim_items(session, claim.id)
+    _transition_claim(session, claim, to_status=CLAIM_STATUS_COMPLETED, reason=None, now=now)
+    for _claim_item, order_item in claim_items:
+        recompute_order_item_status(session, order_item, now)
+    session.flush()
+
+
 def _transition_claim(session: Session, claim: OrderClaim, *, to_status: str, reason: str | None, now: datetime) -> None:
     from_status = claim.status
     claim.status = to_status
-    claim.processed_at = now
+    if to_status == CLAIM_STATUS_COMPLETED:
+        claim.completed_at = now
+    elif to_status in {CLAIM_STATUS_APPROVED, CLAIM_STATUS_REJECTED}:
+        claim.processed_at = now
+    # IN_PROGRESS(처리 시작)는 processed_at 을 건드리지 않는다 — 승인/거절 시각을 그대로 보존한다.
     claim.updated_at = now
     session.add(
         OrderClaimEvent(
@@ -215,6 +267,7 @@ def _to_action_response(claim: OrderClaim, *, order_code: str) -> AdminOrderClai
         order_code=order_code,
         status=claim.status,
         processed_at=claim.processed_at,
+        completed_at=claim.completed_at,
         available_actions=_compute_available_actions(claim.status),
     )
 

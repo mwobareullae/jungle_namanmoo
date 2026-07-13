@@ -71,16 +71,23 @@ class AdminOrderClaimDetailResponse(AdminOrderClaimListItem):
 
 
 class AdminOrderClaimActionResponse(BaseModel):
-    """승인·거절 공통 응답. 승인은 APPROVED(종단 아님, available_actions=[START]),
+    """승인·거절·처리시작·완료 공통 응답. 승인은 APPROVED(종단 아님, available_actions=[START]),
 
-    거절은 REJECTED(종단, available_actions=[])로 서로 다른 available_actions 을 가진다.
+    거절은 REJECTED(종단, []), 처리시작은 IN_PROGRESS([COMPLETE]), 완료는 COMPLETED(종단, [])로
+    서로 다른 available_actions 을 가진다. processed_at 은 승인·거절 시각, completed_at 은 완료
+    시각이라 완료 액션의 응답에서는 completed_at 을 봐야 한다(processed_at 은 승인 시점 그대로).
     """
 
     claim_code: str
     order_code: str
     status: AdminClaimStatus
     processed_at: datetime | None
+    completed_at: datetime | None
     available_actions: list[AdminClaimAction]
+
+
+class AdminClaimCompleteBody(BaseModel):
+    restock: bool = Field(..., description="RETURN 완료 시 재고 복구 여부. REFUND/EXCHANGE 에서는 사용 안 함.")
 
 
 class AdminClaimRejectBody(BaseModel):
