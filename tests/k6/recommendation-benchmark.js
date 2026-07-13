@@ -8,9 +8,11 @@ const AUTH_COOKIE = __ENV.AUTH_COOKIE || "";
 const VUS = Number(__ENV.VUS || "1");
 const DURATION = __ENV.DURATION || "30s";
 const SLA_MS = Number(__ENV.SLA_MS || "3000");
+const FAILURE_SAMPLE_LIMIT = Number(__ENV.FAILURE_SAMPLE_LIMIT || "20");
 const REQUESTS = JSON.parse(open("../../docs/performance/queries/recommendation-v1.json"));
 const USER_FIXTURES = JSON.parse(open("../../docs/performance/benchmark-users.json")).users;
 const USER_FIXTURE = USER_FIXTURES.find((user) => user.key === USER_TYPE);
+let failureSampleCount = 0;
 
 if (!USER_FIXTURE) {
   throw new Error(`Unknown USER_TYPE: ${USER_TYPE}`);
@@ -134,9 +136,28 @@ export default function (data) {
     },
   });
   const body = parseJson(response);
+  const hasProducts = Array.isArray(body?.products) && body.products.length > 0;
+  if ((response.status !== 200 || !hasProducts) && failureSampleCount < FAILURE_SAMPLE_LIMIT) {
+    failureSampleCount += 1;
+    console.error(
+      JSON.stringify({
+        event: "recommendation_benchmark_failure_sample",
+        dataset: DATASET,
+        user_type: USER_TYPE,
+        vu: __VU,
+        iter: __ITER,
+        status: response.status,
+        duration_ms: response.timings.duration,
+        query_type: requestCase.type,
+        query: requestCase.query,
+        payload: payloadObject,
+        response_body: truncate(response.body || "", 1000),
+      }),
+    );
+  }
   check(response, {
     "recommendation status is 200": (res) => res.status === 200,
-    "recommendation has products": () => Array.isArray(body?.products) && body.products.length > 0,
+    "recommendation has products": () => hasProducts,
   });
 }
 
@@ -154,4 +175,11 @@ function parseJson(response) {
   } catch (_) {
     return null;
   }
+}
+
+function truncate(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
 }
