@@ -27,6 +27,7 @@ from app.services.agent_commerce_tools import (
     prepare_agent_checkout,
     prepare_agent_order,
 )
+from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
 from app.services.agent_policy import get_tool_policy, validate_tool_access
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
@@ -98,6 +99,15 @@ class CheckoutArgs(BaseModel):
     address_id: int | None = Field(default=None, ge=1)
 
 
+class ComposeCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    categories: list[str] = Field(..., min_length=1, max_length=4)
+    max_budget: int = Field(..., ge=1_000, le=10_000_000)
+    skin_type: str | None = Field(default=None, max_length=40)
+    sensitivity: str | None = Field(default=None, max_length=40)
+
+
 ToolArgs = (
     OrderStatusLookupArgs
     | CancelRecentOrderArgs
@@ -107,6 +117,7 @@ ToolArgs = (
     | GetCartArgs
     | AddToCartArgs
     | CheckoutArgs
+    | ComposeCartArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
@@ -118,6 +129,7 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ADD_TO_CART_TOOL: AddToCartArgs,
     PREPARE_CHECKOUT_TOOL: CheckoutArgs,
     PREPARE_ORDER_TOOL: CheckoutArgs,
+    COMPOSE_CART_TOOL: ComposeCartArgs,
 }
 
 
@@ -330,6 +342,23 @@ def _execute_parsed_tool(
             conversation_id=conversation_id,
             cart_item_ids=args.cart_item_ids,
             address_id=args.address_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+        )
+
+    if tool_name == COMPOSE_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, ComposeCartArgs)
+        return prepare_composed_cart(
+            session,
+            user,
+            conversation_id=conversation_id,
+            categories=args.categories,
+            max_budget=args.max_budget,
+            skin_type=args.skin_type,
+            sensitivity=args.sensitivity,
             request_id=request_id,
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,

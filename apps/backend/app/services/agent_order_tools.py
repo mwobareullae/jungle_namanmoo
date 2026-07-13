@@ -134,6 +134,10 @@ def confirm_agent_tool_call(
     validate_tool_access(tool_call.tool_name, user_id=user.id)
 
     from app.services.agent_commerce_tools import PREPARE_ORDER_TOOL
+    from app.services.agent_cart_composer import COMPOSE_CART_TOOL, confirm_composed_cart
+
+    if tool_call.tool_name == COMPOSE_CART_TOOL:
+        return confirm_composed_cart(session, user, tool_call=tool_call, action=action)
 
     if tool_call.tool_name == PREPARE_ORDER_TOOL:
         return _confirm_prepared_order_tool_call(

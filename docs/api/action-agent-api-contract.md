@@ -1,6 +1,6 @@
 # 커머스 액션 에이전트 API 계약
 
-기준일: 2026-07-13
+기준일: 2026-07-14
 
 ## 목적과 책임 경계
 
@@ -62,15 +62,28 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 | --- | --- | --- | --- |
 | `get_cart` | 로그인 사용자의 실제 장바구니 조회 | 없음 | `show_cart` |
 | `add_to_cart` | 상품 한 종류를 실제 장바구니에 추가 | 없음 | `show_cart` |
+| `compose_cart` | 카테고리·총예산·피부 조건으로 복수 상품 구성안 생성 후 일괄 추가 | 필수 | `open_modal/agent_confirmation`, `show_cart` |
 | `prepare_checkout` | 선택 상품과 배송지로 금액·재고 재검증 | 없음 | `show_checkout_preview` |
 | `prepare_order` | 주문 내용을 고정하고 확인 대기 상태 생성 | 필수 | `open_modal/order_create_confirm` |
 
-개별 장바구니 추가는 즉시 실행한다. 주문 생성은 반드시 별도의 확인 API를 거친다. 장바구니 전체 비우기와 같은 대량 변경 tool은 현재 제공하지 않는다.
+개별 장바구니 추가는 즉시 실행한다. `compose_cart`는 실제 DB의 카테고리, 최저가, 판매·재고 상태, 상품 피부 적합도와 사용자 피부 프로필의 제외 성분을 검증해 총예산 안의 조합을 제안한다. 구성안 조회만으로 장바구니를 바꾸지 않으며 사용자가 확인 API로 승인한 뒤에만 각 상품을 1개씩 같은 요청 트랜잭션에서 추가한다. 기존 장바구니 상품은 삭제하지 않는다. 주문 생성도 반드시 별도의 확인 API를 거친다.
+
+```text
+"민감성 피부용 토너와 크림을 5만원 안으로 구성해줘"
+→ compose_cart(categories=["toner", "cream"], max_budget=50000)
+→ 피부 프로필·제외 성분·가격·재고 재조회
+→ 구성 상품과 총액 표시, AWAITING_CONFIRMATION
+→ 사용자가 confirm
+→ 실제 장바구니 일괄 반영
+→ show_cart 반환 및 장바구니 화면 이동
+```
 
 ## 주문과 Toss 결제 흐름
 
 ```text
 사용자 주문 요청
+→ prepare_checkout 및 장바구니 화면을 거쳐 주문서 이동
+→ 주문서에서 사용자가 주문 진행 요청
 → prepare_order
 → 서버가 장바구니·주소·가격·재고 재조회
 → AWAITING_CONFIRMATION 및 주문 확인 모달

@@ -13,6 +13,7 @@ AgentToolName = Literal[
     "add_to_cart",
     "prepare_checkout",
     "prepare_order",
+    "compose_cart",
 ]
 
 AgentToolCallStatus = Literal[

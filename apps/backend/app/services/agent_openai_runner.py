@@ -14,6 +14,7 @@ from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentError, A
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import CANCEL_RECENT_ORDER_TOOL, ORDER_STATUS_LOOKUP_TOOL
 from app.services.agent_commerce_tools import ADD_TO_CART_TOOL, GET_CART_TOOL, PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL
+from app.services.agent_cart_composer import COMPOSE_CART_TOOL
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
     FIND_SIMILAR_PRODUCTS_TOOL,
@@ -42,6 +43,10 @@ Use tools this way:
   execute cancellation by itself.
 - If the user asks what is in the cart, call get_cart.
 - If the user asks to add the current product, call add_to_cart with the product ID.
+- If the user asks to choose multiple product categories under one total budget and
+  compose a cart, call compose_cart. Use toner, serum, and cream as category values.
+  Omit skin_type and sensitivity to use the saved profile. The tool only changes the
+  cart after the user confirms the proposed composition.
 - If the user asks for the expected checkout total, to order, or to pay while they
   are not on the checkout page, call prepare_checkout first. This moves the user
   through the cart to the checkout page so they can review items, shipping, address,
@@ -146,6 +151,7 @@ async def run_openai_agent_chat(
             cancel_recent_order,
             get_cart,
             add_to_cart,
+            compose_cart,
             prepare_checkout,
             prepare_order,
         ],
@@ -427,6 +433,27 @@ async def prepare_checkout(
         ctx,
         tool_name=PREPARE_CHECKOUT_TOOL,
         arguments={"cart_item_ids": cart_item_ids, "address_id": address_id},
+    )
+
+
+@function_tool(name_override=COMPOSE_CART_TOOL)
+async def compose_cart(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    categories: list[str],
+    max_budget: int,
+    skin_type: str | None = None,
+    sensitivity: str | None = None,
+) -> str:
+    """Compose a multi-category cart under one total budget for confirmation."""
+    return _execute_tool(
+        ctx,
+        tool_name=COMPOSE_CART_TOOL,
+        arguments={
+            "categories": categories,
+            "max_budget": max_budget,
+            "skin_type": skin_type,
+            "sensitivity": sensitivity,
+        },
     )
 
 

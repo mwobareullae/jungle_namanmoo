@@ -10,10 +10,13 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.agent import AgentToolCall
+from app.db.models.auth import User
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
+from app.services.agent_order_tools import confirm_agent_tool_call
+from app.services.cart_service import get_cart_response
 from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
 from app.services.db_seed import seed_database
@@ -119,6 +122,45 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+
+
+def test_compose_cart_requires_confirmation_before_bulk_add(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    with Session(db_engine) as session:
+        user = User(email="compose@example.com", display_name="compose-user")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="compose_cart",
+            arguments={"categories": ["cream", "serum"], "max_budget": 50_000},
+            user=user,
+            conversation_id="conv_compose",
+            request_id="req_compose",
+        )
+        session.commit()
+
+        assert response.requires_confirmation is True
+        assert response.tool_call_id is not None
+        assert [item.id for item in response.items] == ["prod_001", "prod_002"]
+        assert sum(item.price or 0 for item in response.items) == 42_800
+        assert get_cart_response(session, user, None).items == []
+
+        confirmed = confirm_agent_tool_call(
+            session,
+            user,
+            tool_call_id=response.tool_call_id,
+            action="confirm",
+        )
+        session.commit()
+        cart = get_cart_response(session, user, None)
+
+    assert confirmed.status == "EXECUTED"
+    assert confirmed.ui_action.type == "show_cart"
+    assert {item.product_id for item in cart.items} == {"prod_001", "prod_002"}
 
 
 def test_openai_tool_returns_structured_login_action_for_anonymous_user(db_engine: Engine) -> None:
