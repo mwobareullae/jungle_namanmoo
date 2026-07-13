@@ -904,7 +904,7 @@ function GlobalFooter() {
 }
 
 function RouteLoadingFallback() {
-  return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
+  return <div className="product-detail-loading-overlay" role="status" aria-label="페이지 불러오는 중"><span className="product-detail-loading-spinner" aria-hidden="true" /></div>;
 }
 
 function PopularProductsRouteFallback() {
