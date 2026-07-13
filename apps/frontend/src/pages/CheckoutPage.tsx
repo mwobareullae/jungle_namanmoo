@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ANONYMOUS, loadTossPayments, type TossPaymentsSDK } from "@tosspayments/tosspayments-sdk";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
@@ -296,9 +296,13 @@ const mapAddressToForm = (address: UserAddress): AddressFormState => ({
 });
 
 function CheckoutPage() {
-  const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds, agentOrderCode, agentAmount }] =
+  const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds }] =
     useState(getCheckoutParams);
+  const location = useLocation();
   const navigate = useNavigate();
+  const agentPaymentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const agentOrderCode = agentPaymentParams.get("agent_order_code") ?? "";
+  const agentAmount = Number(agentPaymentParams.get("agent_amount") ?? 0);
   const { isAuthLoading, user } = useAuth();
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
   const [productLoadState, setProductLoadState] = useState<ProductLoadState>(selectedId ? "loading" : "idle");
@@ -671,6 +675,24 @@ function CheckoutPage() {
     try {
       if (isTossPayment && !tossPayments) {
         throw new Error("토스페이먼츠 SDK가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      }
+
+      if (agentOrderCode && agentAmount > 0 && tossPayments) {
+        const successParams = new URLSearchParams({ provider: "toss", order_code: agentOrderCode });
+        const failParams = new URLSearchParams({ payment_failed: "1", order_code: agentOrderCode });
+        const payment = tossPayments.payment({ customerKey: getTossCustomerKey(user.id) });
+        await payment.requestPayment({
+          method: "CARD",
+          amount: { currency: "KRW", value: agentAmount },
+          orderId: agentOrderCode,
+          orderName: items.length > 1 ? `${representative.name} 외 ${items.length - 1}개` : representative.name,
+          successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
+          failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
+          customerEmail: user.email,
+          customerName: user.nickname ?? user.email,
+          card: { flowMode: "DIRECT", easyPay: "TOSSPAY" },
+        });
+        return;
       }
 
       const orderCartItemIds = requestedCartItemIds.length > 0
