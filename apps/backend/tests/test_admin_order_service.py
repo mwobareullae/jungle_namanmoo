@@ -217,6 +217,28 @@ def test_summary_independent_of_page_and_filter(session: Session) -> None:
     assert resp.summary.reserved_quantity_total == 6  # 2 + 4
 
 
+def test_shipped_and_delivered_at_exposed_in_list(session: Session) -> None:
+    order = _make_order(session, order_status="DELIVERED")
+    shipped_at = datetime.now(UTC)
+    delivered_at = shipped_at + timedelta(hours=2)
+    order.shipped_at = shipped_at
+    order.delivered_at = delivered_at
+    session.commit()
+
+    resp = list_admin_orders(session, order_status=None, payment_status=None, limit=20, cursor=None)
+    assert resp.items[0].shipped_at is not None
+    assert resp.items[0].delivered_at is not None
+
+
+def test_shipped_and_delivered_at_none_before_shipment(session: Session) -> None:
+    _make_order(session, order_status="PAID")
+    session.commit()
+
+    resp = list_admin_orders(session, order_status=None, payment_status=None, limit=20, cursor=None)
+    assert resp.items[0].shipped_at is None
+    assert resp.items[0].delivered_at is None
+
+
 def test_invalid_status_rejected(session: Session) -> None:
     with pytest.raises(ApiError):
         list_admin_orders(session, order_status="NOPE", payment_status=None, limit=20, cursor=None)

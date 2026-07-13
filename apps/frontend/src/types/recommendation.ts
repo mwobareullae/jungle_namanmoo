@@ -115,6 +115,8 @@ export type ProductCardItem = {
   evidence_tags: string[];
   key_ingredients: string[];
   risk_flags: string[];
+  sales_status?: string;
+  in_stock?: boolean;
   score_breakdown?: ScoreBreakdown;
 };
 
@@ -147,6 +149,19 @@ export type HomeSection = {
   skin_type: string | null;
   sensitivity: string | null;
   personalization_sources: string[];
+};
+
+export type HomeLayoutSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  endpoint: string;
+  lazy_load: boolean;
+};
+
+export type HomeLayoutResponse = {
+  sections: HomeLayoutSection[];
 };
 
 export type RecommendationSummary = {
@@ -261,6 +276,19 @@ export type ProductPurchaseInfo = {
   available_quantity: number | null;
 };
 
+export type ProductReviewSummary = {
+  review_count: number;
+  average_rating: number | null;
+  rating_distribution: Record<string, number>;
+  general_review_count: number;
+  month_use_review_count: number;
+  repurchase_known_count: number;
+  repurchase_review_count: number;
+  repurchase_rate: number | null;
+  profile_labeled_review_count: number;
+  last_reviewed_at: string | null;
+};
+
 export type ProductDetail = ProductCardItem & {
   image_urls: string[];
   content_confidence: ContentConfidence;
@@ -268,6 +296,7 @@ export type ProductDetail = ProductCardItem & {
   ingredients: ProductIngredient[];
   purchase_url: string | null;
   purchase_info?: ProductPurchaseInfo;
+  review_summary?: ProductReviewSummary;
   evidence: IngredientEvidence[];
   prices: ProductPrice[];
   sources: ProductSource[];

@@ -79,7 +79,7 @@ jobs:
             "apps/backend/requirements-dev.txt"
             "apps/backend/pytest.ini"
             "apps/backend/app/main.py"
-            "docs/data-contract.md"
+            "docs/data/data-contract.md"
             "data/README.md"
           )
 

@@ -1,7 +1,9 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
+import { api } from "../lib/api";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
+import type { CatalogSuggestionItem } from "../types/product";
 
 type SearchBarPanelProps = {
   initialQuery?: string;
@@ -17,14 +19,43 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   const [query, setQuery] = useState(initialQuery);
   const [profile, setProfile] = useState(initialProfile);
   const [searchMode, setSearchMode] = useState<SearchMode>(initialSearchMode);
+  const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
 
   useEffect(() => {
     callOriginal("setSearchMode", searchMode);
   }, [searchMode]);
 
+  useEffect(() => {
+    const normalized = query.trim();
+    if (searchMode !== "general" || !normalized) {
+      return;
+    }
+
+    let isMounted = true;
+    const timer = window.setTimeout(() => {
+      api.getCatalogSuggestions(normalized)
+        .then((response) => {
+          if (isMounted) setSuggestions(response.items);
+        })
+        .catch(() => {
+          if (isMounted) setSuggestions([]);
+        });
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [query, searchMode]);
+
   const goToSearch = (nextQuery = query) => {
     const trimmedQuery = nextQuery.trim();
     if (!trimmedQuery) return;
+
+    if (searchMode === "general") {
+      window.location.assign(`/catalog-search?q=${encodeURIComponent(trimmedQuery)}`);
+      return;
+    }
 
     const params = new URLSearchParams({
       keyword: trimmedQuery,
@@ -35,11 +66,20 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
       params.set("skin_type", profile.skin);
       params.set("sensitivity", profile.sensitivity);
     }
-    window.location.href = `/search?${params.toString()}`;
+      window.location.assign(`/search?${params.toString()}`);
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") goToSearch();
+  };
+
+  const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
+    setSuggestions([]);
+    if (suggestion.type === "PRODUCT" && suggestion.product_id) {
+      window.location.assign(`/product-detail?id=${encodeURIComponent(suggestion.product_id)}`);
+      return;
+    }
+    setQuery(suggestion.text);
   };
 
   return (
@@ -102,9 +142,25 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
               </button>
             </div>
 
+            {searchMode === "general" && suggestions.length > 0 ? (
+              <div className="search-mode-suggestions" role="listbox">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`}
+                    onClick={() => selectSuggestion(suggestion)}
+                    role="option"
+                    type="button"
+                  >
+                    <span>{suggestion.text}</span>
+                    <small>{suggestion.type === "PRODUCT" ? "상품" : suggestion.type === "BRAND" ? "브랜드" : suggestion.type === "CATEGORY" ? "카테고리" : "추천 검색어"}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <div
               aria-label="최근 고민과 피부 조건"
-              className="search-suggest-panel"
+              className={`search-suggest-panel${searchMode === "general" && query.trim() ? " search-suggest-panel--hidden" : ""}`}
               id="searchSuggestPanel"
             >
               <div className="suggest-section">

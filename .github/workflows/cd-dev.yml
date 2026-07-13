@@ -77,7 +77,9 @@ jobs:
               python3 data/scripts/build_seed_subset.py --source-dir data --output-dir data/dev-small --force
             fi
             docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server config
-            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up --build -d
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml stop frontend || true
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml rm -f frontend || true
+            docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up --build -d backend redis elasticsearch caddy
             docker compose ps
           "
 

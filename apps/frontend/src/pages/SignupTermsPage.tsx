@@ -75,7 +75,7 @@ const parseTableRow = (line: string) =>
     .split("|")
     .map((cell) => cell.trim());
 
-const renderTermBody = (body: string) => {
+export const renderTermBody = (body: string) => {
   let listContext: "none" | "numbered" | "nestedBullet" | "topBullet" = "none";
   const lines = body.split("\n");
   const renderedNodes: ReactNode[] = [];
