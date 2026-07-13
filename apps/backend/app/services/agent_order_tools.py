@@ -491,10 +491,10 @@ def _build_cancel_confirmation_message(detail: OrderDetailResponse) -> str:
 
 def _build_cancel_executed_message(status: str) -> str:
     if status == "CANCELED":
-        return "Order was canceled."
+        return "주문 취소가 완료됐어요."
     if status == "CANCEL_REQUESTED":
-        return "Order cancellation was requested."
-    return f"Order cancellation finished with status {status}."
+        return "주문 취소를 요청했어요. 처리 결과를 확인하고 있어요."
+    return f"주문 취소 처리 상태는 {status}예요."
 
 
 def _normalize_optional_text(value: str | None) -> str | None:

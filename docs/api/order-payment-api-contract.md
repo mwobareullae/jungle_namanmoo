@@ -787,10 +787,19 @@ provider. For a paid order it records `CANCEL_REQUESTED` and returns. The
 operational processor then handles full cancellation:
 
 ```text
+# One-off/manual processing
 python -m app.cli.cancel_requested_orders --limit 100
 python -m app.cli.cancel_requested_orders --limit 100 --reason "customer requested cancellation"
 python -m app.cli.cancel_requested_orders --limit 100 --dry-run
+
+# Continuous processing (the Docker Compose cancel-worker service runs this)
+python -m app.cli.cancel_requested_orders_worker
 ```
+
+The continuous worker polls every `CANCEL_WORKER_INTERVAL_SECONDS` (default:
+5 seconds) and processes up to `CANCEL_WORKER_BATCH_SIZE` orders (default: 20)
+per iteration. `CANCEL_WORKER_REASON` supplies the reason sent to Toss. These
+settings are operational controls only and do not change the API contract.
 
 Historical `MOCK` rows are processed locally only for backward compatibility. New `TOSS` payments call the Toss cancel API and are finalized only when the response has `status = CANCELED`. A
 network failure, provider error, missing payment key, or invalid response

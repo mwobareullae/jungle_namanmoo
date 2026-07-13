@@ -164,6 +164,7 @@ def test_confirm_cancel_tool_executes_pending_cancel_and_releases_stock(
     assert data["ui_action"]["type"] == "show_order_status"
     assert data["ui_action"]["payload"]["order_code"] == created["order_code"]
     assert data["ui_action"]["payload"]["status"] == "CANCELED"
+    assert data["message"] == "주문 취소가 완료됐어요."
 
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == created["order_code"])).scalar_one()
