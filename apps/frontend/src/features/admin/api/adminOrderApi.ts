@@ -91,6 +91,8 @@ type BackendAdminOrderListItem = {
   reserved_quantity: number;
   recommendation_ids: string[];
   paid_at: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
   available_actions: AdminOrderAction[];
   updated_at: string;
 };
@@ -124,6 +126,8 @@ export type AdminOrderRow = {
   stockReserved: number;
   recommendationId: string;
   paidAt: string | null; // 결제일(KST 표기), 결제 미완료면 null
+  shippedAt: string | null; // 배송 시작일(KST), 배송 시작 전이면 null
+  deliveredAt: string | null; // 배송완료일(KST), 배송완료 전이면 null
   availableActions: AdminOrderAction[]; // 서버가 계산한 다음 액션. 프론트는 직접 계산하지 않고 그대로 사용
   updatedAt: string;
 };
@@ -187,6 +191,8 @@ const adaptOrderRow = (item: BackendAdminOrderListItem): AdminOrderRow => ({
   stockReserved: item.reserved_quantity,
   recommendationId: item.recommendation_ids.length > 0 ? item.recommendation_ids.join(", ") : "-",
   paidAt: item.paid_at === null ? null : formatKstDateTime(item.paid_at),
+  shippedAt: item.shipped_at === null ? null : formatKstDateTime(item.shipped_at),
+  deliveredAt: item.delivered_at === null ? null : formatKstDateTime(item.delivered_at),
   availableActions: item.available_actions,
   updatedAt: formatKstDateTime(item.updated_at)
 });
@@ -221,6 +227,8 @@ export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<Admin
 type BackendAdminOrderShipmentActionResponse = {
   order_code: string;
   order_status: AdminOrderStatus;
+  shipped_at: string | null;
+  delivered_at: string | null;
   available_actions: AdminOrderAction[];
   updated_at: string;
 };
@@ -230,6 +238,8 @@ export type AdminOrderShipmentActionResult = {
   orderCode: string;
   status: string; // 한글 라벨
   orderStatusRaw: AdminOrderStatus;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   availableActions: AdminOrderAction[];
   updatedAt: string;
 };
@@ -240,6 +250,8 @@ const adaptShipmentActionResponse = (
   orderCode: body.order_code,
   status: ORDER_STATUS_LABELS[body.order_status],
   orderStatusRaw: body.order_status,
+  shippedAt: body.shipped_at === null ? null : formatKstDateTime(body.shipped_at),
+  deliveredAt: body.delivered_at === null ? null : formatKstDateTime(body.delivered_at),
   availableActions: body.available_actions,
   updatedAt: formatKstDateTime(body.updated_at)
 });

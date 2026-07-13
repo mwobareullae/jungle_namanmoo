@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.logging import PERFORMANCE_LOGGER_NAME
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderItem, Payment
+from app.db.models.commerce import Order, OrderFulfillmentEvent, OrderItem, Payment
 from app.db.session import get_db
 from app.main import app
 
@@ -221,6 +221,26 @@ def test_shipment_action_transitions_and_persists(
     assert item_statuses == [expected_status] * 2
 
 
+def test_shipment_action_response_exposes_shipped_and_delivered_at(
+    client: TestClient, db_engine: Engine
+) -> None:
+    _authed_admin(client, db_engine)
+    order_code = "ord_api_shipment_timestamps"
+    _seed_order(db_engine, order_code=order_code, order_status="PAID", payment_status="APPROVED")
+
+    prepare_body = client.post(f"/api/admin/orders/{order_code}/ship/prepare").json()
+    assert prepare_body["shipped_at"] is None
+    assert prepare_body["delivered_at"] is None
+
+    dispatch_body = client.post(f"/api/admin/orders/{order_code}/ship/dispatch").json()
+    assert dispatch_body["shipped_at"] is not None
+    assert dispatch_body["delivered_at"] is None
+
+    deliver_body = client.post(f"/api/admin/orders/{order_code}/ship/deliver").json()
+    assert deliver_body["shipped_at"] is not None
+    assert deliver_body["delivered_at"] is not None
+
+
 def test_shipment_action_idempotent_replay_returns_200(client: TestClient, db_engine: Engine) -> None:
     _authed_admin(client, db_engine)
     order_code = "ord_api_idempotent"
@@ -356,6 +376,35 @@ def test_shipment_action_commit_failure_rolls_back_and_logs_failure(
     persisted_status, item_statuses = _load_order_state(db_engine, order_code)
     assert persisted_status == "PAID"
     assert item_statuses == ["ORDERED"]
+
+
+def test_shipment_action_commit_failure_rolls_back_timestamp_and_event(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # dispatch(SHIPPED 전이)에서 commit 이 실패하면 shipped_at·OrderFulfillmentEvent 도
+    # Order.status 와 함께 롤백돼야 한다(같은 트랜잭션).
+    _authed_admin(client, db_engine)
+    order_code = "ord_api_commit_fail_shipped_at"
+    _seed_order(db_engine, order_code=order_code, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+
+    def _boom_commit(self: Session) -> None:
+        raise RuntimeError("commit boom")
+
+    monkeypatch.setattr(Session, "commit", _boom_commit)
+
+    with pytest.raises(RuntimeError):
+        client.post(f"/api/admin/orders/{order_code}/ship/dispatch")
+
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == order_code)).scalar_one()
+        assert order.status == "PREPARING_SHIPMENT"
+        assert order.shipped_at is None
+        events = session.execute(
+            select(OrderFulfillmentEvent).where(OrderFulfillmentEvent.order_id == order.id)
+        ).scalars().all()
+        assert events == []
 
 
 def test_shipment_action_requires_authentication(client: TestClient) -> None:

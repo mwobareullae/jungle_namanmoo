@@ -18,7 +18,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderItem, Payment
+from app.db.models.commerce import Order, OrderFulfillmentEvent, OrderItem, Payment
 from app.schemas.admin.order import (
     AdminOrderListItem,
     AdminOrderListResponse,
@@ -236,6 +236,8 @@ def _to_list_item(
         reserved_quantity=_reserved_quantity(order),
         recommendation_ids=_recommendation_ids(items),
         paid_at=order.paid_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
         available_actions=_compute_available_actions(order, payment),
         updated_at=order.updated_at,
     )
@@ -415,6 +417,24 @@ def _transition_shipping_order(
     # router 가 롤백하면 방금 바꾼 Order 상태도 함께 취소된다.
     if updated_count is None or updated_count < 0 or updated_count != order.item_count:
         raise ApiError(409, "ORDER_ITEMS_INCONSISTENT", "Order items are inconsistent.")
+
+    # item_count 정합성 확인을 통과한 뒤에만 배송 시각·이력을 남긴다(실제 전이 1건당 1건).
+    # updated_at·배송 시각·이력 created_at 모두 같은 now 를 쓴다. 실패하면(예외로 라우터가
+    # rollback) Order·OrderItem·이 두 가지도 전부 함께 롤백된다(같은 세션·트랜잭션).
+    if target_status == ORDER_STATUS_SHIPPED:
+        order.shipped_at = now
+    elif target_status == ORDER_STATUS_DELIVERED:
+        order.delivered_at = now
+    session.add(
+        OrderFulfillmentEvent(
+            order_id=order.id,
+            from_status=previous_status,
+            to_status=target_status,
+            source="ADMIN",
+            reason=action,
+            created_at=now,
+        )
+    )
     session.flush()
 
     return ShipmentTransitionResult(
@@ -464,6 +484,8 @@ def _to_shipment_response(order: Order, payment: Payment | None) -> AdminOrderSh
     return AdminOrderShipmentActionResponse(
         order_code=order.order_code,
         order_status=order.status,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
         available_actions=_compute_available_actions(order, payment),
         updated_at=order.updated_at,
     )

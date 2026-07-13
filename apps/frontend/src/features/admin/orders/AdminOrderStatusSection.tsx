@@ -566,6 +566,14 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                     <dd>{selectedOrder.paidAt ?? "결제 미완료"}</dd>
                   </div>
                   <div>
+                    <dt>배송 시작일</dt>
+                    <dd>{selectedOrder.shippedAt ?? "배송 시작 전"}</dd>
+                  </div>
+                  <div>
+                    <dt>배송완료일</dt>
+                    <dd>{selectedOrder.deliveredAt ?? "배송완료 전"}</dd>
+                  </div>
+                  <div>
                     <dt>추천 ID</dt>
                     <dd>{selectedOrder.recommendationId}</dd>
                   </div>
