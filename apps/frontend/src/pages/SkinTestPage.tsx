@@ -247,6 +247,17 @@ function SkinTestPage() {
                   onSelect={handleSelectOption}
                   onConfirm={handleConfirmSelection}
                 />
+                <div className="skin-test-question-actions">
+                  <button
+                    className="skin-test-primary-button"
+                    disabled={selectedOptionId === null}
+                    onClick={() => handleConfirmSelection(selectedOptionId)}
+                    type="button"
+                  >
+                    {isLastQuestion ? "결과 확인하기" : "다음"}
+                    <span aria-hidden="true">→</span>
+                  </button>
+                </div>
                 <div className="skin-test-footnote">
                   <span>
                     {answeredCount}/{questions.length} 답변 완료

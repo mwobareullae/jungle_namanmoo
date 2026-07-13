@@ -10,7 +10,7 @@ import { createAddress, deleteAddress, getAddresses, updateAddress } from "../li
 import { getCart, previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
-import { cancelOrder, createOrder } from "../lib/orderApi";
+import { cancelOrder, confirmMockPayment, createOrder } from "../lib/orderApi";
 import type { UserAddress, UserAddressCreateRequest } from "../types/address";
 import type { CartItem, CheckoutPreviewResponse } from "../types/cart";
 import type { ProductDetail } from "../types/recommendation";
@@ -738,9 +738,24 @@ function CheckoutPage() {
         return;
       }
 
+      if (!isTossPayment) {
+        const paymentCode = order.payment?.payment_code;
+        if (!paymentCode) {
+          throw new Error("결제 정보를 확인하지 못했습니다.");
+        }
+
+        const payment = await confirmMockPayment(paymentCode);
+        if (payment.order_status !== "PAID" || payment.payment_status !== "APPROVED") {
+          throw new Error("결제 승인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+      }
+
       window.dispatchEvent(new Event("cart:updated"));
       navigateWithinApp(`/payment-complete${params.toString() ? `?${params.toString()}` : ""}`);
     } catch (error) {
+      if (!isTossPayment) {
+        sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+      }
       setOrderErrorMessage(error instanceof Error ? error.message : "주문 생성에 실패했습니다.");
     } finally {
       setIsCompletingPayment(false);

@@ -7,10 +7,10 @@ import type { CatalogSuggestionItem } from "../types/product";
 const setSearch = (text: string) => callOriginal("setSearch", text);
 
 const placeholderExamples = [
-  "모공이 넓고 번들거려요",
-  "건조하고 주름이 걱정돼요",
-  "색소침착과 잡티가 있어요",
-  "민감하고 자주 붉어져요"
+  "모공과 피지가 고민이에요",
+  "건조하고 속당김이 있어요",
+  "잡티와 색소침착이 걱정돼요",
+  "민감하고 붉은기가 자주 올라와요"
 ];
 
 type HomeHeroProps = {
@@ -38,21 +38,34 @@ function HomeHero({
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("ai");
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
 
   useEffect(() => {
     const normalized = query.trim();
+    let isMounted = true;
     if (searchMode !== "general" || !normalized) {
-      return;
+      queueMicrotask(() => {
+        if (!isMounted) return;
+        setSuggestions([]);
+        setIsSuggestionsLoading(false);
+      });
+      return () => {
+        isMounted = false;
+      };
     }
 
-    let isMounted = true;
     const timer = window.setTimeout(() => {
+      if (!isMounted) return;
+      setIsSuggestionsLoading(true);
       api.getCatalogSuggestions(normalized)
         .then((response) => {
           if (isMounted) setSuggestions(response.items);
         })
         .catch(() => {
           if (isMounted) setSuggestions([]);
+        })
+        .finally(() => {
+          if (isMounted) setIsSuggestionsLoading(false);
         });
     }, 250);
 
@@ -140,8 +153,13 @@ function HomeHero({
   }, []);
 
   const openSuggestions = () => {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     setIsSuggestionsOpen(true);
     callOriginal("openSearchSuggestions");
+    requestAnimationFrame(() => {
+      window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" });
+    });
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -174,7 +192,13 @@ function HomeHero({
 
   const selectSearchMode = (mode: SearchMode) => {
     setSearchMode(mode);
+    setIsSuggestionsOpen(true);
     callOriginal("setSearchMode", mode);
+  };
+
+  const handleQueryChange = (nextQuery: string) => {
+    setQuery(nextQuery);
+    setIsSuggestionsOpen(true);
   };
 
   return (
@@ -227,8 +251,9 @@ function HomeHero({
                 </button>
               ) : null}
               <input
+                autoComplete="off"
                 id="searchInput"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => handleQueryChange(event.target.value)}
                 onClick={openSuggestions}
                 onFocus={openSuggestions}
                 onKeyDown={handleSearchKey}
@@ -253,9 +278,10 @@ function HomeHero({
               </button>
             </div>
 
-            {searchMode === "general" && isSuggestionsOpen && suggestions.length > 0 ? (
+            {searchMode === "general" && isSuggestionsOpen && query.trim() ? (
               <div className="search-mode-suggestions" role="listbox">
-                {suggestions.map((suggestion) => (
+                {isSuggestionsLoading ? <div className="search-mode-suggestions__state">검색어를 찾고 있어요…</div> : null}
+                {!isSuggestionsLoading && suggestions.map((suggestion) => (
                   <button
                     key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`}
                     onClick={() => selectSuggestion(suggestion)}
@@ -266,6 +292,7 @@ function HomeHero({
                     <small>{suggestion.type === "PRODUCT" ? "상품" : suggestion.type === "BRAND" ? "브랜드" : suggestion.type === "CATEGORY" ? "카테고리" : "추천 검색어"}</small>
                   </button>
                 ))}
+                {!isSuggestionsLoading && suggestions.length === 0 ? <div className="search-mode-suggestions__state">일치하는 검색어가 없습니다.</div> : null}
               </div>
             ) : null}
 
