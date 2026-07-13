@@ -504,9 +504,12 @@ API 키가 설정되지 않으면 실행하지 않습니다.
 상세 규칙과 실제 상품 도달률은 `docs/scoring/legacy-scale-500-scoring.md`, 재현 입력·SHA와
 전수 결과는 `data/reconciliation/legacy_scale_500/`을 정본으로 봅니다.
 
-현재 PR은 Draft입니다. effect 점수로 고른 top3를 evidence 계산에도 재사용해 일부 상품의
-합산점수가 감소하는 상호작용이 있어, 이 동작을 수용하거나 evidence top3를 독립 선발한 뒤
-10,164개 추천 가능 상품의 전체 순위를 재검증하기 전에는 merge하지 않습니다.
+성분효능 top3와 성분근거 top3는 독립 선발합니다. 성분효능은 `effect_score`, 성분근거는
+`evidence_score × source_authority_score`를 기준으로 각각 상위 3개를 고르고
+`1.0 / 0.5 / 0.25` 감쇠를 적용합니다. 기존 운영 34개·72쌍에서 확장 187개·245쌍으로
+전환하는 10,164개 추천 가능 상품 전수검증에서 효능·근거·합산점수 감소는 6개 축 모두
+0건입니다. 고객 설명용 `score_evidence`, 추천 사유, `key_ingredients`는 effect top3를
+계속 사용하며 숫자상 성분근거 top3와는 별도 개념입니다.
 
 ### `data/ingredient_effect.csv`
 
@@ -1047,9 +1050,12 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
 - 같은 효능이 여러 고민에서 중복 도출되어도 효능 자체는 한 번만 반영합니다.
 - 하나의 효능에 여러 유효 성분이 있으면 상위 3개 성분을 반영합니다.
 - 상위 3개 성분은 `1.0 / 0.5 / 0.25` 감쇠계수를 적용합니다.
+- 성분효능 top3는 `effect_score`, 성분근거 top3는
+  `evidence_score × source_authority_score` 기준으로 각각 독립 선발합니다.
 - 상품 근거와 리뷰 품질·유사 프로필 affinity를 추천 점수에 반영합니다.
 - 위험성분은 항상 표시하며 민감도 `높음` 사용자에게만 penalty를 적용합니다.
-- `v4_review_personalization`은 성분효능, 성분근거, 피부프로필, 함량, 기능성, 검색, 가격, 인기, 스킨테스트, 행동, 리뷰 품질, 리뷰 affinity를 사용합니다.
+- `v6_independent_evidence_top3`는 성분효능, 독립 성분근거 top3, 피부프로필, 함량,
+  기능성, 검색, 가격, 인기, 스킨테스트, 행동, 리뷰 품질, 리뷰 affinity를 사용합니다.
 - 함량 점수는 `product_ingredients.csv`와 `ingredient_effect_ranges.csv`를 사용합니다.
 - 피부타입/민감도 개인화는 `product_skin_profiles.csv`가 채워지는 즉시 `skin_profile_score`에 반영할 수 있습니다.
 
