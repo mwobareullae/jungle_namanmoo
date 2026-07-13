@@ -9,7 +9,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_current_admin
-from app.api.routes.admin import orders, ping
+from app.api.routes.admin import order_cancel_requests, orders, ping
 
 
 admin_router = APIRouter(
@@ -20,3 +20,4 @@ admin_router = APIRouter(
 
 admin_router.include_router(ping.router)
 admin_router.include_router(orders.router)
+admin_router.include_router(order_cancel_requests.router)
