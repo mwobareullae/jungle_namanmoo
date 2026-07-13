@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderItem, Payment
+from app.db.models.commerce import Order, OrderFulfillmentEvent, OrderItem, Payment
 from app.schemas.common import ApiError
 from app.services.admin.order_service import complete_delivery, start_preparation, start_shipment
 
@@ -115,6 +115,22 @@ def _item_statuses(session: Session, order_id: int) -> list[str]:
             select(OrderItem.status).where(OrderItem.order_id == order_id)
         ).scalars()
     )
+
+
+def _fulfillment_events(session: Session, order_id: int) -> list[OrderFulfillmentEvent]:
+    return list(
+        session.execute(
+            select(OrderFulfillmentEvent)
+            .where(OrderFulfillmentEvent.order_id == order_id)
+            .order_by(OrderFulfillmentEvent.id.asc())
+        ).scalars()
+    )
+
+
+def _naive(value: datetime) -> datetime:
+    # SQLite 는 DateTime(timezone=True) 값도 조회 시 tzinfo 를 잃는다(Postgres 는 안 그럼) —
+    # 같은 now 인지 비교할 때는 tzinfo 를 벗겨서 값 자체만 비교한다.
+    return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
 
 def test_prepare_paid_approved_transitions_order_and_items(session: Session) -> None:
@@ -508,3 +524,121 @@ def test_prepare_idempotent_replay_does_not_lock_payment_row(session: Session) -
     for stmt in payment_selects:
         compiled_sql = str(stmt.compile(dialect=postgresql.dialect()))
         assert "FOR UPDATE" not in compiled_sql
+
+
+# ---------------------------------------------------------------------------
+# shipped_at/delivered_at + OrderFulfillmentEvent 기록
+#
+# 실제 전이 1건당 이벤트 1건, updated_at·배송 시각·이벤트 created_at 은 모두 같은
+# now 를 쓴다. 멱등 재요청과 실패 경로(결제 미승인·item_count 불일치)는 시각도
+# 이벤트도 생성하지 않는다(코드상 두 실패 분기 모두 이 로직보다 먼저 raise 한다).
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_creates_fulfillment_event_without_shipment_timestamps(session: Session) -> None:
+    order = _make_order(session, order_status="PAID", payment_status="APPROVED")
+    session.commit()
+
+    result = start_preparation(session, order_code=order.order_code)
+
+    assert order.shipped_at is None
+    assert order.delivered_at is None
+    events = _fulfillment_events(session, order.id)
+    assert len(events) == 1
+    assert events[0].from_status == "PAID"
+    assert events[0].to_status == "PREPARING_SHIPMENT"
+    assert events[0].source == "ADMIN"
+    assert events[0].reason == "START_PREPARATION"
+    # updated_at·이벤트 created_at 은 같은 now 를 씀
+    assert _naive(events[0].created_at) == _naive(order.updated_at)
+    assert result.idempotent_replay is False
+
+
+def test_shipment_sets_shipped_at_and_creates_event(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    session.commit()
+
+    start_shipment(session, order_code=order.order_code)
+
+    assert order.shipped_at is not None
+    assert order.shipped_at == order.updated_at
+    assert order.delivered_at is None
+    events = _fulfillment_events(session, order.id)
+    assert len(events) == 1
+    assert events[0].from_status == "PREPARING_SHIPMENT"
+    assert events[0].to_status == "SHIPPED"
+    assert events[0].reason == "START_SHIPMENT"
+    assert _naive(events[0].created_at) == _naive(order.shipped_at)
+
+
+def test_delivery_sets_delivered_at_and_creates_event(session: Session) -> None:
+    order = _make_order(session, order_status="SHIPPED", payment_status="APPROVED")
+    session.commit()
+
+    complete_delivery(session, order_code=order.order_code)
+
+    assert order.delivered_at is not None
+    assert order.delivered_at == order.updated_at
+    events = _fulfillment_events(session, order.id)
+    assert len(events) == 1
+    assert events[0].from_status == "SHIPPED"
+    assert events[0].to_status == "DELIVERED"
+    assert events[0].reason == "COMPLETE_DELIVERY"
+    assert _naive(events[0].created_at) == _naive(order.delivered_at)
+
+
+def test_shipment_idempotent_replay_keeps_timestamp_and_no_duplicate_event(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    session.commit()
+
+    first = start_shipment(session, order_code=order.order_code)
+    assert first.idempotent_replay is False
+    shipped_at_after_first = order.shipped_at
+    updated_at_after_first = order.updated_at
+    assert len(_fulfillment_events(session, order.id)) == 1
+
+    second = start_shipment(session, order_code=order.order_code)
+
+    assert second.idempotent_replay is True
+    assert order.shipped_at == shipped_at_after_first
+    assert order.updated_at == updated_at_after_first
+    assert len(_fulfillment_events(session, order.id)) == 1  # 새 이벤트 없음
+
+
+def test_delivery_idempotent_replay_keeps_timestamp_and_no_duplicate_event(session: Session) -> None:
+    order = _make_order(session, order_status="SHIPPED", payment_status="APPROVED")
+    session.commit()
+
+    complete_delivery(session, order_code=order.order_code)
+    delivered_at_after_first = order.delivered_at
+    updated_at_after_first = order.updated_at
+
+    complete_delivery(session, order_code=order.order_code)
+
+    assert order.delivered_at == delivered_at_after_first
+    assert order.updated_at == updated_at_after_first
+    assert len(_fulfillment_events(session, order.id)) == 1
+
+
+def test_shipment_rejects_unapproved_payment_creates_no_event_or_timestamp(session: Session) -> None:
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="READY")
+    session.commit()
+
+    with pytest.raises(ApiError):
+        start_shipment(session, order_code=order.order_code)
+
+    assert order.shipped_at is None
+    assert _fulfillment_events(session, order.id) == []
+
+
+def test_delivery_inconsistent_item_count_creates_no_event_or_timestamp(session: Session) -> None:
+    order = _make_order(session, order_status="SHIPPED", payment_status="APPROVED", item_count=1)
+    order.item_count = 2
+    session.flush()
+    session.commit()
+
+    with pytest.raises(ApiError):
+        complete_delivery(session, order_code=order.order_code)
+
+    assert order.delivered_at is None
+    assert _fulfillment_events(session, order.id) == []

@@ -101,6 +101,14 @@ class AdminOrderListItem(BaseModel):
         ...,
         description="Order.paid_at 그대로. 결제 미완료·정보 누락 주문은 None.",
     )
+    shipped_at: datetime | None = Field(
+        ...,
+        description="Order.shipped_at 그대로. 배송 시작(SHIPPED) 전이 시 최초 1회만 기록되며, 그 전이면 None.",
+    )
+    delivered_at: datetime | None = Field(
+        ...,
+        description="Order.delivered_at 그대로. 배송완료(DELIVERED) 전이 시 최초 1회만 기록되며, 그 전이면 None.",
+    )
     available_actions: list[AdminOrderAction] = Field(
         ...,
         description="현재 주문·결제 상태를 기준으로 관리자가 수행할 수 있는 다음 액션. 프론트는 이 값을 직접 계산하지 않고 그대로 사용한다.",
@@ -130,6 +138,14 @@ class AdminOrderShipmentActionResponse(BaseModel):
 
     order_code: str
     order_status: AdminShipmentResultStatus
+    shipped_at: datetime | None = Field(
+        ...,
+        description="Order.shipped_at 그대로. SHIPPED 전이 최초 1회만 기록, 그 전이면 None.",
+    )
+    delivered_at: datetime | None = Field(
+        ...,
+        description="Order.delivered_at 그대로. DELIVERED 전이 최초 1회만 기록, 그 전이면 None.",
+    )
     available_actions: list[AdminShipmentNextAction] = Field(
         ...,
         description="전이 후 상태 기준으로 이어서 할 수 있는 다음 액션. 목록 조회와 동일 규칙(결제 승인 확인 포함).",

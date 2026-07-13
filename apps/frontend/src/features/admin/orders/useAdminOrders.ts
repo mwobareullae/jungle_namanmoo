@@ -152,6 +152,8 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
                 ...item,
                 status: result.status,
                 orderStatusRaw: result.orderStatusRaw,
+                shippedAt: result.shippedAt,
+                deliveredAt: result.deliveredAt,
                 availableActions: result.availableActions,
                 updatedAt: result.updatedAt
               }
