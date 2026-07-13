@@ -272,6 +272,9 @@ Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredien
 관찰·사용시험(4), 적출·인공피부(5), 동물(6), in vitro(7), 일반 리뷰·참고(8)로
 기계 분류하되, 전 행은 `candidate_unverified`이고 `score_change=none`입니다.
 기존 `ingredient_effect.csv`, `ingredient_evidence.csv`, DB와 추천 점수는 변경하지 않습니다.
+이 문장은 v1/v1.1 기계 선별 산출물 자체의 동작을 설명합니다. 이후 별도 승인된
+`mwbl-legacy-scale-500-v1` 확장은 이 기계 선별의 `not_scoreable` 또는 사람 승인 상태를
+런타임 차단 조건으로 사용하지 않고 점수 데이터를 갱신했습니다.
 
 #### 성분 근거 필터 계약 v1.1
 
@@ -485,6 +488,26 @@ API 키가 설정되지 않으면 실행하지 않습니다.
 `ingredient_effect_business_score_impact_500.json`은 6축 조합 우선 접근을 검토한 실험
 산출물입니다. 현재 성분 우선 논문 카탈로그의 입력이나 런타임 정본으로 사용하지 않습니다.
 
+### 레거시 스케일 500성분 점수 확장
+
+2026-07-13 변경 후보는 `기존 34 + 동결 신규 466`의 정확한 500개 집합을 같은 legacy 점수
+스케일로 평가합니다. 기존 34개·72쌍은 그대로 유지하고 신규
+153개·173쌍을 추가해 현재 `ingredient_effect.csv`는 **187개 성분·245쌍**입니다.
+`ingredient_evidence.csv`는 기존 72행과 신규 구조화 논문 35행을 합친 **107행**입니다.
+
+- 공식 기능 prior 144쌍: 좁은 CosIng 6효능 기능만 사용하며 effect 점수만 부여
+- 구조화 논문 override 35쌍: primary 70, supporting 50, limited_medical 35로 legacy scale 변환
+- 공식 기능 prior만 있는 쌍: 임상 근거점수 0, `ingredient_evidence` 행 없음
+- `review_status`, 전문 확인, 사람 adjudication: 런타임 점수 차단 조건으로 사용하지 않음
+- 사용자 추천 사유: 근거가 없는 prior를 `효능 근거`라고 부르지 않고 `공식 성분 기능 분류 기반`으로 표시
+
+상세 규칙과 실제 상품 도달률은 `docs/scoring/legacy-scale-500-scoring.md`, 재현 입력·SHA와
+전수 결과는 `data/reconciliation/legacy_scale_500/`을 정본으로 봅니다.
+
+현재 PR은 Draft입니다. effect 점수로 고른 top3를 evidence 계산에도 재사용해 일부 상품의
+합산점수가 감소하는 상호작용이 있어, 이 동작을 수용하거나 evidence top3를 독립 선발한 뒤
+10,164개 추천 가능 상품의 전체 순위를 재검증하기 전에는 merge하지 않습니다.
+
 ### `data/ingredient_effect.csv`
 
 | 컬럼 | 설명 |
@@ -523,8 +546,13 @@ API 키가 설정되지 않으면 실행하지 않습니다.
 `accepted` 또는 `rejected` 행에는 `reviewed_by`와 `reviewed_at`이 필요합니다. 대표 근거는
 `accepted + is_current=true`인 행만 지정할 수 있으며, `representative_rank`는 1~3만 허용합니다.
 
-이 상태 컬럼은 근거 검수 이력을 저장하기 위한 계약입니다. `accepted`만 점수에 반영하는 게이트는
-별도 scoring 변경으로 적용하며, 상태 구조를 추가하는 단계에서는 기존 `evidence_score` 계산을 유지합니다.
+이 상태 컬럼은 근거 검수 이력을 저장하기 위한 계약입니다. 현재 런타임은 `accepted-only`,
+사람 adjudication 또는 전문 확인 게이트를 적용하지 않으며 `review_status`를 점수 필터로
+사용하지 않습니다. 대표 근거 노출 자격과 점수 활성 여부는 별개입니다.
+
+점수 계산과 고객 노출은 분리합니다. 상품 상세 API의 근거 제목·요약·출처는
+`review_status=accepted`이면서 `is_current=true`인 행만 반환합니다. `candidate_unverified`는
+내부 점수 계산에 사용될 수 있어도 고객 화면이나 외부 claim 근거로 노출하지 않습니다.
 
 `source_authority_score`는 추후 아래처럼 근거 점수 보정에 사용할 수 있습니다.
 
@@ -535,8 +563,8 @@ adjusted_evidence_score = evidence_score / 100 * source_authority_score
 ### 신규 논문 후보 DB
 
 주간 PubMed 수집 결과는 기존 `ingredient_evidence`에 바로 넣지 않고
-`evidence_discovery_candidates`에 영구 보관합니다. 후보 테이블에 있는 행은 점수에 사용하지 않으며,
-관리자가 승인한 경우에만 같은 트랜잭션에서 `ingredient_evidence` 행을 생성하거나 갱신합니다.
+`evidence_discovery_candidates`에 영구 보관합니다. 이 후보 승격 절차는 대표 근거 등록과
+외부 클레임 관리를 위한 것이며, 공식 기능 prior의 effect 점수 운영 승인 조건은 아닙니다.
 
 | 컬럼 | 설명 |
 | --- | --- |
