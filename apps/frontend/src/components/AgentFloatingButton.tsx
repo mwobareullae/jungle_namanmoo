@@ -810,10 +810,6 @@ function createResultMessage(
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
 ): AgentChatResultMessage | null {
-  if (isSimilarProductsAction(action)) {
-    return null;
-  }
-
   const productPayload = Array.isArray(action.payload.products)
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
     : [];
