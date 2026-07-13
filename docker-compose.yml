@@ -116,6 +116,37 @@ services:
     networks:
       - app_network
 
+  cancel-worker:
+    build:
+      context: ./apps/backend
+      args:
+        INSTALL_DEV: "false"
+    container_name: mwobareullae-cancel-worker
+    restart: unless-stopped
+    profiles:
+      - server
+      - backend-dev
+      - frontend-local-backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      CANCEL_WORKER_INTERVAL_SECONDS: ${CANCEL_WORKER_INTERVAL_SECONDS:-5}
+      CANCEL_WORKER_BATCH_SIZE: ${CANCEL_WORKER_BATCH_SIZE:-20}
+      CANCEL_WORKER_REASON: ${CANCEL_WORKER_REASON:-customer requested cancellation}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_DB_SLOW_QUERY_LOGGING: ${ENABLE_DB_SLOW_QUERY_LOGGING:-true}
+      DB_SLOW_QUERY_THRESHOLD_MS: ${DB_SLOW_QUERY_THRESHOLD_MS:-100}
+    command: python -m app.cli.cancel_requested_orders_worker
+    volumes:
+      - ./apps/backend:/app
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${CANCEL_WORKER_MEMORY_LIMIT:-512m}"
+    networks:
+      - app_network
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: mwobareullae-postgres
