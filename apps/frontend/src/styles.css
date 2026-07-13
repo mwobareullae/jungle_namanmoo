@@ -10409,13 +10409,13 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .product-comparison-panel--inline .product-comparison-card h3 {
-  min-height: 44px;
-  font-size: 16px;
+  min-height: 49px;
+  font-size: 18px;
 }
 
 .product-comparison-panel--inline .product-comparison-card__price {
-  min-height: 24px;
-  font-size: 19px;
+  min-height: 27px;
+  font-size: 21px;
 }
 
 .product-comparison-panel--inline .product-comparison-detail {
@@ -10436,7 +10436,7 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-row-list__row {
   display: grid;
   grid-template-columns: 108px minmax(0, 1fr);
-  min-height: 68px;
+  min-height: 72px;
   border-bottom: 1px solid #e1e8ec;
 }
 
@@ -10451,7 +10451,7 @@ html[data-app-mode="community"] .search-results-shell {
   border-right: 1px solid #e1e8ec;
   background: #f7fcfe;
   color: #0d6077;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -10471,7 +10471,7 @@ html[data-app-mode="community"] .search-results-shell {
   min-width: 0;
   padding: 16px 18px;
   color: var(--ink2);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -10504,7 +10504,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0 0 6px;
   color: var(--muted);
   font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -10513,7 +10513,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: clamp(19px, 1.7vw, 22px);
+  font-size: clamp(22px, 1.9vw, 26px);
   font-weight: 850;
   line-height: 1.35;
   letter-spacing: 0;
@@ -10668,7 +10668,7 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 999px;
   background: #f2fbfe;
   color: #0d6077;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -10681,7 +10681,7 @@ html[data-app-mode="community"] .search-results-shell {
   padding: 40px 24px 16px;
   background: #fbfcfd;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
   text-align: center;
 }
@@ -10712,8 +10712,9 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-card__brand {
   min-height: 18px;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -10723,8 +10724,9 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
   overflow: hidden;
   color: var(--ink);
+  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 450;
   line-height: 1.35;
   letter-spacing: 0;
   -webkit-box-orient: vertical;
@@ -10745,19 +10747,19 @@ html[data-app-mode="community"] .search-results-shell {
   justify-content: center;
   align-content: center;
   gap: 7px;
-  min-height: 32px;
+  min-height: 34px;
   margin-top: 4px;
 }
 
 .product-comparison-card__tags span {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 30px;
   padding: 0 10px;
   border: 1px solid rgba(148, 224, 248, 0.75);
   border-radius: 999px;
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 

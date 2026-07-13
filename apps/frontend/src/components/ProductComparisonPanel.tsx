@@ -721,22 +721,22 @@ function ProductComparisonPanel({
     recommendationReason,
   );
   const scenarioGuideItems = getProductScenarioGuideItems(visibleProducts, sensitivity);
-  const currentConcernSet = new Set(currentProduct?.evidence_tags ?? []);
+  const currentIngredientSet = new Set(currentProduct?.key_ingredients ?? []);
   const lowestPrice = getLowestComparablePrice(visibleProducts);
   const comparisonRows: ProductComparisonTableRow[] = [{
     label: "고민 적합도",
     comparisonValues: visibleProducts.map((product) => joinValues(product.evidence_tags)),
-    values: visibleProducts.map((product, index) => (
-      renderComparableValues(product.evidence_tags, index === 0 ? new Set<string>() : currentConcernSet)
+    values: visibleProducts.map((product) => (
+      renderComparableValues(product.evidence_tags, new Set<string>())
     )),
   },
   {
     label: "핵심 성분",
     comparisonValues: visibleProducts.map((product) => joinValues(product.key_ingredients)),
-    values: visibleProducts.map((product) => (
+    values: visibleProducts.map((product, index) => (
       renderComparableValues(
         product.key_ingredients,
-        new Set(getProductUniqueValues(product, visibleProducts, "key_ingredients")),
+        index === 0 ? new Set<string>() : currentIngredientSet,
       )
     )),
   },
@@ -849,16 +849,21 @@ function ProductComparisonPanel({
           ) : null}
           {initiallyPriceOnly ? (
             <div className="product-comparison-row-list" aria-label="상품별 상세 비교 정보">
-              {visibleComparisonRows.map((row) => (
-                <div className={`product-comparison-row-list__row${row.label === "주의 성분" ? " is-caution" : ""}`} key={row.label}>
-                  <strong>{row.label}</strong>
-                  <div className="product-comparison-row-list__values">
-                    {row.values.map((value, productIndex) => (
-                      <span key={`${row.label}-${visibleProducts[productIndex]?.product_id ?? productIndex}`}>{value}</span>
-                    ))}
+              {visibleComparisonRows.map((row) => {
+                const hasCautionIngredients = row.label === "주의 성분"
+                  && visibleProducts.some((product) => getCautionIngredientNames(product).length > 0);
+
+                return (
+                  <div className={`product-comparison-row-list__row${hasCautionIngredients ? " is-caution" : ""}`} key={row.label}>
+                    <strong>{row.label}</strong>
+                    <div className="product-comparison-row-list__values">
+                      {row.values.map((value, productIndex) => (
+                        <span key={`${row.label}-${visibleProducts[productIndex]?.product_id ?? productIndex}`}>{value}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="product-comparison-table-wrap">
