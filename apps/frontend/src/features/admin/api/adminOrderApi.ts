@@ -35,6 +35,10 @@ export type AdminPaymentStatus =
   | "REFUNDED"
   | "PARTIALLY_REFUNDED";
 
+// 관리자가 주문에 취할 수 있는 다음 액션 (schemas/admin/order.py AdminOrderAction 과 1:1).
+// 현재는 배송 액션만 존재(M1.5-A). 취소·반품·환불·교환은 M1.5-B 계약 확정 후 추가.
+export type AdminOrderAction = "START_PREPARATION" | "START_SHIPMENT" | "COMPLETE_DELIVERY";
+
 // 영문 enum → 한글 라벨. satisfies 로 15/10개 누락 시 타입검사가 잡도록 고정.
 export const ORDER_STATUS_LABELS = {
   PENDING_PAYMENT: "결제대기",
@@ -86,6 +90,8 @@ type BackendAdminOrderListItem = {
   payment_issue: "PAYMENT_NOT_FOUND" | null;
   reserved_quantity: number;
   recommendation_ids: string[];
+  paid_at: string | null;
+  available_actions: AdminOrderAction[];
   updated_at: string;
 };
 
@@ -117,6 +123,8 @@ export type AdminOrderRow = {
   paymentMissing: boolean;
   stockReserved: number;
   recommendationId: string;
+  paidAt: string | null; // 결제일(KST 표기), 결제 미완료면 null
+  availableActions: AdminOrderAction[]; // 서버가 계산한 다음 액션. 프론트는 직접 계산하지 않고 그대로 사용
   updatedAt: string;
 };
 
@@ -151,7 +159,8 @@ const seoulDateTimeParts = new Intl.DateTimeFormat("en-CA", {
   hourCycle: "h23"
 });
 
-const formatUpdatedAt = (iso: string): string => {
+// updated_at·paid_at 둘 다 백엔드가 UTC ISO 로 주므로 이 하나로 같이 변환한다.
+const formatKstDateTime = (iso: string): string => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
     return iso;
@@ -177,7 +186,9 @@ const adaptOrderRow = (item: BackendAdminOrderListItem): AdminOrderRow => ({
   paymentMissing: item.payment_issue === "PAYMENT_NOT_FOUND",
   stockReserved: item.reserved_quantity,
   recommendationId: item.recommendation_ids.length > 0 ? item.recommendation_ids.join(", ") : "-",
-  updatedAt: formatUpdatedAt(item.updated_at)
+  paidAt: item.paid_at === null ? null : formatKstDateTime(item.paid_at),
+  availableActions: item.available_actions,
+  updatedAt: formatKstDateTime(item.updated_at)
 });
 
 export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<AdminOrderListResult> => {
@@ -203,3 +214,50 @@ export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<Admin
     nextCursor: body.next_cursor
   };
 };
+
+// 배송 전이(prepare/dispatch/deliver) 공통 응답. order_status 는 실제로는
+// PREPARING_SHIPMENT/SHIPPED/DELIVERED 중 하나만 오지만, 화면에서는 조회 응답과 같은
+// AdminOrderStatus 로 다뤄도 안전하다(라벨 매핑표가 이미 15개 전부 커버).
+type BackendAdminOrderShipmentActionResponse = {
+  order_code: string;
+  order_status: AdminOrderStatus;
+  available_actions: AdminOrderAction[];
+  updated_at: string;
+};
+
+// 배송 액션 성공 후 목록의 해당 행을 갱신하는 데 필요한 값만 담는다.
+export type AdminOrderShipmentActionResult = {
+  orderCode: string;
+  status: string; // 한글 라벨
+  orderStatusRaw: AdminOrderStatus;
+  availableActions: AdminOrderAction[];
+  updatedAt: string;
+};
+
+const adaptShipmentActionResponse = (
+  body: BackendAdminOrderShipmentActionResponse
+): AdminOrderShipmentActionResult => ({
+  orderCode: body.order_code,
+  status: ORDER_STATUS_LABELS[body.order_status],
+  orderStatusRaw: body.order_status,
+  availableActions: body.available_actions,
+  updatedAt: formatKstDateTime(body.updated_at)
+});
+
+const postShipmentAction = async (
+  orderCode: string,
+  step: "prepare" | "dispatch" | "deliver"
+): Promise<AdminOrderShipmentActionResult> => {
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/orders/${encodeURIComponent(orderCode)}/ship/${step}`,
+    { method: "POST" }
+  );
+  return adaptShipmentActionResponse(await parseJson<BackendAdminOrderShipmentActionResponse>(response));
+};
+
+// 결제완료(PAID) → 배송준비중(PREPARING_SHIPMENT)
+export const postShipPrepare = (orderCode: string) => postShipmentAction(orderCode, "prepare");
+// 배송준비중 → 배송중(SHIPPED)
+export const postShipDispatch = (orderCode: string) => postShipmentAction(orderCode, "dispatch");
+// 배송중 → 배송완료(DELIVERED, 최종 상태)
+export const postShipDeliver = (orderCode: string) => postShipmentAction(orderCode, "deliver");
