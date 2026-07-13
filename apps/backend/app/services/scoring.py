@@ -21,12 +21,15 @@ from app.db.models.taxonomy import (
 from app.services.product_candidates import ProductCandidate
 from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
+from app.services.scoring_policy import (
+    DEFAULT_INGREDIENT_EFFECT_WEIGHT,
+    EFFECT_CAP,
+    TOP_INGREDIENT_DECAYS,
+)
 from app.services.search_matching import SearchMatch
 
 
 SCORING_VERSION = "v4_review_personalization"
-EFFECT_CAP = 1.2
-TOP_INGREDIENT_DECAYS = (1.0, 0.5, 0.25)
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
 FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
@@ -145,7 +148,7 @@ WRINKLE_EFFECT_CODES = ("effect_wrinkle",)
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    ingredient_effect: float = 0.26
+    ingredient_effect: float = DEFAULT_INGREDIENT_EFFECT_WEIGHT
     ingredient_evidence: float = 0.18
     skin_profile: float = 0.11
     concentration_fit: float = 0.07

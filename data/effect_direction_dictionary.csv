@@ -1,0 +1,182 @@
+cue_id,term,cue_type,priority,required_context,forbidden_context,source_type,source_reference,review_status,notes
+increase_001,increase,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_002,increased,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_003,increases,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_004,increasing,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_005,higher,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Higher comparison value
+increase_006,significantly higher,increase,75,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically higher comparison value
+increase_007,greater,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Greater comparison value
+increase_008,elevated,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Elevated value
+increase_009,rise,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_010,rose,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_011,risen,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_012,gained,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed gain
+increase_013,enhanced,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value enhancement
+increase_014,enhancement,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value enhancement
+increase_015,augmented,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_016,raised,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_017,boosted,increase,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value increase
+increase_018,significantly increased,increase,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically supported increase phrase
+decrease_001,decrease,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_002,decreased,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_003,decreases,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_004,decreasing,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_005,reduction,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_006,reduced,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_007,lower,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Lower comparison value
+decrease_008,lowered,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_009,significantly lower,decrease,75,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically lower comparison value
+decrease_010,decline,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_011,declined,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_012,diminished,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_013,attenuated,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed attenuation
+decrease_014,suppressed,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed suppression
+decrease_015,greater reduction,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Composite phrase means a larger decrease
+decrease_016,larger reduction,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Composite phrase means a larger decrease
+decrease_017,greater decrease,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Composite phrase means a larger decrease
+decrease_018,larger decrease,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Composite phrase means a larger decrease
+decrease_019,fell,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_020,dropped,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_021,lessened,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_022,mitigated,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed mitigation
+decrease_023,subsided,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_024,attenuation,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed attenuation
+decrease_025,suppression,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed suppression
+decrease_026,reducing,decrease,70,,,internal_language_policy,POLICY:effect-direction-v1,approved,Observed value decrease
+decrease_027,significantly reduced,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically supported reduction phrase
+decrease_028,significantly decreased,decrease,80,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically supported decrease phrase
+improvement_001,improve,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_002,improved,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_003,improves,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_004,improvement,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_005,ameliorated,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_006,alleviated,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_007,restored,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_008,recovered,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_009,normalized,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit normalization
+improvement_010,improving,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_011,alleviation,improvement,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit beneficial interpretation
+improvement_012,significantly improved,improvement,90,,,internal_language_policy,POLICY:effect-direction-v1,approved,Statistically supported improvement phrase
+worsening_001,worsen,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_002,worsened,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_003,worsening,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_004,aggravated,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_005,exacerbated,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_006,deteriorated,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit harmful interpretation
+worsening_008,adverse effect,worsening,85,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit adverse result
+null_001,no statistically significant difference,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported between-group difference
+null_002,no significant difference,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported difference
+null_003,not significantly different,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported difference
+null_004,did not differ,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported difference
+null_005,no statistically significant change,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported change
+null_006,no significant change,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported change
+null_007,not statistically significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported change is statistically null
+null_008,did not reach statistical significance,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported change is statistically null
+null_009,failed to reach statistical significance,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported change is statistically null
+null_010,without statistical significance,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported change is statistically null
+null_011,non significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Hyphen-normalized nonsignificance phrase
+null_012,nonsignificant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Nonsignificance phrase
+null_013,not significantly reduced,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reduction is statistically null
+null_014,not significantly increased,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Increase is statistically null
+null_015,not significantly lower,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Lower value is statistically null
+null_016,not significantly higher,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Higher value is statistically null
+null_017,no significant reduction,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reduction is statistically null
+null_018,no significant increase,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Increase is statistically null
+null_019,no significant improvement,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is statistically null
+null_020,difference was not significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Difference is statistically null
+null_021,change was not significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Change is statistically null
+null_022,remained unchanged,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicitly unchanged
+null_023,unchanged,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicitly unchanged
+null_024,no change,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicitly unchanged
+null_025,did not change,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicitly unchanged
+null_026,no effect,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null effect
+null_027,no improvement,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null improvement
+null_028,did not improve,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null improvement
+null_029,failed to improve,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null improvement
+null_030,no reduction,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null reduction
+null_031,did not reduce,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null reduction
+null_032,was not reduced,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null reduction
+null_033,did not decrease,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null decrease
+null_034,no increase,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null increase
+null_035,did not increase,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null increase
+null_036,comparable to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to placebo
+null_037,comparable to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to vehicle
+null_038,comparable to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to control
+null_039,similar to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to placebo
+null_040,similar to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to vehicle
+null_041,similar to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to control
+null_042,equivalent to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to placebo
+null_043,equivalent to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to vehicle
+null_044,equivalent to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to control
+null_045,no between group difference,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated between-group difference
+null_046,no difference between groups,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated between-group difference
+null_047,did not differ from placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to placebo
+null_048,did not differ from vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to vehicle
+null_049,did not differ from control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to control
+null_050,comparable improvement to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to placebo
+null_051,comparable improvement to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to vehicle
+null_052,comparable improvement to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to control
+null_053,similar improvement to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to placebo
+null_054,similar improvement to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to vehicle
+null_055,similar improvement to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is not superior to control
+null_056,no significant decrease,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Decrease is statistically null
+null_057,not improved,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null improvement
+null_058,was not improved,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit null improvement
+null_059,not significantly decreased,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Decrease is statistically null
+null_060,not significantly improved,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Improvement is statistically null
+null_061,no significant effect,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Effect is statistically null
+null_062,no significant benefit,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Benefit is statistically null
+null_063,showed no significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported result is statistically null
+null_064,was not significantly different,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No supported difference
+null_065,not superior to placebo,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to placebo
+null_066,not superior to vehicle,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to vehicle
+null_067,not superior to control,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,No demonstrated superiority to control
+null_068,absence of improvement,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit absence of improvement
+null_069,lacked improvement,null,100,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit absence of improvement
+null_070,not significant,null,100,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Reported result is statistically null
+uncertain_001,trend toward,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged trend
+uncertain_002,trend towards,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged trend
+uncertain_003,tended to,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged trend
+uncertain_004,tendency toward,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged trend
+uncertain_005,tendency towards,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged trend
+uncertain_006,may improve,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged improvement
+uncertain_007,may reduce,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged reduction
+uncertain_008,may decrease,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged decrease
+uncertain_009,may increase,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged increase
+uncertain_010,might improve,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged improvement
+uncertain_011,might reduce,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged reduction
+uncertain_012,might decrease,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged decrease
+uncertain_013,might increase,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged increase
+uncertain_014,could improve,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged improvement
+uncertain_015,could reduce,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged reduction
+uncertain_016,could decrease,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged decrease
+uncertain_017,could increase,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged increase
+uncertain_018,appeared to,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged observation
+uncertain_019,appears to,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged observation
+uncertain_020,suggestive of,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged interpretation
+uncertain_021,inconclusive,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit uncertainty
+uncertain_022,insufficient evidence,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit uncertainty
+uncertain_023,more evidence is needed,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit uncertainty
+uncertain_024,further studies are needed,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit uncertainty
+uncertain_025,requires further study,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Explicit uncertainty
+uncertain_026,decreasing trend,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_027,increasing trend,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_028,downward trend,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_029,upward trend,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_030,trend to decrease,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_031,trend to increase,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional trend without firm support
+uncertain_032,tendency to decrease,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional tendency without firm support
+uncertain_033,tendency to increase,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Directional tendency without firm support
+uncertain_034,may be lower,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged lower comparison
+uncertain_035,may be higher,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged higher comparison
+uncertain_036,might be lower,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged lower comparison
+uncertain_037,might be higher,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged higher comparison
+uncertain_038,could be lower,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged lower comparison
+uncertain_039,could be higher,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged higher comparison
+uncertain_040,suggested,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged interpretation
+uncertain_041,suggests,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged interpretation
+uncertain_042,possibly,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged possibility
+uncertain_043,potentially,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged possibility
+uncertain_044,borderline significance,uncertain,95,,,internal_statistical_policy,POLICY:effect-direction-v1,approved,Borderline statistical support
+uncertain_045,suggest,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged interpretation
+uncertain_046,suggesting,uncertain,95,,,internal_language_policy,POLICY:effect-direction-v1,approved,Hedged interpretation
