@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "key": "anonymous",
+      "auth_required": false,
+      "description": "No saved profile, skin test, or behavior context",
+      "request_context": {
+        "skin_type": "중성",
+        "sensitivity": "보통",
+        "avoid_ingredients": []
+      }
+    },
+    {
+      "key": "profile",
+      "auth_required": true,
+      "email_env": "BENCHMARK_PROFILE_USER_EMAIL",
+      "password_env": "BENCHMARK_PROFILE_USER_PASSWORD",
+      "description": "Saved skin type, sensitivity, and avoided ingredients",
+      "request_context": {
+        "skin_type": "건성",
+        "sensitivity": "높음",
+        "avoid_ingredients": ["에탄올"]
+      }
+    },
+    {
+      "key": "skin-test",
+      "auth_required": true,
+      "email_env": "BENCHMARK_SKIN_TEST_USER_EMAIL",
+      "password_env": "BENCHMARK_SKIN_TEST_USER_PASSWORD",
+      "description": "Latest skin test result with inferred axes",
+      "request_context": {
+        "skin_type": "지성",
+        "sensitivity": "높음",
+        "avoid_ingredients": []
+      }
+    },
+    {
+      "key": "behavior",
+      "auth_required": true,
+      "email_env": "BENCHMARK_BEHAVIOR_USER_EMAIL",
+      "password_env": "BENCHMARK_BEHAVIOR_USER_PASSWORD",
+      "description": "Fixed search, wishlist, cart, purchase, and review context",
+      "request_context": {
+        "skin_type": "복합성",
+        "sensitivity": "보통",
+        "avoid_ingredients": []
+      }
+    }
+  ],
+  "credentials": "Provide values only in the server-local benchmark config; never commit them."
+}
