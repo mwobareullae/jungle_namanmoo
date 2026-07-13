@@ -56,6 +56,8 @@ docs/admin
 
 # Performance test local config and outputs
 scripts/perf/config.env
+scripts/perf/config.benchmark.env
+scripts/perf/config.benchmark.local.env
 scripts/perf/results/
 perf-runs/
 

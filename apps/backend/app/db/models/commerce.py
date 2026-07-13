@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +41,7 @@ REFUND_STATUS_VALUES = "'REQUESTED', 'PROCESSING', 'REFUNDED', 'FAILED'"
 CLAIM_TYPE_VALUES = "'RETURN', 'EXCHANGE', 'REFUND'"
 CLAIM_STATUS_VALUES = "'REQUESTED', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED', 'WITHDRAWN'"
 CLAIM_ITEM_RESOLUTION_VALUES = "'REFUND', 'EXCHANGE'"
+CANCEL_REQUEST_STATUS_VALUES = "'REQUESTED', 'APPROVED', 'REJECTED'"
 
 
 class Seller(Base):
@@ -323,6 +325,64 @@ class OrderFulfillmentEvent(Base):
     source: Mapped[str] = mapped_column(String(40), nullable=False, default="ADMIN", server_default="ADMIN")
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OrderCancelRequest(Base):
+    __tablename__ = "order_cancel_requests"
+    __table_args__ = (
+        UniqueConstraint("request_code", name="uq_order_cancel_requests_request_code"),
+        CheckConstraint(
+            f"status in ({CANCEL_REQUEST_STATUS_VALUES})",
+            name="ck_order_cancel_requests_status",
+        ),
+        CheckConstraint(
+            "length(trim(request_code)) > 0",
+            name="ck_order_cancel_requests_request_code_not_blank",
+        ),
+        CheckConstraint(
+            "reason_code is null or length(trim(reason_code)) > 0",
+            name="ck_order_cancel_requests_reason_code_not_blank",
+        ),
+        CheckConstraint(
+            "reason_detail is null or length(trim(reason_detail)) > 0",
+            name="ck_order_cancel_requests_reason_detail_not_blank",
+        ),
+        CheckConstraint(
+            "decision_reason is null or length(trim(decision_reason)) > 0",
+            name="ck_order_cancel_requests_decision_reason_not_blank",
+        ),
+        CheckConstraint(
+            "(status = 'REQUESTED' and processed_at is null) or "
+            "(status in ('APPROVED', 'REJECTED') and processed_at is not null)",
+            name="ck_order_cancel_requests_status_processed_at",
+        ),
+        CheckConstraint(
+            "status <> 'REJECTED' or decision_reason is not null",
+            name="ck_order_cancel_requests_rejected_reason",
+        ),
+        Index("ix_order_cancel_requests_order_status", "order_id", "status"),
+        Index("ix_order_cancel_requests_user_created_at", "user_id", "created_at"),
+        Index(
+            "uq_order_cancel_requests_order_requested",
+            "order_id",
+            unique=True,
+            postgresql_where=text("status = 'REQUESTED'"),
+            sqlite_where=text("status = 'REQUESTED'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    request_code: Mapped[str] = mapped_column(String(40), nullable=False)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="REQUESTED", server_default="REQUESTED")
+    reason_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    reason_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class OrderClaim(Base):

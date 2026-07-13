@@ -1,0 +1,134 @@
+# Recommendation Benchmark Environment
+
+이 문서는 추천 검색 성능을 측정하기 직전까지의 서버 환경 준비 방법을 정의한다. 이 작업은 추천 scoring이나 검색 성능을 개선하지 않으며, 실제 부하 테스트는 별도로 실행한다.
+
+## 구조
+
+- Linux 서버: 데이터셋 준비, DB/Elasticsearch 전환, backend 로그 보관
+- Windows 로컬: k6로 서버 API 호출, 결과 다운로드 및 분석
+- 서버에는 GitHub나 GitHub CLI가 필요하지 않다.
+
+## 데이터셋 생성
+
+전체 원본 데이터가 서버의 `/home/ubuntu/mwobareullae/data`에 있다면 서버에서 실행한다.
+
+```bash
+cd /home/ubuntu/mwobareullae
+./scripts/perf/benchmarkctl build /home/ubuntu/mwobareullae/data
+```
+
+생성 결과는 다음 위치에 둔다.
+
+```text
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-1000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-5000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-10000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-80000/
+```
+
+현재 저장소의 원본 상품 수가 79,952개인 경우 `benchmark-80000`은 임의
+상품을 추가하지 않고 79,952개로 생성된다. manifest와 실행 결과에는 목표
+크기 80,000과 실제 크기 79,952가 모두 기록된다. 1,000/5,000/10,000은
+목표 수와 실제 수가 다르면 검증에서 실패한다.
+
+상품 ID를 오름차순으로 고정 선택하며, 상품 가격·성분·임베딩·리뷰 등 상품 관련 행은 같은 product_id를 기준으로 추출한다. 기존 `data/` 원본은 삭제하지 않는다.
+
+## 서버 로컬 설정
+
+서버에서는 앱 디렉터리 밖의 benchmark runtime 디렉터리에 설정을 만든다. 기존 일반
+부하 테스트용 `scripts/perf/config.env`와 분리하며, 실제 설정 파일은 Git에 커밋하지 않는다.
+
+```bash
+mkdir -p /home/ubuntu/mwobareullae-benchmark/data /home/ubuntu/mwobareullae-benchmark/runs
+cp scripts/perf/config.benchmark.example.env \
+  /home/ubuntu/mwobareullae-benchmark/config.benchmark.env
+```
+
+benchmark DB URL은 일반 dev DB가 아닌 benchmark 전용 DB를 사용한다.
+
+```bash
+BENCHMARK_DATABASE_URL='postgresql+psycopg://user:password@host:5432/mubarelle_bench_1000'
+BENCHMARK_ACTIVATE=false
+BENCHMARK_RUNTIME_ROOT='/home/ubuntu/mwobareullae-benchmark'
+BENCHMARK_DATA_HOST_DIR='/home/ubuntu/mwobareullae-benchmark/data'
+BENCHMARK_RESULT_ROOT='/home/ubuntu/mwobareullae-benchmark/runs'
+BENCHMARK_LOG_TAIL=5000
+```
+
+데이터셋을 선택하면 Redis prefix도 자동으로
+`mubarelle:benchmark:<dataset>:` 형식으로 분리된다. 따라서 서로 다른
+상품 수 benchmark의 캐시가 섞이지 않는다.
+
+`BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
+
+`benchmarkctl`은 기본적으로 runtime 디렉터리의 설정 파일을 읽는다. 다른 위치를
+사용하면 `BENCHMARK_CONFIG_FILE`로 명시한다. 생성 subset은
+`BENCHMARK_DATA_HOST_DIR` 아래에 저장되고 benchmark compose 실행 때 컨테이너의
+`/data`로 읽기 전용 mount된다.
+
+실제 benchmark 사용자 fixture까지 확인하려면 이메일을 server-local
+`config.benchmark.env`에 넣고 `BENCHMARK_VERIFY_USERS=true`로 설정한다. 비밀번호는
+검증 스크립트가 읽지 않는다.
+
+`BENCHMARK_RDS_METRICS_ENABLED=true`로 설정하면 `collect`가 기존
+`collect_rds_metrics.sh`를 사용해 CloudWatch RDS 지표를
+`database/rds-metrics.json`에 저장한다. AWS CLI와 EC2 IAM 권한이 없으면
+이 옵션은 `false`로 둔다.
+
+## 데이터셋 준비와 검증
+
+```bash
+./scripts/perf/benchmarkctl prepare 1000
+./scripts/perf/benchmarkctl verify 1000
+./scripts/perf/benchmarkctl verify-users 1000
+```
+
+다른 데이터셋:
+
+```bash
+./scripts/perf/benchmarkctl prepare 5000
+./scripts/perf/benchmarkctl prepare 10000
+./scripts/perf/benchmarkctl prepare 80000
+```
+
+`prepare`는 migration, seed, Elasticsearch 색인, 상품 수 검증을 실행한다. benchmark DB URL과 데이터 디렉터리가 명시되지 않으면 중단한다.
+
+## backend 활성화
+
+prepare만 실행하면 현재 backend는 재시작되지 않는다. 검증이 끝난 뒤 benchmark DB를 API에 연결한다.
+
+```bash
+./scripts/perf/benchmarkctl activate 1000
+```
+
+이 명령은 `docker-compose.benchmark.yml`을 사용해 backend만 재생성한다. 일반 dev DB와 Elasticsearch 색인은 변경하지 않는다. 자동 활성화가 필요하면 서버의 `config.benchmark.env`에 `BENCHMARK_ACTIVATE=true`를 둔다.
+
+## 결과 수집
+
+부하 테스트가 끝난 뒤 서버에서 실행한다.
+
+```bash
+./scripts/perf/benchmarkctl collect 20260713-153000-recommendation-1000-1vu 1000
+```
+
+결과는 `BENCHMARK_RESULT_ROOT/<run_id>/`에 저장된다.
+
+```text
+manifest.json
+context.txt
+backend/backend.log
+database/slow-query.log
+elasticsearch/node-stats.json
+resources/docker-stats.csv
+resources/compose-ps.txt
+k6/
+summary/
+```
+
+## Windows에서 결과 가져오기
+
+```powershell
+scp -r ubuntu@SERVER:/home/ubuntu/mwobareullae-benchmark/runs/RUN_ID C:\github\weapon\junlge_namanmoo\perf-runs\
+```
+
+원본 로그는 Git에 넣지 않고, 분석 후 요약과 그래프만 `docs/performance/records/`에 저장한다.
