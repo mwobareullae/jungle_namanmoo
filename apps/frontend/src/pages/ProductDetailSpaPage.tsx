@@ -47,7 +47,6 @@ const evidenceLevelBadgeClass: Record<IngredientEvidence["evidence_level"], stri
 type ReviewTypeFilter = "all" | "photo" | "month" | "repurchase";
 type ReviewSortOption = "recommended" | "latest" | "ratingHigh" | "ratingLow";
 
-const reviewPageSize = 10;
 const reviewTypeOptions: { value: ReviewTypeFilter; label: string }[] = [
   { value: "all", label: "전체 리뷰" },
   { value: "photo", label: "포토 리뷰" },
@@ -485,6 +484,8 @@ function ProductDetailSpaPage() {
   const [reviewTypeFilter, setReviewTypeFilter] = useState<ReviewTypeFilter>("all");
   const [reviewSort, setReviewSort] = useState<ReviewSortOption>("recommended");
   const [reviewPage, setReviewPage] = useState(1);
+  const [reviewCursor, setReviewCursor] = useState<string | null>(null);
+  const [reviewCursorHistory, setReviewCursorHistory] = useState<(string | null)[]>([]);
   const [isReviewTypePopoverOpen, setIsReviewTypePopoverOpen] = useState(false);
   const [isReviewSkinPopoverOpen, setIsReviewSkinPopoverOpen] = useState(false);
   const [isSkinFitOnly, setIsSkinFitOnly] = useState(false);
@@ -492,9 +493,19 @@ function ProductDetailSpaPage() {
   const [likedReviewIds, setLikedReviewIds] = useState<Set<string>>(() => new Set());
   const [reviewSkinTypeFilter, setReviewSkinTypeFilter] = useState("");
   const restoredHashProductRef = useRef<string | null>(null);
-  const { reviews: productReviews, summary: reviewSummary } = useProductReviewsApi(
+  const reviewApiSort = reviewSort === "latest" ? "latest" : reviewSort === "ratingHigh" ? "rating_high" : reviewSort === "ratingLow" ? "rating_low" : "helpful";
+  const { reviews: productReviews, summary: reviewSummary, hasNext: hasNextReviewPage, nextCursor, isLoading: isReviewLoading, errorMessage: reviewErrorMessage } = useProductReviewsApi(
     product?.product_id ?? productId,
     product?.review_summary,
+    {
+      cursor: reviewCursor,
+      sort: reviewApiSort,
+      reviewType: reviewTypeFilter === "month" ? "MONTH_USE" : undefined,
+      repurchase: reviewTypeFilter === "repurchase" ? true : undefined,
+      skinType: isSkinFitOnly || reviewSkinTypeFilter
+        ? (reviewSkinTypeFilter || (user ? reviewProfileSkinType ?? (skinType || "복합성") : undefined))
+        : undefined,
+    },
   );
 
   useEffect(() => installHomeRuntime(), []);
@@ -889,38 +900,10 @@ function ProductDetailSpaPage() {
   const activeReviewTypeLabel =
     reviewTypeOptions.find((option) => option.value === reviewTypeFilter)?.label ?? "전체 리뷰";
   const activeSkinTypeLabel = reviewSkinTypeFilter || "전체";
-  const filteredReviews = useMemo(() => {
-    const nextReviews = productReviews.filter((review) => {
-      const matchesType =
-        reviewTypeFilter === "all" ||
-        (reviewTypeFilter === "photo" && review.photos.length > 0) ||
-        (reviewTypeFilter === "month" && review.usedOverMonth) ||
-        (reviewTypeFilter === "repurchase" && review.isRepurchase);
-      const matchesSkinFit = !isSkinFitOnly || !userReviewSkinType || review.skinType === userReviewSkinType;
-      const matchesSkinType = !reviewSkinTypeFilter || review.skinType === reviewSkinTypeFilter;
-
-      return matchesType && matchesSkinFit && matchesSkinType;
-    });
-
-    return [...nextReviews].sort((a, b) => {
-      if (reviewSort === "latest") {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-      if (reviewSort === "ratingHigh") {
-        return b.rating - a.rating;
-      }
-      if (reviewSort === "ratingLow") {
-        return a.rating - b.rating;
-      }
-      return b.likeCount - a.likeCount;
-    });
-  }, [isSkinFitOnly, productReviews, reviewSkinTypeFilter, reviewSort, reviewTypeFilter, userReviewSkinType]);
-  const totalReviewPages = Math.max(1, Math.ceil(filteredReviews.length / reviewPageSize));
-  const currentReviewPage = Math.min(reviewPage, totalReviewPages);
-  const visibleReviews = filteredReviews.slice(
-    (currentReviewPage - 1) * reviewPageSize,
-    currentReviewPage * reviewPageSize,
-  );
+  const visibleReviews = reviewTypeFilter === "photo"
+    ? productReviews.filter((review) => review.photos.length > 0)
+    : productReviews;
+  const currentReviewPage = reviewPage;
 
   const handleGoBack = () => {
     if (window.history.length > 1) {
@@ -950,12 +933,18 @@ function ProductDetailSpaPage() {
     if (!user) {
       showToast("로그인 후 내 피부 맞춤 리뷰를 볼 수 있어요.");
       setIsSkinFitOnly(false);
-      setReviewPage(1);
+      resetReviewPagination();
       return;
     }
 
     setIsSkinFitOnly((current) => !current);
+    resetReviewPagination();
+  };
+
+  const resetReviewPagination = () => {
     setReviewPage(1);
+    setReviewCursor(null);
+    setReviewCursorHistory([]);
   };
 
   const toggleReviewLike = (reviewId: string) => {
@@ -1183,6 +1172,7 @@ function ProductDetailSpaPage() {
               isAddingToCart={isAddingToCart}
               isNarrativeDetailOpen={isNarrativeDetailOpen}
               isNarrativeLoading={isNarrativeLoading}
+              showRecommendationCriteria={Boolean(recommendationId)}
               isProductSoldOut={isProductSoldOut}
               isWishlistPending={isWishlistPending}
               mainImageUrl={mainImageUrl}
@@ -1539,7 +1529,7 @@ function ProductDetailSpaPage() {
                               variant="link"
                               onClick={() => {
                                 setReviewTypeFilter(option.value);
-                                setReviewPage(1);
+                                resetReviewPagination();
                                 setIsReviewTypePopoverOpen(false);
                               }}
                             >
@@ -1565,7 +1555,7 @@ function ProductDetailSpaPage() {
                             variant="link"
                             onClick={() => {
                               setReviewSkinTypeFilter("");
-                              setReviewPage(1);
+                              resetReviewPagination();
                               setIsReviewSkinPopoverOpen(false);
                             }}
                           >
@@ -1580,7 +1570,7 @@ function ProductDetailSpaPage() {
                               variant="link"
                               onClick={() => {
                                 setReviewSkinTypeFilter(option);
-                                setReviewPage(1);
+                                resetReviewPagination();
                                 setIsReviewSkinPopoverOpen(false);
                               }}
                             >
@@ -1624,7 +1614,7 @@ function ProductDetailSpaPage() {
                       onValueChange={(nextValue) => {
                         if (!nextValue || nextValue === reviewSort) return;
                         setReviewSort(nextValue as ReviewSortOption);
-                        setReviewPage(1);
+                        resetReviewPagination();
                       }}
                     >
                       {reviewSortOptions.map((option) => (
@@ -1640,8 +1630,19 @@ function ProductDetailSpaPage() {
                   </div>
                 </div>
 
+                {reviewErrorMessage ? (
+                  <div className="product-review-empty" role="alert">
+                    <strong>리뷰를 불러오지 못했습니다.</strong>
+                    <p>{reviewErrorMessage}</p>
+                  </div>
+                ) : isReviewLoading && visibleReviews.length === 0 ? (
+                  <div className="product-review-empty" aria-live="polite">
+                    <strong>리뷰를 불러오는 중입니다.</strong>
+                  </div>
+                ) : null}
+
                 <div className="product-review-list" aria-live="polite">
-                  {visibleReviews.length > 0 ? (
+                  {!reviewErrorMessage && !isReviewLoading && visibleReviews.length > 0 ? (
                     visibleReviews.map((review) => {
                       const isLiked = likedReviewIds.has(review.id);
                       return (
@@ -1727,7 +1728,7 @@ function ProductDetailSpaPage() {
                   )}
                 </div>
 
-                {totalReviewPages > 1 ? (
+                {currentReviewPage > 1 || hasNextReviewPage ? (
                   <div className="product-review-pagination" aria-label="리뷰 페이지">
                     <Button
                       disabled={currentReviewPage === 1}
@@ -1736,11 +1737,15 @@ function ProductDetailSpaPage() {
                     >
                       ‹
                     </Button>
-                    {Array.from({ length: totalReviewPages }, (_, index) => index + 1).map((page) => (
+                    {Array.from(
+                      { length: currentReviewPage + (hasNextReviewPage ? 1 : 0) },
+                      (_, index) => index + 1,
+                    ).map((page) => (
                       <Button
                         className={page === currentReviewPage ? "active" : ""}
                         key={page}
                         aria-current={page === currentReviewPage ? "page" : undefined}
+                        disabled={isReviewLoading}
                         variant="outline"
                         onClick={() => handleReviewPageChange(page)}
                       >
@@ -1748,7 +1753,7 @@ function ProductDetailSpaPage() {
                       </Button>
                     ))}
                     <Button
-                      disabled={currentReviewPage === totalReviewPages}
+                      disabled={!hasNextReviewPage || isReviewLoading}
                       variant="outline"
                       onClick={() => handleReviewPageChange(currentReviewPage + 1)}
                     >
