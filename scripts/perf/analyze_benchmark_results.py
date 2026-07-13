@@ -13,6 +13,7 @@ import json
 import math
 import re
 import statistics
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +24,16 @@ RUN_NAME_RE = re.compile(
 VUS_RE = re.compile(r"vus(?P<vus>\d+)", re.IGNORECASE)
 
 DATASET_ORDER = [1000, 5000, 10000, 80000]
+DATASET_LABEL_ORDER = [str(dataset) for dataset in DATASET_ORDER]
+VUS_ORDER = [1, 3, 5, 8, 10]
+VUS_LABEL_ORDER = [f"VUS {vus}" for vus in VUS_ORDER]
 
 PIPELINE_STAGES = [
+    ("user_context_load_ms", "saved profile"),
+    ("skin_test_context_load_ms", "skin test"),
+    ("behavior_context_load_ms", "behavior context"),
     ("intent_parse_ms", "intent"),
+    ("run_save_ms", "run save"),
     ("candidate_pool_ms", "candidate pool"),
     ("search_match_ms", "search match"),
     ("search_candidate_save_ms", "candidate save"),
@@ -75,7 +83,8 @@ def main() -> None:
     write_summary_csv(rows, output_dir / "summary.csv")
 
     pd, plt, sns = load_plot_dependencies()
-    df = pd.DataFrame(rows)
+    df = prepare_plot_dataframe(pd.DataFrame(rows), pd)
+    sns.set_theme(style="whitegrid", context="talk")
     plot_summary_graphs(df, output_dir, plt, sns)
     plot_stage_graphs(
         df,
@@ -132,6 +141,27 @@ def load_plot_dependencies():
             "python -m pip install -r scripts/perf/requirements-analysis.txt"
         ) from exc
     return pd, plt, sns
+
+
+def prepare_plot_dataframe(df, pd):
+    prepared = df.copy()
+    prepared["dataset_label"] = pd.Categorical(
+        prepared["dataset"].astype(str),
+        categories=DATASET_LABEL_ORDER,
+        ordered=True,
+    )
+    prepared["vus_label"] = pd.Categorical(
+        prepared["vus"].map(lambda value: f"VUS {int(value)}"),
+        categories=VUS_LABEL_ORDER,
+        ordered=True,
+    )
+    if "recommendation_http_failed_rate" in prepared.columns:
+        prepared["recommendation_http_failed_percent"] = (
+            prepared["recommendation_http_failed_rate"] * 100
+        )
+    if "check_failed_rate" in prepared.columns:
+        prepared["check_failed_percent"] = prepared["check_failed_rate"] * 100
+    return prepared
 
 
 def collect_rows(input_dir: Path) -> list[dict[str, Any]]:
@@ -239,18 +269,66 @@ def extract_k6_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
     iterations_metric = metrics.get("iterations") or {}
     checks_metric = metrics.get("checks") or {}
 
+    total_http_rps = float_value(reqs_metric.get("rate"))
+    recommendation_rps = float_value(iterations_metric.get("rate"))
+    total_http_request_count = int_value(reqs_metric.get("count"))
+    recommendation_request_count = int_value(iterations_metric.get("count"))
+    total_http_failed_rate = float_value(failed_metric.get("value"))
+    http_failed_count = count_from_rate(
+        total_http_failed_rate,
+        total_http_request_count,
+    )
+    check_failed_count = int_value(checks_metric.get("fails"))
+    check_passed_count = int_value(checks_metric.get("passes"))
+    recommendation_http_failed_rate = rate_from_counts(
+        http_failed_count,
+        recommendation_request_count,
+    )
+    check_failed_rate = rate_from_counts(
+        check_failed_count,
+        (check_failed_count or 0) + (check_passed_count or 0),
+    )
+
     return {
         "latency_avg_ms": float_value(duration_metric.get("avg")),
         "latency_p50_ms": float_value(duration_metric.get("med")),
         "latency_p90_ms": float_value(duration_metric.get("p(90)")),
         "latency_p95_ms": float_value(duration_metric.get("p(95)")),
         "latency_max_ms": float_value(duration_metric.get("max")),
-        "rps": float_value(reqs_metric.get("rate")),
-        "request_count": int_value(reqs_metric.get("count")),
-        "iteration_count": int_value(iterations_metric.get("count")),
-        "http_req_failed_rate": float_value(failed_metric.get("value")),
+        # One benchmark iteration issues one recommendation request. Total HTTP
+        # metrics also include setup logins for personalized users.
+        "rps": recommendation_rps if recommendation_rps is not None else total_http_rps,
+        "recommendation_rps": recommendation_rps,
+        "total_http_rps": total_http_rps,
+        "request_count": recommendation_request_count,
+        "recommendation_request_count": recommendation_request_count,
+        "total_http_request_count": total_http_request_count,
+        "auth_request_count": (
+            max(total_http_request_count - recommendation_request_count, 0)
+            if total_http_request_count is not None and recommendation_request_count is not None
+            else None
+        ),
+        "iteration_count": recommendation_request_count,
+        "http_failed_count": http_failed_count,
+        "http_req_failed_rate": recommendation_http_failed_rate,
+        "recommendation_http_failed_rate": recommendation_http_failed_rate,
+        "total_http_req_failed_rate": total_http_failed_rate,
         "check_success_rate": float_value(checks_metric.get("value")),
+        "check_failed_count": check_failed_count,
+        "check_failed_rate": check_failed_rate,
     }
+
+
+def rate_from_counts(numerator: int | None, denominator: int | None) -> float | None:
+    if numerator is None or denominator is None or denominator <= 0:
+        return None
+    return numerator / denominator
+
+
+def count_from_rate(rate: float | None, total: int | None) -> int | None:
+    if rate is None or total is None or total < 0:
+        return None
+    return round(rate * total)
 
 
 def extract_k6_output_metrics(path: Path) -> dict[str, Any]:
@@ -466,9 +544,16 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "latency_p95_ms",
         "latency_max_ms",
         "rps",
+        "recommendation_rps",
+        "total_http_rps",
         "http_req_failed_rate",
+        "recommendation_http_failed_rate",
+        "total_http_req_failed_rate",
+        "check_failed_rate",
         "k6_failure_sample_count",
         "request_count",
+        "total_http_request_count",
+        "auth_request_count",
         "pipeline_event_count",
         "resource_backend_cpu_percent_max",
         "resource_backend_mem_percent_max",
@@ -495,7 +580,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "latency_p95_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="latency_p95_ms",
         hue="vus_label",
         xlabel="dataset product count",
@@ -519,7 +604,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "latency_avg_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="latency_avg_ms",
         hue="vus_label",
         xlabel="dataset product count",
@@ -531,7 +616,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "rps_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="rps",
         hue="vus_label",
         xlabel="dataset product count",
@@ -542,24 +627,48 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "error_rate_by_dataset.png",
-        x="dataset",
-        y="http_req_failed_rate",
+        output_dir / "rps_by_vus.png",
+        x="vus",
+        y="rps",
+        hue="dataset_label",
+        xlabel="virtual users",
+        ylabel="recommendation requests per second",
+        title="recommendation RPS by VUS",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "http_failure_percent_by_dataset.png",
+        x="dataset_label",
+        y="recommendation_http_failed_percent",
         hue="vus_label",
         xlabel="dataset product count",
-        ylabel="HTTP request failure rate",
-        title="error rate by dataset",
+        ylabel="recommendation HTTP failures (%)",
+        title="recommendation HTTP failure rate by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "check_failure_percent_by_dataset.png",
+        x="dataset_label",
+        y="check_failed_percent",
+        hue="vus_label",
+        xlabel="dataset product count",
+        ylabel="failed response checks (%)",
+        title="response check failure rate by dataset",
         plt=plt,
         sns=sns,
     )
     plot_line(
         df,
         output_dir / "backend_cpu_peak_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="resource_backend_cpu_percent_max",
         hue="vus_label",
         xlabel="dataset product count",
-        ylabel="backend CPU peak (%)",
+        ylabel="backend CPU peak (%; 100% = one core)",
         title="backend CPU peak by dataset",
         plt=plt,
         sns=sns,
@@ -567,7 +676,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "backend_memory_peak_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="resource_backend_mem_percent_max",
         hue="vus_label",
         xlabel="dataset product count",
@@ -579,11 +688,11 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "elasticsearch_cpu_peak_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="resource_elasticsearch_cpu_percent_max",
         hue="vus_label",
         xlabel="dataset product count",
-        ylabel="Elasticsearch CPU peak (%)",
+        ylabel="Elasticsearch CPU peak (%; 100% = one core)",
         title="Elasticsearch CPU peak by dataset",
         plt=plt,
         sns=sns,
@@ -591,12 +700,34 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     plot_line(
         df,
         output_dir / "elasticsearch_memory_peak_by_dataset.png",
-        x="dataset",
+        x="dataset_label",
         y="resource_elasticsearch_mem_percent_max",
         hue="vus_label",
         xlabel="dataset product count",
         ylabel="Elasticsearch memory peak (%)",
         title="Elasticsearch memory peak by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_matrix_heatmap(
+        df,
+        output_dir / "latency_p95_matrix.png",
+        value="latency_p95_ms",
+        title="p95 latency matrix",
+        colorbar_label="p95 latency (ms)",
+        value_format=lambda value: f"{value:,.0f}",
+        cmap="YlOrRd",
+        plt=plt,
+        sns=sns,
+    )
+    plot_matrix_heatmap(
+        df,
+        output_dir / "rps_matrix.png",
+        value="rps",
+        title="recommendation RPS matrix",
+        colorbar_label="requests per second",
+        value_format=lambda value: f"{value:.2f}",
+        cmap="YlGnBu",
         plt=plt,
         sns=sns,
     )
@@ -615,50 +746,155 @@ def plot_stage_graphs(
     if target.empty:
         return
     row = target.sort_values("run_id").iloc[-1]
+    scope = f"{stage_dataset:,} products / VUS {stage_vus}"
 
     plot_stage_bar(
         row,
         PIPELINE_STAGES,
         output_dir / f"pipeline_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
-        "pipeline stage average (ms)",
+        f"pipeline stage average ({scope})",
         plt,
         sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        PIPELINE_STAGES,
+        output_dir / f"pipeline_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"pipeline stage p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
     )
     plot_stage_ratio_bar(
         row,
         PIPELINE_STAGES,
         output_dir / f"pipeline_stage_ratio_{stage_dataset}_vus{stage_vus:02d}.png",
-        "pipeline stage ratio (%)",
+        f"pipeline stage share of average latency ({scope})",
         plt,
         sns,
+        statistic="avg",
+    )
+    plot_stage_donut(
+        row,
+        PIPELINE_STAGES,
+        output_dir / f"pipeline_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"pipeline stage share ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_pareto(
+        row,
+        PIPELINE_STAGES,
+        output_dir / f"pipeline_stage_pareto_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"pipeline bottleneck Pareto ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_composition_by_vus(
+        df,
+        PIPELINE_STAGES,
+        output_dir / f"pipeline_stage_share_by_vus_{stage_dataset}.png",
+        stage_dataset=stage_dataset,
+        plt=plt,
+        sns=sns,
+    )
+    plot_stage_share_comparison(
+        df,
+        PIPELINE_STAGES,
+        output_dir
+        / (
+            f"pipeline_stage_share_compare_1000_vs_{stage_dataset}"
+            f"_vus{stage_vus:02d}.png"
+        ),
+        datasets=[1000, stage_dataset],
+        stage_vus=stage_vus,
+        plt=plt,
+        sns=sns,
     )
     plot_stage_bar(
         row,
         SCORING_STAGES,
         output_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
-        "scoring stage average (ms)",
+        f"scoring stage average ({scope})",
         plt,
         sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        SCORING_STAGES,
+        output_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"scoring stage p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_stage_donut(
+        row,
+        SCORING_STAGES,
+        output_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"scoring stage share ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+        max_segments=len(SCORING_STAGES),
+        min_share_percent=0,
     )
     prefetch_columns = [
-        (f"prefetch_{field}_avg", label)
+        (f"prefetch_{field}", label)
         for field, label in SCORING_PREFETCH_FIELDS
     ]
     plot_stage_bar(
         row,
         prefetch_columns,
         output_dir / f"scoring_prefetch_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
-        "scoring prefetch average (ms)",
+        f"scoring prefetch average ({scope})",
         plt,
         sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        prefetch_columns,
+        output_dir / f"scoring_prefetch_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"scoring prefetch p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
     )
     plot_stage_bar(
         row,
         CONTEXT_LOAD_STAGES,
         output_dir / f"context_load_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
-        "context load average (ms)",
+        f"personalization context average ({scope})",
         plt,
         sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        CONTEXT_LOAD_STAGES,
+        output_dir / f"context_load_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"personalization context p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_client_vs_backend_p95(
+        df,
+        output_dir / f"client_vs_backend_p95_{stage_dataset}.png",
+        stage_dataset=stage_dataset,
+        plt=plt,
+    )
+    plot_resource_timeseries(
+        row,
+        output_dir,
+        stage_dataset=stage_dataset,
+        stage_vus=stage_vus,
+        plt=plt,
     )
     plot_optimization_timeline(
         df,
@@ -685,61 +921,618 @@ def plot_line(
 ) -> None:
     if y not in df.columns or df[y].dropna().empty:
         return
-    plot_df = df.dropna(subset=[x, y, hue]).sort_values([x, hue])
+    plot_df = df.dropna(subset=[x, y, hue]).sort_values([hue, x])
     if plot_df.empty:
         return
 
-    plt.figure(figsize=(9.5, 5.5))
-    sns.set_theme(style="whitegrid")
-    ax = sns.lineplot(data=plot_df, x=x, y=y, hue=hue, marker="o")
+    hue_order = None
+    if hue == "vus_label":
+        hue_order = VUS_LABEL_ORDER
+    elif hue == "dataset_label":
+        hue_order = DATASET_LABEL_ORDER
+
+    fig, ax = plt.subplots(figsize=(10.5, 6.2), layout="constrained")
+    sns.lineplot(
+        data=plot_df,
+        x=x,
+        y=y,
+        hue=hue,
+        hue_order=hue_order,
+        marker="o",
+        sort=False,
+        palette="colorblind",
+        ax=ax,
+    )
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    if x == "dataset":
-        ax.set_xticks(DATASET_ORDER)
-    ax.legend(title=hue.replace("_", " "))
-    plt.tight_layout()
-    plt.savefig(path, dpi=160)
-    plt.close()
+    if x == "vus":
+        ax.set_xticks(VUS_ORDER)
+    legend_title = "VUS" if hue == "vus_label" else "products"
+    ax.legend(title=legend_title)
+    save_figure(fig, path, plt)
 
 
-def plot_stage_bar(row, stages, path: Path, title: str, plt, sns) -> None:
-    records = build_stage_records(row, stages)
+def plot_matrix_heatmap(
+    df,
+    path: Path,
+    *,
+    value: str,
+    title: str,
+    colorbar_label: str,
+    value_format,
+    cmap: str,
+    plt,
+    sns,
+) -> None:
+    required = ["dataset", "vus", value]
+    if any(column not in df.columns for column in required):
+        return
+    target = df.dropna(subset=required)
+    if target.empty:
+        return
+
+    matrix = target.pivot_table(
+        index="vus",
+        columns="dataset",
+        values=value,
+        aggfunc="mean",
+    )
+    matrix = matrix.reindex(index=VUS_ORDER, columns=DATASET_ORDER)
+    matrix = matrix.dropna(axis=0, how="all").dropna(axis=1, how="all")
+    if matrix.empty:
+        return
+
+    annotations = [
+        ["" if math.isnan(cell) else value_format(cell) for cell in row]
+        for row in matrix.to_numpy(dtype=float)
+    ]
+    fig, ax = plt.subplots(figsize=(10.5, 6.4), layout="constrained")
+    sns.heatmap(
+        matrix,
+        annot=annotations,
+        fmt="",
+        cmap=cmap,
+        linewidths=0.8,
+        linecolor="white",
+        cbar_kws={"label": colorbar_label},
+        ax=ax,
+    )
+    ax.set_title(title)
+    ax.set_xlabel("dataset product count")
+    ax.set_ylabel("virtual users")
+    ax.set_xticklabels([f"{int(label):,}" for label in matrix.columns])
+    ax.set_yticklabels([f"VUS {int(label)}" for label in matrix.index], rotation=0)
+    save_figure(fig, path, plt)
+
+
+def plot_stage_bar(
+    row,
+    stages,
+    path: Path,
+    title: str,
+    plt,
+    sns,
+    *,
+    statistic: str,
+) -> None:
+    records = build_stage_records(row, stages, statistic=statistic)
     if not records:
         return
     labels = [record["stage"] for record in records]
     values = [record["value"] for record in records]
 
-    plt.figure(figsize=(9.5, max(4.5, len(records) * 0.55)))
-    sns.set_theme(style="whitegrid")
-    ax = sns.barplot(x=values, y=labels, orient="h", color=sns.color_palette()[0])
+    fig, ax = plt.subplots(
+        figsize=(10.5, max(4.8, len(records) * 0.62)),
+        layout="constrained",
+    )
+    positions = list(range(len(records)))
+    ax.barh(positions, values, color=sns.color_palette("colorblind")[0])
+    ax.set_yticks(positions, labels=labels)
+    ax.invert_yaxis()
     ax.set_title(title)
     ax.set_xlabel("milliseconds")
     ax.set_ylabel("")
     annotate_horizontal_bars(ax, values, suffix="ms")
-    plt.tight_layout()
-    plt.savefig(path, dpi=160)
-    plt.close()
+    save_figure(fig, path, plt)
 
 
-def plot_stage_ratio_bar(row, stages, path: Path, title: str, plt, sns) -> None:
-    records = build_stage_records(row, stages)
+def plot_stage_ratio_bar(
+    row,
+    stages,
+    path: Path,
+    title: str,
+    plt,
+    sns,
+    *,
+    statistic: str,
+) -> None:
+    records = build_stage_records(row, stages, statistic=statistic)
     total = sum(record["value"] for record in records)
     if total <= 0:
         return
     labels = [record["stage"] for record in records]
     values = [record["value"] / total * 100 for record in records]
 
-    plt.figure(figsize=(9.5, max(4.5, len(records) * 0.55)))
-    sns.set_theme(style="whitegrid")
-    ax = sns.barplot(x=values, y=labels, orient="h", color=sns.color_palette()[1])
+    fig, ax = plt.subplots(
+        figsize=(10.5, max(4.8, len(records) * 0.62)),
+        layout="constrained",
+    )
+    positions = list(range(len(records)))
+    ax.barh(positions, values, color=sns.color_palette("colorblind")[1])
+    ax.set_yticks(positions, labels=labels)
+    ax.invert_yaxis()
     ax.set_title(title)
     ax.set_xlabel("share of measured stages (%)")
     ax.set_ylabel("")
     annotate_horizontal_bars(ax, values, suffix="%")
-    plt.tight_layout()
-    plt.savefig(path, dpi=160)
-    plt.close()
+    save_figure(fig, path, plt)
+
+
+def plot_stage_donut(
+    row,
+    stages,
+    path: Path,
+    title: str,
+    plt,
+    sns,
+    *,
+    statistic: str,
+    max_segments: int = 7,
+    min_share_percent: float = 2.0,
+) -> None:
+    records = build_grouped_share_records(
+        row,
+        stages,
+        statistic=statistic,
+        max_segments=max_segments,
+        min_share_percent=min_share_percent,
+    )
+    if not records:
+        return
+
+    values = [record["value"] for record in records]
+    total = sum(values)
+    colors = sns.color_palette("tab10", n_colors=len(records))
+    fig, ax = plt.subplots(figsize=(11.5, 6.6), layout="constrained")
+    wedges, _ = ax.pie(
+        values,
+        colors=colors,
+        startangle=90,
+        counterclock=False,
+        wedgeprops={"width": 0.42, "edgecolor": "white", "linewidth": 1.2},
+    )
+    ax.text(
+        0,
+        0,
+        f"{total:,.0f} ms\nmeasured average",
+        ha="center",
+        va="center",
+        fontsize=12,
+    )
+    legend_labels = [
+        f"{record['stage']}: {record['value']:,.1f} ms "
+        f"({record['share_percent']:.1f}%)"
+        for record in records
+    ]
+    ax.legend(
+        wedges,
+        legend_labels,
+        loc="center left",
+        bbox_to_anchor=(1.0, 0.5),
+        frameon=False,
+        title="measured share",
+    )
+    ax.set_title(title)
+    ax.set_aspect("equal")
+    save_figure(fig, path, plt)
+
+
+def plot_stage_pareto(
+    row,
+    stages,
+    path: Path,
+    title: str,
+    plt,
+    sns,
+    *,
+    statistic: str,
+) -> None:
+    records = sorted(
+        build_stage_records(row, stages, statistic=statistic),
+        key=lambda record: record["value"],
+        reverse=True,
+    )
+    total = sum(record["value"] for record in records)
+    if total <= 0:
+        return
+
+    labels = [record["stage"] for record in records]
+    values = [record["value"] for record in records]
+    cumulative: list[float] = []
+    running_total = 0.0
+    for value in values:
+        running_total += value
+        cumulative.append(running_total / total * 100)
+
+    positions = list(range(len(records)))
+    palette = sns.color_palette("colorblind")
+    fig, ax = plt.subplots(figsize=(12.5, 7.0), layout="constrained")
+    bars = ax.bar(positions, values, color=palette[0])
+    ax.set_title(title)
+    ax.set_xlabel("pipeline stage ordered by average time")
+    ax.set_ylabel("average time (ms)")
+    ax.set_xticks(positions, labels=labels, rotation=35, ha="right")
+    ax.bar_label(
+        bars,
+        labels=[f"{value:,.0f}" for value in values],
+        padding=3,
+        fontsize=8,
+    )
+
+    share_ax = ax.twinx()
+    share_ax.plot(
+        positions,
+        cumulative,
+        color=palette[3],
+        marker="o",
+        linewidth=2.2,
+        label="cumulative share",
+    )
+    share_ax.axhline(
+        80,
+        color=palette[2],
+        linestyle="--",
+        linewidth=1.4,
+        label="80% reference",
+    )
+    share_ax.set_ylabel("cumulative measured time (%)")
+    share_ax.set_ylim(0, 105)
+    share_ax.legend(loc="center right")
+    save_figure(fig, path, plt)
+
+
+def plot_stage_composition_by_vus(
+    df,
+    stages,
+    path: Path,
+    *,
+    stage_dataset: int,
+    plt,
+    sns,
+) -> None:
+    rows = []
+    for vus in VUS_ORDER:
+        target = df[(df["dataset"] == stage_dataset) & (df["vus"] == vus)]
+        if target.empty:
+            continue
+        row = target.sort_values("run_id").iloc[-1]
+        records = build_stage_records(row, stages, statistic="avg")
+        total = sum(record["value"] for record in records)
+        if total <= 0:
+            continue
+        rows.append(
+            {
+                "vus": vus,
+                "shares": {
+                    record["stage"]: record["value"] / total * 100
+                    for record in records
+                },
+            }
+        )
+    if not rows:
+        return
+
+    stage_labels = [label for _, label in stages]
+    average_shares = {
+        label: statistics.mean(row["shares"].get(label, 0.0) for row in rows)
+        for label in stage_labels
+    }
+    ranked_labels = sorted(stage_labels, key=average_shares.get, reverse=True)
+    kept_labels = [
+        label for label in ranked_labels if average_shares[label] >= 1.5
+    ][:7]
+    other_labels = [label for label in stage_labels if label not in kept_labels]
+    display_labels = kept_labels + (["other"] if other_labels else [])
+
+    colors = sns.color_palette("tab10", n_colors=len(display_labels))
+    positions = list(range(len(rows)))
+    left = [0.0] * len(rows)
+    fig, ax = plt.subplots(figsize=(12.5, 6.6), layout="constrained")
+    for label, color in zip(display_labels, colors):
+        if label == "other":
+            values = [
+                sum(row["shares"].get(item, 0.0) for item in other_labels)
+                for row in rows
+            ]
+            legend_label = f"other ({len(other_labels)} stages)"
+        else:
+            values = [row["shares"].get(label, 0.0) for row in rows]
+            legend_label = label
+        bars = ax.barh(
+            positions,
+            values,
+            left=left,
+            color=color,
+            label=legend_label,
+        )
+        for index, (bar, value) in enumerate(zip(bars, values)):
+            if value < 7:
+                continue
+            ax.text(
+                left[index] + value / 2,
+                bar.get_y() + bar.get_height() / 2,
+                f"{value:.0f}%",
+                ha="center",
+                va="center",
+                color=contrast_text_color(color),
+                fontsize=8,
+            )
+        left = [current + value for current, value in zip(left, values)]
+
+    ax.set_title(f"pipeline stage composition by VUS ({stage_dataset:,} products)")
+    ax.set_xlabel("share of measured stages (%)")
+    ax.set_ylabel("")
+    ax.set_xlim(0, 100)
+    ax.set_yticks(positions, labels=[f"VUS {row['vus']}" for row in rows])
+    ax.invert_yaxis()
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        title="pipeline stage",
+    )
+    save_figure(fig, path, plt)
+
+
+def plot_stage_share_comparison(
+    df,
+    stages,
+    path: Path,
+    *,
+    datasets: list[int],
+    stage_vus: int,
+    plt,
+    sns,
+) -> None:
+    comparison_rows = []
+    for dataset in dict.fromkeys(datasets):
+        target = df[(df["dataset"] == dataset) & (df["vus"] == stage_vus)]
+        if target.empty:
+            continue
+        row = target.sort_values("run_id").iloc[-1]
+        records = build_stage_records(row, stages, statistic="avg")
+        total = sum(record["value"] for record in records)
+        if total <= 0:
+            continue
+        comparison_rows.append(
+            {
+                "dataset": dataset,
+                "total": total,
+                "shares": {
+                    record["stage"]: record["value"] / total * 100
+                    for record in records
+                },
+            }
+        )
+    if len(comparison_rows) < 2:
+        return
+
+    stage_labels = [label for _, label in stages]
+    average_shares = {
+        label: statistics.mean(
+            row["shares"].get(label, 0.0) for row in comparison_rows
+        )
+        for label in stage_labels
+    }
+    ranked_labels = sorted(stage_labels, key=average_shares.get, reverse=True)
+    kept_labels = [
+        label for label in ranked_labels if average_shares[label] >= 1.5
+    ][:7]
+    other_labels = [label for label in stage_labels if label not in kept_labels]
+    display_labels = kept_labels + (["other"] if other_labels else [])
+    colors = sns.color_palette("tab10", n_colors=len(display_labels))
+
+    def display_share(row, label: str) -> float:
+        if label == "other":
+            return sum(row["shares"].get(item, 0.0) for item in other_labels)
+        return row["shares"].get(label, 0.0)
+
+    fig, axes = plt.subplots(
+        1,
+        len(comparison_rows),
+        figsize=(14.5, 7.0),
+        layout="constrained",
+    )
+    for ax, row in zip(axes, comparison_rows):
+        values = [display_share(row, label) for label in display_labels]
+        ax.pie(
+            values,
+            colors=colors,
+            startangle=90,
+            counterclock=False,
+            autopct=lambda percent: f"{percent:.1f}%" if percent >= 4 else "",
+            pctdistance=0.78,
+            textprops={"fontsize": 8},
+            wedgeprops={"width": 0.42, "edgecolor": "white", "linewidth": 1.2},
+        )
+        ax.text(
+            0,
+            0,
+            f"{row['total']:,.0f} ms\nmeasured average",
+            ha="center",
+            va="center",
+            fontsize=11,
+        )
+        ax.set_title(f"{row['dataset']:,} products")
+        ax.set_aspect("equal")
+
+    legend_labels = []
+    for label in display_labels:
+        readable_label = (
+            f"other ({len(other_labels)} stages)" if label == "other" else label
+        )
+        shares = " / ".join(
+            f"{row['dataset']:,}: {display_share(row, label):.1f}%"
+            for row in comparison_rows
+        )
+        legend_labels.append(f"{readable_label} — {shares}")
+    fig.legend(
+        axes[0].patches[: len(display_labels)],
+        legend_labels,
+        loc="outside lower center",
+        ncol=2,
+        frameon=False,
+        title="stage share by product count",
+    )
+    fig.suptitle(f"pipeline stage share comparison (VUS {stage_vus})")
+    save_figure(fig, path, plt)
+
+
+def plot_client_vs_backend_p95(df, path: Path, *, stage_dataset: int, plt) -> None:
+    required = ["vus", "latency_p95_ms", "duration_ms_p95"]
+    if any(column not in df.columns for column in required):
+        return
+    target = df[df["dataset"] == stage_dataset].dropna(subset=required).sort_values("vus")
+    if target.empty:
+        return
+
+    fig, ax = plt.subplots(figsize=(10.5, 6.2), layout="constrained")
+    ax.plot(
+        target["vus"],
+        target["latency_p95_ms"],
+        marker="o",
+        linewidth=2.2,
+        label="client-observed p95",
+    )
+    ax.plot(
+        target["vus"],
+        target["duration_ms_p95"],
+        marker="o",
+        linewidth=2.2,
+        label="backend pipeline p95",
+    )
+    ax.set_title(f"client vs backend p95 ({stage_dataset:,} products)")
+    ax.set_xlabel("virtual users")
+    ax.set_ylabel("p95 latency (ms)")
+    ax.set_xticks(VUS_ORDER)
+    ax.legend()
+    save_figure(fig, path, plt)
+
+
+def plot_resource_timeseries(
+    row,
+    output_dir: Path,
+    *,
+    stage_dataset: int,
+    stage_vus: int,
+    plt,
+) -> None:
+    run_dir = Path(str(row.get("run_dir") or ""))
+    records = load_resource_timeseries_records(run_dir / "resources" / "docker-stats.csv")
+    if not records:
+        return
+
+    scope = f"{stage_dataset:,} products / VUS {stage_vus}"
+    plot_resource_metric_timeseries(
+        records,
+        output_dir / f"resource_cpu_timeseries_{stage_dataset}_vus{stage_vus:02d}.png",
+        metric="cpu_percent",
+        ylabel="container CPU (%; 100% = one core)",
+        title=f"container CPU over time ({scope})",
+        plt=plt,
+    )
+    plot_resource_metric_timeseries(
+        records,
+        output_dir / f"resource_memory_timeseries_{stage_dataset}_vus{stage_vus:02d}.png",
+        metric="mem_percent",
+        ylabel="container memory usage (%)",
+        title=f"container memory over time ({scope})",
+        plt=plt,
+    )
+
+
+def load_resource_timeseries_records(path: Path) -> list[dict[str, Any]]:
+    raw_rows = load_docker_stats_rows(path)
+    records: list[dict[str, Any]] = []
+    for row in raw_rows:
+        timestamp = parse_iso_timestamp(row.get("timestamp"))
+        service = identify_resource_service(row.get("name"))
+        cpu_percent = parse_percent(row.get("cpu_percent"))
+        mem_percent = parse_percent(row.get("mem_percent"))
+        if timestamp is None or service is None:
+            continue
+        records.append(
+            {
+                "timestamp": timestamp,
+                "service": service,
+                "cpu_percent": cpu_percent,
+                "mem_percent": mem_percent,
+            }
+        )
+    if not records:
+        return []
+
+    started_at = min(record["timestamp"] for record in records)
+    for record in records:
+        record["elapsed_seconds"] = (record["timestamp"] - started_at).total_seconds()
+    return records
+
+
+def parse_iso_timestamp(value: Any) -> datetime | None:
+    if value is None or value == "":
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def identify_resource_service(value: Any) -> str | None:
+    name = str(value or "").lower()
+    for service in ("backend", "elasticsearch", "redis"):
+        if service in name:
+            return service
+    return None
+
+
+def plot_resource_metric_timeseries(
+    records: list[dict[str, Any]],
+    path: Path,
+    *,
+    metric: str,
+    ylabel: str,
+    title: str,
+    plt,
+) -> None:
+    fig, ax = plt.subplots(figsize=(10.5, 6.2), layout="constrained")
+    plotted = False
+    for service in ("backend", "elasticsearch", "redis"):
+        service_records = sorted(
+            (
+                record
+                for record in records
+                if record["service"] == service and record.get(metric) is not None
+            ),
+            key=lambda record: record["elapsed_seconds"],
+        )
+        if not service_records:
+            continue
+        plotted = True
+        ax.plot(
+            [record["elapsed_seconds"] for record in service_records],
+            [record[metric] for record in service_records],
+            linewidth=2,
+            label=service,
+        )
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_title(title)
+    ax.set_xlabel("elapsed time (seconds)")
+    ax.set_ylabel(ylabel)
+    ax.legend(title="container")
+    save_figure(fig, path, plt)
 
 
 def plot_optimization_timeline(
@@ -759,25 +1552,81 @@ def plot_optimization_timeline(
         return
 
     target = target.sort_values("group")
-    plt.figure(figsize=(9.5, 5.5))
-    sns.set_theme(style="whitegrid")
-    ax = sns.lineplot(data=target, x="group", y="latency_p95_ms", marker="o")
+    fig, ax = plt.subplots(figsize=(10.5, 6.2), layout="constrained")
+    sns.lineplot(data=target, x="group", y="latency_p95_ms", marker="o", ax=ax)
     ax.set_title(f"optimization timeline p95 ({stage_dataset}, VUS {stage_vus})")
     ax.set_xlabel("experiment step")
     ax.set_ylabel("p95 latency (ms)")
     ax.tick_params(axis="x", rotation=25)
-    plt.tight_layout()
-    plt.savefig(path, dpi=160)
-    plt.close()
+    save_figure(fig, path, plt)
 
 
-def build_stage_records(row, stages) -> list[dict[str, Any]]:
+def build_stage_records(
+    row,
+    stages,
+    *,
+    statistic: str = "avg",
+) -> list[dict[str, Any]]:
     records = []
     for key, label in stages:
-        value = numeric_or_none(row.get(f"{key}_avg", row.get(key)))
+        value = numeric_or_none(row.get(f"{key}_{statistic}", row.get(key)))
         if value is not None and value > 0:
             records.append({"stage": label, "value": value})
     return records
+
+
+def build_grouped_share_records(
+    row,
+    stages,
+    *,
+    statistic: str = "avg",
+    max_segments: int = 7,
+    min_share_percent: float = 2.0,
+) -> list[dict[str, Any]]:
+    records = build_stage_records(row, stages, statistic=statistic)
+    total = sum(record["value"] for record in records)
+    if total <= 0 or max_segments < 1:
+        return []
+
+    ranked = sorted(records, key=lambda record: record["value"], reverse=True)
+    eligible = [
+        record
+        for record in ranked
+        if record["value"] / total * 100 >= min_share_percent
+    ]
+    kept = eligible[:max_segments]
+    grouped = [record for record in ranked if record not in kept]
+    if grouped and len(kept) == max_segments:
+        grouped.append(kept.pop())
+
+    result = [
+        {
+            **record,
+            "share_percent": record["value"] / total * 100,
+        }
+        for record in kept
+    ]
+    if grouped:
+        grouped_value = sum(record["value"] for record in grouped)
+        result.append(
+            {
+                "stage": f"other ({len(grouped)} stages)",
+                "value": grouped_value,
+                "share_percent": grouped_value / total * 100,
+            }
+        )
+    return result
+
+
+def save_figure(fig, path: Path, plt) -> None:
+    fig.savefig(path, dpi=180, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def contrast_text_color(color) -> str:
+    red, green, blue = color[:3]
+    luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    return "black" if luminance > 0.58 else "white"
 
 
 def annotate_horizontal_bars(ax, values: list[float], *, suffix: str) -> None:
