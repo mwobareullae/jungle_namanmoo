@@ -17,6 +17,7 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
+  quickQuestionContext?: QuickQuestionContext;
   skinProfile?: {
     avoidIngredients?: string[];
     sensitivity: string;
@@ -25,6 +26,19 @@ type AgentFloatingButtonProps = {
   skinProfileStatus?: "empty" | "saved" | "temporary";
   surface?: "home" | "productDetail" | "context" | "minimal";
 };
+
+type QuickQuestionContext =
+  | "auth"
+  | "cart"
+  | "checkout"
+  | "home"
+  | "mypage"
+  | "order"
+  | "productDetail"
+  | "productList"
+  | "recent"
+  | "skinProfile"
+  | "wishlist";
 
 type AgentChatBaseMessage = {
   createdAt?: number;
@@ -118,17 +132,63 @@ const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 
-const homeQuickQuestions = [
-  "이 성분, 내 피부에 맞을까?",
-  "이번 주 예산 3만원 루틴 짜줘",
-  "지금 쓰는 제품과 같이 써도 될까?",
-];
-
-const productQuickQuestions = [
-  "이거랑 비슷한 상품 보여줘",
-  "이 성분, 내 피부에 맞을까?",
-  "비슷한 상품끼리 비교해줘",
-];
+const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
+  auth: [
+    "로그인하면 어떤 기능을 쓸 수 있어?",
+    "피부 프로필은 왜 필요한가요?",
+    "비회원도 상품을 둘러볼 수 있어?",
+  ],
+  cart: [
+    "내 장바구니 보여줘",
+    "현재 장바구니 상품 결제해줘",
+    "내 피부에 맞는 토너와 크림을 5만원 안으로 구성해줘",
+  ],
+  checkout: [
+    "이 주문서의 결제 예정 금액 알려줘",
+    "이 주문서 내용으로 주문 생성해줘",
+    "결제 전에 확인할 내용을 요약해줘",
+  ],
+  home: [
+    "이 성분, 내 피부에 맞을까?",
+    "이번 주 예산 3만원 루틴 짜줘",
+    "내 피부에 맞는 제품을 찾고 싶어",
+  ],
+  mypage: [
+    "내 피부 타입과 민감도 알려줘",
+    "최근 주문 상태 알려줘",
+    "내 피부에 맞는 5만원 이하 루틴 구성해줘",
+  ],
+  order: [
+    "방금 주문 상태 알려줘",
+    "방금 주문 취소해줘",
+    "최근 주문 상품과 금액을 요약해줘",
+  ],
+  productDetail: [
+    "이거랑 비슷한 상품 보여줘",
+    "이 상품이 내 피부에 맞을까?",
+    "비슷한 상품끼리 비교해줘",
+  ],
+  productList: [
+    "화면에 보이는 상품을 비교해줘",
+    "첫 번째 상품과 비슷한 상품 보여줘",
+    "내 피부에 맞는 선택 기준을 알려줘",
+  ],
+  recent: [
+    "최근 본 상품끼리 비교해줘",
+    "첫 번째 상품과 비슷한 상품 보여줘",
+    "내 피부에 맞는 선택 기준을 알려줘",
+  ],
+  skinProfile: [
+    "내 피부 타입과 민감도 알려줘",
+    "내가 피해야 할 성분 알려줘",
+    "내 피부의 핵심 관리 포인트 알려줘",
+  ],
+  wishlist: [
+    "찜한 상품끼리 비교해줘",
+    "첫 번째 상품과 비슷한 상품 보여줘",
+    "내 피부에 더 맞는 상품을 고르는 기준 알려줘",
+  ],
+};
 
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
@@ -1037,6 +1097,7 @@ const setAgentCartTargetBusy = (active: boolean) => {
 
 function AgentFloatingButton({
   isAgentResponding = false,
+  quickQuestionContext = "home",
   skinProfile,
   skinProfileStatus = "empty",
   surface = "home",
@@ -1065,8 +1126,8 @@ function AgentFloatingButton({
   const hasDismissedTeaserRef = useRef(false);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
-    () => (surface === "productDetail" ? productQuickQuestions : homeQuickQuestions),
-    [surface],
+    () => quickQuestionsByContext[quickQuestionContext],
+    [quickQuestionContext],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;

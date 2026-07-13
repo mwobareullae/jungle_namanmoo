@@ -884,6 +884,27 @@ function GlobalAgentEntry() {
         : "empty";
 
   const path = location.pathname;
+  const quickQuestionContext = path.startsWith("/product-detail")
+    ? "productDetail"
+    : path === "/cart"
+      ? "cart"
+      : path.startsWith("/checkout")
+        ? "checkout"
+        : path.startsWith("/payment-complete") || path.startsWith("/mypage/orders")
+          ? "order"
+          : path.startsWith("/mypage/skin-profile") || path.startsWith("/skin-test")
+            ? "skinProfile"
+            : path.startsWith("/mypage/wishlist")
+              ? "wishlist"
+              : path.startsWith("/mypage/recent")
+                ? "recent"
+                : path.startsWith("/login") || path.startsWith("/signup")
+                  ? "auth"
+                  : path === "/mypage" || path.startsWith("/mypage/")
+                    ? "mypage"
+                    : /search|category|products|brands/.test(path)
+                      ? "productList"
+                      : "home";
   const agentSurface = path.startsWith("/product-detail")
     ? "productDetail"
     : /recommend|skin-test|recommendations/.test(path)
@@ -894,6 +915,7 @@ function GlobalAgentEntry() {
 
   return (
     <AgentFloatingButton
+      quickQuestionContext={quickQuestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       surface={agentSurface}
