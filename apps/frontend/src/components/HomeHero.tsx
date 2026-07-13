@@ -147,8 +147,13 @@ function HomeHero({
   }, []);
 
   const openSuggestions = () => {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     setIsSuggestionsOpen(true);
     callOriginal("openSearchSuggestions");
+    requestAnimationFrame(() => {
+      window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" });
+    });
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
