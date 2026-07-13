@@ -3017,7 +3017,7 @@ body {
   z-index: 30;
   display: grid;
   overflow: hidden;
-  border: 1px solid #dfe9ee;
+  border: 1px solid var(--search-open-border, #94e0f8);
   border-top: 0;
   border-radius: 0 0 22px 22px;
   background: #ffffff;
@@ -3036,6 +3036,7 @@ body {
   background: #ffffff;
   color: var(--ink);
   font: inherit;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
 }
@@ -3049,6 +3050,7 @@ body {
   padding: 13px 14px;
   color: var(--muted);
   font-size: 13px;
+  font-weight: 400;
 }
 
 .search-suggest-panel--hidden {
