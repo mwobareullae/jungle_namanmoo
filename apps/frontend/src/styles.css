@@ -7538,6 +7538,29 @@ html[data-app-mode="community"] .search-results-shell {
   font-size: var(--fs-16);
 }
 
+.product-detail-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.product-detail-loading-spinner {
+  display: block;
+  width: 42px;
+  height: 42px;
+  border: 4px solid rgba(255, 255, 255, 0.42);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: product-detail-loading-spin 0.8s linear infinite;
+}
+
+@keyframes product-detail-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .detail-page .detail-image-gallery:empty {
   display: none;
 }

@@ -2,7 +2,7 @@ import type { ProductDetailStatusProps } from "./types";
 
 function ProductDetailStatus({ errorMessage, isLoading }: ProductDetailStatusProps) {
   if (isLoading) {
-    return <div className="detail-loading">상품 상세 정보를 불러오는 중입니다.</div>;
+    return <div className="product-detail-loading-overlay" role="status" aria-label="상품 상세 불러오는 중"><span className="product-detail-loading-spinner" aria-hidden="true" /></div>;
   }
 
   if (errorMessage) {
