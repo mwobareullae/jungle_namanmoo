@@ -6,6 +6,7 @@ import AppFooter from "./components/AppFooter";
 import HomeHeader from "./components/HomeHeader";
 import PopularProductsHeader from "./components/PopularProductsHeader";
 import Skeleton from "./components/ui/Skeleton";
+import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
@@ -975,7 +976,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 // 새 화면(/login, /signup, /signup/info)만 React Router로 연결하고, 나머지 기존 화면은 LegacyApp이 그대로 처리.
 function App() {
   return (
-    <>
+    <ProductComparisonProvider>
       <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
@@ -1125,7 +1126,7 @@ function App() {
       </Suspense>
       <GlobalFooter />
       <GlobalAgentEntry />
-    </>
+    </ProductComparisonProvider>
   );
 }
 
