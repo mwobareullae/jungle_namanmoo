@@ -1,10 +1,11 @@
 # 신규 논문 자동 수집 운영
 
-> 상태: 후보 수집·영구 보관 자동화. 논문 승인과 추천 점수 반영은 사람이 결정한다.
+> 상태: 후보 수집·영구 보관 자동화. 이 문서의 후보 승격 절차는 신규 논문 근거행에만
+> 적용하며, 공식 기능 prior와 500성분 legacy 확장의 런타임 점수 차단 조건은 아니다.
 
 ## 목적
 
-현재 `data/ingredient_effect.csv`의 72개 성분×효능쌍을 기준으로 최근 PubMed 등록 논문을 매주 찾는다.
+현재 `data/ingredient_effect.csv`의 활성 성분×효능쌍을 기준으로 최근 PubMed 등록 논문을 매주 찾는다.
 
 이 작업의 끝은 다음과 같다.
 
@@ -19,7 +20,7 @@
 
 입력 정본:
 
-- `data/ingredient_effect.csv`: 검색할 성분×효능 72쌍
+- `data/ingredient_effect.csv`: 검색할 활성 성분×효능쌍(현재 245쌍)
 - `data/ingredients.csv`: canonical 영문 성분명
 - `data/ingredient_aliases.csv`: 신뢰도 `high`인 영문 INCI·동의어
 - `data/ingredient_evidence.csv`: 동일 pair의 기존 PMID·DOI 중복 기준
@@ -68,7 +69,7 @@ artifact 업로드는 장애 복구용 백업으로 남지만, artifact 생성�
 
 ## 로컬 실행
 
-전체 72쌍을 최근 8일 기준으로 실행한다.
+전체 활성쌍을 최근 8일 기준으로 실행한다.
 
 ```bash
 python data/scripts/discover_new_evidence.py \
