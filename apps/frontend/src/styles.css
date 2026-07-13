@@ -6957,16 +6957,14 @@ body .category-panel-backdrop.active {
 }
 
 body.category-menu-open {
-  overflow: hidden;
+  overflow: clip;
   scrollbar-gutter: stable;
 }
 
 body.category-menu-open .home-header,
 body.category-menu-open header.site-header {
-  position: fixed;
+  position: sticky;
   top: 0;
-  right: 0;
-  left: 0;
   z-index: 1200;
 }
 

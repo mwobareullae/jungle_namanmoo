@@ -17,6 +17,7 @@ function HomeHeader() {
   const isNewProductsPage = location.pathname === "/products/new";
   const isCatalogSearchPage = location.pathname === "/catalog-search";
   const isBrandsPage = location.pathname === "/brands";
+  const isProductDetailPreviewPage = location.pathname === "/product-detail-preview";
   const isSkinTestPage = location.pathname.startsWith("/skin-test");
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
   const isCategoryHoverArea = (target: EventTarget | null) => {
@@ -28,6 +29,7 @@ function HomeHeader() {
     return Boolean(header?.contains(target) || panel?.contains(target));
   };
   const handleCategoryAreaLeave = (event: MouseEvent<HTMLElement>) => {
+    if (!isCategoryMenuOpen) return;
     if (!isCategoryHoverArea(event.relatedTarget)) {
       callOriginal("closeCategoryMenu");
       setIsCategoryMenuOpen(false);
@@ -45,6 +47,13 @@ function HomeHeader() {
       }
     });
   };
+
+  useEffect(() => {
+    if (isProductDetailPreviewPage && document.body.classList.contains("category-menu-open")) {
+      callOriginal("closeCategoryMenu");
+      setIsCategoryMenuOpen(false);
+    }
+  }, [isProductDetailPreviewPage]);
 
   useEffect(() => {
     let isMounted = true;
@@ -99,7 +108,7 @@ function HomeHeader() {
                 callOriginal("openCategoryMenu");
                 setIsCategoryMenuOpen(true);
               }}
-              onMouseEnter={() => {
+              onMouseEnter={isProductDetailPreviewPage ? undefined : () => {
                 callOriginal("openCategoryMenu");
                 setIsCategoryMenuOpen(true);
               }}
