@@ -24,6 +24,29 @@ k6 run tests/k6/recommendation-benchmark.js `
 
 The same command can be repeated with `DATASET=5000`, `DATASET=10000`, and `DATASET=80000`. Change only the dataset and the server-side benchmark profile between runs.
 
+For an authenticated fixture, k6 logs in once during `setup()` and reuses the
+returned session cookie for the recommendation requests. Supply the credentials
+only through the local shell or an ignored environment file.
+
+```powershell
+$env:BENCHMARK_PROFILE_USER_EMAIL = "profile@example.test"
+$env:BENCHMARK_PROFILE_USER_PASSWORD = "<local-only-password>"
+k6 run tests/k6/recommendation-benchmark.js `
+  -e BASE_URL=https://dev.api.mubarelle.com/api `
+  -e DATASET=1000 `
+  -e USER_TYPE=profile `
+  -e BENCHMARK_PROFILE_USER_EMAIL=$env:BENCHMARK_PROFILE_USER_EMAIL `
+  -e BENCHMARK_PROFILE_USER_PASSWORD=$env:BENCHMARK_PROFILE_USER_PASSWORD `
+  -e VUS=1 `
+  -e DURATION=30s `
+  -e SLA_MS=3000
+```
+
+`skin-test` and `behavior` use the corresponding environment variable names in
+`docs/performance/benchmark-users.json`. The accounts must already contain the
+intended saved profile, latest skin-test result, or behavior history. The k6
+script does not create or mutate fixture users.
+
 ## Collect on server
 
 ```bash
