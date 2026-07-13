@@ -112,7 +112,9 @@ $Remote = "$SshUser@$SshHost"
 $RunId = "recommendation-$Dataset-$UserType-$(Get-Date -Format yyyyMMdd-HHmmss)"
 $LocalRunDir = Join-Path $LocalResultRoot $RunId
 $LocalK6Summary = Join-Path $LocalRunDir "k6-summary.json"
+$LocalK6Output = Join-Path $LocalRunDir "k6-output.txt"
 $RemoteK6Summary = "/tmp/$RunId-k6-summary.json"
+$RemoteK6Output = "/tmp/$RunId-k6-output.txt"
 $RemoteConfig = "$RemoteRuntimeRoot/config.benchmark.env"
 $RemoteCtl = "$RemoteAppDir/scripts/perf/benchmarkctl"
 
@@ -194,7 +196,7 @@ $k6Args += $K6Script
 $k6ExitCode = 0
 $RunFinishedAt = $null
 try {
-    & k6 @k6Args
+    & k6 @k6Args 2>&1 | Tee-Object -FilePath $LocalK6Output
     $k6ExitCode = $LASTEXITCODE
 } finally {
     $RunFinishedAt = (Get-Date).ToUniversalTime().ToString("o")
@@ -219,9 +221,16 @@ Invoke-Scp @(
     $LocalK6Summary,
     "${Remote}:$RemoteK6Summary"
 )
+if (Test-Path -LiteralPath $LocalK6Output) {
+    Invoke-Scp @(
+        "-F", "NUL", "-i", $SshKey,
+        $LocalK6Output,
+        "${Remote}:$RemoteK6Output"
+    )
+}
 
 Write-Host "[10/11] 서버에서 결과 collect"
-$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $ServerHost + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' BENCHMARK_K6_EXIT_CODE=' + $k6ExitCode + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
+$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_K6_OUTPUT_FILE=' + $RemoteK6Output + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $ServerHost + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' BENCHMARK_K6_EXIT_CODE=' + $k6ExitCode + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
 Write-Host "[11/11] 수집 결과 다운로드"
