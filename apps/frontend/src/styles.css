@@ -11842,13 +11842,6 @@ html[data-app-mode="community"] .search-results-shell {
   padding-left: 2px;
 }
 
-.agent-chat-typing img {
-  width: 48px;
-  height: 48px;
-  transform: scale(2.2);
-  clip-path: inset(27%);
-}
-
 .agent-chat-typing-dots {
   align-self: start;
   display: inline-flex;
