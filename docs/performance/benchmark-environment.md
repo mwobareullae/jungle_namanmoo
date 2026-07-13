@@ -52,6 +52,10 @@ BENCHMARK_LOG_TAIL=5000
 
 `BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
 
+실제 benchmark 사용자 fixture까지 확인하려면 이메일을 server-local
+`config.env`에 넣고 `BENCHMARK_VERIFY_USERS=true`로 설정한다. 비밀번호는
+검증 스크립트가 읽지 않는다.
+
 `BENCHMARK_RDS_METRICS_ENABLED=true`로 설정하면 `collect`가 기존
 `collect_rds_metrics.sh`를 사용해 CloudWatch RDS 지표를
 `database/rds-metrics.json`에 저장한다. AWS CLI와 EC2 IAM 권한이 없으면
@@ -62,6 +66,7 @@ BENCHMARK_LOG_TAIL=5000
 ```bash
 ./scripts/perf/benchmarkctl prepare 1000
 ./scripts/perf/benchmarkctl verify 1000
+./scripts/perf/benchmarkctl verify-users 1000
 ```
 
 다른 데이터셋:
