@@ -157,7 +157,7 @@ function MypageProductList({
 
   useEffect(() => {
     let isMounted = true;
-    void api.getForYou({ limit: 4 })
+    void api.getForYou({ limit: 3 })
       .then((section) => {
         if (isMounted) setRecommendedItems(section.products.map(mapRecommendedItem));
       })
@@ -374,7 +374,7 @@ function MypageProductList({
           <section style={styles.recommendSection} aria-label="추천 상품">
             <h2 style={styles.recommendTitle}>이런 상품은 어때요?</h2>
             <div style={styles.recommendGrid}>
-              {recommendedItems.slice(0, 4).map((item) => (
+              {recommendedItems.slice(0, 3).map((item) => (
                 <RecommendedProductCard item={item} key={item.id} onOpenProduct={openProduct} />
               ))}
             </div>
