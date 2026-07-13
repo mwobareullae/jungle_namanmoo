@@ -6,7 +6,7 @@
 export type MockOrderStatus =
   | "결제대기"
   | "결제완료"
-  | "배송준비"
+  | "배송준비중"
   | "배송중"
   | "취소요청"
   | "취소완료"
@@ -69,7 +69,7 @@ export const mockOrderRows: MockOrderRow[] = [
     productSummary: "닥터지 레드 블레미쉬 클리어 수딩 크림",
     itemCount: 1,
     totalAmount: 18900,
-    status: "배송준비",
+    status: "배송준비중",
     paymentStatus: "승인완료",
     stockReserved: 1,
     recommendationId: "rec_7701",
