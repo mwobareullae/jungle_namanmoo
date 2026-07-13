@@ -191,6 +191,7 @@ def build_run_row(input_dir: Path, run_dir: Path) -> dict[str, Any] | None:
     }
 
     row.update(extract_k6_metrics(k6_summary))
+    row.update(extract_k6_output_metrics(run_dir / "k6" / "k6-output.txt"))
     row.update(extract_backend_metrics(run_dir / "backend" / "backend.log"))
     row.update(extract_resource_metrics(run_dir / "resources" / "docker-stats.csv"))
     return row
@@ -250,6 +251,17 @@ def extract_k6_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
         "http_req_failed_rate": float_value(failed_metric.get("value")),
         "check_success_rate": float_value(checks_metric.get("value")),
     }
+
+
+def extract_k6_output_metrics(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+
+    failure_sample_count = 0
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "recommendation_benchmark_failure_sample" in line:
+            failure_sample_count += 1
+    return {"k6_failure_sample_count": failure_sample_count}
 
 
 def extract_backend_metrics(log_path: Path) -> dict[str, Any]:
@@ -455,6 +467,7 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "latency_max_ms",
         "rps",
         "http_req_failed_rate",
+        "k6_failure_sample_count",
         "request_count",
         "pipeline_event_count",
         "resource_backend_cpu_percent_max",

@@ -14,6 +14,8 @@ DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DI
 CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
 CONFIG_K6_RESULT_FILE="${BENCHMARK_K6_RESULT_FILE-}"
 CONFIG_K6_RESULT_FILE_SET="${BENCHMARK_K6_RESULT_FILE+x}"
+CONFIG_K6_OUTPUT_FILE="${BENCHMARK_K6_OUTPUT_FILE-}"
+CONFIG_K6_OUTPUT_FILE_SET="${BENCHMARK_K6_OUTPUT_FILE+x}"
 CONFIG_USER_TYPE="${BENCHMARK_USER_TYPE-}"
 CONFIG_USER_TYPE_SET="${BENCHMARK_USER_TYPE+x}"
 CONFIG_VUS="${BENCHMARK_VUS-}"
@@ -45,6 +47,7 @@ restore_env_override() {
 }
 
 restore_env_override BENCHMARK_K6_RESULT_FILE "$CONFIG_K6_RESULT_FILE_SET" "$CONFIG_K6_RESULT_FILE"
+restore_env_override BENCHMARK_K6_OUTPUT_FILE "$CONFIG_K6_OUTPUT_FILE_SET" "$CONFIG_K6_OUTPUT_FILE"
 restore_env_override BENCHMARK_USER_TYPE "$CONFIG_USER_TYPE_SET" "$CONFIG_USER_TYPE"
 restore_env_override BENCHMARK_VUS "$CONFIG_VUS_SET" "$CONFIG_VUS"
 restore_env_override BENCHMARK_DURATION "$CONFIG_DURATION_SET" "$CONFIG_DURATION"
@@ -582,6 +585,7 @@ collect() {
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
   local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   local k6_result_present=false
+  local k6_output_present=false
   local k6_exit_code_json="null"
   local embedding_coverage="null"
   local actual_product_count="$PRODUCT_COUNT"
@@ -643,6 +647,10 @@ PY
     cp "$BENCHMARK_K6_RESULT_FILE" "$result_dir/k6/k6-summary.json"
     k6_result_present=true
   fi
+  if [[ -n "${BENCHMARK_K6_OUTPUT_FILE:-}" && -f "$BENCHMARK_K6_OUTPUT_FILE" ]]; then
+    cp "$BENCHMARK_K6_OUTPUT_FILE" "$result_dir/k6/k6-output.txt"
+    k6_output_present=true
+  fi
   if [[ "${BENCHMARK_K6_EXIT_CODE:-}" =~ ^-?[0-9]+$ ]]; then
     k6_exit_code_json="$BENCHMARK_K6_EXIT_CODE"
   fi
@@ -669,6 +677,7 @@ PY
   "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
   "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
   "k6_result_present": $k6_result_present,
+  "k6_output_present": $k6_output_present,
   "k6_exit_code": $k6_exit_code_json
 }
 EOF
