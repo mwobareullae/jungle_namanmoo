@@ -1288,6 +1288,26 @@ function AgentFloatingButton({
     setActiveView("thread");
   };
 
+  const resetDeletedCurrentThread = (threadIds: Set<string>) => {
+    if (!currentThreadId || !threadIds.has(currentThreadId)) return;
+    setCurrentThreadId(null);
+    setConversationId(null);
+    setMessages([]);
+    setLastToolResultContext(null);
+    setActiveView("home");
+  };
+
+  const deleteChatThread = (threadId: string) => {
+    setChatThreads((currentThreads) => currentThreads.filter((thread) => thread.id !== threadId));
+    resetDeletedCurrentThread(new Set([threadId]));
+  };
+
+  const deleteAllChatThreads = () => {
+    const threadIds = new Set(chatThreads.map((thread) => thread.id));
+    setChatThreads([]);
+    resetDeletedCurrentThread(threadIds);
+  };
+
   const sendMessage = async (message: string) => {
     const nextMessage = message.trim();
 
@@ -1735,35 +1755,34 @@ function AgentFloatingButton({
                   {chatThreads.length > 0 ? (
                     <>
                       <div className="agent-chat-divider" />
-                      <div className="agent-chat-section-label">최근 대화</div>
+                      <div className="agent-chat-section-label">
+                        <span>최근 대화</span>
+                        <button onClick={deleteAllChatThreads} type="button">전체 삭제</button>
+                      </div>
                       {chatThreads.map((thread) => (
-                        <button
-                          aria-label={`${thread.title} 대화 열기`}
-                          className="agent-chat-question-row"
-                          disabled={isSubmitting}
-                          key={thread.id}
-                          onClick={() => openChatThread(thread)}
-                          type="button"
-                        >
-                          <span className="agent-chat-row-icon" aria-hidden="true">
-                            <svg fill="none" viewBox="0 0 24 24">
-                              <path
-                                d="M5 6.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9.25L5 17.5v-11Z"
-                                stroke="currentColor"
-                                strokeLinejoin="round"
-                                strokeWidth="1.8"
-                              />
-                              <path
-                                d="M8.5 8.5h7M8.5 11.5h4.5"
-                                stroke="currentColor"
-                                strokeLinecap="round"
-                                strokeWidth="1.8"
-                              />
+                        <div className="agent-chat-history-row" key={thread.id}>
+                          <button
+                            aria-label={`${thread.title} 대화 열기`}
+                            className="agent-chat-question-row"
+                            disabled={isSubmitting}
+                            onClick={() => openChatThread(thread)}
+                            type="button"
+                          >
+                            <span className="agent-chat-row-icon" aria-hidden="true">
+                              <svg fill="none" viewBox="0 0 24 24">
+                                <path d="M5 6.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9.25L5 17.5v-11Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+                                <path d="M8.5 8.5h7M8.5 11.5h4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                              </svg>
+                            </span>
+                            <span>{thread.title}</span>
+                            <span aria-hidden="true">›</span>
+                          </button>
+                          <button aria-label={`${thread.title} 대화 삭제`} className="agent-chat-history-delete" onClick={() => deleteChatThread(thread.id)} type="button">
+                            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                              <path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
                             </svg>
-                          </span>
-                          <span>{thread.title}</span>
-                          <span aria-hidden="true">›</span>
-                        </button>
+                          </button>
+                        </div>
                       ))}
                     </>
                   ) : null}

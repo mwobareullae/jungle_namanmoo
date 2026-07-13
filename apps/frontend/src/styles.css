@@ -11670,9 +11670,45 @@ html[data-app-mode="community"] .search-results-shell {
   color: #a4b1bb;
   cursor: pointer;
   font: inherit;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1;
+}
+
+.agent-chat-section-label button:hover,
+.agent-chat-section-label button:focus-visible {
+  color: #008db0;
+  outline: none;
+}
+
+.agent-chat-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+}
+
+.agent-chat-history-delete {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #9aa7b1;
+  cursor: pointer;
+}
+
+.agent-chat-history-delete:hover,
+.agent-chat-history-delete:focus-visible {
+  background: #fff1f0;
+  color: #d65b52;
+  outline: none;
+}
+
+.agent-chat-history-delete svg {
+  width: 17px;
+  height: 17px;
 }
 
 .agent-chat-profile-chip {
