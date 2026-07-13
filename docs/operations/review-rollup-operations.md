@@ -29,7 +29,17 @@ docker compose exec -T backend \
   --computed-at 2026-07-12T00:00:00+00:00
 ```
 
-상품 품질은 카테고리 prior strength 20으로 보정합니다. 프로필 segment는 상품 전체 점수를 prior로 사용하며, effective sample size가 5보다 작은 segment도 저장합니다. 추천 단계에서는 이 작은 segment를 중립 0.5로 처리합니다. 원본의 사진 존재 표식은 통계 count에만 남고 점수에는 사용하지 않습니다.
+상품 품질은 카테고리 prior strength 20으로 보정합니다. `review_quality_v2`는 별점 75%, 재구매율 20%, Bayesian 사진리뷰율 5%를 합성하고 effective sample confidence로 중립 0.5 쪽에 보정합니다. 사진 URL은 저장·노출하지 않으며 원본의 사진 존재 표식만 상품 품질 집계에 사용합니다. 프로필 segment는 상품 전체 점수를 prior로 사용하며, effective sample size가 5보다 작은 segment도 저장합니다. 추천 단계에서는 이 작은 segment를 중립 0.5로 처리합니다.
+
+OliveYoung seed는 전량 `MONTH_USE`이고 구매확인 원본값이 없어 두 배율을 적용하지 않습니다. 자사몰 `mubarelle` 구매 리뷰의 `verified_purchase=true`는 실제 주문 검증 신호이므로 1.10 배율을 유지합니다.
+
+## v2 전환 순서
+
+1. migration `20260714_0042`를 적용합니다.
+2. 전체 rollup을 실행해 기존 v1 행을 v2로 다시 계산합니다.
+3. 추천 결과나 캐시를 별도로 저장하는 운영 환경이면 v1 결과를 무효화합니다.
+
+migration만 적용하고 전체 rollup을 실행하지 않으면 기존 행의 값과 `score_version`은 v1로 남습니다. 코드 배포와 재집계 완료 시점을 함께 기록합니다.
 
 일반 검색 ES 문서의 평점·리뷰 수도 갱신해야 하면 리뷰 rollup을 커밋한 뒤 행동 인기 점수를 먼저 갱신하고 full reindex를 실행합니다. 행동 인기 집계는 기존 seed에 남아 있을 수 있는 리뷰 기반 인기 점수를 행동 데이터 전용 점수로 교체합니다. catalog reindex는 문서만 다시 만들며 embedding은 재생성하지 않습니다.
 
