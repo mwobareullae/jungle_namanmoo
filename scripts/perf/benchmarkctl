@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+PROFILE_DIR="$SCRIPT_DIR/profiles"
+CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$SCRIPT_DIR/config.env}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$REPO_DIR/benchmark-runs}"
+BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
+ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
+COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/perf/benchmarkctl prepare <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl build <source_dir> [output_root]
+  scripts/perf/benchmarkctl collect <run_id> [dataset]
+
+prepare seeds and indexes the explicitly configured benchmark database.
+activate restarts only the backend with that benchmark database and alias.
+build creates deterministic product-related subsets for all four datasets.
+Set BENCHMARK_ACTIVATE=true to activate automatically after prepare.
+EOF
+}
+
+die() {
+  echo "benchmarkctl: $*" >&2
+  exit 1
+}
+
+safe_label() {
+  printf '%s' "$1" | tr -cs '[:alnum:]_.-' '-'
+}
+
+load_profile() {
+  local dataset="${1:-}"
+  case "$dataset" in
+    1000|5000|10000|80000) ;;
+    *) die "dataset must be 1000, 5000, 10000, or 80000" ;;
+  esac
+
+  # shellcheck disable=SC1090
+  source "$PROFILE_DIR/benchmark-$dataset.env"
+  DATASET_LABEL="$dataset"
+  [[ "${PRODUCT_COUNT:-}" == "$dataset" ]] || die "profile product count mismatch: $dataset"
+  [[ -n "${DATA_DIR:-}" ]] || die "DATA_DIR is missing from profile"
+  [[ -n "${ELASTICSEARCH_INDEX:-}" ]] || die "ELASTICSEARCH_INDEX is missing from profile"
+  [[ -n "${ELASTICSEARCH_ALIAS:-}" ]] || die "ELASTICSEARCH_ALIAS is missing from profile"
+}
+
+require_benchmark_database() {
+  [[ -n "${BENCHMARK_DATABASE_URL:-}" ]] || die \
+    "BENCHMARK_DATABASE_URL must be set in scripts/perf/config.env on the server"
+}
+
+compose() {
+  docker compose "${COMPOSE_FILES[@]}" "$@"
+}
+
+backend_exec() {
+  compose exec -T \
+    -e "DATABASE_URL=$BENCHMARK_DATABASE_URL" \
+    -e "DATA_DIR=$DATA_DIR" \
+    -e "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=$ELASTICSEARCH_ALIAS" \
+    "$BACKEND_SERVICE" "$@"
+}
+
+print_context() {
+  cat <<EOF
+dataset=$DATASET_LABEL
+product_count=$PRODUCT_COUNT
+data_dir=$DATA_DIR
+database=benchmark database configured
+elasticsearch_index=$ELASTICSEARCH_INDEX
+elasticsearch_alias=$ELASTICSEARCH_ALIAS
+query_set=$QUERY_SET
+bench_mode=$BENCH_MODE
+cache_state=$CACHE_STATE
+candidate_pool_limit=$CANDIDATE_POOL_LIMIT
+EOF
+}
+
+verify_data_dir() {
+  backend_exec test -d "$DATA_DIR" || die "DATA_DIR does not exist in backend container: $DATA_DIR"
+  backend_exec test -f "$DATA_DIR/product_prices.csv" || die "product_prices.csv is missing: $DATA_DIR"
+}
+
+verify_database_counts() {
+  backend_exec python - "$PRODUCT_COUNT" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    products = int(session.execute(text("select count(*) from products")).scalar_one())
+    documents = int(session.execute(text("select count(*) from search_documents")).scalar_one())
+    embedded = int(
+        session.execute(
+            text("select count(*) from search_documents where embedding is not null")
+        ).scalar_one()
+    )
+
+print(f"products={products}")
+print(f"search_documents={documents}")
+print(f"embedded_documents={embedded}")
+if products != expected:
+    raise SystemExit(f"expected products={expected}, got {products}")
+if documents != expected:
+    raise SystemExit(f"expected search_documents={expected}, got {documents}")
+PY
+}
+
+verify_elasticsearch() {
+  local count
+  count="$(compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    "http://127.0.0.1:9200/$ELASTICSEARCH_ALIAS/_count" \
+    | python -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+  echo "elasticsearch_alias_count=$count"
+  [[ "$count" == "$PRODUCT_COUNT" ]] || die \
+    "expected Elasticsearch count=$PRODUCT_COUNT, got $count"
+}
+
+prepare() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  echo "Applying migrations to the configured benchmark database..."
+  backend_exec python -m alembic upgrade head
+  echo "Seeding benchmark dataset..."
+  backend_exec python -m app.cli.seed_data --data-dir "$DATA_DIR"
+  echo "Indexing benchmark dataset..."
+  backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
+    --full \
+    --index-name "$ELASTICSEARCH_INDEX" \
+    --alias-name "$ELASTICSEARCH_ALIAS" \
+    --no-cleanup \
+    --retain-previous-indices 4
+  verify_database_counts
+  verify_elasticsearch
+  if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
+    activate
+  else
+    echo "Prepared only. Set BENCHMARK_ACTIVATE=true or run benchmarkctl activate $DATASET_LABEL."
+  fi
+}
+
+activate() {
+  require_benchmark_database
+  print_context
+  BENCHMARK_DATABASE_URL="$BENCHMARK_DATABASE_URL" \
+    BENCHMARK_DATA_DIR="$DATA_DIR" \
+    BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS" \
+    compose --profile server up -d --force-recreate "$BACKEND_SERVICE"
+  echo "backend activated for dataset=$DATASET_LABEL"
+}
+
+verify() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  verify_database_counts
+  verify_elasticsearch
+  [[ -f "$REPO_DIR/$QUERY_SET" ]] || die "query set is missing: $REPO_DIR/$QUERY_SET"
+  python3 -m json.tool "$REPO_DIR/$QUERY_SET" >/dev/null
+  echo "query_set=valid"
+  echo "benchmark verification passed"
+}
+
+collect() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
+  print_context | tee "$result_dir/context.txt"
+  compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
+  grep '"event":"db_slow_query"' "$result_dir/backend/backend.log" >"$result_dir/database/slow-query.log" || true
+  docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
+  compose ps >"$result_dir/resources/compose-ps.txt" 2>&1 || true
+  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  cat >"$result_dir/manifest.json" <<EOF
+{
+  "run_id": "$(safe_label "$run_id")",
+  "dataset": "$DATASET_LABEL",
+  "product_count": $PRODUCT_COUNT,
+  "git_sha": "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)",
+  "data_dir": "$DATA_DIR",
+  "elasticsearch_index": "$ELASTICSEARCH_INDEX",
+  "elasticsearch_alias": "$ELASTICSEARCH_ALIAS",
+  "bench_mode": "$BENCH_MODE",
+  "cache_state": "$CACHE_STATE",
+  "candidate_pool_limit": $CANDIDATE_POOL_LIMIT
+}
+EOF
+  echo "collected=$result_dir"
+}
+
+build() {
+  local source_dir="${1:-}"
+  local output_root="${2:-$REPO_DIR/data/generated-subsets}"
+  [[ -n "$source_dir" ]] || die "source_dir is required"
+  python3 "$SCRIPT_DIR/build_benchmark_dataset.py" \
+    --source-dir "$source_dir" \
+    --output-root "$output_root" \
+    --sizes 1000 5000 10000 80000
+}
+
+COMMAND="${1:-help}"
+case "$COMMAND" in
+  prepare) load_profile "${2:-}"; prepare ;;
+  activate) load_profile "${2:-}"; activate ;;
+  verify) load_profile "${2:-}"; verify ;;
+  build) build "${2:-}" "${3:-}" ;;
+  collect) collect "${2:-}" "${3:-}" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
