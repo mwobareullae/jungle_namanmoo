@@ -28,8 +28,10 @@ CANCEL_REQUEST_STATUS_REQUESTED = "REQUESTED"
 CANCEL_REQUEST_STATUS_APPROVED = "APPROVED"
 CANCEL_REQUEST_STATUS_REJECTED = "REJECTED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
+ORDER_STATUS_CANCELED = "CANCELED"
 ORDER_STATUS_PAID = "PAID"
 PAYMENT_STATUS_APPROVED = "APPROVED"
+PAYMENT_STATUS_CANCELED = "CANCELED"
 PAYMENT_PROVIDER_MOCK = "MOCK"
 
 DEFAULT_LIMIT = 20
@@ -96,24 +98,44 @@ def get_admin_cancel_request(session: Session, request_code: str) -> AdminOrderC
 
 
 def approve_admin_cancel_request(session: Session, request_code: str) -> AdminOrderCancelRequestActionResponse:
-    """취소 요청 승인. Order→Payment→Inventory 잠금·실행은 cancel_paid_order() 에 위임한다.
+    """취소 요청 승인. 잠금 순서 Order→Payment→OrderCancelRequest(→Inventory, cancel_paid_order 내부).
 
-    OrderCancelRequest 는 이 함수 안에서만 잠그므로(다른 코드 경로가 손대지 않음), Order/Payment/
-    Inventory 보다 나중에 잠그더라도 교착 위험은 없다 — 잠금 대상 집합이 겹치는 다른 트랜잭션이 없기 때문.
+    이미 APPROVED 인 요청은 Order/Payment 가 실제로 CANCELED 인지 직접 재검증하고 그대로 반환한다
+    (cancel_paid_order() 를 다시 호출하지 않는다) — 그렇지 않으면 다른 경로로 어긋난 상태를
+    "재실행"으로 조용히 복구해버릴 수 있어 정합성 오류를 숨기게 된다. 이미 REQUESTED 인데 Order/Payment
+    가 사전조건과 안 맞으면(예: 다른 경로로 이미 CANCELED) 마찬가지로 409 로 거부한다.
     """
+    order_id = _resolve_order_id(session, request_code)
+    order = _load_order_for_update(session, order_id)
+    payment = _load_payment_for_update(session, order.id)
     request = _load_cancel_request_for_update(session, request_code)
+
     if request.status == CANCEL_REQUEST_STATUS_REJECTED:
         raise ApiError(409, "CANCEL_REQUEST_ALREADY_REJECTED", "Cancel request was already rejected.")
 
-    order = _load_order_readonly(session, request.order_id)
+    if request.status == CANCEL_REQUEST_STATUS_APPROVED:
+        if order.status != ORDER_STATUS_CANCELED or payment is None or payment.status != PAYMENT_STATUS_CANCELED:
+            raise ApiError(
+                409,
+                "ORDER_CANCEL_STATE_INCONSISTENT",
+                "Cancel request is approved but order/payment state is inconsistent.",
+            )
+        return _to_action_response(request, order_status=order.status, order_code=order.order_code)
+
+    if order.status != ORDER_STATUS_CANCEL_REQUESTED or payment is None or payment.status != PAYMENT_STATUS_APPROVED:
+        raise ApiError(
+            409,
+            "ORDER_CANCEL_STATE_INCONSISTENT",
+            "Order and payment are not in an approvable state.",
+        )
+
     result = cancel_paid_order(session, order.order_code)
 
     now = datetime.now(UTC)
-    if request.status != CANCEL_REQUEST_STATUS_APPROVED:
-        request.status = CANCEL_REQUEST_STATUS_APPROVED
-        request.processed_at = now
-        request.updated_at = now
-        session.flush()
+    request.status = CANCEL_REQUEST_STATUS_APPROVED
+    request.processed_at = now
+    request.updated_at = now
+    session.flush()
 
     return _to_action_response(request, order_status=result.order_status, order_code=order.order_code)
 
@@ -121,23 +143,28 @@ def approve_admin_cancel_request(session: Session, request_code: str) -> AdminOr
 def reject_admin_cancel_request(
     session: Session, request_code: str, *, rejection_reason: str
 ) -> AdminOrderCancelRequestActionResponse:
-    """취소 요청 거절. Order 를 CANCEL_REQUESTED→PAID 로 되돌려 배송·재신청이 가능하게 한다."""
+    """취소 요청 거절. 잠금 순서 Order→Payment→OrderCancelRequest. Order 를 PAID 로 복구한다."""
     normalized_reason = rejection_reason.strip()
     if not normalized_reason:
         raise ApiError(400, "REJECTION_REASON_REQUIRED", "Rejection reason is required.")
 
+    order_id = _resolve_order_id(session, request_code)
+    order = _load_order_for_update(session, order_id)
+    payment = _load_payment_for_update(session, order.id)
     request = _load_cancel_request_for_update(session, request_code)
+
     if request.status == CANCEL_REQUEST_STATUS_APPROVED:
         raise ApiError(409, "CANCEL_REQUEST_ALREADY_APPROVED", "Cancel request was already approved.")
 
-    order = _load_order_for_update(session, request.order_id)
-
     if request.status == CANCEL_REQUEST_STATUS_REJECTED:
-        if order.status != ORDER_STATUS_PAID:
-            raise ApiError(409, "ORDER_CANCEL_STATE_INCONSISTENT", "Order is not in the expected rejected state.")
+        if order.status != ORDER_STATUS_PAID or payment is None or payment.status != PAYMENT_STATUS_APPROVED:
+            raise ApiError(
+                409,
+                "ORDER_CANCEL_STATE_INCONSISTENT",
+                "Cancel request is rejected but order/payment state is inconsistent.",
+            )
         return _to_action_response(request, order_status=order.status, order_code=order.order_code)
 
-    payment = _load_payment_for_update(session, order.id)
     if order.status != ORDER_STATUS_CANCEL_REQUESTED or payment is None or payment.status != PAYMENT_STATUS_APPROVED:
         raise ApiError(
             409,
@@ -157,23 +184,26 @@ def reject_admin_cancel_request(
     return _to_action_response(request, order_status=order.status, order_code=order.order_code)
 
 
-def _load_cancel_request_for_update(session: Session, request_code: str) -> OrderCancelRequest:
+def _resolve_order_id(session: Session, request_code: str) -> int:
     normalized_code = request_code.strip()
     if not normalized_code:
         raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
+    order_id = session.execute(
+        select(OrderCancelRequest.order_id).where(OrderCancelRequest.request_code == normalized_code)
+    ).scalar_one_or_none()
+    if order_id is None:
+        raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
+    return order_id
+
+
+def _load_cancel_request_for_update(session: Session, request_code: str) -> OrderCancelRequest:
+    normalized_code = request_code.strip()
     request = session.execute(
         select(OrderCancelRequest).where(OrderCancelRequest.request_code == normalized_code).with_for_update()
     ).scalar_one_or_none()
     if request is None:
         raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
     return request
-
-
-def _load_order_readonly(session: Session, order_id: int) -> Order:
-    order = session.execute(select(Order).where(Order.id == order_id)).scalar_one_or_none()
-    if order is None:
-        raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
-    return order
 
 
 def _load_order_for_update(session: Session, order_id: int) -> Order:

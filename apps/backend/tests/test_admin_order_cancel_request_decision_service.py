@@ -182,6 +182,51 @@ def test_approve_is_idempotent_on_replay(session: Session) -> None:
     assert len(movements) == 1
 
 
+def test_approve_rejects_when_approved_request_has_inconsistent_order_state(session: Session) -> None:
+    # Request 는 이미 APPROVED 라고 기록돼 있는데 Order 가 실제로는 CANCELED 가 아닌
+    # 데이터 불일치 상황 — cancel_paid_order() 를 다시 호출해 "재실행"으로 조용히
+    # 복구하면 안 되고, 정합성 오류로 거부해야 한다.
+    request = _make_cancel_request(
+        session,
+        request_status="APPROVED",
+        order_status="CANCEL_REQUESTED",
+        payment_status="APPROVED",
+        processed_at=datetime.now(UTC),
+    )
+    session.commit()
+
+    with pytest.raises(ApiError) as exc_info:
+        approve_admin_cancel_request(session, request.request_code)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "ORDER_CANCEL_STATE_INCONSISTENT"
+    order = session.execute(select(Order).where(Order.id == request.order_id)).scalar_one()
+    assert order.status == "CANCEL_REQUESTED"  # 조용히 취소 처리되지 않았어야 함
+
+
+def test_approve_rejects_when_requested_but_order_already_canceled_elsewhere(session: Session) -> None:
+    # Request 는 아직 REQUESTED 인데 Order/Payment 는 이미 CANCELED — 정상 흐름으로는
+    # 나올 수 없는 상태(다른 경로가 관리자 승인 없이 처리한 경우 등)라 그대로 승인 처리해
+    # 흡수하지 않고 정합성 오류로 거부해야 한다.
+    request = _make_cancel_request(
+        session,
+        request_status="REQUESTED",
+        order_status="CANCELED",
+        payment_status="CANCELED",
+    )
+    session.commit()
+
+    with pytest.raises(ApiError) as exc_info:
+        approve_admin_cancel_request(session, request.request_code)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "ORDER_CANCEL_STATE_INCONSISTENT"
+    reloaded_request = session.execute(
+        select(OrderCancelRequest).where(OrderCancelRequest.id == request.id)
+    ).scalar_one()
+    assert reloaded_request.status == "REQUESTED"  # 조용히 APPROVED 로 넘어가지 않았어야 함
+
+
 def test_approve_rejects_non_mock_payment(session: Session) -> None:
     request = _make_cancel_request(session, payment_provider="TOSS")
     session.commit()
@@ -271,6 +316,26 @@ def test_reject_is_idempotent_on_replay(session: Session) -> None:
         select(OrderCancelRequest).where(OrderCancelRequest.id == request.id)
     ).scalar_one()
     assert reloaded_request.decision_reason == "사유1"  # 재호출은 새 사유로 덮어쓰지 않는다
+
+
+def test_reject_rejects_when_rejected_request_has_inconsistent_payment_state(session: Session) -> None:
+    # Request 는 이미 REJECTED, Order 도 PAID 로 맞는데 Payment 가 APPROVED 가 아닌
+    # 불일치 상황 — 기존에는 Order.status 만 확인해 이 경우를 그냥 통과시켰다.
+    request = _make_cancel_request(
+        session,
+        request_status="REJECTED",
+        order_status="PAID",
+        payment_status="CANCELED",
+        decision_reason="이전 거절 사유",
+        processed_at=datetime.now(UTC),
+    )
+    session.commit()
+
+    with pytest.raises(ApiError) as exc_info:
+        reject_admin_cancel_request(session, request.request_code, rejection_reason="새 사유")
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "ORDER_CANCEL_STATE_INCONSISTENT"
 
 
 def test_reject_requires_non_blank_reason(session: Session) -> None:
