@@ -41,7 +41,7 @@
 .naver-preview-tabs a { flex: 0 0 auto; padding: 8px 24px; }
 .naver-preview-detail-main article + article { border-top: 1px solid #e8ecef; padding-top: 42px; }
 .naver-preview-detail-main article > h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-.naver-preview-brand-products { padding: 42px 0 48px; border-top: 1px solid #e8ecef; border-bottom: 1px solid #e8ecef; }
+.naver-preview-brand-products { padding: 42px 0 48px; border-top: 1px solid #e8ecef; border-bottom: 0; }
 .naver-preview-brand-products-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .naver-preview-brand-products h2 { margin: 0; font-size: 22px; font-weight: 700; }
 .naver-preview-brand-products-head > a { color: #8a9191; font-size: 12px; text-decoration: none; }
@@ -124,7 +124,7 @@
 .naver-preview-buy-grid button.is-wished { color: #222; }
 .naver-preview-buy-grid button.is-wished svg { color: #ff3521; }
 
-.naver-preview-ingredients { padding-top: 64px; }
+.naver-preview-ingredients { padding-top: 42px; }
 .naver-preview-ingredients h2 { margin-bottom: 34px; }
 .naver-preview-ingredient-block { padding: 0 0 34px; border-top: 1px solid #eee; }
 .naver-preview-ingredients > .naver-preview-ingredient-block:first-of-type { border-top: 0; }
@@ -136,11 +136,14 @@
 .naver-preview-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .naver-preview-evidence-card { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 12px; row-gap: 8px; min-height: 112px; padding: 18px 20px; border: 1px solid #e3e9e9; border-radius: 14px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .naver-preview-evidence-card:hover { border-color: #9fdde8; box-shadow: 0 3px 12px rgba(37, 168, 202, 0.08); }
+.naver-preview-evidence-card.is-selected { border-color: #25a8ca; background: #f4fcfe; box-shadow: 0 3px 12px rgba(37, 168, 202, 0.12); }
 .naver-preview-evidence-icon { display: grid; width: 38px; height: 38px; grid-row: span 2; place-items: center; border-radius: 50%; background: #e9f9fc; color: #25a8ca; font-size: 21px; }
 .naver-preview-evidence-card strong { color: #222; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
 .naver-preview-evidence-card span { color: #737b7c; font-size: 12px; font-weight: 600; }
 .naver-preview-evidence-detail { margin-top: 18px; padding: 20px; border: 1px solid #e3e9e9; border-radius: 14px; background: #fff; }
 .naver-preview-evidence-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #edf0f0; font-size: 17px; }
+.naver-preview-evidence-detail-head > div { display: grid; gap: 4px; }
+.naver-preview-evidence-detail-head > div > span { color: #899092; font-size: 12px; font-weight: 600; }
 .naver-preview-evidence-detail-head button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #f4f7f7; color: #555; font-size: 20px; line-height: 1; cursor: pointer; }
 .naver-preview-evidence-detail-item { padding: 16px 0; border-bottom: 1px solid #edf0f0; }
 .naver-preview-evidence-detail-item:last-child { border-bottom: 0; padding-bottom: 0; }
