@@ -1525,6 +1525,13 @@ function AgentFloatingButton({
           ),
           createAssistantMessage(`assistant-canceled-${timestamp}`, "주문 취소가 완료됐어요."),
         ].slice(-MAX_STORED_AGENT_MESSAGES));
+        await waitForAgentInteraction(700);
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+        const orderDetailUrl = `/mypage/orders/${encodeURIComponent(orderCode)}`;
+        const orderDetailTarget = findVisibleAgentTarget(`a[href="${orderDetailUrl}"]`);
+        await playAgentClickInteraction(orderDetailTarget);
+        await navigateWithinApp(orderDetailUrl);
         return;
       } catch {
         // A transient lookup failure is retried within the bounded polling window.
