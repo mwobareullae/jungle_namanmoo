@@ -136,60 +136,74 @@ const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 
 const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   auth: [
-    "로그인하면 어떤 기능을 쓸 수 있어?",
-    "피부 프로필은 왜 필요한가요?",
-    "비회원도 상품을 둘러볼 수 있어?",
+    "로그인하면 장바구니와 주문을 어떻게 이어서 볼 수 있어?",
+    "로그인 후 내 피부 타입으로 맞춤 루틴을 만들고 싶어",
+    "비회원으로 이용할 수 있는 기능을 알려줘",
   ],
   cart: [
-    "내 장바구니 보여줘",
-    "현재 장바구니 상품 결제해줘",
-    "내 피부에 맞는 토너와 크림을 5만원 안으로 구성해줘",
+    "현재 장바구니 상품으로 주문서 열어줘",
+    "내 피부에 맞는 토너와 크림을 10만원 안으로 추가해줘",
+    "장바구니 상품과 총금액 다시 보여줘",
   ],
   checkout: [
-    "이 주문서의 결제 예정 금액 알려줘",
     "이 주문서 내용으로 주문 생성해줘",
-    "결제 전에 확인할 내용을 요약해줘",
+    "이 주문서로 결제 진행해줘",
+    "결제 예정 금액과 배송지를 다시 확인해줘",
   ],
   home: [
-    "내 피부에 맞는 토너와 크림을 5만원 안으로 구성해줘",
-    "장바구니에 담긴 상품과 총금액 보여줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
     "최근 주문 배송 상태 알려줘",
+    "장바구니에 담긴 상품과 총금액 보여줘",
   ],
   mypage: [
-    "내 피부 타입과 민감도 알려줘",
-    "최근 주문 상태 알려줘",
-    "내 피부에 맞는 5만원 이하 루틴 구성해줘",
+    "최근 주문 배송 상태 보여줘",
+    "내 피부 타입에 맞는 토너와 크림을 10만원 이내로 구성해줘",
+    "내 장바구니 상품과 총금액 보여줘",
   ],
   order: [
-    "방금 주문 상태 알려줘",
-    "방금 주문 취소해줘",
-    "최근 주문 상품과 금액을 요약해줘",
+    "현재 주문 상태와 상품을 보여줘",
+    "현재 주문을 취소해줘",
+    "최근 주문 배송 상태를 보여줘",
   ],
   productDetail: [
-    "이거랑 비슷한 상품 보여줘",
-    "이 상품이 내 피부에 맞을까?",
-    "비슷한 상품끼리 비교해줘",
+    "이 상품과 비슷한 상품 2개 보여줘",
+    "이 상품을 장바구니에 담아줘",
+    "이 상품과 비슷한 상품을 비교해줘",
   ],
   productList: [
-    "화면에 보이는 상품을 비교해줘",
-    "첫 번째 상품과 비슷한 상품 보여줘",
-    "내 피부에 맞는 선택 기준을 알려줘",
+    "화면에 보이는 첫 두 상품을 비교해줘",
+    "화면 상품 중 5만원 이하만 보여줘",
+    "화면 상품을 내 피부 타입 기준으로 추려줘",
   ],
   recent: [
-    "최근 본 상품끼리 비교해줘",
-    "첫 번째 상품과 비슷한 상품 보여줘",
-    "내 피부에 맞는 선택 기준을 알려줘",
+    "최근 본 첫 두 상품을 비교해줘",
+    "최근 본 상품 중 5만원 이하만 보여줘",
+    "최근 본 상품을 내 피부 타입 기준으로 추려줘",
   ],
   skinProfile: [
-    "내 피부 타입과 민감도 알려줘",
-    "내가 피해야 할 성분 알려줘",
-    "내 피부의 핵심 관리 포인트 알려줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 세럼과 크림을 7만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너와 세럼을 6만원 이내로 구성해줘",
   ],
   wishlist: [
-    "찜한 상품끼리 비교해줘",
-    "첫 번째 상품과 비슷한 상품 보여줘",
-    "내 피부에 더 맞는 상품을 고르는 기준 알려줘",
+    "찜한 첫 두 상품을 비교해줘",
+    "찜한 상품 중 5만원 이하만 보여줘",
+    "찜한 상품을 내 피부 타입 기준으로 추려줘",
   ],
+};
+
+const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
+  auth: ["로그인하면 이어지는 기능은?", "로그인 후 맞춤 루틴 만들기"],
+  cart: ["이 장바구니로 주문서 열어줘", "10만원 맞춤 상품 추가해줘"],
+  checkout: ["이 주문서로 주문 생성해줘", "결제 진행해줘"],
+  home: ["10만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
+  mypage: ["최근 주문 배송 보여줘", "10만원 맞춤 루틴 구성해줘"],
+  order: ["현재 주문 상태 보여줘", "현재 주문 취소해줘"],
+  productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
+  productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
+  recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
+  skinProfile: ["10만원 맞춤 루틴 구성해줘", "7만원 세럼·크림 구성해줘"],
+  wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
 
 const completedStatusSteps: AgentStatusStep[] = [
@@ -1125,7 +1139,7 @@ function AgentFloatingButton({
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
   const [isChatMounted, setIsChatMounted] = useState(false);
-  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home" && surface !== "minimal");
+  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
@@ -1150,6 +1164,13 @@ function AgentFloatingButton({
   const quickQuestions = useMemo(
     () => quickQuestionsByContext[quickQuestionContext],
     [quickQuestionContext],
+  );
+  const miniChatQuestions = useMemo(
+    () => quickQuestions.slice(0, 2).map((prompt, index) => ({
+      label: miniChatLabelsByContext[quickQuestionContext][index],
+      prompt,
+    })),
+    [quickQuestionContext, quickQuestions],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
@@ -1194,63 +1215,13 @@ function AgentFloatingButton({
     void sendMessage(question);
   };
 
-  const hasContentBehindTeaser = () => {
-    const teaser = teaserRef.current;
-    if (!teaser || typeof window === "undefined") {
-      return false;
-    }
-
-    const rect = teaser.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return false;
-    }
-
-    const points = [
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.2],
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.5],
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.8],
-    ];
-    const previousVisibility = teaser.style.visibility;
-    teaser.style.visibility = "hidden";
-
-    try {
-      return points.some(([x, y]) => {
-        const elements = document.elementsFromPoint(x, y);
-        return elements.some((element) => {
-          if (element === document.body || element === document.documentElement) {
-            return false;
-          }
-
-          const agentElement = element.closest(".agent-floating-entry");
-          if (agentElement || element.closest("[aria-hidden=\"true\"]")) {
-            return false;
-          }
-
-          const tagName = element.tagName.toLowerCase();
-          if (["img", "picture", "video", "canvas", "svg"].includes(tagName)) {
-            return true;
-          }
-
-          if (element.children.length === 0 && element.textContent?.trim()) {
-            const style = window.getComputedStyle(element);
-            return style.display !== "none" && style.visibility !== "hidden";
-          }
-
-          return false;
-        });
-      });
-    } finally {
-      teaser.style.visibility = previousVisibility;
-    }
-  };
-
   const updateTeaserVisibility = () => {
-    if (isOpen || surface === "minimal" || hasDismissedTeaserRef.current) {
+    if (isOpen || hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return;
     }
 
-    setIsTeaserVisible(!hasContentBehindTeaser());
+    setIsTeaserVisible(true);
   };
 
   const scheduleTeaserVisibilityCheck = () => {
@@ -1268,10 +1239,10 @@ function AgentFloatingButton({
     if (previousSurfaceRef.current !== surface) {
       previousSurfaceRef.current = surface;
       hasDismissedTeaserRef.current = false;
-      setIsTeaserVisible(surface !== "home" && surface !== "minimal");
+      setIsTeaserVisible(surface !== "home");
     }
 
-    if (surface === "minimal" || hasDismissedTeaserRef.current) {
+    if (hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return undefined;
     }
@@ -1938,20 +1909,11 @@ function AgentFloatingButton({
           ref={teaserRef}
           className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
         >
-          {surface === "productDetail" ? (
-            <button onClick={() => handleTeaserClick("비슷한 상품 비교해줘")} type="button">
-              비슷한 상품 비교해줘
+          {miniChatQuestions.map((question) => (
+            <button key={question.prompt} onClick={() => handleTeaserClick(question.prompt)} type="button">
+              {question.label}
             </button>
-          ) : (
-            <>
-              <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
-                피부 고민을 같이 찾아볼까요?
-              </button>
-              <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
-                궁금한 성분을 물어보세요
-              </button>
-            </>
-          )}
+          ))}
         </div>
         {isChatMounted ? (
           <section
