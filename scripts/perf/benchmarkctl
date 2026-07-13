@@ -189,10 +189,10 @@ collect() {
   [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
   [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
   load_profile "$dataset"
+  require_benchmark_database
 
   local result_dir="$RESULT_ROOT/$run_id"
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
-  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
   print_context | tee "$result_dir/context.txt"
   compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
@@ -200,6 +200,11 @@ collect() {
   docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
   compose ps >"$result_dir/resources/compose-ps.txt" 2>&1 || true
   compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  if [[ "${BENCHMARK_RDS_METRICS_ENABLED:-false}" == "true" && -x "$SCRIPT_DIR/collect_rds_metrics.sh" ]]; then
+    local rds_end_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+    "$SCRIPT_DIR/collect_rds_metrics.sh" "$started_at" "$rds_end_at" "$result_dir/database/rds-metrics.json" || true
+  fi
+  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   cat >"$result_dir/manifest.json" <<EOF
 {
   "run_id": "$(safe_label "$run_id")",
