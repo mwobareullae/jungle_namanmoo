@@ -15,6 +15,7 @@ from discover_new_evidence import (  # noqa: E402
     CANDIDATE_FIELDS,
     KnownEvidence,
     PaperMetadata,
+    PubMedClient,
     build_pair_query,
     build_summary,
     discover_candidates,
@@ -23,8 +24,37 @@ from discover_new_evidence import (  # noqa: E402
     normalize_doi,
     parse_pubmed_xml,
     read_csv_rows,
+    split_english_name,
     write_candidates,
 )
+
+
+class FakeResponse:
+    def __init__(self, payload: bytes = b"", error: Exception | None = None) -> None:
+        self.payload = payload
+        self.error = error
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self) -> bytes:
+        if self.error:
+            raise self.error
+        return self.payload
+
+
+class RetryOpener:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def open(self, request, timeout):
+        self.calls += 1
+        if self.calls == 1:
+            return FakeResponse(error=TimeoutError("read timed out"))
+        return FakeResponse(payload=b"ok")
 
 
 class FakePubMedClient:
@@ -73,6 +103,20 @@ class FakePubMedClient:
 
 
 class EvidenceDiscoveryTests(unittest.TestCase):
+    def test_pubmed_client_retries_response_read_timeout(self):
+        opener = RetryOpener()
+        client = PubMedClient(
+            opener=opener,
+            request_delay_seconds=0,
+            max_retries=1,
+        )
+
+        payload = client._request("efetch.fcgi", {"db": "pubmed", "id": "1"})
+
+        self.assertEqual(payload, b"ok")
+        self.assertEqual(client.retry_count, 1)
+        self.assertEqual(opener.calls, 2)
+
     def test_current_72_pair_contract_builds_queries_without_network(self):
         repo_root = SCRIPT_DIR.parents[1]
         pairs = read_csv_rows(repo_root / "data/ingredient_effect.csv")
@@ -220,6 +264,7 @@ class EvidenceDiscoveryTests(unittest.TestCase):
         self.assertEqual(by_pmid["33333333"]["discovery_scope"], "known_paper_new_pair")
         self.assertTrue(all(row["review_status"] == "candidate_unverified" for row in candidates))
         self.assertTrue(all(row["score_eligible"] == "false" for row in candidates))
+        self.assertTrue(all(row["discovery_key"].startswith("PMID:") for row in candidates))
         self.assertEqual(stats.known_pair_duplicates, 2)
         self.assertEqual(stats.candidate_pair_count, 3)
         self.assertEqual(stats.unique_candidate_papers, 3)
@@ -254,6 +299,16 @@ class EvidenceDiscoveryTests(unittest.TestCase):
         )
         self.assertIn("자동 점수 반영: **0건**", summary)
         self.assertIn("새 후보가 없습니다", summary)
+
+    def test_slash_in_exact_inci_name_is_not_split_into_generic_terms(self):
+        self.assertEqual(
+            split_english_name("Jasminum Officinale Flower/Leaf Extract"),
+            ["Jasminum Officinale Flower/Leaf Extract"],
+        )
+        self.assertEqual(
+            split_english_name("Capsicum Annuum Extract|Capsicum Frutescens Extract"),
+            ["Capsicum Annuum Extract", "Capsicum Frutescens Extract"],
+        )
 
 
 if __name__ == "__main__":
