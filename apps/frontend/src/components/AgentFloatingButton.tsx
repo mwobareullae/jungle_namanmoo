@@ -1420,7 +1420,15 @@ function AgentFloatingButton({
         setIsOpen(false);
         await waitForAgentInteraction(260);
       }
-      await applyAgentUiAction(response.ui_action, response.items, response.message);
+      if (response.tool_name === "get_cart") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+        const cartTarget = findVisibleAgentTarget("[data-agent-cart-navigation-target]");
+        await playAgentClickInteraction(cartTarget);
+        await navigateWithinApp("/cart");
+      } else {
+        await applyAgentUiAction(response.ui_action, response.items, response.message);
+      }
     } catch (error) {
       setMessages((currentMessages) =>
         [
