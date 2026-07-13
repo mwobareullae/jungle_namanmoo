@@ -39,7 +39,7 @@ CART_STATUS_ORDERED = "ORDERED"
 DEFAULT_CURRENCY = "KRW"
 DEFAULT_BASE_SHIPPING_FEE = 3000
 PAYMENT_EXPIRY_MINUTES = 15
-SUPPORTED_PAYMENT_PROVIDERS = {"MOCK", "TOSS"}
+SUPPORTED_PAYMENT_PROVIDERS = {"TOSS"}
 
 
 @dataclass(frozen=True)
@@ -176,7 +176,7 @@ def _validate_payment_provider(payment_provider: str) -> None:
         raise ApiError(
             400,
             "UNSUPPORTED_PAYMENT_PROVIDER",
-            "Only MOCK and TOSS payment providers are supported.",
+            "Only the TOSS payment provider is supported.",
         )
 
 

@@ -4,7 +4,6 @@ import type {
   OrderCancelResponse,
   OrderDetailResponse,
   OrderListResponse,
-  MockPaymentConfirmResponse,
   TossPaymentConfirmRequest,
   TossPaymentConfirmResponse,
 } from "../types/order";
@@ -58,12 +57,6 @@ export const confirmTossPayment = (
     },
     body: JSON.stringify(request),
   }).then((response) => parseJson<TossPaymentConfirmResponse>(response));
-};
-
-export const confirmMockPayment = (paymentCode: string): Promise<MockPaymentConfirmResponse> => {
-  return fetchWithTimeout(`${API_BASE_URL}/payments/${encodeURIComponent(paymentCode)}/mock/confirm`, {
-    method: "POST",
-  }).then((response) => parseJson<MockPaymentConfirmResponse>(response));
 };
 
 export const cancelOrder = (orderCode: string): Promise<OrderCancelResponse> => {

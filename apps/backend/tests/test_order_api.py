@@ -91,7 +91,7 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
             json={
                 "cart_item_ids": [selected_item_id],
                 "address_id": address_id,
-                "payment_provider": "MOCK",
+                "payment_provider": "TOSS",
             },
         )
     finally:
@@ -102,7 +102,7 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
     assert data["order_code"].startswith("ord_")
     assert data["status"] == "PENDING_PAYMENT"
     assert data["payment"]["payment_code"].startswith("pay_")
-    assert data["payment"]["provider"] == "MOCK"
+    assert data["payment"]["provider"] == "TOSS"
     assert data["payment"]["status"] == "READY"
     assert data["subtotal"] == 22900
     assert data["shipping_fee"] == 3000
@@ -118,7 +118,7 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
     assert log_payload["subtotal_amount"] == 22900
     assert log_payload["shipping_fee"] == 3000
     assert log_payload["total_amount"] == 25900
-    assert log_payload["payment_provider"] == "MOCK"
+    assert log_payload["payment_provider"] == "TOSS"
     assert log_payload["idempotent_replay"] is False
 
     with Session(db_engine) as session:
@@ -171,7 +171,7 @@ def test_create_order_reserves_inventory_and_snapshots_selected_items(
     assert order_created_event.user_id == user.id
     assert order_created_event.request_id == response.headers["x-request-id"]
     assert order_created_event.metadata_json["order_code"] == order.order_code
-    assert order_created_event.metadata_json["payment_provider"] == "MOCK"
+    assert order_created_event.metadata_json["payment_provider"] == "TOSS"
     assert order_created_event.metadata_json["total"] == 25900
 
 
@@ -184,7 +184,7 @@ def test_create_order_is_idempotent_and_does_not_reserve_twice(
     add_response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
     item_id = add_response.json()["items"][0]["id"]
     address_id = _create_address(client)["id"]
-    request_body = {"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"}
+    request_body = {"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"}
     headers = {"Idempotency-Key": "same-order-key"}
 
     first_response = client.post("/api/orders", headers=headers, json=request_body)
@@ -231,7 +231,7 @@ def test_create_order_with_direct_address_can_save_address_book(
                 "save_to_address_book": True,
                 "set_as_default": True,
             },
-            "payment_provider": "MOCK",
+            "payment_provider": "TOSS",
         },
     )
 
@@ -274,7 +274,7 @@ def test_create_order_rejects_insufficient_stock_without_reserving(
         response = client.post(
             "/api/orders",
             headers={"Idempotency-Key": "stock-fail-key", "x-request-id": "order-stock-fail-request"},
-            json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+            json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
         )
     finally:
         logs.close()
@@ -284,7 +284,7 @@ def test_create_order_rejects_insufficient_stock_without_reserving(
     log_payload = next(line for line in logs.json_lines if line["event"] == "order_create_failed")
     assert log_payload["request_id"] == "order-stock-fail-request"
     assert log_payload["requested_item_count"] == 1
-    assert log_payload["payment_provider"] == "MOCK"
+    assert log_payload["payment_provider"] == "TOSS"
     assert log_payload["error_code"] == "INSUFFICIENT_STOCK"
     with Session(db_engine) as session:
         order_count = len(session.execute(select(Order)).scalars().all())

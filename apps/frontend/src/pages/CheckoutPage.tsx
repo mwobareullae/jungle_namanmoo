@@ -1,6 +1,6 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ANONYMOUS, loadTossPayments, type TossPaymentsSDK } from "@tosspayments/tosspayments-sdk";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
@@ -10,7 +10,7 @@ import { createAddress, deleteAddress, getAddresses, updateAddress } from "../li
 import { getCart, previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
-import { cancelOrder, confirmMockPayment, createOrder } from "../lib/orderApi";
+import { cancelOrder, createOrder } from "../lib/orderApi";
 import type { UserAddress, UserAddressCreateRequest } from "../types/address";
 import type { CartItem, CheckoutPreviewResponse } from "../types/cart";
 import type { ProductDetail } from "../types/recommendation";
@@ -240,6 +240,8 @@ const getCheckoutParams = () => {
     skinType: params.get("skin_type") ?? "",
     sensitivity: params.get("sensitivity") ?? "",
     cartItemIds,
+    agentOrderCode: params.get("agent_order_code") ?? "",
+    agentAmount: Number(params.get("agent_amount") ?? 0),
   };
 };
 
@@ -296,7 +298,11 @@ const mapAddressToForm = (address: UserAddress): AddressFormState => ({
 function CheckoutPage() {
   const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds }] =
     useState(getCheckoutParams);
+  const location = useLocation();
   const navigate = useNavigate();
+  const agentPaymentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const agentOrderCode = agentPaymentParams.get("agent_order_code") ?? "";
+  const agentAmount = Number(agentPaymentParams.get("agent_amount") ?? 0);
   const { isAuthLoading, user } = useAuth();
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
   const [productLoadState, setProductLoadState] = useState<ProductLoadState>(selectedId ? "loading" : "idle");
@@ -324,6 +330,7 @@ function CheckoutPage() {
   const [isTossSdkLoading, setIsTossSdkLoading] = useState(false);
   const [tossSdkErrorMessage, setTossSdkErrorMessage] = useState("");
   const [hasAgreedPayment, setHasAgreedPayment] = useState(false);
+  const agentPaymentStartedRef = useRef(false);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
@@ -459,6 +466,36 @@ function CheckoutPage() {
   }, [tossClientKey]);
 
   useEffect(() => {
+    if (!agentOrderCode || agentAmount <= 0 || !tossPayments || !user || agentPaymentStartedRef.current) {
+      return;
+    }
+    agentPaymentStartedRef.current = true;
+    setIsCompletingPayment(true);
+    setOrderErrorMessage("");
+    const successParams = new URLSearchParams({ provider: "toss", order_code: agentOrderCode });
+    const failParams = new URLSearchParams({ payment_failed: "1", order_code: agentOrderCode });
+    const payment = tossPayments.payment({ customerKey: getTossCustomerKey(user.id) });
+    payment.requestPayment({
+      method: "CARD",
+      amount: { currency: "KRW", value: agentAmount },
+      orderId: agentOrderCode,
+      orderName: "뭐바를래 주문",
+      successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
+      failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
+      customerEmail: user.email,
+      customerName: user.nickname ?? user.email,
+      card: { flowMode: "DIRECT", easyPay: "TOSSPAY" },
+    }).catch((error) => {
+      agentPaymentStartedRef.current = false;
+      setOrderErrorMessage(error instanceof Error ? error.message : "Toss 결제창을 열지 못했습니다.");
+      setIsCompletingPayment(false);
+    });
+  }, [agentAmount, agentOrderCode, tossPayments, user]);
+
+  useEffect(() => {
+    if (agentOrderCode) {
+      return;
+    }
     if (selectedId) {
       return;
     }
@@ -514,7 +551,7 @@ function CheckoutPage() {
     return () => {
       isMounted = false;
     };
-  }, [requestedCartItemIds, selectedAddressId, selectedId]);
+  }, [agentOrderCode, requestedCartItemIds, selectedAddressId, selectedId]);
 
   const isResolvingProduct = Boolean(selectedId) && productLoadState === "loading";
   const items = useMemo(() => {
@@ -633,11 +670,29 @@ function CheckoutPage() {
     setOrderErrorMessage("");
 
     const representative = items[0] ?? fallbackProducts[0];
-    const isTossPayment = paymentMethod === "간편결제";
+    const isTossPayment = true;
 
     try {
       if (isTossPayment && !tossPayments) {
         throw new Error("토스페이먼츠 SDK가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      }
+
+      if (agentOrderCode && agentAmount > 0 && tossPayments) {
+        const successParams = new URLSearchParams({ provider: "toss", order_code: agentOrderCode });
+        const failParams = new URLSearchParams({ payment_failed: "1", order_code: agentOrderCode });
+        const payment = tossPayments.payment({ customerKey: getTossCustomerKey(user.id) });
+        await payment.requestPayment({
+          method: "CARD",
+          amount: { currency: "KRW", value: agentAmount },
+          orderId: agentOrderCode,
+          orderName: items.length > 1 ? `${representative.name} 외 ${items.length - 1}개` : representative.name,
+          successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
+          failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
+          customerEmail: user.email,
+          customerName: user.nickname ?? user.email,
+          card: { flowMode: "DIRECT", easyPay: "TOSSPAY" },
+        });
+        return;
       }
 
       const orderCartItemIds = requestedCartItemIds.length > 0
@@ -655,7 +710,7 @@ function CheckoutPage() {
       const order = await createOrder({
         cart_item_ids: orderCartItemIds,
         address_id: selectedAddress.id,
-        payment_provider: isTossPayment ? "TOSS" : "MOCK",
+        payment_provider: "TOSS",
       });
 
       sessionStorage.removeItem(PENDING_CHECKOUT_PREVIEW_KEY);
@@ -738,24 +793,7 @@ function CheckoutPage() {
         return;
       }
 
-      if (!isTossPayment) {
-        const paymentCode = order.payment?.payment_code;
-        if (!paymentCode) {
-          throw new Error("결제 정보를 확인하지 못했습니다.");
-        }
-
-        const payment = await confirmMockPayment(paymentCode);
-        if (payment.order_status !== "PAID" || payment.payment_status !== "APPROVED") {
-          throw new Error("결제 승인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-        }
-      }
-
-      window.dispatchEvent(new Event("cart:updated"));
-      navigateWithinApp(`/payment-complete${params.toString() ? `?${params.toString()}` : ""}`);
     } catch (error) {
-      if (!isTossPayment) {
-        sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
-      }
       setOrderErrorMessage(error instanceof Error ? error.message : "주문 생성에 실패했습니다.");
     } finally {
       setIsCompletingPayment(false);
@@ -1053,7 +1091,7 @@ function CheckoutPage() {
                   <h2>결제 수단</h2>
                 </div>
                 <div className="payment-options">
-                  {["간편결제", "신용카드", "무통장입금"].map((method) => (
+                  {["간편결제"].map((method) => (
                     <button
                       aria-pressed={paymentMethod === method}
                       className={`payment-option${paymentMethod === method ? " active" : ""}`}
