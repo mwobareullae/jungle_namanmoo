@@ -576,6 +576,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     return null;
   }
 
+  if (response.error.code === "AGENT_AUTH_REQUIRED") {
+    return createAgentErrorMessage(id, "로그인이 필요해요", response.error.message, {
+      action: "login",
+      actionLabel: "로그인하기",
+      tone: "info",
+    });
+  }
+
   return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
     retryMessage,
     tone: response.error.retryable ? "amber" : "info",
