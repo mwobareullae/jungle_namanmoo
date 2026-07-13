@@ -15,6 +15,7 @@ AgentToolName = Literal[
     "prepare_order",
     "compose_cart",
     "prepare_review_draft",
+    "prepare_claim_draft",
 ]
 
 AgentToolCallStatus = Literal[

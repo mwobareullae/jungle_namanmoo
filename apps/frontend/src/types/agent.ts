@@ -9,7 +9,8 @@ export type AgentToolName =
   | "prepare_checkout"
   | "prepare_order"
   | "compose_cart"
-  | "prepare_review_draft";
+  | "prepare_review_draft"
+  | "prepare_claim_draft";
 
 export type AgentToolCallStatus =
   | "PROPOSED"
@@ -48,7 +49,8 @@ export type AgentUiTarget =
   | "checkout_preview"
   | "order_create_confirm"
   | "toss_payment"
-  | "review_write";
+  | "review_write"
+  | "claim_request";
 
 export type AgentContext = {
   page?: string | null;

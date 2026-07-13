@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 import secrets
 import time
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
@@ -38,6 +38,7 @@ from app.services.agent_product_tools import (
     refine_product_results,
 )
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL, prepare_review_draft
+from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL, prepare_claim_draft
 
 
 class OrderStatusLookupArgs(BaseModel):
@@ -119,6 +120,16 @@ class PrepareReviewDraftArgs(BaseModel):
     is_repurchase_review: bool = False
 
 
+class PrepareClaimDraftArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_code: str | None = Field(default=None, max_length=40)
+    order_item_id: int | None = Field(default=None, ge=1)
+    claim_type: Literal["RETURN", "EXCHANGE", "REFUND"]
+    reason_code: Literal["CHANGE_OF_MIND", "DEFECTIVE", "WRONG_ITEM", "OTHER"]
+    reason_detail: str | None = Field(default=None, max_length=2000)
+
+
 ToolArgs = (
     OrderStatusLookupArgs
     | CancelRecentOrderArgs
@@ -130,6 +141,7 @@ ToolArgs = (
     | CheckoutArgs
     | ComposeCartArgs
     | PrepareReviewDraftArgs
+    | PrepareClaimDraftArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
@@ -143,6 +155,7 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     PREPARE_ORDER_TOOL: CheckoutArgs,
     COMPOSE_CART_TOOL: ComposeCartArgs,
     PREPARE_REVIEW_DRAFT_TOOL: PrepareReviewDraftArgs,
+    PREPARE_CLAIM_DRAFT_TOOL: PrepareClaimDraftArgs,
 }
 
 
@@ -390,6 +403,21 @@ def _execute_parsed_tool(
             rating=args.rating,
             review_text=args.review_text,
             is_repurchase_review=args.is_repurchase_review,
+        )
+
+    if tool_name == PREPARE_CLAIM_DRAFT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, PrepareClaimDraftArgs)
+        return prepare_claim_draft(
+            session,
+            user,
+            conversation_id=conversation_id,
+            order_code=args.order_code,
+            order_item_id=args.order_item_id,
+            claim_type=args.claim_type,
+            reason_code=args.reason_code,
+            reason_detail=args.reason_detail,
         )
 
     raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")

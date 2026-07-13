@@ -21,6 +21,7 @@ from app.services.agent_product_tools import (
     REFINE_PRODUCT_RESULTS_TOOL,
 )
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
+from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_tool_dispatcher import execute_agent_tool
 
 
@@ -59,6 +60,10 @@ Use tools this way:
   they supplied a real rating or concrete personal experience. Use only what the
   user said; never invent product use, effects, duration, or repurchase intent. The
   tool fills the review form, and the user always submits the public review.
+- If the user asks for a return, exchange, or refund, call prepare_claim_draft only
+  after they supplied the exact request type and a truthful reason. Never invent a
+  defect, wrong delivery, or personal reason. The tool checks actual eligibility and
+  fills the existing form; the user always submits the final claim.
 
 If required context is missing, ask for the missing information in one short Korean
 sentence. If no tool is needed, answer briefly in Korean.
@@ -160,6 +165,7 @@ async def run_openai_agent_chat(
             prepare_checkout,
             prepare_order,
             prepare_review_draft,
+            prepare_claim_draft,
         ],
     )
 
@@ -496,5 +502,28 @@ async def prepare_review_draft(
             "rating": rating,
             "review_text": review_text,
             "is_repurchase_review": is_repurchase_review,
+        },
+    )
+
+
+@function_tool(name_override=PREPARE_CLAIM_DRAFT_TOOL)
+async def prepare_claim_draft(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    claim_type: str,
+    reason_code: str,
+    order_code: str | None = None,
+    order_item_id: int | None = None,
+    reason_detail: str | None = None,
+) -> str:
+    """Fill an eligible order claim form from the user's stated reason."""
+    return _execute_tool(
+        ctx,
+        tool_name=PREPARE_CLAIM_DRAFT_TOOL,
+        arguments={
+            "order_code": order_code,
+            "order_item_id": order_item_id,
+            "claim_type": claim_type,
+            "reason_code": reason_code,
+            "reason_detail": reason_detail,
         },
     )

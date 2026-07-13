@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import UTC, datetime
 import json
 import logging
 
@@ -12,7 +13,7 @@ from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
@@ -150,6 +151,50 @@ def test_prepare_review_draft_uses_reviewable_purchase_without_creating_review(d
     assert response.ui_action.payload["order_item_id"] == order_item_id
     assert response.ui_action.payload["rating"] == 4
     assert response.ui_action.payload["review_text"] == "보습감은 좋았지만 마무리가 조금 끈적였어요."
+
+
+def test_prepare_claim_draft_checks_real_eligibility_without_creating_claim(db_engine: Engine) -> None:
+    email = "agent-claim@example.com"
+    with Session(db_engine) as session:
+        session.add(User(email=email, display_name="agent-claim"))
+        session.commit()
+    order_item_id = _create_order_item(db_engine, email=email, item_status="DELIVERED")
+
+    with Session(db_engine) as session:
+        user = session.scalar(select(User).where(User.email == email))
+        order_code = session.scalar(
+            select(Order.order_code).join(OrderItem, OrderItem.order_id == Order.id).where(OrderItem.id == order_item_id)
+        )
+        order = session.scalar(select(Order).where(Order.order_code == order_code))
+        order.status = "DELIVERED"
+        order.delivered_at = datetime.now(UTC)
+        session.flush()
+        response = execute_agent_tool(
+            session,
+            tool_name="prepare_claim_draft",
+            arguments={
+                "order_code": order_code,
+                "order_item_id": order_item_id,
+                "claim_type": "RETURN",
+                "reason_code": "CHANGE_OF_MIND",
+                "reason_detail": "향이 저와 맞지 않아요.",
+            },
+            user=user,
+            conversation_id="conv_claim",
+        )
+        claim_count = len(session.scalars(select(OrderClaim)).all())
+
+    assert claim_count == 0
+    assert response.requires_confirmation is False
+    assert response.ui_action.type == "navigate"
+    assert response.ui_action.target == "claim_request"
+    assert response.ui_action.payload == {
+        "order_code": order_code,
+        "order_item_id": order_item_id,
+        "claim_type": "RETURN",
+        "reason_code": "CHANGE_OF_MIND",
+        "reason_detail": "향이 저와 맞지 않아요.",
+    }
 
 
 def test_compose_cart_requires_confirmation_before_bulk_add(db_engine: Engine) -> None:

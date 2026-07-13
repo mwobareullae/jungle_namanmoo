@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { createOrderClaim, getClaimEligibility } from "../../lib/claimApi";
+import { clearAgentClaimDraft, readAgentClaimDraft } from "../../lib/agentDrafts";
 import { getOrderDetail } from "../../lib/orderApi";
 import type { OrderClaimEligibilityResponse, OrderClaimType } from "../../types/claim";
 import type { OrderDetailResponse } from "../../types/order";
@@ -28,12 +29,26 @@ function ReturnRequestPage() {
 
   useEffect(() => {
     if (!orderCode) return;
+    const agentDraft = readAgentClaimDraft();
     Promise.all([getOrderDetail(orderCode), getClaimEligibility(orderCode)])
       .then(([response, claimEligibility]) => {
         setOrder(response);
         setEligibility(claimEligibility);
         const firstEligibleItem = claimEligibility.items.find((item) => item.claimable_quantity > 0);
-        setSelectedItemId(String(firstEligibleItem?.order_item_id ?? ""));
+        const draftItem = agentDraft?.order_code === orderCode
+          ? claimEligibility.items.find((item) => (
+            item.order_item_id === agentDraft.order_item_id && item.claimable_quantity > 0
+          ))
+          : null;
+        setSelectedItemId(String(draftItem?.order_item_id ?? firstEligibleItem?.order_item_id ?? ""));
+        if (agentDraft?.order_code === orderCode && draftItem && claimEligibility.eligible) {
+          setRequestType(agentDraft.claim_type);
+          setReason(agentDraft.reason_code);
+          setDetail(agentDraft.reason_detail);
+        }
+        if (agentDraft?.order_code === orderCode) {
+          clearAgentClaimDraft();
+        }
       })
       .catch(() => setNotice("주문 정보를 불러오지 못했습니다."))
       .finally(() => setIsLoading(false));

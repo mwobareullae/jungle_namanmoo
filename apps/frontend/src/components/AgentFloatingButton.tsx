@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
-import { storeAgentReviewDraft } from "../lib/agentDrafts";
+import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
 import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getOrderDetail } from "../lib/orderApi";
@@ -1001,6 +1001,10 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
     if (orderCode) params.set("order_code", orderCode);
     return `/mypage/reviews?${params.toString()}`;
   }
+  if (action.target === "claim_request") {
+    const orderCode = readString(action.payload.order_code);
+    return orderCode ? `/mypage/orders/${encodeURIComponent(orderCode)}/return-request?agent_draft=1` : null;
+  }
   if (action.target === "product_detail") {
     const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
     return productId ? `/product-detail?id=${encodeURIComponent(productId)}` : null;
@@ -1087,6 +1091,9 @@ const applyAgentUiAction = async (action: AgentUiAction, items: AgentResponseIte
 
   if (action.type === "navigate" && action.target === "review_write") {
     storeAgentReviewDraft(action.payload);
+  }
+  if (action.type === "navigate" && action.target === "claim_request") {
+    storeAgentClaimDraft(action.payload);
   }
 
   const url = resolveNavigateUrl(action);
