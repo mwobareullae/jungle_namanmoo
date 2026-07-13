@@ -221,11 +221,14 @@ export default function OrderDetail() {
           <section style={styles.card} aria-labelledby="orderedItemsTitle">
             <div style={styles.cardHeader}>
               <h2 id="orderedItemsTitle" style={styles.cardTitle}>주문 상품</h2>
-              <div style={styles.cardHeaderActions}>
-                <span style={styles.cardCount}>상품 {order.items.length}개</span>
+              <div className="order-detail-order-actions">
+                <span className="order-detail-order-count">상품 {order.items.length}개</span>
                 {order.status === "DELIVERED" ? (
                   <Link className="return-request-order-link" to={`/mypage/orders/${order.order_code}/return-request`}>
-                    반품·교환·환불 신청
+                    <span>반품·교환·환불 신청</span>
+                    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+                      <path d="m6 3 5 5-5 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+                    </svg>
                   </Link>
                 ) : null}
               </div>

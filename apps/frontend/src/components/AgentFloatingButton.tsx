@@ -113,6 +113,7 @@ type AgentChatMessage =
   | AgentChatTextMessage;
 
 type AgentChatView = "home" | "thread";
+type AgentAnswerReaction = "like" | "dislike";
 
 type AgentChatThreadSummary = {
   conversationId: string | null;
@@ -1129,6 +1130,7 @@ function AgentFloatingButton({
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
   const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(readStoredMessages()));
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
@@ -1864,10 +1866,28 @@ function AgentFloatingButton({
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button aria-label="좋아요" type="button">
+            <button
+              aria-label="좋아요"
+              aria-pressed={answerReactions[message.id] === "like"}
+              className={answerReactions[message.id] === "like" ? "is-liked" : undefined}
+              onClick={() => setAnswerReactions((current) => ({
+                ...current,
+                [message.id]: current[message.id] === "like" ? undefined : "like",
+              }))}
+              type="button"
+            >
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 14v13H6V14h4Zm0 13h11.1a3 3 0 0 0 2.92-2.3l1.35-5.76A3 3 0 0 0 22.45 15H18l.66-4.62A3 3 0 0 0 15.7 7L10 14v13Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="별로예요" type="button">
+            <button
+              aria-label="별로예요"
+              aria-pressed={answerReactions[message.id] === "dislike"}
+              className={answerReactions[message.id] === "dislike" ? "is-disliked" : undefined}
+              onClick={() => setAnswerReactions((current) => ({
+                ...current,
+                [message.id]: current[message.id] === "dislike" ? undefined : "dislike",
+              }))}
+              type="button"
+            >
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" transform="translate(0 3)" /></svg>
             </button>
             <button aria-label="다시 생성" disabled={isSubmitting} onClick={() => handleRegenerate(message.id)} type="button">

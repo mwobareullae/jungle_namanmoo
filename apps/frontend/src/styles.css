@@ -7198,6 +7198,59 @@ body .category-panel {
   box-shadow: 0 10px 30px rgba(16, 52, 67, 0.06);
 }
 
+.order-detail-order-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.order-detail-order-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f2f5f6;
+  color: #7b858c;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.return-request-order-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 14px;
+  flex: 0 0 auto;
+  border: 1px solid #2aa6d1;
+  border-radius: 10px;
+  background: #2aa6d1;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.return-request-order-link:hover,
+.return-request-order-link:focus-visible {
+  border-color: #1689af;
+  background: #1689af;
+  color: #ffffff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.return-request-order-link svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
 .return-request-form { display: grid; gap: 24px; }
 .return-request-order-summary { display: flex; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid #edf2f4; color: #71808a; }
 .return-request-order-summary strong { color: #153847; }
@@ -7217,6 +7270,8 @@ body .category-panel {
 @media (max-width: 640px) {
   .return-request-card { margin-inline: 16px; padding: 20px; }
   .return-request-submit { width: 100%; }
+  .order-detail-order-actions { gap: 8px; }
+  .return-request-order-link { padding-inline: 11px; }
 }
 
 body .category-panel.active {
@@ -12423,6 +12478,20 @@ html[data-app-mode="community"] .search-results-shell {
   background: #f2f7f9;
   color: #2aa6d1;
   outline: none;
+}
+
+.agent-chat-actions button.is-liked,
+.agent-chat-actions button.is-liked:hover,
+.agent-chat-actions button.is-liked:focus-visible {
+  background: transparent;
+  color: #159ec9;
+}
+
+.agent-chat-actions button.is-disliked,
+.agent-chat-actions button.is-disliked:hover,
+.agent-chat-actions button.is-disliked:focus-visible {
+  background: transparent;
+  color: #ef6f67;
 }
 
 .agent-chat-evidence {
