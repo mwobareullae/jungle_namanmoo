@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
-import HomeProductCard from "../components/HomeProductCard";
+import ProductThumbnail from "../components/ProductThumbnail";
+import HeartIcon from "../components/ui/HeartIcon";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import ActivityToast from "../components/ui/ActivityToast";
+import { useAuth } from "../contexts/useAuth";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
 import type { ProductListingItem } from "../types/product";
@@ -26,13 +31,40 @@ const mapNewProductToCard = (item: ProductListingItem, rank: number): ProductCar
 });
 
 function NewProductsPage() {
+  const { user } = useAuth();
+  const { message: toastMessage, showToast } = useActivityToast();
   const [products, setProducts] = useState<ProductCardItem[]>([]);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [loadMoreError, setLoadMoreError] = useState("");
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!user) { setWishedProductIds(new Set()); return; }
+    getMyWishlist().then((items) => setWishedProductIds(new Set(items.map((item) => item.productId)))).catch(() => setWishedProductIds(new Set()));
+  }, [user]);
+
+  const toggleWishlist = async (productId: string) => {
+    if (!user) { setIsLoginDialogOpen(true); return; }
+    if (pendingWishlistProductIds.has(productId)) return;
+    const wasWished = wishedProductIds.has(productId);
+    setWishedProductIds((current) => { const next = new Set(current); if (wasWished) next.delete(productId); else next.add(productId); return next; });
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+    try {
+      if (wasWished) { await deleteMyWishlistItem(productId); showToast(wishlistToastMessage.removed); }
+      else { await addMyWishlistItem(productId); showToast(wishlistToastMessage.added); }
+    } catch {
+      setWishedProductIds((current) => { const next = new Set(current); if (wasWished) next.add(productId); else next.delete(productId); return next; });
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((current) => { const next = new Set(current); next.delete(productId); return next; });
+    }
+  };
 
   const loadProducts = useCallback(async (page: number, append: boolean) => {
     if (append) setIsLoadingMore(true);
@@ -78,14 +110,10 @@ function NewProductsPage() {
   }, [isLoading, isLoadingMore, loadMoreError, loadProducts, nextPage]);
 
   return (
-    <div className="popular-products-page new-products-page">
+    <>
       <HomeHeader />
-      <main className="popular-products-shell">
-        <nav className="category-page__breadcrumb" aria-label="신상품 경로">
-          <Link to="/">홈</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>신상품</span>
-        </nav>
+      <main className="popular-products-page new-products-page">
+        <div className="popular-products-shell">
         <div className="popular-products-kicker">NEW ARRIVALS</div>
         <h1>신상품</h1>
         <p className="new-products-page__description">최근 출시된 상품부터 확인해 보세요.</p>
@@ -95,7 +123,7 @@ function NewProductsPage() {
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length > 0 ? (
-            products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+            products.map((product) => <article className="popular-product-card" key={product.product_id} onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`; }} role="link" tabIndex={0}><div className="popular-product-card__image-wrap"><ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} /><button aria-label={wishedProductIds.has(product.product_id) ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${wishedProductIds.has(product.product_id) ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button></div><div className="popular-product-card__brand">{product.brand}</div><div className="popular-product-card__name">{product.name}</div><div className="popular-product-card__price">{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div></article>)
           ) : (
             <div className="search-empty">표시할 신상품이 없습니다.</div>
           )}
@@ -106,8 +134,11 @@ function NewProductsPage() {
             {loadMoreError ? <span>{loadMoreError}</span> : null}
           </div>
         ) : null}
+        </div>
       </main>
-    </div>
+      <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
+      <ActivityToast message={toastMessage} />
+    </>
   );
 }
 
