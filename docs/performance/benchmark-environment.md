@@ -20,10 +20,10 @@ cd /home/ubuntu/mwobareullae
 생성 결과는 다음 위치에 둔다.
 
 ```text
-data/generated-subsets/benchmark-1000/
-data/generated-subsets/benchmark-5000/
-data/generated-subsets/benchmark-10000/
-data/generated-subsets/benchmark-80000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-1000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-5000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-10000/
+/home/ubuntu/mwobareullae-benchmark/data/generated-subsets/benchmark-80000/
 ```
 
 현재 저장소의 원본 상품 수가 79,952개인 경우 `benchmark-80000`은 임의
@@ -35,11 +35,13 @@ data/generated-subsets/benchmark-80000/
 
 ## 서버 로컬 설정
 
-서버에서만 `scripts/perf/config.benchmark.env`를 만든다. 기존 일반 부하 테스트용
-`scripts/perf/config.env`와 분리하며, 이 파일은 Git에 커밋하지 않는다.
+서버에서는 앱 디렉터리 밖의 benchmark runtime 디렉터리에 설정을 만든다. 기존 일반
+부하 테스트용 `scripts/perf/config.env`와 분리하며, 실제 설정 파일은 Git에 커밋하지 않는다.
 
 ```bash
-cp scripts/perf/config.benchmark.example.env scripts/perf/config.benchmark.env
+mkdir -p /home/ubuntu/mwobareullae-benchmark/data /home/ubuntu/mwobareullae-benchmark/runs
+cp scripts/perf/config.benchmark.example.env \
+  /home/ubuntu/mwobareullae-benchmark/config.benchmark.env
 ```
 
 benchmark DB URL은 일반 dev DB가 아닌 benchmark 전용 DB를 사용한다.
@@ -47,7 +49,9 @@ benchmark DB URL은 일반 dev DB가 아닌 benchmark 전용 DB를 사용한다.
 ```bash
 BENCHMARK_DATABASE_URL='postgresql+psycopg://user:password@host:5432/mubarelle_bench_1000'
 BENCHMARK_ACTIVATE=false
-BENCHMARK_RESULT_ROOT='/opt/mwobareullae/benchmark-runs'
+BENCHMARK_RUNTIME_ROOT='/home/ubuntu/mwobareullae-benchmark'
+BENCHMARK_DATA_HOST_DIR='/home/ubuntu/mwobareullae-benchmark/data'
+BENCHMARK_RESULT_ROOT='/home/ubuntu/mwobareullae-benchmark/runs'
 BENCHMARK_LOG_TAIL=5000
 ```
 
@@ -56,6 +60,11 @@ BENCHMARK_LOG_TAIL=5000
 상품 수 benchmark의 캐시가 섞이지 않는다.
 
 `BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
+
+`benchmarkctl`은 기본적으로 runtime 디렉터리의 설정 파일을 읽는다. 다른 위치를
+사용하면 `BENCHMARK_CONFIG_FILE`로 명시한다. 생성 subset은
+`BENCHMARK_DATA_HOST_DIR` 아래에 저장되고 benchmark compose 실행 때 컨테이너의
+`/data`로 읽기 전용 mount된다.
 
 실제 benchmark 사용자 fixture까지 확인하려면 이메일을 server-local
 `config.benchmark.env`에 넣고 `BENCHMARK_VERIFY_USERS=true`로 설정한다. 비밀번호는
@@ -119,7 +128,7 @@ summary/
 ## Windows에서 결과 가져오기
 
 ```powershell
-scp -r ubuntu@SERVER:/opt/mwobareullae/benchmark-runs/RUN_ID C:\github\weapon\junlge_namanmoo\perf-runs\
+scp -r ubuntu@SERVER:/home/ubuntu/mwobareullae-benchmark/runs/RUN_ID C:\github\weapon\junlge_namanmoo\perf-runs\
 ```
 
 원본 로그는 Git에 넣지 않고, 분석 후 요약과 그래프만 `docs/performance/records/`에 저장한다.

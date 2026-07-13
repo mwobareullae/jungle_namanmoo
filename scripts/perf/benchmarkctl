@@ -10,14 +10,17 @@ else
   REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
 PROFILE_DIR="$SCRIPT_DIR/profiles"
-CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$SCRIPT_DIR/config.benchmark.env}"
+DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DIR")-benchmark"
+CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
 fi
 
-RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$REPO_DIR/benchmark-runs}"
+BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
+BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
+RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$BENCHMARK_RUNTIME_ROOT/runs}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
 COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
@@ -72,11 +75,12 @@ load_profile() {
 
 require_benchmark_database() {
   [[ -n "${BENCHMARK_DATABASE_URL:-}" ]] || die \
-    "BENCHMARK_DATABASE_URL must be set in scripts/perf/config.benchmark.env on the server"
+    "BENCHMARK_DATABASE_URL must be set in the benchmark config file on the server"
 }
 
 compose() {
-  docker compose "${COMPOSE_FILES[@]}" "$@"
+  DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" \
+    docker compose "${COMPOSE_FILES[@]}" "$@"
 }
 
 backend_exec() {
@@ -372,7 +376,7 @@ EOF
 
 build() {
   local source_dir="${1:-}"
-  local output_root="${2:-$REPO_DIR/data/generated-subsets}"
+  local output_root="${2:-$BENCHMARK_DATA_HOST_DIR/generated-subsets}"
   [[ -n "$source_dir" ]] || die "source_dir is required"
   python3 "$SCRIPT_DIR/build_benchmark_dataset.py" \
     --source-dir "$source_dir" \
