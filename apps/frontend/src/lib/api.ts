@@ -111,6 +111,7 @@ type BackendScoreBreakdown = {
   concentration_bucket?: string | null;
   concentration_warning?: string | null;
   skin_type_score: number;
+  sensitivity_score?: number;
   price_score: number;
   keyword_score?: number;
   vector_score?: number;
@@ -283,6 +284,7 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     concentration_bucket: score.concentration_bucket ?? null,
     concentration_warning: score.concentration_warning ?? null,
     skin_type_match_score: score.skin_type_score,
+    sensitivity_score: score.sensitivity_score,
     price_value_score: score.price_score,
     keyword_score: score.keyword_score ?? 0,
     vector_score: score.vector_score ?? 0,

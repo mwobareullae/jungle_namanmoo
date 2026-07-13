@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import ProductDetailActionButtons from "./ProductDetailActionButtons";
 import ProductPurchasePanel from "./ProductPurchasePanel";
+import RecommendationCriteriaPanel from "./RecommendationCriteriaPanel";
 import type { ProductDetailHeroProps } from "./types";
 
 function ProductDetailHero({
@@ -140,6 +141,7 @@ function ProductDetailHero({
             ) : null}
           </div>
         </div>
+        <RecommendationCriteriaPanel product={product} />
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}
           cartMessage={cartMessage}
