@@ -35,10 +35,11 @@ data/generated-subsets/benchmark-80000/
 
 ## 서버 로컬 설정
 
-서버에서만 `scripts/perf/config.env`를 만든다. 이 파일은 Git에 커밋하지 않는다.
+서버에서만 `scripts/perf/config.benchmark.env`를 만든다. 기존 일반 부하 테스트용
+`scripts/perf/config.env`와 분리하며, 이 파일은 Git에 커밋하지 않는다.
 
 ```bash
-cp scripts/perf/config.benchmark.example.env scripts/perf/config.env
+cp scripts/perf/config.benchmark.example.env scripts/perf/config.benchmark.env
 ```
 
 benchmark DB URL은 일반 dev DB가 아닌 benchmark 전용 DB를 사용한다.
@@ -57,7 +58,7 @@ BENCHMARK_LOG_TAIL=5000
 `BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
 
 실제 benchmark 사용자 fixture까지 확인하려면 이메일을 server-local
-`config.env`에 넣고 `BENCHMARK_VERIFY_USERS=true`로 설정한다. 비밀번호는
+`config.benchmark.env`에 넣고 `BENCHMARK_VERIFY_USERS=true`로 설정한다. 비밀번호는
 검증 스크립트가 읽지 않는다.
 
 `BENCHMARK_RDS_METRICS_ENABLED=true`로 설정하면 `collect`가 기존
@@ -91,7 +92,7 @@ prepare만 실행하면 현재 backend는 재시작되지 않는다. 검증이 �
 ./scripts/perf/benchmarkctl activate 1000
 ```
 
-이 명령은 `docker-compose.benchmark.yml`을 사용해 backend만 재생성한다. 일반 dev DB와 Elasticsearch 색인은 변경하지 않는다. 자동 활성화가 필요하면 서버의 `config.env`에 `BENCHMARK_ACTIVATE=true`를 둔다.
+이 명령은 `docker-compose.benchmark.yml`을 사용해 backend만 재생성한다. 일반 dev DB와 Elasticsearch 색인은 변경하지 않는다. 자동 활성화가 필요하면 서버의 `config.benchmark.env`에 `BENCHMARK_ACTIVATE=true`를 둔다.
 
 ## 결과 수집
 
