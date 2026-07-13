@@ -1,6 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
+import {
+  useProductComparison,
+  type ProductComparisonCandidatePreview,
+  type ProductComparisonDifference,
+  type ProductComparisonIntent,
+} from "../contexts/ProductComparisonContext";
 import type {
   AgentChatResponse,
   AgentContext,
@@ -100,7 +106,6 @@ type AgentChatThreadSummary = {
 const AGENT_CHAT_HISTORY_KEY = "mwobareullae-agent-chat-history-v2";
 const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
 const AGENT_CHAT_THREADS_KEY = "mwobareullae-agent-chat-threads-v1";
-const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
 const MAX_AGENT_CHAT_THREADS = 5;
 const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
 const MAX_STORED_AGENT_MESSAGES = 24;
@@ -694,6 +699,132 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
 const isSimilarProductsAction = (action: AgentUiAction) =>
   action.type === "show_products" && action.target === "similar_products";
 
+const readProductId = (value: unknown) => {
+  const directValue = readString(value);
+  if (directValue) return directValue;
+  if (!isRecord(value)) return null;
+
+  for (const key of ["product_id", "id", "compare_product_id", "compared_product_id", "target_product_id"]) {
+    const productId = readString(value[key]);
+    if (productId) return productId;
+  }
+
+  return null;
+};
+
+const collectProductIds = (value: unknown) =>
+  Array.isArray(value)
+    ? value.map(readProductId).filter((productId): productId is string => Boolean(productId))
+    : [];
+
+const uniqueProductIds = (productIds: Array<string | null | undefined>) =>
+  Array.from(new Set(productIds.map((productId) => productId?.trim()).filter((productId): productId is string => Boolean(productId))));
+
+const createComparisonDifferences = (payload: Record<string, unknown>): ProductComparisonDifference[] => {
+  const highlights = isRecord(payload.highlights) ? payload.highlights : {};
+  const values = payload.differences ?? payload.comparison_points ?? highlights.different_points;
+
+  if (!Array.isArray(values)) return [];
+
+  return values.flatMap<ProductComparisonDifference>((value, index) => {
+    if (typeof value === "string" && value.trim()) {
+      return [{ description: value.trim(), label: `비교 포인트 ${index + 1}` }];
+    }
+    if (!isRecord(value)) return [];
+
+    const label = readString(value.label) ?? readString(value.title) ?? `비교 포인트 ${index + 1}`;
+    const description = readString(value.description) ?? readString(value.summary);
+    const base = readString(value.base) ?? readString(value.current);
+    const compare = readString(value.compare) ?? readString(value.target);
+
+    return [{ label, description, base, compare }];
+  });
+};
+
+const readStringValues = (value: unknown) =>
+  Array.isArray(value)
+    ? value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : [])
+    : [];
+
+const createCandidatePreview = (
+  productId: string,
+  itemByProductId: Map<string, AgentResponseItem>,
+  payloadByProductId: Map<string, Record<string, unknown>>,
+): ProductComparisonCandidatePreview => {
+  const item = itemByProductId.get(productId);
+  const payload = payloadByProductId.get(productId) ?? {};
+  const metadata = item?.metadata ?? {};
+
+  return {
+    brand: readString(payload.brand) ?? readString(metadata.brand) ?? item?.subtitle ?? "브랜드 정보 없음",
+    evidenceTags: readStringValues(payload.effects).length > 0
+      ? readStringValues(payload.effects)
+      : readStringValues(metadata.effects),
+    keyIngredients: readStringValues(payload.key_ingredients).length > 0
+      ? readStringValues(payload.key_ingredients)
+      : readStringValues(metadata.ingredients),
+    lowestPrice: readNumber(payload.price) ?? item?.price ?? null,
+    name: readString(payload.name) ?? item?.title ?? "상품 정보 확인 중",
+    productId,
+    riskFlags: readStringValues(payload.caution_flags).length > 0
+      ? readStringValues(payload.caution_flags)
+      : readStringValues(metadata.caution_flags),
+    thumbnailStorageKey: readString(payload.thumbnail_storage_key) ?? item?.image_storage_key ?? null,
+  };
+};
+
+const createComparisonIntent = (
+  action: AgentUiAction,
+  items: AgentResponseItem[],
+  message: string,
+  currentProductId: string | null,
+): ProductComparisonIntent | null => {
+  if (action.type !== "show_product_comparison" && !isSimilarProductsAction(action)) {
+    return null;
+  }
+
+  const payload = action.payload;
+  const sourceProductId =
+    readString(payload.source_product_id) ??
+    readString(payload.base_product_id) ??
+    readString(payload.current_product_id) ??
+    currentProductId;
+
+  if (!sourceProductId) return null;
+
+  const candidateProductIds = uniqueProductIds([
+    ...collectProductIds(payload.products),
+    ...collectProductIds(payload.product_ids),
+    ...collectProductIds(payload.compare_product_ids),
+    ...items.map((item) => item.item_type === "product" ? item.id : null),
+  ]).filter((productId) => productId !== sourceProductId).slice(0, 2);
+
+  if (candidateProductIds.length === 0) return null;
+
+  const itemByProductId = new Map(
+    items
+      .filter((item) => item.item_type === "product")
+      .map((item) => [item.id, item]),
+  );
+  const payloadByProductId = new Map(
+    (Array.isArray(payload.products) ? payload.products : [])
+      .flatMap((item) => isRecord(item) && readProductId(item) ? [[readProductId(item) as string, item] as const] : []),
+  );
+
+  return {
+    candidatePreviews: candidateProductIds.map((productId) => (
+      createCandidatePreview(productId, itemByProductId, payloadByProductId)
+    )),
+    compareProductIds: candidateProductIds,
+    createdAt: Date.now(),
+    differences: createComparisonDifferences(payload),
+    recommendationReason: readString(payload.recommendation_reason) ?? "",
+    source: isSimilarProductsAction(action) ? "similar" : "comparison",
+    sourceProductId,
+    summary: readString(payload.summary) ?? message,
+  };
+};
+
 function createResultMessage(
   id: string,
   action: AgentUiAction,
@@ -807,16 +938,16 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   return null;
 };
 
-const applyAgentUiAction = (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
-  if ((action.type === "show_product_comparison" || isSimilarProductsAction(action)) && typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(AGENT_PRODUCT_COMPARISON_EVENT, {
-      detail: {
-        action,
-        agentMessage: message,
-        items,
-        payload: action.payload,
-      },
-    }));
+const applyAgentUiAction = (
+  action: AgentUiAction,
+  items: AgentResponseItem[] = [],
+  message = "",
+  currentProductId: string | null,
+  openComparison: (intent: ProductComparisonIntent) => void,
+) => {
+  const comparisonIntent = createComparisonIntent(action, items, message, currentProductId);
+  if (comparisonIntent) {
+    openComparison(comparisonIntent);
     return;
   }
 
@@ -835,6 +966,7 @@ function AgentFloatingButton({
   skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
+  const { openComparison } = useProductComparison();
   const [activeView, setActiveView] = useState<AgentChatView>("home");
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
@@ -1188,7 +1320,13 @@ function AgentFloatingButton({
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action, response.items, response.message);
+      applyAgentUiAction(
+        response.ui_action,
+        response.items,
+        response.message,
+        buildAgentContext().current_product_id ?? null,
+        openComparison,
+      );
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1237,7 +1375,7 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action);
+      applyAgentUiAction(response.ui_action, [], "", buildAgentContext().current_product_id ?? null, openComparison);
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1270,7 +1408,7 @@ function AgentFloatingButton({
   const renderStatusMessage = (message: AgentChatStatusMessage) => (
     message.steps.some((step) => step.status === "active") ? (
       <div className="agent-chat-typing" key={message.id} aria-label="답변을 준비하고 있어요">
-        <img alt="" src="/mwobareullae-rabbit-chat.png" />
+        <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" />
         <span className="agent-chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
       </div>
     ) : (
@@ -1409,16 +1547,16 @@ function AgentFloatingButton({
   const renderTextMessage = (message: AgentChatTextMessage) => (
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
       <div className={`agent-chat-message-line ${message.role}`}>
-        {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat.png" /> : null}
+        {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" /> : null}
         <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
       </div>
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button aria-label="좋아요" type="button">
+            <button aria-label="좋아요" className="agent-chat-actions__button--like" type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 14v13H6V14h4Zm0 13h11.1a3 3 0 0 0 2.92-2.3l1.35-5.76A3 3 0 0 0 22.45 15H18l.66-4.62A3 3 0 0 0 15.7 7L10 14v13Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="별로예요" type="button">
+            <button aria-label="별로예요" className="agent-chat-actions__button--dislike" type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
             <button aria-label="다시 생성" onClick={handleRegenerate} type="button">
