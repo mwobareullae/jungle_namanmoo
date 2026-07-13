@@ -11786,6 +11786,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .agent-chat-message-line.assistant {
   display: grid;
+  width: 100%;
   justify-items: start;
   gap: 4px;
 }
@@ -11826,6 +11827,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .agent-chat-message.assistant {
   justify-self: start;
+  max-width: 94%;
   border: 0;
   border-bottom-left-radius: 6px;
   background: #dff2ff;
