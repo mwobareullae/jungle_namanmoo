@@ -1,0 +1,165 @@
+effect_id,outcome_concept_id,term,term_type,positive_direction,required_context,forbidden_context,discovery_use,mapping_use,source_type,source_reference,review_status,notes
+effect_brightening,pigmentation,skin pigmentation,outcome,decrease,,,Y,Y,validation_study,PMID:25645051,approved,Direct pigmentation outcome
+effect_brightening,pigmentation,hyperpigmentation,outcome,decrease,,,Y,Y,validation_study,PMID:20398960,approved,Direct pigmentation outcome in a result sentence
+effect_brightening,pigmentation,cutaneous pigmentation,outcome,decrease,,,Y,Y,validation_study,PMID:12100180,approved,Direct clinical pigmentation outcome
+effect_brightening,pigmentation,hyperpigmented spots,outcome,decrease,,,Y,Y,validation_study,PMID:16029679,approved,Direct visible pigmentation outcome
+effect_brightening,lightness,skin lightness,outcome,increase,,,Y,Y,validation_study,PMID:12100180,approved,Direct clinical lightening outcome
+effect_brightening,yellowing,skin yellowing,outcome,decrease,,,Y,Y,validation_study,PMID:16029679,approved,Direct facial appearance outcome
+effect_brightening,yellowing,skin sallowness,outcome,decrease,,,Y,Y,validation_study,PMID:16029679,approved,Direct facial appearance outcome
+effect_brightening,melanin_index,melanin index,metric,decrease,,,Y,Y,validation_study,PMID:25645051,approved,Instrument channel must report a result
+effect_brightening,lightening,skin lightening,outcome,increase,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Internal construct mapping to measured lightness or pigmentation change
+effect_brightening,lightening,skin whitening,outcome,increase,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Legacy paper wording mapped by internal policy
+effect_brightening,lightening,skin brightness,outcome,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Marketing wording requires a named color or pigmentation metric
+effect_brightening,pigmented_spots,dark spot count,metric,decrease,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Counted pigmented lesions mapped by internal policy
+effect_brightening,pigmented_spots,pigmented spot count,metric,decrease,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Counted pigmented lesions mapped by internal policy
+effect_brightening,pigmented_spots,dark spot intensity,metric,decrease,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Measured spot intensity mapped by internal policy
+effect_brightening,pigmented_spots,hyperpigmented lesion area,metric,decrease,,,Y,Y,validation_study,PMID:20398960,approved,Measured affected area
+effect_brightening,masi,melasma area and severity index,scale,decrease,,,Y,Y,validation_study,PMID:20398960,approved,Validated melasma scale
+effect_brightening,masi,MASI,abbreviation,decrease,melasma,,Y,Y,validation_study,PMID:20398960,approved,Short form requires melasma context
+effect_brightening,masi,modified melasma area and severity index,scale,decrease,,,Y,Y,validation_study,PMID:20398960,approved,Validated modified scale
+effect_brightening,masi,mMASI,abbreviation,decrease,melasma,,Y,Y,validation_study,PMID:20398960,approved,Short form requires melasma context
+effect_brightening,ita,individual typology angle,metric,increase,,,Y,Y,validation_study,PMID:33038017,approved,Skin color metric
+effect_brightening,ita,ITA,abbreviation,increase,skin color|pigmentation|melanin,,Y,Y,validation_study,PMID:33038017,approved,Ambiguous abbreviation requires skin color context
+effect_brightening,cielab_lightness,CIELAB lightness,metric,increase,,,Y,Y,validation_study,PMID:25645051,approved,Lightness channel only
+effect_brightening,cielab_lightness,CIE L star,metric,increase,,,Y,Y,validation_study,PMID:25645051,approved,ASCII spelling of L star
+effect_brightening,cielab_lightness,L star value,metric,increase,skin color|pigmentation|lightness,,Y,Y,validation_study,PMID:25645051,approved,Short metric requires color context
+effect_brightening,melasma_context,melasma,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Disease name is not a measured improvement alone
+effect_brightening,melanin_context,melanin,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Analyte name is not a measured improvement alone
+effect_brightening,melanogenesis,melanogenesis,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism is not a visible clinical outcome
+effect_brightening,tyrosinase,tyrosinase,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism is not a visible clinical outcome
+effect_brightening,mexameter,Mexameter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone does not identify its channel or direction
+effect_brightening,colorimeter,colorimeter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_brightening,antera,Antera 3D,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_brightening,color_difference,delta E,metric,parameter_specific,skin color|pigmentation,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Direction depends on the reference color
+effect_acne_sebum,lesion_count,inflammatory lesion count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,FDA acne efficacy endpoint
+effect_acne_sebum,lesion_count,noninflammatory lesion count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,FDA acne efficacy endpoint
+effect_acne_sebum,lesion_count,non-inflammatory lesion count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,FDA acne efficacy endpoint
+effect_acne_sebum,lesion_count,total lesion count,metric,decrease,acne|comedone|papule|pustule|nodule,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Requires acne lesion context
+effect_acne_sebum,lesion_count,acne lesion count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Direct clinical endpoint
+effect_acne_sebum,lesion_count,comedone count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Noninflammatory lesion endpoint
+effect_acne_sebum,lesion_count,papule count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Inflammatory lesion endpoint
+effect_acne_sebum,lesion_count,pustule count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Inflammatory lesion endpoint
+effect_acne_sebum,lesion_count,nodule count,metric,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Severe lesion endpoint
+effect_acne_sebum,acne_severity,acne severity score,scale,decrease,,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Direct clinical severity outcome
+effect_acne_sebum,gags,global acne grading system,scale,decrease,,,Y,Y,validation_study,PMID:33061511,approved,Validated acne severity grading system
+effect_acne_sebum,gags,GAGS,abbreviation,decrease,acne|lesion,,Y,Y,validation_study,PMID:33061511,approved,Short form requires acne context
+effect_acne_sebum,iga,investigator global assessment,scale,decrease,acne|lesion,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Requires acne context because the scale name is reused
+effect_acne_sebum,iga,IGA,abbreviation,decrease,acne|lesion|comedone,,Y,Y,guideline,https://www.fda.gov/media/71152/download,approved,Short form requires acne context
+effect_acne_sebum,sebum_output,sebum excretion rate,metric,decrease,,,Y,Y,validation_study,PMID:37753695,approved,Direct sebum production metric
+effect_acne_sebum,sebum_output,sebum production,outcome,decrease,skin|facial,,Y,Y,validation_study,PMID:16766489,approved,Direct sebum production outcome with skin context
+effect_acne_sebum,sebum_output,facial sebum production,outcome,decrease,,,Y,Y,validation_study,PMID:16766489,approved,Direct facial sebum outcome
+effect_acne_sebum,sebum_output,sebum output,metric,decrease,skin|facial,,Y,Y,validation_study,PMID:37753695,approved,Requires skin context
+effect_acne_sebum,sebum_output,surface sebum level,metric,decrease,,,Y,Y,validation_study,PMID:37753695,approved,Direct surface sebum metric
+effect_acne_sebum,sebum_output,facial sebum level,metric,decrease,,,Y,Y,validation_study,PMID:37753695,approved,Direct facial sebum metric
+effect_acne_sebum,sebum_output,Sebumeter reading,metric,decrease,sebum|skin|facial,,Y,Y,validation_study,PMID:26114451,approved,Instrument reading requires sebum context
+effect_acne_sebum,acne_context,acne,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Disease name alone is not a measured result
+effect_acne_sebum,sebum_context,sebum,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Analyte name alone is not a measured result
+effect_acne_sebum,sebaceous_context,sebaceous,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Anatomy or mechanism word alone is not an outcome
+effect_acne_sebum,comedone_context,comedone,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Lesion name without a count or severity result is insufficient
+effect_acne_sebum,c_acnes,cutibacterium acnes,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Microbial result alone does not prove clinical acne improvement
+effect_acne_sebum,c_acnes,propionibacterium acnes,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Legacy organism name retained for discovery
+effect_acne_sebum,sebumeter,Sebumeter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_wrinkle,wrinkle_depth,wrinkle depth,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct wrinkle geometry
+effect_wrinkle,wrinkle_appearance,fine lines and wrinkles,outcome,decrease,,,Y,Y,validation_study,PMID:16029679,approved,Direct clinical appearance outcome
+effect_wrinkle,wrinkle_appearance,skin wrinkles,outcome,decrease,,,Y,Y,validation_study,PMID:16029679,approved,Direct clinical wrinkle outcome
+effect_wrinkle,fine_lines,fine lines,outcome,decrease,skin|facial|wrinkle|aging,,Y,Y,validation_study,PMID:16029679,approved,Direct clinical appearance outcome with skin context
+effect_wrinkle,wrinkle_volume,wrinkle volume,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct wrinkle geometry
+effect_wrinkle,wrinkle_area,wrinkle area,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct wrinkle geometry
+effect_wrinkle,wrinkle_count,wrinkle count,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct wrinkle count
+effect_wrinkle,wrinkle_severity,wrinkle severity,scale,decrease,,,Y,Y,validation_study,PMID:20679841,approved,Validated clinical severity construct
+effect_wrinkle,wrinkle_severity,wrinkle severity rating scale,scale,decrease,,,Y,Y,validation_study,PMID:20679841,approved,Validated scale wording
+effect_wrinkle,wrinkle_severity,photonumeric wrinkle scale,scale,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Validated photo scale
+effect_wrinkle,fine_lines,fine line count,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct fine line endpoint
+effect_wrinkle,fine_lines,fine line depth,metric,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct fine line endpoint
+effect_wrinkle,fine_lines,fine line severity,scale,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Direct fine line endpoint
+effect_wrinkle,crows_feet,crow feet severity,scale,decrease,,,Y,Y,validation_study,PMID:23724892,approved,ASCII retrieval form
+effect_wrinkle,crows_feet,crow's feet severity,scale,decrease,,,Y,Y,validation_study,PMID:23724892,approved,Clinical photoaging endpoint
+effect_wrinkle,rhytids,rhytid severity,scale,decrease,,,Y,Y,validation_study,PMID:20679841,approved,Clinical wrinkle synonym
+effect_wrinkle,elasticity,skin elasticity,outcome,increase,,,Y,Y,validation_study,PMID:29405450,approved,Direct biomechanical outcome
+effect_wrinkle,elasticity,elasticity,outcome,increase,skin|facial|wrinkle|aging,,Y,Y,validation_study,PMID:16029679,approved,Generic term requires skin-aging context
+effect_wrinkle,firmness,skin firmness,outcome,increase,,,Y,Y,validation_study,PMID:29405450,approved,Direct biomechanical outcome
+effect_wrinkle,primos,PRIMOS,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone does not identify the parameter
+effect_wrinkle,cutometer,Cutometer,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument parameters require separate interpretation
+effect_wrinkle,cutometer_parameter,Cutometer R2,metric,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Parameter interpretation requires protocol-specific review
+effect_wrinkle,cutometer_parameter,Cutometer R5,metric,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Parameter interpretation requires protocol-specific review
+effect_wrinkle,cutometer_parameter,Cutometer R7,metric,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Parameter interpretation requires protocol-specific review
+effect_wrinkle,roughness_context,skin roughness,context,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Roughness can describe texture dryness or exfoliation
+effect_wrinkle,collagen,dermal collagen,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Collagen alone is a mechanism or biomarker
+effect_wrinkle,collagen,collagen synthesis,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism is not a visible wrinkle outcome
+effect_wrinkle,mmp,matrix metalloproteinase,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism is not a visible wrinkle outcome
+effect_moisture_barrier,tewl,transepidermal water loss,metric,decrease,,,Y,Y,measurement_guidance,PMID:29923639,approved,Standard barrier outcome
+effect_moisture_barrier,tewl,TEWL,abbreviation,decrease,,,Y,Y,measurement_guidance,PMID:29923639,approved,Standard barrier abbreviation
+effect_moisture_barrier,hydration,hydration,outcome,increase,skin|cutaneous|stratum corneum|corneometer|barrier function,,Y,Y,measurement_guidance,PMID:29923639,approved,Short outcome requires explicit skin or barrier context
+effect_moisture_barrier,hydration,skin hydration,outcome,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Direct hydration outcome
+effect_moisture_barrier,hydration,stratum corneum hydration,metric,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Direct horny layer hydration outcome
+effect_moisture_barrier,hydration,skin moisture,outcome,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Direct moisture outcome
+effect_moisture_barrier,hydration,skin moisturization,outcome,increase,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Spelling variant mapped to the hydration construct
+effect_moisture_barrier,hydration,skin water content,metric,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Direct water content outcome
+effect_moisture_barrier,hydration,water content of the stratum corneum,metric,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Direct horny layer water metric
+effect_moisture_barrier,capacitance,skin capacitance,metric,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Specific electrical hydration metric
+effect_moisture_barrier,conductance,skin conductance,metric,increase,,,Y,Y,measurement_guidance,PMID:29923639,approved,Specific electrical hydration metric
+effect_moisture_barrier,corneometer,Corneometer reading,metric,increase,hydration|moisture|dry skin|xerosis,,Y,Y,measurement_guidance,PMID:29923639,approved,Instrument reading requires hydration context
+effect_moisture_barrier,barrier_function,skin barrier function,outcome,increase,,,Y,Y,validation_study,PMID:16761956,approved,Direct permeability barrier outcome
+effect_moisture_barrier,barrier_function,barrier function,outcome,increase,skin|cutaneous|epidermal,,Y,Y,validation_study,PMID:16761956,approved,Generic phrase requires skin context
+effect_moisture_barrier,barrier_recovery,barrier recovery time,metric,decrease,skin|cutaneous|epidermal,,Y,Y,validation_study,PMID:23278506,approved,Shorter recovery is beneficial
+effect_moisture_barrier,barrier_recovery,skin barrier recovery,outcome,increase,,barrier recovery time,Y,Y,validation_study,PMID:23278506,approved,Direct recovery outcome unless the paper reports recovery time
+effect_moisture_barrier,dryness,dry skin severity score,scale,decrease,,,Y,Y,measurement_guidance,PMID:27328437,approved,Standardized clinical dry skin score family
+effect_moisture_barrier,dryness,xerosis severity score,scale,decrease,,,Y,Y,measurement_guidance,PMID:27328437,approved,Standardized clinical xerosis score family
+effect_moisture_barrier,dryness,skin dryness score,scale,decrease,,,Y,Y,measurement_guidance,PMID:27328437,approved,Standardized clinical dry skin score family
+effect_moisture_barrier,dryness_context,dry skin,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Condition phrase is useful for retrieval but not a measured result alone
+effect_moisture_barrier,dryness_context,xerosis,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Disease term is useful for retrieval but not a measured result alone
+effect_moisture_barrier,barrier_context,skin barrier,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Context phrase alone is not a measured outcome
+effect_moisture_barrier,stratum_corneum_context,stratum corneum,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Anatomical phrase alone is not a measured outcome
+effect_moisture_barrier,tewameter,Tewameter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_moisture_barrier,vapometer,VapoMeter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_moisture_barrier,aquaflux,AquaFlux,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_moisture_barrier,corneometer_instrument,Corneometer,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone is not an outcome
+effect_moisture_barrier,humectant,humectant,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,CosIng function is not a measured clinical outcome
+effect_moisture_barrier,occlusive,occlusive,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,CosIng function is not a measured clinical outcome
+effect_calming,erythema,erythema index,metric,decrease,,,Y,Y,validation_study,PMID:25645051,approved,Instrumented redness outcome
+effect_calming,cielab_redness,CIELAB a star,metric,decrease,,,Y,Y,validation_study,PMID:25645051,approved,Explicit CIELAB redness channel
+effect_calming,cielab_redness,CIE a star,metric,decrease,,,Y,Y,validation_study,PMID:25645051,approved,ASCII spelling of the redness channel
+effect_calming,cielab_redness,a star value,metric,decrease,skin color|erythema|redness|colorimeter,,Y,Y,validation_study,PMID:25645051,approved,Short metric requires redness or color context
+effect_calming,erythema,erythema score,scale,decrease,,,Y,Y,validation_study,PMID:33113259,approved,Clinical redness outcome
+effect_calming,erythema,erythema severity,scale,decrease,,,Y,Y,validation_study,PMID:33113259,approved,Clinical redness outcome
+effect_calming,redness,redness score,scale,decrease,,,Y,Y,validation_study,PMID:33113259,approved,Direct visible irritation outcome
+effect_calming,redness,red blotchiness,outcome,decrease,skin|facial|topical,,Y,Y,validation_study,PMID:16029679,approved,Direct facial redness appearance outcome
+effect_calming,irritation,skin irritation score,scale,decrease,,,Y,Y,validation_study,PMID:18712029,approved,Direct irritation outcome
+effect_calming,irritation,irritation score,scale,decrease,skin|cutaneous|topical,,Y,Y,validation_study,PMID:18712029,approved,Generic score requires skin context
+effect_calming,stinging,stinging score,scale,decrease,skin|facial|topical,,Y,Y,validation_study,PMID:31194883,approved,Direct sensory symptom outcome
+effect_calming,burning,burning score,scale,decrease,skin|facial|topical,,Y,Y,validation_study,PMID:31194883,approved,Direct sensory symptom outcome
+effect_calming,pruritus,pruritus severity,scale,decrease,,,Y,Y,validation_study,PMID:22170091,approved,Validated symptom construct
+effect_calming,pruritus,itch severity,scale,decrease,,,Y,Y,validation_study,PMID:22170091,approved,Validated symptom construct
+effect_calming,pruritus,pruritus visual analogue scale,scale,decrease,,,Y,Y,validation_study,PMID:22170091,approved,Validated VAS wording
+effect_calming,pruritus,itch visual analogue scale,scale,decrease,,,Y,Y,validation_study,PMID:22170091,approved,Validated VAS wording
+effect_calming,pruritus,pruritus numerical rating scale,scale,decrease,,,Y,Y,validation_study,PMID:30729499,approved,Validated NRS wording
+effect_calming,pruritus,itch numerical rating scale,scale,decrease,,,Y,Y,validation_study,PMID:30729499,approved,Validated NRS wording
+effect_calming,pruritus,itch NRS,abbreviation,decrease,itch|pruritus,,Y,Y,validation_study,PMID:30729499,approved,Short form requires itch context
+effect_calming,pruritus,pruritus NRS,abbreviation,decrease,itch|pruritus,,Y,Y,validation_study,PMID:30729499,approved,Short form requires pruritus context
+effect_calming,pruritus,peak pruritus numerical rating scale,scale,decrease,,,Y,Y,validation_study,PMID:30729499,approved,Validated patient reported outcome
+effect_calming,sensitive_skin,sensitive skin symptom score,scale,decrease,,,Y,Y,validation_study,PMID:31194883,approved,Direct symptom outcome
+effect_calming,erythema_context,erythema,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Symptom name alone is not a measured result
+effect_calming,redness_context,redness,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Symptom name alone is not a measured result
+effect_calming,dermatitis_context,dermatitis,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Disease name alone is not a calming result
+effect_calming,inflammation_context,inflammation,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Broad mechanism word alone is not a clinical outcome
+effect_calming,mexameter,Mexameter,instrument,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Instrument alone does not identify the erythema channel
+effect_calming,cytokine,cytokine,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Biomarker alone is not a visible calming outcome
+effect_exfoliation,exfoliation_rate,exfoliation rate,metric,parameter_specific,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Direction requires protocol and baseline interpretation
+effect_exfoliation,desquamation_rate,desquamation rate,metric,parameter_specific,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Direction requires protocol and baseline interpretation
+effect_exfoliation,desquamation_index,desquamation index,metric,parameter_specific,,,Y,Y,internal_mapping_policy,POLICY:effect-outcome-v1,approved,Direction requires protocol and baseline interpretation
+effect_exfoliation,corneocyte_shedding,corneocyte shedding,metric,parameter_specific,,,Y,Y,validation_study,PMID:871397,approved,Direct shedding measurement with manual direction review
+effect_exfoliation,corneocyte_release,corneocyte release,metric,parameter_specific,,,Y,Y,validation_study,PMID:871397,approved,Direct release measurement with manual direction review
+effect_exfoliation,intracorneal_cohesion,intracorneal cohesion,metric,parameter_specific,,,Y,Y,validation_study,PMID:871397,approved,Direct cohesion measurement with manual direction review
+effect_exfoliation,corneocyte_cohesion,corneocyte cohesion,metric,parameter_specific,,,Y,Y,validation_study,PMID:871397,approved,Direct cohesion measurement with manual direction review
+effect_exfoliation,exfoliation_context,exfoliation,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Procedure or claim word alone is insufficient
+effect_exfoliation,desquamation_context,desquamation,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Process word without a measured parameter is insufficient
+effect_exfoliation,scaling,scaling score,scale,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Can indicate xerosis improvement rather than desired exfoliation
+effect_exfoliation,flaking,flaking score,scale,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Can indicate xerosis improvement rather than desired exfoliation
+effect_exfoliation,roughness,skin roughness,context,parameter_specific,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,ambiguous_review,Can map to texture dryness or exfoliation
+effect_exfoliation,stratum_corneum,stratum corneum,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Anatomical phrase alone is not an outcome
+effect_exfoliation,corneocyte,corneocyte,context,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Cell name alone is not an outcome
+effect_exfoliation,keratinization,keratinization,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism alone is not a measured cosmetic outcome
+effect_exfoliation,cell_turnover,cell turnover,mechanism,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,mechanism_only,Mechanism alone is not a measured cosmetic outcome
+effect_exfoliation,d_squame,D-Squame,method,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Sampling method alone is not an outcome
+effect_exfoliation,dsquame,Dsquame,method,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Alternate method spelling
+effect_exfoliation,tape_stripping,tape stripping,method,not_applicable,,,Y,N,internal_guardrail,POLICY:effect-outcome-v1,context_only,Barrier research method is not exfoliation by itself

@@ -2,7 +2,7 @@
 param(
     [ValidateSet("1000", "5000", "10000", "80000")]
     [string]$Dataset = "1000",
-    [ValidateSet("anonymous", "profile", "skin-test", "behavior")]
+    [ValidateSet("anonymous", "profile", "skin-test", "behavior", "full-personalized")]
     [string]$UserType = "anonymous",
     [switch]$Prepare,
     [int]$Vus,
@@ -118,37 +118,46 @@ $RemoteCtl = "$RemoteAppDir/scripts/perf/benchmarkctl"
 New-Item -ItemType Directory -Force $LocalRunDir | Out-Null
 
 if ($Prepare) {
-    Write-Host "[1/8] 서버 benchmark subset 생성"
+    Write-Host "[1/9] 서버 benchmark subset 생성"
     $buildCommand = 'cd ' + $RemoteAppDir + ' && ' + $RemoteCtl + ' build ' + $RemoteAppDir + '/data'
     Invoke-Ssh $buildCommand $Config
 } else {
-    Write-Host "[1/8] 서버 benchmark subset 생성 생략"
+    Write-Host "[1/9] 서버 benchmark subset 생성 생략"
 }
 
-Write-Host "[2/8] benchmark DB 대상 설정"
+Write-Host "[2/9] benchmark DB 대상 설정"
 Set-RemoteBenchmarkDatabase $Dataset $RemoteConfig $Config
 
-Write-Host "[3/8] benchmark backend 활성화"
+Write-Host "[3/9] benchmark backend 활성화"
 $activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
 Invoke-Ssh $activateCommand $Config
 $HealthUrl = $BaseUrl.TrimEnd("/") + "/health"
 Wait-HttpReady $HealthUrl
 
 if ($Prepare) {
-    Write-Host "[4/8] 서버 benchmark DB 준비"
+    Write-Host "[4/9] 서버 benchmark DB 준비"
     $prepareCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' prepare ' + $Dataset
     Invoke-Ssh $prepareCommand $Config
 } else {
-    Write-Host "[4/8] 서버 benchmark 상태 검증"
-    $verifyCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' verify ' + $Dataset
+    Write-Host "[4/9] 서버 benchmark 상태 검증"
+    $verifyUserOverride = if ($UserType -eq "full-personalized") { ' BENCHMARK_VERIFY_USERS=false' } else { '' }
+    $verifyCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + $verifyUserOverride + ' ' + $RemoteCtl + ' verify ' + $Dataset
     Invoke-Ssh $verifyCommand $Config
+}
+
+if ($UserType -eq "full-personalized") {
+    Write-Host "[5/9] full-personalized fixture 준비"
+    $seedUsersCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' seed-users ' + $Dataset
+    Invoke-Ssh $seedUsersCommand $Config
+} else {
+    Write-Host "[5/9] full-personalized fixture 준비 생략"
 }
 
 $effectiveVus = if ($Vus -gt 0) { $Vus } elseif ($Config.ContainsKey("VUS") -and $Config.VUS) { $Config.VUS } else { "1" }
 $effectiveDuration = if ($Duration) { $Duration } elseif ($Config.ContainsKey("DURATION") -and $Config.DURATION) { $Config.DURATION } else { "30s" }
 $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS } else { "3000" }
 
-Write-Host "[5/8] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
+Write-Host "[6/9] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
 $k6Args = @(
     "run",
     "--summary-export", $LocalK6Summary,
@@ -163,6 +172,9 @@ foreach ($envName in @(
     "BENCHMARK_PROFILE_USER_EMAIL", "BENCHMARK_PROFILE_USER_PASSWORD",
     "BENCHMARK_SKIN_TEST_USER_EMAIL", "BENCHMARK_SKIN_TEST_USER_PASSWORD",
     "BENCHMARK_BEHAVIOR_USER_EMAIL", "BENCHMARK_BEHAVIOR_USER_PASSWORD",
+    "BENCHMARK_FULL_PERSONALIZED_USER_EMAILS", "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD",
+    "BENCHMARK_FULL_PERSONALIZED_USER_COUNT",
+    "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX", "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN",
     "AUTH_COOKIE", "SKIN_TYPE", "SENSITIVITY", "AVOID_INGREDIENTS"
 )) {
     if ($Config.ContainsKey($envName)) {
@@ -182,18 +194,18 @@ if ($k6ExitCode -ne 0) {
     Write-Warning "k6 exited with code $k6ExitCode; collecting benchmark artifacts before failing."
 }
 
-Write-Host "[6/8] k6 결과를 서버로 업로드"
+Write-Host "[7/9] k6 결과를 서버로 업로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey,
     $LocalK6Summary,
     "${Remote}:$RemoteK6Summary"
 )
 
-Write-Host "[7/8] 서버에서 결과 collect"
-$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
+Write-Host "[8/9] 서버에서 결과 collect"
+$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $SshHost + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
-Write-Host "[8/8] 수집 결과 다운로드"
+Write-Host "[9/9] 수집 결과 다운로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey, "-r",
     "${Remote}:$RemoteRuntimeRoot/runs/$RunId",

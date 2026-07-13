@@ -25,6 +25,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Mapping, Protocol, Sequence
 
+from effect_outcome_dictionary import APPROVED_DISCOVERY_TERMS
+
 
 NCBI_EUTILS_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 QUERY_VERSION = "mwbl-pair-discovery-v1"
@@ -32,48 +34,12 @@ DEFAULT_TOOL_NAME = "mwbl_evidence_discovery"
 DEFAULT_LOOKBACK_DAYS = 8
 DEFAULT_RETMAX_PER_PAIR = 50
 DEFAULT_REQUEST_DELAY_SECONDS = 0.5
+PUBMED_FETCH_BATCH_SIZE = 100
 MAX_ABSTRACT_EXCERPT_LENGTH = 500
 
-EFFECT_TERMS: dict[str, tuple[str, ...]] = {
-    "effect_brightening": (
-        "hyperpigmentation",
-        "melasma",
-        "skin pigmentation",
-        "skin lightening",
-        "melanin index",
-    ),
-    "effect_acne_sebum": (
-        "acne",
-        "sebum",
-        "sebaceous",
-    ),
-    "effect_wrinkle": (
-        "wrinkle",
-        "photoaging",
-        "skin elasticity",
-        "dermal collagen",
-    ),
-    "effect_moisture_barrier": (
-        "skin hydration",
-        "skin barrier",
-        "transepidermal water loss",
-        "TEWL",
-    ),
-    "effect_calming": (
-        "erythema",
-        "skin irritation",
-        "cutaneous inflammation",
-        "pruritus",
-        "dermatitis",
-    ),
-    "effect_exfoliation": (
-        "exfoliation",
-        "desquamation",
-        "stratum corneum",
-        "skin roughness",
-        "keratinization",
-    ),
-}
+# Compatibility name retained for collectors and tests. The reviewed CSV is
+# now the only source of effect discovery vocabulary.
+EFFECT_TERMS: dict[str, tuple[str, ...]] = APPROVED_DISCOVERY_TERMS
 
 SKIN_CONTEXT_TERMS: tuple[str, ...] = (
     "skin",
@@ -189,6 +155,7 @@ class PubMedClient:
         window_start: date,
         window_end: date,
         retmax: int,
+        sort: str = "pub_date",
     ) -> list[str]:
         payload = self._request(
             "esearch.fcgi",
@@ -196,7 +163,7 @@ class PubMedClient:
                 "db": "pubmed",
                 "term": query,
                 "retmode": "json",
-                "sort": "pub_date",
+                "sort": sort,
                 "retmax": str(retmax),
                 "datetype": "edat",
                 "mindate": window_start.strftime("%Y/%m/%d"),
@@ -212,7 +179,7 @@ class PubMedClient:
 
     def fetch(self, pmids: Sequence[str]) -> dict[str, PaperMetadata]:
         papers: dict[str, PaperMetadata] = {}
-        for batch in chunks(stable_unique(pmids), 200):
+        for batch in chunks(stable_unique(pmids), PUBMED_FETCH_BATCH_SIZE):
             payload = self._request(
                 "efetch.fcgi",
                 {
@@ -252,7 +219,7 @@ class PubMedClient:
                         f"PubMed request failed after {self.max_retries + 1} attempts"
                     ) from exc
                 retry_after = parse_retry_after(exc.headers.get("Retry-After"))
-            except urllib.error.URLError as exc:
+            except (urllib.error.URLError, OSError) as exc:
                 if attempt >= self.max_retries:
                     raise DiscoveryError(
                         f"PubMed request failed after {self.max_retries + 1} attempts"
@@ -372,7 +339,11 @@ def load_ingredient_terms(
 
 
 def split_english_name(name: str) -> list[str]:
-    values = [part.strip() for part in name.split("/")]
+    # A slash is often part of one exact INCI name (for example Flower/Leaf
+    # Extract or a copolymer). Splitting on it creates broad false terms such
+    # as "Leaf Extract". A pipe is the explicit alternative-name separator
+    # used by this dataset.
+    values = [part.strip() for part in name.split("|")]
     return [value for value in values if is_usable_english_term(value)]
 
 

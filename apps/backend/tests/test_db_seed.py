@@ -19,12 +19,15 @@ from app.db.models.taxonomy import (
     ConcernAlias,
     Effect,
     IngredientAlias,
+    Ingredient,
     IngredientEffectRange,
     IngredientEvidence,
     RiskFlag,
 )
 from app.db.session import make_engine
+from app.models.data_contract import Ingredient as IngredientRecord
 from app.models.data_contract import IngredientAlias as IngredientAliasRecord
+from app.models.data_contract import IngredientCanonicalMapping as IngredientCanonicalMappingRecord
 from app.models.data_contract import Product as ProductRecord
 from app.services.data_loader import load_data_catalog
 from app.services.db_seed import seed_catalog, seed_database
@@ -524,6 +527,104 @@ def test_seed_catalog_batches_product_ingredient_upserts(monkeypatch) -> None:
 
     assert result.product_ingredients == 5
     assert _count(session, ProductIngredient) == 5
+
+
+def test_seed_catalog_replaces_mapped_pending_product_ingredient() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    pending_code = "ing_pending_panthenol"
+    pending_ingredient = IngredientRecord(
+        ingredient_id=pending_code,
+        name_ko="판테놀 원문",
+        name_en="Panthenol raw",
+        description="pending source",
+        source_url=None,
+    )
+    source_record = replace(
+        catalog.product_ingredients[0],
+        ingredient_id=pending_code,
+        ingredient_name="Panthenol",
+    )
+    source_catalog = replace(
+        catalog,
+        ingredients=(*catalog.ingredients, pending_ingredient),
+        product_ingredients=(source_record, *catalog.product_ingredients[1:]),
+    )
+    seed_catalog(session, source_catalog)
+    pending_row = session.execute(
+        select(Ingredient).where(Ingredient.ingredient_code == pending_code)
+    ).scalar_one()
+    assert session.execute(
+        select(ProductIngredient).where(ProductIngredient.ingredient_id == pending_row.id)
+    ).scalar_one_or_none() is not None
+
+    mapped_catalog = replace(
+        source_catalog,
+        ingredient_canonical_mappings=(
+            IngredientCanonicalMappingRecord(
+                source_ingredient_id=pending_code,
+                source_ingredient_name=None,
+                canonical_id="ing_panthenol",
+                mapping_type="official_exact",
+                confidence="high",
+                source="KCIA 2026-06-30",
+            ),
+        ),
+    )
+    result = seed_catalog(session, mapped_catalog)
+
+    target_row = session.execute(
+        select(Ingredient).where(Ingredient.ingredient_code == "ing_panthenol")
+    ).scalar_one()
+    assert result.product_ingredients == 5
+    assert session.execute(
+        select(ProductIngredient).where(ProductIngredient.ingredient_id == pending_row.id)
+    ).scalar_one_or_none() is None
+    assert session.execute(
+        select(ProductIngredient).where(ProductIngredient.ingredient_id == target_row.id)
+    ).scalar_one_or_none() is not None
+
+
+def test_seed_catalog_applies_exact_name_override_without_moving_other_names() -> None:
+    session = _make_session()
+    catalog = load_data_catalog(EXAMPLES_DIR)
+    mapped_catalog = replace(
+        catalog,
+        ingredient_canonical_mappings=(
+            IngredientCanonicalMappingRecord(
+                source_ingredient_id="ing_panthenol",
+                source_ingredient_name="판테놀",
+                canonical_id="ing_niacinamide",
+                mapping_type="exact_name_override",
+                confidence="high",
+                source="test",
+            ),
+        ),
+    )
+
+    seed_catalog(session, mapped_catalog)
+
+    panthenol = session.execute(
+        select(Ingredient).where(Ingredient.ingredient_code == "ing_panthenol")
+    ).scalar_one()
+    niacinamide = session.execute(
+        select(Ingredient).where(Ingredient.ingredient_code == "ing_niacinamide")
+    ).scalar_one()
+    product = session.execute(
+        select(Product).where(Product.product_code == "prod_001")
+    ).scalar_one()
+    assert session.execute(
+        select(ProductIngredient).where(
+            ProductIngredient.product_id == product.id,
+            ProductIngredient.ingredient_id == panthenol.id,
+        )
+    ).scalar_one_or_none() is None
+    assert session.execute(
+        select(ProductIngredient).where(
+            ProductIngredient.product_id == product.id,
+            ProductIngredient.ingredient_id == niacinamide.id,
+        )
+    ).scalar_one_or_none() is not None
 
 
 def test_seed_catalog_deduplicates_normalized_brand_codes() -> None:
