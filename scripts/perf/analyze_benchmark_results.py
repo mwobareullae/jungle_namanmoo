@@ -191,7 +191,9 @@ def build_run_row(input_dir: Path, run_dir: Path) -> dict[str, Any] | None:
     }
 
     row.update(extract_k6_metrics(k6_summary))
+    row.update(extract_k6_output_metrics(run_dir / "k6" / "k6-output.txt"))
     row.update(extract_backend_metrics(run_dir / "backend" / "backend.log"))
+    row.update(extract_resource_metrics(run_dir / "resources" / "docker-stats.csv"))
     return row
 
 
@@ -249,6 +251,17 @@ def extract_k6_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
         "http_req_failed_rate": float_value(failed_metric.get("value")),
         "check_success_rate": float_value(checks_metric.get("value")),
     }
+
+
+def extract_k6_output_metrics(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+
+    failure_sample_count = 0
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "recommendation_benchmark_failure_sample" in line:
+            failure_sample_count += 1
+    return {"k6_failure_sample_count": failure_sample_count}
 
 
 def extract_backend_metrics(log_path: Path) -> dict[str, Any]:
@@ -319,6 +332,123 @@ def extract_nested_breakdown(
     return result
 
 
+def extract_resource_metrics(path: Path) -> dict[str, Any]:
+    rows = load_docker_stats_rows(path)
+    if not rows:
+        return {}
+
+    result: dict[str, Any] = {}
+    targets = {
+        "backend": "backend",
+        "elasticsearch": "elasticsearch",
+        "redis": "redis",
+    }
+    for output_name, name_fragment in targets.items():
+        matched = [
+            row for row in rows
+            if name_fragment in str(row.get("name", "")).lower()
+        ]
+        if not matched:
+            continue
+        cpu_values = [
+            value for value in (parse_percent(row.get("cpu_percent")) for row in matched)
+            if value is not None
+        ]
+        mem_percent_values = [
+            value for value in (parse_percent(row.get("mem_percent")) for row in matched)
+            if value is not None
+        ]
+        mem_used_values = [
+            value for value in (parse_memory_used_mib(row.get("mem_usage")) for row in matched)
+            if value is not None
+        ]
+        result.update(summarize_resource_values(cpu_values, f"resource_{output_name}_cpu_percent"))
+        result.update(summarize_resource_values(mem_percent_values, f"resource_{output_name}_mem_percent"))
+        result.update(summarize_resource_values(mem_used_values, f"resource_{output_name}_mem_used_mib"))
+    return result
+
+
+def load_docker_stats_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+
+    lines = [
+        line.strip()
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        if line.strip()
+    ]
+    if not lines:
+        return []
+
+    if lines[0].startswith("timestamp,"):
+        reader = csv.DictReader(lines)
+        return [
+            {key: str(value or "") for key, value in row.items()}
+            for row in reader
+        ]
+
+    rows: list[dict[str, str]] = []
+    for line in lines:
+        parts = [part.strip() for part in line.split(",", 3)]
+        if len(parts) != 4:
+            continue
+        rows.append({
+            "timestamp": "",
+            "name": parts[0],
+            "cpu_percent": parts[1],
+            "mem_usage": parts[2],
+            "mem_percent": parts[3],
+        })
+    return rows
+
+
+def summarize_resource_values(values: list[float], prefix: str) -> dict[str, Any]:
+    if not values:
+        return {}
+    return {
+        f"{prefix}_avg": round(statistics.mean(values), 2),
+        f"{prefix}_p95": round(percentile(values, 95), 2),
+        f"{prefix}_max": round(max(values), 2),
+    }
+
+
+def parse_percent(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip().replace("%", "")
+    return float_value(text)
+
+
+def parse_memory_used_mib(value: Any) -> float | None:
+    if value is None:
+        return None
+    used_text = str(value).split("/", 1)[0].strip()
+    return parse_memory_to_mib(used_text)
+
+
+def parse_memory_to_mib(value: str) -> float | None:
+    match = re.match(r"^(?P<number>\d+(?:\.\d+)?)\s*(?P<unit>[KMGT]?i?B)$", value.strip(), re.IGNORECASE)
+    if match is None:
+        return None
+    number = float(match.group("number"))
+    unit = match.group("unit").lower()
+    factors = {
+        "b": 1 / (1024 * 1024),
+        "kb": 1 / 1024,
+        "kib": 1 / 1024,
+        "mb": 1,
+        "mib": 1,
+        "gb": 1024,
+        "gib": 1024,
+        "tb": 1024 * 1024,
+        "tib": 1024 * 1024,
+    }
+    factor = factors.get(unit)
+    if factor is None:
+        return None
+    return number * factor
+
+
 def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
     keys: list[str] = []
     seen: set[str] = set()
@@ -337,8 +467,13 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "latency_max_ms",
         "rps",
         "http_req_failed_rate",
+        "k6_failure_sample_count",
         "request_count",
         "pipeline_event_count",
+        "resource_backend_cpu_percent_max",
+        "resource_backend_mem_percent_max",
+        "resource_elasticsearch_cpu_percent_max",
+        "resource_elasticsearch_mem_percent_max",
     ]
     for key in preferred:
         if any(key in row for row in rows):
@@ -414,6 +549,54 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
         xlabel="dataset product count",
         ylabel="HTTP request failure rate",
         title="error rate by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "backend_cpu_peak_by_dataset.png",
+        x="dataset",
+        y="resource_backend_cpu_percent_max",
+        hue="vus_label",
+        xlabel="dataset product count",
+        ylabel="backend CPU peak (%)",
+        title="backend CPU peak by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "backend_memory_peak_by_dataset.png",
+        x="dataset",
+        y="resource_backend_mem_percent_max",
+        hue="vus_label",
+        xlabel="dataset product count",
+        ylabel="backend memory peak (%)",
+        title="backend memory peak by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "elasticsearch_cpu_peak_by_dataset.png",
+        x="dataset",
+        y="resource_elasticsearch_cpu_percent_max",
+        hue="vus_label",
+        xlabel="dataset product count",
+        ylabel="Elasticsearch CPU peak (%)",
+        title="Elasticsearch CPU peak by dataset",
+        plt=plt,
+        sns=sns,
+    )
+    plot_line(
+        df,
+        output_dir / "elasticsearch_memory_peak_by_dataset.png",
+        x="dataset",
+        y="resource_elasticsearch_mem_percent_max",
+        hue="vus_label",
+        xlabel="dataset product count",
+        ylabel="Elasticsearch memory peak (%)",
+        title="Elasticsearch memory peak by dataset",
         plt=plt,
         sns=sns,
     )
