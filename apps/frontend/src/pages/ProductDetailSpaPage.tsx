@@ -902,7 +902,24 @@ function ProductDetailSpaPage() {
   const visibleReviews = reviewTypeFilter === "photo"
     ? productReviews.filter((review) => review.photos.length > 0)
     : productReviews;
+  const hasProductReviews = reviewSummary.totalCount > 0 || productReviews.length > 0;
   const currentReviewPage = reviewPage;
+
+  useEffect(() => {
+    if (isReviewLoading || hasProductReviews || activeTab !== "#reviews") {
+      return undefined;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      setActiveTab("#description");
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}#description`,
+      );
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [activeTab, hasProductReviews, isReviewLoading]);
 
   const handleGoBack = () => {
     if (window.history.length > 1) {
@@ -1069,6 +1086,16 @@ function ProductDetailSpaPage() {
   const narrativeReason = narrativeCard?.reason || product?.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다.";
   const narrativeRole = narrativeProduct?.role;
   const narrativeCaution = narrativeProduct?.caution;
+  const hasAiRecommendationSummary = Boolean(
+    recommendationId
+    && (
+      isNarrativeLoading
+      || narrativeCard?.headline?.trim()
+      || narrativeCard?.reason?.trim()
+      || narrativeOverview?.headline?.trim()
+      || product?.reason_summary?.trim()
+    )
+  );
   const candidateTotal =
     candidateTotalState && candidateTotalState.recommendationId === recommendationId
       ? candidateTotalState.total
@@ -1181,6 +1208,7 @@ function ProductDetailSpaPage() {
               isAddingToCart={isAddingToCart}
               isNarrativeDetailOpen={isNarrativeDetailOpen}
               isNarrativeLoading={isNarrativeLoading}
+              showAiNarrative={hasAiRecommendationSummary}
               showRecommendationCriteria={Boolean(recommendationId)}
               isProductSoldOut={isProductSoldOut}
               isWishlistPending={isWishlistPending}
@@ -1221,7 +1249,9 @@ function ProductDetailSpaPage() {
             <nav className="detail-tabs" aria-label="상품 상세 탭">
               <a className={tabClassName("#description")} href="#description" onClick={handleTabClick("#description")}>상품 설명</a>
               <a className={tabClassName("#ingredients")} href="#ingredients" onClick={handleTabClick("#ingredients")}>성분</a>
-              <a className={tabClassName("#reviews")} href="#reviews" onClick={handleTabClick("#reviews")}>리뷰</a>
+              {hasProductReviews ? (
+                <a className={tabClassName("#reviews")} href="#reviews" onClick={handleTabClick("#reviews")}>리뷰</a>
+              ) : null}
               <a className={tabClassName("#qna")} href="#qna" onClick={handleTabClick("#qna")}>QnA</a>
             </nav>
 
@@ -1475,7 +1505,7 @@ function ProductDetailSpaPage() {
                   ) : null}
                 </div>
               </section>
-              <section className={panelClassName("#reviews")} id="reviews">
+              {hasProductReviews ? <section className={panelClassName("#reviews")} id="reviews">
                 <div className="product-review-head">
                   <div>
                     <h2>리뷰</h2>
@@ -1771,7 +1801,7 @@ function ProductDetailSpaPage() {
                   </div>
                 ) : null}
 
-              </section>
+              </section> : null}
 
               <section className={panelClassName("#qna")} id="qna">
                 <h2>QnA</h2>
