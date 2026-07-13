@@ -12230,7 +12230,18 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: default;
 }
 
+.agent-chat-result-item > img {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #e2eaee;
+  border-radius: 10px;
+  background: #ffffff;
+  object-fit: cover;
+}
+
 .agent-chat-result-item span {
+  flex: 1 1 auto;
   display: grid;
   min-width: 0;
 }

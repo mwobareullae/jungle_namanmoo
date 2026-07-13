@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { AGENT_SHOW_CART_EVENT, AGENT_SHOW_CHECKOUT_EVENT } from "../lib/agentUiEvents";
+import { getProductImageUrl } from "../lib/imageUrls";
 import type {
   AgentChatResponse,
   AgentContext,
@@ -65,6 +66,7 @@ type AgentChatErrorMessage = AgentChatBaseMessage & {
 
 type AgentChatResultItem = {
   id: string;
+  imageUrl?: string | null;
   itemType: "order" | "product";
   price?: number | null;
   subtitle?: string | null;
@@ -621,6 +623,7 @@ const formatAgentPrice = (price?: number | null) =>
 
 const mapAgentItem = (item: AgentResponseItem): AgentChatResultItem => ({
   id: item.id,
+  imageUrl: getProductImageUrl(item.image_storage_key, "w400") || null,
   itemType: item.item_type,
   price: item.price ?? null,
   subtitle: item.subtitle ?? null,
@@ -643,11 +646,39 @@ const mapPayloadProduct = (item: unknown): AgentChatResultItem | null => {
 
   return {
     id,
+    imageUrl: getProductImageUrl(readString(item.thumbnail_url) ?? readString(item.image_storage_key), "w400") || null,
     itemType: "product",
     price: readNumber(item.price) ?? readNumber(item.lowest_price),
     subtitle: uniqueNonEmpty([brand, stockStatus]).join(" · ") || null,
     title: name,
   };
+};
+
+const mapCartPayload = (action: AgentUiAction): AgentChatResultItem[] => {
+  if (action.type !== "show_cart" || !Array.isArray(action.payload.items)) return [];
+
+  const currentProductId = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("id");
+  const cartItems = action.payload.items.flatMap((item) => {
+    if (!isRecord(item) || !isRecord(item.product)) return [];
+    const productId = readString(item.product_id) ?? readString(item.product.id);
+    const title = readString(item.product.name);
+    if (!productId || !title) return [];
+    const quantity = readNumber(item.quantity);
+    const brand = readString(item.product.brand);
+    return [{
+      id: productId,
+      imageUrl: getProductImageUrl(readString(item.product.thumbnail_url), "w400") || null,
+      itemType: "product" as const,
+      price: readNumber(item.line_subtotal),
+      subtitle: uniqueNonEmpty([brand, quantity ? `${quantity}개` : null]).join(" · ") || null,
+      title,
+    }];
+  });
+
+  const currentItem = currentProductId ? cartItems.find((item) => item.id === currentProductId) : null;
+  return currentItem ? [currentItem] : cartItems;
 };
 
 const mapOrderPayload = (action: AgentUiAction): AgentChatResultItem | null => {
@@ -750,11 +781,14 @@ function createResultMessage(
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
     : [];
   const orderPayload = action.type === "show_order_status" ? mapOrderPayload(action) : null;
+  const cartPayload = mapCartPayload(action);
   const resultItems = items.length > 0
     ? items.map(mapAgentItem)
     : orderPayload
       ? [orderPayload]
-      : productPayload;
+      : cartPayload.length > 0
+        ? cartPayload
+        : productPayload;
 
   if (action.type === "noop" && resultItems.length === 0) {
     return null;
@@ -767,7 +801,7 @@ function createResultMessage(
     id,
     actionTarget: action.target ?? null,
     actionType: action.type,
-    actionUrl: buildProductsResultUrl(action),
+    actionUrl: action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action),
     description: emptyProducts
       ? "조건에 맞는 상품을 찾지 못했어요."
       : resultItems.length > 0
@@ -1466,6 +1500,7 @@ function AgentFloatingButton({
                   onClick={() => openResultItem(item)}
                   type="button"
                 >
+                  {item.imageUrl ? <img alt="" src={item.imageUrl} /> : null}
                   <span>
                     <strong>{item.title}</strong>
                     {item.subtitle ? <small>{item.subtitle}</small> : null}
@@ -1483,6 +1518,15 @@ function AgentFloatingButton({
             type="button"
           >
             전체 보기
+          </button>
+        ) : null}
+        {message.actionType === "show_cart" && message.actionUrl ? (
+          <button
+            className="agent-chat-result-more"
+            onClick={() => openResultAction(message.actionUrl)}
+            type="button"
+          >
+            장바구니 보기
           </button>
         ) : null}
       </div>
