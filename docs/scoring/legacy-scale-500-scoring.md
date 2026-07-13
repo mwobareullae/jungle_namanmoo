@@ -1,8 +1,8 @@
 # 500성분 레거시 스케일 점수 확장
 
-상태: 2026-07-13 런타임 반영 후보(Draft, 순위 상호작용 검토 전 merge 보류)
+상태: 2026-07-14 전체순위 검증 PASS, 런타임 반영 후보
 정책 버전: `mwbl-legacy-scale-500-v1`
-런타임 scoring version: `v5_legacy_scale_500`
+런타임 scoring version: `v6_independent_evidence_top3`
 
 ## 결과
 
@@ -101,27 +101,27 @@ prior 밖에 15개 성분·29쌍을 추가해 최종 신규 활성은 153개·17
 
 ## 고정 500 전체 순위 검증
 
-추천 가능하고 가격이 있는 10,164개 상품에 기존 34개·72쌍과 확장 187개·245쌍을
-동일한 top3 감쇠식으로 적용했다. effect 성분점수만 보면 모든 축에서 감소 0건이고,
-공식 기능 prior의 타 축 누수도 0건이다.
+추천 가능하고 가격이 있는 10,164개 상품의 실제 전환을 검증했다. 기준선은 현재 운영과
+같은 `34개·72쌍 + effect 순위 재사용 evidence top3`이고, 변경 후는
+`187개·245쌍 + 독립 evidence top3`다.
 
-다만 런타임은 `effect_score`로 고른 top3 성분을 evidence 계산에도 그대로 재사용한다.
-신규 effect 성분이 기존 고근거 성분을 top3 밖으로 밀어내면 effect는 늘어도
-`effect + evidence` 합산값이 감소할 수 있다.
+- 성분효능: `effect_score` 기준 상위 3개
+- 성분근거: `evidence_score × source_authority_score` 기준 독립 상위 3개
+- 두 축 모두 `1.0 / 0.5 / 0.25` 감쇠, `cap=1.2`, 최종 `1.0` clamp
+- `score_evidence`, 추천 사유, `key_ingredients`는 고객 설명용 effect top3를 계속 사용
 
-| 축 | effect-only 감소 | evidence 감소 | 합산 감소 | 최악 총점 영향 |
+| 축 | effect 감소 | evidence 감소 | 합산 감소 | 합산 개선 상품 |
 | --- | ---: | ---: | ---: | ---: |
-| 미백·톤 | 0 | 81 | 7 | -4.4065 |
-| 보습·장벽 | 0 | 204 | 93 | -5.1435 |
-| 여드름·피지 | 0 | 41 | 10 | -1.0125 |
-| 주름·탄력 | 0 | 849 | 391 | -5.5845 |
-| 진정 | 0 | 3,613 | 1,243 | -3.1035 |
-| 각질 | 0 | 7 | 0 | 0 |
+| 미백·톤 | 0 | 0 | 0 | 1,022 |
+| 보습·장벽 | 0 | 0 | 0 | 3,260 |
+| 여드름·피지 | 0 | 0 | 0 | 2,670 |
+| 주름·탄력 | 0 | 0 | 0 | 1,932 |
+| 진정 | 0 | 0 | 0 | 5,828 |
+| 각질 | 0 | 0 | 0 | 559 |
 
-따라서 데이터 확장의 구조·재현성 검사는 통과했지만, 이 PR은 evidence top3를 독립
-선발할지 또는 현재 비단조 동작을 수용할지 결정하기 전에는 merge하지 않는다. 점수식은
-이 PR에서 임의로 변경하지 않는다. 세부 결과와 입력 SHA는
-`ingredient_scoring_500_ranking_validation_summary.json`에 고정한다.
+6개 축 모두 최소 합산 변화는 `0.0`이고 공식 기능 prior의 타 축 누수도 0건이다.
+독립 evidence top3로 기존 비단조 merge blocker를 해소했다. 보습축의 빠른 포화는 데이터
+확장 문제가 아니라 별도 점수식 이슈이므로 이번 변경에서는 건드리지 않는다.
 
 ## 정본과 재생성
 
@@ -131,6 +131,8 @@ prior 밖에 15개 성분·29쌍을 추가해 최종 신규 활성은 153개·17
 - 500개·245쌍 감사표: `data/reconciliation/legacy_scale_500/`
 - 전체 순위 검증 요약: `data/reconciliation/legacy_scale_500/ingredient_scoring_500_ranking_validation_summary.json`
 - 재생성: `python data/scripts/build_legacy_scale_500_scoring.py --apply-runtime`
+- 전체 순위 재검증:
+  `python data/scripts/validate_legacy_scale_500_ranking.py --validated-on YYYY-MM-DD --output data/reconciliation/legacy_scale_500/ingredient_scoring_500_ranking_validation_summary.json`
 
 재생성 스크립트는 기존 34 점수 변경, 500개 cohort 이탈, 중복 pair와 중복 근거 키를
 오류로 처리한다.
