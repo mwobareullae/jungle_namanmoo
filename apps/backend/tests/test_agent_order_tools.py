@@ -20,6 +20,12 @@ from app.services.agent_order_tools import (
     lookup_order_status,
     prepare_recent_order_cancel,
 )
+from app.services.agent_commerce_tools import (
+    add_agent_cart_item,
+    get_agent_cart,
+    prepare_agent_checkout,
+    prepare_agent_order,
+)
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -158,6 +164,7 @@ def test_confirm_cancel_tool_executes_pending_cancel_and_releases_stock(
     assert data["ui_action"]["type"] == "show_order_status"
     assert data["ui_action"]["payload"]["order_code"] == created["order_code"]
     assert data["ui_action"]["payload"]["status"] == "CANCELED"
+    assert data["message"] == "주문 취소가 완료됐어요."
 
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == created["order_code"])).scalar_one()
@@ -251,6 +258,86 @@ def test_expired_cancel_tool_is_not_executed(
     assert tool_call.status == "EXPIRED"
 
 
+def test_agent_cart_checkout_and_confirmed_toss_order(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    email = "agent-commerce@example.com"
+    _signup(client, email=email, nickname="agent-commerce")
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    address_id = _create_address(client)["id"]
+
+    with Session(db_engine) as session:
+        user = _load_user(session, email)
+        added = add_agent_cart_item(
+            session,
+            user,
+            conversation_id="conv_commerce",
+            product_id="prod_001",
+            quantity=2,
+            recommendation_id=None,
+            recommendation_rank=None,
+        )
+        session.commit()
+
+    assert added.ui_action.type == "show_cart"
+    assert added.ui_action.payload["total_quantity"] == 2
+
+    with Session(db_engine) as session:
+        user = _load_user(session, email)
+        cart = get_agent_cart(session, user, conversation_id="conv_commerce")
+        preview = prepare_agent_checkout(
+            session,
+            user,
+            conversation_id="conv_commerce",
+            cart_item_ids=None,
+            address_id=address_id,
+        )
+        prepared = prepare_agent_order(
+            session,
+            user,
+            conversation_id="conv_commerce",
+            cart_item_ids=None,
+            address_id=address_id,
+            request_id="req_commerce",
+            session_id="session_commerce",
+            anonymous_user_id=None,
+        )
+        session.commit()
+
+    assert cart.ui_action.payload["total_quantity"] == 2
+    assert preview.ui_action.type == "show_checkout_preview"
+    assert preview.ui_action.payload["can_checkout"] is True
+    assert prepared.requires_confirmation is True
+    assert prepared.ui_action.target == "order_create_confirm"
+    assert prepared.tool_call_id is not None
+
+    response = client.post(
+        f"/api/agent/tool-calls/{prepared.tool_call_id}/confirm",
+        json={"action": "confirm"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "EXECUTED"
+    assert data["ui_action"]["type"] == "open_payment"
+    assert data["ui_action"]["target"] == "toss_payment"
+    assert data["ui_action"]["payload"]["payment_provider"] == "TOSS"
+
+    with Session(db_engine) as session:
+        order = session.execute(
+            select(Order).where(Order.order_code == data["ui_action"]["payload"]["order_code"])
+        ).scalar_one()
+        tool_call = session.execute(
+            select(AgentToolCall).where(AgentToolCall.tool_call_id == prepared.tool_call_id)
+        ).scalar_one()
+        inventory = _load_inventory(session, "prod_001")
+
+    assert order.status == "PENDING_PAYMENT"
+    assert order.idempotency_key == f"agent:{prepared.tool_call_id}"
+    assert tool_call.status == "EXECUTED"
+    assert inventory.reserved_quantity == 2
+
+
 def _create_pending_order(
     client: TestClient,
     db_engine: Engine,
@@ -268,7 +355,7 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": f"agent-order-{email}"},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
     )
     assert order_response.status_code == 200
     data = order_response.json()

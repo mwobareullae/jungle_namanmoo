@@ -140,7 +140,8 @@ function LoginPage() {
   const { refreshAuthenticatedUser, setAuthenticatedUser } = useAuth();
   const location = useLocation();
   const locationState = location.state as LoginLocationState | null;
-  const redirectPath = getRedirectPath(locationState?.from);
+  const redirectQuery = new URLSearchParams(location.search).get("redirect") ?? undefined;
+  const redirectPath = getRedirectPath(locationState?.from ?? redirectQuery);
   const emailErrorMessage =
     emailTouched && !isValidEmail(email) ? LOGIN_EMAIL_FORMAT_ERROR_MESSAGE : "";
   const passwordErrorMessage = passwordTouched && password.length === 0 ? "비밀번호를 입력해 주세요." : "";

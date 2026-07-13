@@ -14,6 +14,7 @@ type ProductComparisonPanelProps = {
   differences: ProductComparisonDifference[];
   errorMessage?: string;
   expectedProductCount: number;
+  initiallyPriceOnly?: boolean;
   isLoading: boolean;
   onClose: () => void;
   products: ProductDetail[];
@@ -34,12 +35,6 @@ type ProductComparisonDecisionSummary = {
   selectionCriteria: string;
   skinFit: string;
   verdict: string;
-};
-
-type ProductComparisonTradeoffItem = {
-  label: "성분 기준" | "주의 성분";
-  text: string;
-  tone?: "caution";
 };
 
 type ProductComparisonScenarioGuideItem = {
@@ -81,6 +76,7 @@ type ProductScenarioTagContext = {
 };
 
 type ProductComparisonTableRow = {
+  comparisonValues: string[];
   label: string;
   values: ReactNode[];
 };
@@ -163,6 +159,32 @@ const getLowestComparablePrice = (products: ProductDetail[]) =>
     if (lowestPrice === null) return product.lowest_price;
     return Math.min(lowestPrice, product.lowest_price);
   }, null);
+
+const getReviewComparisonValue = (product: ProductDetail) => {
+  const rating = product.review_summary?.average_rating;
+  return rating === null || rating === undefined ? "평점 정보 없음" : `${rating.toFixed(1)}점`;
+};
+
+const getPurchaseComparisonValue = (product: ProductDetail) => {
+  if (!product.purchase_info) return "구매 상태 정보 없음";
+  if (!product.purchase_info.can_purchase) return "현재 구매 불가";
+  return product.purchase_info.available_quantity === 0 ? "일시 품절" : "구매 가능";
+};
+
+const getCautionComparisonValue = (product: ProductDetail) =>
+  product.risk_flags.length > 0 ? joinValues(product.risk_flags, "") : "확인된 주의 성분 없음";
+
+const getCautionIngredientNames = (product: ProductDetail) =>
+  uniqueValues(
+    product.risk_flags.map((riskFlag) => riskFlag.split(":", 1)[0]?.trim() ?? ""),
+  );
+
+const renderInlineCautionComparisonValue = (product: ProductDetail) => {
+  const ingredientNames = getCautionIngredientNames(product);
+  if (ingredientNames.length === 0) return "확인된 주의 성분 없음";
+
+  return <span className="product-comparison-caution-value">{joinValues(ingredientNames, "")}</span>;
+};
 
 const getProductUniqueValues = (
   product: ProductDetail,
@@ -559,27 +581,6 @@ const renderPriceComparisonValue = (product: ProductDetail, lowestPrice: number 
   );
 };
 
-const getProductTradeoffSummary = (product: ProductDetail): ProductComparisonTradeoffItem[] => {
-  const ingredientPoints = uniqueValues([...product.evidence_tags, ...product.key_ingredients]).slice(0, 2);
-  const riskFlags = product.risk_flags.slice(0, 2);
-
-  return [
-    {
-      label: "성분 기준",
-      text: ingredientPoints.length > 0
-        ? `${ingredientPoints.join("·")} 포인트가 보여요.`
-        : "상세 비교표에서 성분을 확인해보세요.",
-    },
-    {
-      label: "주의 성분",
-      text: riskFlags.length > 0
-        ? `${riskFlags.join("·")} 확인이 필요해요.`
-        : "한 번 더 볼 성분이 없어요.",
-      tone: riskFlags.length > 0 ? "caution" : undefined,
-    },
-  ];
-};
-
 const getCardLabel = (index: number) => {
   if (index === 0) return "보고 있는 상품";
   return `비교 후보 ${index}`;
@@ -595,7 +596,6 @@ function ProductComparisonCard({
   variant?: ProductComparisonCardVariant;
 }) {
   const tags = getComparisonTags(product);
-  const tradeoffs = getProductTradeoffSummary(product);
   const [hasImageError, setHasImageError] = useState(false);
   const shouldShowImage = Boolean(product.thumbnail_url) && !hasImageError;
 
@@ -620,17 +620,6 @@ function ProductComparisonCard({
         <div className="product-comparison-card__tags">
           {tags.map((tag) => (
             <span key={tag}>{tag}</span>
-          ))}
-        </div>
-        <div className="product-comparison-card__tradeoffs">
-          {tradeoffs.map((item) => (
-            <p
-              className={item.tone === "caution" ? "caution" : undefined}
-              key={item.label}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.text}</span>
-            </p>
           ))}
         </div>
       </div>
@@ -706,6 +695,7 @@ function ProductComparisonPanel({
   differences,
   errorMessage,
   expectedProductCount,
+  initiallyPriceOnly = false,
   isLoading,
   onClose,
   products,
@@ -715,7 +705,7 @@ function ProductComparisonPanel({
   source,
   summary,
 }: ProductComparisonPanelProps) {
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isDifferentOnly, setIsDifferentOnly] = useState(false);
   const expectedCandidateCount = Math.min(Math.max(expectedProductCount - 1, 1), MAX_SIMILAR_PRODUCTS);
   const visibleProducts = products.slice(0, MAX_SIMILAR_PRODUCTS + 1);
   const currentProduct = visibleProducts[0] ?? null;
@@ -731,150 +721,203 @@ function ProductComparisonPanel({
     recommendationReason,
   );
   const scenarioGuideItems = getProductScenarioGuideItems(visibleProducts, sensitivity);
-  const currentConcernSet = new Set(currentProduct?.evidence_tags ?? []);
+  const currentIngredientSet = new Set(currentProduct?.key_ingredients ?? []);
   const lowestPrice = getLowestComparablePrice(visibleProducts);
   const comparisonRows: ProductComparisonTableRow[] = [{
     label: "고민 적합도",
-    values: visibleProducts.map((product, index) => (
-      renderComparableValues(product.evidence_tags, index === 0 ? new Set<string>() : currentConcernSet)
+    comparisonValues: visibleProducts.map((product) => joinValues(product.evidence_tags)),
+    values: visibleProducts.map((product) => (
+      renderComparableValues(product.evidence_tags, new Set<string>())
     )),
   },
   {
     label: "핵심 성분",
-    values: visibleProducts.map((product) => (
+    comparisonValues: visibleProducts.map((product) => joinValues(product.key_ingredients)),
+    values: visibleProducts.map((product, index) => (
       renderComparableValues(
         product.key_ingredients,
-        new Set(product.key_ingredients.slice(0, 2)),
+        index === 0 ? new Set<string>() : currentIngredientSet,
       )
     )),
   },
   {
-    label: "가격 부담",
+    label: initiallyPriceOnly ? "가격" : "최저가",
+    comparisonValues: visibleProducts.map((product) => formatPrice(product.lowest_price)),
     values: visibleProducts.map((product) => renderPriceComparisonValue(product, lowestPrice)),
   },
   {
-    label: "별점(리뷰)",
-    values: visibleProducts.map(() => "리뷰 데이터 준비 중"),
+    label: "별점",
+    comparisonValues: visibleProducts.map(getReviewComparisonValue),
+    values: visibleProducts.map((product) => getReviewComparisonValue(product)),
   },
   {
-    label: "타입별 선호도",
-    values: visibleProducts.map(() => "선호도 데이터 준비 중"),
+    label: "주의 성분",
+    comparisonValues: visibleProducts.map(getCautionComparisonValue),
+    values: visibleProducts.map((product) => (
+      initiallyPriceOnly
+        ? renderInlineCautionComparisonValue(product)
+        : getCautionComparisonValue(product)
+    )),
+  },
+  {
+    label: "구매 상태",
+    comparisonValues: visibleProducts.map(getPurchaseComparisonValue),
+    values: visibleProducts.map((product) => getPurchaseComparisonValue(product)),
   }];
+  const inlineComparisonRows = ["고민 적합도", "핵심 성분", "주의 성분", "별점", "구매 상태"]
+    .map((label) => comparisonRows.find((row) => row.label === label))
+    .filter((row): row is ProductComparisonTableRow => Boolean(row));
+  const visibleComparisonRows = initiallyPriceOnly
+    ? inlineComparisonRows
+    : isDifferentOnly
+      ? comparisonRows.filter((row) => new Set(row.comparisonValues).size > 1)
+      : comparisonRows;
+  const comparisonCards = (
+    <>
+      {comparisonCardProducts.map((product, index) => (
+        <ProductComparisonCard
+          key={product.product_id}
+          label={getCardLabel(index)}
+          product={product}
+          variant={index === 0 ? "current" : "candidate"}
+        />
+      ))}
+      {Array.from({ length: isLoading ? missingCandidateCount : 0 }).map((_, index) => {
+        const labelIndex = candidateProducts.length + index + 1;
+        return (
+          <ProductComparisonLoadingCard
+            key={`loading-${labelIndex}`}
+            label={getCardLabel(labelIndex)}
+          />
+        );
+      })}
+      {!isLoading && missingCandidateCount > 0 ? (
+        <ProductComparisonEmptyCard
+          label={getCardLabel(candidateProducts.length + 1)}
+          message={errorMessage || "비교 상품 정보를 불러오지 못했습니다."}
+        />
+      ) : null}
+    </>
+  );
 
   return (
-    <section className="product-comparison-panel" id="productComparisonPanel" aria-labelledby="productComparisonTitle">
-      <div className="product-comparison-panel__head">
+    <section className={`product-comparison-panel${initiallyPriceOnly ? " product-comparison-panel--inline" : ""}`} id="productComparisonPanel" aria-labelledby="productComparisonTitle">
+      <div className="product-comparison-panel__head" style={initiallyPriceOnly ? { position: "static" } : undefined}>
         <div>
-          <p>가격, 성분, 피부 고민 기준으로 같이 비교해보세요.</p>
+          <p>{visibleProducts.length}개 상품을 실제 가격, 성분, 리뷰 정보로 비교합니다.</p>
           <h2 id="productComparisonTitle">비슷한 후보를 골라봤어요</h2>
         </div>
-        <button type="button" onClick={onClose} aria-label="AI 상품 요약 닫기">×</button>
-      </div>
-
-      <div className={`product-comparison-grid count-${Math.max(comparisonCardProducts.length, expectedCandidateCount + 1, 1)}`}>
-        {comparisonCardProducts.map((product, index) => (
-          <ProductComparisonCard
-            key={product.product_id}
-            label={getCardLabel(index)}
-            product={product}
-            variant={index === 0 ? "current" : "candidate"}
-          />
-        ))}
-        {Array.from({ length: isLoading ? missingCandidateCount : 0 }).map((_, index) => {
-          const labelIndex = candidateProducts.length + index + 1;
-          return (
-            <ProductComparisonLoadingCard
-              key={`loading-${labelIndex}`}
-              label={getCardLabel(labelIndex)}
-            />
-          );
-        })}
-        {!isLoading && missingCandidateCount > 0 ? (
-          <ProductComparisonEmptyCard
-            label={getCardLabel(candidateProducts.length + 1)}
-            message={errorMessage || "비교 상품 정보를 불러오지 못했습니다."}
-          />
+        {!initiallyPriceOnly ? (
+          <div className="product-comparison-panel__actions">
+            <button
+              aria-pressed={isDifferentOnly}
+              className="product-comparison-diff-toggle"
+              onClick={() => setIsDifferentOnly((currentValue) => !currentValue)}
+              type="button"
+            >
+              다른 점만 보기
+            </button>
+            <button type="button" onClick={onClose} aria-label="상품 비교 닫기">×</button>
+          </div>
         ) : null}
       </div>
 
+      {initiallyPriceOnly || isLoading || missingCandidateCount > 0 ? (
+        initiallyPriceOnly ? (
+          <div className={`product-comparison-grid product-comparison-grid--aligned count-${Math.max(comparisonCardProducts.length, expectedCandidateCount + 1, 1)}`}>
+            <div aria-hidden="true" className="product-comparison-grid__gutter" />
+            <div className="product-comparison-grid__cards">{comparisonCards}</div>
+          </div>
+        ) : (
+          <div className={`product-comparison-grid count-${Math.max(comparisonCardProducts.length, expectedCandidateCount + 1, 1)}`}>
+            {comparisonCards}
+          </div>
+        )
+      ) : null}
+
       {visibleProducts.length > 1 ? (
         <div className="product-comparison-detail">
-          <button
-            className="product-comparison-detail-toggle"
-            type="button"
-            aria-expanded={isDetailOpen}
-            onClick={() => setIsDetailOpen((currentValue) => !currentValue)}
-          >
-            {isDetailOpen ? "비교 내용 접기" : "더 자세히 비교하기"}
-            <span aria-hidden="true">{isDetailOpen ? "▲" : "▼"}</span>
-          </button>
-          {isDetailOpen ? (
-            <div className="product-comparison-detail-content">
-              {differences.length > 0 ? (
-                <div className="product-comparison-differences">
-                  {differences.map((difference, index) => (
-                    <article className="product-comparison-difference" key={`${difference.label}-${index}`}>
-                      <strong>{difference.label}</strong>
-                      {difference.description ? <p>{difference.description}</p> : null}
-                      {(difference.base || difference.compare) ? (
-                        <div className="product-comparison-difference__values">
-                          {difference.base ? <span>{difference.base}</span> : <span>현재 상품 정보 없음</span>}
-                          {difference.compare ? <span>{difference.compare}</span> : <span>비교 상품 정보 없음</span>}
-                        </div>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-              <div className="product-comparison-table-wrap">
-                <table className="product-comparison-table">
-                  <colgroup>
-                    <col className="product-comparison-table__label-col" style={{ width: "120px" }} />
-                    {visibleProducts.map((product) => (
-                      <col className="product-comparison-table__product-col" key={product.product_id} />
-                    ))}
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th scope="col">비교 포인트</th>
-                      {visibleProducts.map((product, index) => (
-                        <th scope="col" key={product.product_id}>
-                          <span className="product-comparison-table__column-label">
-                            {getCardLabel(index)}
-                          </span>
-                          <span className="product-comparison-table__product-name" title={product.name}>
-                            {product.name}
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisonRows.map((row) => (
-                      <tr key={row.label}>
-                        <th scope="row">{row.label}</th>
-                        {row.values.map((value, index) => (
-                          <td key={`${row.label}-${visibleProducts[index]?.product_id ?? index}`}>{value}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          {!initiallyPriceOnly && differences.length > 0 ? (
+            <div className="product-comparison-differences">
+              {differences.map((difference, index) => (
+                <article className="product-comparison-difference" key={`${difference.label}-${index}`}>
+                  <strong>{difference.label}</strong>
+                  {difference.description ? <p>{difference.description}</p> : null}
+                </article>
+              ))}
             </div>
           ) : null}
+          {initiallyPriceOnly ? (
+            <div className="product-comparison-row-list" aria-label="상품별 상세 비교 정보">
+              {visibleComparisonRows.map((row) => {
+                const hasCautionIngredients = row.label === "주의 성분"
+                  && visibleProducts.some((product) => getCautionIngredientNames(product).length > 0);
+
+                return (
+                  <div className={`product-comparison-row-list__row${hasCautionIngredients ? " is-caution" : ""}`} key={row.label}>
+                    <strong>{row.label}</strong>
+                    <div className="product-comparison-row-list__values">
+                      {row.values.map((value, productIndex) => (
+                        <span key={`${row.label}-${visibleProducts[productIndex]?.product_id ?? productIndex}`}>{value}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="product-comparison-table-wrap">
+              <table className="product-comparison-table">
+                <colgroup>
+                  <col className="product-comparison-table__label-col" style={{ width: "120px" }} />
+                  {visibleProducts.map((product) => (
+                    <col className="product-comparison-table__product-col" key={product.product_id} />
+                  ))}
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">비교 포인트</th>
+                    {visibleProducts.map((product, index) => (
+                      <th scope="col" key={product.product_id}>
+                        <span className="product-comparison-table__column-label">
+                          {getCardLabel(index)}
+                        </span>
+                        {product.thumbnail_url ? <img className="product-comparison-table__thumbnail" src={product.thumbnail_url} alt="" /> : null}
+                        <span className="product-comparison-table__product-name" title={product.name}>
+                          {product.name}
+                        </span>
+                        <span className="product-comparison-table__product-meta">{product.brand} · {formatPrice(product.lowest_price)}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleComparisonRows.map((row) => (
+                    <tr key={row.label}>
+                      <th scope="row">{row.label}</th>
+                      {row.values.map((value, index) => (
+                        <td key={`${row.label}-${visibleProducts[index]?.product_id ?? index}`}>{value}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : null}
 
-      <div className="product-comparison-summary">
-        <ProductComparisonScenarioGuide
-          externalNote={decisionSummary.externalNote}
-          items={scenarioGuideItems}
-        />
-        <p className="product-comparison-summary__notice">
-          AI 요약은 상품 성분과 가격 데이터를 기준으로 한 선택 보조 정보입니다. 피부 반응은 개인차가 있을 수 있어요.
-        </p>
-      </div>
+      {!initiallyPriceOnly ? (
+        <div className="product-comparison-summary">
+          <ProductComparisonScenarioGuide
+            externalNote={decisionSummary.externalNote}
+            items={scenarioGuideItems}
+          />
+          <p className="product-comparison-summary__notice">
+            AI 요약은 상품 성분과 가격 데이터를 기준으로 한 선택 보조 정보입니다. 피부 반응은 개인차가 있을 수 있어요.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

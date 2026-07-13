@@ -129,24 +129,31 @@ def create_recommendation_response(
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
-    saved_skin_profile = (
-        load_skin_profile_for_user(session, current_user.id)
-        if current_user is not None
-        else None
-    )
+    if current_user is not None:
+        stage_started_at = current_time()
+        saved_skin_profile = load_skin_profile_for_user(session, current_user.id)
+        _record_stage_duration(stage_durations, "user_context_load_ms", stage_started_at)
+    else:
+        saved_skin_profile = None
+        stage_durations["user_context_load_ms"] = 0.0
     saved_concerns = _saved_concerns_from_profile(saved_skin_profile)
     normalized_request = normalize_recommendation_request(
         request,
         saved_skin_profile=saved_skin_profile,
     )
+    stage_started_at = current_time()
     skin_test_context = load_skin_test_scoring_context(
         session,
         current_user.id if current_user is not None else None,
     )
+    _record_stage_duration(stage_durations, "skin_test_context_load_ms", stage_started_at)
+
+    stage_started_at = current_time()
     behavior_personalization_context = load_behavior_personalization_context(
         session,
         current_user.id if current_user is not None else None,
     )
+    _record_stage_duration(stage_durations, "behavior_context_load_ms", stage_started_at)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
@@ -199,6 +206,7 @@ def create_recommendation_response(
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
+        scoring_diagnostics: dict[str, object] = {}
         scored_candidates = score_candidates(
             session,
             intent,
@@ -211,6 +219,7 @@ def create_recommendation_response(
             saved_concerns=saved_concerns,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
+            diagnostics=scoring_diagnostics,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
 
@@ -255,6 +264,7 @@ def create_recommendation_response(
             duration_ms=elapsed_ms(total_started_at),
             metadata={
                 **stage_durations,
+                **scoring_diagnostics,
                 "recommendation_id": recommendation_code,
                 "llm_available": llm_parser is not None,
                 "llm_used": intent.llm_used,
