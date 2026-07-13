@@ -97,7 +97,7 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./apps/backend:/app
-      - ./data:/data:ro
+      - ${DATA_HOST_DIR:-./data}:/data:ro
     healthcheck:
       test:
         [
