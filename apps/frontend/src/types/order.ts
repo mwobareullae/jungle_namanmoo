@@ -52,6 +52,15 @@ export type TossPaymentConfirmResponse = {
   approved_at?: string | null;
 };
 
+export type MockPaymentConfirmResponse = {
+  order_code: string;
+  payment_code: string;
+  order_status: string;
+  payment_status: string;
+  approved_at?: string | null;
+  failed_at?: string | null;
+};
+
 export type OrderCancelResponse = {
   order_code: string;
   status: string;

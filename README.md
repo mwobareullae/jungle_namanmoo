@@ -75,7 +75,7 @@ RDS 분리 이후 서버 배포에서는 Docker Postgres와 frontend를 실행�
 
 | 목적 | 명령 |
 | --- | --- |
-| 서버 배포: backend + redis + elasticsearch | `docker compose --profile server up -d --build` |
+| 서버 배포: backend + redis + elasticsearch + caddy | `docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up -d --build backend redis elasticsearch caddy` |
 | backend 개발자: backend + postgres + redis + elasticsearch | `docker compose --profile backend-dev up -d --build` |
 | frontend 개발자: 로컬 backend 사용 | `docker compose --profile frontend-local-backend up -d --build` |
 | frontend 개발자: Dev API 사용 | `docker compose --profile frontend-dev-server up -d --build` |
@@ -140,9 +140,14 @@ docker compose --profile backend-dev up -d --build
 ```
 
 서버 배포는 RDS를 기준으로 하므로 Docker Postgres를 실행하지 않습니다.
+서버 전용 `docker-compose.proxy.yml`이 backend 실행 명령을 덮어써서 Uvicorn의 `--reload`를 비활성화합니다.
 
 ```bash
-docker compose --profile server up -d --build
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.proxy.yml \
+  --profile server \
+  up -d --build backend redis elasticsearch caddy
 ```
 
 ## 환경변수 운영 기준
@@ -214,10 +219,10 @@ ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
 Dev 서버에서 Redis/Elasticsearch까지 확인할 때는 서버에 SSH 접속한 뒤 `DEV_APP_DIR`에서 아래 순서로 확인합니다.
 
 ```bash
-docker compose --profile server config
-docker compose --profile server up -d redis elasticsearch
-docker compose ps redis elasticsearch
-docker compose exec -T redis redis-cli ping
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server config
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up -d redis elasticsearch
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml ps redis elasticsearch
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml exec -T redis redis-cli ping
 curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
 ```
 
@@ -276,7 +281,7 @@ docker compose down
 현재 별도 production 서버 자동 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버로 소스를 동기화한 뒤 backend/API 중심 Docker Compose를 재실행합니다. 프론트는 Vercel이 담당합니다.
 
 ```text
-dev push -> GitHub Actions checkout -> rsync to EC2 -> data/dev-small 재생성 -> docker compose --profile server up --build -d backend redis elasticsearch caddy
+dev push -> GitHub Actions checkout -> rsync to EC2 -> data/dev-small 재생성 -> base/proxy Compose 병합 -> backend(--reload 없음), redis, elasticsearch, caddy 재실행
 dev push -> Vercel Production Branch(dev) -> frontend production deployment
 PR/feature push with apps/frontend changes -> Vercel Preview deployment
 ```
