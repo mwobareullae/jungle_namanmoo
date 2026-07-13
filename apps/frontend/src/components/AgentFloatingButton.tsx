@@ -1726,9 +1726,10 @@ function AgentFloatingButton({
             <form className="agent-chat-input" onSubmit={handleSubmit}>
               <input
                 aria-label="AI에게 질문 입력"
-                disabled={isSubmitting}
+                aria-busy={isSubmitting}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="무엇이든 물어보세요"
+                readOnly={isSubmitting}
                 ref={chatInputRef}
                 value={draft}
               />
