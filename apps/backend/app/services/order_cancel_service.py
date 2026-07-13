@@ -1,11 +1,12 @@
 from datetime import UTC, datetime
+import secrets
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.db.models.commerce import Order, Payment
+from app.db.models.commerce import Order, OrderCancelRequest, Payment
 from app.schemas.common import ApiError
 from app.schemas.order import OrderCancelResponse
 from app.services.pending_payment_terminal_service import (
@@ -22,6 +23,7 @@ ORDER_STATUS_EXPIRED = "EXPIRED"
 ORDER_STATUS_CANCELED = "CANCELED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
 PAYMENT_STATUS_CANCELED = "CANCELED"
+CANCEL_REQUEST_STATUS_REQUESTED = "REQUESTED"
 
 
 def cancel_order(
@@ -38,6 +40,15 @@ def cancel_order(
             ORDER_STATUS_PAYMENT_FAILED,
             ORDER_STATUS_EXPIRED,
         }:
+            request_code = None
+            if order.status == ORDER_STATUS_CANCEL_REQUESTED:
+                request_code = _load_requested_cancel_request_code(session, order.id)
+                if request_code is None:
+                    raise ApiError(
+                        409,
+                        "ORDER_CANCEL_REQUEST_NOT_FOUND",
+                        "Order is cancel-requested but has no matching cancel request record.",
+                    )
             _log_order_cancel_completed(
                 started_at,
                 order=order,
@@ -47,7 +58,7 @@ def cancel_order(
                 restore_overflow_quantity_total=0,
                 idempotent_replay=True,
             )
-            return _to_response(order)
+            return _to_response(order, request_code=request_code)
 
         payment = _load_payment(session, order.id)
         now = datetime.now(UTC)
@@ -68,6 +79,16 @@ def cancel_order(
         if order.status == ORDER_STATUS_PAID:
             order.status = ORDER_STATUS_CANCEL_REQUESTED
             order.updated_at = now
+            cancel_request = OrderCancelRequest(
+                request_code=_generate_cancel_request_code(now),
+                order_id=order.id,
+                user_id=user.id,
+                status=CANCEL_REQUEST_STATUS_REQUESTED,
+                requested_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(cancel_request)
             session.flush()
             _log_order_cancel_completed(
                 started_at,
@@ -78,7 +99,7 @@ def cancel_order(
                 restore_overflow_quantity_total=0,
                 idempotent_replay=False,
             )
-            return _to_response(order)
+            return _to_response(order, request_code=cancel_request.request_code)
 
         raise ApiError(409, "ORDER_NOT_CANCELABLE", "Order cannot be canceled in the current status.")
     except ApiError as exc:
@@ -139,8 +160,21 @@ def _cancel_pending_payment_order(
     )
 
 
-def _to_response(order: Order) -> OrderCancelResponse:
-    return OrderCancelResponse(order_code=order.order_code, status=order.status)
+def _load_requested_cancel_request_code(session: Session, order_id: int) -> str | None:
+    return session.execute(
+        select(OrderCancelRequest.request_code).where(
+            OrderCancelRequest.order_id == order_id,
+            OrderCancelRequest.status == CANCEL_REQUEST_STATUS_REQUESTED,
+        )
+    ).scalar_one_or_none()
+
+
+def _generate_cancel_request_code(now: datetime) -> str:
+    return f"ocr_{now.strftime('%Y%m%d')}_{secrets.token_urlsafe(6).replace('-', '').replace('_', '')[:8]}"
+
+
+def _to_response(order: Order, *, request_code: str | None = None) -> OrderCancelResponse:
+    return OrderCancelResponse(order_code=order.order_code, status=order.status, request_code=request_code)
 
 
 def _log_order_cancel_completed(
