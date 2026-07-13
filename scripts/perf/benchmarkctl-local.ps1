@@ -62,6 +62,27 @@ function Invoke-Scp([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "SCP 명령 실패" }
 }
 
+function Set-RemoteBenchmarkDatabase([string]$Dataset, [string]$RemoteConfig, [hashtable]$Config) {
+    $databaseName = "mubarelle_bench_$Dataset"
+    $remoteScript = @(
+        'set -euo pipefail',
+        "config='$RemoteConfig'",
+        "database='$databaseName'",
+        'line=$(grep -E ''^BENCHMARK_DATABASE_URL='' "$config" | tail -n 1 || true)',
+        'if [ -z "$line" ]; then echo "BENCHMARK_DATABASE_URL missing in $config" >&2; exit 1; fi',
+        'url=$(printf ''%s\n'' "${line#BENCHMARK_DATABASE_URL=}" | tr -d ''"'')',
+        'base="${url%/*}"',
+        'new_url="${base}/${database}"',
+        'tmp="${config}.tmp.$$"',
+        'awk -v new_url="$new_url" ''BEGIN { replaced=0 } /^BENCHMARK_DATABASE_URL=/ { print "BENCHMARK_DATABASE_URL=" new_url; replaced=1; next } { print } END { if (!replaced) exit 42 }'' "$config" > "$tmp"',
+        'mv "$tmp" "$config"',
+        'echo "benchmark database set: ${database}"'
+    ) -join "`n"
+    $encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
+    $remoteCommand = "printf %s $encodedScript | base64 -d | bash"
+    Invoke-Ssh $remoteCommand $Config
+}
+
 function Wait-HttpReady([string]$Url, [int]$TimeoutSeconds = 90) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -97,25 +118,28 @@ $RemoteCtl = "$RemoteAppDir/scripts/perf/benchmarkctl"
 New-Item -ItemType Directory -Force $LocalRunDir | Out-Null
 
 if ($Prepare) {
-    Write-Host "[1/7] 서버 benchmark subset 생성"
+    Write-Host "[1/8] 서버 benchmark subset 생성"
     $buildCommand = 'cd ' + $RemoteAppDir + ' && ' + $RemoteCtl + ' build ' + $RemoteAppDir + '/data'
     Invoke-Ssh $buildCommand $Config
 } else {
-    Write-Host "[1/7] 서버 benchmark subset 생성 생략"
+    Write-Host "[1/8] 서버 benchmark subset 생성 생략"
 }
 
-Write-Host "[2/7] benchmark backend 활성화"
+Write-Host "[2/8] benchmark DB 대상 설정"
+Set-RemoteBenchmarkDatabase $Dataset $RemoteConfig $Config
+
+Write-Host "[3/8] benchmark backend 활성화"
 $activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
 Invoke-Ssh $activateCommand $Config
 $HealthUrl = $BaseUrl.TrimEnd("/") + "/health"
 Wait-HttpReady $HealthUrl
 
 if ($Prepare) {
-    Write-Host "[3/7] 서버 benchmark DB 준비"
+    Write-Host "[4/8] 서버 benchmark DB 준비"
     $prepareCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' prepare ' + $Dataset
     Invoke-Ssh $prepareCommand $Config
 } else {
-    Write-Host "[3/7] 서버 benchmark 상태 검증"
+    Write-Host "[4/8] 서버 benchmark 상태 검증"
     $verifyCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' verify ' + $Dataset
     Invoke-Ssh $verifyCommand $Config
 }
@@ -124,7 +148,7 @@ $effectiveVus = if ($Vus -gt 0) { $Vus } elseif ($Config.ContainsKey("VUS") -and
 $effectiveDuration = if ($Duration) { $Duration } elseif ($Config.ContainsKey("DURATION") -and $Config.DURATION) { $Config.DURATION } else { "30s" }
 $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS } else { "3000" }
 
-Write-Host "[4/7] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
+Write-Host "[5/8] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
 $k6Args = @(
     "run",
     "--summary-export", $LocalK6Summary,
@@ -158,18 +182,18 @@ if ($k6ExitCode -ne 0) {
     Write-Warning "k6 exited with code $k6ExitCode; collecting benchmark artifacts before failing."
 }
 
-Write-Host "[5/7] k6 결과를 서버로 업로드"
+Write-Host "[6/8] k6 결과를 서버로 업로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey,
     $LocalK6Summary,
     "${Remote}:$RemoteK6Summary"
 )
 
-Write-Host "[6/7] 서버에서 결과 collect"
+Write-Host "[7/8] 서버에서 결과 collect"
 $collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
-Write-Host "[7/7] 수집 결과 다운로드"
+Write-Host "[8/8] 수집 결과 다운로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey, "-r",
     "${Remote}:$RemoteRuntimeRoot/runs/$RunId",
