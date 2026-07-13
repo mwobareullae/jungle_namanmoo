@@ -50,6 +50,10 @@ BENCHMARK_RESULT_ROOT='/opt/mwobareullae/benchmark-runs'
 BENCHMARK_LOG_TAIL=5000
 ```
 
+데이터셋을 선택하면 Redis prefix도 자동으로
+`mubarelle:benchmark:<dataset>:` 형식으로 분리된다. 따라서 서로 다른
+상품 수 benchmark의 캐시가 섞이지 않는다.
+
 `BENCHMARK_DATABASE_URL`은 dataset을 바꿀 때 해당 benchmark DB로 변경한다. 운영 DB나 일반 dev DB를 지정하지 않는다.
 
 실제 benchmark 사용자 fixture까지 확인하려면 이메일을 server-local

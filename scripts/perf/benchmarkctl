@@ -61,6 +61,7 @@ load_profile() {
   # starts, so expose the selected profile to every compose invocation.
   export BENCHMARK_DATA_DIR="$DATA_DIR"
   export BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS"
+  export BENCHMARK_REDIS_KEY_PREFIX="${BENCHMARK_REDIS_KEY_PREFIX:-mubarelle:benchmark:${DATASET_LABEL}:}"
 }
 
 require_benchmark_database() {
