@@ -96,6 +96,7 @@ export type ScoreBreakdown = {
   concentration_bucket: string | null;
   concentration_warning: string | null;
   skin_type_match_score: number;
+  sensitivity_score?: number;
   price_value_score: number;
   keyword_score: number;
   vector_score: number;
