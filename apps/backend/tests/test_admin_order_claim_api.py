@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
+from app.db.models.commerce import Inventory, Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem, Payment
 from app.db.session import get_db
 from app.main import app
 
@@ -146,7 +146,9 @@ def _seed_claim(db_engine: Engine) -> str:
     return "clm_api_claim"
 
 
-def _seed_claim_for_decision(db_engine: Engine, *, suffix: str, status: str = "REQUESTED") -> str:
+def _seed_claim_for_decision(
+    db_engine: Engine, *, suffix: str, status: str = "REQUESTED", claim_type: str = "REFUND"
+) -> str:
     now = datetime.now(UTC)
     claim_code = f"clm_api_decision_{suffix}"
     with Session(db_engine) as session:
@@ -188,15 +190,39 @@ def _seed_claim_for_decision(db_engine: Engine, *, suffix: str, status: str = "R
             updated_at=now,
         )
         session.add(order_item)
+        session.add(
+            Inventory(
+                product_id=hash(suffix) % 100000 + 1,
+                stock_quantity=10,
+                reserved_quantity=0,
+                safety_stock=0,
+                sales_status="ON_SALE",
+                inventory_source="TEST",
+                updated_at=now,
+            )
+        )
+        session.add(
+            Payment(
+                payment_code=f"pay_api_decision_{suffix}",
+                order_id=order.id,
+                provider="MOCK",
+                status="APPROVED",
+                amount=10000,
+                currency="KRW",
+                created_at=now,
+                updated_at=now,
+            )
+        )
         session.flush()
+        resolution = "EXCHANGE" if claim_type == "EXCHANGE" else "REFUND"
         claim = OrderClaim(
             claim_code=claim_code,
             order_id=order.id,
             user_id=buyer.id,
-            claim_type="REFUND",
+            claim_type=claim_type,
             status=status,
             reason_code="DAMAGED",
-            refund_amount=10000,
+            refund_amount=10000 if claim_type != "EXCHANGE" else None,
             requested_at=now,
             created_at=now,
             updated_at=now,
@@ -205,7 +231,7 @@ def _seed_claim_for_decision(db_engine: Engine, *, suffix: str, status: str = "R
         session.flush()
         session.add(
             OrderClaimItem(
-                claim_id=claim.id, order_item_id=order_item.id, quantity=1, resolution="REFUND", created_at=now
+                claim_id=claim.id, order_item_id=order_item.id, quantity=1, resolution=resolution, created_at=now
             )
         )
         session.add(
@@ -428,6 +454,76 @@ def test_start_not_found_returns_404(client: TestClient, db_engine: Engine) -> N
     _promote_to_admin(db_engine)
 
     response = client.post("/api/admin/order-claims/clm_does_not_exist/start")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "CLAIM_NOT_FOUND"
+
+
+def test_complete_requires_authentication(client: TestClient) -> None:
+    response = client.post("/api/admin/order-claims/clm_anything/complete", json={"restock": False})
+    assert response.status_code == 401
+
+
+def test_complete_rejects_non_admin(client: TestClient) -> None:
+    _signup(client)
+    response = client.post("/api/admin/order-claims/clm_anything/complete", json={"restock": False})
+    assert response.status_code == 403
+
+
+def test_complete_refund_returns_contract_for_admin(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(db_engine, suffix="complete", status="IN_PROGRESS", claim_type="REFUND")
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/complete", json={"restock": False})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "COMPLETED"
+    assert body["available_actions"] == []
+    assert body["completed_at"] is not None
+
+
+def test_complete_exchange_returns_contract_for_admin(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(
+        db_engine, suffix="complete-exchange", status="IN_PROGRESS", claim_type="EXCHANGE"
+    )
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/complete", json={"restock": False})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "COMPLETED"
+
+
+def test_complete_rejects_not_in_progress_claim(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(db_engine, suffix="complete-not-in-progress", status="APPROVED")
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/complete", json={"restock": False})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "CLAIM_NOT_IN_PROGRESS"
+
+
+def test_complete_requires_body(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(db_engine, suffix="complete-missing-body", status="IN_PROGRESS")
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/complete", json={})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
+
+
+def test_complete_not_found_returns_404(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+
+    response = client.post("/api/admin/order-claims/clm_does_not_exist/complete", json={"restock": False})
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "CLAIM_NOT_FOUND"

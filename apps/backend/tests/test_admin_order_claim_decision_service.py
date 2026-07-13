@@ -15,9 +15,24 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
+from app.db.models.commerce import (
+    Inventory,
+    InventoryMovement,
+    Order,
+    OrderClaim,
+    OrderClaimEvent,
+    OrderClaimItem,
+    OrderItem,
+    Payment,
+    PaymentRefund,
+)
 from app.schemas.common import ApiError
-from app.services.admin.order_claim_service import approve_admin_claim, reject_admin_claim, start_admin_claim
+from app.services.admin.order_claim_service import (
+    approve_admin_claim,
+    complete_admin_claim,
+    reject_admin_claim,
+    start_admin_claim,
+)
 
 
 @pytest.fixture()
@@ -36,7 +51,13 @@ def session() -> Generator[Session, None, None]:
 _seq = 0
 
 
-def _make_claim(session: Session, *, status: str = "REQUESTED") -> OrderClaim:
+def _make_claim(
+    session: Session,
+    *,
+    status: str = "REQUESTED",
+    claim_type: str = "REFUND",
+    with_inventory: bool = True,
+) -> OrderClaim:
     global _seq
     _seq += 1
     now = datetime.now(UTC)
@@ -78,15 +99,40 @@ def _make_claim(session: Session, *, status: str = "REQUESTED") -> OrderClaim:
         updated_at=now,
     )
     session.add(order_item)
+    if with_inventory:
+        session.add(
+            Inventory(
+                product_id=_seq,
+                stock_quantity=10,
+                reserved_quantity=0,
+                safety_stock=0,
+                sales_status="ON_SALE",
+                inventory_source="TEST",
+                updated_at=now,
+            )
+        )
+    session.add(
+        Payment(
+            payment_code=f"pay_claimdecision_{_seq}",
+            order_id=order.id,
+            provider="MOCK",
+            status="APPROVED",
+            amount=10000,
+            currency="KRW",
+            created_at=now,
+            updated_at=now,
+        )
+    )
     session.flush()
+    resolution = "EXCHANGE" if claim_type == "EXCHANGE" else "REFUND"
     claim = OrderClaim(
         claim_code=f"clm_decision_{_seq}",
         order_id=order.id,
         user_id=user.id,
-        claim_type="REFUND",
+        claim_type=claim_type,
         status=status,
         reason_code="DAMAGED",
-        refund_amount=10000,
+        refund_amount=10000 if claim_type != "EXCHANGE" else None,
         requested_at=now,
         created_at=now,
         updated_at=now,
@@ -94,7 +140,7 @@ def _make_claim(session: Session, *, status: str = "REQUESTED") -> OrderClaim:
     session.add(claim)
     session.flush()
     session.add(
-        OrderClaimItem(claim_id=claim.id, order_item_id=order_item.id, quantity=1, resolution="REFUND", created_at=now)
+        OrderClaimItem(claim_id=claim.id, order_item_id=order_item.id, quantity=1, resolution=resolution, created_at=now)
     )
     session.add(
         OrderClaimEvent(
@@ -117,6 +163,12 @@ def _events(session: Session, claim_id: int) -> list[OrderClaimEvent]:
             select(OrderClaimEvent).where(OrderClaimEvent.claim_id == claim_id).order_by(OrderClaimEvent.id.asc())
         ).scalars()
     )
+
+
+def _naive(value: datetime) -> datetime:
+    # SQLite 는 DateTime(timezone=True) 값도 조회 시 tzinfo 를 잃는다(Postgres 는 안 그럼) —
+    # 같은 시각인지 비교할 때는 tzinfo 를 벗겨서 값 자체만 비교한다.
+    return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
 
 def test_approve_transitions_requested_to_approved_and_logs_event(session: Session) -> None:
@@ -281,6 +333,23 @@ def test_start_transitions_approved_to_in_progress_and_logs_event(session: Sessi
     assert events[1].actor_id is None
 
 
+def test_start_does_not_overwrite_processed_at_from_approval(session: Session) -> None:
+    claim = _make_claim(session, status="REQUESTED")
+    session.commit()
+
+    approved = approve_admin_claim(session, claim.claim_code)
+    session.commit()
+    approval_processed_at = approved.processed_at
+    assert approval_processed_at is not None
+
+    started = start_admin_claim(session, claim.claim_code)
+    session.commit()
+
+    assert _naive(started.processed_at) == _naive(approval_processed_at)  # 처리 시작이 승인 시각을 덮어쓰면 안 된다
+    reloaded = session.execute(select(OrderClaim).where(OrderClaim.id == claim.id)).scalar_one()
+    assert _naive(reloaded.processed_at) == _naive(approval_processed_at)
+
+
 def test_start_is_idempotent_and_does_not_duplicate_event(session: Session) -> None:
     claim = _make_claim(session, status="APPROVED")
     session.commit()
@@ -310,6 +379,105 @@ def test_start_rejects_non_approved_claim(session: Session, status: str) -> None
 def test_start_not_found_raises_404(session: Session) -> None:
     with pytest.raises(ApiError) as exc_info:
         start_admin_claim(session, "clm_does_not_exist")
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "CLAIM_NOT_FOUND"
+
+
+# ---- 완료 ----
+
+
+def test_complete_refund_claim_creates_refund_and_logs_event(session: Session) -> None:
+    claim = _make_claim(session, status="IN_PROGRESS", claim_type="REFUND")
+    session.commit()
+
+    response = complete_admin_claim(session, claim.claim_code, restock=False)
+    session.commit()
+
+    assert response.status == "COMPLETED"
+    assert response.available_actions == []
+    assert response.completed_at is not None
+    reloaded = session.execute(select(OrderClaim).where(OrderClaim.id == claim.id)).scalar_one()
+    assert reloaded.status == "COMPLETED"
+    payment = session.execute(select(Payment).where(Payment.order_id == claim.order_id)).scalar_one()
+    assert payment.status == "REFUNDED"
+    refund = session.execute(select(PaymentRefund).where(PaymentRefund.claim_id == claim.id)).scalar_one()
+    assert refund.amount == 10000
+    events = _events(session, claim.id)
+    assert len(events) == 2
+    assert events[1].to_status == "COMPLETED"
+    assert events[1].actor_type == "ADMIN"
+
+
+def test_complete_return_claim_with_restock_updates_inventory(session: Session) -> None:
+    claim = _make_claim(session, status="IN_PROGRESS", claim_type="RETURN")
+    session.commit()
+
+    complete_admin_claim(session, claim.claim_code, restock=True)
+    session.commit()
+
+    claim_item = session.execute(select(OrderClaimItem).where(OrderClaimItem.claim_id == claim.id)).scalar_one()
+    order_item = session.execute(select(OrderItem).where(OrderItem.id == claim_item.order_item_id)).scalar_one()
+    inventory = session.execute(select(Inventory).where(Inventory.product_id == order_item.product_id)).scalar_one()
+    movement = session.execute(
+        select(InventoryMovement).where(InventoryMovement.reference_id == claim.claim_code)
+    ).scalar_one()
+
+    assert order_item.status == "RETURNED"
+    assert inventory.stock_quantity == 11
+    assert movement.movement_type == "RETURN_RESTOCK"
+
+
+def test_complete_exchange_claim_has_no_payment_or_inventory_effect(session: Session) -> None:
+    claim = _make_claim(session, status="IN_PROGRESS", claim_type="EXCHANGE")
+    session.commit()
+
+    response = complete_admin_claim(session, claim.claim_code, restock=False)
+    session.commit()
+
+    assert response.status == "COMPLETED"
+    payment = session.execute(select(Payment).where(Payment.order_id == claim.order_id)).scalar_one()
+    assert payment.status == "APPROVED"  # 변경 없음
+    assert session.execute(select(PaymentRefund)).scalars().all() == []
+    claim_item = session.execute(select(OrderClaimItem).where(OrderClaimItem.claim_id == claim.id)).scalar_one()
+    order_item = session.execute(select(OrderItem).where(OrderItem.id == claim_item.order_item_id)).scalar_one()
+    assert order_item.status == "EXCHANGED"
+    events = _events(session, claim.id)
+    assert len(events) == 2
+    assert events[1].to_status == "COMPLETED"
+    assert events[1].actor_type == "ADMIN"
+
+
+def test_complete_is_idempotent_and_does_not_duplicate_event(session: Session) -> None:
+    claim = _make_claim(session, status="IN_PROGRESS", claim_type="REFUND")
+    session.commit()
+
+    first = complete_admin_claim(session, claim.claim_code, restock=False)
+    session.commit()
+    second = complete_admin_claim(session, claim.claim_code, restock=False)
+    session.commit()
+
+    assert first.status == "COMPLETED"
+    assert second.status == "COMPLETED"
+    assert len(_events(session, claim.id)) == 2
+    assert len(session.execute(select(PaymentRefund)).scalars().all()) == 1
+
+
+@pytest.mark.parametrize("status", ["REQUESTED", "APPROVED", "REJECTED", "WITHDRAWN"])
+def test_complete_rejects_non_in_progress_claim(session: Session, status: str) -> None:
+    claim = _make_claim(session, status=status)
+    session.commit()
+
+    with pytest.raises(ApiError) as exc_info:
+        complete_admin_claim(session, claim.claim_code, restock=False)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "CLAIM_NOT_IN_PROGRESS"
+
+
+def test_complete_not_found_raises_404(session: Session) -> None:
+    with pytest.raises(ApiError) as exc_info:
+        complete_admin_claim(session, "clm_does_not_exist", restock=False)
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.code == "CLAIM_NOT_FOUND"
