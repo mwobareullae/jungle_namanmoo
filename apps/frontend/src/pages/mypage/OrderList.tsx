@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import ActivityToast from "../../components/ui/ActivityToast";
@@ -37,6 +37,13 @@ const statusFilterItems = [
   { value: "PREPARING_SHIPMENT", label: "배송준비중" },
   { value: "SHIPPED", label: "배송중" },
   { value: "DELIVERED", label: "배송완료" }
+] as const;
+
+const orderPeriodItems = [
+  { value: 1, label: "최근 1개월" },
+  { value: 3, label: "최근 3개월" },
+  { value: 6, label: "최근 6개월" },
+  { value: 12, label: "최근 1년" }
 ] as const;
 
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
@@ -80,11 +87,20 @@ export default function OrderList() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [periodMonths, setPeriodMonths] = useState(12);
   const [expandedOrderCodes, setExpandedOrderCodes] = useState<Set<string>>(() => new Set());
   const [orderDetailItems, setOrderDetailItems] = useState<Record<string, OrderDetailItem[]>>({});
   const [loadingDetailOrderCodes, setLoadingDetailOrderCodes] = useState<Set<string>>(() => new Set());
   const { message: toastMessage, showToast } = useActivityToast();
   const [deleteTargetOrderCode, setDeleteTargetOrderCode] = useState<string | null>(null);
+  const filteredOrders = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - periodMonths);
+    return orders.filter((order) => {
+      const orderedAt = new Date(order.ordered_at);
+      return Number.isNaN(orderedAt.getTime()) || orderedAt >= cutoff;
+    });
+  }, [orders, periodMonths]);
 
   const loadOrders = useCallback(async (cursor?: string | null) => {
     const startedAt = Date.now();
@@ -226,6 +242,23 @@ export default function OrderList() {
             </button>
           ))}
         </div>
+        <div aria-label="주문 조회 기간" role="tablist" style={styles.statusFilters}>
+          {orderPeriodItems.map((item) => (
+            <button
+              aria-selected={periodMonths === item.value}
+              key={item.value}
+              onClick={() => setPeriodMonths(item.value)}
+              role="tab"
+              style={{
+                ...styles.statusFilter,
+                ...(periodMonths === item.value ? styles.statusFilterActive : {})
+              }}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         {isLoading ? (
           <OrderListSkeleton />
         ) : errorMessage ? (
@@ -241,7 +274,7 @@ export default function OrderList() {
               다시 불러오기
             </button>
           </div>
-        ) : orders.length === 0 ? (
+        ) : filteredOrders.length === 0 ? (
           <div style={styles.stateBox}>
             <strong style={styles.stateTitle}>아직 주문/배송내역이 없어요</strong>
             <p style={styles.stateText}>추천받은 상품을 장바구니에 담고 첫 주문을 진행해보세요.</p>
@@ -252,7 +285,7 @@ export default function OrderList() {
         ) : (
           <>
             <div style={styles.list}>
-              {orders.map((order) => {
+              {filteredOrders.map((order) => {
                 const thumbnailUrl = getProductImageUrl(order.thumbnail_storage_key, "w400");
                 const displayTitle = removeAdditionalItemSuffix(order.title);
                 const isCompletedOrder = order.status === "PAID" || order.status === "DELIVERED";
@@ -675,7 +708,7 @@ const styles: Record<string, CSSProperties> = {
     position: "relative",
     width: 92,
     height: 92,
-    borderRadius: 6,
+    borderRadius: 8,
     background: "#f7f8f9",
     overflow: "hidden"
   },

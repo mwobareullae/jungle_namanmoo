@@ -72,23 +72,6 @@ const openProductDetail = (product: ProductCardItem, eventContext?: HomeProductE
   void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
 };
 
-function SearchLoadingState({ message = "피부 고민을 분석하고 있어요." }: { message?: string }) {
-  return (
-    <div className="search-loading-state" aria-live="polite">
-      <div className="search-loading-banner">
-        <div>
-          <div className="search-loading-title">{message}</div>
-          <div className="search-loading-subtitle">
-            필요 효능, 근거 성분, 상품 점수를 순서대로 계산하는 중입니다.
-          </div>
-        </div>
-        <div className="search-loading-meter" aria-hidden="true" />
-      </div>
-      <ProductSkeletonList count={3} variant="search" />
-    </div>
-  );
-}
-
 function ProductSkeletonList({
   count,
   variant = "home"
@@ -864,9 +847,7 @@ function HomeMainContent({
               ))}
             </div>
             <div className="product-grid" id="searchResultsGrid">
-              {isLoading ? (
-                <SearchLoadingState />
-              ) : errorMessage ? (
+              {isLoading ? <ProductSkeletonList count={10} variant="search" /> : errorMessage ? (
                 <div className="search-empty">{errorMessage}</div>
               ) : sortedProducts.length ? (
                 sortedProducts.map((product, index) => (

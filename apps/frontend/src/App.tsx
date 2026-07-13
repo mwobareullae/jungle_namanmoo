@@ -29,6 +29,7 @@ const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
 const PopularProductsPage = lazy(() => import("./pages/PopularProductsPage"));
 const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const ProductDetailSpaPage = lazy(() => import("./pages/ProductDetailSpaPage"));
+const ProductDetailPreviewPage = lazy(() => import("./pages/ProductDetailPreviewPage"));
 const RecommendationGuidePage = lazy(() => import("./pages/RecommendationGuidePage"));
 const ReturnPolicyPage = lazy(() => import("./pages/ReturnPolicyPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
@@ -79,6 +80,8 @@ const getCurrentPageKey = (): OriginalPageKey => {
 
   return "home";
 };
+
+const stripLegacyFooter = (bodyHtml: string) => bodyHtml.replace(/<footer\b[\s\S]*?<\/footer>/gi, "");
 
 // /login이 아닌 모든 경로를 처리하는 기존 로직. 별도 컴포넌트로 분리해서
 // 아래 훅들이 /login에서는 아예 실행되지 않게 함(불필요한 스타일/스크립트 주입 방지).
@@ -820,7 +823,10 @@ function LegacyApp() {
       ) : visiblePageKey === "paymentComplete" ? (
         <PaymentCompletePage />
       ) : (
-        <div className="spa-origin-section" dangerouslySetInnerHTML={{ __html: page.bodyHtml }} />
+        <div
+          className="spa-origin-section"
+          dangerouslySetInnerHTML={{ __html: stripLegacyFooter(page.bodyHtml) }}
+        />
       )}
     </main>
   );
@@ -894,17 +900,11 @@ function GlobalAgentEntry() {
 }
 
 function GlobalFooter() {
-  const location = useLocation();
-
-  if (location.pathname === "/") {
-    return null;
-  }
-
   return <AppFooter />;
 }
 
 function RouteLoadingFallback() {
-  return <div className="detail-loading">페이지를 불러오는 중입니다.</div>;
+  return <div className="product-detail-loading-overlay" role="status" aria-label="페이지 불러오는 중"><span className="product-detail-loading-spinner" aria-hidden="true" /></div>;
 }
 
 function PopularProductsRouteFallback() {
@@ -1118,6 +1118,8 @@ function App() {
           <Route path="/products/evidence-picks" element={<HomeSectionProductsPage sectionType="evidence-picks" />} />
           <Route path="/products/for-you" element={<HomeSectionProductsPage sectionType="for-you" />} />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
+          <Route path="/product-detail" element={<ProductDetailPreviewPage />} />
+          <Route path="/product-detail-preview" element={<ProductDetailPreviewPage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>
       </Suspense>
