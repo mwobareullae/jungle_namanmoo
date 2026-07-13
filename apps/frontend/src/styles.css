@@ -3019,6 +3019,12 @@ body {
 .search-mode-suggestions button:hover,
 .search-mode-suggestions button:focus-visible { background: #f7fbfc; }
 .search-mode-suggestions small { color: var(--muted); font-size: 11px; }
+.search-mode-suggestions__state {
+  min-height: 44px;
+  padding: 13px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 .search-suggest-panel--hidden {
   display: none !important;

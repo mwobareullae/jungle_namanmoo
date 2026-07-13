@@ -20,6 +20,8 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   const [profile, setProfile] = useState(initialProfile);
   const [searchMode, setSearchMode] = useState<SearchMode>(initialSearchMode);
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
 
   useEffect(() => {
     callOriginal("setSearchMode", searchMode);
@@ -28,10 +30,13 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   useEffect(() => {
     const normalized = query.trim();
     if (searchMode !== "general" || !normalized) {
+      setSuggestions([]);
+      setIsSuggestionsLoading(false);
       return;
     }
 
     let isMounted = true;
+    setIsSuggestionsLoading(true);
     const timer = window.setTimeout(() => {
       api.getCatalogSuggestions(normalized)
         .then((response) => {
@@ -39,6 +44,9 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
         })
         .catch(() => {
           if (isMounted) setSuggestions([]);
+        })
+        .finally(() => {
+          if (isMounted) setIsSuggestionsLoading(false);
         });
     }, 250);
 
@@ -71,6 +79,11 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") goToSearch();
+  };
+
+  const handleQueryChange = (nextQuery: string) => {
+    setQuery(nextQuery);
+    setIsSuggestionsOpen(true);
   };
 
   const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
@@ -119,8 +132,9 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
               ) : null}
               <input
                 id="searchInput"
+                onFocus={() => setIsSuggestionsOpen(true)}
                 onKeyDown={handleSearchKey}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => handleQueryChange(event.target.value)}
                 placeholder={searchMode === "ai" ? "예: 민감하고 자주 붉어져요" : "상품명, 브랜드, 성분을 검색하세요"}
                 type="text"
                 value={query}
@@ -142,9 +156,10 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
               </button>
             </div>
 
-            {searchMode === "general" && suggestions.length > 0 ? (
+            {searchMode === "general" && isSuggestionsOpen && query.trim() ? (
               <div className="search-mode-suggestions" role="listbox">
-                {suggestions.map((suggestion) => (
+                {isSuggestionsLoading ? <div className="search-mode-suggestions__state">검색어를 찾고 있어요…</div> : null}
+                {!isSuggestionsLoading && suggestions.map((suggestion) => (
                   <button
                     key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`}
                     onClick={() => selectSuggestion(suggestion)}
@@ -155,6 +170,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
                     <small>{suggestion.type === "PRODUCT" ? "상품" : suggestion.type === "BRAND" ? "브랜드" : suggestion.type === "CATEGORY" ? "카테고리" : "추천 검색어"}</small>
                   </button>
                 ))}
+                {!isSuggestionsLoading && suggestions.length === 0 ? <div className="search-mode-suggestions__state">일치하는 검색어가 없습니다.</div> : null}
               </div>
             ) : null}
 
