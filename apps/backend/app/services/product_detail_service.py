@@ -359,7 +359,11 @@ def _load_ingredient_evidence(
         )
         .join(Ingredient, IngredientEvidence.ingredient_id == Ingredient.id)
         .outerjoin(Effect, IngredientEvidence.effect_id == Effect.id)
-        .where(ProductIngredientRow.product_id == product_db_id)
+        .where(
+            ProductIngredientRow.product_id == product_db_id,
+            IngredientEvidence.review_status == "accepted",
+            IngredientEvidence.is_current.is_(True),
+        )
         .order_by(IngredientEvidence.evidence_score.desc(), IngredientEvidence.id.asc())
     ).all()
 
