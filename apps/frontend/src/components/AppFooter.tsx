@@ -9,9 +9,13 @@ const policyLinks = [
   ["개인정보취급방침", "/privacy"]
 ] as const;
 
-function AppFooter() {
+type AppFooterProps = {
+  variant?: "default" | "home";
+};
+
+function AppFooter({ variant = "default" }: AppFooterProps) {
   return (
-    <footer>
+    <footer className={variant === "home" ? "app-footer app-footer--home" : "app-footer"}>
       <div className="footer-inner">
         <div className="footer-brand">
           <a className="logo" href="/">

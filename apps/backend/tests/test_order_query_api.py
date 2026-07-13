@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory
 from app.db.session import get_db
+from app.api.routes.payments import get_toss_payments_client
 from app.main import app
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
@@ -80,7 +81,7 @@ def test_get_orders_can_filter_by_status(
     _signup(client, email="order-status@example.com", nickname="order-status")
     pending = _create_pending_order(client, db_engine, product_code="prod_001", quantity=1, key="pending-status")
     paid = _create_pending_order(client, db_engine, product_code="prod_002", quantity=1, key="paid-status")
-    confirm_response = client.post(f"/api/payments/{paid['payment_code']}/mock/confirm")
+    confirm_response = _confirm_toss_payment(client, paid)
     assert confirm_response.status_code == 200
 
     response = client.get("/api/orders", params={"status": "PAID"})
@@ -179,14 +180,39 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": key},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
     )
     assert order_response.status_code == 200
     data = order_response.json()
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],
+        "amount": data["total"],
     }
+
+
+def _confirm_toss_payment(client: TestClient, pending: dict):
+    app.dependency_overrides[get_toss_payments_client] = lambda: _FakeTossConfirmClient()
+    return client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_order_query_key",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+
+class _FakeTossConfirmClient:
+    def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
+        return {
+            "paymentKey": payment_key,
+            "orderId": order_code,
+            "totalAmount": amount,
+            "status": "DONE",
+            "method": "카드",
+            "approvedAt": "2026-07-05T12:00:00+09:00",
+        }
 
 
 def _signup(client: TestClient, *, email: str, nickname: str) -> None:

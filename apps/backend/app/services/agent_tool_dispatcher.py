@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 import secrets
 import time
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
@@ -17,6 +17,17 @@ from app.services.agent_order_tools import (
     lookup_order_status,
     prepare_recent_order_cancel,
 )
+from app.services.agent_commerce_tools import (
+    ADD_TO_CART_TOOL,
+    GET_CART_TOOL,
+    PREPARE_CHECKOUT_TOOL,
+    PREPARE_ORDER_TOOL,
+    add_agent_cart_item,
+    get_agent_cart,
+    prepare_agent_checkout,
+    prepare_agent_order,
+)
+from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
 from app.services.agent_policy import get_tool_policy, validate_tool_access
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
@@ -26,6 +37,8 @@ from app.services.agent_product_tools import (
     find_similar_products,
     refine_product_results,
 )
+from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL, prepare_review_draft
+from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL, prepare_claim_draft
 
 
 class OrderStatusLookupArgs(BaseModel):
@@ -68,12 +81,67 @@ class RefineProductResultsArgs(BaseModel):
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
 
 
+class GetCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AddToCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(..., min_length=1, max_length=128)
+    quantity: int = Field(default=1, ge=1, le=99)
+    recommendation_id: str | None = Field(default=None, max_length=128)
+    recommendation_rank: int | None = Field(default=None, ge=1)
+
+
+class CheckoutArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cart_item_ids: list[int] | None = Field(default=None, max_length=100)
+    address_id: int | None = Field(default=None, ge=1)
+
+
+class ComposeCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    categories: list[str] = Field(..., min_length=1, max_length=4)
+    max_budget: int = Field(..., ge=1_000, le=10_000_000)
+    skin_type: str | None = Field(default=None, max_length=40)
+    sensitivity: str | None = Field(default=None, max_length=40)
+
+
+class PrepareReviewDraftArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_code: str | None = Field(default=None, max_length=40)
+    product_id: str | None = Field(default=None, max_length=128)
+    rating: int = Field(..., ge=1, le=5)
+    review_text: str = Field(..., min_length=1, max_length=2000)
+    is_repurchase_review: bool = False
+
+
+class PrepareClaimDraftArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_code: str | None = Field(default=None, max_length=40)
+    order_item_id: int | None = Field(default=None, ge=1)
+    claim_type: Literal["RETURN", "EXCHANGE", "REFUND"]
+    reason_code: Literal["CHANGE_OF_MIND", "DEFECTIVE", "WRONG_ITEM", "OTHER"]
+    reason_detail: str | None = Field(default=None, max_length=2000)
+
+
 ToolArgs = (
     OrderStatusLookupArgs
     | CancelRecentOrderArgs
     | FindSimilarProductsArgs
     | CompareProductsArgs
     | RefineProductResultsArgs
+    | GetCartArgs
+    | AddToCartArgs
+    | CheckoutArgs
+    | ComposeCartArgs
+    | PrepareReviewDraftArgs
+    | PrepareClaimDraftArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
@@ -81,6 +149,13 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     FIND_SIMILAR_PRODUCTS_TOOL: FindSimilarProductsArgs,
     COMPARE_PRODUCTS_TOOL: CompareProductsArgs,
     REFINE_PRODUCT_RESULTS_TOOL: RefineProductResultsArgs,
+    GET_CART_TOOL: GetCartArgs,
+    ADD_TO_CART_TOOL: AddToCartArgs,
+    PREPARE_CHECKOUT_TOOL: CheckoutArgs,
+    PREPARE_ORDER_TOOL: CheckoutArgs,
+    COMPOSE_CART_TOOL: ComposeCartArgs,
+    PREPARE_REVIEW_DRAFT_TOOL: PrepareReviewDraftArgs,
+    PREPARE_CLAIM_DRAFT_TOOL: PrepareClaimDraftArgs,
 }
 
 
@@ -253,6 +328,96 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             effect_keywords=args.effect_keywords,
+        )
+
+    if tool_name == GET_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        _require_args(arguments, GetCartArgs)
+        return get_agent_cart(session, user, conversation_id=conversation_id)
+
+    if tool_name == ADD_TO_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, AddToCartArgs)
+        return add_agent_cart_item(
+            session,
+            user,
+            conversation_id=conversation_id,
+            product_id=args.product_id,
+            quantity=args.quantity,
+            recommendation_id=args.recommendation_id,
+            recommendation_rank=args.recommendation_rank,
+        )
+
+    if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, CheckoutArgs)
+        if tool_name == PREPARE_CHECKOUT_TOOL:
+            return prepare_agent_checkout(
+                session,
+                user,
+                conversation_id=conversation_id,
+                cart_item_ids=args.cart_item_ids,
+                address_id=args.address_id,
+            )
+        return prepare_agent_order(
+            session,
+            user,
+            conversation_id=conversation_id,
+            cart_item_ids=args.cart_item_ids,
+            address_id=args.address_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+        )
+
+    if tool_name == COMPOSE_CART_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, ComposeCartArgs)
+        return prepare_composed_cart(
+            session,
+            user,
+            conversation_id=conversation_id,
+            categories=args.categories,
+            max_budget=args.max_budget,
+            skin_type=args.skin_type,
+            sensitivity=args.sensitivity,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+        )
+
+    if tool_name == PREPARE_REVIEW_DRAFT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, PrepareReviewDraftArgs)
+        return prepare_review_draft(
+            session,
+            user,
+            conversation_id=conversation_id,
+            order_code=args.order_code,
+            product_id=args.product_id,
+            rating=args.rating,
+            review_text=args.review_text,
+            is_repurchase_review=args.is_repurchase_review,
+        )
+
+    if tool_name == PREPARE_CLAIM_DRAFT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, PrepareClaimDraftArgs)
+        return prepare_claim_draft(
+            session,
+            user,
+            conversation_id=conversation_id,
+            order_code=args.order_code,
+            order_item_id=args.order_item_id,
+            claim_type=args.claim_type,
+            reason_code=args.reason_code,
+            reason_detail=args.reason_detail,
         )
 
     raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")

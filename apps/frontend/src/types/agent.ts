@@ -3,7 +3,14 @@ export type AgentToolName =
   | "cancel_recent_order"
   | "find_similar_products"
   | "compare_products"
-  | "refine_product_results";
+  | "refine_product_results"
+  | "get_cart"
+  | "add_to_cart"
+  | "prepare_checkout"
+  | "prepare_order"
+  | "compose_cart"
+  | "prepare_review_draft"
+  | "prepare_claim_draft";
 
 export type AgentToolCallStatus =
   | "PROPOSED"
@@ -20,7 +27,10 @@ export type AgentUiActionType =
   | "open_modal"
   | "show_products"
   | "show_product_comparison"
-  | "show_order_status";
+  | "show_order_status"
+  | "show_cart"
+  | "show_checkout_preview"
+  | "open_payment";
 
 export type AgentUiTarget =
   | "home"
@@ -34,7 +44,13 @@ export type AgentUiTarget =
   | "similar_products"
   | "refined_products"
   | "product_comparison"
-  | "order_status";
+  | "order_status"
+  | "cart"
+  | "checkout_preview"
+  | "order_create_confirm"
+  | "toss_payment"
+  | "review_write"
+  | "claim_request";
 
 export type AgentContext = {
   page?: string | null;
@@ -46,12 +62,27 @@ export type AgentContext = {
   search_query?: string | null;
   filters?: Record<string, unknown>;
   order_code?: string | null;
+  cart_item_ids?: number[];
+  address_id?: number | null;
 };
 
 export type AgentChatRequest = {
   message: string;
   conversation_id?: string | null;
   context?: AgentContext;
+  recent_messages?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  last_tool_result?: {
+    action_type: AgentUiActionType;
+    target?: string | null;
+    items: Array<{
+      item_type: "product" | "order";
+      id: string;
+      title: string;
+    }>;
+  } | null;
 };
 
 export type AgentUiAction = {

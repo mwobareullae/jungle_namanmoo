@@ -98,7 +98,7 @@ export default function OrderDetail() {
               thumbnail_url: item.thumbnail_url,
               lowest_price: item.lowest_price,
               evidence_tags: item.tags,
-              key_ingredients: [],
+              key_ingredients: item.tags,
               risk_flags: [],
               in_stock: true
             }))
@@ -221,11 +221,14 @@ export default function OrderDetail() {
           <section style={styles.card} aria-labelledby="orderedItemsTitle">
             <div style={styles.cardHeader}>
               <h2 id="orderedItemsTitle" style={styles.cardTitle}>주문 상품</h2>
-              <div style={styles.cardHeaderActions}>
-                <span style={styles.cardCount}>상품 {order.items.length}개</span>
+              <div className="order-detail-order-actions">
+                <span className="order-detail-order-count">상품 {order.items.length}개</span>
                 {order.status === "DELIVERED" ? (
                   <Link className="return-request-order-link" to={`/mypage/orders/${order.order_code}/return-request`}>
-                    반품·교환·환불 신청
+                    <span>반품·교환·환불 신청</span>
+                    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+                      <path d="m6 3 5 5-5 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+                    </svg>
                   </Link>
                 ) : null}
               </div>
@@ -268,8 +271,11 @@ export default function OrderDetail() {
         {recommendedProducts.length > 0 ? (
           <section className="order-detail-recommendations" aria-labelledby="orderRecommendationsTitle" style={styles.recommendationCard}>
             <div style={styles.cardHeader}>
-              <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
-              <span style={styles.cardCount}>맞춤 추천</span>
+              <div className="order-detail-recommendations__heading">
+                <span className="order-detail-recommendations__eyebrow">FOR YOU</span>
+                <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
+              </div>
+              <span className="order-detail-recommendations__badge">피부 프로필 맞춤</span>
             </div>
             <div className="product-grid order-detail-recommendations__grid">
               {recommendedProducts.slice(0, 4).map((product) => (

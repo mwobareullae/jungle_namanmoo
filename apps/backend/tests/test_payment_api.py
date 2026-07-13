@@ -51,6 +51,7 @@ def client(db_engine: Engine) -> Generator[TestClient, None, None]:
         yield test_client
     app.dependency_overrides.clear()
 
+@pytest.mark.skip(reason="legacy mock payment behavior is disabled")
 def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     client: TestClient,
     db_engine: Engine,
@@ -125,6 +126,7 @@ def test_mock_confirm_approves_payment_and_converts_reserved_stock(
     assert started_logs[0].metadata_json["payment_status"] == "READY"
 
 
+@pytest.mark.skip(reason="legacy mock payment behavior is disabled")
 def test_mock_confirm_is_idempotent_and_does_not_deduct_stock_twice(
     client: TestClient,
     db_engine: Engine,
@@ -158,6 +160,7 @@ def test_mock_confirm_is_idempotent_and_does_not_deduct_stock_twice(
     assert len(event_logs) == 1
 
 
+@pytest.mark.skip(reason="legacy mock payment behavior is disabled")
 def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
     client: TestClient,
     db_engine: Engine,
@@ -217,6 +220,7 @@ def test_mock_fail_marks_payment_failed_and_releases_reserved_stock(
     assert event_logs[0].metadata_json["payment_status"] == "FAILED"
 
 
+@pytest.mark.skip(reason="legacy mock payment behavior is disabled")
 def test_mock_payment_ownership_is_enforced(
     client: TestClient,
     db_engine: Engine,
@@ -262,8 +266,8 @@ def test_mock_payment_endpoint_rejects_toss_payment(
 
     response = client.post(f"/api/payments/{pending['payment_code']}/mock/{endpoint}")
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "PAYMENT_PROVIDER_MISMATCH"
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "MOCK_PAYMENT_DISABLED"
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
@@ -427,6 +431,7 @@ def test_toss_confirm_rejects_amount_mismatch_before_provider_call(
     assert "payment_key" not in failed_logs[0].metadata_json
 
 
+@pytest.mark.skip(reason="mock orders can no longer be created through the API")
 def test_toss_confirm_rejects_mock_payment_before_provider_call(
     client: TestClient,
     db_engine: Engine,
@@ -835,7 +840,7 @@ def _create_pending_order(
     email: str,
     nickname: str,
     quantity: int,
-    payment_provider: str = "MOCK",
+    payment_provider: str = "TOSS",
 ) -> dict:
     _signup(client, email=email, nickname=nickname)
     _set_inventory(db_engine, "prod_001", stock_quantity=10)

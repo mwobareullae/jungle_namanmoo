@@ -1,6 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
+import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
+import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
+import { getProductImageUrl } from "../lib/imageUrls";
+import { getOrderDetail } from "../lib/orderApi";
+import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
   useProductComparison,
   type ProductComparisonCandidatePreview,
@@ -19,9 +24,28 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
+  quickQuestionContext?: QuickQuestionContext;
+  skinProfile?: {
+    avoidIngredients?: string[];
+    sensitivity: string;
+    skin: string;
+  };
   skinProfileStatus?: "empty" | "saved" | "temporary";
   surface?: "home" | "productDetail" | "context" | "minimal";
 };
+
+type QuickQuestionContext =
+  | "auth"
+  | "cart"
+  | "checkout"
+  | "home"
+  | "mypage"
+  | "order"
+  | "productDetail"
+  | "productList"
+  | "recent"
+  | "skinProfile"
+  | "wishlist";
 
 type AgentChatBaseMessage = {
   createdAt?: number;
@@ -70,6 +94,7 @@ type AgentChatErrorMessage = AgentChatBaseMessage & {
 
 type AgentChatResultItem = {
   id: string;
+  imageUrl?: string | null;
   itemType: "order" | "product";
   price?: number | null;
   subtitle?: string | null;
@@ -94,6 +119,7 @@ type AgentChatMessage =
   | AgentChatTextMessage;
 
 type AgentChatView = "home" | "thread";
+type AgentAnswerReaction = "like" | "dislike";
 
 type AgentChatThreadSummary = {
   conversationId: string | null;
@@ -108,20 +134,82 @@ const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
 const AGENT_CHAT_THREADS_KEY = "mwobareullae-agent-chat-threads-v1";
 const MAX_AGENT_CHAT_THREADS = 5;
 const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
+const MAX_AGENT_CONTEXT_MESSAGES = 8;
+const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 
-const homeQuickQuestions = [
-  "이 성분, 내 피부에 맞을까?",
-  "이번 주 예산 3만원 루틴 짜줘",
-  "지금 쓰는 제품과 같이 써도 될까?",
-];
+const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
+  auth: [
+    "로그인하면 장바구니와 주문을 어떻게 이어서 볼 수 있어?",
+    "로그인 후 내 피부 타입으로 맞춤 루틴을 만들고 싶어",
+    "비회원으로 이용할 수 있는 기능을 알려줘",
+  ],
+  cart: [
+    "현재 장바구니 상품으로 주문서 열어줘",
+    "내 피부에 맞는 토너와 크림을 10만원 안으로 추가해줘",
+    "장바구니 상품과 총금액 다시 보여줘",
+  ],
+  checkout: [
+    "이 주문서 내용으로 주문 생성해줘",
+    "이 주문서로 결제 진행해줘",
+    "결제 예정 금액과 배송지를 다시 확인해줘",
+  ],
+  home: [
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
+    "최근 주문 배송 상태 알려줘",
+    "장바구니에 담긴 상품과 총금액 보여줘",
+  ],
+  mypage: [
+    "최근 주문 배송 상태 보여줘",
+    "내 피부 타입에 맞는 토너와 크림을 10만원 이내로 구성해줘",
+    "내 장바구니 상품과 총금액 보여줘",
+  ],
+  order: [
+    "현재 주문 상태와 상품을 보여줘",
+    "현재 주문을 취소해줘",
+    "최근 주문 배송 상태를 보여줘",
+  ],
+  productDetail: [
+    "이 상품과 비슷한 상품 2개 보여줘",
+    "이 상품을 장바구니에 담아줘",
+    "이 상품과 비슷한 상품을 비교해줘",
+  ],
+  productList: [
+    "화면에 보이는 첫 두 상품을 비교해줘",
+    "화면 상품 중 5만원 이하만 보여줘",
+    "화면 상품을 내 피부 타입 기준으로 추려줘",
+  ],
+  recent: [
+    "최근 본 첫 두 상품을 비교해줘",
+    "최근 본 상품 중 5만원 이하만 보여줘",
+    "최근 본 상품을 내 피부 타입 기준으로 추려줘",
+  ],
+  skinProfile: [
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 세럼과 크림을 7만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너와 세럼을 6만원 이내로 구성해줘",
+  ],
+  wishlist: [
+    "찜한 첫 두 상품을 비교해줘",
+    "찜한 상품 중 5만원 이하만 보여줘",
+    "찜한 상품을 내 피부 타입 기준으로 추려줘",
+  ],
+};
 
-const productQuickQuestions = [
-  "이거랑 비슷한 상품 보여줘",
-  "이 성분, 내 피부에 맞을까?",
-  "비슷한 상품끼리 비교해줘",
-];
+const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
+  auth: ["로그인하면 이어지는 기능은?", "로그인 후 맞춤 루틴 만들기"],
+  cart: ["이 장바구니로 주문서 열어줘", "10만원 맞춤 상품 추가해줘"],
+  checkout: ["이 주문서로 주문 생성해줘", "결제 진행해줘"],
+  home: ["10만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
+  mypage: ["최근 주문 배송 보여줘", "10만원 맞춤 루틴 구성해줘"],
+  order: ["현재 주문 상태 보여줘", "현재 주문 취소해줘"],
+  productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
+  productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
+  recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
+  skinProfile: ["10만원 맞춤 루틴 구성해줘", "7만원 세럼·크림 구성해줘"],
+  wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
+};
 
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
@@ -135,12 +223,37 @@ const activeStatusSteps: AgentStatusStep[] = [
   { label: "추천 결과 정리", status: "todo" },
 ];
 
-function createStatusMessage(id: string, isActive = false): AgentChatStatusMessage {
+function getCommerceStatusSteps(message: string, isActive: boolean): { steps: AgentStatusStep[]; title: string } | null {
+  if (/장바구니.*(담|추가)|(담|추가).*장바구니/.test(message)) {
+    return {
+      title: isActive ? "상품을 장바구니에 담고 있어요" : "장바구니에 반영했어요",
+      steps: [
+        { label: "상품 확인", status: "done" },
+        { label: "재고·가격 확인", status: isActive ? "active" : "done" },
+        { label: "장바구니 화면 반영", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
+  if (/주문|결제|체크아웃/.test(message)) {
+    return {
+      title: isActive ? "주문 내용을 준비하고 있어요" : "주문 준비를 마쳤어요",
+      steps: [
+        { label: "장바구니 확인", status: "done" },
+        { label: "배송지·재고 확인", status: isActive ? "active" : "done" },
+        { label: "결제 금액 계산", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
+  return null;
+}
+
+function createStatusMessage(id: string, isActive = false, message = ""): AgentChatStatusMessage {
+  const commerceStatus = getCommerceStatusSteps(message, isActive);
   return {
     id,
     kind: "status",
-    steps: isActive ? activeStatusSteps : completedStatusSteps,
-    title: isActive ? "상품 정보를 확인하고 있어요" : "추천 근거를 확인했어요",
+    steps: commerceStatus?.steps ?? (isActive ? activeStatusSteps : completedStatusSteps),
+    title: commerceStatus?.title ?? (isActive ? "상품 정보를 확인하고 있어요" : "추천 근거를 확인했어요"),
   };
 }
 
@@ -344,6 +457,29 @@ const createThreadTitleFromMessages = (messages: AgentChatMessage[]) => {
   return firstUserMessage ? createThreadTitle(firstUserMessage.content) : "새 대화";
 };
 
+const buildRecentMessages = (messages: AgentChatMessage[]) =>
+  messages
+    .filter((message): message is AgentChatTextMessage => message.kind === "chat")
+    .slice(-MAX_AGENT_CONTEXT_MESSAGES)
+    .map((message) => ({ role: message.role, content: message.content.slice(0, 2000) }));
+
+const buildLastToolResult = (messages: AgentChatMessage[]) => {
+  const result = [...messages].reverse().find(
+    (message): message is AgentChatResultMessage => message.kind === "result",
+  );
+  if (!result) return null;
+
+  return {
+    action_type: result.actionType,
+    target: result.actionTarget ?? null,
+    items: result.items.slice(0, MAX_AGENT_CONTEXT_RESULT_ITEMS).map((item) => ({
+      item_type: item.itemType,
+      id: item.id,
+      title: item.title,
+    })),
+  };
+};
+
 const normalizeStoredThread = (thread: unknown): AgentChatThreadSummary | null => {
   if (!isRecord(thread)) {
     return null;
@@ -450,7 +586,7 @@ const resolveAgentPage = (pathname: string) => {
   return "home";
 };
 
-function buildAgentContext(): AgentContext {
+function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]): AgentContext {
   if (typeof window === "undefined") {
     return {};
   }
@@ -466,8 +602,9 @@ function buildAgentContext(): AgentContext {
   const pageSize = readNumber(params.get("page_size"));
   const page = readNumber(params.get("page"));
 
-  if (skinType) filters.skin_type = skinType;
-  if (sensitivity) filters.sensitivity = sensitivity;
+  if (skinType || skinProfile?.skin) filters.skin_type = skinType ?? skinProfile?.skin;
+  if (sensitivity || skinProfile?.sensitivity) filters.sensitivity = sensitivity ?? skinProfile?.sensitivity;
+  if (skinProfile?.avoidIngredients?.length) filters.avoid_ingredients = skinProfile.avoidIngredients;
   if (pageSize) filters.page_size = pageSize;
   if (page) filters.page = page;
 
@@ -491,6 +628,24 @@ const getApprovalCopy = (toolName?: AgentToolName | null) => {
       description: "주문 상태를 바꾸는 작업이라 한 번 더 확인이 필요해요.",
       rejectLabel: "취소 안 함",
       title: "주문 취소를 진행할까요?",
+    };
+  }
+
+  if (toolName === "prepare_order") {
+    return {
+      approveLabel: "주문 생성",
+      description: "최신 가격과 재고를 다시 확인한 뒤 Toss 주문을 만들어요.",
+      rejectLabel: "나중에",
+      title: "이 내용으로 주문할까요?",
+    };
+  }
+
+  if (toolName === "compose_cart") {
+    return {
+      approveLabel: "장바구니 반영",
+      description: "선택한 상품들을 실제 장바구니에 추가하기 전에 확인이 필요해요.",
+      rejectLabel: "구성만 보기",
+      title: "이 구성으로 장바구니에 담을까요?",
     };
   }
 
@@ -572,6 +727,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     return null;
   }
 
+  if (response.error.code === "AGENT_AUTH_REQUIRED") {
+    return createAgentErrorMessage(id, "로그인이 필요해요", response.error.message, {
+      action: "login",
+      actionLabel: "로그인하기",
+      tone: "info",
+    });
+  }
+
   return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
     retryMessage,
     tone: response.error.retryable ? "amber" : "info",
@@ -583,6 +746,7 @@ const formatAgentPrice = (price?: number | null) =>
 
 const mapAgentItem = (item: AgentResponseItem): AgentChatResultItem => ({
   id: item.id,
+  imageUrl: getProductImageUrl(item.image_storage_key, "w400") || null,
   itemType: item.item_type,
   price: item.price ?? null,
   subtitle: item.subtitle ?? null,
@@ -605,11 +769,39 @@ const mapPayloadProduct = (item: unknown): AgentChatResultItem | null => {
 
   return {
     id,
+    imageUrl: getProductImageUrl(readString(item.thumbnail_url) ?? readString(item.image_storage_key), "w400") || null,
     itemType: "product",
     price: readNumber(item.price) ?? readNumber(item.lowest_price),
     subtitle: uniqueNonEmpty([brand, stockStatus]).join(" · ") || null,
     title: name,
   };
+};
+
+const mapCartPayload = (action: AgentUiAction): AgentChatResultItem[] => {
+  if (action.type !== "show_cart" || !Array.isArray(action.payload.items)) return [];
+
+  const currentProductId = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("id");
+  const cartItems = action.payload.items.flatMap((item) => {
+    if (!isRecord(item) || !isRecord(item.product)) return [];
+    const productId = readString(item.product_id) ?? readString(item.product.id);
+    const title = readString(item.product.name);
+    if (!productId || !title) return [];
+    const quantity = readNumber(item.quantity);
+    const brand = readString(item.product.brand);
+    return [{
+      id: productId,
+      imageUrl: getProductImageUrl(readString(item.product.thumbnail_url), "w400") || null,
+      itemType: "product" as const,
+      price: readNumber(item.line_subtotal),
+      subtitle: uniqueNonEmpty([brand, quantity ? `${quantity}개` : null]).join(" · ") || null,
+      title,
+    }];
+  });
+
+  const currentItem = currentProductId ? cartItems.find((item) => item.id === currentProductId) : null;
+  return currentItem ? [currentItem] : cartItems;
 };
 
 const mapOrderPayload = (action: AgentUiAction): AgentChatResultItem | null => {
@@ -635,6 +827,7 @@ const getResultTitle = (action: AgentUiAction) => {
   if (action.target === "similar_products") return "비슷한 상품";
   if (action.target === "refined_products") return "조건에 맞는 상품";
   if (action.type === "show_products") return "상품 결과";
+  if (action.target === "agent_confirmation") return "추천 장바구니 구성";
   return "처리 결과";
 };
 
@@ -830,19 +1023,18 @@ function createResultMessage(
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
 ): AgentChatResultMessage | null {
-  if (isSimilarProductsAction(action)) {
-    return null;
-  }
-
   const productPayload = Array.isArray(action.payload.products)
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
     : [];
   const orderPayload = action.type === "show_order_status" ? mapOrderPayload(action) : null;
+  const cartPayload = mapCartPayload(action);
   const resultItems = items.length > 0
     ? items.map(mapAgentItem)
     : orderPayload
       ? [orderPayload]
-      : productPayload;
+      : cartPayload.length > 0
+        ? cartPayload
+        : productPayload;
 
   if (action.type === "noop" && resultItems.length === 0) {
     return null;
@@ -855,7 +1047,7 @@ function createResultMessage(
     id,
     actionTarget: action.target ?? null,
     actionType: action.type,
-    actionUrl: buildProductsResultUrl(action),
+    actionUrl: action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action),
     description: emptyProducts
       ? "조건에 맞는 상품을 찾지 못했어요."
       : resultItems.length > 0
@@ -866,6 +1058,21 @@ function createResultMessage(
     title,
   };
 }
+
+const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[]) => {
+  if (action.type === "noop") return null;
+  const resultMessage = createResultMessage("context-only", action, items);
+  const contextItems = resultMessage?.items ?? items.map(mapAgentItem);
+  return {
+    action_type: action.type,
+    target: action.target ?? null,
+    items: contextItems.slice(0, MAX_AGENT_CONTEXT_RESULT_ITEMS).map((item) => ({
+      item_type: item.itemType,
+      id: item.id,
+      title: item.title,
+    })),
+  };
+};
 
 function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
   const nextMessages: AgentChatMessage[] = [];
@@ -919,6 +1126,14 @@ function createMessagesFromConfirmResponse(response: AgentToolConfirmResponse, t
 }
 
 const resolveNavigateUrl = (action: AgentUiAction) => {
+  if (action.type === "open_payment" && action.target === "toss_payment") {
+    const orderCode = readString(action.payload.order_code);
+    const amount = readNumber(action.payload.amount);
+    if (!orderCode || !amount) return null;
+    const params = new URLSearchParams({ agent_order_code: orderCode, agent_amount: String(amount) });
+    return `/checkout?${params.toString()}`;
+  }
+
   if (action.type !== "navigate") {
     return null;
   }
@@ -926,6 +1141,16 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   if (action.target === "home") return "/";
   if (action.target === "login") return "/login";
   if (action.target === "checkout") return "/checkout";
+  if (action.target === "review_write") {
+    const orderCode = readString(action.payload.order_code);
+    const params = new URLSearchParams({ agent_draft: "1" });
+    if (orderCode) params.set("order_code", orderCode);
+    return `/mypage/reviews?${params.toString()}`;
+  }
+  if (action.target === "claim_request") {
+    const orderCode = readString(action.payload.order_code);
+    return orderCode ? `/mypage/orders/${encodeURIComponent(orderCode)}/return-request?agent_draft=1` : null;
+  }
   if (action.target === "product_detail") {
     const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
     return productId ? `/product-detail?id=${encodeURIComponent(productId)}` : null;
@@ -938,17 +1163,83 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   return null;
 };
 
-const applyAgentUiAction = (
+const findVisibleAgentTarget = (selector: string) => Array.from(document.querySelectorAll<HTMLElement>(selector))
+  .find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }) ?? null;
+
+const renderInlineMarkdown = (content: string) => content
+  .split(/(\*\*[^*]+\*\*)/g)
+  .filter(Boolean)
+  .map((part, index) => (
+    part.startsWith("**") && part.endsWith("**")
+      ? <strong key={`${index}-${part}`}>{part.slice(2, -2)}</strong>
+      : part
+  ));
+
+const resolveAgentInteractionTarget = (action: AgentUiAction) => {
+  if (typeof document === "undefined") return null;
+  if (action.type === "show_cart") return findVisibleAgentTarget("[data-agent-cart-target]");
+  if (action.type === "show_checkout_preview") {
+    return findVisibleAgentTarget("[data-agent-cart-navigation-target]");
+  }
+  if (action.type !== "navigate") return null;
+
+  if (action.target === "home") return findVisibleAgentTarget("[data-agent-home-target]");
+  if (action.target === "login") return findVisibleAgentTarget("[data-agent-login-target]");
+  if (action.target === "checkout") return findVisibleAgentTarget("[data-agent-checkout-target]");
+  if (action.target === "product_detail") {
+    const productId = readString(action.payload.product_id) ?? readString(action.payload.id);
+    return productId
+      ? findVisibleAgentTarget(`[data-agent-product-id="${CSS.escape(productId)}"]`)
+      : null;
+  }
+  return null;
+};
+
+const applyAgentUiAction = async (
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
   message = "",
   currentProductId: string | null,
   openComparison: (intent: ProductComparisonIntent) => void,
 ) => {
+  const interactionTarget = resolveAgentInteractionTarget(action);
+  await playAgentClickInteraction(interactionTarget);
+
+  if (action.type === "show_cart" && typeof window !== "undefined") {
+    const currentProductId = new URLSearchParams(window.location.search).get("id");
+    window.dispatchEvent(new CustomEvent(AGENT_SHOW_CART_EVENT, {
+      detail: { cart: action.payload, highlightProductId: currentProductId },
+    }));
+    return;
+  }
+
+  if (action.type === "show_checkout_preview" && typeof window !== "undefined") {
+    const rawItems = Array.isArray(action.payload.items) ? action.payload.items : [];
+    const cartItemIds = rawItems.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const id = (item as Record<string, unknown>).id;
+      return typeof id === "number" && Number.isInteger(id) ? [id] : [];
+    });
+    const params = new URLSearchParams({ agent_checkout: "1" });
+    cartItemIds.forEach((id) => params.append("cart_item_ids", String(id)));
+    await navigateWithinApp(`/cart?${params.toString()}`);
+    return;
+  }
+
   const comparisonIntent = createComparisonIntent(action, items, message, currentProductId);
   if (comparisonIntent) {
     openComparison(comparisonIntent);
     return;
+  }
+
+  if (action.type === "navigate" && action.target === "review_write") {
+    storeAgentReviewDraft(action.payload);
+  }
+  if (action.type === "navigate" && action.target === "claim_request") {
+    storeAgentClaimDraft(action.payload);
   }
 
   const url = resolveNavigateUrl(action);
@@ -961,8 +1252,17 @@ const applyAgentUiAction = (
   });
 };
 
+const setAgentCartTargetBusy = (active: boolean) => {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll<HTMLElement>("[data-agent-cart-target]").forEach((element) => {
+    element.classList.toggle("is-agent-running", active);
+  });
+};
+
 function AgentFloatingButton({
   isAgentResponding = false,
+  quickQuestionContext = "home",
+  skinProfile,
   skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
@@ -971,26 +1271,38 @@ function AgentFloatingButton({
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
   const [isChatMounted, setIsChatMounted] = useState(false);
-  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home" && surface !== "minimal");
+  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
+  const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(readStoredMessages()));
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatPopupRef = useRef<HTMLElement | null>(null);
+  const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const teaserRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const teaserTimerRef = useRef<number | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
   const teaserVisibilityFrameRef = useRef<number | null>(null);
   const hasDismissedTeaserRef = useRef(false);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
-    () => (surface === "productDetail" ? productQuickQuestions : homeQuickQuestions),
-    [surface],
+    () => quickQuestionsByContext[quickQuestionContext],
+    [quickQuestionContext],
+  );
+  const miniChatQuestions = useMemo(
+    () => quickQuestions.slice(0, 2).map((prompt, index) => ({
+      label: miniChatLabelsByContext[quickQuestionContext][index],
+      prompt,
+    })),
+    [quickQuestionContext, quickQuestions],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
@@ -1035,63 +1347,13 @@ function AgentFloatingButton({
     void sendMessage(question);
   };
 
-  const hasContentBehindTeaser = () => {
-    const teaser = teaserRef.current;
-    if (!teaser || typeof window === "undefined") {
-      return false;
-    }
-
-    const rect = teaser.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return false;
-    }
-
-    const points = [
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.2],
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.5],
-      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.8],
-    ];
-    const previousVisibility = teaser.style.visibility;
-    teaser.style.visibility = "hidden";
-
-    try {
-      return points.some(([x, y]) => {
-        const elements = document.elementsFromPoint(x, y);
-        return elements.some((element) => {
-          if (element === document.body || element === document.documentElement) {
-            return false;
-          }
-
-          const agentElement = element.closest(".agent-floating-entry");
-          if (agentElement || element.closest("[aria-hidden=\"true\"]")) {
-            return false;
-          }
-
-          const tagName = element.tagName.toLowerCase();
-          if (["img", "picture", "video", "canvas", "svg"].includes(tagName)) {
-            return true;
-          }
-
-          if (element.children.length === 0 && element.textContent?.trim()) {
-            const style = window.getComputedStyle(element);
-            return style.display !== "none" && style.visibility !== "hidden";
-          }
-
-          return false;
-        });
-      });
-    } finally {
-      teaser.style.visibility = previousVisibility;
-    }
-  };
-
   const updateTeaserVisibility = () => {
-    if (isOpen || surface === "minimal" || hasDismissedTeaserRef.current) {
+    if (isOpen || hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return;
     }
 
-    setIsTeaserVisible(!hasContentBehindTeaser());
+    setIsTeaserVisible(true);
   };
 
   const scheduleTeaserVisibilityCheck = () => {
@@ -1109,10 +1371,10 @@ function AgentFloatingButton({
     if (previousSurfaceRef.current !== surface) {
       previousSurfaceRef.current = surface;
       hasDismissedTeaserRef.current = false;
-      setIsTeaserVisible(surface !== "home" && surface !== "minimal");
+      setIsTeaserVisible(surface !== "home");
     }
 
-    if (surface === "minimal" || hasDismissedTeaserRef.current) {
+    if (hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return undefined;
     }
@@ -1188,14 +1450,20 @@ function AgentFloatingButton({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen]);
 
+  useEffect(() => () => {
+    if (copyFeedbackTimerRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!isOpen || typeof window === "undefined") {
+    if (!isOpen || isSubmitting || typeof window === "undefined") {
       return undefined;
     }
 
     const animationFrame = window.requestAnimationFrame(() => chatInputRef.current?.focus());
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [isOpen]);
+  }, [isOpen, isSubmitting]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1247,11 +1515,16 @@ function AgentFloatingButton({
     }
 
     const animationFrame = window.requestAnimationFrame(() => {
-      threadEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      const chatBody = chatBodyRef.current;
+      if (chatBody) {
+        chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "auto" });
+      } else {
+        threadEndRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+      }
     });
 
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [isOpen, isThreadView, messages]);
+  }, [isOpen, isSubmitting, isThreadView, messages]);
 
   const appendMessages = (nextMessages: AgentChatMessage[]) => {
     setMessages((currentMessages) => [...currentMessages, ...nextMessages].slice(-MAX_STORED_AGENT_MESSAGES));
@@ -1262,7 +1535,28 @@ function AgentFloatingButton({
     setCurrentThreadId(thread.id);
     setConversationId(thread.conversationId);
     setMessages(thread.messages);
+    setLastToolResultContext(buildLastToolResult(thread.messages));
     setActiveView("thread");
+  };
+
+  const resetDeletedCurrentThread = (threadIds: Set<string>) => {
+    if (!currentThreadId || !threadIds.has(currentThreadId)) return;
+    setCurrentThreadId(null);
+    setConversationId(null);
+    setMessages([]);
+    setLastToolResultContext(null);
+    setActiveView("home");
+  };
+
+  const deleteChatThread = (threadId: string) => {
+    setChatThreads((currentThreads) => currentThreads.filter((thread) => thread.id !== threadId));
+    resetDeletedCurrentThread(new Set([threadId]));
+  };
+
+  const deleteAllChatThreads = () => {
+    const threadIds = new Set(chatThreads.map((thread) => thread.id));
+    setChatThreads([]);
+    resetDeletedCurrentThread(threadIds);
   };
 
   const sendMessage = async (message: string) => {
@@ -1276,6 +1570,8 @@ function AgentFloatingButton({
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = activeView === "home";
     const requestConversationId = shouldStartNewThread ? null : conversationId;
+    const recentMessages = shouldStartNewThread ? [] : buildRecentMessages(messages);
+    const lastToolResult = shouldStartNewThread ? null : lastToolResultContext ?? buildLastToolResult(messages);
     const nextThreadId = shouldStartNewThread || !currentThreadId ? `thread-${timestamp}` : currentThreadId;
     const userMessage: AgentChatTextMessage = {
       id: `user-${timestamp}`,
@@ -1288,25 +1584,33 @@ function AgentFloatingButton({
     if (shouldStartNewThread) {
       setCurrentThreadId(nextThreadId);
       setConversationId(null);
-      setMessages([userMessage, createStatusMessage(statusId, true)]);
+      setLastToolResultContext(null);
+      setMessages([userMessage, createStatusMessage(statusId, true, nextMessage)]);
       setActiveView("thread");
     } else {
       if (!currentThreadId) {
         setCurrentThreadId(nextThreadId);
       }
-      appendMessages([userMessage, createStatusMessage(statusId, true)]);
+      appendMessages([userMessage, createStatusMessage(statusId, true, nextMessage)]);
     }
     setDraft("");
     setIsSubmitting(true);
+    const isCartAddRequest = Boolean(getCommerceStatusSteps(nextMessage, true))
+      && /장바구니.*(담|추가)|(담|추가).*장바구니/.test(nextMessage);
+    if (isCartAddRequest) setAgentCartTargetBusy(true);
 
     try {
       const response = await api.sendAgentMessage({
-        context: buildAgentContext(),
+        context: buildAgentContext(skinProfile),
         conversation_id: requestConversationId,
+        last_tool_result: lastToolResult,
         message: nextMessage,
+        recent_messages: recentMessages,
       });
       const responseTimestamp = Date.now();
       setConversationId(response.conversation_id);
+      const nextToolResultContext = buildToolResultContext(response.ui_action, response.items);
+      if (nextToolResultContext) setLastToolResultContext(nextToolResultContext);
       const isRecommendationResponse = response.ui_action.type === "show_products"
         || response.ui_action.type === "show_product_comparison"
         || response.items.some((item) => item.item_type === "product");
@@ -1314,19 +1618,31 @@ function AgentFloatingButton({
         [
           ...currentMessages.flatMap((currentMessage) =>
             currentMessage.id === statusId
-              ? (isRecommendationResponse ? [createStatusMessage(statusId)] : [])
+              ? (isRecommendationResponse || getCommerceStatusSteps(nextMessage, false) ? [createStatusMessage(statusId, false, nextMessage)] : [])
               : [currentMessage],
           ),
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(
-        response.ui_action,
-        response.items,
-        response.message,
-        buildAgentContext().current_product_id ?? null,
-        openComparison,
-      );
+      if (response.ui_action.type === "show_checkout_preview") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
+      if (response.tool_name === "get_cart") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+        const cartTarget = findVisibleAgentTarget("[data-agent-cart-navigation-target]");
+        await playAgentClickInteraction(cartTarget);
+        await navigateWithinApp("/cart");
+      } else {
+        await applyAgentUiAction(
+          response.ui_action,
+          response.items,
+          response.message,
+          buildAgentContext().current_product_id ?? null,
+          openComparison,
+        );
+      }
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1335,6 +1651,7 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
     } finally {
+      if (isCartAddRequest) setAgentCartTargetBusy(false);
       setIsSubmitting(false);
     }
   };
@@ -1375,7 +1692,18 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
-      applyAgentUiAction(response.ui_action, [], "", buildAgentContext().current_product_id ?? null, openComparison);
+      await applyAgentUiAction(
+        response.ui_action,
+        [],
+        "",
+        buildAgentContext().current_product_id ?? null,
+        openComparison,
+      );
+      const orderCode = readString(response.ui_action.payload.order_code);
+      const orderStatus = readString(response.ui_action.payload.status);
+      if (action === "confirm" && approvalMessage.toolName === "cancel_recent_order" && orderCode && orderStatus === "CANCEL_REQUESTED") {
+        void pollCanceledOrder(orderCode);
+      }
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1388,6 +1716,42 @@ function AgentFloatingButton({
     }
   };
 
+  const pollCanceledOrder = async (orderCode: string) => {
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      try {
+        const order = await getOrderDetail(orderCode);
+        if (order.status === "CANCEL_REQUESTED") continue;
+        if (order.status !== "CANCELED") return;
+
+        const timestamp = Date.now();
+        setMessages((currentMessages) => [
+          ...currentMessages.map((message) =>
+            message.kind === "result"
+              ? {
+                  ...message,
+                  items: message.items.map((item) =>
+                    item.itemType === "order" && item.id === orderCode ? { ...item, subtitle: "CANCELED" } : item,
+                  ),
+                }
+              : message,
+          ),
+          createAssistantMessage(`assistant-canceled-${timestamp}`, "주문 취소가 완료됐어요."),
+        ].slice(-MAX_STORED_AGENT_MESSAGES));
+        await waitForAgentInteraction(700);
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+        const orderDetailUrl = `/mypage/orders/${encodeURIComponent(orderCode)}`;
+        const orderDetailTarget = findVisibleAgentTarget(`a[href="${orderDetailUrl}"]`);
+        await playAgentClickInteraction(orderDetailTarget);
+        await navigateWithinApp(orderDetailUrl);
+        return;
+      } catch {
+        // A transient lookup failure is retried within the bounded polling window.
+      }
+    }
+  };
+
   const handleRetry = (retryMessage?: string) => {
     const nextRetryMessage = retryMessage || lastSentMessage;
     if (nextRetryMessage) {
@@ -1395,13 +1759,57 @@ function AgentFloatingButton({
     }
   };
 
-  const handleRegenerate = () => {
-    handleRetry(lastSentMessage);
+  const getMessagePrompt = (messageId: string) => {
+    const messageIndex = messages.findIndex((message) => message.id === messageId);
+    if (messageIndex < 0) return lastSentMessage;
+
+    for (let index = messageIndex - 1; index >= 0; index -= 1) {
+      const previousMessage = messages[index];
+      if (previousMessage.kind === "chat" && previousMessage.role === "user") {
+        return previousMessage.content;
+      }
+    }
+
+    return lastSentMessage;
   };
 
-  const handleCopyAnswer = (content: string) => {
-    if (typeof window !== "undefined" && window.navigator.clipboard) {
-      window.navigator.clipboard.writeText(content).catch(() => undefined);
+  const handleRegenerate = (messageId: string) => {
+    handleRetry(getMessagePrompt(messageId));
+  };
+
+  const handleCopyAnswer = async (messageId: string, content: string) => {
+    let copied = false;
+
+    if (typeof window !== "undefined" && window.navigator.clipboard?.writeText) {
+      try {
+        await window.navigator.clipboard.writeText(content);
+        copied = true;
+      } catch {
+        // Clipboard permission can be unavailable, so the DOM fallback runs below.
+      }
+    }
+
+    if (!copied && typeof document !== "undefined" && typeof document.execCommand === "function") {
+      const textarea = document.createElement("textarea");
+      textarea.value = content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      copied = document.execCommand("copy");
+      textarea.remove();
+    }
+
+    if (copied) {
+      setCopiedMessageId(messageId);
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+      copyFeedbackTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageId(null);
+        copyFeedbackTimerRef.current = null;
+      }, 1600);
     }
   };
 
@@ -1453,7 +1861,15 @@ function AgentFloatingButton({
             {message.rejectLabel}
           </button>
         </div>
-        {message.resolved ? <span className="agent-chat-approval-state">{message.resolved === "approved" ? "승인됨" : "취소됨"}</span> : null}
+        {message.resolved ? (
+          <span className="agent-chat-approval-state">
+            {message.resolved === "approved"
+              ? message.toolName === "cancel_recent_order"
+                ? "취소 처리 중"
+                : message.toolName === "compose_cart" ? "반영됨" : "승인됨"
+              : message.toolName === "compose_cart" ? "반영 안 함" : "취소 안 함"}
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -1521,6 +1937,7 @@ function AgentFloatingButton({
                   onClick={() => openResultItem(item)}
                   type="button"
                 >
+                  {item.imageUrl ? <img alt="" src={item.imageUrl} /> : null}
                   <span>
                     <strong>{item.title}</strong>
                     {item.subtitle ? <small>{item.subtitle}</small> : null}
@@ -1540,6 +1957,15 @@ function AgentFloatingButton({
             전체 보기
           </button>
         ) : null}
+        {message.actionType === "show_cart" && message.actionUrl ? (
+          <button
+            className="agent-chat-result-more"
+            onClick={() => openResultAction(message.actionUrl)}
+            type="button"
+          >
+            장바구니 보기
+          </button>
+        ) : null}
       </div>
     );
   };
@@ -1548,22 +1974,51 @@ function AgentFloatingButton({
     <div className={`agent-chat-message-group ${message.role}`} key={message.id}>
       <div className={`agent-chat-message-line ${message.role}`}>
         {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" /> : null}
-        <div className={`agent-chat-message ${message.role}`}>{message.content}</div>
+        <div className={`agent-chat-message ${message.role}`}>
+          {message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content}
+        </div>
       </div>
       {message.role === "assistant" && message.showActions ? (
         <>
           <div className="agent-chat-actions" aria-label="답변 액션">
-            <button aria-label="좋아요" className="agent-chat-actions__button--like" type="button">
+            <button
+              aria-label="좋아요"
+              aria-pressed={answerReactions[message.id] === "like"}
+              className={`agent-chat-actions__button--like${answerReactions[message.id] === "like" ? " is-liked" : ""}`}
+              onClick={() => setAnswerReactions((current) => ({
+                ...current,
+                [message.id]: current[message.id] === "like" ? undefined : "like",
+              }))}
+              type="button"
+            >
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 14v13H6V14h4Zm0 13h11.1a3 3 0 0 0 2.92-2.3l1.35-5.76A3 3 0 0 0 22.45 15H18l.66-4.62A3 3 0 0 0 15.7 7L10 14v13Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="별로예요" className="agent-chat-actions__button--dislike" type="button">
+            <button
+              aria-label="별로예요"
+              aria-pressed={answerReactions[message.id] === "dislike"}
+              className={`agent-chat-actions__button--dislike${answerReactions[message.id] === "dislike" ? " is-disliked" : ""}`}
+              onClick={() => setAnswerReactions((current) => ({
+                ...current,
+                [message.id]: current[message.id] === "dislike" ? undefined : "dislike",
+              }))}
+              type="button"
+            >
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M10 18V5H6v13h4Zm0-13h11.1a3 3 0 0 1 2.92 2.3l1.35 5.76A3 3 0 0 1 22.45 14H18l.66 4.62A3 3 0 0 1 15.7 22L10 15v-10Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="다시 생성" onClick={handleRegenerate} type="button">
+            <button aria-label="다시 생성" disabled={isSubmitting} onClick={() => handleRegenerate(message.id)} type="button">
               <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="M25 12a10 10 0 1 0 1 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" /><path d="M25 6v6h-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>
             </button>
-            <button aria-label="복사" onClick={() => handleCopyAnswer(message.content)} type="button">
-              <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><rect height="15" rx="2" stroke="currentColor" strokeWidth="1.8" width="15" x="11" y="11" /><path d="M21 11V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" /></svg>
+            <button
+              aria-label={copiedMessageId === message.id ? "복사됨" : "복사"}
+              onClick={() => void handleCopyAnswer(message.id, message.content)}
+              title={copiedMessageId === message.id ? "복사됨" : "답변 복사"}
+              type="button"
+            >
+              {copiedMessageId === message.id ? (
+                <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><path d="m7 16 6 6L25 10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>
+              ) : (
+                <svg aria-hidden="true" fill="none" viewBox="0 0 32 32"><rect height="15" rx="2" stroke="currentColor" strokeWidth="1.8" width="15" x="11" y="11" /><path d="M21 11V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" /></svg>
+              )}
             </button>
           </div>
         </>
@@ -1598,20 +2053,11 @@ function AgentFloatingButton({
           ref={teaserRef}
           className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
         >
-          {surface === "productDetail" ? (
-            <button onClick={() => handleTeaserClick("비슷한 상품 비교해줘")} type="button">
-              비슷한 상품 비교해줘
+          {miniChatQuestions.map((question) => (
+            <button key={question.prompt} onClick={() => handleTeaserClick(question.prompt)} type="button">
+              {question.label}
             </button>
-          ) : (
-            <>
-              <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
-                피부 고민을 같이 찾아볼까요?
-              </button>
-              <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
-                궁금한 성분을 물어보세요
-              </button>
-            </>
-          )}
+          ))}
         </div>
         {isChatMounted ? (
           <section
@@ -1647,7 +2093,7 @@ function AgentFloatingButton({
               ) : null}
             </div>
 
-            <div className="agent-chat-popup__body">
+            <div className="agent-chat-popup__body" ref={chatBodyRef}>
               {isThreadView ? (
                 <div className="agent-chat-thread" aria-live="polite">
                   {messages.map((message) => renderMessage(message))}
@@ -1697,35 +2143,34 @@ function AgentFloatingButton({
                   {chatThreads.length > 0 ? (
                     <>
                       <div className="agent-chat-divider" />
-                      <div className="agent-chat-section-label">최근 대화</div>
+                      <div className="agent-chat-section-label">
+                        <span>최근 대화</span>
+                        <button onClick={deleteAllChatThreads} type="button">전체 삭제</button>
+                      </div>
                       {chatThreads.map((thread) => (
-                        <button
-                          aria-label={`${thread.title} 대화 열기`}
-                          className="agent-chat-question-row"
-                          disabled={isSubmitting}
-                          key={thread.id}
-                          onClick={() => openChatThread(thread)}
-                          type="button"
-                        >
-                          <span className="agent-chat-row-icon" aria-hidden="true">
-                            <svg fill="none" viewBox="0 0 24 24">
-                              <path
-                                d="M5 6.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9.25L5 17.5v-11Z"
-                                stroke="currentColor"
-                                strokeLinejoin="round"
-                                strokeWidth="1.8"
-                              />
-                              <path
-                                d="M8.5 8.5h7M8.5 11.5h4.5"
-                                stroke="currentColor"
-                                strokeLinecap="round"
-                                strokeWidth="1.8"
-                              />
+                        <div className="agent-chat-history-row" key={thread.id}>
+                          <button
+                            aria-label={`${thread.title} 대화 열기`}
+                            className="agent-chat-question-row"
+                            disabled={isSubmitting}
+                            onClick={() => openChatThread(thread)}
+                            type="button"
+                          >
+                            <span className="agent-chat-row-icon" aria-hidden="true">
+                              <svg fill="none" viewBox="0 0 24 24">
+                                <path d="M5 6.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9.25L5 17.5v-11Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+                                <path d="M8.5 8.5h7M8.5 11.5h4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                              </svg>
+                            </span>
+                            <span>{thread.title}</span>
+                            <span aria-hidden="true">›</span>
+                          </button>
+                          <button aria-label={`${thread.title} 대화 삭제`} className="agent-chat-history-delete" onClick={() => deleteChatThread(thread.id)} type="button">
+                            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                              <path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
                             </svg>
-                          </span>
-                          <span>{thread.title}</span>
-                          <span aria-hidden="true">›</span>
-                        </button>
+                          </button>
+                        </div>
                       ))}
                     </>
                   ) : null}
@@ -1737,9 +2182,10 @@ function AgentFloatingButton({
             <form className="agent-chat-input" onSubmit={handleSubmit}>
               <input
                 aria-label="AI에게 질문 입력"
-                disabled={isSubmitting}
+                aria-busy={isSubmitting}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="무엇이든 물어보세요"
+                readOnly={isSubmitting}
                 ref={chatInputRef}
                 value={draft}
               />
