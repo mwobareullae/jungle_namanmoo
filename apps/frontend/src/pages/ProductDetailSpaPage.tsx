@@ -972,10 +972,20 @@ function ProductDetailSpaPage() {
   };
 
   const handleReviewPageChange = (nextPage: number) => {
-    const normalizedPage = Math.min(Math.max(1, nextPage), totalReviewPages);
-    if (normalizedPage === currentReviewPage) return;
+    if (isReviewLoading) return;
+    if (nextPage === currentReviewPage) return;
 
-    setReviewPage(normalizedPage);
+    if (nextPage === currentReviewPage + 1 && hasNextReviewPage && nextCursor) {
+      setReviewCursorHistory((current) => [...current, reviewCursor]);
+      setReviewCursor(nextCursor);
+      setReviewPage((current) => current + 1);
+    } else if (nextPage >= 1 && nextPage < currentReviewPage) {
+      setReviewCursor(reviewCursorHistory[nextPage - 1] ?? null);
+      setReviewPage(nextPage);
+      setReviewCursorHistory((current) => current.slice(0, nextPage));
+    } else {
+      return;
+    }
     scrollToReviewPageStart();
   };
 
