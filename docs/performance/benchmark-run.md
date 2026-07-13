@@ -38,6 +38,19 @@ scp .\perf-runs\recommendation-1000-k6-summary.json `
 
 The same command can be repeated with `DATASET=5000`, `DATASET=10000`, and `DATASET=80000`. Change only the dataset and the server-side benchmark profile between runs.
 
+## Windows 자동 실행
+
+`scripts/perf/config.benchmark.local.example.env`를 `config.benchmark.local.env`로 복사하고
+SSH 접속 정보와 API 주소를 입력한다. 실제 파일은 Git에 커밋하지 않는다.
+
+```powershell
+Copy-Item scripts/perf/config.benchmark.local.example.env scripts/perf/config.benchmark.local.env
+.\scripts\perf\benchmarkctl-local.ps1 -Dataset 1000 -UserType anonymous
+```
+
+처음 서버 subset을 만들 때만 `-Prepare`를 추가한다. 이후 데이터셋을 바꿀 때는 서버에서
+해당 데이터셋을 준비한 뒤 기본 실행을 사용하면 된다.
+
 For an authenticated fixture, k6 logs in once during `setup()` and reuses the
 returned session cookie for the recommendation requests. Supply the credentials
 only through the local shell or an ignored environment file.
