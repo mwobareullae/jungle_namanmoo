@@ -14,6 +14,7 @@ from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment, PaymentAttempt, PaymentEvent
 from app.db.models.events import EventLog
 from app.db.session import get_db
+from app.api.routes.payments import get_toss_payments_client
 from app.main import app
 from app.services.db_seed import seed_database
 from app.services.payment_cancel_service import cancel_requested_orders
@@ -156,7 +157,7 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
         nickname="cancel-paid",
         quantity=2,
     )
-    confirm_response = client.post(f"/api/payments/{pending['payment_code']}/mock/confirm")
+    confirm_response = _confirm_toss_payment(client, pending)
     assert confirm_response.status_code == 200
 
     response = client.post(f"/api/orders/{pending['order_code']}/cancel")
@@ -182,7 +183,7 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     assert inventory.reserved_quantity == 0
     assert [movement.movement_type for movement in movements] == ["RESERVE", "SALE_CONFIRM"]
     assert len(events) == 1
-    assert events[0].event_type == "MOCK_PAYMENT_APPROVED"
+    assert events[0].event_type == "TOSS_PAYMENT_APPROVED"
     assert event_log.metadata_json["order_status"] == "CANCEL_REQUESTED"
     assert event_log.metadata_json["payment_status"] == "APPROVED"
 
@@ -198,8 +199,12 @@ def test_cancel_requested_mock_order_restores_paid_stock(
         nickname="cancel-requested-mock",
         quantity=2,
     )
-    confirm = client.post(f"/api/payments/{pending['payment_code']}/mock/confirm")
+    confirm = _confirm_toss_payment(client, pending)
     assert confirm.status_code == 200
+    with Session(db_engine) as session:
+        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
+        payment.provider = "MOCK"
+        session.commit()
     cancel = client.post(f"/api/orders/{pending['order_code']}/cancel")
     assert cancel.status_code == 200
     with Session(db_engine) as session:
@@ -208,7 +213,12 @@ def test_cancel_requested_mock_order_restores_paid_stock(
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
         item = session.execute(select(OrderItem).where(OrderItem.order_id == order.id)).scalar_one()
-        attempt = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalar_one()
+        attempt = session.execute(
+            select(PaymentAttempt).where(
+                PaymentAttempt.payment_id == payment.id,
+                PaymentAttempt.operation == "CANCEL",
+            )
+        ).scalar_one()
         inventory = _load_inventory(session, "prod_001")
 
     assert result.canceled_count == 1
@@ -242,12 +252,7 @@ def test_cancel_requested_toss_processes_provider_result(
         nickname=f"cancel-requested-toss-{expected_attempt_status.lower()}",
         quantity=1,
     )
-    assert client.post(f"/api/payments/{pending['payment_code']}/mock/confirm").status_code == 200
-    with Session(db_engine) as session:
-        payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
-        payment.provider = "TOSS"
-        payment.provider_payment_key = "toss_cancel_key"
-        session.commit()
+    assert _confirm_toss_payment(client, pending).status_code == 200
     assert client.post(f"/api/orders/{pending['order_code']}/cancel").status_code == 200
 
     with Session(db_engine) as session:
@@ -261,7 +266,12 @@ def test_cancel_requested_toss_processes_provider_result(
         session.commit()
         order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
         payment = session.execute(select(Payment).where(Payment.payment_code == pending["payment_code"])).scalar_one()
-        attempt = session.execute(select(PaymentAttempt).where(PaymentAttempt.payment_id == payment.id)).scalar_one()
+        attempt = session.execute(
+            select(PaymentAttempt).where(
+                PaymentAttempt.payment_id == payment.id,
+                PaymentAttempt.operation == "CANCEL",
+            )
+        ).scalar_one()
 
     assert result.canceled_count == (1 if expected_order_status == "CANCELED" else 0)
     assert result.unknown_count == (1 if expected_order_status == "CANCEL_REQUESTED" else 0)
@@ -326,14 +336,39 @@ def _create_pending_order(
     order_response = client.post(
         "/api/orders",
         headers={"Idempotency-Key": f"order-{email}"},
-        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "MOCK"},
+        json={"cart_item_ids": [item_id], "address_id": address_id, "payment_provider": "TOSS"},
     )
     assert order_response.status_code == 200
     data = order_response.json()
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],
+        "amount": data["total"],
     }
+
+
+def _confirm_toss_payment(client: TestClient, pending: dict):
+    app.dependency_overrides[get_toss_payments_client] = lambda: _FakeTossConfirmClient()
+    return client.post(
+        "/api/payments/toss/confirm",
+        json={
+            "payment_key": "toss_cancel_key",
+            "order_code": pending["order_code"],
+            "amount": pending["amount"],
+        },
+    )
+
+
+class _FakeTossConfirmClient:
+    def confirm_payment(self, *, payment_key: str, order_code: str, amount: int) -> dict:
+        return {
+            "paymentKey": payment_key,
+            "orderId": order_code,
+            "totalAmount": amount,
+            "status": "DONE",
+            "method": "카드",
+            "approvedAt": "2026-07-05T12:00:00+09:00",
+        }
 
 
 def _signup(client: TestClient, *, email: str, nickname: str) -> None:

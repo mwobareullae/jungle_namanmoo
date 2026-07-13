@@ -38,6 +38,7 @@ def get_toss_payments_client() -> TossPaymentsClient:
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
     },
 )
 def post_mock_payment_confirm(
@@ -86,6 +87,7 @@ def _disabled_post_mock_payment_confirm(
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        410: {"model": ErrorResponse},
     },
 )
 def post_mock_payment_fail(
