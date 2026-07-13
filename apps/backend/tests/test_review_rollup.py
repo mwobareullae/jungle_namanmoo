@@ -235,12 +235,18 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
             for review in reviews
         ]
         expected_photo_rate = review_weights[1] / sum(review_weights)
-        assert float(metric.bayesian_photo_rate) == pytest.approx(
-            expected_photo_rate,
+        expected_quality, expected_confidence = calculate_review_quality_score(
+            rating_score=float(metric.rating_score),
+            repurchase_score=float(metric.repurchase_score),
+            photo_rate_score=expected_photo_rate,
+            effective_sample_size=float(metric.effective_sample_size),
+        )
+        assert float(metric.review_quality_score) == pytest.approx(
+            expected_quality,
             abs=1e-6,
         )
-        assert float(metric.photo_rate_score) == pytest.approx(
-            expected_photo_rate,
+        assert float(metric.confidence) == pytest.approx(
+            expected_confidence,
             abs=1e-6,
         )
         assert metric.helpful_count_sum == 22
@@ -263,8 +269,6 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
         first_snapshot = (
             metric.review_quality_score,
             metric.bayesian_rating,
-            metric.bayesian_photo_rate,
-            metric.photo_rate_score,
             dry_segment.total_affinity_score,
             dry_segment.effective_sample_size,
         )
@@ -280,8 +284,6 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
         assert (
             metric.review_quality_score,
             metric.bayesian_rating,
-            metric.bayesian_photo_rate,
-            metric.photo_rate_score,
             dry_segment.total_affinity_score,
             dry_segment.effective_sample_size,
         ) == first_snapshot
