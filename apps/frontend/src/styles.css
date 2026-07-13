@@ -7556,6 +7556,15 @@ footer {
   color: #3d463f;
 }
 
+footer.app-footer--home {
+  padding: 0 72px;
+  border-top: 0;
+  background: #f8fafb;
+  color: #3d463f;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 footer .footer-inner {
   grid-template-columns: minmax(420px, 1fr) 160px 160px;
   gap: 44px;
@@ -7617,6 +7626,7 @@ footer .footer-policy {
 
 @media (max-width: 900px) {
   footer { padding: 0 24px; }
+  footer.app-footer--home { padding: 0 24px; }
   footer .footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
   footer .footer-service,
   footer .footer-policy { text-align: left; }

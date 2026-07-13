@@ -924,7 +924,8 @@ function GlobalAgentEntry() {
 }
 
 function GlobalFooter() {
-  return <AppFooter />;
+  const location = useLocation();
+  return <AppFooter variant={location.pathname === "/" ? "home" : "default"} />;
 }
 
 function RouteLoadingFallback() {
