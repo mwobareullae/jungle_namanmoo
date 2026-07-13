@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "r
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AgentFloatingButton from "./components/AgentFloatingButton";
+import AgentCommerceOverlay from "./components/AgentCommerceOverlay";
 import AppFooter from "./components/AppFooter";
 import HomeHeader from "./components/HomeHeader";
 import PopularProductsHeader from "./components/PopularProductsHeader";
@@ -1123,6 +1124,7 @@ function App() {
           <Route path="*" element={<LegacyApp />} />
         </Routes>
       </Suspense>
+      <AgentCommerceOverlay />
       <GlobalFooter />
       <GlobalAgentEntry />
     </>

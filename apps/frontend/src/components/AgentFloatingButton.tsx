@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
+import { AGENT_SHOW_CART_EVENT, AGENT_SHOW_CHECKOUT_EVENT } from "../lib/agentUiEvents";
 import type {
   AgentChatResponse,
   AgentContext,
@@ -130,12 +131,37 @@ const activeStatusSteps: AgentStatusStep[] = [
   { label: "추천 결과 정리", status: "todo" },
 ];
 
-function createStatusMessage(id: string, isActive = false): AgentChatStatusMessage {
+function getCommerceStatusSteps(message: string, isActive: boolean): { steps: AgentStatusStep[]; title: string } | null {
+  if (/장바구니.*(담|추가)|(담|추가).*장바구니/.test(message)) {
+    return {
+      title: isActive ? "상품을 장바구니에 담고 있어요" : "장바구니에 반영했어요",
+      steps: [
+        { label: "상품 확인", status: "done" },
+        { label: "재고·가격 확인", status: isActive ? "active" : "done" },
+        { label: "장바구니 화면 반영", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
+  if (/주문|결제|체크아웃/.test(message)) {
+    return {
+      title: isActive ? "주문 내용을 준비하고 있어요" : "주문 준비를 마쳤어요",
+      steps: [
+        { label: "장바구니 확인", status: "done" },
+        { label: "배송지·재고 확인", status: isActive ? "active" : "done" },
+        { label: "결제 금액 계산", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
+  return null;
+}
+
+function createStatusMessage(id: string, isActive = false, message = ""): AgentChatStatusMessage {
+  const commerceStatus = getCommerceStatusSteps(message, isActive);
   return {
     id,
     kind: "status",
-    steps: isActive ? activeStatusSteps : completedStatusSteps,
-    title: isActive ? "상품 정보를 확인하고 있어요" : "추천 근거를 확인했어요",
+    steps: commerceStatus?.steps ?? (isActive ? activeStatusSteps : completedStatusSteps),
+    title: commerceStatus?.title ?? (isActive ? "상품 정보를 확인하고 있어요" : "추천 근거를 확인했어요"),
   };
 }
 
@@ -833,6 +859,21 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
 };
 
 const applyAgentUiAction = (action: AgentUiAction, items: AgentResponseItem[] = [], message = "") => {
+  if (action.type === "show_cart" && typeof window !== "undefined") {
+    const currentProductId = new URLSearchParams(window.location.search).get("id");
+    window.dispatchEvent(new CustomEvent(AGENT_SHOW_CART_EVENT, {
+      detail: { cart: action.payload, highlightProductId: currentProductId },
+    }));
+    return;
+  }
+
+  if (action.type === "show_checkout_preview" && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AGENT_SHOW_CHECKOUT_EVENT, {
+      detail: { preview: action.payload },
+    }));
+    return;
+  }
+
   if ((action.type === "show_product_comparison" || isSimilarProductsAction(action)) && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(AGENT_PRODUCT_COMPARISON_EVENT, {
       detail: {
@@ -852,6 +893,13 @@ const applyAgentUiAction = (action: AgentUiAction, items: AgentResponseItem[] = 
 
   navigateWithinApp(url).catch(() => {
     window.location.href = url;
+  });
+};
+
+const setAgentCartTargetBusy = (active: boolean) => {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll<HTMLElement>("[data-agent-cart-target]").forEach((element) => {
+    element.classList.toggle("is-agent-running", active);
   });
 };
 
@@ -1181,16 +1229,19 @@ function AgentFloatingButton({
     if (shouldStartNewThread) {
       setCurrentThreadId(nextThreadId);
       setConversationId(null);
-      setMessages([userMessage, createStatusMessage(statusId, true)]);
+      setMessages([userMessage, createStatusMessage(statusId, true, nextMessage)]);
       setActiveView("thread");
     } else {
       if (!currentThreadId) {
         setCurrentThreadId(nextThreadId);
       }
-      appendMessages([userMessage, createStatusMessage(statusId, true)]);
+      appendMessages([userMessage, createStatusMessage(statusId, true, nextMessage)]);
     }
     setDraft("");
     setIsSubmitting(true);
+    const isCartAddRequest = Boolean(getCommerceStatusSteps(nextMessage, true))
+      && /장바구니.*(담|추가)|(담|추가).*장바구니/.test(nextMessage);
+    if (isCartAddRequest) setAgentCartTargetBusy(true);
 
     try {
       const response = await api.sendAgentMessage({
@@ -1207,7 +1258,7 @@ function AgentFloatingButton({
         [
           ...currentMessages.flatMap((currentMessage) =>
             currentMessage.id === statusId
-              ? (isRecommendationResponse ? [createStatusMessage(statusId)] : [])
+              ? (isRecommendationResponse || getCommerceStatusSteps(nextMessage, false) ? [createStatusMessage(statusId, false, nextMessage)] : [])
               : [currentMessage],
           ),
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
@@ -1222,6 +1273,7 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
     } finally {
+      if (isCartAddRequest) setAgentCartTargetBusy(false);
       setIsSubmitting(false);
     }
   };
