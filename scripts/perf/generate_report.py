@@ -122,6 +122,12 @@ def auth_home_for_you_summary(enabled: str, cookie_provided: str) -> str:
     return "disabled. 비로그인/fallback for-you만 실행"
 
 
+def auth_recommendation_summary(cookie_provided: str) -> str:
+    if truthy(cookie_provided):
+        return "AUTH_COOKIE provided. 익명/로그인 추천 모두 실행"
+    return "AUTH_COOKIE empty. 익명 추천만 실행"
+
+
 def max_cpu_mem(stats: dict, alias: str) -> str:
     name = CONTAINER_ALIASES[alias]
     cpu = stats["max_cpu"].get(name)
@@ -222,7 +228,7 @@ def rds_note(rds: dict) -> str:
     return "-"
 
 
-def endpoint_rows(k6: dict, *, limit: int = 16) -> str:
+def endpoint_rows(k6: dict, *, limit: int = 32) -> str:
     endpoints = k6.get("by_endpoint") or {}
     rows: list[str] = []
     sorted_items = sorted(
@@ -363,15 +369,17 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 
 - `GET /api/health`
 - `GET /api/products/popular`
+- `GET /api/products` 신상품 및 필터/정렬 목록
 - `GET /api/products/{{product_id}}`
-- `GET /api/search/products`
+- `GET /api/products/{{product_id}}/reviews` 최신순 및 피부 타입 필터
+- `GET /api/search/products` 기본 및 특징/피부 타입 필터
 - `GET /api/search/suggestions`
 - `GET /api/home/layout`
 - `GET /api/home/market-popular`
 - `GET /api/home/evidence-picks`
 - `GET /api/home/for-you` 비로그인/fallback 및 선택 조건
 - `GET /api/home/for-you` 로그인 사용자 선택 실행 (`AUTH_HOME_FOR_YOU=true` + `AUTH_COOKIE` 필요)
-- `POST /api/recommendations`
+- `POST /api/recommendations` 익명 및 `AUTH_COOKIE` 전달 시 로그인 사용자
 - `GET /api/recommendations/{{recommendation_id}}`
 - `GET /api/products/{{product_id}}?recommendation_id=...`
 - `POST /api/cart/items` 선택 실행
@@ -390,6 +398,7 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("Profile", args.profile)}
 {row("Cart writes", args.cart_writes)}
 {row("Auth home for-you", auth_home_for_you_summary(args.auth_home_for_you, args.auth_cookie_provided))}
+{row("Auth recommendation", auth_recommendation_summary(args.auth_cookie_provided))}
 {row("Started at UTC", args.start_utc)}
 {row("Ended at UTC", args.end_utc)}
 {row("Started at KST", args.start_kst)}
@@ -428,6 +437,8 @@ k6가 MVP 핵심 API를 반복 호출합니다.
 {row("type=fast p95", format_ms((by_type.get("fast") or {}).get("p95_ms")))}
 {row("type=home p95", format_ms((by_type.get("home") or {}).get("p95_ms")))}
 {row("type=search p95", format_ms((by_type.get("search") or {}).get("p95_ms")))}
+{row("type=catalog_listing p95", format_ms((by_type.get("catalog_listing") or {}).get("p95_ms")))}
+{row("type=product_reviews p95", format_ms((by_type.get("product_reviews") or {}).get("p95_ms")))}
 {row("type=catalog_search p95", format_ms((by_type.get("catalog_search") or {}).get("p95_ms")))}
 {row("type=catalog_suggestions p95", format_ms((by_type.get("catalog_suggestions") or {}).get("p95_ms")))}
 {row("type=write p95", format_ms((by_type.get("write") or {}).get("p95_ms")))}
