@@ -55,6 +55,11 @@ load_profile() {
   [[ -n "${DATA_DIR:-}" ]] || die "DATA_DIR is missing from profile"
   [[ -n "${ELASTICSEARCH_INDEX:-}" ]] || die "ELASTICSEARCH_INDEX is missing from profile"
   [[ -n "${ELASTICSEARCH_ALIAS:-}" ]] || die "ELASTICSEARCH_ALIAS is missing from profile"
+
+  # docker-compose.benchmark.yml interpolates these values before the command
+  # starts, so expose the selected profile to every compose invocation.
+  export BENCHMARK_DATA_DIR="$DATA_DIR"
+  export BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS"
 }
 
 require_benchmark_database() {
@@ -186,6 +191,8 @@ collect() {
   load_profile "$dataset"
 
   local result_dir="$RESULT_ROOT/$run_id"
+  local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
+  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
   print_context | tee "$result_dir/context.txt"
   compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
@@ -196,15 +203,23 @@ collect() {
   cat >"$result_dir/manifest.json" <<EOF
 {
   "run_id": "$(safe_label "$run_id")",
+  "started_at": "$started_at",
+  "finished_at": "$finished_at",
   "dataset": "$DATASET_LABEL",
   "product_count": $PRODUCT_COUNT,
   "git_sha": "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)",
   "data_dir": "$DATA_DIR",
+  "database": "benchmark database configured",
   "elasticsearch_index": "$ELASTICSEARCH_INDEX",
   "elasticsearch_alias": "$ELASTICSEARCH_ALIAS",
+  "user_type": "${BENCHMARK_USER_TYPE:-unknown}",
   "bench_mode": "$BENCH_MODE",
   "cache_state": "$CACHE_STATE",
-  "candidate_pool_limit": $CANDIDATE_POOL_LIMIT
+  "vus": ${BENCHMARK_VUS:-0},
+  "duration": "${BENCHMARK_DURATION:-unknown}",
+  "query_set": "$QUERY_SET",
+  "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
+  "server_host": "${BENCHMARK_SERVER_HOST:-unknown}"
 }
 EOF
   echo "collected=$result_dir"
