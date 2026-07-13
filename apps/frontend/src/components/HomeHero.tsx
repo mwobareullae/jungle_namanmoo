@@ -240,6 +240,7 @@ function HomeHero({
                 </button>
               ) : null}
               <input
+                autoComplete="off"
                 id="searchInput"
                 onChange={(event) => handleQueryChange(event.target.value)}
                 onClick={openSuggestions}

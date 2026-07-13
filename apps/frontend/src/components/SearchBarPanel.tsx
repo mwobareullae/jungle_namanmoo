@@ -131,6 +131,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
                 </button>
               ) : null}
               <input
+                autoComplete="off"
                 id="searchInput"
                 onFocus={() => setIsSuggestionsOpen(true)}
                 onKeyDown={handleSearchKey}
