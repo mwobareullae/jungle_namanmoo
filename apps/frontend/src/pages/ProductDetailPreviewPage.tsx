@@ -239,7 +239,7 @@ function ProductDetailPreviewPage() {
         </div>
       </section>
 
-      <section className="naver-preview-review-strip"><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : <div className="naver-preview-empty">리뷰 요약을 불러오는 중입니다.</div>}</div><button type="button">리뷰 전체보기 ›</button>{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section>
+      <section className="naver-preview-review-strip">{!recommendationId ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : <div className="naver-preview-empty">리뷰 요약을 불러오는 중입니다.</div>}</div><button type="button">리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section>
 
       <nav className="naver-preview-tabs">{tabs.map((tab, i) => <a className={i === activeTab ? "active" : ""} href={`#preview-${i}`} key={tab} onClick={(event) => handleTabClick(event, i)}>{tab}</a>)}</nav>
       <section className="naver-preview-detail-layout">
