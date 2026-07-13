@@ -7258,7 +7258,6 @@ body .category-panel {
 .return-request-form label > span, .return-request-form legend { color: #294654; font-weight: 700; font-size: 14px; }
 .return-request-form select, .return-request-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #dbe7eb; border-radius: 10px; padding: 13px 14px; background: #fff; color: #243943; font: inherit; }
 .return-request-form textarea { min-height: 130px; resize: vertical; }
-.return-request-file-summary { color: #71808a; font-size: 12px; line-height: 1.5; }
 .return-request-type-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .return-request-type-list label { display: inline-flex; grid-template-columns: auto 1fr; align-items: center; gap: 7px; padding: 10px 16px; border: 1px solid #dbe7eb; border-radius: 999px; color: #5c6e77; cursor: pointer; }
 .return-request-type-list label.active { border-color: #82d8ee; background: #eafaff; color: #0e6078; }
@@ -7266,6 +7265,14 @@ body .category-panel {
 .return-request-notice { margin: -8px 0 0; color: #0e718d; font-size: 14px; }
 .return-request-submit { justify-self: end; border: 0; border-radius: 10px; padding: 13px 22px; background: #8edff3; color: #123d4e; font-weight: 800; cursor: pointer; }
 .return-request-submit:disabled { cursor: not-allowed; opacity: .45; }
+.return-request-success { display: grid; justify-items: start; gap: 18px; }
+.return-request-success__badge { display: inline-flex; min-height: 28px; align-items: center; padding: 0 10px; border-radius: 999px; background: #e7f9fd; color: #08708d; font-size: 13px; font-weight: 800; }
+.return-request-success h2 { margin: 0; color: #153847; font-size: 22px; }
+.return-request-success dl { display: grid; gap: 10px; width: 100%; margin: 0; }
+.return-request-success dl div { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-bottom: 1px solid #edf2f4; }
+.return-request-success dt { color: #71808a; }
+.return-request-success dd { margin: 0; color: #153847; font-weight: 700; }
+.return-request-success__link { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; padding: 0 18px; border-radius: 10px; background: #2aa6d1; color: #fff; font-weight: 750; text-decoration: none; }
 
 @media (max-width: 640px) {
   .return-request-card { margin-inline: 16px; padding: 20px; }
