@@ -5961,7 +5961,7 @@ body {
   height: 52px;
   padding: 0 12px;
   border-radius: 999px;
-  background: var(--mint);
+  background: #bdecf7;
   color: #063445;
   font-size: 18px;
   font-weight: 700;
@@ -11561,9 +11561,11 @@ html[data-app-mode="community"] .search-results-shell {
   flex: 0 0 48px;
   width: 48px;
   height: 48px;
-  border-radius: 0;
-  background: #f1f3f4;
-  object-fit: cover;
+  border: 1px solid #d7eef2;
+  border-radius: 12px;
+  background: #f1fafc;
+  box-shadow: 0 2px 6px rgba(44, 101, 112, 0.08);
+  object-fit: contain;
 }
 
 .agent-chat-message {
@@ -11970,21 +11972,22 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   justify-content: flex-start;
   max-width: 100%;
-  margin-left: 2px;
+  margin-top: -2px;
+  margin-left: 8px;
 }
 
 .agent-chat-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 7px;
   background: transparent;
   color: #536471;
   cursor: pointer;
@@ -11993,8 +11996,8 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .agent-chat-actions button svg {
-  width: 32px;
-  height: 32px;
+  width: 18px;
+  height: 18px;
 }
 
 .agent-chat-actions button:hover,
@@ -12116,48 +12119,6 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 16px;
   background: #f0f7fa;
   padding: 8px;
-}
-
-.agent-chat-thread-quick-questions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 8px 16px 4px;
-  scrollbar-width: none;
-}
-
-.agent-chat-thread-quick-questions::-webkit-scrollbar {
-  display: none;
-}
-
-.agent-chat-thread-quick-questions button {
-  flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid #e9eef0;
-  border-radius: 999px;
-  background: #f6f7f8;
-  color: #59636b;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 550;
-  white-space: nowrap;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.agent-chat-thread-quick-questions button:hover,
-.agent-chat-thread-quick-questions button:focus-visible {
-  border-color: #95e9df;
-  background: #effdfa;
-  color: #238ca1;
-  outline: none;
-}
-
-.agent-chat-thread-quick-questions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .agent-chat-input input {

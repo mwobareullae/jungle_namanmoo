@@ -1510,21 +1510,6 @@ function AgentFloatingButton({
               )}
             </div>
 
-            {isThreadView ? (
-              <div className="agent-chat-thread-quick-questions" aria-label="빠른 질문">
-                {quickQuestions.map((question) => (
-                  <button
-                    disabled={isSubmitting}
-                    key={`thread-${question}`}
-                    onClick={() => void sendMessage(question)}
-                    type="button"
-                  >
-                    {question}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
             <form className="agent-chat-input" onSubmit={handleSubmit}>
               <input
                 aria-label="AI에게 질문 입력"

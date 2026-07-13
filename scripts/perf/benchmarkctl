@@ -1,0 +1,405 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  :
+else
+  # The deployed server copy may not contain .git; benchmarkctl lives two
+  # directories below the repository root in that case.
+  REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+PROFILE_DIR="$SCRIPT_DIR/profiles"
+DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DIR")-benchmark"
+CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
+CONFIG_K6_RESULT_FILE="${BENCHMARK_K6_RESULT_FILE-}"
+CONFIG_K6_RESULT_FILE_SET="${BENCHMARK_K6_RESULT_FILE+x}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+# Command-line environment overrides must win over values in the config file.
+if [[ "$CONFIG_K6_RESULT_FILE_SET" == "x" ]]; then
+  BENCHMARK_K6_RESULT_FILE="$CONFIG_K6_RESULT_FILE"
+fi
+
+BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
+BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
+RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$BENCHMARK_RUNTIME_ROOT/runs}"
+BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
+ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
+COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/perf/benchmarkctl prepare <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl build <source_dir> [output_root]
+  scripts/perf/benchmarkctl collect <run_id> [dataset]
+
+prepare seeds and indexes the explicitly configured benchmark database.
+activate restarts only the backend with that benchmark database and alias.
+build creates deterministic product-related subsets for all four datasets.
+Set BENCHMARK_ACTIVATE=true to activate automatically after prepare.
+EOF
+}
+
+die() {
+  echo "benchmarkctl: $*" >&2
+  exit 1
+}
+
+safe_label() {
+  printf '%s' "$1" | tr -cs '[:alnum:]_.-' '-'
+}
+
+load_profile() {
+  local dataset="${1:-}"
+  case "$dataset" in
+    1000|5000|10000|80000) ;;
+    *) die "dataset must be 1000, 5000, 10000, or 80000" ;;
+  esac
+
+  # shellcheck disable=SC1090
+  source "$PROFILE_DIR/benchmark-$dataset.env"
+  DATASET_LABEL="$dataset"
+  [[ "${PRODUCT_COUNT:-}" == "$dataset" ]] || die "profile product count mismatch: $dataset"
+  [[ -n "${DATA_DIR:-}" ]] || die "DATA_DIR is missing from profile"
+  [[ -n "${ELASTICSEARCH_INDEX:-}" ]] || die "ELASTICSEARCH_INDEX is missing from profile"
+  [[ -n "${ELASTICSEARCH_ALIAS:-}" ]] || die "ELASTICSEARCH_ALIAS is missing from profile"
+
+  # docker-compose.benchmark.yml interpolates these values before the command
+  # starts, so expose the selected profile to every compose invocation.
+  export BENCHMARK_DATA_DIR="$DATA_DIR"
+  export BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS"
+  export BENCHMARK_REDIS_KEY_PREFIX="${BENCHMARK_REDIS_KEY_PREFIX:-mubarelle:benchmark:${DATASET_LABEL}:}"
+}
+
+require_benchmark_database() {
+  [[ -n "${BENCHMARK_DATABASE_URL:-}" ]] || die \
+    "BENCHMARK_DATABASE_URL must be set in the benchmark config file on the server"
+}
+
+compose() {
+  DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" \
+    docker compose "${COMPOSE_FILES[@]}" "$@"
+}
+
+backend_exec() {
+  compose exec -T \
+    -e "DATABASE_URL=$BENCHMARK_DATABASE_URL" \
+    -e "DATA_DIR=$DATA_DIR" \
+    -e "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=$ELASTICSEARCH_ALIAS" \
+    "$BACKEND_SERVICE" "$@"
+}
+
+print_context() {
+  cat <<EOF
+dataset=$DATASET_LABEL
+product_count=$PRODUCT_COUNT
+data_dir=$DATA_DIR
+database=benchmark database configured
+elasticsearch_index=$ELASTICSEARCH_INDEX
+elasticsearch_alias=$ELASTICSEARCH_ALIAS
+query_set=$QUERY_SET
+bench_mode=$BENCH_MODE
+cache_state=$CACHE_STATE
+candidate_pool_limit=$CANDIDATE_POOL_LIMIT
+EOF
+}
+
+verify_data_dir() {
+  backend_exec test -d "$DATA_DIR" || die "DATA_DIR does not exist in backend container: $DATA_DIR"
+  backend_exec test -f "$DATA_DIR/product_prices.csv" || die "product_prices.csv is missing: $DATA_DIR"
+  validate_dataset_manifest
+}
+
+validate_dataset_manifest() {
+  backend_exec python - "$DATA_DIR" "$DATASET_LABEL" "$PRODUCT_COUNT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data_dir = Path(sys.argv[1])
+dataset = sys.argv[2]
+target = int(sys.argv[3])
+manifest_path = data_dir / "manifest.json"
+if not manifest_path.exists():
+    raise SystemExit(f"dataset manifest is missing: {manifest_path}")
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+requested = int(manifest.get("requested_product_count", manifest.get("product_count", 0)))
+actual = int(manifest.get("product_count", 0))
+if requested != target:
+    raise SystemExit(f"dataset manifest target={requested}, profile target={target}")
+if actual > target:
+    raise SystemExit(f"dataset product count exceeds target: {actual} > {target}")
+if dataset != "80000" and actual != target:
+    raise SystemExit(f"dataset product count mismatch: expected {target}, got {actual}")
+print(f"dataset_manifest_target={target}")
+print(f"dataset_manifest_product_count={actual}")
+print(f"dataset_manifest_shortfall={actual < target}")
+PY
+}
+
+expected_product_count() {
+  backend_exec python - "$DATA_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads((Path(sys.argv[1]) / "manifest.json").read_text(encoding="utf-8"))
+print(int(manifest["product_count"]))
+PY
+}
+
+verify_database_counts() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    products = int(session.execute(text("select count(*) from products")).scalar_one())
+    documents = int(session.execute(text("select count(*) from search_documents")).scalar_one())
+    embedded = int(
+        session.execute(
+            text("select count(*) from search_documents where embedding is not null")
+        ).scalar_one()
+    )
+
+print(f"products={products}")
+print(f"search_documents={documents}")
+print(f"embedded_documents={embedded}")
+if products != expected:
+    raise SystemExit(f"expected products={expected}, got {products}")
+if documents != expected:
+    raise SystemExit(f"expected search_documents={expected}, got {documents}")
+PY
+}
+
+verify_elasticsearch() {
+  local count expected
+  expected="$(expected_product_count)"
+  count="$(compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    "http://127.0.0.1:9200/$ELASTICSEARCH_ALIAS/_count" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+  echo "elasticsearch_alias_count=$count"
+  [[ "$count" == "$expected" ]] || die \
+    "expected Elasticsearch count=$expected, got $count"
+}
+
+prepare() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  echo "Applying migrations to the configured benchmark database..."
+  backend_exec python -m alembic upgrade head
+  echo "Seeding benchmark dataset..."
+  backend_exec python -m app.cli.seed_data --data-dir "$DATA_DIR"
+  echo "Indexing benchmark dataset..."
+  backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
+    --full \
+    --index-name "$ELASTICSEARCH_INDEX" \
+    --alias-name "$ELASTICSEARCH_ALIAS" \
+    --no-cleanup \
+    --retain-previous-indices 4
+  verify_database_counts
+  verify_elasticsearch
+  if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
+    activate
+  else
+    echo "Prepared only. Set BENCHMARK_ACTIVATE=true or run benchmarkctl activate $DATASET_LABEL."
+  fi
+}
+
+activate() {
+  require_benchmark_database
+  print_context
+  BENCHMARK_DATABASE_URL="$BENCHMARK_DATABASE_URL" \
+    BENCHMARK_DATA_DIR="$DATA_DIR" \
+    BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS" \
+    compose --profile server up -d --force-recreate "$BACKEND_SERVICE"
+  echo "backend activated for dataset=$DATASET_LABEL"
+}
+
+verify() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  verify_database_counts
+  verify_elasticsearch
+  [[ -f "$REPO_DIR/$QUERY_SET" ]] || die "query set is missing: $REPO_DIR/$QUERY_SET"
+  python3 -m json.tool "$REPO_DIR/$QUERY_SET" >/dev/null
+  echo "query_set=valid"
+  [[ -f "$REPO_DIR/docs/performance/benchmark-users.json" ]] || die "benchmark user fixture is missing"
+  python3 -m json.tool "$REPO_DIR/docs/performance/benchmark-users.json" >/dev/null
+  echo "benchmark_users=valid"
+  if [[ "${BENCHMARK_VERIFY_USERS:-false}" == "true" ]]; then
+    verify_users
+  fi
+  echo "benchmark verification passed"
+}
+
+verify_users() {
+  backend_exec python - \
+    "${BENCHMARK_PROFILE_USER_EMAIL:-}" \
+    "${BENCHMARK_SKIN_TEST_USER_EMAIL:-}" \
+    "${BENCHMARK_BEHAVIOR_USER_EMAIL:-}" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+profile_email, skin_test_email, behavior_email = sys.argv[1:]
+required = {
+    "profile": profile_email,
+    "skin-test": skin_test_email,
+    "behavior": behavior_email,
+}
+missing_email = [key for key, email in required.items() if not email]
+if missing_email:
+    raise SystemExit(f"benchmark user email is missing: {','.join(missing_email)}")
+
+with SessionLocal() as session:
+    for key, email in required.items():
+        user = session.execute(
+            text("select id from users where email = :email and status = 'ACTIVE'"),
+            {"email": email},
+        ).first()
+        if user is None:
+            raise SystemExit(f"benchmark user is missing or inactive: {key} ({email})")
+        user_id = int(user[0])
+
+        if key == "profile":
+            query = text("select count(*) from skin_profiles where user_id = :user_id")
+        elif key == "skin-test":
+            query = text(
+                "select count(*) from skin_profiles "
+                "where user_id = :user_id and latest_skin_test_result_id is not null"
+            )
+        else:
+            query = text("select count(*) from event_logs where user_id = :user_id")
+
+        count = int(session.execute(query, {"user_id": user_id}).scalar_one())
+        if count < 1:
+            raise SystemExit(f"benchmark user context is missing: {key} ({email})")
+        print(f"benchmark_user={key} status=ready")
+PY
+}
+
+collect() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+  require_benchmark_database
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
+  local k6_result_present=false
+  local embedding_coverage="null"
+  local actual_product_count="$PRODUCT_COUNT"
+  mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
+  print_context | tee "$result_dir/context.txt"
+  compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
+  grep '"event":"db_slow_query"' "$result_dir/backend/backend.log" >"$result_dir/database/slow-query.log" || true
+  backend_exec python - <<'PY' >"$result_dir/database/counts.json" 2>&1 || true
+import json
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+with SessionLocal() as session:
+    products = int(session.execute(text("select count(*) from products")).scalar_one())
+    documents = int(session.execute(text("select count(*) from search_documents")).scalar_one())
+    embedded = int(
+        session.execute(
+            text("select count(*) from search_documents where embedding is not null")
+        ).scalar_one()
+    )
+
+coverage = embedded / documents if documents else None
+print(json.dumps({
+    "products": products,
+    "search_documents": documents,
+    "embedded_documents": embedded,
+    "embedding_coverage": coverage,
+}, ensure_ascii=False))
+PY
+  if [[ -s "$result_dir/database/counts.json" ]]; then
+    actual_product_count="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("products", 0))' "$result_dir/database/counts.json" 2>/dev/null || printf '%s' "$PRODUCT_COUNT")"
+    embedding_coverage="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])).get("embedding_coverage")))' "$result_dir/database/counts.json" 2>/dev/null || printf 'null')"
+  fi
+  docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
+  compose ps >"$result_dir/resources/compose-ps.txt" 2>&1 || true
+  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  if [[ "${BENCHMARK_RDS_METRICS_ENABLED:-false}" == "true" && -x "$SCRIPT_DIR/collect_rds_metrics.sh" ]]; then
+    local rds_end_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+    "$SCRIPT_DIR/collect_rds_metrics.sh" "$started_at" "$rds_end_at" "$result_dir/database/rds-metrics.json" || true
+  fi
+  if [[ -n "${BENCHMARK_K6_RESULT_FILE:-}" && -f "$BENCHMARK_K6_RESULT_FILE" ]]; then
+    cp "$BENCHMARK_K6_RESULT_FILE" "$result_dir/k6/k6-summary.json"
+    k6_result_present=true
+  fi
+  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+  cat >"$result_dir/manifest.json" <<EOF
+{
+  "run_id": "$(safe_label "$run_id")",
+  "started_at": "$started_at",
+  "finished_at": "$finished_at",
+  "dataset": "$DATASET_LABEL",
+  "product_count": $actual_product_count,
+  "target_product_count": $PRODUCT_COUNT,
+  "git_sha": "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)",
+  "data_dir": "$DATA_DIR",
+  "database": "benchmark database configured",
+  "embedding_coverage": $embedding_coverage,
+  "elasticsearch_index": "$ELASTICSEARCH_INDEX",
+  "elasticsearch_alias": "$ELASTICSEARCH_ALIAS",
+  "user_type": "${BENCHMARK_USER_TYPE:-unknown}",
+  "bench_mode": "$BENCH_MODE",
+  "cache_state": "$CACHE_STATE",
+  "vus": ${BENCHMARK_VUS:-0},
+  "duration": "${BENCHMARK_DURATION:-unknown}",
+  "query_set": "$QUERY_SET",
+  "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
+  "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
+  "k6_result_present": $k6_result_present
+}
+EOF
+  echo "collected=$result_dir"
+}
+
+build() {
+  local source_dir="${1:-}"
+  local output_root="${2:-$BENCHMARK_DATA_HOST_DIR/generated-subsets}"
+  [[ -n "$source_dir" ]] || die "source_dir is required"
+  python3 "$SCRIPT_DIR/build_benchmark_dataset.py" \
+    --source-dir "$source_dir" \
+    --output-root "$output_root" \
+    --sizes 1000 5000 10000 80000 \
+    --allow-shortfall
+}
+
+COMMAND="${1:-help}"
+case "$COMMAND" in
+  prepare) load_profile "${2:-}"; prepare ;;
+  activate) load_profile "${2:-}"; activate ;;
+  verify) load_profile "${2:-}"; verify ;;
+  verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
+  build) build "${2:-}" "${3:-}" ;;
+  collect) collect "${2:-}" "${3:-}" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
