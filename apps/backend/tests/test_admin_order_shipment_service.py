@@ -1,14 +1,16 @@
 """배송 상태 전이 서비스 테스트 (M1.5-A).
 
-Chunk 1: start_preparation(PAID → PREPARING_SHIPMENT)만 검증한다.
-start_shipment / complete_delivery 는 다음 Chunk 에서 추가한다.
+start_preparation(PAID→PREPARING_SHIPMENT) / start_shipment(→SHIPPED) /
+complete_delivery(→DELIVERED) 세 전이 함수와 공통 로직(멱등·행 잠금·item_count 정합성)을
+검증한다.
 """
 
 from collections.abc import Generator
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import Select, create_engine, select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -223,6 +225,20 @@ def test_prepare_inconsistent_item_count_rejected(session: Session) -> None:
     assert ei.value.code == "ORDER_ITEMS_INCONSISTENT"
 
 
+def test_prepare_idempotent_also_rejects_inconsistent_item_count(session: Session) -> None:
+    # 멱등 경로(이미 목표 상태)도 item_count 정합성은 똑같이 확인해야 한다 —
+    # 안 그러면 같은 손상 데이터인데 어느 상태에서 접근했느냐에 따라 결과가 달라진다.
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED", item_count=1)
+    order.item_count = 2
+    session.flush()
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        start_preparation(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_ITEMS_INCONSISTENT"
+
+
 def test_prepare_idempotent_ignores_missing_payment(session: Session) -> None:
     # 이미 목표 상태면 결제 확인보다 멱등 판정이 먼저 — 결제 누락이어도 200, actions=[]
     order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status=None)
@@ -426,3 +442,69 @@ def test_delivery_rejects_unapproved_payment(session: Session) -> None:
         complete_delivery(session, order_code=order.order_code)
     assert ei.value.status_code == 409
     assert ei.value.code == "ORDER_PAYMENT_NOT_APPROVED"
+
+
+# ---------------------------------------------------------------------------
+# 행 잠금 회귀 가드
+#
+# 테스트는 SQLite로 도는데 SQLite는 .with_for_update()를 조용히 무시하므로, 실제
+# Postgres에서 잠금이 걸리는지는 이 테스트 스위트로 확인할 수 없다. 대신 서비스가 실행한
+# SELECT 문을 가로채 postgres dialect로 컴파일한 SQL에 FOR UPDATE 가 들어있는지 확인한다
+# — 누군가 실수로 .with_for_update() 를 지워도 이 테스트가 즉시 잡아준다.
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_locks_order_and_payment_rows_for_update(session: Session) -> None:
+    order = _make_order(session, order_status="PAID", payment_status="APPROVED")
+    order_code = order.order_code  # commit 으로 만료되기 전에 값을 미리 읽어둔다
+    session.commit()
+
+    captured_selects: list[Select] = []
+    original_execute = session.execute
+
+    def _spying_execute(statement, *args, **kwargs):
+        if isinstance(statement, Select):
+            captured_selects.append(statement)
+        return original_execute(statement, *args, **kwargs)
+
+    session.execute = _spying_execute  # type: ignore[method-assign]
+    try:
+        start_preparation(session, order_code=order_code)
+    finally:
+        session.execute = original_execute  # type: ignore[method-assign]
+
+    # 정상 전이 1회는 Order 조회 + Payment 조회, 두 번의 SELECT 만 실행한다
+    assert len(captured_selects) == 2
+    for stmt in captured_selects:
+        compiled_sql = str(stmt.compile(dialect=postgresql.dialect()))
+        assert "FOR UPDATE" in compiled_sql
+
+
+def test_prepare_idempotent_replay_does_not_lock_payment_row(session: Session) -> None:
+    # 멱등 재요청은 쓰기가 없으므로 Payment 를 잠그지 않아야 한다(효율성 개선 확인).
+    order = _make_order(session, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    order_code = order.order_code
+    session.commit()
+
+    captured_selects: list[Select] = []
+    original_execute = session.execute
+
+    def _spying_execute(statement, *args, **kwargs):
+        if isinstance(statement, Select):
+            captured_selects.append(statement)
+        return original_execute(statement, *args, **kwargs)
+
+    session.execute = _spying_execute  # type: ignore[method-assign]
+    try:
+        result = start_preparation(session, order_code=order_code)
+    finally:
+        session.execute = original_execute  # type: ignore[method-assign]
+
+    assert result.idempotent_replay is True
+    payment_selects = [
+        stmt for stmt in captured_selects if "payments" in str(stmt).lower()
+    ]
+    assert payment_selects  # Payment 조회 자체는 여전히 일어남(available_actions 계산용)
+    for stmt in payment_selects:
+        compiled_sql = str(stmt.compile(dialect=postgresql.dialect()))
+        assert "FOR UPDATE" not in compiled_sql
