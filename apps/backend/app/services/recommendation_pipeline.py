@@ -134,6 +134,7 @@ def create_recommendation_response(
         if current_user is not None
         else None
     )
+    saved_concerns = _saved_concerns_from_profile(saved_skin_profile)
     normalized_request = normalize_recommendation_request(
         request,
         saved_skin_profile=saved_skin_profile,
@@ -207,7 +208,7 @@ def create_recommendation_response(
             sensitivity=normalized_request.sensitivity,
             skin_test_context=skin_test_context,
             behavior_personalization_context=behavior_personalization_context,
-            saved_concerns=_saved_concerns_from_profile(saved_skin_profile),
+            saved_concerns=saved_concerns,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
         )
@@ -275,8 +276,41 @@ def create_recommendation_response(
                 "expected_effect_count": len(intent.effects),
                 "unmatched_term_count": len(intent.unmatched_terms),
                 "avoid_ingredient_count": len(normalized_request.avoid_ingredients),
+                "saved_skin_profile_applied": saved_skin_profile is not None,
+                "saved_skin_profile_source": (
+                    getattr(saved_skin_profile, "source", None)
+                    if saved_skin_profile is not None
+                    else None
+                ),
+                "saved_skin_type": (
+                    getattr(saved_skin_profile, "skin_type", None)
+                    if saved_skin_profile is not None
+                    else None
+                ),
+                "saved_sensitivity": (
+                    getattr(saved_skin_profile, "sensitivity", None)
+                    if saved_skin_profile is not None
+                    else None
+                ),
+                "normalized_skin_type": normalized_request.skin_type,
+                "normalized_sensitivity": normalized_request.sensitivity,
+                "manual_skin_type_explicit": normalized_request.manual_skin_type_explicit,
+                "manual_sensitivity_explicit": normalized_request.manual_sensitivity_explicit,
+                "skin_profile_concern_count": len(saved_concerns),
                 "skin_test_context_applied": skin_test_context is not None,
+                "skin_test_type_code": skin_test_context.type_code if skin_test_context is not None else None,
+                "skin_test_axis_count": len(skin_test_context.axis_scores) if skin_test_context is not None else 0,
                 "behavior_personalization_applied": behavior_personalization_context is not None,
+                "behavior_event_counts": (
+                    dict(behavior_personalization_context.source_event_counts)
+                    if behavior_personalization_context is not None
+                    else {}
+                ),
+                "behavior_source_count": (
+                    len(behavior_personalization_context.source_profiles)
+                    if behavior_personalization_context is not None
+                    else 0
+                ),
             },
         )
         return response
