@@ -849,9 +849,11 @@ function AgentFloatingButton({
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatPopupRef = useRef<HTMLElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const teaserRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const teaserTimerRef = useRef<number | null>(null);
+  const teaserVisibilityFrameRef = useRef<number | null>(null);
   const hasDismissedTeaserRef = useRef(false);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
@@ -901,6 +903,76 @@ function AgentFloatingButton({
     void sendMessage(question);
   };
 
+  const hasContentBehindTeaser = () => {
+    const teaser = teaserRef.current;
+    if (!teaser || typeof window === "undefined") {
+      return false;
+    }
+
+    const rect = teaser.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return false;
+    }
+
+    const points = [
+      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.2],
+      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.5],
+      [rect.left + rect.width * 0.5, rect.top + rect.height * 0.8],
+    ];
+    const previousVisibility = teaser.style.visibility;
+    teaser.style.visibility = "hidden";
+
+    try {
+      return points.some(([x, y]) => {
+        const elements = document.elementsFromPoint(x, y);
+        return elements.some((element) => {
+          if (element === document.body || element === document.documentElement) {
+            return false;
+          }
+
+          const agentElement = element.closest(".agent-floating-entry");
+          if (agentElement || element.closest("[aria-hidden=\"true\"]")) {
+            return false;
+          }
+
+          const tagName = element.tagName.toLowerCase();
+          if (["img", "picture", "video", "canvas", "svg"].includes(tagName)) {
+            return true;
+          }
+
+          if (element.children.length === 0 && element.textContent?.trim()) {
+            const style = window.getComputedStyle(element);
+            return style.display !== "none" && style.visibility !== "hidden";
+          }
+
+          return false;
+        });
+      });
+    } finally {
+      teaser.style.visibility = previousVisibility;
+    }
+  };
+
+  const updateTeaserVisibility = () => {
+    if (isOpen || surface === "minimal" || hasDismissedTeaserRef.current) {
+      setIsTeaserVisible(false);
+      return;
+    }
+
+    setIsTeaserVisible(!hasContentBehindTeaser());
+  };
+
+  const scheduleTeaserVisibilityCheck = () => {
+    if (typeof window === "undefined" || teaserVisibilityFrameRef.current !== null) {
+      return;
+    }
+
+    teaserVisibilityFrameRef.current = window.requestAnimationFrame(() => {
+      teaserVisibilityFrameRef.current = null;
+      updateTeaserVisibility();
+    });
+  };
+
   useEffect(() => {
     if (previousSurfaceRef.current !== surface) {
       previousSurfaceRef.current = surface;
@@ -913,33 +985,38 @@ function AgentFloatingButton({
       return undefined;
     }
 
-    const showAfterIdle = () => {
-      if (!hasDismissedTeaserRef.current && !isOpen) {
-        setIsTeaserVisible(true);
-      }
-    };
-
     const scheduleIdle = () => {
       if (teaserTimerRef.current !== null) {
         window.clearTimeout(teaserTimerRef.current);
       }
-      teaserTimerRef.current = window.setTimeout(showAfterIdle, 2500);
+      teaserTimerRef.current = window.setTimeout(scheduleTeaserVisibilityCheck, 2500);
     };
 
     const handleScroll = () => {
-      setIsTeaserVisible(false);
-      scheduleIdle();
+      scheduleTeaserVisibilityCheck();
+    };
+
+    const handleResize = () => {
+      scheduleTeaserVisibilityCheck();
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
     if (surface === "home") {
       scheduleIdle();
+    } else {
+      scheduleTeaserVisibilityCheck();
     }
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
       if (teaserTimerRef.current !== null) {
         window.clearTimeout(teaserTimerRef.current);
+      }
+      if (teaserVisibilityFrameRef.current !== null) {
+        window.cancelAnimationFrame(teaserVisibilityFrameRef.current);
+        teaserVisibilityFrameRef.current = null;
       }
     };
   }, [isOpen, surface]);
@@ -1380,14 +1457,23 @@ function AgentFloatingButton({
     <>
       <div className={`agent-floating-entry${isOpen ? " is-open" : ""}`} aria-label="AI 에이전트 진입점">
         <div
+          ref={teaserRef}
           className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
         >
-          <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
-            피부 고민을 같이 찾아볼까요?
-          </button>
-          <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
-            궁금한 성분을 물어보세요
-          </button>
+          {surface === "productDetail" ? (
+            <button onClick={() => handleTeaserClick("비슷한 상품 비교해줘")} type="button">
+              비슷한 상품 비교해줘
+            </button>
+          ) : (
+            <>
+              <button onClick={() => handleTeaserClick("피부 고민을 같이 찾아볼까요?")} type="button">
+                피부 고민을 같이 찾아볼까요?
+              </button>
+              <button onClick={() => handleTeaserClick("궁금한 성분을 물어보세요")} type="button">
+                궁금한 성분을 물어보세요
+              </button>
+            </>
+          )}
         </div>
         {isChatMounted ? (
           <section
