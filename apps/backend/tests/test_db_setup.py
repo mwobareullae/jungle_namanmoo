@@ -52,6 +52,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "ingredients",
         "inventories",
         "inventory_movements",
+        "order_cancel_requests",
             "order_items",
             "order_claims",
             "order_claim_items",
