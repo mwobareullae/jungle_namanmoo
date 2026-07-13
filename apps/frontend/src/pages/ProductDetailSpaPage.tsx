@@ -902,6 +902,7 @@ function ProductDetailSpaPage() {
   const visibleReviews = reviewTypeFilter === "photo"
     ? productReviews.filter((review) => review.photos.length > 0)
     : productReviews;
+  const hasProductReviews = reviewSummary.totalCount > 0 || productReviews.length > 0;
   const currentReviewPage = reviewPage;
 
   const handleGoBack = () => {
@@ -1069,6 +1070,16 @@ function ProductDetailSpaPage() {
   const narrativeReason = narrativeCard?.reason || product?.reason_summary || "피부 고민 기준 추천 근거를 확인했습니다.";
   const narrativeRole = narrativeProduct?.role;
   const narrativeCaution = narrativeProduct?.caution;
+  const hasAiRecommendationSummary = Boolean(
+    recommendationId
+    && (
+      isNarrativeLoading
+      || narrativeCard?.headline?.trim()
+      || narrativeCard?.reason?.trim()
+      || narrativeOverview?.headline?.trim()
+      || product?.reason_summary?.trim()
+    )
+  );
   const candidateTotal =
     candidateTotalState && candidateTotalState.recommendationId === recommendationId
       ? candidateTotalState.total
@@ -1181,6 +1192,7 @@ function ProductDetailSpaPage() {
               isAddingToCart={isAddingToCart}
               isNarrativeDetailOpen={isNarrativeDetailOpen}
               isNarrativeLoading={isNarrativeLoading}
+              showAiNarrative={hasAiRecommendationSummary}
               showRecommendationCriteria={Boolean(recommendationId)}
               isProductSoldOut={isProductSoldOut}
               isWishlistPending={isWishlistPending}
@@ -1731,8 +1743,8 @@ function ProductDetailSpaPage() {
                     })
                   ) : (
                     <div className="product-review-empty">
-                      <strong>조건에 맞는 리뷰가 없습니다.</strong>
-                      <p>필터를 조금 넓혀서 다시 확인해보세요.</p>
+                      <strong>{hasProductReviews ? "조건에 맞는 리뷰가 없습니다." : "리뷰가 없습니다."}</strong>
+                      <p>{hasProductReviews ? "필터를 조금 넓혀서 다시 확인해보세요." : "등록된 리뷰가 아직 없습니다."}</p>
                     </div>
                   )}
                 </div>

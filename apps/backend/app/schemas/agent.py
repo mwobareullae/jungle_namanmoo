@@ -9,6 +9,13 @@ AgentToolName = Literal[
     "find_similar_products",
     "compare_products",
     "refine_product_results",
+    "get_cart",
+    "add_to_cart",
+    "prepare_checkout",
+    "prepare_order",
+    "compose_cart",
+    "prepare_review_draft",
+    "prepare_claim_draft",
 ]
 
 AgentToolCallStatus = Literal[
@@ -28,6 +35,9 @@ AgentUiActionType = Literal[
     "show_products",
     "show_product_comparison",
     "show_order_status",
+    "show_cart",
+    "show_checkout_preview",
+    "open_payment",
 ]
 
 
@@ -43,6 +53,31 @@ class AgentContext(BaseModel):
     search_query: str | None = Field(default=None, max_length=255)
     filters: dict[str, Any] = Field(default_factory=dict)
     order_code: str | None = Field(default=None, max_length=40)
+    cart_item_ids: list[int] = Field(default_factory=list, max_length=100)
+    address_id: int | None = Field(default=None, ge=1)
+
+
+class AgentConversationMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class AgentContextResultItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_type: Literal["product", "order"]
+    id: str = Field(..., min_length=1, max_length=128)
+    title: str = Field(..., min_length=1, max_length=255)
+
+
+class AgentLastToolResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: AgentUiActionType
+    target: str | None = Field(default=None, max_length=80)
+    items: list[AgentContextResultItem] = Field(default_factory=list, max_length=10)
 
 
 class AgentChatRequest(BaseModel):
@@ -51,6 +86,8 @@ class AgentChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     conversation_id: str | None = Field(default=None, max_length=128)
     context: AgentContext = Field(default_factory=AgentContext)
+    recent_messages: list[AgentConversationMessage] = Field(default_factory=list, max_length=8)
+    last_tool_result: AgentLastToolResult | None = None
 
 
 class AgentUiAction(BaseModel):

@@ -38,6 +38,7 @@ export type ProductDetailHeroProps = {
   isAddingToCart: boolean;
   isNarrativeDetailOpen: boolean;
   isNarrativeLoading: boolean;
+  showAiNarrative: boolean;
   showRecommendationCriteria: boolean;
   isProductSoldOut: boolean;
   isWishlistPending: boolean;

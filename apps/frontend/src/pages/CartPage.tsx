@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
 import { deleteCartItem, getCart, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import { navigateWithinApp } from "../lib/navigation";
 import type { CartResponse, CheckoutPreviewResponse } from "../types/cart";
 import type { CartItem } from "../types/cart";
@@ -109,6 +110,7 @@ const getCartItemOptionLabel = (item: CartItem) => {
 };
 
 function CartPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
   const [cart, setCart] = useState<CartResponse | null>(null);
@@ -122,6 +124,15 @@ function CartPage() {
   const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreviewResponse | null>(null);
   const [isCheckoutPreviewLoading, setIsCheckoutPreviewLoading] = useState(false);
   const [checkoutPreviewErrorMessage, setCheckoutPreviewErrorMessage] = useState("");
+  const agentCheckoutStartedRef = useRef(false);
+  const agentCheckoutParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const isAgentCheckout = agentCheckoutParams.get("agent_checkout") === "1";
+  const requestedAgentCartItemIds = useMemo(
+    () => agentCheckoutParams.getAll("cart_item_ids")
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0),
+    [agentCheckoutParams],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -135,7 +146,9 @@ function CartPage() {
 
         if (isMounted) {
           setCart(cartResponse);
-          setSelectedItemIds(cartResponse.items.filter(isPurchasableCartItem).map((item) => item.id));
+          const purchasableIds = cartResponse.items.filter(isPurchasableCartItem).map((item) => item.id);
+          const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
+          setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
         }
       } catch (error) {
         if (isMounted) {
@@ -148,12 +161,18 @@ function CartPage() {
       }
     };
 
+    const handleCartUpdated = () => {
+      void loadCart();
+    };
+
     void loadCart();
+    window.addEventListener("cart:updated", handleCartUpdated);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("cart:updated", handleCartUpdated);
     };
-  }, []);
+  }, [isAgentCheckout, requestedAgentCartItemIds]);
 
   const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
     if (nextQuantity < 1) {
@@ -318,6 +337,40 @@ function CartPage() {
 
     navigateWithinApp(`/checkout?${params.toString()}`);
   };
+
+  useEffect(() => {
+    if (
+      !isAgentCheckout ||
+      agentCheckoutStartedRef.current ||
+      isLoading ||
+      isCheckoutPreviewLoading ||
+      !checkoutPreview ||
+      checkoutPreviewErrorMessage ||
+      !user ||
+      selectedItems.length === 0
+    ) {
+      return;
+    }
+
+    agentCheckoutStartedRef.current = true;
+    const continueToCheckout = async () => {
+      await waitForAgentInteraction(520);
+      const checkoutTarget = document.querySelector<HTMLElement>("[data-agent-checkout-target]");
+      await playAgentClickInteraction(checkoutTarget);
+      const params = new URLSearchParams();
+      selectedItems.forEach((item) => params.append("cart_item_ids", String(item.id)));
+      await navigateWithinApp(`/checkout?${params.toString()}`);
+    };
+    void continueToCheckout();
+  }, [
+    checkoutPreview,
+    checkoutPreviewErrorMessage,
+    isAgentCheckout,
+    isCheckoutPreviewLoading,
+    isLoading,
+    selectedItems,
+    user,
+  ]);
 
   const handleToggleSelectAll = () => {
     if (!cart) {
@@ -659,6 +712,7 @@ function CartPage() {
                 </p>
                 <button
                   className="checkout-btn-main"
+                  data-agent-checkout-target
                   disabled={
                     selectedItems.length === 0 ||
                     isAuthLoading ||

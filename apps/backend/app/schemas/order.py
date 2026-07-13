@@ -22,7 +22,7 @@ class OrderCreateRequest(BaseModel):
     cart_item_ids: list[int]
     address_id: int | None = None
     shipping_address: DirectShippingAddressRequest | None = None
-    payment_provider: PaymentProvider = "MOCK"
+    payment_provider: PaymentProvider = "TOSS"
 
 
 class OrderPaymentSummary(BaseModel):

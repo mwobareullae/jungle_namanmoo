@@ -1,4 +1,4 @@
-export type OrderPaymentProvider = "MOCK" | "TOSS";
+export type OrderPaymentProvider = "TOSS";
 
 export type CreateOrderShippingAddress = {
   recipient_name: string;

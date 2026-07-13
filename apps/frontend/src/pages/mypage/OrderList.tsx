@@ -292,6 +292,9 @@ export default function OrderList() {
                 const canWriteReview = order.status === "DELIVERED";
                 const isShippingOrder = order.status === "PREPARING_SHIPMENT" || order.status === "SHIPPED";
                 const isExpiredOrder = order.status === "EXPIRED";
+                const orderActionCount = 1
+                  + (canWriteReview || isShippingOrder ? 1 : 0)
+                  + (isCompletedOrder || isExpiredOrder ? 1 : 0);
                 return (
                   <article
                     aria-label={`${displayTitle} 주문 상세 보기`}
@@ -469,6 +472,7 @@ export default function OrderList() {
                       <div
                         style={{
                           ...styles.orderActions,
+                          ...(orderActionCount === 1 ? styles.orderActionsSingle : {}),
                           ...(canWriteReview ? styles.orderActionsThree : {})
                         }}
                       >
@@ -888,6 +892,9 @@ const styles: Record<string, CSSProperties> = {
   },
   orderActionsThree: {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))"
+  },
+  orderActionsSingle: {
+    gridTemplateColumns: "minmax(0, 1fr)"
   },
   reviewButton: {
     minHeight: 48,
