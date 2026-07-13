@@ -9,9 +9,10 @@
 3. [상품 검색 API](api/catalog-search-api-contract.md)
 4. [홈 섹션 API](api/home-sections-api-contract.md)
 5. [주문·결제 API](api/order-payment-api-contract.md)
-6. [홈 개인화 추천](recommendation/home-personalized-ranking.md)
-7. [추천 기본 스코어링](recommendation/backend-scoring-v0.md)
-8. [백엔드 테스트](operations/backend-testing.md)
+6. [커머스 액션 에이전트 API](api/action-agent-api-contract.md)
+7. [홈 개인화 추천](recommendation/home-personalized-ranking.md)
+8. [추천 기본 스코어링](recommendation/backend-scoring-v0.md)
+9. [백엔드 테스트](operations/backend-testing.md)
 
 ## 폴더별 역할
 
@@ -54,6 +55,7 @@
 
 - 주문과 결제: [주문·결제 API 계약](api/order-payment-api-contract.md)
 - 장바구니 결제 흐름: [장바구니·체크아웃 API 계약](api/cart-checkout-api-contract.md)
+- 대화형 장바구니·주문 흐름: [커머스 액션 에이전트 API 계약](api/action-agent-api-contract.md)
 - 리뷰 요청·응답: [리뷰 API 계약](api/review-api-contract.md)
 
 ### 성능 테스트
