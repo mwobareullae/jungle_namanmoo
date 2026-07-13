@@ -1,4 +1,9 @@
 services:
+  backend:
+    # 서버에서는 소스 감시 없이 단일 Uvicorn 프로세스로 실행합니다.
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
   caddy:
     image: caddy:2-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-mwobareullae}-caddy
