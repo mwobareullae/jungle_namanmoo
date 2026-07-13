@@ -489,6 +489,15 @@ const getApprovalCopy = (toolName?: AgentToolName | null) => {
     };
   }
 
+  if (toolName === "prepare_order") {
+    return {
+      approveLabel: "주문 생성",
+      description: "최신 가격과 재고를 다시 확인한 뒤 Toss 주문을 만들어요.",
+      rejectLabel: "나중에",
+      title: "이 내용으로 주문할까요?",
+    };
+  }
+
   return {
     approveLabel: "승인",
     description: "이 작업은 진행 전에 확인이 필요해요.",
@@ -788,6 +797,14 @@ function createMessagesFromConfirmResponse(response: AgentToolConfirmResponse, t
 }
 
 const resolveNavigateUrl = (action: AgentUiAction) => {
+  if (action.type === "open_payment" && action.target === "toss_payment") {
+    const orderCode = readString(action.payload.order_code);
+    const amount = readNumber(action.payload.amount);
+    if (!orderCode || !amount) return null;
+    const params = new URLSearchParams({ agent_order_code: orderCode, agent_amount: String(amount) });
+    return `/checkout?${params.toString()}`;
+  }
+
   if (action.type !== "navigate") {
     return null;
   }

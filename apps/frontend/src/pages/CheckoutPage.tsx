@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ANONYMOUS, loadTossPayments, type TossPaymentsSDK } from "@tosspayments/tosspayments-sdk";
 import { useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
@@ -240,6 +240,8 @@ const getCheckoutParams = () => {
     skinType: params.get("skin_type") ?? "",
     sensitivity: params.get("sensitivity") ?? "",
     cartItemIds,
+    agentOrderCode: params.get("agent_order_code") ?? "",
+    agentAmount: Number(params.get("agent_amount") ?? 0),
   };
 };
 
@@ -294,7 +296,7 @@ const mapAddressToForm = (address: UserAddress): AddressFormState => ({
 });
 
 function CheckoutPage() {
-  const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds }] =
+  const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds, agentOrderCode, agentAmount }] =
     useState(getCheckoutParams);
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
@@ -324,6 +326,7 @@ function CheckoutPage() {
   const [isTossSdkLoading, setIsTossSdkLoading] = useState(false);
   const [tossSdkErrorMessage, setTossSdkErrorMessage] = useState("");
   const [hasAgreedPayment, setHasAgreedPayment] = useState(false);
+  const agentPaymentStartedRef = useRef(false);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
@@ -459,6 +462,36 @@ function CheckoutPage() {
   }, [tossClientKey]);
 
   useEffect(() => {
+    if (!agentOrderCode || agentAmount <= 0 || !tossPayments || !user || agentPaymentStartedRef.current) {
+      return;
+    }
+    agentPaymentStartedRef.current = true;
+    setIsCompletingPayment(true);
+    setOrderErrorMessage("");
+    const successParams = new URLSearchParams({ provider: "toss", order_code: agentOrderCode });
+    const failParams = new URLSearchParams({ payment_failed: "1", order_code: agentOrderCode });
+    const payment = tossPayments.payment({ customerKey: getTossCustomerKey(user.id) });
+    payment.requestPayment({
+      method: "CARD",
+      amount: { currency: "KRW", value: agentAmount },
+      orderId: agentOrderCode,
+      orderName: "뭐바를래 주문",
+      successUrl: `${window.location.origin}/payment-complete?${successParams.toString()}`,
+      failUrl: `${window.location.origin}/payment-complete?${failParams.toString()}`,
+      customerEmail: user.email,
+      customerName: user.nickname ?? user.email,
+      card: { flowMode: "DIRECT", easyPay: "TOSSPAY" },
+    }).catch((error) => {
+      agentPaymentStartedRef.current = false;
+      setOrderErrorMessage(error instanceof Error ? error.message : "Toss 결제창을 열지 못했습니다.");
+      setIsCompletingPayment(false);
+    });
+  }, [agentAmount, agentOrderCode, tossPayments, user]);
+
+  useEffect(() => {
+    if (agentOrderCode) {
+      return;
+    }
     if (selectedId) {
       return;
     }
@@ -514,7 +547,7 @@ function CheckoutPage() {
     return () => {
       isMounted = false;
     };
-  }, [requestedCartItemIds, selectedAddressId, selectedId]);
+  }, [agentOrderCode, requestedCartItemIds, selectedAddressId, selectedId]);
 
   const isResolvingProduct = Boolean(selectedId) && productLoadState === "loading";
   const items = useMemo(() => {
