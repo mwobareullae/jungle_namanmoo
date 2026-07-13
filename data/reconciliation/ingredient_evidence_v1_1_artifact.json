@@ -1,0 +1,35 @@
+{
+  "artifact_id": "ingredient_evidence_v1_1_bdata_candidate_unverified_20260713",
+  "artifact_status": "candidate_unverified",
+  "archive_name": "ingredient_evidence_v1_1_bdata_candidate_unverified_20260713.tar.gz",
+  "archive_sha256": "d94dde5272978f3766b2f1634329270cea6b5495fa4c6777bcc863a12af48f02",
+  "archive_size_bytes": 40670261,
+  "b_data_file_count": 76,
+  "primary_b_data_file_count": 74,
+  "ancillary_validation_file_count": 4,
+  "release_tag": "ingredient-evidence-v1.1-bdata-20260713",
+  "release_url": "https://github.com/mwobareullae/jungle_namanmoo/releases/tag/ingredient-evidence-v1.1-bdata-20260713",
+  "archive_url": "https://github.com/mwobareullae/jungle_namanmoo/releases/download/ingredient-evidence-v1.1-bdata-20260713/ingredient_evidence_v1_1_bdata_candidate_unverified_20260713.tar.gz",
+  "supplement": {
+    "archive_name": "ingredient_evidence_v1_1_bdata_supplement_2files_20260713.tar.gz",
+    "archive_sha256": "a257b7d621788dbb9d67297020e7b3e80750be23bd64d797ed5e2f2d5d78bc8c",
+    "archive_size_bytes": 142289,
+    "b_data_file_count": 2,
+    "archive_url": "https://github.com/mwobareullae/jungle_namanmoo/releases/download/ingredient-evidence-v1.1-bdata-20260713/ingredient_evidence_v1_1_bdata_supplement_2files_20260713.tar.gz"
+  },
+  "validation": {
+    "status": "pass",
+    "check_count": 83,
+    "passed_check_count": 83,
+    "failed_check_count": 0,
+    "runtime_changed": false,
+    "search_run_count": 2796,
+    "kci_access_unavailable_count": 466
+  },
+  "excluded_scoring_inputs": [
+    "data/reconciliation/ingredient_evidence_adjudication_466.csv",
+    "data/reconciliation/ingredient_role_review.csv",
+    "data/reconciliation/ingredient_effect_pubmed_screening.csv"
+  ],
+  "usage": "audit_archive_not_runtime_seed_or_claim_evidence"
+}
