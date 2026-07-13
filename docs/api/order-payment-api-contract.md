@@ -550,16 +550,31 @@ Behavior:
 - Immediate cancel releases reserved inventory.
 - Payment status becomes `CANCELED`.
 - If order is already `PAID`, do not auto-refund in MVP.
-- Paid orders move to `CANCEL_REQUESTED`.
+- Paid orders move to `CANCEL_REQUESTED`, and an `order_cancel_requests` row (`status="REQUESTED"`) is created in the same transaction for admin review (see `admin-dashboard-milestone-plan.md` P1-M1.5-B).
+- Calling this again while the order is already `CANCEL_REQUESTED` is idempotent and returns the existing request's `request_code` unchanged.
+- If the order is `CANCEL_REQUESTED` but has no matching `order_cancel_requests` row (data inconsistency), responds `409 ORDER_CANCEL_REQUEST_NOT_FOUND` instead of a silent success.
 
-Response:
+Response — immediate cancel (`PENDING_PAYMENT` → `CANCELED`), no cancel request record involved:
 
 ```json
 {
   "order_code": "ord_20260705_k7x9q2m4",
-  "status": "CANCELED"
+  "status": "CANCELED",
+  "request_code": null
 }
 ```
+
+Response — paid order requests cancellation (`PAID` → `CANCEL_REQUESTED`):
+
+```json
+{
+  "order_code": "ord_20260705_k7x9q2m4",
+  "status": "CANCEL_REQUESTED",
+  "request_code": "ocr_20260713_gkViqrBo"
+}
+```
+
+Calling the endpoint again for the same `CANCEL_REQUESTED` order returns `200` with the same `request_code` (no new record is created).
 
 ## `POST /api/payments/{payment_code}/mock/confirm`
 
