@@ -1,0 +1,501 @@
+ingredient_rank,ingredient_id,name_ko,name_en,product_count,cohort_source,score_status,active_effect_count,active_effect_ids,min_effect_score,max_effect_score,score_origins,human_approval_gate_used,full_text_gate_used
+0,adenosine,아데노신,Adenosine,5774,existing_34,score_active_existing,1,effect_wrinkle,55,55,existing_34_unchanged,N,N
+0,aha,AHA,Alpha Hydroxy Acids,5270,existing_34,score_active_existing,3,effect_exfoliation|effect_moisture_barrier|effect_wrinkle,42,65,existing_34_unchanged,N,N
+0,allantoin,알란토인,Allantoin,5914,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,40,50,existing_34_unchanged,N,N
+0,arbutin,알부틴,Arbutin,251,existing_34,score_active_existing,1,effect_brightening,60,60,existing_34_unchanged,N,N
+0,ascorbic_acid,비타민C,Ascorbic Acid,2627,existing_34,score_active_existing,2,effect_brightening|effect_wrinkle,45,62,existing_34_unchanged,N,N
+0,beta_glucan,베타-글루칸,Beta-Glucan,1920,existing_34,score_active_existing,1,effect_moisture_barrier,52,52,existing_34_unchanged,N,N
+0,bisabolol,비사보롤,Bisabolol,2108,existing_34,score_active_existing,1,effect_brightening,58,58,existing_34_unchanged,N,N
+0,centella_asiatica,센텔라/병풀,Centella Asiatica Extracts,1678,existing_34,score_active_existing,3,effect_calming|effect_moisture_barrier|effect_wrinkle,44,60,existing_34_unchanged,N,N
+0,ceramides,세라마이드,Ceramides,3270,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,40,74,existing_34_unchanged,N,N
+0,cholesterol_fatty_acids,콜레스테롤/지방산,Cholesterol / Fatty Acids,7056,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,35,60,existing_34_unchanged,N,N
+0,colloidal_oatmeal,콜로이달오트밀,Colloidal Oatmeal,270,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,46,58,existing_34_unchanged,N,N
+0,dimethicone,디메치콘,Dimethicone,16684,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,33,52,existing_34_unchanged,N,N
+0,dipotassium_glycyrrhizate,다이포타슘글리시리제이트,Dipotassium Glycyrrhizate,2637,existing_34,score_active_existing,1,effect_calming,52,52,existing_34_unchanged,N,N
+0,glutathione,글루타티온,Glutathione,1081,existing_34,score_active_existing,1,effect_brightening,50,50,existing_34_unchanged,N,N
+0,glycerin,글리세린,Glycerin,38427,existing_34,score_active_existing,3,effect_calming|effect_exfoliation|effect_moisture_barrier,30,72,existing_34_unchanged,N,N
+0,green_tea,녹차,Green Tea,3296,existing_34,score_active_existing,3,effect_acne_sebum|effect_calming|effect_wrinkle,42,52,existing_34_unchanged,N,N
+0,hyaluronic_acid,히알루론산,Hyaluronic Acid,16824,existing_34,score_active_existing,3,effect_calming|effect_moisture_barrier|effect_wrinkle,38,68,existing_34_unchanged,N,N
+0,kojic_acid,코직애씨드,Kojic Acid,87,existing_34,score_active_existing,1,effect_brightening,50,50,existing_34_unchanged,N,N
+0,licorice_extract,감초추출물,Licorice Extract,720,existing_34,score_active_existing,2,effect_brightening|effect_calming,42,55,existing_34_unchanged,N,N
+0,madecassoside,마데카소사이드,Madecassoside,1855,existing_34,score_active_existing,3,effect_calming|effect_moisture_barrier|effect_wrinkle,44,58,existing_34_unchanged,N,N
+0,niacinamide,나이아신아마이드,Niacinamide,10393,existing_34,score_active_existing,5,effect_acne_sebum|effect_brightening|effect_calming|effect_moisture_barrier|effect_wrinkle,40,70,existing_34_unchanged,N,N
+0,panthenol,판테놀,Panthenol,12738,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,55,60,existing_34_unchanged,N,N
+0,peptides,펩타이드,Peptides,3343,existing_34,score_active_existing,1,effect_wrinkle,52,52,existing_34_unchanged,N,N
+0,petrolatum_mineral_oil,페트롤라툼/미네랄오일,Petrolatum / Mineral Oil,607,existing_34,score_active_existing,2,effect_calming|effect_moisture_barrier,37,72,existing_34_unchanged,N,N
+0,pha,PHA,Polyhydroxy Acids,1801,existing_34,score_active_existing,4,effect_calming|effect_exfoliation|effect_moisture_barrier|effect_wrinkle,35,55,existing_34_unchanged,N,N
+0,phytosphingosine,피토스핑고신,Phytosphingosine,1863,existing_34,score_active_existing,2,effect_acne_sebum|effect_moisture_barrier,42,55,existing_34_unchanged,N,N
+0,retinal,레티날,Retinal,192,existing_34,score_active_existing,3,effect_brightening|effect_exfoliation|effect_wrinkle,43,72,existing_34_unchanged,N,N
+0,retinol,레티놀,Retinol,1027,existing_34,score_active_existing,4,effect_acne_sebum|effect_brightening|effect_exfoliation|effect_wrinkle,40,70,existing_34_unchanged,N,N
+0,salicylic_acid_bha,살리실산/BHA,Salicylic Acid / BHA,3956,existing_34,score_active_existing,2,effect_acne_sebum|effect_exfoliation,60,70,existing_34_unchanged,N,N
+0,squalane,스쿠알란,Squalane,7887,existing_34,score_active_existing,1,effect_moisture_barrier,52,52,existing_34_unchanged,N,N
+0,tea_tree,티트리,Tea Tree,27,existing_34,score_active_existing,1,effect_acne_sebum,54,54,existing_34_unchanged,N,N
+0,tranexamic_acid,트라넥사믹애씨드,Tranexamic Acid,436,existing_34,score_active_existing,1,effect_brightening,65,65,existing_34_unchanged,N,N
+0,urea,유레아,Urea,1257,existing_34,score_active_existing,3,effect_calming|effect_exfoliation|effect_moisture_barrier,37,66,existing_34_unchanged,N,N
+0,zinc_pca,징크PCA,Zinc PCA,772,existing_34,score_active_existing,2,effect_acne_sebum|effect_moisture_barrier,32,48,existing_34_unchanged,N,N
+2,phenoxyethanol,페녹시에탄올,Phenoxyethanol,28403,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+3,butylene_glycol,부틸렌글라이콜,Butylene Glycol,26098,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+4,tocopherol,토코페롤,Tocopherol,25877,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,30,50,ai_paper_override|official_function_prior,N,N
+5,ethylhexylglycerin,에틸헥실글리세린,Ethylhexylglycerin,24596,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+6,citric_acid,시트릭애씨드,Citric Acid,21835,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+7,caprylyl_glycol,카프릴릴글라이콜,Caprylyl Glycol,21124,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+10,limonene,리모넨,Limonene,16657,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+11,linalool,리날룰,Linalool,16306,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+12,sodium_benzoate,소듐벤조에이트,Sodium Benzoate,14591,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+13,potassium_sorbate,포타슘솔베이트,Potassium Sorbate,14077,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+14,1_2_hexanediol,"1,2-헥산다이올","1,2-Hexanediol",13987,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+15,disodium_edta,다이소듐이디티에이,Disodium EDTA,13862,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+16,xanthan_gum,잔탄검,Xanthan Gum,13776,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+17,tocopheryl_acetate,토코페릴아세테이트,Tocopheryl Acetate,13298,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+18,caprylic_capric_triglyceride,카프릴릭/카프릭트라이글리세라이드,Caprylic/Capric Triglyceride,13261,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+19,propanediol,프로판다이올,Propanediol,12794,new_466,score_active_new,1,effect_moisture_barrier,50,50,ai_paper_override,N,N
+21,silica,실리카,Silica,12318,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+22,sodium_chloride,소듐클로라이드,Sodium Chloride,11564,new_466,score_active_new,1,effect_moisture_barrier,35,35,ai_paper_override,N,N
+23,sodium_hydroxide,소듐하이드록사이드,Sodium Hydroxide,10880,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+25,water,정제수,Water,10377,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+26,pentylene_glycol,펜틸렌글라이콜,Pentylene Glycol,9887,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+27,alcohol,에탄올,Alcohol,9165,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+28,disteardimonium_hectorite,다이스테아다이모늄헥토라이트,Disteardimonium Hectorite,8426,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+29,citronellol,시트로넬올,Citronellol,8409,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+30,mica,마이카,Mica,8184,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+31,cetearyl_alcohol,세테아릴알코올,Cetearyl Alcohol,8000,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+32,carbomer,카보머,Carbomer,7987,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+33,geraniol,제라니올,Geraniol,7955,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+35,aluminum_hydroxide,알루미늄하이드록사이드,Aluminum Hydroxide,7465,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+36,helianthus_annuus_sunflower_seed_oil,해바라기씨오일,Helianthus Annuus (Sunflower) Seed Oil,7098,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+38,butyrospermum_parkii_shea_butter,시어버터,Butyrospermum Parkii (Shea) Butter,7024,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+39,triethoxycaprylylsilane,트라이에톡시카프릴릴실레인,Triethoxycaprylylsilane,7011,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+40,glyceryl_stearate,글리세릴스테아레이트,Glyceryl Stearate,6922,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+41,dipropylene_glycol,다이프로필렌글라이콜,Dipropylene Glycol,6761,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+42,fragrance_perfume_parfum,향료,Fragrance|Perfume|Parfum,6642,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+43,hydrogenated_lecithin,하이드로제네이티드레시틴,Hydrogenated Lecithin,6561,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+44,hexyl_cinnamal,헥실신남알,Hexyl Cinnamal,6489,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+45,pentaerythrityl_tetra_di_t_butyl_hydroxyhydrocinnamate,펜타에리스리틸테트라-다이-t-부틸하이드록시하이드로신나 메이트,Pentaerythrityl Tetra-di-t-butyl Hydroxyhydrocinnamate,6228,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+46,propylene_glycol,프로필렌글라이콜,Propylene Glycol,6174,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+47,benzyl_alcohol,벤질알코올,Benzyl Alcohol,6169,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+48,hydroxyacetophenone,하이드록시아세토페논,Hydroxyacetophenone,6028,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+49,sodium_citrate,소듐시트레이트,Sodium Citrate,6013,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+50,lecithin,레시틴,Lecithin,5969,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+53,arginine,알지닌,Arginine,5512,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+54,citral,시트랄,Citral,5510,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+56,sorbitan_isostearate,솔비탄아이소스테아레이트,Sorbitan Isostearate,5244,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+57,simmondsia_chinensis_jojoba_seed_oil,호호바씨오일,Simmondsia Chinensis (Jojoba) Seed Oil,5237,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+58,chlorphenesin,클로페네신,Chlorphenesin,5149,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+59,cetyl_alcohol,세틸알코올,Cetyl Alcohol,5107,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+60,trimethylsiloxysilicate,트라이메틸실록시실리케이트,Trimethylsiloxysilicate,5074,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+61,benzyl_salicylate,벤질살리실레이트,Benzyl Salicylate,5017,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+62,isododecane,아이소도데케인,Isododecane,5008,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+63,sodium_hyaluronate,소듐하이알루로네이트,Sodium Hyaluronate,4731,new_466,score_active_new,1,effect_moisture_barrier,50,50,official_function_prior+ai_paper_override,N,N
+64,acrylates_c10_30_alkyl_acrylate_crosspolymer,아크릴레이트/C10-30알킬아크릴레이트크로스폴리머,Acrylates/C10-30 Alkyl Acrylate Crosspolymer,4609,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+65,synthetic_fluorphlogopite,합성플루오르플로고파이트,Synthetic Fluorphlogopite,4598,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+66,polysorbate_20,폴리솔베이트20,Polysorbate 20,4507,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+67,propylene_carbonate,프로필렌카보네이트,Propylene Carbonate,4481,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+68,tin_oxide,틴옥사이드,Tin Oxide,4311,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+69,maltodextrin,말토덱스트린,Maltodextrin,4238,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+70,cetyl_peg_ppg_10_1_dimethicone,세틸피이지/피피지-10/1다이메티콘,Cetyl PEG/PPG-10/1 Dimethicone,4225,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+71,betaine,베타인,Betaine,4117,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+72,bht,비에이치티,BHT,4071,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+73,tromethamine,트로메타민,Tromethamine,4055,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+74,dimethicone_vinyl_dimethicone_crosspolymer,다이메티콘/비닐다이메티콘크로스폴리머,Dimethicone/Vinyl Dimethicone Crosspolymer,3998,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+75,trisodium_ethylenediamine_disuccinate,트라이소듐에틸렌다이아민다이석시네이트,Trisodium Ethylenediamine Disuccinate,3978,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+77,ethylhexyl_palmitate,에틸헥실팔미테이트,Ethylhexyl Palmitate,3952,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+78,hydroxycitronellal,하이드록시시트로넬알,Hydroxycitronellal,3950,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+79,magnesium_sulfate,마그네슘설페이트,Magnesium Sulfate,3837,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+80,glyceryl_caprylate,글리세릴카프릴레이트,Glyceryl Caprylate,3834,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+81,polysorbate_60,폴리솔베이트60,Polysorbate 60,3724,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+82,hexylene_glycol,헥실렌글라이콜,Hexylene Glycol,3707,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+83,coumarin,쿠마린,Coumarin,3628,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+84,octyldodecanol,옥틸도데칸올,Octyldodecanol,3622,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+85,caffeine,카페인,Caffeine,3594,new_466,score_active_new,1,effect_moisture_barrier,50,50,ai_paper_override,N,N
+86,alpha_isomethyl_ionone,알파-아이소메틸아이오논,Alpha-Isomethyl Ionone,3582,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+87,titanium_dioxide,티타늄디옥사이드,Titanium Dioxide,3526,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+88,sodium_phytate,소듐파이테이트,Sodium Phytate,3487,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+89,benzyl_benzoate,벤질벤조에이트,Benzyl Benzoate,3475,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+90,hydroxyethylcellulose,하이드록시에틸셀룰로오스,Hydroxyethylcellulose,3444,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+94,phenyl_trimethicone,페닐트라이메티콘,Phenyl Trimethicone,3264,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+95,polyhydroxystearic_acid,폴리하이드록시스테아릭애씨드,Polyhydroxystearic Acid,3251,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+96,peg_10_dimethicone,피이지-10다이메티콘,PEG-10 Dimethicone,3223,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+97,sodium_dehydroacetate,소듐데하이드로아세테이트,Sodium Dehydroacetate,3209,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+98,sodium_pca,소듐피씨에이,Sodium PCA,3194,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+99,cyclopentasiloxane,사이클로펜타실록세인,Cyclopentasiloxane,3191,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+100,cetrimonium_chloride,세트리모늄클로라이드,Cetrimonium Chloride,3176,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+101,hydroxyethyl_acrylate_sodium_acryloyldimethyl_taurate_copolymer,하이드록시에틸아크릴레이트/소듐아크릴로일다이메틸타우 레이트코폴리머,Hydroxyethyl Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,3125,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+102,behentrimonium_chloride,베헨트라이모늄클로라이드,Behentrimonium Chloride,3094,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+103,trehalose,트레할로오스,Trehalose,3069,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+104,benzoic_acid,벤조익애씨드,Benzoic Acid,3052,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+105,diisostearyl_malate,다이아이소스테아릴말레이트,Diisostearyl Malate,3046,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+106,guar_hydroxypropyltrimonium_chloride,구아하이드록시프로필트라이모늄클로라이드,Guar Hydroxypropyltrimonium Chloride,2976,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+107,rosmarinus_officinalis_rosemary_leaf_extract,로즈마리잎추출물,Rosmarinus Officinalis (Rosemary) Leaf Extract,2974,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+108,polymethylsilsesquioxane,폴리메틸실세스퀴옥세인,Polymethylsilsesquioxane,2948,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+109,cocos_nucifera_coconut_oil,코코넛야자오일,Cocos Nucifera (Coconut) Oil,2936,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+110,isopropyl_alcohol,아이소프로필알코올,Isopropyl Alcohol,2897,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+111,ceramide_np,세라마이드엔피,Ceramide NP,2859,new_466,score_active_new,1,effect_moisture_barrier,50,50,ai_paper_override,N,N
+112,alumina,알루미나,Alumina,2856,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+113,olea_europaea_olive_fruit_oil,올리브오일,Olea Europaea (Olive) Fruit Oil,2737,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+114,coco_caprylate_caprate,코코-카프릴레이트/카프레이트,Coco-Caprylate/Caprate,2735,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+115,peg_100_stearate,피이지-100스테아레이트,PEG-100 Stearate,2700,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+116,glycine,글라이신,Glycine,2677,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+117,aloe_barbadensis_leaf_juice,알로에베라잎즙,Aloe Barbadensis Leaf Juice,2637,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+119,cocamidopropyl_betaine,코카미도프로필베타인,Cocamidopropyl Betaine,2631,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+121,tetrasodium_glutamate_diacetate,테트라소듐글루타메이트다이아세테이트,Tetrasodium Glutamate Diacetate,2616,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+122,hydrogenated_polyisobutene,하이드로제네이티드폴리아이소부텐,Hydrogenated Polyisobutene,2614,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+123,sorbitan_olivate,솔비탄올리베이트,Sorbitan Olivate,2612,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+124,leuconostoc_radish_root_ferment_filtrate,류코노스톡/무발효여과물,Leuconostoc/Radish Root Ferment Filtrate,2611,new_466,score_active_new,1,effect_acne_sebum,40,40,official_function_prior,N,N
+125,stearyl_alcohol,스테아릴알코올,Stearyl Alcohol,2607,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+126,ammonium_acryloyldimethyltaurate_vp_copolymer,암모늄아크릴로일다이메틸타우레이트/브이피코폴리머,Ammonium Acryloyldimethyltaurate/VP Copolymer,2544,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+127,synthetic_wax,합성왁스,Synthetic Wax,2516,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+128,sodium_lactate,소듐락테이트,Sodium Lactate,2510,new_466,score_active_new,2,effect_exfoliation|effect_moisture_barrier,30,32,official_function_prior,N,N
+129,persea_gratissima_avocado_oil,아보카도오일,Persea Gratissima (Avocado) Oil,2502,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+130,methylpropanediol,메틸프로판다이올,Methylpropanediol,2495,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+131,serine,세린,Serine,2484,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+132,dehydroacetic_acid,데하이드로아세틱애씨드,Dehydroacetic Acid,2418,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+133,lauroyl_lysine,라우로일라이신,Lauroyl Lysine,2380,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+134,ascorbyl_palmitate,아스코빌팔미테이트,Ascorbyl Palmitate,2347,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+135,behenyl_alcohol,베헤닐알코올,Behenyl Alcohol,2336,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+136,centella_asiatica_extract,병풀추출물,Centella Asiatica Extract,2328,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,50,50,ai_paper_override|official_function_prior+ai_paper_override,N,N
+137,sorbic_acid,소르빅애씨드,Sorbic Acid,2318,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+138,decyl_glucoside,데실글루코사이드,Decyl Glucoside,2311,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+139,argania_spinosa_kernel_oil,아르간커넬오일,Argania Spinosa Kernel Oil,2310,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+140,kaolin,카올린,Kaolin,2306,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+141,hydrolyzed_hyaluronic_acid,하이드롤라이즈드하이알루로닉애씨드,Hydrolyzed Hyaluronic Acid,2185,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+142,triethyl_citrate,트라이에틸시트레이트,Triethyl Citrate,2184,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+143,sorbitol,솔비톨,Sorbitol,2180,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+144,polyglyceryl_10_laurate,폴리글리세릴-10라우레이트,Polyglyceryl-10 Laurate,2178,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+145,dimethicone_crosspolymer,다이메티콘크로스폴리머,Dimethicone Crosspolymer,2168,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+146,peg_40_hydrogenated_castor_oil,피이지-40하이드로제네이티드캐스터오일,PEG-40 Hydrogenated Castor Oil,2164,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+147,tetrasodium_edta,테트라소듐이디티에이,Tetrasodium EDTA,2163,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+148,lactobacillus_ferment,락토바실러스발효물,Lactobacillus Ferment,2124,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+149,caprylyl_methicone,카프릴릴메티콘,Caprylyl Methicone,2109,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+151,sodium_stearoyl_glutamate,소듐스테아로일글루타메이트,Sodium Stearoyl Glutamate,2093,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+152,glucose,글루코오스,Glucose,2086,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+153,c12_15_alkyl_benzoate,C12-15알킬벤조에이트,C12-15 Alkyl Benzoate,2065,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+154,isopropyl_myristate,아이소프로필미리스테이트,Isopropyl Myristate,2061,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+155,biotin,바이오틴,Biotin,2057,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+156,stearic_acid,스테아릭애씨드,Stearic Acid,2046,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+157,cetearyl_olivate,세테아릴올리베이트,Cetearyl Olivate,2040,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+158,amodimethicone,아모다이메티콘,Amodimethicone,1991,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+159,glycine_soja_soybean_oil,돌콩오일,Glycine Soja (Soybean) Oil,1990,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+160,acrylates_copolymer,아크릴레이트코폴리머,Acrylates Copolymer,1981,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+161,isohexadecane,아이소헥사데칸,Isohexadecane,1980,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+162,proline,프롤린,Proline,1959,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+163,ricinus_communis_castor_seed_oil,피마자씨오일,Ricinus Communis (Castor) Seed Oil,1949,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+164,polyquaternium_10,폴리쿼터늄-10,Polyquaternium-10,1948,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+165,polyquaternium_7,폴리쿼터늄-7,Polyquaternium-7,1935,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+166,potassium_hydroxide,포타슘하이드록사이드,Potassium Hydroxide,1932,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+167,isononyl_isononanoate,아이소노닐아이소노나노에이트,Isononyl Isononanoate,1929,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+168,xylitol,자일리톨,Xylitol,1921,new_466,score_active_new,2,effect_acne_sebum|effect_moisture_barrier,40,50,official_function_prior|official_function_prior+ai_paper_override,N,N
+170,jojoba_esters,호호바에스터,Jojoba Esters,1916,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,32,33,official_function_prior,N,N
+171,dimethiconol,다이메티콘올,Dimethiconol,1907,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+172,alanine,알라닌,Alanine,1897,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+173,sodium_polyacrylate,소듐폴리아크릴레이트,Sodium Polyacrylate,1875,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+174,aloe_barbadensis_leaf_extract,알로에베라잎추출물,Aloe Barbadensis Leaf Extract,1871,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+175,dextrin,덱스트린,Dextrin,1868,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+177,polyglyceryl_4_isostearate,폴리글리세릴-4아이소스테아레이트,Polyglyceryl-4 Isostearate,1858,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+178,polysilicone_11,폴리실리콘-11,Polysilicone-11,1858,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+180,coco_glucoside,코코-글루코사이드,Coco-Glucoside,1841,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+181,threonine,트레오닌,Threonine,1832,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+182,eugenol,유제놀,Eugenol,1823,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+183,sorbitan_oleate,솔비탄올리에이트,Sorbitan Oleate,1803,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+185,prunus_amygdalus_dulcis_sweet_almond_oil,스위트아몬드오일,Prunus Amygdalus Dulcis (Sweet Almond) Oil,1788,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+186,cellulose_gum,셀룰로오스검,Cellulose Gum,1753,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+187,iron_oxide_red,적색산화철,Iron Oxide Red,1739,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+188,histidine,히스티딘,Histidine,1733,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+189,silica_dimethyl_silylate,실리카다이메틸실릴레이트,Silica Dimethyl Silylate,1732,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+190,lavandula_angustifolia_lavender_oil,라벤더오일,Lavandula Angustifolia (Lavender) Oil,1710,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+191,disodium_phosphate,다이소듐포스페이트,Disodium Phosphate,1704,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+192,hydrolyzed_collagen,하이드롤라이즈드콜라겐,Hydrolyzed Collagen,1691,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+193,disodium_stearoyl_glutamate,다이소듐스테아로일글루타메이트,Disodium Stearoyl Glutamate,1681,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+195,dicaprylyl_carbonate,다이카프릴릴카보네이트,Dicaprylyl Carbonate,1678,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+196,boron_nitride,보론나이트라이드,Boron Nitride,1674,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+197,aspartic_acid,아스파틱애씨드,Aspartic Acid,1670,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+198,linalyl_acetate,리날릴아세테이트,Linalyl Acetate,1658,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+199,isostearic_acid,아이소스테아릭애씨드,Isostearic Acid,1655,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+200,cetyl_ethylhexanoate,세틸에틸헥사노에이트,Cetyl Ethylhexanoate,1651,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+201,polyglyceryl_2_triisostearate,폴리글리세릴-2트라이아이소스테아레이트,Polyglyceryl-2 Triisostearate,1650,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+202,phenylalanine,페닐알라닌,Phenylalanine,1634,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+203,vitis_vinifera_grape_seed_oil,포도씨오일,Vitis Vinifera (Grape) Seed Oil,1630,new_466,score_active_new,1,effect_moisture_barrier,35,35,official_function_prior+ai_paper_override,N,N
+204,sorbitan_sesquioleate,솔비탄세스퀴올리에이트,Sorbitan Sesquioleate,1624,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+205,aminomethyl_propanol,아미노메틸프로판올,Aminomethyl Propanol,1613,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+206,pvp,피브이피,PVP,1609,new_466,score_active_new,1,effect_wrinkle,50,50,ai_paper_override,N,N
+207,asiaticoside,아시아티코사이드,Asiaticoside,1602,new_466,score_active_new,1,effect_wrinkle,70,70,ai_paper_override,N,N
+208,polysorbate_80,폴리솔베이트80,Polysorbate 80,1601,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+209,glycol_distearate,글라이콜다이스테아레이트,Glycol Distearate,1596,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+210,menthol,멘톨,Menthol,1596,new_466,score_active_new,1,effect_calming,33,33,official_function_prior,N,N
+211,polyglyceryl_3_polyricinoleate,폴리글리세릴-3폴리리시놀리에이트,Polyglyceryl-3 Polyricinoleate,1584,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+212,polyacrylate_crosspolymer_6,폴리아크릴레이트크로스폴리머-6,Polyacrylate Crosspolymer-6,1582,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+213,valine,발린,Valine,1579,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+214,cyclohexasiloxane,사이클로헥사실록세인,Cyclohexasiloxane,1546,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+215,methicone,메티콘,Methicone,1537,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+216,vinyl_dimethicone_methicone_silsesquioxane_crosspolymer,비닐다이메티콘/메티콘실세스퀴옥세인크로스폴리머,Vinyl Dimethicone/Methicone Silsesquioxane Crosspolymer,1529,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+217,isoleucine,아이소류신,Isoleucine,1526,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+218,sucrose,수크로오스,Sucrose,1520,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,32,33,official_function_prior,N,N
+219,ethylhexyl_methoxycinnamate,에칠헥실메톡시신나메이트,Ethylhexyl Methoxycinnamate,1519,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+220,potassium_cetyl_phosphate,포타슘세틸포스페이트,Potassium Cetyl Phosphate,1517,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+221,polyethylene,폴리에틸렌,Polyethylene,1516,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+222,glyceryl_stearate_se,글리세릴스테아레이트에스이,Glyceryl Stearate SE,1500,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+223,sodium_gluconate,소듐글루코네이트,Sodium Gluconate,1498,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+224,glutamic_acid,글루타믹애씨드,Glutamic Acid,1483,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+225,methyl_methacrylate_crosspolymer,메틸메타크릴레이트크로스폴리머,Methyl Methacrylate Crosspolymer,1479,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+226,methyl_trimethicone,메틸트라이메티콘,Methyl Trimethicone,1473,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+227,butyloctyl_salicylate,부틸옥틸살리실레이트,Butyloctyl Salicylate,1471,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+228,iron_oxide_yellow,황색산화철,Iron Oxide Yellow,1463,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+229,citrus_aurantium_dulcis_orange_peel_oil,오렌지껍질오일,Citrus Aurantium Dulcis (Orange) Peel Oil,1458,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+230,curcuma_longa_turmeric_root_extract,울금뿌리추출물,Curcuma Longa (Turmeric) Root Extract,1455,new_466,score_active_new,1,effect_acne_sebum,50,50,ai_paper_override,N,N
+231,bis_diglyceryl_polyacyladipate_2,비스-다이글리세릴폴리아실아디페이트-2,Bis-Diglyceryl Polyacyladipate-2,1449,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+232,alcohol_denat,변성알코올,Alcohol Denat.,1444,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+233,talc,탤크,Talc,1442,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+234,trihydroxystearin,트라이하이드록시스테아린,Trihydroxystearin,1441,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+235,sodium_hyaluronate_crosspolymer,소듐하이알루로네이트크로스폴리머,Sodium Hyaluronate Crosspolymer,1437,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+236,saccharide_isomerate,사카라이드아이소머레이트,Saccharide Isomerate,1433,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,35,35,ai_paper_override|official_function_prior+ai_paper_override,N,N
+237,polyglyceryl_3_diisostearate,폴리글리세릴-3다이아이소스테아레이트,Polyglyceryl-3 Diisostearate,1430,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+238,zinc_stearate,징크스테아레이트,Zinc Stearate,1430,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+239,cellulose,셀룰로오스,Cellulose,1427,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+240,tetramethyl_acetyloctahydronaphthalenes,테트라메틸아세틸옥타하이드로나프탈렌,Tetramethyl Acetyloctahydronaphthalenes,1419,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+241,tribehenin,트라이베헤닌,Tribehenin,1415,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+242,iron_oxide_black,흑색산화철,Iron Oxide Black,1413,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+243,nylon_12,나일론-12,Nylon-12,1399,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+244,calcium_aluminum_borosilicate,칼슘알루미늄보로실리케이트,Calcium Aluminum Borosilicate,1389,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+245,ethylhexyl_salicylate,에칠헥실살리실레이트,Ethylhexyl Salicylate,1385,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+246,hydrogenated_polydecene,하이드로제네이티드폴리데센,Hydrogenated Polydecene,1378,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+247,sodium_cocoyl_isethionate,소듐코코일이세티오네이트,Sodium Cocoyl Isethionate,1375,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+248,sodium_acetylated_hyaluronate,소듐아세틸레이티드하이알루로네이트,Sodium Acetylated Hyaluronate,1371,new_466,score_active_new,2,effect_moisture_barrier|effect_wrinkle,32,70,ai_paper_override|official_function_prior,N,N
+249,sodium_phosphate,소듐포스페이트,Sodium Phosphate,1370,new_466,score_active_new,1,effect_acne_sebum,40,40,official_function_prior,N,N
+250,melia_azadirachta_leaf_extract,인도멀구슬나무잎추출물,Melia Azadirachta Leaf Extract,1369,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+251,polyisobutene,폴리아이소부텐,Polyisobutene,1354,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+252,asiatic_acid,아시아틱애씨드,Asiatic Acid,1334,new_466,score_active_new,5,effect_acne_sebum|effect_brightening|effect_calming|effect_moisture_barrier|effect_wrinkle,35,35,ai_paper_override,N,N
+253,rosmarinus_officinalis_rosemary_leaf_oil,로즈마리잎오일,Rosmarinus Officinalis (Rosemary) Leaf Oil,1333,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+254,citrus_aurantium_bergamia_bergamot_fruit_oil,베르가모트오일,Citrus Aurantium Bergamia (Bergamot) Fruit Oil,1327,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+255,laureth_7,라우레스-7,Laureth-7,1322,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+256,limnanthes_alba_meadowfoam_seed_oil,메도우폼씨오일,Limnanthes Alba (Meadowfoam) Seed Oil,1322,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+257,madecassic_acid,마데카식애씨드,Madecassic Acid,1319,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+258,methylparaben,메틸파라벤,Methylparaben,1315,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+259,trideceth_12,트라이데세스-12,Trideceth-12,1305,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+260,amyl_cinnamal,아밀신남알,Amyl Cinnamal,1292,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+261,sodium_metabisulfite,소듐메타바이설파이트,Sodium Metabisulfite,1287,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+262,lysine,라이신,Lysine,1273,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+263,silica_silylate,실리카실릴레이트,Silica Silylate,1261,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+264,lauryl_peg_9_polydimethylsiloxyethyl_dimethicone,라우릴피이지-9폴리다이메틸실록시에틸다이메티콘,Lauryl PEG-9 Polydimethylsiloxyethyl Dimethicone,1260,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+266,triethylhexanoin,트라이에틸헥사노인,Triethylhexanoin,1247,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+267,citrus_limon_lemon_peel_oil,레몬껍질오일,Citrus Limon (Lemon) Peel Oil,1245,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+268,cetearyl_glucoside,세테아릴글루코사이드,Cetearyl Glucoside,1237,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+269,hydrolyzed_rice_protein,하이드롤라이즈드쌀단백질,Hydrolyzed Rice Protein,1236,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+270,butyl_methoxydibenzoylmethane,부틸메톡시디벤조일메탄,Butyl Methoxydibenzoylmethane,1224,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+271,behentrimonium_methosulfate,베헨트라이모늄메토설페이트,Behentrimonium Methosulfate,1216,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+272,tetrahexyldecyl_ascorbate,테트라헥실데실아스코베이트,Tetrahexyldecyl Ascorbate,1210,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+273,vanillin,바닐린,Vanillin,1208,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+274,hydrolyzed_soy_protein,하이드롤라이즈드콩단백질,Hydrolyzed Soy Protein,1204,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+275,coco_betaine,코코-베타인,Coco-Betaine,1199,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+276,hdi_trimethylol_hexyllactone_crosspolymer,에이치디아이/트라이메틸올헥실락톤크로스폴리머,HDI/Trimethylol Hexyllactone Crosspolymer,1190,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+277,octyldodecyl_stearoyl_stearate,옥틸도데실스테아로일스테아레이트,Octyldodecyl Stearoyl Stearate,1189,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+278,melia_azadirachta_flower_extract,인도멀구슬나무꽃추출물,Melia Azadirachta Flower Extract,1188,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+279,polybutene,폴리부텐,Polybutene,1188,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+280,stearamidopropyl_dimethylamine,스테아라미도프로필다이메틸아민,Stearamidopropyl Dimethylamine,1184,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+281,carthamus_tinctorius_safflower_seed_oil,잇꽃씨오일,Carthamus Tinctorius (Safflower) Seed Oil,1176,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+282,moringa_oleifera_seed_oil,드럼스틱씨오일,Moringa Oleifera Seed Oil,1174,new_466,score_active_new,1,effect_moisture_barrier,70,70,official_function_prior+ai_paper_override,N,N
+283,cucumis_sativus_cucumber_fruit_extract,오이열매추출물,Cucumis Sativus (Cucumber) Fruit Extract,1166,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+284,caprylhydroxamic_acid,카프릴하이드록사믹애씨드,Caprylhydroxamic Acid,1164,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+285,camellia_sinensis_leaf_extract,녹차추출물,Camellia Sinensis Leaf Extract,1161,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+286,dimethicone_peg_10_15_crosspolymer,다이메티콘/피이지-10/15크로스폴리머,Dimethicone/PEG-10/15 Crosspolymer,1159,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+287,caprylyl_capryl_glucoside,카프릴릴/카프릴글루코사이드,Caprylyl/Capryl Glucoside,1145,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+288,scutellaria_baicalensis_root_extract,황금추출물,Scutellaria Baicalensis Root Extract,1143,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,32,33,official_function_prior,N,N
+289,cetyl_esters,세틸에스터,Cetyl Esters,1141,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+290,glycereth_26,글리세레스-26,Glycereth-26,1140,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+291,pinene,피넨,Pinene,1132,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+292,calcium_gluconate,칼슘글루코네이트,Calcium Gluconate,1131,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+293,hydroxypropyltrimonium_hyaluronate,하이드록시프로필트라이모늄하이알루로네이트,Hydroxypropyltrimonium Hyaluronate,1127,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+294,calcium_sodium_borosilicate,칼슘소듐보로실리케이트,Calcium Sodium Borosilicate,1125,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+295,triethanolamine,트라이에탄올아민,Triethanolamine,1122,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+296,sodium_laureth_sulfate,소듐라우레스설페이트,Sodium Laureth Sulfate,1113,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+297,hydrogenated_castor_oil,하이드로제네이티드캐스터오일,Hydrogenated Castor Oil,1105,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+298,tartrazine,황색4호,Tartrazine,1101,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+299,phospholipids,포스포리피드,Phospholipids,1099,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+300,pelargonium_graveolens_flower_oil,센티드제라늄꽃오일,Pelargonium Graveolens Flower Oil,1090,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+301,sodium_methyl_cocoyl_taurate,소듐메틸코코일타우레이트,Sodium Methyl Cocoyl Taurate,1088,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+303,pca,피씨에이,PCA,1071,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+304,mangifera_indica_mango_seed_butter,망고씨버터,Mangifera Indica (Mango) Seed Butter,1070,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+305,glyceryl_oleate,글리세릴올리에이트,Glyceryl Oleate,1066,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+306,polyglycerin_3,폴리글리세린-3,Polyglycerin-3,1061,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+307,stearalkonium_hectorite,스테아랄코늄헥토라이트,Stearalkonium Hectorite,1060,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+308,hydrolyzed_wheat_protein,하이드롤라이즈드밀단백질,Hydrolyzed Wheat Protein,1054,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+309,magnesium_chloride,마그네슘클로라이드,Magnesium Chloride,1054,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+310,lauryl_glucoside,라우릴글루코사이드,Lauryl Glucoside,1050,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+311,hydrolyzed_sodium_hyaluronate,하이드롤라이즈드소듐하이알루로네이트,Hydrolyzed Sodium Hyaluronate,1046,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+312,corallina_officinalis_extract,참산호말추출물,Corallina Officinalis Extract,1036,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+313,glyceryl_stearate_citrate,글리세릴스테아레이트시트레이트,Glyceryl Stearate Citrate,1035,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+314,bis_ethylhexyloxyphenol_methoxyphenyl_triazine,비스-에칠헥실옥시페놀메톡시페닐트리아진,Bis-Ethylhexyloxyphenol Methoxyphenyl Triazine,1030,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+315,trideceth_6,트라이데세스-6,Trideceth-6,1028,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+316,anhydroxylitol,안하이드로자일리톨,Anhydroxylitol,1027,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+317,palmitic_acid,팔미틱애씨드,Palmitic Acid,1027,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+319,sclerotium_gum,스클레로튬검,Sclerotium Gum,1026,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+320,ascorbyl_glucoside,아스코빌글루코사이드,Ascorbyl Glucoside,1023,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+321,rosa_canina_fruit_oil,로즈힙열매오일,Rosa Canina Fruit Oil,1019,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+322,hydrolyzed_vegetable_protein,하이드롤라이즈드식물성단백질,Hydrolyzed Vegetable Protein,1012,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+323,xylitylglucoside,자일리틸글루코사이드,Xylitylglucoside,1008,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+324,isopropyl_titanium_triisostearate,아이소프로필티타늄트라이아이소스테아레이트,Isopropyl Titanium Triisostearate,1007,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+325,microcrystalline_wax,마이크로크리스탈린왁스,Microcrystalline Wax,1005,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+326,hydrolyzed_keratin,하이드롤라이즈드케라틴,Hydrolyzed Keratin,1003,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+327,camellia_japonica_seed_oil,동백나무씨오일,Camellia Japonica Seed Oil,983,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+328,diphenylsiloxy_phenyl_trimethicone,다이페닐실록시페닐트라이메티콘,Diphenylsiloxy Phenyl Trimethicone,983,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+329,polyquaternium_37,폴리쿼터늄-37,Polyquaternium-37,983,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+330,c13_15_alkane,C13-15알케인,C13-15 Alkane,981,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+331,cholesterol,콜레스테롤,Cholesterol,981,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+332,hydroxyethyl_urea,하이드록시에틸우레아,Hydroxyethyl Urea,967,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+333,coconut_acid,코코넛애씨드,Coconut Acid,966,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+334,pentaerythrityl_tetraisostearate,펜타에리스리틸테트라아이소스테아레이트,Pentaerythrityl Tetraisostearate,960,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+335,magnesium_stearate,마그네슘스테아레이트,Magnesium Stearate,956,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+336,hydrogenated_vegetable_oil,하이드로제네이티드식물성오일,Hydrogenated Vegetable Oil,952,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+337,diethylamino_hydroxybenzoyl_hexyl_benzoate,디에칠아미노하이드록시벤조일헥실벤조에이트,Diethylamino Hydroxybenzoyl Hexyl Benzoate,943,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+338,paraffin,파라핀,Paraffin,943,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+339,isopropyl_palmitate,아이소프로필팔미테이트,Isopropyl Palmitate,942,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+340,retinyl_palmitate,레티닐팔미테이트,Retinyl Palmitate,939,new_466,score_active_new,1,effect_acne_sebum,35,35,ai_paper_override,N,N
+341,mannitol,만니톨,Mannitol,935,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+342,ocimum_sanctum_leaf_extract,홀리바질잎추출물,Ocimum Sanctum Leaf Extract,930,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+343,ethylhexyl_triazone,에칠헥실트리아존,Ethylhexyl Triazone,928,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+344,sorbitan_stearate,솔비탄스테아레이트,Sorbitan Stearate,926,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+345,butylphenyl_methylpropional,부틸페닐메틸프로피오날,Butylphenyl Methylpropional,925,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+346,hydrogen_dimethicone,하이드로젠다이메티콘,Hydrogen Dimethicone,922,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+347,mentha_piperita_peppermint_oil,페퍼민트오일,Mentha Piperita (Peppermint) Oil,912,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+348,magnesium_aluminum_silicate,마그네슘알루미늄실리케이트,Magnesium Aluminum Silicate,910,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+349,sodium_ascorbyl_phosphate,소듐아스코빌포스페이트,Sodium Ascorbyl Phosphate,910,new_466,score_active_new,2,effect_acne_sebum|effect_wrinkle,35,50,ai_paper_override,N,N
+350,phytic_acid,파이틱애씨드,Phytic Acid,909,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+351,ulmus_davidiana_root_extract,당느릅나무뿌리추출물,Ulmus Davidiana Root Extract,906,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+352,calendula_officinalis_flower_extract,포트마리골드꽃추출물,Calendula Officinalis Flower Extract,901,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+353,theobroma_cacao_cocoa_seed_butter,카카오씨버터,Theobroma Cacao (Cocoa) Seed Butter,901,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+354,polymethyl_methacrylate,폴리메틸메타크릴레이트,Polymethyl Methacrylate,893,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+355,hexyl_laurate,헥실라우레이트,Hexyl Laurate,891,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+356,houttuynia_cordata_extract,약모밀추출물,Houttuynia Cordata Extract,891,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+357,glyceryl_acrylate_acrylic_acid_copolymer,글리세릴아크릴레이트/아크릴릭애씨드코폴리머,Glyceryl Acrylate/Acrylic Acid Copolymer,886,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+358,phytosterols,피토스테롤,Phytosterols,886,new_466,score_active_new,1,effect_moisture_barrier,50,50,ai_paper_override,N,N
+359,portulaca_oleracea_extract,쇠비름추출물,Portulaca Oleracea Extract,885,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+360,caramel,카라멜,Caramel,883,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+361,farnesol,파네솔,Farnesol,879,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+362,potassium_chloride,포타슘클로라이드,Potassium Chloride,879,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+363,sodium_c14_16_olefin_sulfonate,소듐C14-16올레핀설포네이트,Sodium C14-16 Olefin Sulfonate,877,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+364,citrus_limon_lemon_fruit_extract,레몬추출물,Citrus Limon (Lemon) Fruit Extract,876,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+365,capryloyl_salicylic_acid,카프릴로일살리실릭애씨드,Capryloyl Salicylic Acid,874,new_466,score_active_new,2,effect_brightening|effect_wrinkle,50,50,ai_paper_override,N,N
+366,polyglyceryl_6_polyricinoleate,폴리글리세릴-6폴리리시놀리에이트,Polyglyceryl-6 Polyricinoleate,874,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+367,eucalyptus_globulus_leaf_oil,유칼립투스잎오일,Eucalyptus Globulus Leaf Oil,866,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+368,cyanocobalamin,사이아노코발아민,Cyanocobalamin,865,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+369,dicaprylyl_ether,다이카프릴릴에터,Dicaprylyl Ether,861,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+370,peg_60_hydrogenated_castor_oil,피이지-60하이드로제네이티드캐스터오일,PEG-60 Hydrogenated Castor Oil,855,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+371,sodium_polyacryloyldimethyl_taurate,소듐폴리아크릴로일다이메틸타우레이트,Sodium Polyacryloyldimethyl Taurate,853,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+372,sodium_dna,소듐디엔에이,Sodium DNA,847,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+373,pullulan,풀루란,Pullulan,846,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+374,algin,알진,Algin,844,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+375,zea_mays_corn_starch,옥수수전분,Zea Mays (Corn) Starch,844,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+376,microcrystalline_cellulose,마이크로크리스탈린셀룰로오스,Microcrystalline Cellulose,841,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+377,biosaccharide_gum_1,바이오사카라이드검-1,Biosaccharide Gum-1,834,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+378,gardenia_florida_fruit_extract,치자추출물,Gardenia Florida Fruit Extract,832,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+379,fructooligosaccharides,프룩토올리고사카라이드,Fructooligosaccharides,827,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+380,synthetic_beeswax,합성비즈왁스,Synthetic Beeswax,827,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+381,propylparaben,프로필파라벤,Propylparaben,826,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+382,acacia_senegal_gum,아라비아고무나무검,Acacia Senegal Gum,824,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+383,ectoin,엑토인,Ectoin,823,new_466,score_active_new,1,effect_moisture_barrier,50,50,ai_paper_override,N,N
+384,phenethyl_alcohol,페네틸알코올,Phenethyl Alcohol,823,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+385,salix_alba_willow_bark_extract,흰버드나무껍질추출물,Salix Alba (Willow) Bark Extract,821,new_466,score_active_new,1,effect_calming,33,33,official_function_prior,N,N
+386,gluconolactone,글루코노락톤,Gluconolactone,818,new_466,score_active_new,2,effect_acne_sebum|effect_moisture_barrier,35,50,ai_paper_override,N,N
+387,polyglyceryl_4_caprate,폴리글리세릴-4카프레이트,Polyglyceryl-4 Caprate,817,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+388,hydrolyzed_vegetable_protein_pg_propyl_silanetriol,하이드롤라이즈드식물성단백질피지-프로필실란트라이올,Hydrolyzed Vegetable Protein PG-Propyl Silanetriol,814,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+389,acetyl_glucosamine,아세틸글루코사민,Acetyl Glucosamine,802,new_466,score_active_new,1,effect_brightening,70,70,ai_paper_override,N,N
+390,acetyl_hexapeptide_8,아세틸헥사펩타이드-8,Acetyl Hexapeptide-8,798,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+391,butylene_glycol_dicaprylate_dicaprate,부틸렌글라이콜다이카프릴레이트/다이카프레이트,Butylene Glycol Dicaprylate/Dicaprate,795,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+392,potassium_hyaluronate,포타슘하이알루로네이트,Potassium Hyaluronate,795,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+393,peg_9_polydimethylsiloxyethyl_dimethicone,피이지-9폴리다이메틸실록시에틸다이메티콘,PEG-9 Polydimethylsiloxyethyl Dimethicone,792,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+394,daucus_carota_sativa_carrot_root_extract,당근추출물,Daucus Carota Sativa (Carrot) Root Extract,790,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+395,acetic_acid,아세틱애씨드,Acetic Acid,788,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+396,euphorbia_cerifera_candelilla_wax,칸데릴라왁스,Euphorbia Cerifera (Candelilla) Wax,786,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+397,magnesium_myristate,마그네슘미리스테이트,Magnesium Myristate,786,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+398,leucine,류신,Leucine,783,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+399,dibutyl_adipate,다이부틸아디페이트,Dibutyl Adipate,779,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+400,hydroxypropyl_starch_phosphate,하이드록시프로필스타치포스페이트,Hydroxypropyl Starch Phosphate,779,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+401,hydrogenated_olive_oil_unsaponifiables,하이드로제네이티드올리브오일불검화물,Hydrogenated Olive Oil Unsaponifiables,777,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+402,sodium_lauroyl_lactylate,소듐라우로일락틸레이트,Sodium Lauroyl Lactylate,777,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+403,melaleuca_alternifolia_tea_tree_leaf_oil,티트리잎오일,Melaleuca Alternifolia (Tea Tree) Leaf Oil,773,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+405,brilliant_blue_fcf,청색1호,Brilliant Blue FCF,770,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+406,butylene_ethylene_styrene_copolymer,부틸렌/에틸렌/스타이렌코폴리머,Butylene/Ethylene/Styrene Copolymer,770,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+407,fructose,프룩토오스,Fructose,769,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+408,zingiber_officinale_ginger_root_extract,생강추출물,Zingiber Officinale (Ginger) Root Extract,768,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+409,chondrus_crispus_extract,아이리쉬모스추출물,Chondrus Crispus Extract,765,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+410,vp_eicosene_copolymer,브이피/에이코신코폴리머,VP/Eicosene Copolymer,765,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+411,polyglyceryl_10_stearate,폴리글리세릴-10스테아레이트,Polyglyceryl-10 Stearate,761,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+412,polyglutamic_acid,폴리글루타믹애씨드,Polyglutamic Acid,756,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+413,palmitoyl_tripeptide_5,팔미토일트라이펩타이드-5,Palmitoyl Tripeptide-5,752,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+414,tyrosine,타이로신,Tyrosine,752,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+415,zinc_oxide,징크옥사이드,Zinc Oxide,750,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+416,sodium_lauroyl_glutamate,소듐라우로일글루타메이트,Sodium Lauroyl Glutamate,745,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+417,3_o_ethyl_ascorbic_acid,3-O-에틸아스코빅애씨드,3-O-Ethyl Ascorbic Acid,742,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+418,aluminum_starch_octenylsuccinate,알루미늄전분옥테닐석시네이트,Aluminum Starch Octenylsuccinate,741,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+419,ppg_26_buteth_26,피피지-26-부테스-26,PPG-26-Buteth-26,740,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+420,prunus_armeniaca_apricot_kernel_oil,살구씨오일,Prunus Armeniaca (Apricot) Kernel Oil,739,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+421,hydrolyzed_glycosaminoglycans,하이드롤라이즈드글라이코사미노글리칸,Hydrolyzed Glycosaminoglycans,736,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+422,polyglyceryl_10_oleate,폴리글리세릴-10올리에이트,Polyglyceryl-10 Oleate,736,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+423,polyglyceryl_4_diisostearate_polyhydroxystearate_sebacate,폴리글리세릴-4다이아이소스테아레이트/폴리하이드록시스 테아레이트/세바케이트,Polyglyceryl-4 Diisostearate/Polyhydroxystearate/Sebacate,734,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+424,oenothera_biennis_evening_primrose_oil,달맞이꽃오일,Oenothera Biennis (Evening Primrose) Oil,733,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+425,sodium_acrylate_sodium_acryloyldimethyl_taurate_copolymer,소듐아크릴레이트/소듐아크릴로일다이메틸타우레이트코폴 리머,Sodium Acrylate/Sodium Acryloyldimethyl Taurate Copolymer,732,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+426,methionine,메티오닌,Methionine,728,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+427,vp_hexadecene_copolymer,브이피/헥사데센코폴리머,VP/Hexadecene Copolymer,724,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+428,copernicia_cerifera_carnauba_wax,카나우바왁스,Copernicia Cerifera (Carnauba) Wax,723,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+430,ammonium_polyacryloyldimethyl_taurate,암모늄폴리아크릴로일다이메틸타우레이트,Ammonium Polyacryloyldimethyl Taurate,717,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+431,geranyl_acetate,제라닐아세테이트,Geranyl Acetate,715,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+432,paeonia_lactiflora_root_extract,작약뿌리추출물,Paeonia Lactiflora Root Extract,711,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+433,sodium_lauroyl_sarcosinate,소듐라우로일사코시네이트,Sodium Lauroyl Sarcosinate,711,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+434,dimethyl_isosorbide,다이메틸아이소소바이드,Dimethyl Isosorbide,710,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+435,hydroxypropyl_guar_hydroxypropyltrimonium_chloride,하이드록시프로필구아하이드록시프로필트라이모늄클로라 이드,Hydroxypropyl Guar Hydroxypropyltrimonium Chloride,710,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+436,cetyl_palmitate,세틸팔미테이트,Cetyl Palmitate,709,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+437,polyglyceryl_3_methylglucose_distearate,폴리글리세릴-3메틸글루코오스다이스테아레이트,Polyglyceryl-3 Methylglucose Distearate,708,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+438,lactobacillus_ferment_lysate,락토바실러스발효용해물,Lactobacillus Ferment Lysate,705,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+439,propylene_glycol_dicaprylate_dicaprate,프로필렌글라이콜다이카프릴레이트/다이카프레이트,Propylene Glycol Dicaprylate/Dicaprate,698,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+440,helianthus_annuus_sunflower_seed_extract,해바라기씨추출물,Helianthus Annuus (Sunflower) Seed Extract,695,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+441,algae_extract,조류추출물,Algae Extract,693,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+442,tridecyl_trimellitate,트라이데실트라이멜리테이트,Tridecyl Trimellitate,692,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+443,vitis_vinifera_grape_fruit_extract,포도추출물,Vitis Vinifera (Grape) Fruit Extract,687,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+444,avena_sativa_oat_kernel_extract,귀리커넬추출물,Avena Sativa (Oat) Kernel Extract,682,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+445,diisopropyl_sebacate,다이아이소프로필세바케이트,Diisopropyl Sebacate,682,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+446,neopentyl_glycol_diheptanoate,네오펜틸글라이콜다이헵타노에이트,Neopentyl Glycol Diheptanoate,682,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+447,coccinia_indica_fruit_extract,아이비고드열매추출물,Coccinia Indica Fruit Extract,680,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+448,erythritol,에리스리톨,Erythritol,679,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+449,laminaria_saccharina_extract,슈가켈프추출물,Laminaria Saccharina Extract,677,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+450,solanum_melongena_eggplant_fruit_extract,가지열매추출물,Solanum Melongena (Eggplant) Fruit Extract,675,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+451,helianthus_annuus_sunflower_extract,해바라기추출물,Helianthus Annuus (Sunflower) Extract,671,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+452,citrullus_lanatus_watermelon_fruit_extract,수박추출물,Citrullus Lanatus (Watermelon) Fruit Extract,670,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+453,cocamidopropyl_hydroxysultaine,코카미도프로필하이드록시설테인,Cocamidopropyl Hydroxysultaine,668,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+454,trisodium_edta,트라이소듐이디티에이,Trisodium EDTA,668,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+455,bakuchiol,바쿠치올,Bakuchiol,666,new_466,score_active_new,4,effect_acne_sebum|effect_brightening|effect_moisture_barrier|effect_wrinkle,30,70,ai_paper_override|official_function_prior,N,N
+456,polyacrylamide,폴리아크릴아마이드,Polyacrylamide,666,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+457,peg_8,피이지-8,PEG-8,665,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+458,methyl_gluceth_20,메틸글루세스-20,Methyl Gluceth-20,664,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+459,pogostemon_cablin_oil,광곽향오일,Pogostemon Cablin Oil,664,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+460,ficus_carica_fig_fruit_extract,무화과추출물,Ficus Carica (Fig) Fruit Extract,662,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+461,hydrolyzed_silk,하이드롤라이즈드실크,Hydrolyzed Silk,660,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+462,sodium_cocoyl_glutamate,소듐코코일글루타메이트,Sodium Cocoyl Glutamate,659,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+463,copper_tripeptide_1,카퍼트라이펩타이드-1,Copper Tripeptide-1,656,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+464,chamomilla_recutita_matricaria_flower_extract,마트리카리아꽃추출물,Chamomilla Recutita (Matricaria) Flower Extract,655,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+465,disodium_cocoamphodiacetate,다이소듐코코암포다이아세테이트,Disodium Cocoamphodiacetate,655,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+466,ethylene_propylene_styrene_copolymer,에틸렌/프로필렌/스타이렌코폴리머,Ethylene/Propylene/Styrene Copolymer,655,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+467,isopentyldiol,아이소펜틸다이올,Isopentyldiol,655,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+468,hibiscus_sabdariffa_flower_extract,히비스커스꽃추출물,Hibiscus Sabdariffa Flower Extract,654,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+469,benzyl_glycol,벤질글라이콜,Benzyl Glycol,652,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+470,disodium_laureth_sulfosuccinate,다이소듐라우레스설포석시네이트,Disodium Laureth Sulfosuccinate,651,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+471,glyceryl_glucoside,글리세릴글루코사이드,Glyceryl Glucoside,651,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+472,terpineol,터피네올,Terpineol,647,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+473,theobroma_cacao_cocoa_seed_extract,카카오씨추출물,Theobroma Cacao (Cocoa) Seed Extract,647,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+474,tridecane,트라이데케인,Tridecane,645,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+475,pantolactone,판토락톤,Pantolactone,643,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+476,cysteine,시스테인,Cysteine,641,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+477,barium_sulfate,바륨설페이트,Barium Sulfate,640,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+478,arachidyl_alcohol,아라키딜알코올,Arachidyl Alcohol,637,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+479,sodium_acetate,소듐아세테이트,Sodium Acetate,636,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+480,coffea_arabica_coffee_seed_extract,커피콩추출물,Coffea Arabica (Coffee) Seed Extract,635,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+481,laminaria_japonica_extract,다시마추출물,Laminaria Japonica Extract,634,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+482,vaccinium_angustifolium_blueberry_fruit_extract,로우스위트블루베리추출물,Vaccinium Angustifolium (Blueberry) Fruit Extract,632,new_466,score_active_new,2,effect_calming|effect_moisture_barrier,30,33,official_function_prior,N,N
+483,oryza_sativa_rice_bran_oil,쌀겨오일,Oryza Sativa (Rice) Bran Oil,629,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+484,magnesium_ascorbyl_phosphate,마그네슘아스코빌포스페이트,Magnesium Ascorbyl Phosphate,626,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+485,polyquaternium_51,폴리쿼터늄-51,Polyquaternium-51,626,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+486,pentaerythrityl_tetraethylhexanoate,펜타에리스리틸테트라에틸헥사노에이트,Pentaerythrityl Tetraethylhexanoate,624,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+487,steareth_20,스테아레스-20,Steareth-20,623,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+488,diglycerin,다이글리세린,Diglycerin,618,new_466,score_active_new,1,effect_moisture_barrier,32,32,official_function_prior,N,N
+489,aloe_barbadensis_leaf_juice_powder,알로에베라잎즙가루,Aloe Barbadensis Leaf Juice Powder,617,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+490,ethylene_propylene_copolymer,에틸렌/프로필렌코폴리머,Ethylene/Propylene Copolymer,616,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+491,c9_12_alkane,C9-12알케인,C9-12 Alkane,614,new_466,score_active_new,1,effect_moisture_barrier,30,30,official_function_prior,N,N
+492,peg_ppg_18_18_dimethicone,피이지/피피지-18/18다이메티콘,PEG/PPG-18/18 Dimethicone,614,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N
+493,beeswax,비즈왁스,Beeswax,613,new_466,evaluated_no_six_axis_signal,0,,0,0,,N,N

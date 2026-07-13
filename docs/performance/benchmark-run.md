@@ -84,3 +84,37 @@ BENCHMARK_K6_RESULT_FILE=/tmp/recommendation-1000-k6-summary.json \
 The server stores raw logs and the k6 summary under
 `BENCHMARK_RESULT_ROOT/<run_id>`. Download that directory with `scp` and keep
 only redacted summaries and charts in Git.
+
+## Full-Personalized Fixture
+
+`full-personalized` is the benchmark user type for the full recommendation
+personalization path. It rotates 10 seeded users. Each user has:
+
+- saved `SkinProfile`
+- `latest_skin_test_result_id`
+- `event_logs`
+- wishlist, recent view, active cart, delivered order, and published review data
+
+Server-side setup:
+
+```bash
+BENCHMARK_CONFIG_FILE=/home/ubuntu/mwobareullae-benchmark/config.benchmark.env \
+./scripts/perf/benchmarkctl seed-users 1000
+```
+
+Windows-local run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\perf\benchmarkctl-local.ps1 `
+  -Dataset 1000 `
+  -UserType full-personalized
+```
+
+Only set `BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD` in ignored local config
+files. If no explicit email list is supplied, both the seeder and k6 use:
+
+```text
+benchmark_full_01@example.test
+...
+benchmark_full_10@example.test
+```
