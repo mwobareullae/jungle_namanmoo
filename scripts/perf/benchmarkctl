@@ -193,6 +193,7 @@ collect() {
 
   local result_dir="$RESULT_ROOT/$run_id"
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
+  local k6_result_present=false
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
   print_context | tee "$result_dir/context.txt"
   compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
@@ -203,6 +204,10 @@ collect() {
   if [[ "${BENCHMARK_RDS_METRICS_ENABLED:-false}" == "true" && -x "$SCRIPT_DIR/collect_rds_metrics.sh" ]]; then
     local rds_end_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
     "$SCRIPT_DIR/collect_rds_metrics.sh" "$started_at" "$rds_end_at" "$result_dir/database/rds-metrics.json" || true
+  fi
+  if [[ -n "${BENCHMARK_K6_RESULT_FILE:-}" && -f "$BENCHMARK_K6_RESULT_FILE" ]]; then
+    cp "$BENCHMARK_K6_RESULT_FILE" "$result_dir/k6/k6-summary.json"
+    k6_result_present=true
   fi
   local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   cat >"$result_dir/manifest.json" <<EOF
@@ -224,7 +229,8 @@ collect() {
   "duration": "${BENCHMARK_DURATION:-unknown}",
   "query_set": "$QUERY_SET",
   "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
-  "server_host": "${BENCHMARK_SERVER_HOST:-unknown}"
+  "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
+  "k6_result_present": $k6_result_present
 }
 EOF
   echo "collected=$result_dir"
