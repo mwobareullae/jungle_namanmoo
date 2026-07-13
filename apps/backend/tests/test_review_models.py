@@ -70,11 +70,7 @@ def test_review_models_store_source_profile_and_neutral_metrics(db_engine: Engin
                 mapping_confidence=Decimal("1.0"),
             )
         )
-        metric = ProductReviewMetric(
-            product_id=product_id,
-            bayesian_photo_rate=Decimal("0.250000"),
-            photo_rate_score=Decimal("0.250000"),
-        )
+        metric = ProductReviewMetric(product_id=product_id)
         segment = ProductReviewSegmentMetric(
             product_id=product_id,
             dimension="SKIN_TYPE",
@@ -84,25 +80,8 @@ def test_review_models_store_source_profile_and_neutral_metrics(db_engine: Engin
         session.commit()
 
         assert metric.review_quality_score == Decimal("0.500000")
-        assert metric.bayesian_photo_rate == Decimal("0.250000")
-        assert metric.photo_rate_score == Decimal("0.250000")
-        assert metric.score_version == "review_quality_v2"
         assert segment.total_affinity_score == Decimal("0.500000")
-        assert segment.score_version == "review_quality_v2"
         assert review.source_has_photo is True
-
-
-def test_review_model_rejects_photo_rate_outside_range(db_engine: Engine) -> None:
-    with Session(db_engine) as session:
-        session.add(
-            ProductReviewMetric(
-                product_id=_product_id(session),
-                bayesian_photo_rate=Decimal("1.100000"),
-                photo_rate_score=Decimal("0.500000"),
-            )
-        )
-        with pytest.raises(IntegrityError):
-            session.flush()
 
 
 def test_review_model_rejects_rating_outside_range(db_engine: Engine) -> None:

@@ -184,13 +184,6 @@ class ProductReviewMetric(Base):
             name="ck_review_metrics_scores",
         ),
         CheckConstraint(
-            "(bayesian_photo_rate is null or "
-            "(bayesian_photo_rate >= 0 and bayesian_photo_rate <= 1)) "
-            "and (photo_rate_score is null or "
-            "(photo_rate_score >= 0 and photo_rate_score <= 1))",
-            name="ck_review_metrics_photo_rates",
-        ),
-        CheckConstraint(
             "weight_sum >= 0 and weight_square_sum >= 0 and rating_effective_sample_size >= 0 "
             "and repurchase_effective_sample_size >= 0 and month_use_effective_sample_size >= 0 "
             "and effective_sample_size >= 0 and prior_strength > 0",
@@ -274,8 +267,6 @@ class ProductReviewMetric(Base):
         server_default="0.5",
     )
     month_consistency_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
-    bayesian_photo_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
-    photo_rate_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
     confidence: Mapped[Decimal] = mapped_column(
         Numeric(7, 6),
         nullable=False,
@@ -292,8 +283,8 @@ class ProductReviewMetric(Base):
     score_version: Mapped[str] = mapped_column(
         String(40),
         nullable=False,
-        default="review_quality_v2",
-        server_default="review_quality_v2",
+        default="review_quality_v1",
+        server_default="review_quality_v1",
     )
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -421,8 +412,8 @@ class ProductReviewSegmentMetric(Base):
     score_version: Mapped[str] = mapped_column(
         String(40),
         nullable=False,
-        default="review_quality_v2",
-        server_default="review_quality_v2",
+        default="review_quality_v1",
+        server_default="review_quality_v1",
     )
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -738,8 +738,6 @@ def _apply_product_metric(
     metric.rating_score = _score_decimal(rating_score)
     metric.repurchase_score = _score_decimal(repurchase_score)
     metric.month_consistency_score = _score_decimal(month_consistency_score)
-    metric.bayesian_photo_rate = _score_decimal(bayesian_photo_rate)
-    metric.photo_rate_score = _score_decimal(photo_rate_score)
     metric.confidence = _score_decimal(confidence)
     metric.review_quality_score = _score_decimal(review_quality_score)
     metric.last_reviewed_at = accumulator.last_reviewed_at

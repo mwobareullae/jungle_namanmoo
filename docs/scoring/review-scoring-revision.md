@@ -49,9 +49,9 @@ segment effective sample size가 5 미만이면 원래 값은 진단 정보에 �
 
 ## 배포 계약
 
-1. migration `20260714_0042` 적용
+1. v2 코드 배포. DB migration은 없습니다.
 2. `rollup_product_reviews --full` 실행
-3. v2 행 수와 0~1 제약 확인
+3. v2 행 수와 0~1 범위 확인
 4. 저장된 추천 결과·캐시 무효화 여부 확인
 
-기존 v1 행은 migration만으로 다시 계산하지 않습니다. 전체 rollup이 끝나기 전에는 v1과 v2가 함께 존재할 수 있으므로 배포 완료 판정에 `score_version`을 사용합니다.
+Bayesian 사진리뷰율은 rollup 중 계산해 기존 `review_quality_score`에 합성하며 별도 DB 컬럼으로 저장하지 않습니다. 원본 리뷰에서 언제든 재현할 수 있습니다. 전체 rollup이 끝나기 전에는 v1과 v2가 함께 존재할 수 있으므로 배포 완료 판정에 기존 `score_version` 컬럼을 사용합니다.
