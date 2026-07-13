@@ -29,7 +29,7 @@ from app.services.scoring_policy import (
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v5_legacy_scale_500"
+SCORING_VERSION = "v6_independent_evidence_top3"
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
 FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
@@ -457,6 +457,12 @@ class _EffectContribution:
     ingredient: _IngredientEffectInfo
     decay: float
     effect_component: float
+
+
+@dataclass(frozen=True)
+class _EvidenceContribution:
+    ingredient: _IngredientEffectInfo
+    decay: float
     evidence_component: float
 
 
@@ -675,8 +681,14 @@ def _score_candidate(
     skin_profile_weights: SkinProfileWeights,
 ) -> ScoredProduct:
     contributions_by_effect = _build_contributions_by_effect(ingredients)
+    evidence_contributions_by_effect = _build_evidence_contributions_by_effect(
+        ingredients
+    )
     ingredient_effect_score = _score_ingredient_effects(desired_effects, contributions_by_effect)
-    ingredient_evidence_score = _score_ingredient_evidence(desired_effects, contributions_by_effect)
+    ingredient_evidence_score = _score_ingredient_evidence(
+        desired_effects,
+        evidence_contributions_by_effect,
+    )
     functional_claim_score, functional_claim_context = _score_functional_claim(
         functional_info,
         desired_effects,
@@ -871,6 +883,10 @@ def _score_candidate(
         "concentration_weight_mode": "direct_axis",
         "effect_cap": EFFECT_CAP,
         "top_ingredient_decays": list(TOP_INGREDIENT_DECAYS),
+        "ingredient_effect_selection_policy": "top3_effect_score",
+        "ingredient_evidence_selection_policy": (
+            "independent_top3_effective_evidence_score"
+        ),
         "total_score": total_score,
     }
 
@@ -1833,11 +1849,45 @@ def _build_contributions_by_effect(
                 ingredient=ingredient,
                 decay=decay,
                 effect_component=(ingredient.effect_score / 100) * decay,
-                evidence_component=_evidence_component(ingredient.evidence, decay),
             )
             for ingredient, decay in zip(ranked_ingredients, TOP_INGREDIENT_DECAYS, strict=False)
         ]
         contributions_by_effect[effect_code] = tuple(contributions)
+
+    return contributions_by_effect
+
+
+def _build_evidence_contributions_by_effect(
+    ingredients: tuple[_IngredientEffectInfo, ...],
+) -> dict[str, tuple[_EvidenceContribution, ...]]:
+    ingredients_by_effect: dict[str, list[_IngredientEffectInfo]] = {}
+    for ingredient in ingredients:
+        if ingredient.evidence is None:
+            continue
+        ingredients_by_effect.setdefault(ingredient.effect_code, []).append(ingredient)
+
+    contributions_by_effect: dict[str, tuple[_EvidenceContribution, ...]] = {}
+    for effect_code, effect_ingredients in ingredients_by_effect.items():
+        ranked_ingredients = sorted(
+            effect_ingredients,
+            key=lambda ingredient: (
+                -_effective_evidence_score(ingredient.evidence),
+                ingredient.display_order,
+                ingredient.ingredient_id,
+            ),
+        )
+        contributions_by_effect[effect_code] = tuple(
+            _EvidenceContribution(
+                ingredient=ingredient,
+                decay=decay,
+                evidence_component=_evidence_component(ingredient.evidence, decay),
+            )
+            for ingredient, decay in zip(
+                ranked_ingredients,
+                TOP_INGREDIENT_DECAYS,
+                strict=False,
+            )
+        )
 
     return contributions_by_effect
 
@@ -1867,13 +1917,19 @@ def _score_ingredient_effects(
 
 def _score_ingredient_evidence(
     desired_effects: tuple[_DesiredEffect, ...],
-    contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    contributions_by_effect: dict[str, tuple[_EvidenceContribution, ...]],
 ) -> float:
-    return _score_weighted_effect_axis(
-        desired_effects,
-        contributions_by_effect,
-        component_name="evidence_component",
-    )
+    weighted_scores: list[tuple[float, float]] = []
+    for desired_effect in desired_effects:
+        contributions = contributions_by_effect.get(desired_effect.effect_code, ())
+        raw_effect_score = sum(
+            contribution.evidence_component for contribution in contributions
+        )
+        weighted_scores.append(
+            (min(raw_effect_score, EFFECT_CAP), desired_effect.weight)
+        )
+
+    return _clamp(_weighted_average(tuple(weighted_scores)))
 
 
 def _score_functional_claim(
