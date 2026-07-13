@@ -236,10 +236,11 @@ const installFunctions = () => {
     document.getElementById("cartOverlay")?.classList.toggle("active");
   };
   runtime.closeCategoryMenu = () => {
+    const wasOpen = document.body.classList.contains("category-menu-open");
     document.getElementById("categoryPanel")?.classList.remove("active");
     document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
     document.body.classList.remove("category-menu-open");
-    unlockCategoryMenuScroll();
+    if (wasOpen) unlockCategoryMenuScroll();
     document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
   };
   runtime.openCategoryMenu = () => {
@@ -266,10 +267,11 @@ const installFunctions = () => {
       return;
     }
 
+    const wasOpen = document.body.classList.contains("category-menu-open");
     panel?.classList.remove("active");
     backdrop?.classList.remove("active");
     document.body.classList.remove("category-menu-open");
-    unlockCategoryMenuScroll();
+    if (wasOpen) unlockCategoryMenuScroll();
     button?.setAttribute("aria-expanded", "false");
   };
   runtime.showToast = (message) => showToast(String(message));
