@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
@@ -110,6 +110,7 @@ const getCartItemOptionLabel = (item: CartItem) => {
 };
 
 function CartPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
   const [cart, setCart] = useState<CartResponse | null>(null);
@@ -124,7 +125,7 @@ function CartPage() {
   const [isCheckoutPreviewLoading, setIsCheckoutPreviewLoading] = useState(false);
   const [checkoutPreviewErrorMessage, setCheckoutPreviewErrorMessage] = useState("");
   const agentCheckoutStartedRef = useRef(false);
-  const agentCheckoutParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const agentCheckoutParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isAgentCheckout = agentCheckoutParams.get("agent_checkout") === "1";
   const requestedAgentCartItemIds = useMemo(
     () => agentCheckoutParams.getAll("cart_item_ids")
