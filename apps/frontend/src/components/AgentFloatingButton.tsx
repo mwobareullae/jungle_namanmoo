@@ -106,6 +106,8 @@ const AGENT_CHAT_THREADS_KEY = "mwobareullae-agent-chat-threads-v1";
 const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
 const MAX_AGENT_CHAT_THREADS = 5;
 const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
+const MAX_AGENT_CONTEXT_MESSAGES = 8;
+const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 
@@ -365,6 +367,29 @@ const createThreadTitleFromMessages = (messages: AgentChatMessage[]) => {
     (message): message is AgentChatTextMessage => message.kind === "chat" && message.role === "user",
   );
   return firstUserMessage ? createThreadTitle(firstUserMessage.content) : "새 대화";
+};
+
+const buildRecentMessages = (messages: AgentChatMessage[]) =>
+  messages
+    .filter((message): message is AgentChatTextMessage => message.kind === "chat")
+    .slice(-MAX_AGENT_CONTEXT_MESSAGES)
+    .map((message) => ({ role: message.role, content: message.content.slice(0, 2000) }));
+
+const buildLastToolResult = (messages: AgentChatMessage[]) => {
+  const result = [...messages].reverse().find(
+    (message): message is AgentChatResultMessage => message.kind === "result",
+  );
+  if (!result) return null;
+
+  return {
+    action_type: result.actionType,
+    target: result.actionTarget ?? null,
+    items: result.items.slice(0, MAX_AGENT_CONTEXT_RESULT_ITEMS).map((item) => ({
+      item_type: item.itemType,
+      id: item.id,
+      title: item.title,
+    })),
+  };
 };
 
 const normalizeStoredThread = (thread: unknown): AgentChatThreadSummary | null => {
@@ -813,6 +838,21 @@ function createResultMessage(
   };
 }
 
+const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[]) => {
+  if (action.type === "noop") return null;
+  const resultMessage = createResultMessage("context-only", action, items);
+  const contextItems = resultMessage?.items ?? items.map(mapAgentItem);
+  return {
+    action_type: action.type,
+    target: action.target ?? null,
+    items: contextItems.slice(0, MAX_AGENT_CONTEXT_RESULT_ITEMS).map((item) => ({
+      item_type: item.itemType,
+      id: item.id,
+      title: item.title,
+    })),
+  };
+};
+
 function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
   const nextMessages: AgentChatMessage[] = [];
   const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
@@ -951,6 +991,7 @@ function AgentFloatingButton({
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
+  const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(readStoredMessages()));
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
@@ -1243,6 +1284,7 @@ function AgentFloatingButton({
     setCurrentThreadId(thread.id);
     setConversationId(thread.conversationId);
     setMessages(thread.messages);
+    setLastToolResultContext(buildLastToolResult(thread.messages));
     setActiveView("thread");
   };
 
@@ -1257,6 +1299,8 @@ function AgentFloatingButton({
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = activeView === "home";
     const requestConversationId = shouldStartNewThread ? null : conversationId;
+    const recentMessages = shouldStartNewThread ? [] : buildRecentMessages(messages);
+    const lastToolResult = shouldStartNewThread ? null : lastToolResultContext ?? buildLastToolResult(messages);
     const nextThreadId = shouldStartNewThread || !currentThreadId ? `thread-${timestamp}` : currentThreadId;
     const userMessage: AgentChatTextMessage = {
       id: `user-${timestamp}`,
@@ -1269,6 +1313,7 @@ function AgentFloatingButton({
     if (shouldStartNewThread) {
       setCurrentThreadId(nextThreadId);
       setConversationId(null);
+      setLastToolResultContext(null);
       setMessages([userMessage, createStatusMessage(statusId, true, nextMessage)]);
       setActiveView("thread");
     } else {
@@ -1287,10 +1332,14 @@ function AgentFloatingButton({
       const response = await api.sendAgentMessage({
         context: buildAgentContext(),
         conversation_id: requestConversationId,
+        last_tool_result: lastToolResult,
         message: nextMessage,
+        recent_messages: recentMessages,
       });
       const responseTimestamp = Date.now();
       setConversationId(response.conversation_id);
+      const nextToolResultContext = buildToolResultContext(response.ui_action, response.items);
+      if (nextToolResultContext) setLastToolResultContext(nextToolResultContext);
       const isRecommendationResponse = response.ui_action.type === "show_products"
         || response.ui_action.type === "show_product_comparison"
         || response.items.some((item) => item.item_type === "product");

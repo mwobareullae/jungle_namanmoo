@@ -65,6 +65,19 @@ export type AgentChatRequest = {
   message: string;
   conversation_id?: string | null;
   context?: AgentContext;
+  recent_messages?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  last_tool_result?: {
+    action_type: AgentUiActionType;
+    target?: string | null;
+    items: Array<{
+      item_type: "product" | "order";
+      id: string;
+      title: string;
+    }>;
+  } | null;
 };
 
 export type AgentUiAction = {
