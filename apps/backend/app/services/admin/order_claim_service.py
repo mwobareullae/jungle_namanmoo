@@ -25,6 +25,7 @@ from app.schemas.common import ApiError
 CLAIM_STATUS_REQUESTED = "REQUESTED"
 CLAIM_STATUS_APPROVED = "APPROVED"
 CLAIM_STATUS_REJECTED = "REJECTED"
+CLAIM_STATUS_IN_PROGRESS = "IN_PROGRESS"
 
 
 CLAIM_STATUSES = {"REQUESTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "WITHDRAWN"}
@@ -159,6 +160,20 @@ def reject_admin_claim(
 
     now = datetime.now(UTC)
     _transition_claim(session, claim, to_status=CLAIM_STATUS_REJECTED, reason=normalized_reason, now=now)
+    return _to_action_response(claim, order_code=order_code)
+
+
+def start_admin_claim(session: Session, claim_code: str) -> AdminOrderClaimActionResponse:
+    """클레임 처리 시작. APPROVED→IN_PROGRESS. 비금전 액션이라 Claim 행만 잠근다."""
+    claim, order_code = _load_claim_for_update(session, claim_code)
+
+    if claim.status == CLAIM_STATUS_IN_PROGRESS:
+        return _to_action_response(claim, order_code=order_code)
+    if claim.status != CLAIM_STATUS_APPROVED:
+        raise ApiError(409, "CLAIM_NOT_APPROVED", "Claim is not in an approved state.")
+
+    now = datetime.now(UTC)
+    _transition_claim(session, claim, to_status=CLAIM_STATUS_IN_PROGRESS, reason=None, now=now)
     return _to_action_response(claim, order_code=order_code)
 
 

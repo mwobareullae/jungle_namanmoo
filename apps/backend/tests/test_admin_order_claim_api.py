@@ -146,7 +146,7 @@ def _seed_claim(db_engine: Engine) -> str:
     return "clm_api_claim"
 
 
-def _seed_claim_for_decision(db_engine: Engine, *, suffix: str) -> str:
+def _seed_claim_for_decision(db_engine: Engine, *, suffix: str, status: str = "REQUESTED") -> str:
     now = datetime.now(UTC)
     claim_code = f"clm_api_decision_{suffix}"
     with Session(db_engine) as session:
@@ -194,7 +194,7 @@ def _seed_claim_for_decision(db_engine: Engine, *, suffix: str) -> str:
             order_id=order.id,
             user_id=buyer.id,
             claim_type="REFUND",
-            status="REQUESTED",
+            status=status,
             reason_code="DAMAGED",
             refund_amount=10000,
             requested_at=now,
@@ -385,6 +385,49 @@ def test_reject_not_found_returns_404(client: TestClient, db_engine: Engine) -> 
         "/api/admin/order-claims/clm_does_not_exist/reject",
         json={"rejection_reason": "사유"},
     )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "CLAIM_NOT_FOUND"
+
+
+def test_start_requires_authentication(client: TestClient) -> None:
+    assert client.post("/api/admin/order-claims/clm_anything/start").status_code == 401
+
+
+def test_start_rejects_non_admin(client: TestClient) -> None:
+    _signup(client)
+    assert client.post("/api/admin/order-claims/clm_anything/start").status_code == 403
+
+
+def test_start_returns_contract_for_admin(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(db_engine, suffix="start", status="APPROVED")
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/start")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "IN_PROGRESS"
+    assert body["available_actions"] == ["COMPLETE"]
+
+
+def test_start_rejects_requested_claim(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+    claim_code = _seed_claim_for_decision(db_engine, suffix="start-not-approved", status="REQUESTED")
+
+    response = client.post(f"/api/admin/order-claims/{claim_code}/start")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "CLAIM_NOT_APPROVED"
+
+
+def test_start_not_found_returns_404(client: TestClient, db_engine: Engine) -> None:
+    _signup(client)
+    _promote_to_admin(db_engine)
+
+    response = client.post("/api/admin/order-claims/clm_does_not_exist/start")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "CLAIM_NOT_FOUND"
