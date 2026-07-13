@@ -21,6 +21,7 @@ usage() {
 Usage:
   scripts/perf/benchmarkctl prepare <1000|5000|10000|80000>
   scripts/perf/benchmarkctl verify <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
   scripts/perf/benchmarkctl build <source_dir> [output_root]
   scripts/perf/benchmarkctl collect <run_id> [dataset]
@@ -224,7 +225,57 @@ verify() {
   [[ -f "$REPO_DIR/docs/performance/benchmark-users.json" ]] || die "benchmark user fixture is missing"
   python3 -m json.tool "$REPO_DIR/docs/performance/benchmark-users.json" >/dev/null
   echo "benchmark_users=valid"
+  if [[ "${BENCHMARK_VERIFY_USERS:-false}" == "true" ]]; then
+    verify_users
+  fi
   echo "benchmark verification passed"
+}
+
+verify_users() {
+  backend_exec python - \
+    "${BENCHMARK_PROFILE_USER_EMAIL:-}" \
+    "${BENCHMARK_SKIN_TEST_USER_EMAIL:-}" \
+    "${BENCHMARK_BEHAVIOR_USER_EMAIL:-}" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+profile_email, skin_test_email, behavior_email = sys.argv[1:]
+required = {
+    "profile": profile_email,
+    "skin-test": skin_test_email,
+    "behavior": behavior_email,
+}
+missing_email = [key for key, email in required.items() if not email]
+if missing_email:
+    raise SystemExit(f"benchmark user email is missing: {','.join(missing_email)}")
+
+with SessionLocal() as session:
+    for key, email in required.items():
+        user = session.execute(
+            text("select id from users where email = :email and status = 'ACTIVE'"),
+            {"email": email},
+        ).first()
+        if user is None:
+            raise SystemExit(f"benchmark user is missing or inactive: {key} ({email})")
+        user_id = int(user[0])
+
+        if key == "profile":
+            query = text("select count(*) from skin_profiles where user_id = :user_id")
+        elif key == "skin-test":
+            query = text(
+                "select count(*) from skin_profiles "
+                "where user_id = :user_id and latest_skin_test_result_id is not null"
+            )
+        else:
+            query = text("select count(*) from event_logs where user_id = :user_id")
+
+        count = int(session.execute(query, {"user_id": user_id}).scalar_one())
+        if count < 1:
+            raise SystemExit(f"benchmark user context is missing: {key} ({email})")
+        print(f"benchmark_user={key} status=ready")
+PY
 }
 
 collect() {
@@ -328,6 +379,7 @@ case "$COMMAND" in
   prepare) load_profile "${2:-}"; prepare ;;
   activate) load_profile "${2:-}"; activate ;;
   verify) load_profile "${2:-}"; verify ;;
+  verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
   build) build "${2:-}" "${3:-}" ;;
   collect) collect "${2:-}" "${3:-}" ;;
   help|-h|--help) usage ;;
