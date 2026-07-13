@@ -726,7 +726,7 @@ const createComparisonDifferences = (payload: Record<string, unknown>): ProductC
 
   if (!Array.isArray(values)) return [];
 
-  return values.flatMap((value, index) => {
+  return values.flatMap<ProductComparisonDifference>((value, index) => {
     if (typeof value === "string" && value.trim()) {
       return [{ description: value.trim(), label: `비교 포인트 ${index + 1}` }];
     }
