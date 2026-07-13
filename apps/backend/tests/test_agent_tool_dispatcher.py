@@ -13,6 +13,7 @@ from app.db.models.agent import AgentToolCall
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory
 from app.schemas.common import ApiError
+from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
 from app.services.db_seed import seed_database
@@ -118,6 +119,30 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+
+
+def test_openai_tool_returns_structured_login_action_for_anonymous_user(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_login_required",
+            request_id="req_login_required",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="add_to_cart",
+            arguments={"product_id": "prod_001", "quantity": 1},
+        )
+
+    payload = json.loads(result)
+    assert payload["conversation_id"] == "conv_login_required"
+    assert payload["tool_name"] == "add_to_cart"
+    assert payload["error"]["code"] == "AGENT_AUTH_REQUIRED"
+    assert payload["ui_action"]["type"] == "noop"
+    assert context.last_tool_response is not None
 
 
 def _set_inventory(

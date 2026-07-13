@@ -10,7 +10,7 @@ from app.core.ai_logging import extract_agents_usage, log_ai_call
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentUiAction
+from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentError, AgentUiAction
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import CANCEL_RECENT_ORDER_TOOL, ORDER_STATUS_LOOKUP_TOOL
 from app.services.agent_commerce_tools import ADD_TO_CART_TOOL, GET_CART_TOOL, PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL
@@ -240,16 +240,27 @@ def _execute_tool(
     arguments: dict[str, Any],
 ) -> str:
     runtime_context: CommerceAgentContext = ctx.context
-    response = execute_agent_tool(
-        runtime_context.session,
-        tool_name=tool_name,
-        arguments=arguments,
-        user=runtime_context.user,
-        conversation_id=runtime_context.conversation_id,
-        request_id=runtime_context.request_id,
-        session_id=runtime_context.session_id,
-        anonymous_user_id=runtime_context.anonymous_user_id,
-    )
+    try:
+        response = execute_agent_tool(
+            runtime_context.session,
+            tool_name=tool_name,
+            arguments=arguments,
+            user=runtime_context.user,
+            conversation_id=runtime_context.conversation_id,
+            request_id=runtime_context.request_id,
+            session_id=runtime_context.session_id,
+            anonymous_user_id=runtime_context.anonymous_user_id,
+        )
+    except ApiError as exc:
+        if exc.code != "AGENT_AUTH_REQUIRED":
+            raise
+        response = AgentChatResponse(
+            conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+            message="로그인 후 요청을 이어서 처리할 수 있어요.",
+            tool_name=tool_name,
+            ui_action=AgentUiAction(),
+            error=AgentError(code=exc.code, message="로그인이 필요한 기능이에요.", retryable=False),
+        )
     runtime_context.last_tool_response = response
     return json.dumps(dump_model(response), ensure_ascii=False)
 
