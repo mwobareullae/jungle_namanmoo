@@ -104,6 +104,7 @@ $Config = Read-EnvFile $ConfigPath
 $RemoteAppDir = Require-Config $Config "REMOTE_APP_DIR"
 $RemoteRuntimeRoot = Require-Config $Config "REMOTE_BENCHMARK_ROOT"
 $BaseUrl = Require-Config $Config "BASE_URL"
+$ServerHost = ([System.Uri]$BaseUrl).Host
 $SshUser = Require-Config $Config "SSH_USER"
 $SshHost = Require-Config $Config "SSH_HOST"
 $SshKey = Require-Config $Config "SSH_KEY"
@@ -158,6 +159,7 @@ $effectiveDuration = if ($Duration) { $Duration } elseif ($Config.ContainsKey("D
 $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS } else { "3000" }
 
 Write-Host "[6/9] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
+$RunStartedAt = (Get-Date).ToUniversalTime().ToString("o")
 $k6Args = @(
     "run",
     "--summary-export", $LocalK6Summary,
@@ -187,6 +189,7 @@ foreach ($envName in @(
 $k6Args += $K6Script
 & k6 @k6Args
 $k6ExitCode = $LASTEXITCODE
+$RunFinishedAt = (Get-Date).ToUniversalTime().ToString("o")
 if (-not (Test-Path -LiteralPath $LocalK6Summary)) {
     throw "k6 summary file was not created: $LocalK6Summary"
 }
@@ -202,7 +205,7 @@ Invoke-Scp @(
 )
 
 Write-Host "[8/9] 서버에서 결과 collect"
-$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $SshHost + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
+$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $ServerHost + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' BENCHMARK_K6_EXIT_CODE=' + $k6ExitCode + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
 Write-Host "[9/9] 수집 결과 다운로드"

@@ -14,6 +14,20 @@ DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DI
 CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
 CONFIG_K6_RESULT_FILE="${BENCHMARK_K6_RESULT_FILE-}"
 CONFIG_K6_RESULT_FILE_SET="${BENCHMARK_K6_RESULT_FILE+x}"
+CONFIG_USER_TYPE="${BENCHMARK_USER_TYPE-}"
+CONFIG_USER_TYPE_SET="${BENCHMARK_USER_TYPE+x}"
+CONFIG_VUS="${BENCHMARK_VUS-}"
+CONFIG_VUS_SET="${BENCHMARK_VUS+x}"
+CONFIG_DURATION="${BENCHMARK_DURATION-}"
+CONFIG_DURATION_SET="${BENCHMARK_DURATION+x}"
+CONFIG_SERVER_HOST="${BENCHMARK_SERVER_HOST-}"
+CONFIG_SERVER_HOST_SET="${BENCHMARK_SERVER_HOST+x}"
+CONFIG_RUN_STARTED_AT="${BENCHMARK_RUN_STARTED_AT-}"
+CONFIG_RUN_STARTED_AT_SET="${BENCHMARK_RUN_STARTED_AT+x}"
+CONFIG_RUN_FINISHED_AT="${BENCHMARK_RUN_FINISHED_AT-}"
+CONFIG_RUN_FINISHED_AT_SET="${BENCHMARK_RUN_FINISHED_AT+x}"
+CONFIG_K6_EXIT_CODE="${BENCHMARK_K6_EXIT_CODE-}"
+CONFIG_K6_EXIT_CODE_SET="${BENCHMARK_K6_EXIT_CODE+x}"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -21,9 +35,23 @@ if [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 # Command-line environment overrides must win over values in the config file.
-if [[ "$CONFIG_K6_RESULT_FILE_SET" == "x" ]]; then
-  BENCHMARK_K6_RESULT_FILE="$CONFIG_K6_RESULT_FILE"
-fi
+restore_env_override() {
+  local name="$1"
+  local is_set="$2"
+  local value="$3"
+  if [[ "$is_set" == "x" ]]; then
+    export "$name=$value"
+  fi
+}
+
+restore_env_override BENCHMARK_K6_RESULT_FILE "$CONFIG_K6_RESULT_FILE_SET" "$CONFIG_K6_RESULT_FILE"
+restore_env_override BENCHMARK_USER_TYPE "$CONFIG_USER_TYPE_SET" "$CONFIG_USER_TYPE"
+restore_env_override BENCHMARK_VUS "$CONFIG_VUS_SET" "$CONFIG_VUS"
+restore_env_override BENCHMARK_DURATION "$CONFIG_DURATION_SET" "$CONFIG_DURATION"
+restore_env_override BENCHMARK_SERVER_HOST "$CONFIG_SERVER_HOST_SET" "$CONFIG_SERVER_HOST"
+restore_env_override BENCHMARK_RUN_STARTED_AT "$CONFIG_RUN_STARTED_AT_SET" "$CONFIG_RUN_STARTED_AT"
+restore_env_override BENCHMARK_RUN_FINISHED_AT "$CONFIG_RUN_FINISHED_AT_SET" "$CONFIG_RUN_FINISHED_AT"
+restore_env_override BENCHMARK_K6_EXIT_CODE "$CONFIG_K6_EXIT_CODE_SET" "$CONFIG_K6_EXIT_CODE"
 
 BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
 BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
@@ -425,6 +453,7 @@ collect() {
   local result_dir="$RESULT_ROOT/$run_id"
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
   local k6_result_present=false
+  local k6_exit_code_json="null"
   local embedding_coverage="null"
   local actual_product_count="$PRODUCT_COUNT"
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
@@ -469,6 +498,9 @@ PY
     cp "$BENCHMARK_K6_RESULT_FILE" "$result_dir/k6/k6-summary.json"
     k6_result_present=true
   fi
+  if [[ "${BENCHMARK_K6_EXIT_CODE:-}" =~ ^-?[0-9]+$ ]]; then
+    k6_exit_code_json="$BENCHMARK_K6_EXIT_CODE"
+  fi
   local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
   cat >"$result_dir/manifest.json" <<EOF
 {
@@ -492,7 +524,8 @@ PY
   "query_set": "$QUERY_SET",
   "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
   "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
-  "k6_result_present": $k6_result_present
+  "k6_result_present": $k6_result_present,
+  "k6_exit_code": $k6_exit_code_json
 }
 EOF
   echo "collected=$result_dir"
