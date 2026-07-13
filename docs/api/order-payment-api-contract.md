@@ -816,22 +816,33 @@ MVP automation boundary:
 ## Cancellation processing
 
 `POST /api/orders/{order_code}/cancel` does not call an external payment
-provider. For a paid order it records `CANCEL_REQUESTED` and returns. The
-operational processor then handles full cancellation:
+provider. For a paid order it records `CANCEL_REQUESTED` and creates an
+`order_cancel_requests` row (`status = REQUESTED`) in the same transaction,
+returning its `request_code`.
+
+**Update (2026-07-13):** full cancellation is no longer processed by an
+unattended batch job. An administrator reviews each request through the admin
+API and decides:
 
 ```text
-python -m app.cli.cancel_requested_orders --limit 100
-python -m app.cli.cancel_requested_orders --limit 100 --reason "customer requested cancellation"
-python -m app.cli.cancel_requested_orders --limit 100 --dry-run
+GET  /api/admin/order-cancel-requests
+GET  /api/admin/order-cancel-requests/{request_code}
+POST /api/admin/order-cancel-requests/{request_code}/approve
+POST /api/admin/order-cancel-requests/{request_code}/reject
 ```
 
-`MOCK` payments are completed locally. `TOSS` payments call the Toss cancel
-API and are finalized only when the response has `status = CANCELED`. A
-network failure, provider error, missing payment key, or invalid response
-keeps the order at `CANCEL_REQUESTED` and records an `UNKNOWN` cancel attempt
-for a later retry. Full cancellation marks the order and order items as
-`CANCELED`, marks the payment as `CANCELED`, and restores the sold quantity to
-inventory with a `SALE_CANCEL` movement.
+Approving a `MOCK` payment cancels it synchronously: the order and order
+items move to `CANCELED`, the payment moves to `CANCELED`, and the sold
+quantity is restored to inventory with a `SALE_CANCEL` movement. Approving a
+non-`MOCK` payment is rejected with `409 MOCK_CANCEL_PROVIDER_MISMATCH` —
+external (`TOSS`, etc.) provider cancellation still needs a dedicated
+processor and is out of scope until a real PG integration exists. Rejecting a
+request requires a `rejection_reason` and returns the order to `PAID`, so the
+customer can re-request cancellation or the order can continue to shipment.
+
+The previous `python -m app.cli.cancel_requested_orders` batch script
+(unattended, no admin review) has been removed — it predates the admin
+approval flow above and does not exist in this codebase anymore.
 
 ## Order claim API
 
