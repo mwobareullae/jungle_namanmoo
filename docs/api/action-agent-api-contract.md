@@ -65,6 +65,8 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 | `compose_cart` | 카테고리·총예산·피부 조건으로 복수 상품 구성안 생성 후 일괄 추가 | 필수 | `open_modal/agent_confirmation`, `show_cart` |
 | `prepare_checkout` | 선택 상품과 배송지로 금액·재고 재검증 | 없음 | `show_checkout_preview` |
 | `prepare_order` | 주문 내용을 고정하고 확인 대기 상태 생성 | 필수 | `open_modal/order_create_confirm` |
+| `prepare_review_draft` | 실제 구매·작성 가능 상품 확인 후 사용자가 말한 경험으로 리뷰 작성 화면 채우기 | 없음 | `navigate/review_write` |
+| `prepare_claim_draft` | 배송완료·신청 기간·잔여 수량 확인 후 클레임 신청 화면 채우기 | 없음 | `navigate/claim_request` |
 
 개별 장바구니 추가는 즉시 실행한다. `compose_cart`는 실제 DB의 카테고리, 최저가, 판매·재고 상태, 상품 피부 적합도와 사용자 피부 프로필의 제외 성분을 검증해 총예산 안의 조합을 제안한다. 구성안 조회만으로 장바구니를 바꾸지 않으며 사용자가 확인 API로 승인한 뒤에만 각 상품을 1개씩 같은 요청 트랜잭션에서 추가한다. 기존 장바구니 상품은 삭제하지 않는다. 주문 생성도 반드시 별도의 확인 API를 거친다.
 
@@ -117,6 +119,16 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 ```
 
 주문 생성의 멱등성 키는 `agent:{tool_call_id}`다. 같은 확인 요청이 재전송돼도 별도 주문을 중복 생성하지 않는다.
+
+## 리뷰와 반품·교환·환불 작성 지원
+
+두 tool은 최종 등록 API를 대신 호출하지 않는 읽기·화면 준비 작업이다. 실제 저장은 기존 화면에서 사용자가 내용을 확인하고 등록 버튼을 눌렀을 때만 발생한다.
+
+`prepare_review_draft`는 `GET /api/me/reviewable-order-items`와 같은 서비스 로직으로 본인의 배송완료 구매와 활성 리뷰 유무를 확인한다. 별점과 본문에는 사용자가 대화에서 직접 말한 경험만 사용할 수 있으며 사용 기간, 효능, 부작용, 재구매 의사를 추측하지 않는다. 응답 payload의 `order_item_id`, `rating`, `review_text`, `is_repurchase_review`를 세션 저장소에 잠시 보관한 뒤 `/mypage/reviews`의 기존 작성 폼에 넣는다. 공개 리뷰 생성은 기존 `POST /api/products/{product_id}/reviews` 버튼 제출로만 실행한다.
+
+`prepare_claim_draft`는 현재 주문 또는 최근 배송완료 주문을 대상으로 기존 클레임 자격 판정 로직을 호출한다. 주문 상태가 `DELIVERED`이고 배송완료 후 7일 이내이며 해당 상품의 잔여 신청 수량이 있어야 한다. 신청 유형은 `RETURN`, `EXCHANGE`, `REFUND`, 사유 코드는 `CHANGE_OF_MIND`, `DEFECTIVE`, `WRONG_ITEM`, `OTHER`만 허용한다. 하자나 오배송 사유를 임의로 만들지 않으며 `/mypage/orders/{order_code}/return-request` 폼을 채울 뿐 `POST /api/order-claims`는 자동 호출하지 않는다.
+
+따라서 두 tool의 `requires_confirmation`은 `false`지만, 이는 공개 리뷰나 클레임 접수가 확인 없이 실행된다는 의미가 아니다. tool 자체가 DB 쓰기를 하지 않고 최종 제출 권한을 화면의 사용자에게 남긴다는 의미다.
 
 ## Mock 금지 기준
 
