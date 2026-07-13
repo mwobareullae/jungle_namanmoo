@@ -9,6 +9,7 @@
   "selection": {
     "product_ids": "server-local dataset manifest",
     "related_rows": "selected by product_id",
-    "random_sampling": false
+    "random_sampling": false,
+    "shortfall_policy": "80000 may use all available source products; smaller targets must match exactly"
   }
 }

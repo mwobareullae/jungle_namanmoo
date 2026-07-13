@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--sizes", nargs="+", type=int, default=list(DEFAULT_SIZES))
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--allow-shortfall",
+        action="store_true",
+        help="Use all available products when a requested size is larger than the source.",
+    )
     return parser.parse_args()
 
 
@@ -142,9 +147,21 @@ def copy_product_related(source_dir: Path, output_dir: Path, product_ids: set[st
     return counts
 
 
-def build_dataset(source_dir: Path, output_root: Path, size: int, product_headers: list[str], product_rows: list[dict[str, str]], overwrite: bool) -> None:
+def build_dataset(
+    source_dir: Path,
+    output_root: Path,
+    size: int,
+    product_headers: list[str],
+    product_rows: list[dict[str, str]],
+    overwrite: bool,
+    allow_shortfall: bool,
+) -> None:
     if size > len(product_rows):
-        raise SystemExit(f"requested {size} products, source has only {len(product_rows)}")
+        if not allow_shortfall:
+            raise SystemExit(f"requested {size} products, source has only {len(product_rows)}")
+        actual_size = len(product_rows)
+    else:
+        actual_size = size
     output_dir = output_root / f"benchmark-{size}"
     if output_dir.exists():
         if not overwrite:
@@ -152,7 +169,7 @@ def build_dataset(source_dir: Path, output_root: Path, size: int, product_header
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True)
 
-    selected_rows = product_rows[:size]
+    selected_rows = product_rows[:actual_size]
     product_ids = {row["product_id"] for row in selected_rows}
     write_csv(output_dir / "products" / "products_000.csv", product_headers, selected_rows)
     copy_static_files(source_dir, output_dir)
@@ -161,9 +178,11 @@ def build_dataset(source_dir: Path, output_root: Path, size: int, product_header
     manifest = {
         "version": 1,
         "dataset": str(size),
-        "product_count": size,
+        "requested_product_count": size,
+        "product_count": actual_size,
         "source_dir": str(source_dir),
         "selection": "product_id ascending, deterministic",
+        "shortfall": actual_size < size,
         "related_row_counts": related_counts,
         "product_ids_file": "product_ids.txt",
     }
@@ -182,7 +201,15 @@ def main() -> None:
         raise SystemExit(f"source directory is missing: {source_dir}")
     product_headers, product_rows = read_rows(product_files(source_dir))
     for size in sorted(set(args.sizes)):
-        build_dataset(source_dir, output_root, size, product_headers, product_rows, args.overwrite)
+        build_dataset(
+            source_dir,
+            output_root,
+            size,
+            product_headers,
+            product_rows,
+            args.overwrite,
+            args.allow_shortfall,
+        )
 
 
 if __name__ == "__main__":

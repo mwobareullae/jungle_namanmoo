@@ -97,10 +97,51 @@ EOF
 verify_data_dir() {
   backend_exec test -d "$DATA_DIR" || die "DATA_DIR does not exist in backend container: $DATA_DIR"
   backend_exec test -f "$DATA_DIR/product_prices.csv" || die "product_prices.csv is missing: $DATA_DIR"
+  validate_dataset_manifest
+}
+
+validate_dataset_manifest() {
+  backend_exec python - "$DATA_DIR" "$DATASET_LABEL" "$PRODUCT_COUNT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data_dir = Path(sys.argv[1])
+dataset = sys.argv[2]
+target = int(sys.argv[3])
+manifest_path = data_dir / "manifest.json"
+if not manifest_path.exists():
+    raise SystemExit(f"dataset manifest is missing: {manifest_path}")
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+requested = int(manifest.get("requested_product_count", manifest.get("product_count", 0)))
+actual = int(manifest.get("product_count", 0))
+if requested != target:
+    raise SystemExit(f"dataset manifest target={requested}, profile target={target}")
+if actual > target:
+    raise SystemExit(f"dataset product count exceeds target: {actual} > {target}")
+if dataset != "80000" and actual != target:
+    raise SystemExit(f"dataset product count mismatch: expected {target}, got {actual}")
+print(f"dataset_manifest_target={target}")
+print(f"dataset_manifest_product_count={actual}")
+print(f"dataset_manifest_shortfall={actual < target}")
+PY
+}
+
+expected_product_count() {
+  backend_exec python - "$DATA_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads((Path(sys.argv[1]) / "manifest.json").read_text(encoding="utf-8"))
+print(int(manifest["product_count"]))
+PY
 }
 
 verify_database_counts() {
-  backend_exec python - "$PRODUCT_COUNT" <<'PY'
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
 import sys
 from sqlalchemy import text
 
@@ -127,13 +168,14 @@ PY
 }
 
 verify_elasticsearch() {
-  local count
+  local count expected
+  expected="$(expected_product_count)"
   count="$(compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
     "http://127.0.0.1:9200/$ELASTICSEARCH_ALIAS/_count" \
     | python -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
   echo "elasticsearch_alias_count=$count"
-  [[ "$count" == "$PRODUCT_COUNT" ]] || die \
-    "expected Elasticsearch count=$PRODUCT_COUNT, got $count"
+  [[ "$count" == "$expected" ]] || die \
+    "expected Elasticsearch count=$expected, got $count"
 }
 
 prepare() {
@@ -198,6 +240,7 @@ collect() {
   local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
   local k6_result_present=false
   local embedding_coverage="null"
+  local actual_product_count="$PRODUCT_COUNT"
   mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
   print_context | tee "$result_dir/context.txt"
   compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
@@ -226,6 +269,7 @@ print(json.dumps({
 }, ensure_ascii=False))
 PY
   if [[ -s "$result_dir/database/counts.json" ]]; then
+    actual_product_count="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("products", 0))' "$result_dir/database/counts.json" 2>/dev/null || printf '%s' "$PRODUCT_COUNT")"
     embedding_coverage="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])).get("embedding_coverage")))' "$result_dir/database/counts.json" 2>/dev/null || printf 'null')"
   fi
   docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
@@ -246,7 +290,8 @@ PY
   "started_at": "$started_at",
   "finished_at": "$finished_at",
   "dataset": "$DATASET_LABEL",
-  "product_count": $PRODUCT_COUNT,
+  "product_count": $actual_product_count,
+  "target_product_count": $PRODUCT_COUNT,
   "git_sha": "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)",
   "data_dir": "$DATA_DIR",
   "database": "benchmark database configured",
@@ -274,7 +319,8 @@ build() {
   python3 "$SCRIPT_DIR/build_benchmark_dataset.py" \
     --source-dir "$source_dir" \
     --output-root "$output_root" \
-    --sizes 1000 5000 10000 80000
+    --sizes 1000 5000 10000 80000 \
+    --allow-shortfall
 }
 
 COMMAND="${1:-help}"
