@@ -62,13 +62,13 @@ def test_home_layout_returns_lazy_section_endpoints(client: TestClient) -> None:
     sections = response.json()["sections"]
     assert [section["section_id"] for section in sections] == [
         "market_popular",
-        "evidence_picks",
         "for_you",
+        "evidence_picks",
     ]
     assert [section["endpoint"] for section in sections] == [
         "/api/home/market-popular",
-        "/api/home/evidence-picks",
         "/api/home/for-you",
+        "/api/home/evidence-picks",
     ]
     assert all(section["lazy_load"] is True for section in sections)
     assert all("products" not in section for section in sections)

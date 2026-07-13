@@ -24,6 +24,7 @@ GET /api/home/for-you
 ## Layout
 
 `GET /api/home/layout` returns only section metadata and endpoint URLs. It must not load or rank products.
+The section order is `market_popular`, `for_you`, then `evidence_picks`.
 
 ```json
 {
