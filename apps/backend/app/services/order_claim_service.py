@@ -16,7 +16,10 @@ from app.schemas.common import ApiError
 
 
 CLAIM_WINDOW_DAYS = 7
-ACTIVE_CLAIM_STATUSES = {"REQUESTED", "APPROVED", "IN_PROGRESS"}
+# 청구 가능 수량 계산에서 "이미 소비된" 것으로 취급할 클레임 상태.
+# COMPLETED 를 포함해야 이미 처리 완료(환불/교환 실행 완료)된 수량을 다시 청구할 수 없다.
+# REJECTED/WITHDRAWN 은 소비되지 않은 것으로 취급해 재신청을 허용한다.
+CLAIM_QUANTITY_CONSUMING_STATUSES = {"REQUESTED", "APPROVED", "IN_PROGRESS", "COMPLETED"}
 CLAIMABLE_ORDER_STATUS = "DELIVERED"
 
 
@@ -253,7 +256,7 @@ def _load_active_claim_quantities(
         .join(OrderClaim, OrderClaim.id == OrderClaimItem.claim_id)
         .where(
             OrderClaim.order_id == order_id,
-            OrderClaim.status.in_(ACTIVE_CLAIM_STATUSES),
+            OrderClaim.status.in_(CLAIM_QUANTITY_CONSUMING_STATUSES),
             OrderClaimItem.order_item_id.in_(order_item_ids),
         )
         .group_by(OrderClaimItem.order_item_id)
