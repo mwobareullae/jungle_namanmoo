@@ -17,7 +17,7 @@ function HomeHeader() {
   const isNewProductsPage = location.pathname === "/products/new";
   const isCatalogSearchPage = location.pathname === "/catalog-search";
   const isBrandsPage = location.pathname === "/brands";
-  const isProductDetailPreviewPage = location.pathname === "/product-detail-preview";
+  const isProductDetailPreviewPage = ["/product-detail", "/product-detail-preview"].includes(location.pathname);
   const isSkinTestPage = location.pathname.startsWith("/skin-test");
   const displayName = user?.nickname?.trim() || user?.email.split("@")[0] || "고객";
   const isCategoryHoverArea = (target: EventTarget | null) => {

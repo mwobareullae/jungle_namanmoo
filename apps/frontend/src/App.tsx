@@ -1118,6 +1118,7 @@ function App() {
           <Route path="/products/evidence-picks" element={<HomeSectionProductsPage sectionType="evidence-picks" />} />
           <Route path="/products/for-you" element={<HomeSectionProductsPage sectionType="for-you" />} />
           <Route path="/recommendation-guide" element={<RecommendationGuidePage />} />
+          <Route path="/product-detail" element={<ProductDetailPreviewPage />} />
           <Route path="/product-detail-preview" element={<ProductDetailPreviewPage />} />
           <Route path="*" element={<LegacyApp />} />
         </Routes>
