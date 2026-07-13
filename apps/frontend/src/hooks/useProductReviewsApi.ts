@@ -33,6 +33,14 @@ type ApiProductReviewsResponse = {
   has_next: boolean;
 };
 
+export type ProductReviewsQuery = {
+  cursor?: string | null;
+  sort?: "latest" | "helpful" | "rating_high" | "rating_low";
+  reviewType?: "GENERAL" | "MONTH_USE";
+  repurchase?: boolean;
+  skinType?: string | null;
+};
+
 const emptyRatingDistribution: ProductReviewSummary["ratingDistribution"] = {
   1: 0,
   2: 0,
@@ -103,35 +111,69 @@ const buildSummary = (summary?: ApiReviewSummary): ProductReviewSummary => {
 export const useProductReviewsApi = (
   productId: string | null | undefined,
   summary?: ApiReviewSummary,
+  query: ProductReviewsQuery = {},
 ) => {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [hasNext, setHasNext] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(productId));
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (!productId) {
+      setReviews([]);
+      setHasNext(false);
+      setNextCursor(null);
+      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
-    const params = new URLSearchParams({ limit: "50", sort: "helpful" });
+    const params = new URLSearchParams({ limit: "10", sort: query.sort ?? "helpful" });
+    if (query.cursor) params.set("cursor", query.cursor);
+    if (query.reviewType) params.set("review_type", query.reviewType);
+    if (query.repurchase !== undefined) params.set("repurchase", String(query.repurchase));
+    if (query.skinType) params.set("skin_type", query.skinType);
+    setIsLoading(true);
+    setErrorMessage("");
 
     fetchWithTimeout(
       `${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params.toString()}`,
     )
       .then((response) => parseJson<ApiProductReviewsResponse>(response))
       .then((response) => {
-        if (isMounted) setReviews(response.items.map(mapReview));
+        if (isMounted) {
+          setReviews(response.items.map(mapReview));
+          setHasNext(response.has_next);
+          setNextCursor(response.next_cursor);
+        }
       })
-      .catch(() => {
-        if (isMounted) setReviews([]);
+      .catch((error) => {
+        if (isMounted) {
+          setReviews([]);
+          setHasNext(false);
+          setNextCursor(null);
+          setErrorMessage(error instanceof Error ? error.message : "리뷰를 불러오지 못했습니다.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [productId]);
+  }, [productId, query.cursor, query.repurchase, query.reviewType, query.skinType, query.sort]);
 
   return useMemo(
-    () => ({ reviews: productId ? reviews : [], summary: buildSummary(summary) }),
-    [productId, reviews, summary],
+    () => ({
+      reviews: productId ? reviews : [],
+      summary: buildSummary(summary),
+      hasNext,
+      nextCursor,
+      isLoading,
+      errorMessage,
+    }),
+    [productId, reviews, summary, hasNext, nextCursor, isLoading, errorMessage],
   );
 };
