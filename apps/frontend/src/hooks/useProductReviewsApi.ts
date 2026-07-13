@@ -120,22 +120,30 @@ export const useProductReviewsApi = (
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let isMounted = true;
     if (!productId) {
-      setReviews([]);
-      setHasNext(false);
-      setNextCursor(null);
-      setIsLoading(false);
-      return;
+      queueMicrotask(() => {
+        if (!isMounted) return;
+        setReviews([]);
+        setHasNext(false);
+        setNextCursor(null);
+        setIsLoading(false);
+      });
+      return () => {
+        isMounted = false;
+      };
     }
 
-    let isMounted = true;
     const params = new URLSearchParams({ limit: "10", sort: query.sort ?? "helpful" });
     if (query.cursor) params.set("cursor", query.cursor);
     if (query.reviewType) params.set("review_type", query.reviewType);
     if (query.repurchase !== undefined) params.set("repurchase", String(query.repurchase));
     if (query.skinType) params.set("skin_type", query.skinType);
-    setIsLoading(true);
-    setErrorMessage("");
+    queueMicrotask(() => {
+      if (!isMounted) return;
+      setIsLoading(true);
+      setErrorMessage("");
+    });
 
     fetchWithTimeout(
       `${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params.toString()}`,

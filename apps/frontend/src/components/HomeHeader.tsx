@@ -51,7 +51,7 @@ function HomeHeader() {
   useEffect(() => {
     if (isProductDetailPreviewPage && document.body.classList.contains("category-menu-open")) {
       callOriginal("closeCategoryMenu");
-      setIsCategoryMenuOpen(false);
+      queueMicrotask(() => setIsCategoryMenuOpen(false));
     }
   }, [isProductDetailPreviewPage]);
 

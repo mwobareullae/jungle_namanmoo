@@ -103,13 +103,25 @@ function ProductDetailPreviewPage() {
   }, [recommendationId]);
 
   useEffect(() => {
+    let isMounted = true;
     if (!user) {
-      setWishedProductIds(new Set());
-      return;
+      queueMicrotask(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
     }
     getMyWishlist()
-      .then((items) => setWishedProductIds(new Set(items.map((item) => item.productId))))
-      .catch(() => setWishedProductIds(new Set()));
+      .then((items) => {
+        if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const toggleWishlist = async (productId: string) => {
@@ -231,7 +243,7 @@ function ProductDetailPreviewPage() {
         </div>
         <div className="naver-preview-info">
           <h1>{product?.name ?? "상품명이 표시되는 영역입니다. 네이버 상품 상세 제목이 들어갑니다"}</h1>
-          <div className="naver-preview-review-line"><b><StarIcon size={16} /> {product?.review_summary?.average_rating?.toFixed(2) ?? "4.84"}</b>　<u>{product?.review_summary?.review_count?.toLocaleString() ?? "5,643"}건 리뷰</u></div>
+          <div className="naver-preview-review-line"><b><StarIcon size={16} /> {product?.review_summary?.average_rating?.toFixed(2) ?? "4.84"}</b> <u>{product?.review_summary?.review_count?.toLocaleString() ?? "5,643"}건 리뷰</u></div>
           <div className="naver-preview-single-price"><span>판매가</span><strong>{product?.lowest_price?.toLocaleString() ?? "-"}{product?.lowest_price !== null && product?.lowest_price !== undefined ? "원" : ""}</strong></div>
           <div className="naver-preview-info-row naver-preview-brand-row"><b>브랜드</b><a href={`/brand/${encodeURIComponent(product?.brand ?? "믹순")}`}><span>{product?.brand ?? "믹순"} <CaretRightIcon size={14} /></span></a></div>
           <section className="naver-preview-ai-summary"><h2>AI 추천 요약</h2><strong>내 피부 고민 기준 추천 근거예요</strong><b className="naver-preview-ai-score">{Math.round(product?.total_score ?? 0)}점</b><p>{product?.reason_summary ?? "추천 근거를 준비 중입니다."}</p>{!product ? <span className="naver-preview-ai-loading" aria-label="추천 근거 로딩 중" /> : null}{product?.score_breakdown?.concentration_warning ? <div className="naver-preview-ai-notice"><span aria-hidden="true">i</span>{product.score_breakdown.concentration_warning}</div> : null}</section>
@@ -252,7 +264,7 @@ function ProductDetailPreviewPage() {
           <article id="preview-3" className="naver-preview-score-analysis"><h2>점수분석</h2><div className="naver-preview-score-intro"><strong>이 상품을 추천한 근거를 확인해보세요</strong><span>{product?.reason_summary ?? "점수 분석을 준비 중입니다."}</span></div>{product?.score_breakdown ? <div className="naver-preview-score-grid">{Object.entries(scoreLabels).map(([key, label]) => { const value = product.score_breakdown?.[key as keyof typeof product.score_breakdown]; return typeof value === "number" ? <div className="naver-preview-score-card" key={key}><span>{label}</span><strong>{Math.round(value)}점</strong></div> : null; })}</div> : <div className="naver-preview-empty">점수 분석을 불러오는 중입니다.</div>}{product?.score_breakdown?.risk_penalty && product.score_breakdown.risk_penalty < 0 ? <div className="naver-preview-score-warning">주의 항목으로 {Math.abs(product.score_breakdown.risk_penalty)}점이 감점되었습니다.</div> : null}</article>
           <article id="preview-4" className="naver-preview-qna"><h2>Q&amp;A</h2><details><summary>주의사항</summary><p>상품별 사용법과 성분 정보를 확인한 뒤 피부 상태에 맞게 사용해 주세요.</p></details><details><summary>배송 안내</summary><p>배송 정보와 도착 예정일은 주문 시점과 배송지에 따라 달라질 수 있습니다.</p></details><details><summary>교환·반품 안내</summary><p>교환·반품 조건은 상품 상태와 신청 시점에 따라 달라질 수 있습니다.</p></details></article>
         </div>
-        <aside className="naver-preview-sticky-buy"><div className="naver-preview-quantity"><b>수량 선택</b><div><button type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button type="button" aria-label="수량 늘리기" onClick={() => setQuantity((value) => value + 1)}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액　<strong>{((product?.lowest_price ?? 199000) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" type="button" onClick={handlePurchase}>구매하기</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
+        <aside className="naver-preview-sticky-buy"><div className="naver-preview-quantity"><b>수량 선택</b><div><button type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button type="button" aria-label="수량 늘리기" onClick={() => setQuantity((value) => value + 1)}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong>{((product?.lowest_price ?? 199000) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" type="button" onClick={handlePurchase}>구매하기</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
       </section>
       <div className="naver-preview-floating"><button type="button" aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑</button></div>
       <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />

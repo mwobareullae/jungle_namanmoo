@@ -894,7 +894,6 @@ function ProductDetailSpaPage() {
   const activeEvidenceGroup = activeEvidenceEffectName
     ? detailData?.groupedEvidence.find((group) => group.effectName === activeEvidenceEffectName) ?? null
     : null;
-  const userReviewSkinType = user ? reviewProfileSkinType ?? (skinType || "복합성") : null;
   const hasActiveReviewTypeFilter = reviewTypeFilter !== "all";
   const hasActiveSkinTypeFilter = Boolean(reviewSkinTypeFilter);
   const activeReviewTypeLabel =
