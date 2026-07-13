@@ -606,21 +606,40 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                     <span>서버에 실제로 반영됐고, 새로고침해도 유지됩니다.</span>
                   </div>
                 )}
-                {selectedOrder.availableActions.length > 0 && (
-                  <div className="admin-order-action-grid" aria-label="배송 액션">
-                    {selectedOrder.availableActions.map((action) => (
-                      <button
-                        className="admin-primary-button"
-                        disabled={shipmentActionInProgress || listRequestInProgress}
-                        key={action}
-                        onClick={() => handleShipmentButtonClick(action, selectedOrder)}
-                        type="button"
-                      >
-                        {actionOrderId === selectedOrder.id ? "처리 중..." : SHIPMENT_ACTION_CONFIG[action].label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* 결제 만료·취소 승인: 팀원 API 계약 확정 전 로컬 미리보기(M1.5-B) */}
+                <div className={`admin-state-banner ${previewActionState === "saved" ? "success" : "review"}`}>
+                  <strong>운영 액션 미리보기</strong>
+                  <span>결제 만료·취소 승인은 팀원 API 계약 확정 전이라 화면에서만 갱신되고 서버 데이터는 바뀌지 않습니다.</span>
+                </div>
+                <div className="admin-order-action-grid" aria-label="주문 운영 액션">
+                  <button
+                    className="admin-secondary-button"
+                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.expirePayment.requiredStatus}
+                    onClick={() => handlePreviewAction("expirePayment")}
+                    type="button"
+                  >
+                    결제 만료
+                  </button>
+                  <button
+                    className="admin-secondary-button"
+                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.approveCancel.requiredStatus}
+                    onClick={() => handlePreviewAction("approveCancel")}
+                    type="button"
+                  >
+                    취소 승인
+                  </button>
+                  {selectedOrder.availableActions.map((action) => (
+                    <button
+                      className="admin-primary-button admin-order-shipment-button"
+                      disabled={shipmentActionInProgress || listRequestInProgress}
+                      key={action}
+                      onClick={() => handleShipmentButtonClick(action, selectedOrder)}
+                      type="button"
+                    >
+                      {actionOrderId === selectedOrder.id ? "처리 중..." : SHIPMENT_ACTION_CONFIG[action].label}
+                    </button>
+                  ))}
+                </div>
                 <ConfirmModal
                   cancelLabel="취소"
                   confirmLabel={shipmentActionInProgress ? "처리 중..." : listRequestInProgress ? "목록 조회 중..." : "확인"}
@@ -641,30 +660,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                   open={confirmingAction !== null}
                   title={confirmingAction ? SHIPMENT_ACTION_CONFIG[confirmingAction.action].label : undefined}
                 />
-
-                {/* 결제 만료·취소 승인: 팀원 API 계약 확정 전 로컬 미리보기(M1.5-B) */}
-                <div className={`admin-state-banner ${previewActionState === "saved" ? "success" : "review"}`}>
-                  <strong>운영 액션 미리보기</strong>
-                  <span>결제 만료·취소 승인은 팀원 API 계약 확정 전이라 화면에서만 갱신되고 서버 데이터는 바뀌지 않습니다.</span>
-                </div>
-                <div className="admin-order-action-grid" aria-label="주문 운영 액션(미리보기)">
-                  <button
-                    className="admin-secondary-button"
-                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.expirePayment.requiredStatus}
-                    onClick={() => handlePreviewAction("expirePayment")}
-                    type="button"
-                  >
-                    결제 만료
-                  </button>
-                  <button
-                    className="admin-secondary-button"
-                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.approveCancel.requiredStatus}
-                    onClick={() => handlePreviewAction("approveCancel")}
-                    type="button"
-                  >
-                    취소 승인
-                  </button>
-                </div>
               </>
             ) : (
               <div className="admin-state-banner neutral">
