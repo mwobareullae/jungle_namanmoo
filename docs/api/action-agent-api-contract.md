@@ -28,9 +28,23 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
     "route": "/cart",
     "cart_item_ids": [12, 15],
     "address_id": 3
+  },
+  "recent_messages": [
+    {"role": "user", "content": "비슷한 상품 보여줘"},
+    {"role": "assistant", "content": "두 상품을 찾았어요."}
+  ],
+  "last_tool_result": {
+    "action_type": "show_products",
+    "target": "similar_products",
+    "items": [
+      {"item_type": "product", "id": "prod_001", "title": "첫 번째 상품"},
+      {"item_type": "product", "id": "prod_002", "title": "두 번째 상품"}
+    ]
   }
 }
 ```
+
+`recent_messages`는 현재 대화 스레드의 최근 메시지 최대 8개만 전달한다. `last_tool_result`는 직전 결과의 상품·주문 식별자와 표시명만 담으며 가격, 재고, 주소, 결제정보 같은 민감하거나 변동 가능한 값은 포함하지 않는다. 이 값들은 "그거", "두 번째", "아까 상품" 같은 참조 해석에만 사용하며 실제 실행 전 기존 백엔드 서비스가 가격·재고·소유권을 다시 검증한다.
 
 ### 확인 요청
 
