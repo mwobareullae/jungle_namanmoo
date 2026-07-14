@@ -17148,6 +17148,30 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   color: #111111;
 }
 
+.catalog-search-page .product-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 46px 22px;
+}
+
+@media (max-width: 1024px) {
+  .catalog-search-page .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .catalog-search-page .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .catalog-search-page .product-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .popular-product-card__rank,
 .home-rank-badge,
 .popular-product-card__heart,

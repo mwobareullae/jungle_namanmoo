@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
-import HomeProductCard from "../components/HomeProductCard";
+import ProductThumbnail from "../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
+import HeartIcon from "../components/ui/HeartIcon";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import ActivityToast from "../components/ui/ActivityToast";
 import Skeleton from "../components/ui/Skeleton";
+import { useAuth } from "../contexts/useAuth";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { isProductSoldOut } from "../lib/productAvailability";
+import { navigateWithinApp } from "../lib/navigation";
 import type { CatalogSearchItem, CatalogSearchSort, CatalogSuggestionItem } from "../types/product";
 import type { ProductCardItem } from "../types/recommendation";
 
@@ -60,6 +69,8 @@ const mapSearchItemToCard = (item: CatalogSearchItem, rank: number): ProductCard
 function CatalogSearchPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { message: toastMessage, showToast } = useActivityToast();
   const params = useMemo(() => readParams(location.search), [location.search]);
   const [inputValue, setInputValue] = useState(params.query);
   const [items, setItems] = useState<ProductCardItem[]>([]);
@@ -69,6 +80,56 @@ function CatalogSearchPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(Boolean(params.query));
   const [errorMessage, setErrorMessage] = useState("");
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setWishedProductIds(new Set());
+      return;
+    }
+    getMyWishlist()
+      .then((wishlist) => setWishedProductIds(new Set(wishlist.map((item) => item.productId))))
+      .catch(() => setWishedProductIds(new Set()));
+  }, [user]);
+
+  const toggleWishlist = async (productId: string) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+    if (pendingWishlistProductIds.has(productId)) return;
+    const wasWished = wishedProductIds.has(productId);
+    setWishedProductIds((current) => {
+      const next = new Set(current);
+      if (wasWished) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+    try {
+      if (wasWished) {
+        await deleteMyWishlistItem(productId);
+        showToast(wishlistToastMessage.removed);
+      } else {
+        await addMyWishlistItem(productId);
+        showToast(wishlistToastMessage.added);
+      }
+    } catch {
+      setWishedProductIds((current) => {
+        const next = new Set(current);
+        if (wasWished) next.add(productId); else next.delete(productId);
+        return next;
+      });
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     queueMicrotask(() => setInputValue(params.query));
@@ -232,19 +293,20 @@ function CatalogSearchPage() {
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : items.length > 0 ? (
-            items.map((product) => (
-              <HomeProductCard
-                eventContext={{
-                  sectionId: "catalog_search_results",
-                  page: "catalog_search",
-                  source: "search_result",
-                  clickEvent: "search_result_click",
-                  impressionEvent: "search_result_impression"
-                }}
-                key={product.product_id}
-                product={product}
-              />
-            ))
+            items.map((product) => {
+              const isSoldOut = isProductSoldOut(product);
+              const isWished = wishedProductIds.has(product.product_id);
+              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)} role="link" tabIndex={0}>
+                <div className="popular-product-card__image-wrap">
+                  <ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+                  {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                  <button aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${isWished ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button>
+                </div>
+                <div className="popular-product-card__brand">{product.brand}</div>
+                <div className="popular-product-card__name">{product.name}</div>
+                <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div>
+              </article>;
+            })
           ) : params.query ? (
             <div className="search-empty">검색 결과가 없습니다.</div>
           ) : (
@@ -260,6 +322,8 @@ function CatalogSearchPage() {
           </div>
         ) : null}
       </main>
+      <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
+      <ActivityToast message={toastMessage} />
     </div>
   );
 }
