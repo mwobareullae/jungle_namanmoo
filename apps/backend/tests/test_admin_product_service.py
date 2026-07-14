@@ -162,6 +162,27 @@ def test_thumbnail_returns_storage_key(db_engine: Engine) -> None:
     assert detail.seller_code == "mwobareullae"
 
 
+def test_admin_price_uses_first_party_row_not_external_minimum(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_mwbl_active")
+        ).scalar_one()
+        session.add(
+            ProductPrice(
+                product_id=product.id,
+                mall_name="외부 최저가몰",
+                price=1_000,
+                currency="KRW",
+                product_url="https://example.com/external",
+                is_lowest=True,
+            )
+        )
+        session.flush()
+        detail = get_admin_product_detail(session, "prod_mwbl_active")
+
+    assert detail.price == 19_900
+
+
 def test_filters_name_brand_active(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         by_name = list_admin_products(session, query="세럼", page=1, page_size=50)

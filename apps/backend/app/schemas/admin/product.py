@@ -1,4 +1,4 @@
-"""관리자 상품 조회 응답 스키마 (P1-M3-A, 조회 전용).
+"""관리자 상품 조회·등록·수정 스키마 (P1-M3-A).
 
 신규 테이블 없이 기존 products/brands/product_categories/product_prices/
 inventories/product_images 에서 파생한다. 성분·검수/색인 상태(reviewStatus/
@@ -67,3 +67,34 @@ class AdminProductDetail(AdminProductListItem):
     description: str | None
     released_at: datetime | None
     created_at: datetime
+
+
+class AdminProductCreateRequest(BaseModel):
+    """관리자 상품 등록 요청.
+
+    product_code·seller·판매/재고 상태·추천 가능 여부·product_url은 서버가
+    계약값으로 생성한다. 성분과 재고 수량은 M3-A 요청에 포함하지 않는다.
+    """
+
+    name: str
+    brand_code: str
+    category_code: str
+    price: int
+    description: str | None = None
+    released_at: datetime | None = None
+
+
+class AdminProductUpdateRequest(BaseModel):
+    """관리자 상품 기본정보 부분 수정 요청.
+
+    sales_status·재고 수량·추천 가능 여부는 다른 운영 단계의 책임이므로 받지
+    않는다. 명시적으로 전달한 필드만 변경한다.
+    """
+
+    name: str | None = None
+    brand_code: str | None = None
+    category_code: str | None = None
+    price: int | None = None
+    description: str | None = None
+    released_at: datetime | None = None
+    is_active: bool | None = None
