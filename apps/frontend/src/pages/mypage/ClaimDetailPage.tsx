@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import { getOrderClaim, withdrawOrderClaim } from "../../lib/claimApi";
@@ -36,7 +36,7 @@ export default function ClaimDetailPage() {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
-  const loadClaim = () => {
+  const loadClaim = useCallback(() => {
     if (!claimCode) {
       setErrorMessage("클레임 번호가 없습니다.");
       setIsLoading(false);
@@ -52,11 +52,14 @@ export default function ClaimDetailPage() {
         )
       )
       .finally(() => setIsLoading(false));
-  };
+  }, [claimCode]);
 
   useEffect(() => {
-    loadClaim();
-  }, [claimCode]);
+    const timerId = window.setTimeout(() => {
+      loadClaim();
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadClaim]);
 
   const withdrawClaim = async () => {
     if (!claim || claim.status !== "REQUESTED" || isWithdrawing) return;
