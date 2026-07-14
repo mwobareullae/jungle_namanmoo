@@ -297,10 +297,21 @@ def _match_brands(
     normalized_text: str,
     brand_aliases: tuple[BrandAliasGroup, ...],
 ) -> tuple[MatchedBrand, ...]:
+    matcher = _brand_alias_pattern(brand_aliases)
+    if matcher is None:
+        return ()
+
+    matched_aliases = {
+        match.group(0)
+        for match in matcher.finditer(normalized_text)
+    }
+    if not matched_aliases:
+        return ()
+
     matched: list[MatchedBrand] = []
     seen_codes: set[str] = set()
     for group in brand_aliases:
-        alias = _find_first_alias(normalized_text, group.aliases)
+        alias = _find_first_matched_alias(normalized_text, group.aliases, matched_aliases)
         if alias is None or group.brand_code in seen_codes:
             continue
         matched.append(
@@ -312,6 +323,42 @@ def _match_brands(
         )
         seen_codes.add(group.brand_code)
     return tuple(matched)
+
+
+@lru_cache(maxsize=8)
+def _brand_alias_pattern(
+    brand_aliases: tuple[BrandAliasGroup, ...],
+) -> re.Pattern[str] | None:
+    normalized_aliases = {
+        normalized
+        for group in brand_aliases
+        for alias in group.aliases
+        if (normalized := _normalize_text(alias))
+    }
+    if not normalized_aliases:
+        return None
+    choices = "|".join(
+        re.escape(alias)
+        for alias in sorted(normalized_aliases, key=lambda value: (-len(value), value))
+    )
+    return re.compile(
+        rf"(?<![0-9a-zA-Z가-힣])(?:{choices})(?![0-9a-zA-Z가-힣])"
+    )
+
+
+def _find_first_matched_alias(
+    normalized_text: str,
+    aliases: tuple[str, ...],
+    matched_aliases: set[str],
+) -> str | None:
+    candidates = [
+        alias
+        for alias in aliases
+        if _normalize_text(alias) in matched_aliases
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda alias: _alias_position(normalized_text, alias))
 
 
 def _match_price_condition(normalized_text: str) -> tuple[int | None, int | None, str | None]:
@@ -420,4 +467,3 @@ def _record_diagnostic_duration(
     started_at: float,
 ) -> None:
     diagnostics[key] = round(elapsed_ms(started_at), 2)
-

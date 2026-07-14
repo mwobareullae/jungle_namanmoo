@@ -15,7 +15,31 @@ from app.services.parser import (
     ParsedConcernResult,
     parse_concern_text,
 )
-from app.services.purchase_conditions import ParsedPurchaseConditions, parse_purchase_conditions
+from app.services.purchase_conditions import (
+    MatchedCategory,
+    ParsedPurchaseConditions,
+    parse_purchase_conditions,
+)
+
+
+STRUCTURED_CATEGORY_NAMES = {
+    "serum": "세럼",
+    "cream": "크림",
+    "toner": "토너",
+    "lotion": "로션",
+}
+
+
+@dataclass(frozen=True)
+class StructuredRecommendationIntent:
+    resolved: bool = False
+    concern_ids: tuple[str, ...] = ()
+    effect_ids: tuple[str, ...] = ()
+    excluded_concern_ids: tuple[str, ...] = ()
+    priority_effect_ids: tuple[str, ...] = ()
+    category_codes: tuple[str, ...] = ()
+    price_min: int | None = None
+    price_max: int | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +88,7 @@ def build_recommendation_intent(
     *,
     repository: ConcernRepository | None = None,
     llm_parser: ConcernLlmParser | None = None,
+    structured_intent: StructuredRecommendationIntent | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> RecommendationIntent:
     intent_diagnostics = diagnostics if diagnostics is not None else {}
@@ -82,6 +107,7 @@ def build_recommendation_intent(
             "intent_llm_merge_ms": 0.0,
             "intent_llm_status_code": None,
             "intent_llm_error_code": None,
+            "intent_structured_applied": False,
         }
     )
     repository_started_at = current_time()
@@ -110,7 +136,15 @@ def build_recommendation_intent(
     parser_confidence: float | None = None
     llm_error: str | None = None
 
-    if parsed_concern.needs_llm and llm_parser is not None:
+    if structured_intent is not None and structured_intent.resolved:
+        parsed_concern = _merge_structured_result(
+            parsed_concern,
+            structured_intent,
+            concern_repository,
+        )
+        intent_diagnostics["intent_structured_applied"] = True
+        intent_diagnostics["intent_llm_outcome"] = "structured_agent"
+    elif parsed_concern.needs_llm and llm_parser is not None:
         intent_diagnostics["intent_llm_attempted"] = True
         llm_started_at = current_time()
         try:
@@ -160,6 +194,11 @@ def build_recommendation_intent(
         diagnostics=intent_diagnostics,
         include_brand_filters=False,
     )
+    if structured_intent is not None and structured_intent.resolved:
+        purchase_conditions = _merge_structured_purchase_conditions(
+            purchase_conditions,
+            structured_intent,
+        )
     _record_diagnostic_duration(
         intent_diagnostics,
         "intent_purchase_parse_ms",
@@ -183,6 +222,115 @@ def build_recommendation_intent(
         parser_confidence=parser_confidence,
         llm_error=llm_error,
     )
+
+
+def _merge_structured_result(
+    rule_result: ParsedConcernResult,
+    structured: StructuredRecommendationIntent,
+    repository: ConcernRepository,
+) -> ParsedConcernResult:
+    tags_by_id = {tag.tag_id: tag for tag in repository.list_concern_tags()}
+    excluded_ids = set(structured.excluded_concern_ids)
+    concerns_by_id = {
+        concern.tag_id: concern
+        for concern in rule_result.concerns
+        if concern.tag_id not in excluded_ids
+    }
+    for tag_id in structured.concern_ids:
+        tag = tags_by_id.get(tag_id)
+        if tag is None or tag_id in excluded_ids:
+            continue
+        concerns_by_id[tag_id] = ParsedConcern(
+            tag_id=tag_id,
+            name=tag.name,
+            matched_text=tag.name,
+            confidence=1.0,
+        )
+
+    concerns = tuple(concerns_by_id.values())
+    effects_by_id = {
+        effect.effect_id: effect
+        for effect in _effects_from_concerns(concerns, repository)
+    }
+    effect_names = _effects_by_id(repository)
+    for effect_id in (*structured.effect_ids, *structured.priority_effect_ids):
+        name = effect_names.get(effect_id)
+        if name is None:
+            continue
+        existing = effects_by_id.get(effect_id)
+        effects_by_id[effect_id] = ParsedEffect(
+            effect_id=effect_id,
+            name=name,
+            weight=max(existing.weight if existing is not None else 0.0, 1.0),
+        )
+    effects = tuple(effects_by_id.values())
+    priority_effects = tuple(
+        ParsedEffect(
+            effect_id=effect_id,
+            name=effect_names[effect_id],
+            weight=_effect_weight(effects, effect_id),
+        )
+        for effect_id in structured.priority_effect_ids
+        if effect_id in effect_names
+    )
+    excluded_concerns = _merge_excluded_concerns(
+        rule_result.excluded_concerns,
+        structured.excluded_concern_ids,
+        tags_by_id,
+    )
+    return ParsedConcernResult(
+        normalized_text=rule_result.normalized_text,
+        concerns=concerns,
+        effects=effects,
+        excluded_concerns=excluded_concerns,
+        priority_effects=priority_effects,
+        unmatched_terms=(),
+        needs_llm=False,
+    )
+
+
+def _merge_structured_purchase_conditions(
+    parsed: ParsedPurchaseConditions,
+    structured: StructuredRecommendationIntent,
+) -> ParsedPurchaseConditions:
+    categories_by_code = (
+        {}
+        if structured.category_codes
+        else {category.category_code: category for category in parsed.categories}
+    )
+    for category_code in structured.category_codes:
+        name = STRUCTURED_CATEGORY_NAMES.get(category_code)
+        if name is None:
+            continue
+        categories_by_code[category_code] = MatchedCategory(
+            category_code=category_code,
+            name=name,
+            matched_text=name,
+        )
+
+    price_min = structured.price_min if structured.price_min is not None else parsed.price_min
+    price_max = structured.price_max if structured.price_max is not None else parsed.price_max
+    price_text = parsed.price_text
+    if structured.price_min is not None or structured.price_max is not None:
+        price_text = _structured_price_text(price_min, price_max)
+    return ParsedPurchaseConditions(
+        categories=tuple(categories_by_code.values()),
+        brands=parsed.brands,
+        price_min=price_min,
+        price_max=price_max,
+        price_text=price_text,
+        price_max_text=price_text,
+    )
+
+
+def _structured_price_text(price_min: int | None, price_max: int | None) -> str | None:
+    if price_min is not None and price_max is not None:
+        return f"{price_min}원~{price_max}원"
+    if price_min is not None:
+        return f"{price_min}원 이상"
+    if price_max is not None:
+        return f"{price_max}원 이하"
+    return None
 
 
 def _record_diagnostic_duration(
