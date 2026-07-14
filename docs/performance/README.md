@@ -24,3 +24,4 @@ YYYY-MM-DD_<scenario>_<data-size>.md
 ## 추천검색 최적화 설계
 
 - [추천검색 ES Retrieval 전환 최적화 설계](recommendation-es-retrieval-optimization.md)
+- [추천 사전 계산 특징 배치](recommendation-feature-rollup.md)
