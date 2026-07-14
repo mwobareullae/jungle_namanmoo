@@ -41,6 +41,17 @@ type BackendAdminCancelRequestDetailResponse = BackendAdminCancelRequestItem & {
   currency: string;
 };
 
+// 승인·거절 직후는 항상 결정된 상태(REQUESTED 없음)라 목록 항목과 다른 좁은 상태 타입을 쓴다.
+type BackendAdminCancelRequestActionResponse = {
+  request_code: string;
+  order_code: string;
+  status: "APPROVED" | "REJECTED";
+  order_status: "CANCELED" | "PAID";
+  decision_reason: string | null;
+  processed_at: string;
+  available_actions: AdminCancelRequestAction[];
+};
+
 export type AdminCancelRequestRow = {
   requestCode: string;
   orderCode: string;
@@ -68,6 +79,17 @@ export type AdminCancelRequestDetail = AdminCancelRequestRow & {
 export type AdminCancelRequestListResult = {
   items: AdminCancelRequestRow[];
   nextCursor: string | null;
+};
+
+export type AdminCancelRequestActionResult = {
+  requestCode: string;
+  orderCode: string;
+  status: "APPROVED" | "REJECTED";
+  statusLabel: string;
+  orderStatus: "CANCELED" | "PAID";
+  decisionReason: string | null;
+  processedAt: string;
+  availableActions: AdminCancelRequestAction[];
 };
 
 export type AdminCancelRequestQuery = {
@@ -146,4 +168,40 @@ export const getAdminCancelRequestDetail = async (requestCode: string): Promise<
     totalAmount: body.total_amount,
     currency: body.currency
   };
+};
+
+const adaptCancelRequestActionResponse = (
+  body: BackendAdminCancelRequestActionResponse
+): AdminCancelRequestActionResult => ({
+  requestCode: body.request_code,
+  orderCode: body.order_code,
+  status: body.status,
+  statusLabel: CANCEL_REQUEST_STATUS_LABELS[body.status],
+  orderStatus: body.order_status,
+  decisionReason: body.decision_reason,
+  processedAt: formatKstDateTime(body.processed_at),
+  availableActions: body.available_actions
+});
+
+export const postApproveCancelRequest = async (requestCode: string): Promise<AdminCancelRequestActionResult> => {
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/order-cancel-requests/${encodeURIComponent(requestCode)}/approve`,
+    { method: "POST" }
+  );
+  return adaptCancelRequestActionResponse(await parseJson<BackendAdminCancelRequestActionResponse>(response));
+};
+
+export const postRejectCancelRequest = async (
+  requestCode: string,
+  rejectionReason: string
+): Promise<AdminCancelRequestActionResult> => {
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/order-cancel-requests/${encodeURIComponent(requestCode)}/reject`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rejection_reason: rejectionReason })
+    }
+  );
+  return adaptCancelRequestActionResponse(await parseJson<BackendAdminCancelRequestActionResponse>(response));
 };

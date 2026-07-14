@@ -90,6 +90,7 @@ type BackendAdminOrderListItem = {
   payment_issue: "PAYMENT_NOT_FOUND" | null;
   reserved_quantity: number;
   recommendation_ids: string[];
+  ordered_at: string;
   paid_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
@@ -125,6 +126,7 @@ export type AdminOrderRow = {
   paymentMissing: boolean;
   stockReserved: number;
   recommendationId: string;
+  orderedAt: string;
   paidAt: string | null; // 결제일(KST 표기), 결제 미완료면 null
   shippedAt: string | null; // 배송 시작일(KST), 배송 시작 전이면 null
   deliveredAt: string | null; // 배송완료일(KST), 배송완료 전이면 null
@@ -190,6 +192,7 @@ const adaptOrderRow = (item: BackendAdminOrderListItem): AdminOrderRow => ({
   paymentMissing: item.payment_issue === "PAYMENT_NOT_FOUND",
   stockReserved: item.reserved_quantity,
   recommendationId: item.recommendation_ids.length > 0 ? item.recommendation_ids.join(", ") : "-",
+  orderedAt: formatKstDateTime(item.ordered_at),
   paidAt: item.paid_at === null ? null : formatKstDateTime(item.paid_at),
   shippedAt: item.shipped_at === null ? null : formatKstDateTime(item.shipped_at),
   deliveredAt: item.delivered_at === null ? null : formatKstDateTime(item.delivered_at),
