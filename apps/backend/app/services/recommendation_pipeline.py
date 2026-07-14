@@ -135,32 +135,45 @@ def create_recommendation_response(
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
     pagination = normalize_pagination(page, page_size)
-    saved_skin_profile = (
-        load_skin_profile_for_user(session, current_user.id)
-        if current_user is not None
-        else None
-    )
+    if current_user is not None:
+        stage_started_at = current_time()
+        saved_skin_profile = load_skin_profile_for_user(session, current_user.id)
+        _record_stage_duration(stage_durations, "user_context_load_ms", stage_started_at)
+    else:
+        saved_skin_profile = None
+        stage_durations["user_context_load_ms"] = 0.0
     saved_concerns = _saved_concerns_from_profile(saved_skin_profile)
     normalized_request = normalize_recommendation_request(
         request,
         saved_skin_profile=saved_skin_profile,
     )
+    stage_started_at = current_time()
     skin_test_context = load_skin_test_scoring_context(
         session,
         current_user.id if current_user is not None else None,
     )
+    _record_stage_duration(stage_durations, "skin_test_context_load_ms", stage_started_at)
+
+    stage_started_at = current_time()
     behavior_personalization_context = load_behavior_personalization_context(
         session,
         current_user.id if current_user is not None else None,
     )
+    _record_stage_duration(stage_durations, "behavior_context_load_ms", stage_started_at)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
+    intent_diagnostics: dict[str, object] = {}
     intent = build_recommendation_intent(
         normalized_request.concern_text,
         llm_parser=llm_parser,
+        diagnostics=intent_diagnostics,
     )
     _record_stage_duration(stage_durations, "intent_parse_ms", stage_started_at)
+    intent_diagnostics["intent_unattributed_ms"] = _intent_unattributed_ms(
+        stage_durations["intent_parse_ms"],
+        intent_diagnostics,
+    )
 
     try:
         stage_started_at = current_time()
@@ -205,6 +218,7 @@ def create_recommendation_response(
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
+        scoring_diagnostics: dict[str, object] = {}
         scored_candidates = score_candidates(
             session,
             intent,
@@ -217,6 +231,7 @@ def create_recommendation_response(
             saved_concerns=saved_concerns,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
+            diagnostics=scoring_diagnostics,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
 
@@ -261,6 +276,8 @@ def create_recommendation_response(
             duration_ms=elapsed_ms(total_started_at),
             metadata={
                 **stage_durations,
+                **intent_diagnostics,
+                **scoring_diagnostics,
                 "recommendation_id": recommendation_code,
                 "llm_available": llm_parser is not None,
                 "llm_used": intent.llm_used,
@@ -327,6 +344,7 @@ def create_recommendation_response(
             duration_ms=elapsed_ms(total_started_at),
             metadata={
                 **stage_durations,
+                **intent_diagnostics,
                 "llm_available": llm_parser is not None,
                 "llm_used": intent.llm_used,
                 "result_limit": result_limit,
@@ -382,6 +400,25 @@ def _record_stage_duration(
     started_at: float,
 ) -> None:
     stage_durations[key] = round(elapsed_ms(started_at), 2)
+
+
+def _intent_unattributed_ms(
+    total_ms: float,
+    diagnostics: dict[str, object],
+) -> float:
+    measured_keys = (
+        "intent_repository_load_ms",
+        "intent_rule_parse_ms",
+        "intent_llm_call_ms",
+        "intent_llm_merge_ms",
+        "intent_purchase_parse_ms",
+    )
+    measured_ms = 0.0
+    for key in measured_keys:
+        value = diagnostics.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            measured_ms += float(value)
+    return round(max(0.0, total_ms - measured_ms), 2)
 
 
 def normalize_recommendation_request(
