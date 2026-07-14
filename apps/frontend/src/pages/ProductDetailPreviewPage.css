@@ -125,6 +125,29 @@
 .naver-preview-quantity button { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .naver-preview-buy-grid button.is-wished { color: #222; }
 .naver-preview-buy-grid button.is-wished svg { color: #ff3521; }
+.naver-preview-buy-grid button:disabled {
+  border-color: #d9dde1;
+  background: #eef0f2;
+  color: #9aa0a6;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.naver-preview-buy-grid .buy:disabled {
+  border-color: #d9dde1;
+  background: #eef0f2;
+  color: #8f969c;
+}
+.naver-preview-quantity.is-sold-out > div {
+  border-color: #d9dde1;
+  background: #eef0f2;
+}
+.naver-preview-quantity.is-sold-out button,
+.naver-preview-quantity.is-sold-out span {
+  color: #9aa0a6;
+}
+.naver-preview-quantity.is-sold-out button:disabled {
+  cursor: not-allowed;
+}
 
 .naver-preview-ingredients { padding-top: 42px; }
 .naver-preview-ingredients h2 { margin-bottom: 34px; }
