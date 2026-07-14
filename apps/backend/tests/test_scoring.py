@@ -22,8 +22,10 @@ from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_pipeline import score_breakdown_to_api
 from app.services.repository import load_repository
 from app.services.scoring import (
+    REVIEW_AFFINITY_DIMENSION_WEIGHTS,
     SCORING_VERSION,
     SkinTestScoringContext,
+    _build_review_affinity_targets,
     load_behavior_personalization_context,
     load_skin_test_scoring_context,
     score_candidates,
@@ -409,8 +411,11 @@ def test_score_candidates_uses_review_segments_and_neutralizes_small_samples() -
     first = scored["prod_001"].score_breakdown
     second = scored["prod_002"].score_breakdown
     assert first["review_profile_affinity_applied"] is True
+    # review-scoring-revision 4.3: 타깃 존재 차원만 재정규화하므로
+    # 쿼리 고민 단독 케이스는 SKIN_CONCERN 점수가 그대로 어피니티가 된다.
     assert first["review_profile_affinity_dimensions"]["SKIN_CONCERN"] == pytest.approx(0.7)
-    assert first["review_profile_affinity_score"] == pytest.approx(0.57)
+    assert first["review_profile_affinity_dimensions"]["SKIN_TYPE"] == pytest.approx(0.5)
+    assert first["review_profile_affinity_score"] == pytest.approx(0.7)
     assert second["review_profile_affinity_applied"] is False
     assert second["review_profile_affinity_score"] == pytest.approx(0.5)
     assert second["review_profile_matched_segments"][0] == {
@@ -474,6 +479,8 @@ def test_review_affinity_records_manual_saved_and_skin_test_strengths() -> None:
     assert matched[("SKIN_TYPE", "dry")]["sources"] == ["manual_skin_type"]
     assert matched[("SKIN_TYPE", "oily")]["strength"] == pytest.approx(0.25)
     assert matched[("SKIN_TYPE", "oily")]["sources"] == ["skin_test"]
+    assert matched[("SENSITIVITY", "high")]["strength"] == pytest.approx(0.25)
+    assert matched[("SENSITIVITY", "high")]["sources"] == ["skin_test"]
     assert matched[("SKIN_CONCERN", "concern_pore")]["strength"] == pytest.approx(0.75)
     assert matched[("SKIN_CONCERN", "concern_pore")]["sources"] == ["saved_concern"]
     assert matched[("SKIN_CONCERN", "concern_sensitive")]["strength"] == pytest.approx(1.0)
@@ -481,6 +488,54 @@ def test_review_affinity_records_manual_saved_and_skin_test_strengths() -> None:
         "query_concern",
         "skin_test",
     ]
+
+
+@pytest.mark.parametrize("sensitivity", ["낮음", "보통"])
+def test_review_affinity_excludes_unavailable_sensitivity_targets(
+    sensitivity: str,
+) -> None:
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("보습 추천", repository=repository)
+
+    targets = _build_review_affinity_targets(
+        intent,
+        skin_type=None,
+        sensitivity=sensitivity,
+        skin_test_context=None,
+        saved_concerns=(),
+        manual_skin_type_explicit=False,
+        manual_sensitivity_explicit=True,
+    )
+
+    assert not any(target.dimension == "SENSITIVITY" for target in targets)
+
+
+def test_review_affinity_keeps_high_sensitivity_and_v2_weights() -> None:
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("보습 추천", repository=repository)
+
+    targets = _build_review_affinity_targets(
+        intent,
+        skin_type=None,
+        sensitivity="높음",
+        skin_test_context=None,
+        saved_concerns=(),
+        manual_skin_type_explicit=False,
+        manual_sensitivity_explicit=True,
+    )
+    sensitivity_targets = [
+        target for target in targets if target.dimension == "SENSITIVITY"
+    ]
+
+    assert REVIEW_AFFINITY_DIMENSION_WEIGHTS == {
+        "SKIN_TYPE": 0.45,
+        "SENSITIVITY": 0.15,
+        "SKIN_CONCERN": 0.40,
+    }
+    assert len(sensitivity_targets) == 1
+    assert sensitivity_targets[0].value_code == "high"
+    assert sensitivity_targets[0].strength == pytest.approx(1.0)
+    assert sensitivity_targets[0].sources == ("manual_sensitivity",)
 
 
 def test_score_candidates_applies_behavior_personalization_from_wishlist() -> None:

@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
+import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
 import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
 import { useAdminAccess } from "../features/admin/hooks/useAdminAccess";
@@ -15,6 +16,7 @@ type AdminView =
   | "evidenceReview"
   | "stockPrice"
   | "orderStatus"
+  | "cancelClaims"
   | "sellers"
   | "sellerInspection"
   | "sellerSettlement";
@@ -91,6 +93,7 @@ const navItems: Array<{ label: string; view: AdminView }> = [
   { label: "논문 근거 관리", view: "evidenceReview" },
   { label: "재고/가격 확인", view: "stockPrice" },
   { label: "주문 상태 확인", view: "orderStatus" },
+  { label: "취소·클레임 관리", view: "cancelClaims" },
   { label: "셀러 관리", view: "sellers" },
   { label: "셀러별 상품 검수", view: "sellerInspection" },
   { label: "셀러별 정산", view: "sellerSettlement" }
@@ -3023,6 +3026,7 @@ function AdminDashboardPage() {
                     "evidenceReview",
                     "stockPrice",
                     "orderStatus",
+                    "cancelClaims",
                     "sellers",
                     "sellerInspection",
                     "sellerSettlement"
@@ -3039,6 +3043,7 @@ function AdminDashboardPage() {
                     item.view === "evidenceReview" ||
                     item.view === "stockPrice" ||
                     item.view === "orderStatus" ||
+                    item.view === "cancelClaims" ||
                     item.view === "sellers" ||
                     item.view === "sellerInspection" ||
                     item.view === "sellerSettlement"
@@ -3115,6 +3120,11 @@ function AdminDashboardPage() {
         <AdminOrderStatusSection
           key="admin-order-status"
           active={activeView === "orderStatus"}
+          onOperationLog={pushOperationLog}
+        />
+        <AdminCancelClaimSection
+          key="admin-cancel-claims"
+          active={activeView === "cancelClaims"}
           onOperationLog={pushOperationLog}
         />
         {activeView === "sellers" && renderSellerList()}
