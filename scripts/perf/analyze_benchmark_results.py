@@ -62,6 +62,30 @@ SCORING_PREFETCH_FIELDS = [
     ("behavior_signals_ms", "behavior signals"),
 ]
 
+# Query timings include both database execution and row materialization because
+# the measured call uses SQLAlchemy's ``.all()``. Build timings are the Python
+# grouping / signal-construction work after those rows have been loaded.
+BEHAVIOR_SIGNAL_DETAIL_STAGES = [
+    ("prefetch_detail_behavior_signals_base_query_ms", "base product query"),
+    ("prefetch_detail_behavior_signals_price_load_ms", "price load"),
+    ("prefetch_detail_behavior_signals_ingredient_query_ms", "ingredient/effect query"),
+    ("prefetch_detail_behavior_signals_build_ms", "Python signal build"),
+]
+
+INGREDIENT_EFFECT_DETAIL_STAGES = [
+    ("prefetch_detail_ingredient_effects_query_ms", "ingredient/effect query"),
+    ("prefetch_detail_ingredient_effects_build_ms", "Python grouping"),
+]
+
+SCORE_LOOP_DETAIL_STAGES = [
+    ("score_loop_ingredient_axis_ms", "ingredient axis"),
+    ("score_loop_skin_profile_axis_ms", "skin profile axis"),
+    ("score_loop_review_axis_ms", "review axis"),
+    ("score_loop_behavior_axis_ms", "behavior axis"),
+    ("score_loop_skin_test_axis_ms", "skin test axis"),
+    ("score_loop_breakdown_build_ms", "score breakdown build"),
+]
+
 CONTEXT_LOAD_STAGES = [
     ("user_context_load_ms", "saved profile"),
     ("skin_test_context_load_ms", "skin test"),
@@ -986,6 +1010,71 @@ def plot_stage_graphs(
         plt,
         sns,
         statistic="p95",
+    )
+    plot_stage_bar(
+        row,
+        BEHAVIOR_SIGNAL_DETAIL_STAGES,
+        output_dir / f"behavior_signal_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"behavior signal prefetch detail ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        BEHAVIOR_SIGNAL_DETAIL_STAGES,
+        output_dir / f"behavior_signal_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"behavior signal prefetch detail p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_stage_bar(
+        row,
+        INGREDIENT_EFFECT_DETAIL_STAGES,
+        output_dir / f"ingredient_effect_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"ingredient effect prefetch detail ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        INGREDIENT_EFFECT_DETAIL_STAGES,
+        output_dir / f"ingredient_effect_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"ingredient effect prefetch detail p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_stage_bar(
+        row,
+        SCORE_LOOP_DETAIL_STAGES,
+        output_dir / f"score_loop_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"candidate score loop detail ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        SCORE_LOOP_DETAIL_STAGES,
+        output_dir / f"score_loop_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"candidate score loop detail p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_stage_donut(
+        row,
+        SCORE_LOOP_DETAIL_STAGES,
+        output_dir / f"score_loop_detail_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"candidate score loop measured share ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+        max_segments=len(SCORE_LOOP_DETAIL_STAGES),
+        min_share_percent=0,
     )
     plot_stage_bar(
         row,
