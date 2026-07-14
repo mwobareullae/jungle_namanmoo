@@ -55,6 +55,7 @@ def _make_order(
     recommendation_ids: list[str | None] | None = None,
     display_name: str | None = None,  # users.display_name UNIQUE — 기본 NULL(다중 허용)
     ordered_at: datetime | None = None,
+    updated_at: datetime | None = None,
 ) -> Order:
     global _order_seq
     _order_seq += 1
@@ -72,7 +73,7 @@ def _make_order(
         total_quantity=total_quantity,
         ordered_at=now,
         created_at=now,
-        updated_at=now,
+        updated_at=updated_at or now,
     )
     session.add(order)
     session.flush()
@@ -164,6 +165,27 @@ def test_cursor_pagination(session: Session) -> None:
     # 페이지 간 중복 없음
     first_ids = {it.id for it in first.items}
     assert second.items[0].id not in first_ids
+
+
+def test_orders_are_sorted_and_expose_ordered_at_not_updated_at(session: Session) -> None:
+    base = datetime.now(UTC)
+    older = _make_order(
+        session,
+        ordered_at=base,
+        updated_at=base + timedelta(hours=2),
+    )
+    newer = _make_order(
+        session,
+        ordered_at=base + timedelta(hours=1),
+        updated_at=base + timedelta(hours=1),
+    )
+    session.commit()
+
+    resp = list_admin_orders(session, order_status=None, payment_status=None, limit=20, cursor=None)
+
+    assert [item.id for item in resp.items] == [newer.id, older.id]
+    assert resp.items[0].ordered_at == newer.ordered_at
+    assert resp.items[1].ordered_at == older.ordered_at
 
 
 def test_reserved_quantity_only_for_pending_payment(session: Session) -> None:

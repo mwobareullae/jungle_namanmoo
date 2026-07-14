@@ -158,6 +158,7 @@ def build_recommendation_intent(
     purchase_conditions = parse_purchase_conditions(
         concern_text,
         diagnostics=intent_diagnostics,
+        include_brand_filters=False,
     )
     _record_diagnostic_duration(
         intent_diagnostics,

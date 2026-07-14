@@ -235,6 +235,7 @@ def _to_list_item(
         payment_issue=payment_issue,
         reserved_quantity=_reserved_quantity(order),
         recommendation_ids=_recommendation_ids(items),
+        ordered_at=order.ordered_at,
         paid_at=order.paid_at,
         shipped_at=order.shipped_at,
         delivered_at=order.delivered_at,

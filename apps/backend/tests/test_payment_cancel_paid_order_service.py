@@ -15,7 +15,14 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment
+from app.db.models.commerce import (
+    Inventory,
+    InventoryMovement,
+    Order,
+    OrderItem,
+    Payment,
+    PaymentEvent,
+)
 from app.schemas.common import ApiError
 from app.services.payment_cancel_service import cancel_paid_order
 
@@ -268,6 +275,38 @@ def test_cancel_paid_order_rejects_non_mock_payment_without_side_effects(session
     assert _item_statuses(session, order.id) == ["ORDERED"]
     assert _load_inventory(session, item.product_id).stock_quantity == inventory_before
     assert session.execute(select(InventoryMovement)).scalars().all() == []
+
+
+def test_cancel_paid_order_simulates_toss_cancel_only_when_explicitly_enabled(
+    session: Session,
+) -> None:
+    order = _make_order(
+        session,
+        order_status="CANCEL_REQUESTED",
+        payment_status="APPROVED",
+        payment_provider="TOSS",
+        item_count=1,
+    )
+    item = session.execute(select(OrderItem).where(OrderItem.order_id == order.id)).scalar_one()
+    inventory_before = _load_inventory(session, item.product_id).stock_quantity
+    session.commit()
+
+    result = cancel_paid_order(session, order.order_code, simulate_toss_cancel=True)
+    session.commit()
+
+    assert result.order_status == "CANCELED"
+    assert result.payment_status == "CANCELED"
+    assert _item_statuses(session, order.id) == ["CANCELED"]
+    assert _load_inventory(session, item.product_id).stock_quantity == inventory_before + item.quantity
+    event = session.execute(select(PaymentEvent).where(PaymentEvent.order_id == order.id)).scalar_one()
+    assert event.event_type == "ADMIN_TOSS_CANCEL_SIMULATED"
+    assert event.provider == "TOSS"
+    assert event.status_before == "APPROVED"
+    assert event.status_after == "CANCELED"
+    assert event.raw_payload_json == {
+        "mode": "INTERNAL_SIMULATION",
+        "external_provider_called": False,
+    }
 
 
 def test_cancel_paid_order_rejects_pre_execution_partial_item_cancellation_without_double_restock(

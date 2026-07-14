@@ -134,13 +134,13 @@ def test_list_returns_requested_with_approve_and_reject_actions(session: Session
     assert item.customer_display == "닉네임"
 
 
-def test_list_toss_payment_only_offers_reject(session: Session) -> None:
+def test_list_toss_payment_offers_simulated_approve_and_reject(session: Session) -> None:
     _make_cancel_request(session, request_status="REQUESTED", payment_provider="TOSS")
     session.commit()
 
     response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
 
-    assert response.items[0].available_actions == ["REJECT"]
+    assert response.items[0].available_actions == ["APPROVE", "REJECT"]
 
 
 def test_list_missing_payment_offers_no_actions(session: Session) -> None:
