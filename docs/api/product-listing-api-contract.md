@@ -4,6 +4,8 @@
 
 상품 검색과 별도로, 검색어 없이 카탈로그를 탐색하는 화면을 위한 API입니다. 카테고리 전체상품, 브랜드별 상품, 신상품, 가격·평점·리뷰순 목록이 같은 응답 계약을 사용합니다.
 
+상품 카드 재고 필드는 [`product-card-availability-contract.md`](./product-card-availability-contract.md)를 따릅니다.
+
 추천 후보 여부인 `is_recommendable`은 이 API의 노출 조건이 아닙니다. 활성 상품 중 숨김 상품은 제외하고, 품절 상품은 응답에 남기되 정렬에서 판매 가능 상품 뒤로 보냅니다.
 
 ## Product listing
@@ -43,6 +45,8 @@ Query parameters:
       "rating": 4.8,
       "review_count": 120,
       "sales_status": "ON_SALE",
+      "stock_status": "IN_STOCK",
+      "available_quantity": 12,
       "in_stock": true,
       "released_at": "2026-07-12T00:00:00Z"
     }

@@ -1,5 +1,7 @@
 import Badge from "./Badge";
 import type { ProductCardItem } from "../types/recommendation";
+import { isProductSoldOut } from "../lib/productAvailability";
+import ProductSoldOutOverlay from "./ProductSoldOutOverlay";
 
 type ProductCardProps = {
   product: ProductCardItem;
@@ -11,18 +13,22 @@ const formatPrice = (price: number | null) =>
 
 function ProductCard({ product, onOpen }: ProductCardProps) {
   const riskCount = product.risk_flags.length;
+  const isSoldOut = isProductSoldOut(product);
 
   return (
-    <article className="product-card result-card" data-agent-product-id={product.product_id}>
+    <article className={`product-card result-card${isSoldOut ? " is-sold-out" : ""}`} data-agent-product-id={product.product_id}>
       <button className="card-hit-area" type="button" onClick={() => onOpen(product.product_id)}>
-        {product.thumbnail_url ? (
-          <img className="product-image" src={product.thumbnail_url} alt="" />
-        ) : (
-          <div
-            className={`product-thumb tone-${((product.rank - 1) % 3) + 1}`}
-            aria-hidden="true"
-          />
-        )}
+        <div className="product-card-image-wrap">
+          {product.thumbnail_url ? (
+            <img className="product-image" src={product.thumbnail_url} alt="" />
+          ) : (
+            <div
+              className={`product-thumb tone-${((product.rank - 1) % 3) + 1}`}
+              aria-hidden="true"
+            />
+          )}
+          {isSoldOut ? <ProductSoldOutOverlay /> : null}
+        </div>
 
         <div className="product-body">
           <p className="eyebrow">{product.brand}</p>
@@ -48,7 +54,7 @@ function ProductCard({ product, onOpen }: ProductCardProps) {
             </div>
             <div className="price-block">
               <span className="score-label">최저가</span>
-              <strong className="price-text">{formatPrice(product.lowest_price)}</strong>
+              <strong className={`price-text${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</strong>
             </div>
           </div>
         </div>

@@ -56,6 +56,7 @@ FastAPI는 P2에서 회원 DB를 직접 보지 않고, Spring 또는 프론트�
 ## 추천 결과 응답
 
 Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_id`, `rank`만으로 상품 상세와 찜을 이어간다. 장바구니 추가는 각 상품의 `cart_handoff` 객체를 그대로 Spring에 전달한다.
+추천 결과 카드의 재고 표시는 [`../api/product-card-availability-contract.md`](../api/product-card-availability-contract.md)를 따른다.
 
 ```json
 {
@@ -70,6 +71,10 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
       "name": "상품명",
       "thumbnail_url": "https://...",
       "lowest_price": 12600,
+      "sales_status": "ON_SALE",
+      "stock_status": "IN_STOCK",
+      "available_quantity": 12,
+      "in_stock": true,
       "evidence_tags": ["보습장벽", "진정"],
       "key_ingredients": ["나이아신아마이드", "판테놀"],
       "score_breakdown": {
@@ -159,6 +164,7 @@ Spring Commerce와 프론트는 추천 결과의 `product_id`, `recommendation_i
 | `product_id` | 사용 | Spring 상품/offer 조회 key |
 | `rank` | 사용 | 추천 순위별 전환 분석 |
 | `lowest_price` | 참고만 | 최종 가격은 Spring offer/재고 기준으로 다시 계산 |
+| `sales_status`, `stock_status`, `available_quantity`, `in_stock` | 표시/검증 | 카드 품절 표시와 구매 가능 여부 안내 |
 | `total_score` | 표시/분석 | 구매 가격 계산에는 사용하지 않음 |
 | `reason_summary` | 표시 | 추천 카드/상세 설명 |
 | `score_breakdown` | 표시/디버그 | 관리자/발표용 근거 |

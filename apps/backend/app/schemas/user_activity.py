@@ -11,6 +11,10 @@ class UserActivityProduct(BaseModel):
     category_name: str
     thumbnail_url: str
     lowest_price: int
+    sales_status: str = "UNKNOWN"
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
+    in_stock: bool = False
 
 
 class WishlistRequest(BaseModel):

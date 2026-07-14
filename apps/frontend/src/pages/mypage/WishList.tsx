@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProductThumbnail from "../../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../../components/ProductSoldOutOverlay";
 import LoginRequiredDialog from "../../components/LoginRequiredDialog";
 import Skeleton from "../../components/ui/Skeleton";
 import HeartIcon from "../../components/ui/HeartIcon";
@@ -19,6 +20,7 @@ import {
 import { MyPageLayout, type MypageEventContext } from "./MyPageShell";
 import { useActivityToast, wishlistToastMessage } from "../../hooks/useActivityToast";
 import { api } from "../../lib/api";
+import { isProductSoldOut } from "../../lib/productAvailability";
 import type { HomeSectionProduct } from "../../types/recommendation";
 
 type ProductListMode = "wishlist" | "recent";
@@ -38,6 +40,10 @@ export type MypageProductListItem = {
   addedAt?: string;
   tags?: string[];
   isWished?: boolean;
+  salesStatus?: string;
+  stockStatus?: string;
+  availableQuantity?: number | null;
+  inStock?: boolean;
   eventContext?: MypageEventContext;
 };
 
@@ -72,6 +78,10 @@ const mapActivityItem = (
   addedAt: item.rawDate,
   tags: item.tags,
   isWished: item.isWished,
+  salesStatus: item.salesStatus,
+  stockStatus: item.stockStatus,
+  availableQuantity: item.availableQuantity,
+  inStock: item.inStock,
   eventContext: {
     page: mode === "wishlist" ? "mypage_wishlist" : "mypage_recent",
     source: mode === "wishlist" ? "wishlist" : "recent_products",
@@ -93,6 +103,10 @@ const mapRecommendedItem = (item: HomeSectionProduct, index: number): MypageProd
   thumbnailUrl: item.thumbnail_url,
   tags: item.tags,
   isWished: false,
+  salesStatus: item.sales_status,
+  stockStatus: item.stock_status,
+  availableQuantity: item.available_quantity,
+  inStock: item.in_stock,
   eventContext: {
     page: "mypage_wishlist",
     source: "personalized_recommendation",
@@ -158,8 +172,20 @@ function MypageProductList({
   useEffect(() => {
     let isMounted = true;
     void api.getForYou({ limit: 3 })
-      .then((section) => {
-        if (isMounted) setRecommendedItems(section.products.map(mapRecommendedItem));
+      .then(async (section) => {
+        let wishedProductIds = new Set<string>();
+        try {
+          const wishlistItems = await getMyWishlist();
+          wishedProductIds = new Set(wishlistItems.map((item) => item.productId));
+        } catch {
+          // 추천 상품은 찜 상태 조회가 실패해도 계속 노출한다.
+        }
+        if (isMounted) {
+          setRecommendedItems(section.products.map((item, index) => ({
+            ...mapRecommendedItem(item, index),
+            isWished: wishedProductIds.has(item.product_id)
+          })));
+        }
       })
       .catch(() => {
         if (isMounted) setRecommendedItems([]);
@@ -274,8 +300,12 @@ function MypageProductList({
     if (pendingWishlistProductIds.has(item.productId)) return;
 
     const previousItems = listItems;
+    const previousRecommendedItems = recommendedItems;
     setPendingWishlistProductIds((previous) => new Set(previous).add(item.productId));
     setListItems((previous) => previous.map((candidate) => (
+      candidate.productId === item.productId ? { ...candidate, isWished: !candidate.isWished } : candidate
+    )));
+    setRecommendedItems((previous) => previous.map((candidate) => (
       candidate.productId === item.productId ? { ...candidate, isWished: !candidate.isWished } : candidate
     )));
 
@@ -284,11 +314,19 @@ function MypageProductList({
         await deleteMyWishlistItem(item.productId);
         showToast(wishlistToastMessage.removed);
       } else {
-        await addMyWishlistItem(item.productId);
+        const addedItem = await addMyWishlistItem(item.productId);
+        if (!isRecent) {
+          setListItems((previous) => (
+            previous.some((candidate) => candidate.productId === addedItem.productId)
+              ? previous
+              : [mapActivityItem(addedItem, mode, 0), ...previous]
+          ));
+        }
         showToast(wishlistToastMessage.added);
       }
     } catch {
       setListItems(previousItems);
+      setRecommendedItems(previousRecommendedItems);
       setLoadError("찜 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.");
       showToast(wishlistToastMessage.failed);
     } finally {
@@ -375,7 +413,13 @@ function MypageProductList({
             <h2 style={styles.recommendTitle}>이런 상품은 어때요?</h2>
             <div style={styles.recommendGrid}>
               {recommendedItems.slice(0, 3).map((item) => (
-                <RecommendedProductCard item={item} key={item.id} onOpenProduct={openProduct} />
+                <RecommendedProductCard
+                  item={item}
+                  key={item.id}
+                  onOpenProduct={openProduct}
+                  onToggleWishlist={toggleWishlist}
+                  wishlistPending={pendingWishlistProductIds.has(item.productId)}
+                />
               ))}
             </div>
           </section>
@@ -459,6 +503,12 @@ function MypageProductList({
             const previousItem = index === 0 ? null : paginatedItems[index - 1];
             const shouldShowDate = isRecent && item.dateLabel && item.dateLabel !== previousItem?.dateLabel;
             const isTodayDivider = item.dateLabel === todayDateLabel;
+            const isSoldOut = isProductSoldOut({
+              sales_status: item.salesStatus,
+              stock_status: item.stockStatus,
+              available_quantity: item.availableQuantity,
+              in_stock: item.inStock
+            });
 
             return (
               <div key={item.id}>
@@ -485,6 +535,7 @@ function MypageProductList({
                         alt={`${item.brand} ${item.name}`}
                         className="mypage-product-list-thumbnail"
                       />
+                      {isSoldOut ? <ProductSoldOutOverlay /> : null}
                       {isRecent ? (
                         <button
                           aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
@@ -504,7 +555,7 @@ function MypageProductList({
                       <strong style={styles.name}>{item.name}</strong>
                       <span style={styles.priceLine}>
                         {item.discountRate ? <span style={styles.discount}>{item.discountRate}%</span> : null}
-                        <strong style={styles.price}>{formatPrice(item.price)}</strong>
+                        <strong className={isSoldOut ? "product-price--sold-out" : ""} style={styles.price}>{formatPrice(item.price)}</strong>
                       </span>
                       {item.originalPrice ? <span style={styles.originalPrice}>{formatPrice(item.originalPrice)}</span> : null}
                       {item.deliveryLabel ? <span style={styles.delivery}>배송비 {item.deliveryLabel}</span> : null}
@@ -571,18 +622,27 @@ function MypageProductList({
           </button>
         </nav>
       ) : null}
-      <p style={styles.guideText}>{guideText}</p>
     </MyPageLayout>
   );
 }
 
 function RecommendedProductCard({
   item,
-  onOpenProduct
+  onOpenProduct,
+  onToggleWishlist,
+  wishlistPending
 }: {
   item: MypageProductListItem;
   onOpenProduct?: (item: MypageProductListItem) => void;
+  onToggleWishlist?: (item: MypageProductListItem) => void;
+  wishlistPending?: boolean;
 }) {
+  const isSoldOut = isProductSoldOut({
+    sales_status: item.salesStatus,
+    stock_status: item.stockStatus,
+    available_quantity: item.availableQuantity,
+    in_stock: item.inStock
+  });
   return (
     <article
       className="border border-[#e0e0e0] transition-colors hover:border-[#94E0F8]"
@@ -595,7 +655,7 @@ function RecommendedProductCard({
             alt={`${item.brand} ${item.name}`}
             className="mypage-product-list-thumbnail"
           />
-          <span style={styles.recommendHeart} aria-hidden="true">♡</span>
+          {isSoldOut ? <ProductSoldOutOverlay /> : null}
         </div>
         <span style={styles.recommendBody}>
           <span style={styles.recommendBrand}>{item.brand}</span>
@@ -607,8 +667,22 @@ function RecommendedProductCard({
               ))}
             </span>
           ) : null}
-          <strong style={styles.recommendPrice}>{formatPrice(item.price)}</strong>
+          <strong className={isSoldOut ? "product-price--sold-out" : ""} style={styles.recommendPrice}>{formatPrice(item.price)}</strong>
         </span>
+      </button>
+      <button
+        aria-label={item.isWished ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
+        aria-pressed={item.isWished}
+        disabled={wishlistPending}
+        onClick={() => onToggleWishlist?.(item)}
+        style={{
+          ...styles.recommendHeart,
+          color: item.isWished ? "#ff3521" : "#777777",
+          cursor: wishlistPending ? "wait" : "pointer"
+        }}
+        type="button"
+      >
+        <HeartIcon filled={item.isWished} size={24} />
       </button>
     </article>
   );
@@ -920,6 +994,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 18
   },
   recommendCard: {
+    position: "relative",
     overflow: "hidden",
     borderRadius: 8,
     background: "#ffffff"
@@ -949,11 +1024,13 @@ const styles: Record<string, CSSProperties> = {
     placeItems: "center",
     width: 36,
     height: 36,
+    padding: 0,
+    border: 0,
     borderRadius: "50%",
     background: "rgba(255,255,255,0.92)",
     color: "#777777",
-    fontSize: 24,
-    lineHeight: 1
+    lineHeight: 1,
+    zIndex: 1
   },
   recommendBody: {
     display: "grid",

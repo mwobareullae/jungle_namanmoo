@@ -36,3 +36,7 @@ export type OrderClaimResponse = {
   completed_at?: string | null;
   items: Array<{ order_item_id: number; quantity: number; resolution: "REFUND" | "EXCHANGE" }>;
 };
+
+export type OrderClaimListResponse = {
+  items: OrderClaimResponse[];
+};

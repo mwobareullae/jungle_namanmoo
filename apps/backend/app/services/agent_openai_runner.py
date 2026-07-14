@@ -15,6 +15,7 @@ from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import CANCEL_RECENT_ORDER_TOOL, ORDER_STATUS_LOOKUP_TOOL
 from app.services.agent_commerce_tools import ADD_TO_CART_TOOL, GET_CART_TOOL, PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL
+from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
     FIND_SIMILAR_PRODUCTS_TOOL,
@@ -53,6 +54,14 @@ Use tools this way:
   are not on the checkout page, call prepare_checkout first. This moves the user
   through the cart to the checkout page so they can review items, shipping, address,
   and the final amount.
+- If prepare_checkout reports that no shipping address exists, ask for the recipient
+  name, phone number, postal code, base address, and optional detail address in one
+  short Korean sentence. Do not invent or infer missing address details.
+- After the user explicitly supplies the requested shipping details, call
+  register_shipping_address. Set continue_checkout=true when the address was requested
+  while opening an order or checkout, so registration resumes the interrupted checkout.
+  The first address becomes the default address. Do not repeat the full phone number or
+  address in the final chat message.
 - Call prepare_order only when context.page is checkout and the user explicitly asks
   to create or continue the reviewed order. It creates a confirmation step and only
   creates a TOSS order after confirmation.
@@ -166,6 +175,7 @@ async def run_openai_agent_chat(
             add_to_cart,
             compose_cart,
             prepare_checkout,
+            register_shipping_address,
             prepare_order,
             prepare_review_draft,
             prepare_claim_draft,
@@ -294,15 +304,35 @@ def _execute_tool(
             anonymous_user_id=runtime_context.anonymous_user_id,
         )
     except ApiError as exc:
-        if exc.code != "AGENT_AUTH_REQUIRED":
+        if exc.code == "AGENT_AUTH_REQUIRED":
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message="로그인 후 요청을 이어서 처리할 수 있어요.",
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(code=exc.code, message="로그인이 필요한 기능이에요.", retryable=False),
+            )
+        elif exc.code == "AGENT_ADDRESS_REQUIRED":
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message=(
+                    "등록된 배송지가 없어요. 받는 분 이름, 연락처, 우편번호, "
+                    "기본 주소와 상세 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
+                ),
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(code=exc.code, message="주문서 이동을 위해 배송지가 필요해요.", retryable=False),
+            )
+        elif exc.code == "AGENT_ADDRESS_DETAILS_REQUIRED":
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message=exc.message,
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(code=exc.code, message=exc.message, retryable=False),
+            )
+        else:
             raise
-        response = AgentChatResponse(
-            conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
-            message="로그인 후 요청을 이어서 처리할 수 있어요.",
-            tool_name=tool_name,
-            ui_action=AgentUiAction(),
-            error=AgentError(code=exc.code, message="로그인이 필요한 기능이에요.", retryable=False),
-        )
     runtime_context.last_tool_response = response
     return json.dumps(dump_model(response), ensure_ascii=False)
 
@@ -448,6 +478,37 @@ async def prepare_checkout(
         ctx,
         tool_name=PREPARE_CHECKOUT_TOOL,
         arguments={"cart_item_ids": cart_item_ids, "address_id": address_id},
+    )
+
+
+@function_tool(name_override=REGISTER_SHIPPING_ADDRESS_TOOL)
+async def register_shipping_address(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    postal_code: str,
+    address1: str,
+    recipient_name: str | None = None,
+    phone: str | None = None,
+    address2: str | None = None,
+    delivery_memo: str | None = None,
+    is_default: bool = False,
+    continue_checkout: bool = True,
+    cart_item_ids: list[int] | None = None,
+) -> str:
+    """Register user-provided shipping details and optionally resume checkout."""
+    return _execute_tool(
+        ctx,
+        tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+        arguments={
+            "recipient_name": recipient_name,
+            "phone": phone,
+            "postal_code": postal_code,
+            "address1": address1,
+            "address2": address2,
+            "delivery_memo": delivery_memo,
+            "is_default": is_default,
+            "continue_checkout": continue_checkout,
+            "cart_item_ids": cart_item_ids,
+        },
     )
 
 

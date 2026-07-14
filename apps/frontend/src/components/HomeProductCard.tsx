@@ -1,6 +1,8 @@
 import type { ProductCardItem } from "../types/recommendation";
 import { trackEvent } from "../lib/appSignals/client";
 import { navigateWithinApp } from "../lib/navigation";
+import { isProductSoldOut } from "../lib/productAvailability";
+import ProductSoldOutOverlay from "./ProductSoldOutOverlay";
 import ProductThumbnail from "./ProductThumbnail";
 
 type HomeProductCardProps = {
@@ -33,7 +35,7 @@ function HomeProductCard({ displayRank, product, recommendationId, showScore = f
   if (sensitivity) searchParams.set("sensitivity", sensitivity);
   const detailUrl = `/product-detail?${searchParams.toString()}`;
   const hasImage = hasUsableImageUrl(product.thumbnail_url);
-  const isSoldOut = product.in_stock === false || (product.sales_status !== undefined && product.sales_status !== "ON_SALE");
+  const isSoldOut = isProductSoldOut(product);
   const rankForDisplay = displayRank ?? product.rank;
 
   const openDetail = () => {
@@ -85,9 +87,9 @@ function HomeProductCard({ displayRank, product, recommendationId, showScore = f
     >
       <div className="product-img">
         <ProductThumbnail className="product-photo" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+        {isSoldOut ? <ProductSoldOutOverlay /> : null}
         <div className="product-labels">
-          {isSoldOut ? <span className="product-card-sold-out-badge">일시품절</span> : null}
-          {showScore && rankForDisplay && rankForDisplay <= 10 ? (
+          {showScore && rankForDisplay ? (
             <span className="label label-ai">{rankForDisplay}위</span>
           ) : null}
         </div>
@@ -116,7 +118,7 @@ function HomeProductCard({ displayRank, product, recommendationId, showScore = f
           <div className="product-price-row">
             <div>
               <div>
-                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}`}>
+                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}${isSoldOut ? " product-price--sold-out" : ""}`}>
                   {formatPrice(product.lowest_price)}
                 </span>
               </div>
@@ -130,7 +132,7 @@ function HomeProductCard({ displayRank, product, recommendationId, showScore = f
           <div className="product-price-row">
             <div>
               <div>
-                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}`}>
+                <span className={`sale-price${product.lowest_price === null ? " price-missing" : ""}${isSoldOut ? " product-price--sold-out" : ""}`}>
                   {formatPrice(product.lowest_price)}
                 </span>
               </div>

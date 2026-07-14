@@ -148,6 +148,7 @@ function ReturnRequestPage() {
             <div><dt>신청번호</dt><dd>{claimResult.claim_code}</dd></div>
             <div><dt>처리상태</dt><dd>{claimResult.status === "REQUESTED" ? "접수됨" : claimResult.status}</dd></div>
           </dl>
+          <Link className="return-request-success__link" to={`/mypage/claims/${encodeURIComponent(claimResult.claim_code)}`}>클레임 상세 보기</Link>
           <Link className="return-request-success__link" to={`/mypage/orders/${orderCode}`}>주문 상세로 이동</Link>
         </section>
       ) : null}
