@@ -85,13 +85,25 @@ function CatalogSearchPage() {
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     if (!user) {
-      setWishedProductIds(new Set());
-      return;
+      void Promise.resolve().then(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
     }
     getMyWishlist()
-      .then((wishlist) => setWishedProductIds(new Set(wishlist.map((item) => item.productId))))
-      .catch(() => setWishedProductIds(new Set()));
+      .then((wishlist) => {
+        if (isMounted) setWishedProductIds(new Set(wishlist.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const toggleWishlist = async (productId: string) => {

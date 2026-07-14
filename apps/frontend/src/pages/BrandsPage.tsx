@@ -43,8 +43,13 @@ function BrandsPage() {
   }, []);
 
   useEffect(() => {
-    setIsLoading(true);
-    void loadBrands(1);
+    let isMounted = true;
+    void Promise.resolve().then(() => {
+      if (isMounted) void loadBrands(1);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [loadBrands]);
 
   useEffect(() => {
