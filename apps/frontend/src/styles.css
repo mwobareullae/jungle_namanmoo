@@ -17180,7 +17180,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-criteria-group h3 { margin: 0 0 10px; color: #0f7a73; font-size: 12px; letter-spacing: .02em; }
 .recommendation-criteria-item { padding: 10px 0; border-top: 1px solid #e4ecec; }
 .recommendation-criteria-item:first-of-type { padding-top: 0; border-top: 0; }
-}
 
 .recommendation-criteria-row {
   display: flex;
