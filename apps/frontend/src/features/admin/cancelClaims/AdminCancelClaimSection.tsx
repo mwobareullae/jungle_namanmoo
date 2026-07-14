@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import ConfirmModal from "../../../components/ui/ConfirmModal";
 import type { ApiError } from "../../../types/recommendation";
 import {
   AdminCancelRequestAction,
@@ -29,10 +30,10 @@ const describeApiError = (caughtError: unknown, fallbackMessage: string): string
   return apiError?.message ?? fallbackMessage;
 };
 
-// 관리자 취소·클레임 관리 화면 (M1.5-B, 1단계: 조회만).
+// 관리자 취소·클레임 관리 화면 (M1.5-B).
 // 취소 요청/클레임 탭으로 나뉘고, Order.status 와 무관하게 각자 독립적으로 조회한다
 // (클레임 진행 상황은 Order.status 에 동기화되지 않기로 확정했으므로 주문 화면과는 분리된 화면).
-// 승인·거절·처리시작·완료 액션은 2·3단계에서 추가한다 — 이번엔 available_actions 표시까지만.
+// 승인·거절·처리시작·완료 버튼은 서버가 계산한 available_actions 기준으로만 표시한다.
 
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type CancelClaimTab = "cancelRequests" | "claims";
@@ -118,13 +119,35 @@ function CancelRequestsTab({
   active: boolean;
   onOperationLog: AdminCancelClaimSectionProps["onOperationLog"];
 }) {
-  const { items, hasMore, loading, loadingMore, error, statusFilter, setStatusFilter, resetFilters, refresh, loadMore } =
-    useAdminCancelRequests({ enabled: active });
+  const {
+    items,
+    hasMore,
+    loading,
+    loadingMore,
+    error,
+    statusFilter,
+    setStatusFilter,
+    resetFilters,
+    refresh,
+    loadMore,
+    actionRequestCode,
+    actionError,
+    syncWarning,
+    runCancelRequestAction,
+    clearActionError
+  } = useAdminCancelRequests({ enabled: active });
   const [selectedRequestCode, setSelectedRequestCode] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminCancelRequestDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailRequestIdRef = useRef(0);
+  const [rejectReason, setRejectReason] = useState("");
+  const [pendingAction, setPendingAction] = useState<{
+    action: AdminCancelRequestAction;
+    requestCode: string;
+    orderCode: string;
+    rejectionReason?: string;
+  } | null>(null);
 
   const selectedRow = items.find((item) => item.requestCode === selectedRequestCode) ?? null;
 
@@ -149,12 +172,15 @@ function CancelRequestsTab({
 
   const selectRow = (requestCode: string) => {
     setSelectedRequestCode(requestCode);
+    setRejectReason("");
+    clearActionError();
     void loadDetail(requestCode);
   };
 
-  // 필터·페이지 변경 등으로 선택했던 행이 목록에서 사라지면, 화면 헤더(새 목록의 첫 행)와
-  // 상세 패널(이전에 선택했던 행)이 서로 다른 데이터를 보여주는 불일치를 막기 위해
-  // 새 목록의 첫 행으로 선택·상세 조회를 다시 맞춘다.
+  // 목록이 갱신될 때마다(최초 조회·필터 변경·새로고침) 현재 선택된 행의 상세도 함께 재조회한다.
+  // 선택 코드가 새 목록에 없으면(필터링으로 사라짐 포함) 첫 행으로 다시 맞추고, 있으면 같은 코드로
+  // 그대로 재조회한다 — 그렇지 않으면 새로고침으로 목록의 상태는 바뀌었는데 상세 패널은 이전 값을
+  // 계속 보여주는 불일치가 생긴다.
   useEffect(() => {
     void Promise.resolve().then(() => {
       if (items.length === 0) {
@@ -167,17 +193,18 @@ function CancelRequestsTab({
         return;
       }
       const stillPresent = items.some((item) => item.requestCode === selectedRequestCode);
+      const targetCode = stillPresent ? (selectedRequestCode as string) : items[0].requestCode;
       if (!stillPresent) {
-        const fallbackCode = items[0].requestCode;
-        setSelectedRequestCode(fallbackCode);
-        void loadDetail(fallbackCode);
+        setSelectedRequestCode(targetCode);
       }
+      void loadDetail(targetCode);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
+    if (succeeded) clearActionError();
     onOperationLog(
       "취소 요청",
       succeeded ? "목록 새로고침" : "새로고침 실패",
@@ -185,6 +212,46 @@ function CancelRequestsTab({
       succeeded ? "success" : "danger"
     );
   };
+
+  // 승인·거절 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
+  // 클릭 시점의 요청번호를 그대로 캡처해두므로, 확인 대기 중 다른 행을 선택해도
+  // 실제 실행은 항상 처음 누른 그 요청에만 적용된다.
+  const handleActionButtonClick = (action: AdminCancelRequestAction, requestCode: string, orderCode: string) => {
+    if (actionRequestCode !== null) return;
+    clearActionError();
+    setPendingAction({
+      action,
+      requestCode,
+      orderCode,
+      rejectionReason: action === "REJECT" ? rejectReason.trim() : undefined
+    });
+  };
+
+  const executeAction = async () => {
+    if (!pendingAction || actionRequestCode !== null) return;
+    const { action, requestCode, orderCode, rejectionReason } = pendingAction;
+    const succeeded = await runCancelRequestAction(requestCode, action, rejectionReason);
+    setPendingAction(null);
+    if (!succeeded) {
+      onOperationLog(
+        "취소 요청",
+        action === "APPROVE" ? "승인 실패" : "거절 실패",
+        "잠시 후 다시 시도해 주세요.",
+        "danger"
+      );
+      return;
+    }
+    if (action === "REJECT") setRejectReason("");
+    if (selectedRequestCode === requestCode) void loadDetail(requestCode);
+    onOperationLog(
+      "취소 요청",
+      action === "APPROVE" ? "취소 승인" : "취소 거절",
+      orderCode,
+      action === "APPROVE" ? "success" : "danger"
+    );
+  };
+
+  const actionInProgress = actionRequestCode !== null;
 
   return (
     <>
@@ -197,6 +264,7 @@ function CancelRequestsTab({
           <div className="admin-filter-row">
             <select
               aria-label="취소 요청 상태 필터"
+              disabled={actionInProgress}
               onChange={(event) =>
                 setStatusFilter(event.target.value === "" ? null : (event.target.value as AdminCancelRequestStatus))
               }
@@ -209,10 +277,15 @@ function CancelRequestsTab({
                 </option>
               ))}
             </select>
-            <button className="admin-secondary-button" onClick={resetFilters} type="button">
+            <button className="admin-secondary-button" disabled={actionInProgress} onClick={resetFilters} type="button">
               초기화
             </button>
-            <button className="admin-primary-button" disabled={loading} onClick={handleRefresh} type="button">
+            <button
+              className="admin-primary-button"
+              disabled={loading || actionInProgress}
+              onClick={handleRefresh}
+              type="button"
+            >
               새로고침
             </button>
           </div>
@@ -274,7 +347,12 @@ function CancelRequestsTab({
           </table>
         </div>
         {hasMore && (
-          <button className="admin-secondary-button" disabled={loadingMore} onClick={loadMore} type="button">
+          <button
+            className="admin-secondary-button"
+            disabled={loadingMore || actionInProgress}
+            onClick={loadMore}
+            type="button"
+          >
             {loadingMore ? "불러오는 중..." : "더 보기"}
           </button>
         )}
@@ -366,7 +444,73 @@ function CancelRequestsTab({
             </div>
           </dl>
         ) : null}
+        {actionError && (
+          <div className="admin-state-banner danger">
+            <strong>처리 실패</strong>
+            <span>{actionError}</span>
+          </div>
+        )}
+        {syncWarning && (
+          <div className="admin-state-banner warning">
+            <strong>목록 동기화 필요</strong>
+            <span>{syncWarning}</span>
+          </div>
+        )}
+        {/* 승인·거절 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
+        {detail && detail.availableActions.length > 0 && (
+          <div className="admin-order-action-grid" aria-label="취소 요청 운영 액션">
+            {detail.availableActions.includes("REJECT") && (
+              <textarea
+                aria-label="거절 사유"
+                className="admin-cancel-rejection-reason"
+                disabled={actionInProgress}
+                onChange={(event) => setRejectReason(event.target.value)}
+                placeholder="거절 사유를 입력하세요 (필수)"
+                rows={2}
+                value={rejectReason}
+              />
+            )}
+            {detail.availableActions.includes("APPROVE") && (
+              <button
+                className="admin-primary-button"
+                disabled={actionInProgress}
+                onClick={() => handleActionButtonClick("APPROVE", detail.requestCode, detail.orderCode)}
+                type="button"
+              >
+                {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "승인"}
+              </button>
+            )}
+            {detail.availableActions.includes("REJECT") && (
+              <button
+                className="admin-secondary-button"
+                disabled={actionInProgress || rejectReason.trim().length === 0}
+                onClick={() => handleActionButtonClick("REJECT", detail.requestCode, detail.orderCode)}
+                type="button"
+              >
+                {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "거절"}
+              </button>
+            )}
+          </div>
+        )}
       </aside>
+      <ConfirmModal
+        cancelLabel="취소"
+        confirmLabel={actionInProgress ? "처리 중..." : "확인"}
+        message={
+          pendingAction
+            ? pendingAction.action === "APPROVE"
+              ? `${pendingAction.orderCode} 취소 요청을 승인할까요? 승인하면 주문이 취소되고 결제가 취소 처리되며, 되돌릴 수 없습니다.`
+              : `${pendingAction.orderCode} 취소 요청을 거절할까요? 주문은 결제완료 상태로 복구되며, 되돌릴 수 없습니다.`
+            : ""
+        }
+        onCancel={() => {
+          if (actionInProgress) return;
+          setPendingAction(null);
+        }}
+        onConfirm={() => void executeAction()}
+        open={pendingAction !== null}
+        title="취소 요청 처리 확인"
+      />
     </>
   );
 }
@@ -391,13 +535,28 @@ function ClaimsTab({
     setClaimTypeFilter,
     resetFilters,
     refresh,
-    goToPage
+    goToPage,
+    actionClaimCode,
+    actionError,
+    syncWarning,
+    runClaimAction,
+    clearActionError
   } = useAdminClaims({ enabled: active });
   const [selectedClaimCode, setSelectedClaimCode] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminClaimDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailRequestIdRef = useRef(0);
+  const [rejectReason, setRejectReason] = useState("");
+  const [restockOnComplete, setRestockOnComplete] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    action: AdminClaimAction;
+    claimCode: string;
+    orderCode: string;
+    claimType: AdminClaimType;
+    rejectionReason?: string;
+    restock?: boolean;
+  } | null>(null);
 
   const selectedRow = items.find((item) => item.claimCode === selectedClaimCode) ?? null;
 
@@ -422,11 +581,15 @@ function ClaimsTab({
 
   const selectRow = (claimCode: string) => {
     setSelectedClaimCode(claimCode);
+    setRejectReason("");
+    setRestockOnComplete(false);
+    clearActionError();
     void loadDetail(claimCode);
   };
 
-  // 필터·페이지 변경으로 선택했던 클레임이 목록에서 사라지면 새 목록의 첫 행으로
-  // 선택·상세 조회를 다시 맞춰, 헤더와 상세 패널이 서로 다른 데이터를 보여주지 않게 한다.
+  // 목록이 갱신될 때마다(최초 조회·필터 변경·새로고침) 현재 선택된 클레임의 상세도 함께 재조회한다.
+  // 선택 코드가 새 목록에 없으면 첫 행으로 다시 맞추고, 있으면 같은 코드로 그대로 재조회한다 —
+  // 그렇지 않으면 새로고침으로 목록의 상태는 바뀌었는데 상세 패널은 이전 값을 계속 보여주게 된다.
   useEffect(() => {
     void Promise.resolve().then(() => {
       if (items.length === 0) {
@@ -439,17 +602,18 @@ function ClaimsTab({
         return;
       }
       const stillPresent = items.some((item) => item.claimCode === selectedClaimCode);
+      const targetCode = stillPresent ? (selectedClaimCode as string) : items[0].claimCode;
       if (!stillPresent) {
-        const fallbackCode = items[0].claimCode;
-        setSelectedClaimCode(fallbackCode);
-        void loadDetail(fallbackCode);
+        setSelectedClaimCode(targetCode);
       }
+      void loadDetail(targetCode);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
+    if (succeeded) clearActionError();
     onOperationLog(
       "클레임",
       succeeded ? "목록 새로고침" : "새로고침 실패",
@@ -457,6 +621,49 @@ function ClaimsTab({
       succeeded ? "success" : "danger"
     );
   };
+
+  // 승인·거절·처리시작·완료 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
+  // 클릭 시점의 클레임번호를 그대로 캡처해두므로, 확인 대기 중 다른 행을 선택해도
+  // 실제 실행은 항상 처음 누른 그 클레임에만 적용된다.
+  const handleActionButtonClick = (
+    action: AdminClaimAction,
+    claimCode: string,
+    orderCode: string,
+    claimType: AdminClaimType
+  ) => {
+    if (actionClaimCode !== null) return;
+    clearActionError();
+    setPendingAction({
+      action,
+      claimCode,
+      orderCode,
+      claimType,
+      rejectionReason: action === "REJECT" ? rejectReason.trim() : undefined,
+      restock: action === "COMPLETE" ? (claimType === "RETURN" ? restockOnComplete : false) : undefined
+    });
+  };
+
+  const executeAction = async () => {
+    if (!pendingAction || actionClaimCode !== null) return;
+    const { action, claimCode, orderCode, rejectionReason, restock } = pendingAction;
+    const succeeded = await runClaimAction(claimCode, action, { rejectionReason, restock: restock ?? false });
+    setPendingAction(null);
+    if (!succeeded) {
+      onOperationLog("클레임", `${CLAIM_ACTION_LABELS[action]} 실패`, "잠시 후 다시 시도해 주세요.", "danger");
+      return;
+    }
+    if (action === "REJECT") setRejectReason("");
+    if (action === "COMPLETE") setRestockOnComplete(false);
+    if (selectedClaimCode === claimCode) void loadDetail(claimCode);
+    onOperationLog(
+      "클레임",
+      CLAIM_ACTION_LABELS[action],
+      orderCode,
+      action === "REJECT" ? "danger" : "success"
+    );
+  };
+
+  const actionInProgress = actionClaimCode !== null;
 
   return (
     <>
@@ -469,6 +676,7 @@ function ClaimsTab({
           <div className="admin-filter-row">
             <select
               aria-label="클레임 상태 필터"
+              disabled={actionInProgress}
               onChange={(event) =>
                 setStatusFilter(event.target.value === "" ? null : (event.target.value as AdminClaimStatus))
               }
@@ -483,6 +691,7 @@ function ClaimsTab({
             </select>
             <select
               aria-label="클레임 유형 필터"
+              disabled={actionInProgress}
               onChange={(event) =>
                 setClaimTypeFilter(event.target.value === "" ? null : (event.target.value as AdminClaimType))
               }
@@ -495,10 +704,15 @@ function ClaimsTab({
                 </option>
               ))}
             </select>
-            <button className="admin-secondary-button" onClick={resetFilters} type="button">
+            <button className="admin-secondary-button" disabled={actionInProgress} onClick={resetFilters} type="button">
               초기화
             </button>
-            <button className="admin-primary-button" disabled={loading} onClick={handleRefresh} type="button">
+            <button
+              className="admin-primary-button"
+              disabled={loading || actionInProgress}
+              onClick={handleRefresh}
+              type="button"
+            >
               새로고침
             </button>
           </div>
@@ -562,7 +776,12 @@ function ClaimsTab({
           </table>
         </div>
         <div className="admin-filter-row">
-          <button className="admin-secondary-button" disabled={page <= 1} onClick={() => goToPage(page - 1)} type="button">
+          <button
+            className="admin-secondary-button"
+            disabled={page <= 1 || actionInProgress}
+            onClick={() => goToPage(page - 1)}
+            type="button"
+          >
             이전
           </button>
           <span>
@@ -570,7 +789,7 @@ function ClaimsTab({
           </span>
           <button
             className="admin-secondary-button"
-            disabled={page >= totalPages}
+            disabled={page >= totalPages || actionInProgress}
             onClick={() => goToPage(page + 1)}
             type="button"
           >
@@ -712,7 +931,111 @@ function ClaimsTab({
             </div>
           </>
         ) : null}
+        {actionError && (
+          <div className="admin-state-banner danger">
+            <strong>처리 실패</strong>
+            <span>{actionError}</span>
+          </div>
+        )}
+        {syncWarning && (
+          <div className="admin-state-banner warning">
+            <strong>목록 동기화 필요</strong>
+            <span>{syncWarning}</span>
+          </div>
+        )}
+        {/* 승인·거절·처리시작·완료 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
+        {detail && detail.availableActions.length > 0 && (
+          <div className="admin-order-action-grid" aria-label="클레임 운영 액션">
+            {detail.availableActions.includes("APPROVE") && (
+              <button
+                className="admin-primary-button"
+                disabled={actionInProgress}
+                onClick={() => handleActionButtonClick("APPROVE", detail.claimCode, detail.orderCode, detail.claimType)}
+                type="button"
+              >
+                {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "승인"}
+              </button>
+            )}
+            {detail.availableActions.includes("START") && (
+              <button
+                className="admin-primary-button"
+                disabled={actionInProgress}
+                onClick={() => handleActionButtonClick("START", detail.claimCode, detail.orderCode, detail.claimType)}
+                type="button"
+              >
+                {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "처리 시작"}
+              </button>
+            )}
+            {detail.availableActions.includes("COMPLETE") && (
+              <>
+                {detail.claimType === "RETURN" && (
+                  <label>
+                    <input
+                      checked={restockOnComplete}
+                      disabled={actionInProgress}
+                      onChange={(event) => setRestockOnComplete(event.target.checked)}
+                      type="checkbox"
+                    />
+                    반품 수령 확인 — 재고 복구
+                  </label>
+                )}
+                <button
+                  className="admin-primary-button"
+                  disabled={actionInProgress}
+                  onClick={() => handleActionButtonClick("COMPLETE", detail.claimCode, detail.orderCode, detail.claimType)}
+                  type="button"
+                >
+                  {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "완료 처리"}
+                </button>
+              </>
+            )}
+            {detail.availableActions.includes("REJECT") && (
+              <>
+                <textarea
+                  aria-label="거절 사유"
+                  disabled={actionInProgress}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                  placeholder="거절 사유를 입력하세요 (필수)"
+                  rows={2}
+                  value={rejectReason}
+                />
+                <button
+                  className="admin-secondary-button"
+                  disabled={actionInProgress || rejectReason.trim().length === 0}
+                  onClick={() => handleActionButtonClick("REJECT", detail.claimCode, detail.orderCode, detail.claimType)}
+                  type="button"
+                >
+                  {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "거절"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </aside>
+      <ConfirmModal
+        cancelLabel="취소"
+        confirmLabel={actionInProgress ? "처리 중..." : "확인"}
+        message={
+          pendingAction
+            ? pendingAction.action === "APPROVE"
+              ? `${pendingAction.orderCode} 클레임을 승인할까요? 되돌릴 수 없습니다.`
+              : pendingAction.action === "REJECT"
+                ? `${pendingAction.orderCode} 클레임을 거절할까요? 되돌릴 수 없습니다.`
+                : pendingAction.action === "START"
+                  ? `${pendingAction.orderCode} 클레임 처리를 시작할까요? 되돌릴 수 없습니다.`
+                  : pendingAction.claimType === "EXCHANGE"
+                    ? `${pendingAction.orderCode} 클레임을 완료 처리할까요? 교환 처리로 종료되며, 되돌릴 수 없습니다.`
+                    : `${pendingAction.orderCode} 클레임을 완료 처리할까요? 환불이 실행되며${pendingAction.restock ? " (재고 복구 포함)" : ""}, 되돌릴 수 없습니다.`
+            : ""
+        }
+        onCancel={() => {
+          if (actionInProgress) return;
+          setPendingAction(null);
+        }}
+        onConfirm={() => void executeAction()}
+        open={pendingAction !== null}
+        title="클레임 처리 확인"
+      />
     </>
   );
 }

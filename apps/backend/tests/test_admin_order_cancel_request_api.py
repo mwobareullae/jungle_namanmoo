@@ -334,15 +334,18 @@ def test_approve_returns_contract_for_admin(client: TestClient, db_engine: Engin
     assert body["available_actions"] == []
 
 
-def test_approve_non_mock_payment_returns_409(client: TestClient, db_engine: Engine) -> None:
+def test_approve_toss_payment_returns_simulated_cancel_contract(client: TestClient, db_engine: Engine) -> None:
     _signup(client)
     _promote_to_admin(db_engine)
     request_code = _seed_cancel_request_for_decision(db_engine, suffix="approve-toss", payment_provider="TOSS")
 
     response = client.post(f"/api/admin/order-cancel-requests/{request_code}/approve")
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "MOCK_CANCEL_PROVIDER_MISMATCH"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "APPROVED"
+    assert body["order_status"] == "CANCELED"
+    assert body["available_actions"] == []
 
 
 def test_reject_requires_authentication(client: TestClient) -> None:
