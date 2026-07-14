@@ -17108,6 +17108,11 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   color: #999 !important;
 }
 
+.popular-products-page.brand-page {
+  background: #ffffff;
+  color: #111111;
+}
+
 .popular-product-card__rank,
 .home-rank-badge,
 .popular-product-card__heart,
