@@ -21,6 +21,10 @@ STATIC_FILES = {
     "risk_flags.csv",
     "tags.json",
 }
+SUPPORT_DIRECTORIES = {
+    "prompts",
+    "schemas",
+}
 PRODUCT_FILES = {
     "product_image_assets.csv",
     "product_inventory.csv",
@@ -87,6 +91,13 @@ def copy_static_files(source_dir: Path, output_dir: Path) -> None:
         source = source_dir / name
         if source.exists():
             shutil.copy2(source, output_dir / name)
+
+
+def copy_support_directories(source_dir: Path, output_dir: Path) -> None:
+    for name in SUPPORT_DIRECTORIES:
+        source = source_dir / name
+        if source.is_dir():
+            shutil.copytree(source, output_dir / name)
 
 
 def filter_csv(
@@ -173,6 +184,7 @@ def build_dataset(
     product_ids = {row["product_id"] for row in selected_rows}
     write_csv(output_dir / "products" / "products_000.csv", product_headers, selected_rows)
     copy_static_files(source_dir, output_dir)
+    copy_support_directories(source_dir, output_dir)
     related_counts = copy_product_related(source_dir, output_dir, product_ids)
     (output_dir / "product_ids.txt").write_text("\n".join(sorted(product_ids)) + "\n", encoding="utf-8")
     manifest = {
