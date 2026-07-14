@@ -393,6 +393,8 @@ def extract_backend_metrics(log_path: Path) -> dict[str, Any]:
             result[f"{key}_p95"] = round(percentile(values, 95), 2)
 
     result.update(extract_nested_breakdown(events, "scoring_prefetch_breakdown", "prefetch"))
+    result.update(extract_nested_breakdown(events, "scoring_prefetch_detail", "prefetch_detail"))
+    result.update(extract_nested_breakdown(events, "score_loop_breakdown", "score_loop"))
     result.update(extract_nested_breakdown(events, "scoring_counts", "count"))
     for field_name in (
         "intent_rule_needs_llm",
