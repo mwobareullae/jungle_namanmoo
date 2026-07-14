@@ -17194,18 +17194,21 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   line-height: 1.4;
 }
 
-.recommendation-criteria-status {
+.recommendation-criteria-row .recommendation-criteria-status {
+  display: inline-block;
   flex: 0 0 auto;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
   font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.recommendation-criteria-status.positive { color: #197a72; background: #e7f7f2; }
-.recommendation-criteria-status.neutral { color: #527486; background: #edf5f8; }
-.recommendation-criteria-status.caution { color: #a35d3e; background: #fff0e8; }
-.recommendation-criteria-status.unknown { color: #78858b; background: #f0f2f3; }
+.recommendation-criteria-row .recommendation-criteria-status.positive { color: #2e7d46 !important; background: #e8f4ec !important; }
+.recommendation-criteria-row .recommendation-criteria-status.neutral { color: #527486 !important; background: #edf5f8 !important; }
+.recommendation-criteria-row .recommendation-criteria-status.caution { color: #c0733f !important; background: #f8ece2 !important; }
+.recommendation-criteria-row .recommendation-criteria-status.unknown { color: #6c807e !important; background: #eef2f2 !important; }
 
 .recommendation-criteria-item p {
   margin: 9px 0 0;
