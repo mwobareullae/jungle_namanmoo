@@ -16,7 +16,15 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderCancelRequest, OrderItem, Payment
+from app.db.models.commerce import (
+    Inventory,
+    InventoryMovement,
+    Order,
+    OrderCancelRequest,
+    OrderItem,
+    Payment,
+    PaymentEvent,
+)
 from app.schemas.common import ApiError
 from app.services.admin.order_cancel_request_service import (
     approve_admin_cancel_request,
@@ -227,15 +235,21 @@ def test_approve_rejects_when_requested_but_order_already_canceled_elsewhere(ses
     assert reloaded_request.status == "REQUESTED"  # 조용히 APPROVED 로 넘어가지 않았어야 함
 
 
-def test_approve_rejects_non_mock_payment(session: Session) -> None:
+def test_approve_simulates_toss_cancel_and_records_payment_event(session: Session) -> None:
     request = _make_cancel_request(session, payment_provider="TOSS")
     session.commit()
 
-    with pytest.raises(ApiError) as exc_info:
-        approve_admin_cancel_request(session, request.request_code)
+    response = approve_admin_cancel_request(session, request.request_code)
+    session.commit()
 
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.code == "MOCK_CANCEL_PROVIDER_MISMATCH"
+    assert response.status == "APPROVED"
+    assert response.order_status == "CANCELED"
+    payment = session.execute(select(Payment).where(Payment.order_id == request.order_id)).scalar_one()
+    assert payment.provider == "TOSS"
+    assert payment.status == "CANCELED"
+    event = session.execute(select(PaymentEvent).where(PaymentEvent.order_id == request.order_id)).scalar_one()
+    assert event.event_type == "ADMIN_TOSS_CANCEL_SIMULATED"
+    assert event.raw_payload_json["external_provider_called"] is False
 
 
 def test_approve_rejects_already_rejected_request(session: Session) -> None:
