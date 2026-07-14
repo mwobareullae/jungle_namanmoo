@@ -1,5 +1,3 @@
-from typing import Literal
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -24,8 +22,8 @@ def list_products(
     brand_code: str | None = Query(default=None),
     category_code: str | None = Query(default=None),
     is_active: bool | None = Query(default=None, description="노출 여부 필터. 미지정 시 전체(비활성 포함)"),
-    sales_status: Literal["ON_SALE", "SOLD_OUT", "HIDDEN", "UNKNOWN"] | None = Query(
-        default=None, description="UNKNOWN=재고 행 없는 상품"
+    sales_status: str | None = Query(
+        default=None, description="ON_SALE/SOLD_OUT/HIDDEN/UNKNOWN(재고 행 없는 상품). 잘못된 값은 400."
     ),
     page: int = Query(default=DEFAULT_PAGE, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),

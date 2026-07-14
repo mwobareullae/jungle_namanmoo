@@ -29,6 +29,23 @@ DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
+# Inventory.sales_status CheckConstraint 값(ON_SALE/SOLD_OUT/HIDDEN) + 가용성 계약의
+# 파생 상태 UNKNOWN(재고 행 없음). 필터 검증은 route 의 FastAPI 자동 422 가 아니라
+# 다른 관리자 라우트(order_service._normalize_order_status 등)와 동일하게 서비스
+# 레이어에서 ApiError(400) 로 통일한다.
+VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN", "UNKNOWN"})
+
+
+def _normalize_sales_status(sales_status: str | None) -> str | None:
+    if sales_status is None:
+        return None
+    normalized = sales_status.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in VALID_SALES_STATUS_FILTERS:
+        raise ApiError(400, "INVALID_INPUT", "Invalid sales_status.")
+    return normalized
+
 
 def _base_statement() -> Any:
     # 자사몰 가격은 상품당 1행이지만, 방어적으로 min 을 써서 상품당 단일 행을 보장한다.
@@ -122,6 +139,7 @@ def list_admin_products(
 ) -> AdminProductListResponse:
     normalized_page = page if page >= 1 else DEFAULT_PAGE
     normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
+    normalized_sales_status = _normalize_sales_status(sales_status)
 
     filtered = _apply_filters(
         _base_statement(),
@@ -129,7 +147,7 @@ def list_admin_products(
         brand_code=brand_code,
         category_code=category_code,
         is_active=is_active,
-        sales_status=sales_status,
+        sales_status=normalized_sales_status,
     )
 
     total_items = session.execute(
