@@ -88,6 +88,14 @@ INTENT_LLM_STAGES = [
 
 INTENT_DETAIL_LLM_KEYS = {key for key, _ in INTENT_LLM_STAGES}
 
+PURCHASE_PARSER_STAGES = [
+    ("intent_purchase_normalize_ms", "normalize"),
+    ("intent_purchase_price_ms", "price"),
+    ("intent_purchase_category_ms", "category"),
+    ("intent_purchase_brand_alias_load_ms", "brand alias load"),
+    ("intent_purchase_brand_match_ms", "brand match"),
+]
+
 
 def main() -> None:
     args = parse_args()
@@ -1149,6 +1157,36 @@ def plot_intent_detail_graphs(
             sns,
         )
 
+    purchase_average_records = build_purchase_parser_detail_records(row, statistic="avg")
+    if purchase_average_records:
+        plot_single_stacked_stage_bar(
+            purchase_average_records,
+            output_dir / f"purchase_parser_stacked_average_{stage_dataset}_vus{stage_vus:02d}.png",
+            f"purchase parser internal average ({scope})",
+            plt,
+            sns,
+            unit="ms",
+            legend_title="purchase component",
+        )
+        plot_single_stacked_stage_bar(
+            purchase_average_records,
+            output_dir / f"purchase_parser_stacked_share_{stage_dataset}_vus{stage_vus:02d}.png",
+            f"purchase parser internal share ({scope})",
+            plt,
+            sns,
+            unit="%",
+            normalize=True,
+            legend_title="purchase component",
+        )
+        plot_intent_detail_donut(
+            purchase_average_records,
+            output_dir / f"purchase_parser_donut_share_{stage_dataset}_vus{stage_vus:02d}.png",
+            f"purchase parser internal share donut ({scope})",
+            plt,
+            sns,
+            legend_title="purchase component",
+        )
+
     run_dir = Path(str(row.get("run_dir") or ""))
     events = load_pipeline_events(run_dir / "backend" / "backend.log")
     if not events:
@@ -1172,6 +1210,20 @@ def plot_intent_detail_graphs(
         events,
         output_dir / f"intent_purchase_vs_llm_http_{stage_dataset}_vus{stage_vus:02d}.png",
         f"purchase parser vs LLM HTTP time ({scope})",
+        plt,
+        sns,
+    )
+    plot_purchase_parser_component_distribution(
+        events,
+        output_dir / f"purchase_parser_component_distribution_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"purchase parser component distribution ({scope})",
+        plt,
+        sns,
+    )
+    plot_purchase_parser_request_stacked_bars(
+        events,
+        output_dir / f"purchase_parser_request_stacked_top_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"slowest purchase parser requests by component ({scope})",
         plt,
         sns,
     )
@@ -1222,6 +1274,37 @@ def build_intent_detail_records(
     return records
 
 
+def build_purchase_parser_detail_records(
+    source,
+    *,
+    statistic: str | None = "avg",
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+
+    def metric(key: str) -> float | None:
+        if statistic:
+            return numeric_or_none(source.get(f"{key}_{statistic}", source.get(key)))
+        return numeric_or_none(source.get(key))
+
+    for key, label in PURCHASE_PARSER_STAGES:
+        value = metric(key)
+        if value is not None and value > 0:
+            records.append({"stage": label, "value": value, "key": key})
+
+    measured_total = sum(record["value"] for record in records)
+    total = metric("intent_purchase_parse_ms")
+    purchase_other = max((total or 0.0) - measured_total, 0.0)
+    if purchase_other > 0.01:
+        records.append(
+            {
+                "stage": "purchase other",
+                "value": purchase_other,
+                "key": "intent_purchase_other_ms",
+            }
+        )
+    return records
+
+
 def plot_single_stacked_stage_bar(
     records: list[dict[str, Any]],
     path: Path,
@@ -1231,6 +1314,7 @@ def plot_single_stacked_stage_bar(
     *,
     unit: str,
     normalize: bool = False,
+    legend_title: str = "intent component",
 ) -> None:
     total = sum(record["value"] for record in records)
     if total <= 0:
@@ -1268,7 +1352,7 @@ def plot_single_stacked_stage_bar(
         bbox_to_anchor=(0.5, -0.2),
         ncol=3,
         frameon=False,
-        title="intent component",
+        title=legend_title,
     )
     save_figure(fig, path, plt)
 
@@ -1279,6 +1363,8 @@ def plot_intent_detail_donut(
     title: str,
     plt,
     sns,
+    *,
+    legend_title: str = "intent component",
 ) -> None:
     total = sum(record["value"] for record in records)
     if total <= 0:
@@ -1309,7 +1395,7 @@ def plot_intent_detail_donut(
         loc="center left",
         bbox_to_anchor=(1.0, 0.5),
         frameon=False,
-        title="intent component",
+        title=legend_title,
     )
     save_figure(fig, path, plt)
 
@@ -1408,21 +1494,27 @@ def plot_intent_request_stacked_bars(
     colors = sns.color_palette("tab10", n_colors=len(stage_labels))
     positions = list(range(len(ranked_events)))
     left = [0.0] * len(ranked_events)
+    component_values_by_event = [
+        {
+            record["stage"]: record["value"]
+            for record in build_intent_detail_records(event, statistic=None)
+        }
+        for event in ranked_events
+    ]
+    row_totals = [sum(values.values()) for values in component_values_by_event]
+    label_threshold = max(row_totals or [0.0]) * 0.04
     fig, ax = plt.subplots(
         figsize=(13.5, max(6.2, len(ranked_events) * 0.45)),
         layout="constrained",
     )
     for label, color in zip(stage_labels, colors):
-        values = []
-        for event in ranked_events:
-            component_values = {
-                record["stage"]: record["value"]
-                for record in build_intent_detail_records(event, statistic=None)
-            }
-            values.append(component_values.get(label, 0.0))
+        values = [
+            component_values.get(label, 0.0)
+            for component_values in component_values_by_event
+        ]
         bars = ax.barh(positions, values, left=left, color=color, label=label)
         for index, (bar, value) in enumerate(zip(bars, values)):
-            if value < max(sum(values), 1.0) * 0.08:
+            if value < max(label_threshold, row_totals[index] * 0.08):
                 continue
             ax.text(
                 left[index] + value / 2,
@@ -1501,6 +1593,151 @@ def plot_intent_purchase_vs_llm_scatter(
     ax.set_ylabel("LLM HTTP time (ms)")
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
+    save_figure(fig, path, plt)
+
+
+def plot_purchase_parser_component_distribution(
+    events: list[dict[str, Any]],
+    path: Path,
+    title: str,
+    plt,
+    sns,
+) -> None:
+    records: list[dict[str, Any]] = []
+    for event in events:
+        for record in build_purchase_parser_detail_records(event, statistic=None):
+            records.append(
+                {
+                    "component": record["stage"],
+                    "duration_ms": record["value"],
+                }
+            )
+    if not records:
+        return
+
+    components = sorted(
+        {record["component"] for record in records},
+        key=lambda component: statistics.median(
+            record["duration_ms"]
+            for record in records
+            if record["component"] == component
+        ),
+        reverse=True,
+    )
+    plot_data = {
+        "component": [record["component"] for record in records],
+        "duration_ms": [record["duration_ms"] for record in records],
+    }
+    fig, ax = plt.subplots(
+        figsize=(12.5, max(5.8, len(components) * 0.62)),
+        layout="constrained",
+    )
+    sns.boxplot(
+        data=plot_data,
+        x="duration_ms",
+        y="component",
+        order=components,
+        color=sns.color_palette("colorblind")[1],
+        ax=ax,
+        fliersize=2,
+    )
+    if len(records) <= 300:
+        sns.stripplot(
+            data=plot_data,
+            x="duration_ms",
+            y="component",
+            order=components,
+            color="black",
+            alpha=0.35,
+            size=2.5,
+            ax=ax,
+        )
+    ax.set_title(title)
+    ax.set_xlabel("duration per request (ms)")
+    ax.set_ylabel("")
+    save_figure(fig, path, plt)
+
+
+def plot_purchase_parser_request_stacked_bars(
+    events: list[dict[str, Any]],
+    path: Path,
+    title: str,
+    plt,
+    sns,
+    *,
+    max_requests: int = 12,
+) -> None:
+    ranked_events = sorted(
+        (
+            event
+            for event in events
+            if numeric_or_none(event.get("intent_purchase_parse_ms")) is not None
+        ),
+        key=lambda event: float(event.get("intent_purchase_parse_ms") or 0.0),
+        reverse=True,
+    )[:max_requests]
+    if not ranked_events:
+        return
+
+    stage_labels = []
+    for event in ranked_events:
+        for record in build_purchase_parser_detail_records(event, statistic=None):
+            if record["stage"] not in stage_labels:
+                stage_labels.append(record["stage"])
+    if not stage_labels:
+        return
+
+    colors = sns.color_palette("tab10", n_colors=len(stage_labels))
+    positions = list(range(len(ranked_events)))
+    left = [0.0] * len(ranked_events)
+    component_values_by_event = [
+        {
+            record["stage"]: record["value"]
+            for record in build_purchase_parser_detail_records(event, statistic=None)
+        }
+        for event in ranked_events
+    ]
+    row_totals = [sum(values.values()) for values in component_values_by_event]
+    label_threshold = max(row_totals or [0.0]) * 0.04
+    fig, ax = plt.subplots(
+        figsize=(13.5, max(6.2, len(ranked_events) * 0.45)),
+        layout="constrained",
+    )
+    for label, color in zip(stage_labels, colors):
+        values = [
+            component_values.get(label, 0.0)
+            for component_values in component_values_by_event
+        ]
+        bars = ax.barh(positions, values, left=left, color=color, label=label)
+        for index, (bar, value) in enumerate(zip(bars, values)):
+            if value < max(label_threshold, row_totals[index] * 0.08):
+                continue
+            ax.text(
+                left[index] + value / 2,
+                bar.get_y() + bar.get_height() / 2,
+                f"{value:,.0f}",
+                ha="center",
+                va="center",
+                color=contrast_text_color(color),
+                fontsize=7,
+            )
+        left = [current + value for current, value in zip(left, values)]
+
+    labels = [
+        f"#{index + 1} {numeric_or_none(event.get('intent_purchase_parse_ms')):,.0f} ms"
+        for index, event in enumerate(ranked_events)
+    ]
+    ax.set_yticks(positions, labels=labels)
+    ax.invert_yaxis()
+    ax.set_title(title)
+    ax.set_xlabel("purchase parser duration (ms)")
+    ax.set_ylabel("slowest request samples")
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        title="purchase component",
+    )
     save_figure(fig, path, plt)
 
 
