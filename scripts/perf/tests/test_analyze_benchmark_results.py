@@ -119,6 +119,27 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(values["intent other"], 64.0)
         self.assertAlmostEqual(sum(values.values()), 1000.0)
 
+    def test_purchase_parser_detail_records_break_down_internal_timings(self) -> None:
+        row = {
+            "intent_purchase_parse_ms_avg": 1000.0,
+            "intent_purchase_normalize_ms_avg": 1.0,
+            "intent_purchase_price_ms_avg": 2.0,
+            "intent_purchase_category_ms_avg": 7.0,
+            "intent_purchase_brand_alias_load_ms_avg": 390.0,
+            "intent_purchase_brand_match_ms_avg": 590.0,
+        }
+
+        records = analysis.build_purchase_parser_detail_records(row, statistic="avg")
+
+        values = {record["stage"]: record["value"] for record in records}
+        self.assertEqual(values["normalize"], 1.0)
+        self.assertEqual(values["price"], 2.0)
+        self.assertEqual(values["category"], 7.0)
+        self.assertEqual(values["brand alias load"], 390.0)
+        self.assertEqual(values["brand match"], 590.0)
+        self.assertEqual(values["purchase other"], 10.0)
+        self.assertAlmostEqual(sum(values.values()), 1000.0)
+
     def test_intent_diagnostics_include_outcomes_and_ai_calls(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "backend.log"
