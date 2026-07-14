@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, event, select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
@@ -27,6 +27,7 @@ from app.services.recommendation_feature_versions import (
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 from app.services.scoring import (
+    _load_candidate_scoring_bundles,
     load_behavior_personalization_context,
     score_candidates,
 )
@@ -102,6 +103,41 @@ def test_precomputed_scoring_preserves_rank_score_and_top_explanation() -> None:
     assert diagnostics["effect_feature_miss_count"] == 0
     assert diagnostics["legacy_fallback_count"] == 0
     assert diagnostics["score_detail_count"] == 1
+
+
+def test_candidate_scoring_bundle_loads_all_candidates_with_one_query() -> None:
+    session = _seed_example_session()
+    _intent, candidates, _matches = _recommendation_inputs(session)
+    rollup_product_recommendation_features(session)
+    session.commit()
+    engine = session.get_bind()
+    select_count = 0
+
+    def count_selects(
+        _connection,
+        _cursor,
+        statement,
+        _parameters,
+        _context,
+        _executemany,
+    ) -> None:
+        nonlocal select_count
+        if statement.lstrip().upper().startswith("SELECT"):
+            select_count += 1
+
+    event.listen(engine, "before_cursor_execute", count_selects)
+    try:
+        bundles, feature_miss_ids = _load_candidate_scoring_bundles(
+            session,
+            candidates,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", count_selects)
+
+    candidate_ids = {candidate.db_product_id for candidate in candidates}
+    assert set(bundles) == candidate_ids
+    assert feature_miss_ids == set()
+    assert select_count == 1
 
 
 @pytest.mark.parametrize("fallback_mode", ["missing", "stale_product", "stale_effect"])
