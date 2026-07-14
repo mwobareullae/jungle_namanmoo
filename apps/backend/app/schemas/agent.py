@@ -13,6 +13,7 @@ AgentToolName = Literal[
     "add_to_cart",
     "prepare_checkout",
     "prepare_order",
+    "register_shipping_address",
     "compose_cart",
     "prepare_review_draft",
     "prepare_claim_draft",

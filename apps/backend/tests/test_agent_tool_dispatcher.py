@@ -13,10 +13,11 @@ from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem
+from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, UserAddress
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
+from app.services.agent_commerce_tools import add_agent_cart_item
 from app.services.cart_service import get_cart_response
 from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
@@ -234,6 +235,121 @@ def test_compose_cart_requires_confirmation_before_bulk_add(db_engine: Engine) -
     assert confirmed.status == "EXECUTED"
     assert confirmed.ui_action.type == "show_cart"
     assert {item.product_id for item in cart.items} == {"prod_001", "prod_002"}
+
+
+def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    raw_phone = "010-9876-5432"
+    raw_address = "서울특별시 중구 세종대로 110"
+
+    with Session(db_engine) as session:
+        user = User(email="agent-address@example.com", display_name="배송받는사람")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        add_agent_cart_item(
+            session,
+            user,
+            conversation_id="conv_address",
+            product_id="prod_001",
+            quantity=1,
+            recommendation_id=None,
+            recommendation_rank=None,
+        )
+
+        response = execute_agent_tool(
+            session,
+            tool_name="register_shipping_address",
+            arguments={
+                "recipient_name": "배송받는사람",
+                "phone": raw_phone,
+                "postal_code": "04524",
+                "address1": raw_address,
+                "address2": "3층",
+                "continue_checkout": True,
+            },
+            user=user,
+            conversation_id="conv_address",
+            request_id="req_address",
+        )
+        session.commit()
+
+        address = session.scalar(select(UserAddress).where(UserAddress.user_id == user.id))
+        tool_call = session.scalar(select(AgentToolCall).where(AgentToolCall.request_id == "req_address"))
+
+    assert address is not None
+    assert address.is_default is True
+    assert address.phone == raw_phone
+    assert address.address1 == raw_address
+    assert response.tool_name == "register_shipping_address"
+    assert response.ui_action.type == "show_checkout_preview"
+    assert response.ui_action.payload["address_id"] == address.id
+    assert tool_call is not None
+    assert tool_call.input_json["pii_redacted"] is True
+    serialized_input = json.dumps(tool_call.input_json, ensure_ascii=False)
+    assert raw_phone not in serialized_input
+    assert raw_address not in serialized_input
+
+
+def test_register_shipping_address_requires_missing_profile_details(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user = User(email="agent-address-missing@example.com")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        with pytest.raises(ApiError) as exc_info:
+            execute_agent_tool(
+                session,
+                tool_name="register_shipping_address",
+                arguments={
+                    "postal_code": "04524",
+                    "address1": "서울특별시 중구 세종대로 110",
+                    "continue_checkout": False,
+                },
+                user=user,
+            )
+
+        address_count = len(session.scalars(select(UserAddress).where(UserAddress.user_id == user.id)).all())
+
+    assert exc_info.value.code == "AGENT_ADDRESS_DETAILS_REQUIRED"
+    assert address_count == 0
+
+
+def test_openai_tool_returns_structured_address_request(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    with Session(db_engine) as session:
+        user = User(email="agent-address-followup@example.com", display_name="주소요청")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        add_agent_cart_item(
+            session,
+            user,
+            conversation_id="conv_address_followup",
+            product_id="prod_001",
+            quantity=1,
+            recommendation_id=None,
+            recommendation_rank=None,
+        )
+        context = CommerceAgentContext(
+            session=session,
+            user=user,
+            conversation_id="conv_address_followup",
+            request_id="req_address_followup",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="prepare_checkout",
+            arguments={"cart_item_ids": None, "address_id": None},
+        )
+
+    payload = json.loads(result)
+    assert payload["error"]["code"] == "AGENT_ADDRESS_REQUIRED"
+    assert "받는 분 이름" in payload["message"]
+    assert context.last_tool_response is not None
 
 
 def test_openai_tool_returns_structured_login_action_for_anonymous_user(db_engine: Engine) -> None:

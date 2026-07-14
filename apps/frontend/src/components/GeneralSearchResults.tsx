@@ -3,6 +3,8 @@ import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import type { CatalogSearchResponse, CatalogSearchSort } from "../types/recommendation";
 import ProductThumbnail from "./ProductThumbnail";
+import ProductSoldOutOverlay from "./ProductSoldOutOverlay";
+import { isProductSoldOut } from "../lib/productAvailability";
 
 type GeneralSearchResultsProps = {
   initialPage: number;
@@ -171,9 +173,11 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
           {errorMessage ? <div className="general-search-empty">{errorMessage}</div> : null}
           {!errorMessage && !isLoading && response?.items.length === 0 ? <div className="general-search-empty">검색 결과가 없습니다. 상품명이나 브랜드를 다시 확인해 주세요.</div> : null}
           <div className="general-search-product-list">
-            {response?.items.map((product) => (
+            {response?.items.map((product) => {
+              const isSoldOut = isProductSoldOut(product);
+              return (
               <article
-                className="general-search-product"
+                className={`general-search-product${isSoldOut ? " is-sold-out" : ""}`}
                 key={product.product_id}
                 onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)}
                 onKeyDown={(event) => {
@@ -185,18 +189,22 @@ function GeneralSearchResults({ initialPage, initialQuery, pageSize }: GeneralSe
                 role="link"
                 tabIndex={0}
               >
-                <ProductThumbnail alt={`${product.brand} ${product.name}`} src={product.thumbnail_url} />
+                <div className="general-search-product__image-wrap">
+                  <ProductThumbnail alt={`${product.brand} ${product.name}`} src={product.thumbnail_url} />
+                  {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                </div>
                 <div className="general-search-product-copy">
                   <span>{product.brand}</span>
                   <h2>{product.name}</h2>
                   <p>{product.category_name}{product.rating ? ` · 평점 ${product.rating.toFixed(1)} (${product.review_count.toLocaleString("ko-KR")})` : ""}</p>
                 </div>
                 <div className="general-search-product-price">
-                  <span className={product.sales_status === "SOLD_OUT" ? "sold-out" : ""}>{product.sales_status === "SOLD_OUT" ? "품절" : "판매 중"}</span>
-                  <strong>{formatPrice(product.lowest_price)}</strong>
+                  <span className={isSoldOut ? "sold-out" : ""}>{isSoldOut ? "일시품절" : "판매 중"}</span>
+                  <strong className={isSoldOut ? "product-price--sold-out" : ""}>{formatPrice(product.lowest_price)}</strong>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
 
           {pagination && pagination.total_pages > 1 ? <nav aria-label="검색 결과 페이지" className="search-pagination">

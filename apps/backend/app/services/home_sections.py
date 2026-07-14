@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
-from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence
 from app.schemas.home import (
     HomeLayoutResponse,
@@ -18,6 +18,7 @@ from app.schemas.home import (
 from app.schemas.product import PopularProductItem
 from app.services.popular_products_service import DEFAULT_POPULAR_WINDOW_DAYS, get_popular_product_items
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.product_availability import build_product_availability
 from app.services.scoring import (
     BEHAVIOR_AFFINITY_COMPONENT_WEIGHTS,
     BEHAVIOR_NEGATIVE_GUARD_WEIGHT,
@@ -74,6 +75,10 @@ class _ProductBase:
     name: str
     thumbnail_url: str
     lowest_price: int
+    sales_status: str
+    stock_status: str
+    available_quantity: int | None
+    in_stock: bool
 
 
 @dataclass(frozen=True)
@@ -524,6 +529,10 @@ def _build_popular_section_product(product: PopularProductItem) -> HomeSectionPr
         tags=[],
         reason_summary="최근 조회, 장바구니, 구매, 리뷰 신호를 기준으로 선정한 인기 상품입니다.",
         display_score=int(round(product.popularity_score)),
+        sales_status=product.sales_status,
+        stock_status=product.stock_status,
+        available_quantity=product.available_quantity,
+        in_stock=product.in_stock,
     )
 
 
@@ -563,15 +572,22 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             ProductCategory.name.label("category_name"),
             Product.product_name,
             lowest_price.label("lowest_price"),
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
         )
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .join(ProductPrice, ProductPrice.product_id == Product.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
         .where(
             Product.is_active.is_(True),
             Product.is_recommendable.is_(True),
             Brand.is_active.is_(True),
             ProductCategory.is_active.is_(True),
+            (Inventory.id.is_(None)) | (Inventory.sales_status != "HIDDEN"),
         )
         .group_by(
             Product.id,
@@ -581,6 +597,11 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             ProductCategory.category_code,
             ProductCategory.name,
             Product.product_name,
+            Inventory.id,
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
         )
     )
     if category_code:
@@ -588,8 +609,16 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
 
     rows = session.execute(statement).all()
     thumbnail_storage_keys = load_thumbnail_storage_keys(session, [int(row.id) for row in rows])
-    return [
-        _ProductBase(
+    products: list[_ProductBase] = []
+    for row in rows:
+        availability = build_product_availability(
+            inventory_exists=row.inventory_id is not None,
+            sales_status=row.sales_status,
+            stock_quantity=row.stock_quantity,
+            reserved_quantity=row.reserved_quantity,
+            safety_stock=row.safety_stock,
+        )
+        products.append(_ProductBase(
             db_product_id=int(row.id),
             product_id=row.product_code,
             brand=row.brand_name,
@@ -599,9 +628,12 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
             name=row.product_name,
             thumbnail_url=thumbnail_storage_keys.get(int(row.id), ""),
             lowest_price=int(row.lowest_price or 0),
-        )
-        for row in rows
-    ]
+            sales_status=availability.sales_status,
+            stock_status=availability.stock_status,
+            available_quantity=availability.available_quantity,
+            in_stock=availability.in_stock,
+        ))
+    return products
 
 
 def _load_product_signals(
@@ -831,6 +863,10 @@ def _build_section_product(
         tags=_build_tags(signals),
         reason_summary=_build_reason_summary(section_id, signals, product),
         display_score=_unit_to_percent(score),
+        sales_status=product.sales_status,
+        stock_status=product.stock_status,
+        available_quantity=product.available_quantity,
+        in_stock=product.in_stock,
     )
 
 

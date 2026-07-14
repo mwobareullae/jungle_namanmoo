@@ -17,7 +17,6 @@ import { api } from "../lib/api";
 import { addMyRecentProduct, addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { addCartItem } from "../lib/cartApi";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
-import { getFallbackProductDetail } from "../lib/fallbackProducts";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
 import { getSavedSkinProfile } from "../lib/profileApi";
@@ -595,12 +594,7 @@ function ProductDetailSpaPage() {
         if (isMounted) setProduct(response);
       } catch {
         if (!isMounted) return;
-        const fallbackProduct = getFallbackProductDetail(productId);
-        if (fallbackProduct) {
-          setProduct(fallbackProduct);
-          setErrorMessage("");
-          return;
-        }
+        setProduct(null);
         setErrorMessage("상품 상세 정보를 불러오지 못했습니다.");
       } finally {
         if (isMounted) setIsLoading(false);
@@ -696,7 +690,7 @@ function ProductDetailSpaPage() {
           try {
             return await api.getProduct(compareProductId, recommendationId);
           } catch {
-            return getFallbackProductDetail(compareProductId);
+            return null;
           }
         }),
       );
@@ -1160,6 +1154,10 @@ function ProductDetailSpaPage() {
     },
   ];
 
+  if (isLoading) {
+    return <ProductDetailStatus errorMessage="" isLoading />;
+  }
+
   return (
     <>
       <HomeHeader />
@@ -1176,8 +1174,8 @@ function ProductDetailSpaPage() {
             <span id="breadcrumbProduct">{product?.name ?? "상품 상세"}</span>
           </div>
 
-          {isLoading || errorMessage ? (
-            <ProductDetailStatus errorMessage={errorMessage} isLoading={isLoading} />
+          {errorMessage ? (
+            <ProductDetailStatus errorMessage={errorMessage} isLoading={false} />
           ) : product ? (
             <ProductDetailHero
               aiNarrativeCautionText={aiNarrativeCautionText}

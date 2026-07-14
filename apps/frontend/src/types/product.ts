@@ -8,6 +8,10 @@ export type PopularProductItem = {
   lowest_price: number;
   purchase_url: string | null;
   popularity_score: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 export type PopularProductsResponse = {
@@ -37,6 +41,8 @@ export type ProductListingItem = {
   review_count: number;
   sales_status: string;
   in_stock: boolean;
+  stock_status: string;
+  available_quantity: number | null;
   released_at: string | null;
 };
 
@@ -106,6 +112,9 @@ export type CatalogSearchItem = {
   rating: number | null;
   review_count: number;
   sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 export type CatalogSearchResponse = {

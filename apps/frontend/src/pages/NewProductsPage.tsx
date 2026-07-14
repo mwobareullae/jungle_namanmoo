@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import ProductThumbnail from "../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import HeartIcon from "../components/ui/HeartIcon";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ActivityToast from "../components/ui/ActivityToast";
@@ -9,6 +10,7 @@ import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToas
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { isProductSoldOut } from "../lib/productAvailability";
 import type { ProductListingItem } from "../types/product";
 import type { ProductCardItem } from "../types/recommendation";
 
@@ -27,6 +29,8 @@ const mapNewProductToCard = (item: ProductListingItem, rank: number): ProductCar
   key_ingredients: [],
   risk_flags: [],
   sales_status: item.sales_status,
+  stock_status: item.stock_status,
+  available_quantity: item.available_quantity,
   in_stock: item.in_stock
 });
 
@@ -140,7 +144,10 @@ function NewProductsPage() {
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length > 0 ? (
-            products.map((product) => <article className="popular-product-card" key={product.product_id} onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`; }} role="link" tabIndex={0}><div className="popular-product-card__image-wrap"><ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} /><button aria-label={wishedProductIds.has(product.product_id) ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${wishedProductIds.has(product.product_id) ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button></div><div className="popular-product-card__brand">{product.brand}</div><div className="popular-product-card__name">{product.name}</div><div className="popular-product-card__price">{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div></article>)
+            products.map((product) => {
+              const isSoldOut = isProductSoldOut(product);
+              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`; }} role="link" tabIndex={0}><div className="popular-product-card__image-wrap"><ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />{isSoldOut ? <ProductSoldOutOverlay /> : null}<button aria-label={wishedProductIds.has(product.product_id) ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${wishedProductIds.has(product.product_id) ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button></div><div className="popular-product-card__brand">{product.brand}</div><div className="popular-product-card__name">{product.name}</div><div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div></article>;
+            })
           ) : (
             <div className="search-empty">표시할 신상품이 없습니다.</div>
           )}

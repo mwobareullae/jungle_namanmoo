@@ -36,6 +36,7 @@ from app.services.catalog_search_filters import (
     skin_type_filter_label,
     skin_type_tag_values,
 )
+from app.services.product_availability import build_product_availability
 from app.services.catalog_search_aliases import known_query_correction
 from app.services.catalog_search_recovery import (
     CatalogSearchRecoveryPlan,
@@ -554,6 +555,13 @@ def _row_matches_filters(row: Any, filters: CatalogSearchFilters) -> bool:
 
 
 def _row_to_item(row: Any) -> CatalogSearchItem:
+    availability = build_product_availability(
+        inventory_exists=row.inventory_id is not None,
+        sales_status=row.sales_status,
+        stock_quantity=row.stock_quantity,
+        reserved_quantity=row.reserved_quantity,
+        safety_stock=row.safety_stock,
+    )
     return CatalogSearchItem(
         product_id=row.product_code,
         brand=row.brand_name,
@@ -565,7 +573,10 @@ def _row_to_item(row: Any) -> CatalogSearchItem:
         lowest_price=int(row.lowest_price) if row.lowest_price is not None else None,
         rating=float(row.average_rating) if row.average_rating is not None else None,
         review_count=int(row.review_count or 0),
-        sales_status=row.sales_status if row.inventory_id is not None else "UNKNOWN",
+        sales_status=availability.sales_status,
+        stock_status=availability.stock_status,
+        available_quantity=availability.available_quantity,
+        in_stock=availability.in_stock,
     )
 
 

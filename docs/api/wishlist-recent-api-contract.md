@@ -24,6 +24,8 @@ Database rows store the internal `products.id` FK.
 
 Product card `thumbnail_url` keeps the existing response field name, but its value is a `storage_key`, not a CDN absolute URL.
 
+Wishlist and recent-view product availability follows [`product-card-availability-contract.md`](./product-card-availability-contract.md).
+
 Frontend builds the final image URL with:
 
 ```text
@@ -58,7 +60,11 @@ Response:
         "category_code": "cream",
         "category_name": "크림",
         "thumbnail_url": "products/prod_001/thumbnail.jpg",
-        "lowest_price": 19900
+        "lowest_price": 19900,
+        "sales_status": "ON_SALE",
+        "stock_status": "IN_STOCK",
+        "available_quantity": 12,
+        "in_stock": true
       }
     }
   ]
