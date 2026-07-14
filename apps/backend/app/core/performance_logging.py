@@ -66,6 +66,24 @@ def log_performance_event(
     logger.log(level, json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 
+def log_error_event(
+    event: str,
+    *,
+    started_at: float,
+    metadata: Mapping[str, Any],
+    exc: Exception,
+) -> None:
+    # "예외를 error_type 메타데이터와 함께 ERROR 레벨로 남긴다" 는 admin 라우트들의 실패 핸들러와
+    # payment_expiry_service 의 주문별 실패 로깅에 각각 따로 구현돼 있던 것을 하나로 모았다.
+    # rollback 여부·raise/continue 여부는 호출부마다 달라 이 함수의 관심사가 아니다.
+    log_performance_event(
+        event,
+        duration_ms=elapsed_ms(started_at),
+        metadata={**metadata, "error_type": type(exc).__name__},
+        level=logging.ERROR,
+    )
+
+
 def _utc_timestamp() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
