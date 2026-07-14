@@ -2,12 +2,13 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import CancelReasonForm, { type CancelReasonDraft } from "../../components/order/CancelReasonForm";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Skeleton from "../../components/ui/Skeleton";
 import { addCartItem } from "../../lib/cartApi";
 import { getProductImageUrl } from "../../lib/imageUrls";
-import { getOrderDetail, getOrders } from "../../lib/orderApi";
+import { cancelOrder, getOrderDetail, getOrders } from "../../lib/orderApi";
 import type { OrderDetailItem, OrderListItem } from "../../types/order";
 import { useActivityToast } from "../../hooks/useActivityToast";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
@@ -93,6 +94,13 @@ export default function OrderList() {
   const [loadingDetailOrderCodes, setLoadingDetailOrderCodes] = useState<Set<string>>(() => new Set());
   const { message: toastMessage, showToast } = useActivityToast();
   const [deleteTargetOrderCode, setDeleteTargetOrderCode] = useState<string | null>(null);
+  const [cancelTargetOrder, setCancelTargetOrder] = useState<OrderListItem | null>(null);
+  const [cancelReasonDraft, setCancelReasonDraft] = useState<CancelReasonDraft | null>(null);
+  const [isCancelReasonFormOpen, setIsCancelReasonFormOpen] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [cancelSubmittedOrderCode, setCancelSubmittedOrderCode] = useState<string | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [cancelErrorMessage, setCancelErrorMessage] = useState("");
   const filteredOrders = useMemo(() => {
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - periodMonths);
@@ -172,6 +180,48 @@ export default function OrderList() {
   const handleDeleteConfirm = () => {
     setDeleteTargetOrderCode(null);
     showToast("주문 내역 삭제 기능은 준비 중입니다.");
+  };
+
+  const canCancelOrder = (order: OrderListItem) => order.status === "PENDING_PAYMENT" || order.status === "PAID";
+
+  const openCancelForm = (order: OrderListItem) => {
+    setCancelTargetOrder(order);
+    setCancelReasonDraft(null);
+    setCancelSubmittedOrderCode(null);
+    setCancelErrorMessage("");
+    if (order.status === "PENDING_PAYMENT") {
+      setIsCancelConfirmOpen(true);
+    } else {
+      setIsCancelReasonFormOpen(true);
+    }
+  };
+
+  const handleCancelReasonSubmit = (draft: CancelReasonDraft) => {
+    setCancelReasonDraft(draft);
+    setIsCancelReasonFormOpen(false);
+    setIsCancelConfirmOpen(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!cancelTargetOrder || isCanceling) return;
+    if (cancelTargetOrder.status === "PAID" && !cancelReasonDraft) return;
+    setIsCanceling(true);
+    setCancelErrorMessage("");
+    try {
+      await cancelOrder(
+        cancelTargetOrder.order_code,
+        cancelTargetOrder.status === "PAID" && cancelReasonDraft
+          ? { reason_code: cancelReasonDraft.reasonCode, reason_detail: cancelReasonDraft.detail || null }
+          : undefined
+      );
+      setIsCancelConfirmOpen(false);
+      setCancelSubmittedOrderCode(cancelTargetOrder.order_code);
+      await loadOrders();
+    } catch (error) {
+      setCancelErrorMessage(error instanceof Error ? error.message : "주문 취소에 실패했습니다.");
+    } finally {
+      setIsCanceling(false);
+    }
   };
 
   const handleReorder = async (order: OrderListItem) => {
@@ -292,6 +342,7 @@ export default function OrderList() {
                 const canWriteReview = order.status === "DELIVERED";
                 const isShippingOrder = order.status === "PREPARING_SHIPMENT" || order.status === "SHIPPED";
                 const isExpiredOrder = order.status === "EXPIRED";
+                const isCancelableOrder = canCancelOrder(order);
                 const orderActionCount = 1
                   + (canWriteReview || isShippingOrder ? 1 : 0)
                   + (isCompletedOrder || isExpiredOrder ? 1 : 0);
@@ -312,20 +363,37 @@ export default function OrderList() {
                     style={styles.orderCard}
                     tabIndex={0}
                   >
-                    {!(order.item_count > 1 && expandedOrderCodes.has(order.order_code)) ? <button
-                      aria-label="주문 내역 삭제"
-                      className="bg-transparent hover:bg-[#FAFAFA]"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteTargetOrderCode(order.order_code);
-                      }}
-                      style={styles.orderCardMenu}
-                      type="button"
-                    >
-                      <svg fill="none" height="21" viewBox="0 0 32 32" width="21">
-                        <path d="m9 9 14 14M23 9 9 23" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                      </svg>
-                    </button> : null}
+                    {!(order.item_count > 1 && expandedOrderCodes.has(order.order_code)) ? (
+                      <div style={styles.orderCardControls}>
+                        {isCancelableOrder ? (
+                          <button
+                            className="bg-white hover:bg-[#FAFAFA]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCancelForm(order);
+                            }}
+                            style={styles.orderCardCancel}
+                            type="button"
+                          >
+                            주문 취소
+                          </button>
+                        ) : null}
+                        <button
+                          aria-label="주문 내역 삭제"
+                          className="bg-transparent hover:bg-[#FAFAFA]"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDeleteTargetOrderCode(order.order_code);
+                          }}
+                          style={styles.orderCardMenu}
+                          type="button"
+                        >
+                          <svg fill="none" height="21" viewBox="0 0 32 32" width="21">
+                            <path d="m9 9 14 14M23 9 9 23" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : null}
                     {!(order.item_count > 1 && expandedOrderCodes.has(order.order_code)) ? (
                     <div style={styles.orderCardMain}>
                     <div style={styles.thumbnail}>
@@ -548,6 +616,34 @@ export default function OrderList() {
           </>
         )}
       </section>
+      <CancelReasonForm
+        onCancel={() => setIsCancelReasonFormOpen(false)}
+        onSubmit={handleCancelReasonSubmit}
+        open={isCancelReasonFormOpen}
+        orderStatus={cancelTargetOrder?.status === "PAID" ? "PAID" : "PENDING_PAYMENT"}
+        submitting={isCanceling}
+      />
+      <ConfirmModal
+        cancelLabel="돌아가기"
+        confirmLabel={isCanceling ? "처리 중" : cancelTargetOrder?.status === "PAID" ? "취소 요청" : "주문 취소"}
+        message={
+          cancelErrorMessage
+            ? cancelErrorMessage
+            : cancelReasonDraft && cancelTargetOrder
+            ? `${cancelReasonDraft.optionLabel} 사유로 ${cancelTargetOrder.status === "PAID" ? "취소 요청을 접수" : "주문을 취소"}할까요?`
+            : "결제 전 주문이라 즉시 취소됩니다. 진행할까요?"
+        }
+        onCancel={() => { if (!isCanceling) setIsCancelConfirmOpen(false); }}
+        onConfirm={() => void handleCancelConfirm()}
+        open={isCancelConfirmOpen}
+        title="최종 확인"
+      />
+      {cancelSubmittedOrderCode ? (
+        <p role="status" style={styles.cancelNotice}>
+          취소 사유를 확인했습니다. 백엔드 계약이 확정되면 취소 요청 API와 연결됩니다.
+        </p>
+      ) : null}
+      {cancelErrorMessage ? <p role="alert" style={styles.cancelError}>{cancelErrorMessage}</p> : null}
       <ActivityToast message={toastMessage} />
       <ConfirmModal
         compact
@@ -679,9 +775,6 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff"
   },
   orderCardMenu: {
-    position: "absolute",
-    top: 20,
-    right: 24,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -690,6 +783,24 @@ const styles: Record<string, CSSProperties> = {
     color: "#9ca3af",
     width: 21,
     height: 21,
+    cursor: "pointer"
+  },
+  orderCardControls: {
+    position: "absolute",
+    top: 18,
+    right: 24,
+    display: "flex",
+    alignItems: "center",
+    gap: 10
+  },
+  orderCardCancel: {
+    minHeight: 30,
+    padding: "0 10px",
+    border: "1px solid #d5d9dd",
+    borderRadius: 8,
+    color: "#6b7280",
+    fontSize: 12,
+    fontWeight: 500,
     cursor: "pointer"
   },
   orderCardHeader: {
@@ -913,6 +1024,21 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     fontWeight: 400,
     cursor: "pointer"
+  },
+  cancelNotice: {
+    margin: "14px 0 0",
+    padding: "12px 14px",
+    borderRadius: 10,
+    background: "#f1fbfe",
+    color: "#2f7188",
+    fontSize: 14,
+    lineHeight: 1.5
+  },
+  cancelError: {
+    margin: "14px 0 0",
+    color: "#c44747",
+    fontSize: 14,
+    lineHeight: 1.5
   },
   itemArrow: {
     display: "block",

@@ -6,6 +6,7 @@ from app.db.models.commerce import Inventory, ProductPopularityMetric
 from app.db.models.review import ProductReviewMetric
 from app.schemas.product import PopularProductItem, PopularProductsResponse, ProductPopularityMetrics
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.product_availability import build_product_availability
 
 
 DEFAULT_POPULAR_WINDOW_DAYS = 7
@@ -81,6 +82,11 @@ def get_popular_product_items(
             ProductPopularityMetric.popularity_score,
             ProductPopularityMetric.score_version,
             ProductPopularityMetric.computed_at,
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
         )
         .join(Product, ProductPopularityMetric.product_id == Product.id)
         .join(Brand, Product.brand_id == Brand.id)
@@ -93,7 +99,7 @@ def get_popular_product_items(
             Product.is_active.is_(True),
             Brand.is_active.is_(True),
             ProductCategory.is_active.is_(True),
-            or_(Inventory.id.is_(None), Inventory.sales_status == "ON_SALE"),
+            or_(Inventory.id.is_(None), Inventory.sales_status != "HIDDEN"),
         )
         .order_by(
             ProductPopularityMetric.popularity_score.desc(),
@@ -114,8 +120,16 @@ def get_popular_product_items(
     thumbnail_storage_keys = load_thumbnail_storage_keys(session, db_product_ids)
     purchase_urls = _load_purchase_urls(session, db_product_ids)
 
-    return [
-        PopularProductItem(
+    items: list[PopularProductItem] = []
+    for row in rows:
+        availability = build_product_availability(
+            inventory_exists=row.inventory_id is not None,
+            sales_status=row.sales_status,
+            stock_quantity=row.stock_quantity,
+            reserved_quantity=row.reserved_quantity,
+            safety_stock=row.safety_stock,
+        )
+        items.append(PopularProductItem(
             product_id=row.product_id,
             brand=row.brand,
             name=row.name,
@@ -148,9 +162,12 @@ def get_popular_product_items(
                 review_count=int(row.review_count or 0),
                 average_rating=float(row.average_rating) if row.average_rating is not None else None,
             ),
-        )
-        for row in rows
-    ]
+            sales_status=availability.sales_status,
+            stock_status=availability.stock_status,
+            available_quantity=availability.available_quantity,
+            in_stock=availability.in_stock,
+        ))
+    return items
 
 
 def _load_purchase_urls(session: Session, product_ids: list[int]) -> dict[int, str]:

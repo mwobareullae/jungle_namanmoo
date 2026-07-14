@@ -27,6 +27,7 @@ from app.services.catalog_search_text import (
     category_group_for_code,
 )
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.product_availability import build_product_availability
 
 
 DEFAULT_PRODUCT_LISTING_PAGE = 1
@@ -261,6 +262,13 @@ def _sort_columns(sort: ProductListingSort, statement: Any) -> tuple[Any, ...]:
 
 
 def _row_to_item(row: Any, thumbnail_keys: dict[int, str]) -> ProductListingItem:
+    availability = build_product_availability(
+        inventory_exists=row.inventory_id is not None,
+        sales_status=row.sales_status,
+        stock_quantity=row.stock_quantity,
+        reserved_quantity=row.reserved_quantity,
+        safety_stock=row.safety_stock,
+    )
     return ProductListingItem(
         product_id=row.product_code,
         brand_code=row.brand_code,
@@ -273,8 +281,10 @@ def _row_to_item(row: Any, thumbnail_keys: dict[int, str]) -> ProductListingItem
         lowest_price=int(row.lowest_price) if row.lowest_price is not None else None,
         rating=float(row.average_rating) if row.average_rating is not None else None,
         review_count=int(row.review_count or 0),
-        sales_status=row.sales_status if row.inventory_id is not None else "UNKNOWN",
-        in_stock=_row_in_stock(row),
+        sales_status=availability.sales_status,
+        in_stock=availability.in_stock,
+        stock_status=availability.stock_status,
+        available_quantity=availability.available_quantity,
         released_at=row.released_at,
     )
 

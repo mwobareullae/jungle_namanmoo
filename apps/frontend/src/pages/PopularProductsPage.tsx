@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ProductThumbnail from "../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import Skeleton from "../components/ui/Skeleton";
 import HeartIcon from "../components/ui/HeartIcon";
 import ActivityToast from "../components/ui/ActivityToast";
@@ -11,6 +12,7 @@ import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/a
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { isProductSoldOut } from "../lib/productAvailability";
 
 type PopularItem = {
   product_id: string;
@@ -21,6 +23,10 @@ type PopularItem = {
   thumbnail_url: string;
   lowest_price: number;
   popularity_score: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 type PopularResponse = { items: PopularItem[]; window_days: number };
@@ -153,9 +159,11 @@ function PopularProductsPage() {
                     </div>
                   </article>
                 ))
-              : items.map((item, index) => (
+              : items.map((item, index) => {
+                  const isSoldOut = isProductSoldOut(item);
+                  return (
                   <article
-                    className="popular-product-card"
+                    className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`}
                     key={item.product_id}
                     onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(item.product_id)}`; }}
                     role="link"
@@ -164,6 +172,7 @@ function PopularProductsPage() {
                     <div className="popular-product-card__image-wrap">
                       <span className="popular-product-card__rank">{index + 1}</span>
                       <ProductThumbnail className="popular-product-card__image" src={getProductImageUrl(item.thumbnail_url, "w400")} alt={`${item.brand} ${item.name}`} />
+                      {isSoldOut ? <ProductSoldOutOverlay /> : null}
                       <button
                         aria-label={wishedProductIds.has(item.product_id) ? `${item.name} 찜 해제` : `${item.name} 찜하기`}
                         className={`popular-product-card__heart${wishedProductIds.has(item.product_id) ? " is-wished" : ""}`}
@@ -179,9 +188,10 @@ function PopularProductsPage() {
                     </div>
                     <div className="popular-product-card__brand">{item.brand}</div>
                     <div className="popular-product-card__name">{item.name}</div>
-                    <div className="popular-product-card__price">{formatPrice(item.lowest_price)}</div>
+                    <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(item.lowest_price)}</div>
                   </article>
-                ))}
+                  );
+                })}
           </section>
           {!isLoading && !errorMessage && items.length === 0 ? (
             <section className="popular-products-empty" aria-label="인기상품 없음">
