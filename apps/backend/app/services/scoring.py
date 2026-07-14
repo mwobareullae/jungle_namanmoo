@@ -722,6 +722,7 @@ def score_candidates(
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
+    result_limit: int | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> list[ScoredProduct]:
     if diagnostics is not None:
@@ -737,6 +738,8 @@ def score_candidates(
                     "score_context_build_ms": 0.0,
                     "score_loop_ms": 0.0,
                     "score_sort_ms": 0.0,
+                    "score_detail_materialization_ms": 0.0,
+                    "score_detail_count": 0,
                     "product_feature_load_ms": 0.0,
                     "product_feature_hit_count": 0,
                     "product_feature_miss_count": 0,
@@ -758,6 +761,7 @@ def score_candidates(
                     "scoring_prefetch_breakdown": {},
                     "scoring_prefetch_detail": {},
                     "score_loop_breakdown": {},
+                    "score_detail_breakdown": {},
                     "scoring_counts": {
                         "prefetch_product_count": 0,
                         "ingredient_effect_product_count": 0,
@@ -818,20 +822,8 @@ def score_candidates(
         count=len(legacy_fallback_ids),
     )
 
-    explanation_started_at = current_time()
-    explanation_ingredients_by_product = _load_ingredient_effects(
-        session,
-        sorted(set(product_ids) - legacy_fallback_ids),
-        desired_effects,
-    )
-    ingredients_by_product = {
-        **legacy_ingredients_by_product,
-        **explanation_ingredients_by_product,
-    }
-    prefetch_breakdown["ingredient_effects_ms"] = round(
-        legacy_fallback_ms + elapsed_ms(explanation_started_at),
-        2,
-    )
+    ingredients_by_product = dict(legacy_ingredients_by_product)
+    prefetch_breakdown["ingredient_effects_ms"] = round(legacy_fallback_ms, 2)
 
     stage_started_at = current_time()
     functional_info_by_product = _load_functional_info(session, product_ids)
@@ -942,6 +934,7 @@ def score_candidates(
                 weight_resolution=weight_resolution,
                 concentration_policy=concentration_policy,
                 skin_profile_weights=skin_profile_weights,
+                include_details=False,
                 timing_accumulator=score_loop_breakdown if diagnostics is not None else None,
             )
         )
@@ -954,6 +947,68 @@ def score_candidates(
     )
     score_sort_ms = round(elapsed_ms(sort_started_at), 2)
 
+    detail_started_at = current_time()
+    detail_count = (
+        len(ranked_products)
+        if result_limit is None
+        else min(len(ranked_products), max(0, int(result_limit)))
+    )
+    detail_products = ranked_products[:detail_count]
+    detail_product_ids = [product.db_product_id for product in detail_products]
+    detail_precomputed_ids = sorted(
+        set(detail_product_ids) - legacy_fallback_ids
+    )
+    detail_ingredients_by_product = _load_ingredient_effects(
+        session,
+        detail_precomputed_ids,
+        desired_effects,
+    )
+    ingredients_by_product.update(detail_ingredients_by_product)
+    candidates_by_product_id = {
+        candidate.db_product_id: candidate for candidate in candidates
+    }
+    detail_loop_breakdown: dict[str, float] = {}
+    detailed_products_by_id: dict[int, ScoredProduct] = {}
+    for scored_product in detail_products:
+        candidate = candidates_by_product_id[scored_product.db_product_id]
+        detailed_products_by_id[scored_product.db_product_id] = _score_candidate(
+            candidate,
+            desired_effects,
+            priority_effect_codes,
+            ingredients_by_product.get(candidate.db_product_id, ()),
+            functional_info_by_product.get(candidate.db_product_id),
+            skin_tags_by_product.get(candidate.db_product_id, ()),
+            skin_profiles_by_product.get(candidate.db_product_id),
+            risk_flags_by_product.get(candidate.db_product_id, ()),
+            market_signals_by_product.get(candidate.db_product_id),
+            review_metrics_by_product.get(candidate.db_product_id),
+            review_segments_by_product.get(candidate.db_product_id, {}),
+            review_affinity_targets,
+            behavior_signals_by_product.get(candidate.db_product_id),
+            (
+                effect_features_by_product.get(candidate.db_product_id, {})
+                if candidate.db_product_id not in legacy_fallback_ids
+                else None
+            ),
+            matches_by_product_code.get(candidate.product_id),
+            intent.purchase_conditions,
+            skin_type=skin_type,
+            sensitivity=sensitivity,
+            skin_test_context=skin_test_context,
+            behavior_personalization_context=behavior_personalization_context,
+            manual_skin_type_explicit=manual_skin_type_explicit,
+            manual_sensitivity_explicit=manual_sensitivity_explicit,
+            price_context=price_context,
+            weight_resolution=weight_resolution,
+            concentration_policy=concentration_policy,
+            skin_profile_weights=skin_profile_weights,
+            include_details=True,
+            timing_accumulator=(
+                detail_loop_breakdown if diagnostics is not None else None
+            ),
+        )
+    detail_materialization_ms = round(elapsed_ms(detail_started_at), 2)
+
     if diagnostics is not None:
         diagnostics.update(
             {
@@ -961,6 +1016,8 @@ def score_candidates(
                 "score_context_build_ms": context_build_ms,
                 "score_loop_ms": score_loop_ms,
                 "score_sort_ms": score_sort_ms,
+                "score_detail_materialization_ms": detail_materialization_ms,
+                "score_detail_count": detail_count,
                 "product_feature_load_ms": product_feature_load_ms,
                 "product_feature_hit_count": len(product_features_by_product),
                 "product_feature_miss_count": len(product_feature_miss_ids),
@@ -982,6 +1039,10 @@ def score_candidates(
                     key: round(value, 2)
                     for key, value in score_loop_breakdown.items()
                 },
+                "score_detail_breakdown": {
+                    key: round(value, 2)
+                    for key, value in detail_loop_breakdown.items()
+                },
                 "scoring_counts": {
                     "prefetch_product_count": len(product_ids),
                     "ingredient_effect_product_count": len(ingredients_by_product),
@@ -998,20 +1059,23 @@ def score_candidates(
             }
         )
 
-    return [
-        ScoredProduct(
-            product_id=product.product_id,
-            db_product_id=product.db_product_id,
-            rank=rank,
-            total_score=product.total_score,
-            reason_summary=product.reason_summary,
-            evidence_tags=product.evidence_tags,
-            key_ingredients=product.key_ingredients,
-            score_breakdown=product.score_breakdown,
-            score_evidence=product.score_evidence,
+    results: list[ScoredProduct] = []
+    for rank, product in enumerate(ranked_products, start=1):
+        materialized = detailed_products_by_id.get(product.db_product_id, product)
+        results.append(
+            ScoredProduct(
+                product_id=materialized.product_id,
+                db_product_id=materialized.db_product_id,
+                rank=rank,
+                total_score=product.total_score,
+                reason_summary=materialized.reason_summary,
+                evidence_tags=materialized.evidence_tags,
+                key_ingredients=materialized.key_ingredients,
+                score_breakdown=materialized.score_breakdown,
+                score_evidence=materialized.score_evidence,
+            )
         )
-        for rank, product in enumerate(ranked_products, start=1)
-    ]
+    return results
 
 
 def _score_candidate(
@@ -1046,6 +1110,7 @@ def _score_candidate(
     weight_resolution: ScoreWeightResolution,
     concentration_policy: ConcentrationScorePolicy,
     skin_profile_weights: SkinProfileWeights,
+    include_details: bool,
     timing_accumulator: dict[str, float] | None = None,
 ) -> ScoredProduct:
     stage_started_at = current_time()
@@ -1178,6 +1243,19 @@ def _score_candidate(
     )
     total_score = _round_score(_clamp(raw_score) * 100 - risk_penalty)
     _add_elapsed_timing(timing_accumulator, "final_score_ms", stage_started_at)
+
+    if not include_details:
+        return ScoredProduct(
+            product_id=candidate.product_id,
+            db_product_id=candidate.db_product_id,
+            rank=0,
+            total_score=total_score,
+            reason_summary="",
+            evidence_tags=(),
+            key_ingredients=(),
+            score_breakdown={},
+            score_evidence=(),
+        )
 
     stage_started_at = current_time()
     score_evidence = _build_score_evidence(contributions_by_effect)

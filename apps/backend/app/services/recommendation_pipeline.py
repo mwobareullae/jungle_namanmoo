@@ -232,6 +232,7 @@ def create_recommendation_response(
             saved_concerns=saved_concerns,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
+            result_limit=result_limit,
             diagnostics=scoring_diagnostics,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)
