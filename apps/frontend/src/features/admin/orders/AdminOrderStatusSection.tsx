@@ -9,7 +9,7 @@ import {
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS
 } from "../api/adminOrderApi";
-import { AdminOrderPreviewPatch, ShipmentStep, useAdminOrders } from "./useAdminOrders";
+import { ShipmentStep, useAdminOrders } from "./useAdminOrders";
 
 // 관리자 주문·결제 상태 화면.
 // 부모(AdminDashboardPage)와는 onOperationLog(공용 운영 로그)만 공유하고,
@@ -20,10 +20,13 @@ import { AdminOrderPreviewPatch, ShipmentStep, useAdminOrders } from "./useAdmin
 //
 // 배송 액션(준비/시작/완료, M1.5-A)은 실 API로 연결되어 서버에 반영된다 — 버튼 표시 여부는
 // 서버가 계산한 availableActions 를 그대로 따르고 프론트가 직접 계산하지 않는다.
-// 결제 만료·취소 승인(M1.5-B)은 아직 팀원 API 계약 확정 전이라 로컬 미리보기로 남아있다.
+// 결제 만료(M1.5-B)는 관리자 수동 버튼이 아니라 payment-expiry-scheduler 컨테이너가 주기적으로
+// PENDING_PAYMENT 중 payment_expires_at 이 지난 주문을 자동 처리한다(2026-07-14, docker-compose.yml
+// 참고) — 만료는 시간 기준이라 관리자가 개별로 트리거할 이유가 없어 로컬 미리보기 버튼은 제거했다.
+// 취소 승인·거절은 사이드바의 "취소·클레임 관리" 화면에서 실 API로 처리한다(M1.5-B 2단계) —
+// 이 화면의 로컬 미리보기 버튼은 역할이 중복돼 제거했다.
 
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
-type OrderPreviewAction = "expirePayment" | "approveCancel";
 type OrderUiState = "idle" | "saved";
 
 type OrderExceptionRow = {
@@ -77,36 +80,6 @@ const PAYMENT_STATUS_TONE: Record<AdminPaymentStatus, BadgeTone> = {
   REFUND_REQUESTED: "review",
   REFUNDED: "neutral",
   PARTIALLY_REFUNDED: "neutral"
-};
-
-// 결제 만료·취소 승인 — 아직 팀원 API 계약 확정 전이라 로컬 미리보기로만 남아있는 액션(M1.5-B)
-const ORDER_ACTION_CONFIG: Record<
-  OrderPreviewAction,
-  {
-    requiredStatus: AdminOrderStatus;
-    nextOrderStatus: AdminOrderStatus;
-    nextPaymentStatus?: AdminPaymentStatus;
-    clearsReservedQuantity?: boolean;
-    issue: string;
-    logTitle: string;
-  }
-> = {
-  expirePayment: {
-    requiredStatus: "PENDING_PAYMENT",
-    nextOrderStatus: "EXPIRED",
-    nextPaymentStatus: "FAILED",
-    clearsReservedQuantity: true,
-    issue: "결제 대기 만료 처리",
-    logTitle: "결제 만료 처리"
-  },
-  approveCancel: {
-    requiredStatus: "CANCEL_REQUESTED",
-    nextOrderStatus: "CANCELED",
-    nextPaymentStatus: "CANCELED",
-    clearsReservedQuantity: true,
-    issue: "취소 요청 승인",
-    logTitle: "취소 승인"
-  }
 };
 
 // 배송 액션(준비/시작/완료) — 서버가 계산한 available_actions 값을 그대로 키로 쓴다(M1.5-A).
@@ -165,25 +138,27 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     resetFilters,
     refresh,
     loadMore,
-    applyPreviewOverride,
     actionOrderId,
     actionError,
     syncWarning,
     runShipmentAction,
     clearShipmentActionFeedback
-  } = useAdminOrders({ enabled: true }); // 이 컴포넌트가 마운트된 시점엔 이미 AdminDashboardPage 의 접근 게이트를 통과한 상태
+  } = useAdminOrders({ enabled: active }); // 주문 화면이 열려 있을 때만 최초 조회·자동 동기화를 실행한다.
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderExceptions, setOrderExceptions] = useState<OrderExceptionRow[]>([]);
   const nextExceptionIdRef = useRef(0);
   const [orderRefreshState, setOrderRefreshState] = useState<OrderUiState>("idle");
-  // 미리보기(결제만료/취소승인)와 배송 액션(실 서버 반영)은 결과가 다르므로 상태를 분리한다 —
-  // 합쳐두면 미리보기를 눌러도 "서버에 실제로 반영됐습니다" 배너가 잘못 뜬다.
-  const [previewActionState, setPreviewActionState] = useState<OrderUiState>("idle");
   const [shipmentActionState, setShipmentActionState] = useState<OrderUiState>("idle");
   const [confirmingAction, setConfirmingAction] = useState<PendingShipmentAction | null>(null);
 
-  const selectedOrder = items.find((order) => order.id === selectedOrderId) ?? items[0] ?? null;
+  // 아직 아무 주문도 선택하지 않았을 때만 첫 주문을 자동 선택한다. 이미 선택한 주문이 있는데
+  // (예: 30초 자동 새로고침으로 목록이 1페이지로 다시 줄어들며) 그 주문이 현재 items 에서
+  // 사라졌다면, items[0] 등 다른 주문으로 조용히 바꿔치기하지 않는다 — 그렇게 하면 관리자가
+  // 여전히 원래 주문을 보고 있다고 착각한 채 배송 액션 버튼을 눌러 엉뚱한 주문에 실행될 수 있다.
+  const selectedOrder =
+    selectedOrderId === null ? items[0] ?? null : items.find((order) => order.id === selectedOrderId) ?? null;
+  const selectedOrderMissing = selectedOrderId !== null && selectedOrder === null && items.length > 0;
   const shipmentActionInProgress = actionOrderId !== null;
   const listRequestInProgress = loading || loadingMore;
 
@@ -208,7 +183,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
       ]);
     }
     setOrderRefreshState("saved");
-    setPreviewActionState("idle");
     setShipmentActionState("idle");
     setConfirmingAction(null);
     clearShipmentActionFeedback();
@@ -226,7 +200,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
   const handleSelectOrder = (orderId: string) => {
     setSelectedOrderId(orderId);
     setOrderRefreshState("idle");
-    setPreviewActionState("idle");
     resetShipmentActionUiState();
   };
 
@@ -234,7 +207,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     if (shipmentActionInProgress) return;
     resetFilters();
     setOrderRefreshState("idle");
-    setPreviewActionState("idle");
     resetShipmentActionUiState();
     onOperationLog("주문", "필터 초기화", "전체 주문 목록 표시", "neutral");
   };
@@ -249,41 +221,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     if (shipmentActionInProgress) return;
     setPaymentStatusFilter(value);
     resetShipmentActionUiState();
-  };
-
-  const handlePreviewAction = (action: OrderPreviewAction) => {
-    if (!selectedOrder) return;
-    const config = ORDER_ACTION_CONFIG[action];
-    const previousStatusLabel = selectedOrder.status;
-
-    const patch: AdminOrderPreviewPatch = {
-      status: ORDER_STATUS_LABELS[config.nextOrderStatus],
-      orderStatusRaw: config.nextOrderStatus,
-      updatedAt: `로컬 처리 ${formatCurrentTime()}`
-    };
-    if (config.nextPaymentStatus) {
-      patch.paymentStatus = PAYMENT_STATUS_LABELS[config.nextPaymentStatus];
-      patch.paymentStatusRaw = config.nextPaymentStatus;
-      patch.paymentMissing = false;
-    }
-    if (config.clearsReservedQuantity) {
-      patch.stockReserved = 0;
-    }
-    applyPreviewOverride(selectedOrder.id, patch);
-
-    setOrderExceptions((current) => [
-      {
-        id: ++nextExceptionIdRef.current,
-        time: formatCurrentTime(),
-        orderCode: selectedOrder.orderCode,
-        issue: config.issue,
-        action: `${previousStatusLabel} → ${ORDER_STATUS_LABELS[config.nextOrderStatus]}`
-      },
-      ...current
-    ]);
-    setOrderRefreshState("idle");
-    setPreviewActionState("saved");
-    onOperationLog("주문", config.logTitle, selectedOrder.orderCode, action === "approveCancel" ? "danger" : "success");
   };
 
   // 배송 준비 시작 버튼 클릭: 확인 불필요라 바로 실행.
@@ -414,14 +351,8 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                     <option value="CANCEL_REQUESTED">{ORDER_STATUS_LABELS.CANCEL_REQUESTED}</option>
                     <option value="CANCELED">{ORDER_STATUS_LABELS.CANCELED}</option>
                   </optgroup>
-                  <optgroup label="반품·환불·교환">
-                    <option value="RETURN_REQUESTED">{ORDER_STATUS_LABELS.RETURN_REQUESTED}</option>
-                    <option value="RETURNED">{ORDER_STATUS_LABELS.RETURNED}</option>
-                    <option value="REFUND_REQUESTED">{ORDER_STATUS_LABELS.REFUND_REQUESTED}</option>
-                    <option value="REFUNDED">{ORDER_STATUS_LABELS.REFUNDED}</option>
-                    <option value="EXCHANGE_REQUESTED">{ORDER_STATUS_LABELS.EXCHANGE_REQUESTED}</option>
-                    <option value="EXCHANGED">{ORDER_STATUS_LABELS.EXCHANGED}</option>
-                  </optgroup>
+                  {/* 반품·환불·교환 상태(RETURN_REQUESTED 등)는 Order.status 로 전환되지 않고 OrderClaim
+                      으로만 관리돼(案A 확정) 필터에 넣어도 항상 0건이라 제외했다 — 취소·클레임 관리 화면 참조 */}
                 </select>
                 <select
                   aria-label="결제 상태 필터"
@@ -479,7 +410,7 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                       <td>
                         <strong className="admin-product-name">{order.orderCode}</strong>
                         <small className="admin-product-code">
-                          {order.customer} · {order.updatedAt}
+                          {order.customer} · 주문 {order.orderedAt}
                         </small>
                       </td>
                       <td>
@@ -579,11 +510,11 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                   </div>
                 </dl>
                 <div className={`admin-state-banner ${orderRefreshState === "saved" ? "success" : "neutral"}`}>
-                  <strong>{orderRefreshState === "saved" ? "상태 동기화 완료" : "동기화 전"}</strong>
+                  <strong>{orderRefreshState === "saved" ? "상태 동기화 완료" : "자동 동기화 사용 중"}</strong>
                   <span>
                     {orderRefreshState === "saved"
                       ? "선택 주문의 최신 상태 확인 기록을 예외 목록에 남겼습니다."
-                      : "새로고침을 누르면 결제/재고 상태 확인 기록이 남습니다."}
+                      : "주문 화면으로 돌아오면 즉시, 화면을 보는 동안에는 30초마다 결제·배송 상태를 자동 갱신합니다."}
                   </span>
                 </div>
 
@@ -606,28 +537,16 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                     <span>서버에 실제로 반영됐고, 새로고침해도 유지됩니다.</span>
                   </div>
                 )}
-                {/* 결제 만료·취소 승인: 팀원 API 계약 확정 전 로컬 미리보기(M1.5-B) */}
-                <div className={`admin-state-banner ${previewActionState === "saved" ? "success" : "review"}`}>
-                  <strong>운영 액션 미리보기</strong>
-                  <span>결제 만료·취소 승인은 팀원 API 계약 확정 전이라 화면에서만 갱신되고 서버 데이터는 바뀌지 않습니다.</span>
-                </div>
+                {selectedOrder.orderStatusRaw === "CANCEL_REQUESTED" && (
+                  <div className="admin-state-banner review">
+                    <strong>취소 요청 처리 안내</strong>
+                    <span>
+                      이 주문의 취소 승인·거절은 사이드바의 &quot;취소·클레임 관리&quot; 화면 &gt; 취소 요청 탭에서
+                      처리합니다.
+                    </span>
+                  </div>
+                )}
                 <div className="admin-order-action-grid" aria-label="주문 운영 액션">
-                  <button
-                    className="admin-secondary-button"
-                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.expirePayment.requiredStatus}
-                    onClick={() => handlePreviewAction("expirePayment")}
-                    type="button"
-                  >
-                    결제 만료
-                  </button>
-                  <button
-                    className="admin-secondary-button"
-                    disabled={selectedOrder.orderStatusRaw !== ORDER_ACTION_CONFIG.approveCancel.requiredStatus}
-                    onClick={() => handlePreviewAction("approveCancel")}
-                    type="button"
-                  >
-                    취소 승인
-                  </button>
                   {selectedOrder.availableActions.map((action) => (
                     <button
                       className="admin-primary-button admin-order-shipment-button"
@@ -663,8 +582,12 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
               </>
             ) : (
               <div className="admin-state-banner neutral">
-                <strong>선택된 주문 없음</strong>
-                <span>표에서 주문을 선택하면 상세 정보가 표시됩니다.</span>
+                <strong>{selectedOrderMissing ? "선택한 주문을 찾을 수 없음" : "선택된 주문 없음"}</strong>
+                <span>
+                  {selectedOrderMissing
+                    ? "목록이 갱신되며 선택했던 주문이 현재 페이지에 보이지 않습니다. 표에서 다시 선택해 주세요."
+                    : "표에서 주문을 선택하면 상세 정보가 표시됩니다."}
+                </span>
               </div>
             )}
           </aside>
