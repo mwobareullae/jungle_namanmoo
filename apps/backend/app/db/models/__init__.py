@@ -45,12 +45,15 @@ from app.db.models.commerce import (
 )
 from app.db.models.events import EventLog
 from app.db.models.recommendation import (
+    ProductEffectRecommendationFeature,
+    ProductRecommendationFeature,
     RecommendationResult,
     RecommendationRun,
     RecommendationRunConcern,
     RecommendationRunConstraint,
     RecommendationScoreEvidence,
     SearchCandidate,
+    UserPreferenceProfile,
 )
 from app.db.models.review import (
     ProductReview,
@@ -127,6 +130,8 @@ __all__ = [
     "ProductIngredient",
     "ProductPopularityMetric",
     "ProductPrice",
+    "ProductEffectRecommendationFeature",
+    "ProductRecommendationFeature",
     "ProductReview",
     "ProductReviewMetric",
     "ProductReviewProfileLabel",
@@ -155,5 +160,6 @@ __all__ = [
     "UserAddress",
     "User",
     "UserConsent",
+    "UserPreferenceProfile",
     "Wishlist",
 ]
