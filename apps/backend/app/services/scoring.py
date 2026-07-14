@@ -122,10 +122,13 @@ WEIGHT_MULTIPLIER_CAPS = {
 }
 REVIEW_WEIGHT_SHARE_CAP = 0.18
 REVIEW_SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE = 5.0
+# review-scoring-revision 4.3: 올리브영 프로필에 민감도 축이 없어(피부타입 값 '민감성'만 존재)
+# SENSITIVITY는 low/medium 세그먼트가 구조적으로 생성 불가(G4). 이진 신호로 격하하고
+# 타깃이 없는 사용자는 가중 재정규화에서 차원 자체를 제외한다.
 REVIEW_AFFINITY_DIMENSION_WEIGHTS = {
-    "SKIN_TYPE": 0.40,
-    "SENSITIVITY": 0.25,
-    "SKIN_CONCERN": 0.35,
+    "SKIN_TYPE": 0.45,
+    "SENSITIVITY": 0.15,
+    "SKIN_CONCERN": 0.40,
 }
 SCORE_WEIGHT_FIELDS = (
     "ingredient_effect",
@@ -2572,16 +2575,22 @@ def _score_review_profile_affinity(
                     sources=target.sources,
                 )
             )
-        dimension_scores[dimension] = (
-            sum(target_scores) / len(target_scores) if target_scores else 0.5
-        )
+        if target_scores:
+            dimension_scores[dimension] = sum(target_scores) / len(target_scores)
 
-    score = _weighted_average(
-        tuple(
-            (dimension_scores[dimension], weight)
-            for dimension, weight in REVIEW_AFFINITY_DIMENSION_WEIGHTS.items()
-        )
+    # review-scoring-revision 4.3: 타깃이 존재하는 차원만으로 가중 재정규화한다.
+    # 비민감 사용자는 SENSITIVITY 타깃이 만들어지지 않으므로 이 차원이 자동 제외되어
+    # 중립 0.5 고정으로 인한 구조적 희석이 사라진다. 전 차원 무타깃이면 중립 0.5.
+    weighted_components = tuple(
+        (dimension_scores[dimension], weight)
+        for dimension, weight in REVIEW_AFFINITY_DIMENSION_WEIGHTS.items()
+        if dimension in dimension_scores
     )
+    score = (
+        _weighted_average(weighted_components) if weighted_components else 0.5
+    )
+    for dimension in REVIEW_AFFINITY_DIMENSION_WEIGHTS:
+        dimension_scores.setdefault(dimension, 0.5)
     return _ReviewProfileAffinityScore(
         score=_clamp(score),
         applied=applied,
@@ -2602,12 +2611,13 @@ def _review_skin_type_code(value: str | None) -> str | None:
 
 
 def _review_sensitivity_code(value: str | None) -> str | None:
+    # review-scoring-revision 4.3(G4): 리뷰 프로필 원천(올리브영)에는 민감도 축이 없고
+    # 피부타입 값 '민감성'만 존재하므로 세그먼트는 SENSITIVITY:high만 생성 가능하다.
+    # 민감(높음)일 때만 타깃을 만들고, 그 외는 None → 타깃 미생성 → 차원 재정규화 제외.
     normalized = _normalize_sensitivity_value(value)
-    return {
-        "낮음": "low",
-        "보통": "medium",
-        "높음": "high",
-    }.get(normalized)
+    if normalized == "높음":
+        return "high"
+    return None
 
 
 def _score_skin_test_context(
