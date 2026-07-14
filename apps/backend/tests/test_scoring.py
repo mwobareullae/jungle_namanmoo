@@ -21,6 +21,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_pipeline import score_breakdown_to_api
 from app.services.repository import load_repository
+from app.services.review_rollup import REVIEW_SCORE_VERSION
 from app.services.scoring import (
     REVIEW_AFFINITY_DIMENSION_WEIGHTS,
     SCORING_VERSION,
@@ -54,7 +55,7 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
 
     assert [product.product_id for product in scored_products] == ["prod_001", "prod_002"]
     top = scored_products[0]
-    assert SCORING_VERSION == "v6_independent_evidence_top3"
+    assert SCORING_VERSION == "v7_review_quality_v3"
     assert len(SCORING_VERSION) <= 40
     assert top.rank == 1
     assert top.total_score > 70
@@ -376,6 +377,85 @@ def test_score_candidates_applies_review_quality_as_independent_axis() -> None:
     assert scored["prod_002"].total_score < baseline["prod_002"].total_score
 
 
+def test_score_candidates_does_not_apply_review_quality_without_eligible_sample() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+    product = session.execute(
+        select(Product).where(Product.product_code == "prod_001")
+    ).scalar_one()
+    session.add(
+        ProductReviewMetric(
+            product_id=product.id,
+            review_count=100,
+            rating_count=100,
+            confidence=Decimal("0"),
+            effective_sample_size=Decimal("0"),
+            review_quality_score=Decimal("0.9"),
+            score_version=REVIEW_SCORE_VERSION,
+        )
+    )
+    session.flush()
+
+    scored = {
+        item.product_id: item
+        for item in score_candidates(session, intent, candidates, matches)
+    }
+    breakdown = scored["prod_001"].score_breakdown
+
+    assert breakdown["review_count"] == 100
+    assert breakdown["review_quality_applied"] is False
+    assert breakdown["review_quality_score"] == pytest.approx(0.5)
+
+
+def test_score_candidates_ignores_stale_review_metric_versions() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("민감하고 진정 위주 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+    product = session.execute(
+        select(Product).where(Product.product_code == "prod_001")
+    ).scalar_one()
+    session.add_all(
+        [
+            ProductReviewMetric(
+                product_id=product.id,
+                review_count=100,
+                rating_count=100,
+                confidence=Decimal("0.8"),
+                effective_sample_size=Decimal("100"),
+                review_quality_score=Decimal("0.9"),
+                score_version="review_quality_v2",
+            ),
+            ProductReviewSegmentMetric(
+                product_id=product.id,
+                dimension="SKIN_CONCERN",
+                value_code="concern_sensitive",
+                review_count=100,
+                rating_count=100,
+                effective_sample_size=Decimal("100"),
+                total_affinity_score=Decimal("0.9"),
+                score_version="review_quality_v2",
+            ),
+        ]
+    )
+    session.flush()
+
+    scored = {
+        item.product_id: item
+        for item in score_candidates(session, intent, candidates, matches)
+    }
+    breakdown = scored["prod_001"].score_breakdown
+
+    assert breakdown["review_quality_applied"] is False
+    assert breakdown["review_quality_score"] == pytest.approx(0.5)
+    assert breakdown["review_profile_affinity_applied"] is False
+    assert breakdown["review_profile_affinity_score"] == pytest.approx(0.5)
+
+
 def test_score_candidates_uses_review_segments_and_neutralizes_small_samples() -> None:
     session = _seed_example_session()
     repository = load_repository(EXAMPLES_DIR)
@@ -510,7 +590,7 @@ def test_review_affinity_excludes_unavailable_sensitivity_targets(
     assert not any(target.dimension == "SENSITIVITY" for target in targets)
 
 
-def test_review_affinity_keeps_high_sensitivity_and_v2_weights() -> None:
+def test_review_affinity_keeps_high_sensitivity_and_configured_weights() -> None:
     repository = load_repository(EXAMPLES_DIR)
     intent = build_recommendation_intent("보습 추천", repository=repository)
 
@@ -721,7 +801,9 @@ def _add_review_metrics(
                 review_count=100,
                 rating_count=100,
                 confidence=Decimal("0.8"),
+                effective_sample_size=Decimal("100"),
                 review_quality_score=Decimal(str(quality_score)),
+                score_version=REVIEW_SCORE_VERSION,
             )
         )
     session.flush()
@@ -748,6 +830,7 @@ def _add_review_segment(
             rating_count=10,
             effective_sample_size=Decimal(str(effective_sample_size)),
             total_affinity_score=Decimal(str(score)),
+            score_version=REVIEW_SCORE_VERSION,
         )
     )
     session.flush()

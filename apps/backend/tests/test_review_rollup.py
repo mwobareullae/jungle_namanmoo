@@ -22,7 +22,6 @@ from app.services.review_rollup import (
     calculate_bayesian_mean,
     calculate_month_consistency_score,
     calculate_review_quality_score,
-    calculate_review_recency_weight,
     calculate_review_weight,
     kish_effective_sample_size,
     rollup_product_review_metrics,
@@ -48,70 +47,52 @@ def db_engine() -> Generator[Engine, None, None]:
 
 
 def test_review_weight_and_statistical_formulas() -> None:
-    computed_at = datetime(2026, 7, 12, tzinfo=UTC)
     # OliveYoung seed의 MONTH_USE·verified 값은 리뷰 간 변별력이 없으므로
-    # helpful×recency만 남는다. helpful=20 → 1.10, 나이 0일 → 1.0.
+    # helpful만 남는다. helpful=20 → 1.10.
     assert calculate_review_weight(
         source="oliveyoung",
         review_type="MONTH_USE",
         verified_purchase=True,
         helpful_count=20,
-        reviewed_at=computed_at,
-        computed_at=computed_at,
     ) == pytest.approx(1.10)
-    # 자사몰 구매인증은 실제 주문 검증 신호이므로 1.10 배율을 유지한다.
+    # 자사몰 리뷰는 표시·정보 추출에는 남지만 추천 점수 기여는 0이다.
     assert calculate_review_weight(
         source="mubarelle",
         review_type="GENERAL",
         verified_purchase=True,
         helpful_count=0,
-        reviewed_at=computed_at,
-        computed_at=computed_at,
-    ) == pytest.approx(1.10)
+    ) == pytest.approx(0.0)
     # 다른 소스는 별도 계약이 생기기 전까지 기존 필드 배율을 보존한다.
     assert calculate_review_weight(
         source="partner",
         review_type="MONTH_USE",
         verified_purchase=True,
         helpful_count=20,
-        reviewed_at=computed_at,
-        computed_at=computed_at,
     ) == pytest.approx(1.3915)
-    assert calculate_review_recency_weight(
-        computed_at - timedelta(days=730),
-        computed_at,
-    ) == pytest.approx(0.75)
-    assert calculate_review_recency_weight(None, computed_at) == pytest.approx(0.75)
     assert kish_effective_sample_size(2.0, 2.0) == pytest.approx(2.0)
     assert calculate_bayesian_mean(5.0, 20.0, 3.0) == pytest.approx(4.0)
     assert calculate_month_consistency_score(5.0, 3.0) == pytest.approx(0.5)
     quality, confidence = calculate_review_quality_score(
         rating_score=1.0,
         repurchase_score=1.0,
-        photo_rate_score=1.0,
         effective_sample_size=20.0,
     )
     assert confidence == pytest.approx(0.5)
     assert quality == pytest.approx(0.75)
 
-    quality_without_photo, _ = calculate_review_quality_score(
+    quality_with_low_repurchase, _ = calculate_review_quality_score(
         rating_score=1.0,
         repurchase_score=0.0,
-        photo_rate_score=None,
         effective_sample_size=20.0,
     )
-    quality_without_photo_signal = 0.75 / (0.75 + 0.20)
-    assert quality_without_photo == pytest.approx(
-        0.5 + (0.5 * (quality_without_photo_signal - 0.5))
-    )
+    assert quality_with_low_repurchase == pytest.approx(0.65)
 
-    quality_with_photo, _ = calculate_review_quality_score(
+    quality_without_repurchase, _ = calculate_review_quality_score(
         rating_score=1.0,
-        repurchase_score=0.0,
-        photo_rate_score=1.0,
+        repurchase_score=None,
         effective_sample_size=20.0,
     )
-    assert quality_with_photo == pytest.approx(0.65)
+    assert quality_without_repurchase == pytest.approx(0.75)
 
 
 def test_review_rollup_builds_product_and_segment_metrics_idempotently(
@@ -223,22 +204,9 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
         assert metric.repurchase_review_count == 2
         assert metric.profile_labeled_review_count == 2
         assert metric.source_photo_marker_count == 1
-        review_weights = [
-            calculate_review_weight(
-                source=review.source,
-                review_type=review.review_type,
-                verified_purchase=review.verified_purchase,
-                helpful_count=review.helpful_count,
-                reviewed_at=review.reviewed_at,
-                computed_at=computed_at,
-            )
-            for review in reviews
-        ]
-        expected_photo_rate = review_weights[1] / sum(review_weights)
         expected_quality, expected_confidence = calculate_review_quality_score(
             rating_score=float(metric.rating_score),
             repurchase_score=float(metric.repurchase_score),
-            photo_rate_score=expected_photo_rate,
             effective_sample_size=float(metric.effective_sample_size),
         )
         assert float(metric.review_quality_score) == pytest.approx(
@@ -287,6 +255,193 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
             dry_segment.total_affinity_score,
             dry_segment.effective_sample_size,
         ) == first_snapshot
+
+
+def test_mubarelle_reviews_are_visible_but_do_not_change_recommendation_scores(
+    db_engine: Engine,
+) -> None:
+    computed_at = datetime(2026, 7, 12, tzinfo=UTC)
+    with Session(db_engine) as session:
+        product_id = int(
+            session.execute(select(Product.id).order_by(Product.id)).scalars().first()
+        )
+        external_review = ProductReview(
+            review_code="rollup-external-score-001",
+            product_id=product_id,
+            source="oliveyoung",
+            source_review_id="rollup-external-score-source-001",
+            status="PUBLISHED",
+            review_type="MONTH_USE",
+            rating=1,
+            review_text="외부 리뷰",
+            reviewed_at=computed_at - timedelta(days=3650),
+            is_repurchase_review=False,
+            verified_purchase=None,
+            helpful_count=0,
+            source_has_photo=False,
+            published_at=computed_at,
+        )
+        session.add(external_review)
+        session.flush()
+        session.add(
+            ProductReviewProfileLabel(
+                review_id=external_review.id,
+                dimension="SKIN_TYPE",
+                value_code="dry",
+                source_label="건성",
+                mapping_source="skin_type",
+                mapping_confidence=Decimal("1.0"),
+            )
+        )
+        session.commit()
+
+        rollup_product_review_metrics(session, computed_at=computed_at)
+        session.commit()
+        metric = session.scalar(
+            select(ProductReviewMetric).where(ProductReviewMetric.product_id == product_id)
+        )
+        segment = session.scalar(
+            select(ProductReviewSegmentMetric).where(
+                ProductReviewSegmentMetric.product_id == product_id,
+                ProductReviewSegmentMetric.dimension == "SKIN_TYPE",
+                ProductReviewSegmentMetric.value_code == "dry",
+            )
+        )
+        assert metric is not None
+        assert segment is not None
+        score_snapshot = (
+            metric.weighted_average_rating,
+            metric.bayesian_rating,
+            metric.bayesian_repurchase_rate,
+            metric.effective_sample_size,
+            metric.review_quality_score,
+            segment.weighted_average_rating,
+            segment.effective_sample_size,
+            segment.total_affinity_score,
+        )
+
+        first_party_review = ProductReview(
+            review_code="rollup-first-party-info-001",
+            product_id=product_id,
+            source="mubarelle",
+            source_review_id="rollup-first-party-info-source-001",
+            status="PUBLISHED",
+            review_type="GENERAL",
+            rating=5,
+            review_text="자사몰 구매 리뷰",
+            reviewed_at=computed_at,
+            is_repurchase_review=True,
+            verified_purchase=True,
+            helpful_count=20,
+            source_has_photo=True,
+            published_at=computed_at,
+        )
+        session.add(first_party_review)
+        session.flush()
+        session.add(
+            ProductReviewProfileLabel(
+                review_id=first_party_review.id,
+                dimension="SKIN_TYPE",
+                value_code="dry",
+                source_label="건성",
+                mapping_source="skin_type",
+                mapping_confidence=Decimal("1.0"),
+            )
+        )
+        session.commit()
+
+        rollup_product_review_metrics(session, computed_at=computed_at)
+        session.commit()
+        session.refresh(metric)
+        session.refresh(segment)
+
+        # 공개 요약과 정보 추출용 통계에는 자사몰 리뷰가 그대로 남는다.
+        assert metric.review_count == 2
+        assert metric.rating_count == 2
+        assert metric.rating_1_count == 1
+        assert metric.rating_5_count == 1
+        assert metric.average_rating == Decimal("3.0000")
+        assert metric.source_photo_marker_count == 1
+        assert metric.profile_labeled_review_count == 2
+        assert segment.review_count == 1
+
+        # 품질·프로필 affinity·카테고리 prior에 쓰는 가중 통계는 변하지 않는다.
+        assert (
+            metric.weighted_average_rating,
+            metric.bayesian_rating,
+            metric.bayesian_repurchase_rate,
+            metric.effective_sample_size,
+            metric.review_quality_score,
+            segment.weighted_average_rating,
+            segment.effective_sample_size,
+            segment.total_affinity_score,
+        ) == score_snapshot
+
+
+def test_mubarelle_only_product_keeps_summary_without_score_or_affinity(
+    db_engine: Engine,
+) -> None:
+    computed_at = datetime(2026, 7, 12, tzinfo=UTC)
+    with Session(db_engine) as session:
+        product_id = int(
+            session.execute(select(Product.id).order_by(Product.id)).scalars().first()
+        )
+        review = ProductReview(
+            review_code="rollup-first-party-only-001",
+            product_id=product_id,
+            source="mubarelle",
+            source_review_id="rollup-first-party-only-source-001",
+            status="PUBLISHED",
+            review_type="GENERAL",
+            rating=5,
+            review_text="자사몰 리뷰만 존재",
+            reviewed_at=computed_at,
+            is_repurchase_review=True,
+            verified_purchase=True,
+            helpful_count=20,
+            source_has_photo=True,
+            published_at=computed_at,
+        )
+        session.add(review)
+        session.flush()
+        session.add(
+            ProductReviewProfileLabel(
+                review_id=review.id,
+                dimension="SKIN_TYPE",
+                value_code="dry",
+                source_label="건성",
+                mapping_source="skin_type",
+                mapping_confidence=Decimal("1.0"),
+            )
+        )
+        session.commit()
+
+        result = rollup_product_review_metrics(
+            session,
+            product_id=product_id,
+            computed_at=computed_at,
+        )
+        session.commit()
+        metric = session.scalar(
+            select(ProductReviewMetric).where(ProductReviewMetric.product_id == product_id)
+        )
+
+        assert metric is not None
+        assert result.reviews_rolled_up == 1
+        assert result.segments_updated == 0
+        assert metric.review_count == 1
+        assert metric.average_rating == Decimal("5.0000")
+        assert metric.source_photo_marker_count == 1
+        assert metric.profile_labeled_review_count == 1
+        assert metric.weight_sum == Decimal("0.000000")
+        assert metric.effective_sample_size == Decimal("0.000000")
+        assert metric.confidence == Decimal("0.000000")
+        assert metric.review_quality_score == Decimal("0.500000")
+        assert session.scalar(
+            select(func.count(ProductReviewSegmentMetric.id)).where(
+                ProductReviewSegmentMetric.product_id == product_id
+            )
+        ) == 0
 
 
 def test_targeted_rollup_removes_stale_metrics_when_reviews_are_hidden(

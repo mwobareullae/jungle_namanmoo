@@ -22,6 +22,7 @@ from app.db.models.taxonomy import (
 from app.services.product_candidates import ProductCandidate
 from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
+from app.services.review_rollup import REVIEW_SCORE_VERSION
 from app.services.scoring_policy import (
     DEFAULT_INGREDIENT_EFFECT_WEIGHT,
     EFFECT_CAP,
@@ -30,7 +31,7 @@ from app.services.scoring_policy import (
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v6_independent_evidence_top3"
+SCORING_VERSION = "v7_review_quality_v3"
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
 FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
@@ -362,6 +363,7 @@ class _MarketSignalInfo:
 class _ReviewMetricInfo:
     review_quality_score: float
     confidence: float
+    effective_sample_size: float
     review_count: int
 
 
@@ -808,9 +810,12 @@ def _score_candidate(
         price_context=price_context,
     )
     market_signal_score = _score_market_signal(market_signal)
+    review_quality_applied = (
+        review_metric is not None and review_metric.effective_sample_size > 0.0
+    )
     review_quality_score = (
         _clamp(review_metric.review_quality_score)
-        if review_metric is not None and review_metric.review_count > 0
+        if review_quality_applied
         else 0.5
     )
     review_profile_affinity = _score_review_profile_affinity(
@@ -874,7 +879,7 @@ def _score_candidate(
         "price_score": _round_component(price_score),
         "market_signal_score": _round_component(market_signal_score),
         "review_quality_score": _round_component(review_quality_score),
-        "review_quality_applied": review_metric is not None and review_metric.review_count > 0,
+        "review_quality_applied": review_quality_applied,
         "review_quality_confidence": _round_component(
             review_metric.confidence if review_metric is not None else 0.0
         ),
@@ -1473,12 +1478,16 @@ def _load_review_metrics(
     if not product_ids:
         return {}
     rows = session.execute(
-        select(ProductReviewMetric).where(ProductReviewMetric.product_id.in_(product_ids))
+        select(ProductReviewMetric).where(
+            ProductReviewMetric.product_id.in_(product_ids),
+            ProductReviewMetric.score_version == REVIEW_SCORE_VERSION,
+        )
     ).scalars()
     return {
         int(row.product_id): _ReviewMetricInfo(
             review_quality_score=_decimal_to_float(row.review_quality_score),
             confidence=_decimal_to_float(row.confidence),
+            effective_sample_size=_decimal_to_float(row.effective_sample_size),
             review_count=int(row.review_count),
         )
         for row in rows
@@ -1494,6 +1503,7 @@ def _load_review_segments(
     rows = session.execute(
         select(ProductReviewSegmentMetric).where(
             ProductReviewSegmentMetric.product_id.in_(product_ids),
+            ProductReviewSegmentMetric.score_version == REVIEW_SCORE_VERSION,
             ProductReviewSegmentMetric.dimension.in_(
                 REVIEW_AFFINITY_DIMENSION_WEIGHTS
             ),
