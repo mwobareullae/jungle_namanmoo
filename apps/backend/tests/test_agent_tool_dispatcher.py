@@ -5,6 +5,7 @@ import logging
 
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -12,8 +13,10 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, UserAddress
+from app.db.models.catalog import Product, ProductIngredient
+from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, ProductPopularityMetric, UserAddress, Wishlist
+from app.db.models.events import EventLog
+from app.db.models.taxonomy import Ingredient, IngredientAlias
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
@@ -92,6 +95,62 @@ def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engin
     assert performance_payload["item_count"] == 1
 
 
+def test_dispatcher_creates_real_recommendation_result(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        response = execute_agent_tool(
+            session,
+            tool_name="create_recommendation",
+            arguments={
+                "concern_text": "민감 피부용 보습 세럼 5만원 이하로 추천해줘",
+                "skin_type": "복합성",
+                "sensitivity": "높음",
+                "avoid_ingredients": [],
+                "page_size": 10,
+                "intent_resolved": True,
+                "concern_ids": ["concern_sensitive"],
+                "effect_ids": ["effect_calming", "effect_moisture_barrier"],
+                "priority_effect_ids": ["effect_calming"],
+                "category_codes": ["serum"],
+                "price_max": 50_000,
+            },
+            conversation_id="conv_recommendation",
+        )
+
+    assert response.tool_name == "create_recommendation"
+    assert response.ui_action.type == "show_products"
+    assert response.ui_action.target == "product_results"
+    assert response.ui_action.payload["recommendation_id"].startswith("rec_")
+    assert response.ui_action.payload["result_url"].startswith("/search?")
+    assert "recommendation_id=" in response.ui_action.payload["result_url"]
+    assert response.ui_action.payload["products"]
+    assert response.ui_action.payload["summary"]["matched_concerns"] == ["민감"]
+    assert response.ui_action.payload["summary"]["purchase_constraints"]["categories"][0][
+        "category_code"
+    ] == "serum"
+    assert response.ui_action.payload["summary"]["purchase_constraints"]["price_max"] == 50_000
+    assert response.items[0].metadata["rank"] == 1
+
+
+def test_dispatcher_rejects_invalid_structured_recommendation_price_range(
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as exc_info:
+            execute_agent_tool(
+                session,
+                tool_name="create_recommendation",
+                arguments={
+                    "concern_text": "세럼 추천",
+                    "intent_resolved": True,
+                    "category_codes": ["serum"],
+                    "price_min": 50_000,
+                    "price_max": 30_000,
+                },
+            )
+
+    assert exc_info.value.code == "AGENT_TOOL_ARGUMENT_INVALID"
+
+
 def test_dispatcher_rejects_unknown_tool(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         with pytest.raises(ApiError) as exc_info:
@@ -125,6 +184,28 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+
+
+def test_dispatcher_builds_order_history_filter_navigation(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user = User(email="agent-order-history@example.com", display_name="order-history")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="filter_order_history",
+            arguments={"period_months": 12, "status": "DELIVERED"},
+            user=user,
+            conversation_id="conv_order_history",
+        )
+
+    assert response.tool_name == "filter_order_history"
+    assert response.ui_action.type == "navigate"
+    assert response.ui_action.target == "order_history"
+    assert response.ui_action.payload == {"period_months": 12, "status": "DELIVERED"}
+    assert response.requires_confirmation is False
 
 
 def test_prepare_review_draft_uses_reviewable_purchase_without_creating_review(db_engine: Engine) -> None:
@@ -237,6 +318,262 @@ def test_compose_cart_requires_confirmation_before_bulk_add(db_engine: Engine) -
     assert {item.product_id for item in cart.items} == {"prod_001", "prod_002"}
 
 
+def test_bulk_popular_ingredient_wishlist_confirms_real_db_write_and_is_idempotent(db_engine: Engine) -> None:
+    now = datetime.now(UTC)
+    with Session(db_engine) as session:
+        user = User(email="bulk-wishlist@example.com", display_name="bulk-wishlist-user")
+        products = session.scalars(select(Product).order_by(Product.product_code.asc()).limit(2)).all()
+        assert len(products) == 2
+        ingredient_id = session.scalar(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == products[0].id).limit(1)
+        )
+        assert ingredient_id is not None
+        ingredient = session.get(Ingredient, ingredient_id)
+        assert ingredient is not None
+        session.add(user)
+        for rank, product in enumerate(products, start=1):
+            session.add(ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                popularity_score=100 - rank,
+                order_count=20 - rank,
+                units_sold=20 - rank,
+                score_version="behavior_rollup_v1",
+                computed_at=now,
+            ))
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": ingredient.name_ko, "rank_limit": 20, "window_days": 7},
+            user=user,
+            conversation_id="conv_bulk_wishlist",
+            request_id="req_bulk_wishlist",
+        )
+        session.commit()
+
+        assert response.requires_confirmation is True
+        assert response.tool_call_id is not None
+        assert response.ui_action.target == "agent_confirmation"
+        assert session.scalar(select(Wishlist).where(Wishlist.user_id == user.id)) is None
+        matched_ids = response.ui_action.payload["matched_product_ids"]
+        assert matched_ids
+        assert [item.metadata["rank"] for item in response.items] == sorted(item.metadata["rank"] for item in response.items)
+
+        confirmed = confirm_agent_tool_call(
+            session,
+            user,
+            tool_call_id=response.tool_call_id,
+            action="confirm",
+        )
+        session.commit()
+
+        wished_codes = set(session.scalars(
+            select(Product.product_code).join(Wishlist, Wishlist.product_id == Product.id).where(Wishlist.user_id == user.id)
+        ))
+        events = session.scalars(
+            select(EventLog).where(EventLog.user_id == user.id, EventLog.event_name == "wishlist_added")
+        ).all()
+        assert confirmed.status == "EXECUTED"
+        assert confirmed.ui_action.target == "popular_wishlist"
+        assert wished_codes == set(confirmed.ui_action.payload["added_product_ids"])
+        assert {event.product_id for event in events} == wished_codes
+        assert {event.source for event in events} == {"agent_bulk_wishlist"}
+
+        repeated = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": ingredient.name_ko, "rank_limit": 20, "window_days": 7},
+            user=user,
+            conversation_id="conv_bulk_wishlist",
+        )
+        session.commit()
+        assert repeated.requires_confirmation is False
+        assert "이미 모두 찜" in repeated.message
+        assert len(session.scalars(select(Wishlist).where(Wishlist.user_id == user.id)).all()) == len(wished_codes)
+
+
+def test_bulk_popular_ingredient_wishlist_rejection_does_not_write(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user = User(email="bulk-reject@example.com", display_name="bulk-reject-user")
+        product = session.scalar(select(Product).order_by(Product.product_code.asc()))
+        assert product is not None
+        ingredient_id = session.scalar(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == product.id).limit(1)
+        )
+        ingredient = session.get(Ingredient, ingredient_id)
+        assert ingredient is not None
+        session.add_all([
+            user,
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                popularity_score=100,
+                score_version="behavior_rollup_v1",
+                computed_at=datetime.now(UTC),
+            ),
+        ])
+        session.commit()
+        session.refresh(user)
+
+        prepared = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": ingredient.name_ko, "rank_limit": 20, "window_days": 7},
+            user=user,
+        )
+        session.commit()
+        rejected = confirm_agent_tool_call(
+            session,
+            user,
+            tool_call_id=prepared.tool_call_id or "",
+            action="reject",
+        )
+        session.commit()
+
+        assert rejected.status == "REJECTED"
+        assert session.scalar(select(Wishlist).where(Wishlist.user_id == user.id)) is None
+        assert session.scalar(select(EventLog).where(EventLog.user_id == user.id)) is None
+
+
+def test_bulk_popular_ingredient_wishlist_resolves_alias_without_substring_match(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user = User(email="bulk-alias@example.com", display_name="bulk-alias-user")
+        product = session.scalar(select(Product).order_by(Product.product_code.asc()))
+        assert product is not None
+        ingredient_id = session.scalar(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == product.id).limit(1)
+        )
+        assert ingredient_id is not None
+        ingredient = session.get(Ingredient, ingredient_id)
+        assert ingredient is not None
+        session.add_all([
+            user,
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                popularity_score=100,
+                score_version="behavior_rollup_v1",
+                computed_at=datetime.now(UTC),
+            ),
+            IngredientAlias(
+                ingredient_id=ingredient.id,
+                alias="검증용 별칭",
+                normalized_alias="검증용별칭",
+                alias_type="synonym",
+                confidence="high",
+                source="test",
+            ),
+        ])
+        session.commit()
+        session.refresh(user)
+
+        alias_response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": "검증용 별칭", "rank_limit": 20, "window_days": 7},
+            user=user,
+        )
+        assert alias_response.items[0].id == product.product_code
+
+        with pytest.raises(ApiError) as exc_info:
+            execute_agent_tool(
+                session,
+                tool_name="bulk_wishlist_by_popular_ingredient",
+                arguments={"ingredient_name": f"가짜{ingredient.name_ko}성분", "rank_limit": 20, "window_days": 7},
+                user=user,
+            )
+        assert exc_info.value.code == "AGENT_INGREDIENT_NOT_FOUND"
+
+
+def test_bulk_popular_ingredient_wishlist_does_not_inspect_beyond_rank_limit(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user = User(email="bulk-rank@example.com", display_name="bulk-rank-user")
+        products = session.scalars(select(Product).order_by(Product.product_code.asc()).limit(2)).all()
+        assert len(products) == 2
+        first_ingredient_ids = set(session.scalars(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == products[0].id)
+        ))
+        second_ingredient_ids = set(session.scalars(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == products[1].id)
+        ))
+        exclusive_ids = second_ingredient_ids - first_ingredient_ids
+        assert exclusive_ids
+        ingredient = session.get(Ingredient, next(iter(exclusive_ids)))
+        assert ingredient is not None
+        session.add_all([
+            user,
+            ProductPopularityMetric(product_id=products[0].id, window_days=7, popularity_score=100, score_version="behavior_rollup_v1", computed_at=datetime.now(UTC)),
+            ProductPopularityMetric(product_id=products[1].id, window_days=7, popularity_score=90, score_version="behavior_rollup_v1", computed_at=datetime.now(UTC)),
+        ])
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": ingredient.name_ko, "rank_limit": 1, "window_days": 7},
+            user=user,
+        )
+
+    assert response.requires_confirmation is False
+    assert response.ui_action.payload["inspected_count"] == 1
+    assert response.ui_action.payload["matched_count"] == 0
+    assert "찾지 못했어요" in response.message
+
+
+def test_bulk_popular_ingredient_wishlist_rolls_back_all_items_on_save_failure(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(db_engine) as session:
+        user = User(email="bulk-rollback@example.com", display_name="bulk-rollback-user")
+        product = session.scalar(select(Product).order_by(Product.product_code.asc()))
+        assert product is not None
+        ingredient_id = session.scalar(
+            select(ProductIngredient.ingredient_id).where(ProductIngredient.product_id == product.id).limit(1)
+        )
+        ingredient = session.get(Ingredient, ingredient_id)
+        assert ingredient is not None
+        session.add_all([
+            user,
+            ProductPopularityMetric(
+                product_id=product.id,
+                window_days=7,
+                popularity_score=100,
+                score_version="behavior_rollup_v1",
+                computed_at=datetime.now(UTC),
+            ),
+        ])
+        session.commit()
+        session.refresh(user)
+        prepared = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"ingredient_name": ingredient.name_ko, "rank_limit": 20, "window_days": 7},
+            user=user,
+        )
+        session.commit()
+
+        def fail_event_write(*args, **kwargs):
+            raise SQLAlchemyError("forced event failure")
+
+        monkeypatch.setattr("app.services.agent_bulk_wishlist.create_event_logs", fail_event_write)
+        failed = confirm_agent_tool_call(
+            session,
+            user,
+            tool_call_id=prepared.tool_call_id or "",
+            action="confirm",
+        )
+        session.commit()
+
+        assert failed.status == "FAILED"
+        assert session.scalar(select(Wishlist).where(Wishlist.user_id == user.id)) is None
+        assert session.scalar(select(EventLog).where(EventLog.user_id == user.id)) is None
+
+
 def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engine: Engine) -> None:
     _set_inventory(db_engine, "prod_001", stock_quantity=10)
     raw_phone = "010-9876-5432"
@@ -289,6 +626,67 @@ def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engin
     serialized_input = json.dumps(tool_call.input_json, ensure_ascii=False)
     assert raw_phone not in serialized_input
     assert raw_address not in serialized_input
+
+
+def test_prepare_product_checkout_preserves_selection_through_address_registration(
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    with Session(db_engine) as session:
+        user = User(email="agent-product-checkout@example.com", display_name="주문사용자")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        missing_address = execute_agent_tool(
+            session,
+            tool_name="prepare_product_checkout",
+            arguments={
+                "product_id": "prod_001",
+                "quantity": 1,
+                "recommendation_id": "rec_product_checkout",
+                "recommendation_rank": 2,
+            },
+            user=user,
+            conversation_id="conv_product_checkout",
+        )
+        session.commit()
+        selected_ids = missing_address.ui_action.payload["cart_item_ids"]
+
+        resumed = execute_agent_tool(
+            session,
+            tool_name="register_shipping_address",
+            arguments={
+                "recipient_name": "주문사용자",
+                "phone": "010-1234-5678",
+                "postal_code": "04524",
+                "address1": "서울특별시 중구 세종대로 110",
+                "continue_checkout": True,
+                "cart_item_ids": selected_ids,
+            },
+            user=user,
+            conversation_id="conv_product_checkout",
+        )
+        repeated = execute_agent_tool(
+            session,
+            tool_name="prepare_product_checkout",
+            arguments={"product_id": "prod_001", "quantity": 1},
+            user=user,
+            conversation_id="conv_product_checkout",
+        )
+        cart = get_cart_response(session, user, None)
+
+    assert missing_address.error is not None
+    assert missing_address.error.code == "AGENT_ADDRESS_REQUIRED"
+    assert missing_address.ui_action.type == "noop"
+    assert missing_address.ui_action.payload["agent_flow"] == "product_checkout"
+    assert missing_address.items[0].id == "prod_001"
+    assert resumed.ui_action.type == "show_checkout_preview"
+    assert [item["id"] for item in resumed.ui_action.payload["items"]] == selected_ids
+    assert repeated.ui_action.type == "show_checkout_preview"
+    assert repeated.ui_action.payload["agent_flow"] == "product_checkout"
+    assert len(cart.items) == 1
+    assert cart.items[0].quantity == 1
 
 
 def test_register_shipping_address_requires_missing_profile_details(db_engine: Engine) -> None:
