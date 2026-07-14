@@ -91,6 +91,12 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
     assert diagnostics["intent_llm_used"] is True
     assert float(diagnostics["intent_llm_call_ms"]) >= 0
     assert float(diagnostics["intent_llm_merge_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_parse_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_normalize_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_price_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_category_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_brand_alias_load_ms"]) >= 0
+    assert float(diagnostics["intent_purchase_brand_match_ms"]) >= 0
 
 
 def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:

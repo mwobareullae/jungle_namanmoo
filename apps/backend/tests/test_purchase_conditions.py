@@ -1,4 +1,8 @@
-from app.services.purchase_conditions import build_brand_aliases, parse_purchase_conditions
+from app.services.purchase_conditions import (
+    DEFAULT_CATEGORY_ALIASES,
+    build_brand_aliases,
+    parse_purchase_conditions,
+)
 
 
 def test_parse_purchase_conditions_matches_category_brand_and_price() -> None:
@@ -104,3 +108,34 @@ def test_parse_purchase_conditions_returns_empty_result_without_constraints() ->
     assert result.price_max is None
     assert result.price_text is None
     assert result.price_max_text is None
+
+
+def test_parse_purchase_conditions_records_stage_diagnostics() -> None:
+    diagnostics: dict[str, object] = {}
+    brand_aliases = build_brand_aliases(("round lab",))
+
+    result = parse_purchase_conditions(
+        "round lab serum 20000 under",
+        brand_aliases=brand_aliases,
+        diagnostics=diagnostics,
+    )
+
+    assert [category.category_code for category in result.categories] == ["serum"]
+    assert [brand.brand_code for brand in result.brands] == ["roundlab"]
+    assert result.price_max == 19999
+    for key in (
+        "intent_purchase_normalize_ms",
+        "intent_purchase_price_ms",
+        "intent_purchase_category_ms",
+        "intent_purchase_brand_alias_load_ms",
+        "intent_purchase_brand_match_ms",
+    ):
+        assert float(diagnostics[key]) >= 0
+    assert diagnostics["intent_purchase_category_group_count"] == len(
+        DEFAULT_CATEGORY_ALIASES
+    )
+    assert diagnostics["intent_purchase_brand_group_count"] == 1
+    assert diagnostics["intent_purchase_brand_alias_count"] == 1
+    assert diagnostics["intent_purchase_matched_category_count"] == 1
+    assert diagnostics["intent_purchase_matched_brand_count"] == 1
+    assert diagnostics["intent_purchase_has_price_constraint"] is True
