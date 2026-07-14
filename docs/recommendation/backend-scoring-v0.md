@@ -31,19 +31,21 @@ total_score = clamp(raw_score, 0, 1) * 100 - risk_penalty
 
 ## 리뷰 점수
 
-`review_quality_score`는 `product_review_metrics`의 전체 상품 품질이다. 별점 70%, 재구매 20%, 일반/한달 후기 일관성 10%를 사용하고 effective sample confidence로 0.5 쪽에 보수 보정한다.
+`review_quality_score`는 `product_review_metrics`의 전체 상품 품질이다. 집계 버전은 `review_quality_v2`이며 별점 75%, 재구매 20%, Bayesian 사진리뷰율 5%를 사용한다. 값이 없는 신호는 가중치 분모에서 제외하고, effective sample confidence로 최종값을 0.5 쪽에 보수 보정한다. 일반/한달 후기 일관성은 진단값으로만 보존한다.
 
 `review_profile_affinity_score`는 상품 전체 대비 유사 프로필 segment의 상대 반응이다.
 
 ```text
-skin type  0.40
-sensitivity 0.25
-concern    0.35
+skin type  0.45
+sensitivity 0.15
+concern    0.40
 ```
 
 - 명시 요청·수동 프로필·현재 검색 고민: 강도 `1.0`
 - 저장 고민: 강도 `0.75`
 - 스킨테스트 추론: 강도 `0.25`
+- 원천 segment가 존재하는 `SENSITIVITY=high`만 민감도 타깃으로 사용합니다. 낮음·보통은 민감도 타깃을 만들지 않습니다.
+- 실제 타깃이 있는 차원만 위 가중치로 재정규화합니다. 타깃이 전혀 없으면 중립 `0.5`입니다.
 - segment effective sample size가 5 미만이면 저장값은 breakdown에 남기되 점수 기여는 `0.5`다.
 - segment와 상품 지표는 후보 전체를 bulk query로 읽으며 리뷰 원문은 추천 요청에서 조회하지 않는다.
 
