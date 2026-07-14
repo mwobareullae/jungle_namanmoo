@@ -51,13 +51,10 @@ SCORING_STAGES = [
 ]
 
 SCORING_PREFETCH_FIELDS = [
+    ("candidate_bundle_ms", "candidate bundle"),
+    ("effect_features_ms", "effect features"),
     ("ingredient_effects_ms", "ingredient effects"),
-    ("functional_info_ms", "functional info"),
-    ("skin_tags_ms", "skin tags"),
-    ("skin_profiles_ms", "skin profiles"),
     ("risk_flags_ms", "risk flags"),
-    ("market_signals_ms", "market signals"),
-    ("review_metrics_ms", "review metrics"),
     ("review_segments_ms", "review segments"),
     ("behavior_signals_ms", "behavior signals"),
 ]
