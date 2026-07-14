@@ -46,6 +46,15 @@ const buildCriteriaGroups = (product: ProductDetail, summary?: RecommendationSum
   const priceText = product.lowest_price === null ? "가격 정보가 공개되지 않았어요." : `${product.lowest_price.toLocaleString("ko-KR")}원 기준으로 살펴봤어요.`;
   const purchaseText = summary?.purchase_constraints?.price_text || summary?.purchase_constraints?.price_max_text;
   const skinScore = breakdown?.skin_profile_score ?? breakdown?.skin_type_match_score;
+  const evidencePairs = product.evidence
+    .slice(0, 3)
+    .map((item) => `${item.ingredient_name} → ${item.effect_name}`)
+    .join(", ");
+  const evidenceSources = product.evidence
+    .slice(0, 2)
+    .map((item) => item.source_title)
+    .filter(Boolean)
+    .join(", ");
 
   return [
     {
@@ -54,12 +63,18 @@ const buildCriteriaGroups = (product: ProductDetail, summary?: RecommendationSum
         {
           label: "핵심 성분과 기대 효능",
           ...statusFromScore(breakdown?.ingredient_effect_score),
-          description: product.key_ingredients.length ? `${product.key_ingredients.slice(0, 3).join(", ")} 성분과 기대 효능을 비교했어요.` : "핵심 성분 정보가 없어요.",
+          description: evidencePairs
+            ? `${evidencePairs} 연결을 확인했어요.`
+            : product.key_ingredients.length
+              ? `${product.key_ingredients.slice(0, 3).join(", ")} 성분과 기대 효능의 연결 정보가 없어요.`
+              : "핵심 성분 정보가 없어요.",
         },
         {
           label: "성분 근거 수준",
           ...statusFromScore(breakdown?.ingredient_evidence_score),
-          description: product.evidence.length ? `표시 가능한 성분 근거 ${product.evidence.length}건을 확인했어요.` : "표시 가능한 성분 근거가 없어요.",
+          description: product.evidence.length
+            ? `표시 가능한 성분 근거 ${product.evidence.length}건을 확인했어요.${evidenceSources ? ` 출처: ${evidenceSources}` : ""}`
+            : "표시 가능한 성분 근거가 없어요.",
         },
       ],
     },

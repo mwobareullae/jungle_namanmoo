@@ -17510,3 +17510,77 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   position: relative;
   overflow: hidden;
 }
+
+.popular-product-card.is-agent-matched {
+  outline: 3px solid rgba(53, 198, 232, 0.72);
+  outline-offset: 4px;
+  box-shadow: 0 12px 30px rgba(23, 164, 204, 0.18);
+}
+
+.popular-product-card.is-agent-wishlist-added {
+  animation: agent-wishlist-card-pulse 0.55s ease both;
+}
+
+.popular-product-card__agent-state {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 8;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0c8daf;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.popular-product-card__agent-state.added {
+  color: #ef476f;
+}
+
+.popular-product-card__agent-state.existing {
+  color: #66727c;
+}
+
+@keyframes agent-wishlist-card-pulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.025); }
+  100% { transform: scale(1); }
+}
+
+/* Keep the React mypage shell isolated from legacy page styles such as the
+   global `nav { display: flex; flex: 1 }` rule loaded by home/checkout pages. */
+.mypage-mobile-nav {
+  display: flex !important;
+  flex: none !important;
+}
+
+.mypage-layout-main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mypage-sidebar {
+  display: none !important;
+}
+
+.mypage-sidebar-nav {
+  display: block !important;
+  flex: none !important;
+  gap: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .mypage-mobile-nav {
+    display: none !important;
+  }
+
+  .mypage-layout-main {
+    width: min(1180px, calc(100% - 80px));
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .mypage-sidebar {
+    display: block !important;
+  }
+}

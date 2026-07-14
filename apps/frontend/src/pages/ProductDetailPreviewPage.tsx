@@ -153,11 +153,15 @@ function ProductDetailPreviewPage() {
   }, [productId, recommendationId]);
 
   useEffect(() => {
-    if (!recommendationId) {
-      setRecommendationSummary(null);
-      return;
-    }
     let isMounted = true;
+    if (!recommendationId) {
+      void Promise.resolve().then(() => {
+        if (isMounted) setRecommendationSummary(null);
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
     api.getRecommendation(recommendationId, { page: 1, pageSize: 1 })
       .then((response) => {
         if (isMounted) setRecommendationSummary(response.summary);
