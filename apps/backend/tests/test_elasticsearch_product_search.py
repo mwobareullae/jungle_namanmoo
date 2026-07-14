@@ -33,10 +33,11 @@ def test_search_elasticsearch_product_candidates_builds_keyword_query_with_hard_
     assert call["index"] == "products_current"
     assert call["size"] == 10
     assert call["query"]["bool"]["must"][0]["multi_match"]["fields"] == [
-        "title^4",
+        "brand_name^8",
+        "brand_aliases^8",
+        "title^5",
         "keywords^3",
-        "brand_name^2",
-        "category_name^2",
+        "category_name^3",
         "content",
     ]
     filters = call["query"]["bool"]["filter"]
