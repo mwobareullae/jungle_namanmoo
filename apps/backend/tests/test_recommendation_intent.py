@@ -39,6 +39,15 @@ def test_build_recommendation_intent_combines_parser_outputs() -> None:
     assert intent.needs_llm is False
 
 
+def test_build_recommendation_intent_keeps_brand_text_without_brand_filter() -> None:
+    intent = build_recommendation_intent("round lab serum 20000 under")
+
+    assert "round lab" in intent.concern_text
+    assert intent.purchase_conditions.brands == ()
+    assert [category.category_code for category in intent.purchase_conditions.categories] == ["serum"]
+    assert intent.purchase_conditions.price_max == 19999
+
+
 def test_build_recommendation_intent_exposes_search_terms_and_semantic_text() -> None:
     repository = cached_repository(DATA_DIR)
 
