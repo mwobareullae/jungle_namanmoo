@@ -427,6 +427,11 @@ class _BehaviorPreferenceProfile:
     effect_scores: dict[str, float]
     price_band_scores: dict[str, float]
     total_weight: float
+    effect_top3_sum: float
+    ingredient_top5_sum: float
+    category_max: float
+    brand_max: float
+    price_band_max: float
 
 
 @dataclass(frozen=True)
@@ -534,7 +539,7 @@ def load_behavior_personalization_context(
         return None
 
     now = datetime.now(UTC)
-    positive_events, negative_events = _load_behavior_events(session, user_id, now)
+    positive_events, negative_events = load_behavior_events(session, user_id, now)
     if not positive_events and not negative_events:
         return None
 
@@ -542,7 +547,7 @@ def load_behavior_personalization_context(
         event.product_db_id
         for event in (*positive_events, *negative_events)
     })
-    signals_by_product = _load_behavior_product_signals(session, product_ids)
+    signals_by_product = load_behavior_product_signals(session, product_ids)
     source_profiles: dict[str, _BehaviorPreferenceProfile] = {}
     source_event_counts: dict[str, int] = {}
     for source in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS:
@@ -671,7 +676,7 @@ def score_candidates(
     stage_started_at = current_time()
     behavior_signal_detail: dict[str, float | int] = {}
     behavior_signals_by_product = (
-        _load_behavior_product_signals(
+        load_behavior_product_signals(
             session,
             product_ids,
             diagnostics=behavior_signal_detail if diagnostics is not None else None,
@@ -1657,7 +1662,7 @@ def _load_review_segments(
     return by_product
 
 
-def _load_behavior_events(
+def load_behavior_events(
     session: Session,
     user_id: int,
     now: datetime,
@@ -1773,7 +1778,7 @@ def _load_behavior_events(
     return positive_events, negative_events
 
 
-def _load_behavior_product_signals(
+def load_behavior_product_signals(
     session: Session,
     product_ids: list[int],
     *,
@@ -1974,6 +1979,11 @@ def build_behavior_preference_profile(
         effect_scores=effect_scores,
         price_band_scores=price_band_scores,
         total_weight=total_weight,
+        effect_top3_sum=_top_score_sum(effect_scores, 3),
+        ingredient_top5_sum=_top_score_sum(ingredient_scores, 5),
+        category_max=max(category_scores.values(), default=0.0),
+        brand_max=max(brand_scores.values(), default=0.0),
+        price_band_max=max(price_band_scores.values(), default=0.0),
     )
 
 
@@ -2036,11 +2046,31 @@ def _score_behavior_affinity(
     profile: _BehaviorPreferenceProfile,
 ) -> tuple[float, dict[str, float]]:
     components = {
-        "effect": _profile_set_score(signals.effect_codes, profile.effect_scores, max_matches=3),
-        "ingredient": _profile_set_score(signals.ingredient_codes, profile.ingredient_scores, max_matches=5),
-        "category": _profile_value_score(signals.category_code, profile.category_scores),
-        "price_band": _profile_value_score(signals.price_band, profile.price_band_scores),
-        "brand": _profile_value_score(signals.brand_code, profile.brand_scores),
+        "effect": _profile_set_score(
+            signals.effect_codes,
+            profile.effect_scores,
+            normalizer=profile.effect_top3_sum,
+        ),
+        "ingredient": _profile_set_score(
+            signals.ingredient_codes,
+            profile.ingredient_scores,
+            normalizer=profile.ingredient_top5_sum,
+        ),
+        "category": _profile_value_score(
+            signals.category_code,
+            profile.category_scores,
+            normalizer=profile.category_max,
+        ),
+        "price_band": _profile_value_score(
+            signals.price_band,
+            profile.price_band_scores,
+            normalizer=profile.price_band_max,
+        ),
+        "brand": _profile_value_score(
+            signals.brand_code,
+            profile.brand_scores,
+            normalizer=profile.brand_max,
+        ),
     }
     return (
         _weighted_average(
@@ -2069,28 +2099,32 @@ def _profile_set_score(
     candidate_values: tuple[str, ...],
     profile_scores: dict[str, float],
     *,
-    max_matches: int,
+    normalizer: float,
 ) -> float:
     if not candidate_values or not profile_scores:
         return 0.0
     values = tuple(dict.fromkeys(value for value in candidate_values if value))
     matched_score = sum(profile_scores.get(value, 0.0) for value in values)
-    best_possible = sum(sorted(profile_scores.values(), reverse=True)[:max(1, max_matches)])
-    if best_possible <= 0:
+    if normalizer <= 0:
         return 0.0
-    return _clamp(matched_score / best_possible)
+    return _clamp(matched_score / normalizer)
 
 
 def _profile_value_score(
     candidate_value: str | None,
     profile_scores: dict[str, float],
+    *,
+    normalizer: float,
 ) -> float:
     if not candidate_value or not profile_scores:
         return 0.0
-    max_score = max(profile_scores.values(), default=0.0)
-    if max_score <= 0:
+    if normalizer <= 0:
         return 0.0
-    return _clamp(profile_scores.get(candidate_value, 0.0) / max_score)
+    return _clamp(profile_scores.get(candidate_value, 0.0) / normalizer)
+
+
+def _top_score_sum(scores: dict[str, float], limit: int) -> float:
+    return sum(sorted(scores.values(), reverse=True)[:max(1, limit)])
 
 
 def _add_behavior_score(scores: dict[str, float], key: str | None, value: float) -> None:
