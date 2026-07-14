@@ -75,7 +75,7 @@ def rollup_product_recommendation_features(
             }
             for product_id, values, source_updated_at in product_values
         ]
-        _upsert_rows(
+        upsert_rows(
             session,
             ProductRecommendationFeature,
             product_rows,
@@ -125,7 +125,7 @@ def rollup_product_recommendation_features(
             batch_product_ids,
             current_pairs,
         )
-        _upsert_rows(
+        upsert_rows(
             session,
             ProductEffectRecommendationFeature,
             effect_rows,
@@ -368,7 +368,7 @@ def _delete_stale_effect_features(
     return max(0, int(result.rowcount or 0))
 
 
-def _upsert_rows(
+def upsert_rows(
     session: Session,
     model: type,
     rows: list[dict[str, object]],
