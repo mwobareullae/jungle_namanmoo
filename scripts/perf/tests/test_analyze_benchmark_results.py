@@ -95,6 +95,30 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(sum(record["value"] for record in records), 100.0)
         self.assertEqual(sum(record["share_percent"] for record in records), 100.0)
 
+    def test_intent_detail_records_break_down_llm_without_double_counting(self) -> None:
+        row = {
+            "intent_parse_ms_avg": 1000.0,
+            "intent_repository_load_ms_avg": 10.0,
+            "intent_rule_parse_ms_avg": 20.0,
+            "intent_llm_call_ms_avg": 300.0,
+            "intent_llm_prompt_load_ms_avg": 1.0,
+            "intent_llm_schema_load_ms_avg": 2.0,
+            "intent_llm_request_build_ms_avg": 3.0,
+            "intent_llm_http_ms_avg": 280.0,
+            "intent_llm_response_parse_ms_avg": 4.0,
+            "intent_llm_schema_validate_ms_avg": 5.0,
+            "intent_llm_merge_ms_avg": 6.0,
+            "intent_purchase_parse_ms_avg": 600.0,
+        }
+
+        records = analysis.build_intent_detail_records(row, statistic="avg")
+
+        values = {record["stage"]: record["value"] for record in records}
+        self.assertEqual(values["LLM HTTP wait"], 280.0)
+        self.assertEqual(values["LLM other"], 5.0)
+        self.assertEqual(values["intent other"], 64.0)
+        self.assertAlmostEqual(sum(values.values()), 1000.0)
+
     def test_intent_diagnostics_include_outcomes_and_ai_calls(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "backend.log"
