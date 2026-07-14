@@ -18,10 +18,11 @@ from app.services.recommendation_intent import RecommendationIntent
 
 ES_KEYWORD_SEARCH_SOURCE = "es_keyword_search"
 SEARCH_FIELDS = (
-    "title^4",
+    "brand_name^8",
+    "brand_aliases^8",
+    "title^5",
     "keywords^3",
-    "brand_name^2",
-    "category_name^2",
+    "category_name^3",
     "content",
 )
 

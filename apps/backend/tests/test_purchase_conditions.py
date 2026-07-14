@@ -19,6 +19,25 @@ def test_parse_purchase_conditions_matches_category_brand_and_price() -> None:
     assert result.price_max_text == "2만원 이하"
 
 
+def test_parse_purchase_conditions_can_skip_brand_filters_for_recommendation() -> None:
+    diagnostics: dict[str, object] = {}
+
+    result = parse_purchase_conditions(
+        "round lab serum 20000 under",
+        brand_aliases=build_brand_aliases(("round lab",)),
+        diagnostics=diagnostics,
+        include_brand_filters=False,
+    )
+
+    assert [category.category_code for category in result.categories] == ["serum"]
+    assert result.brands == ()
+    assert result.price_min is None
+    assert result.price_max == 19999
+    assert diagnostics["intent_purchase_brand_group_count"] == 0
+    assert diagnostics["intent_purchase_brand_alias_count"] == 0
+    assert diagnostics["intent_purchase_matched_brand_count"] == 0
+
+
 def test_parse_purchase_conditions_deduplicates_category_aliases() -> None:
     result = parse_purchase_conditions("스킨이나 토너 중에서 30000원 미만")
 

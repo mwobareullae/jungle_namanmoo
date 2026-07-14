@@ -20,3 +20,7 @@ YYYY-MM-DD_<scenario>_<data-size>.md
 ```
 
 기록에는 실행 커밋, 데이터 규모, 환경, 요청 수, p50/p95/p99, 오류율, 주요 설정과 결론을 포함한다.
+
+## 추천검색 최적화 설계
+
+- [추천검색 ES Retrieval 전환 최적화 설계](recommendation-es-retrieval-optimization.md)
