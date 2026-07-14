@@ -49,6 +49,17 @@ def test_product_read_tools_allow_anonymous_access() -> None:
     assert policy.risk_level == "READ"
 
 
+def test_shipping_address_tool_is_authenticated_reversible_write() -> None:
+    with pytest.raises(ApiError) as exc_info:
+        validate_tool_access("register_shipping_address", user_id=None)
+
+    assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+    policy = validate_tool_access("register_shipping_address", user_id=1)
+    assert policy.risk_level == "WRITE"
+    assert policy.requires_confirmation is False
+    assert policy.allowed_ui_actions == frozenset({"noop", "show_checkout_preview"})
+
+
 def test_unknown_tool_is_rejected() -> None:
     with pytest.raises(ApiError) as exc_info:
         validate_tool_access("delete_everything", user_id=1)

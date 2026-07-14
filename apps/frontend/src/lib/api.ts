@@ -117,6 +117,12 @@ type BackendScoreBreakdown = {
   vector_score?: number;
   search_match_score?: number;
   risk_penalty?: number;
+  review_quality_score?: number;
+  review_quality_applied?: boolean;
+  review_quality_confidence?: number;
+  review_count?: number;
+  review_profile_affinity_score?: number;
+  review_profile_affinity_applied?: boolean;
 };
 
 type BackendRecommendedProduct = {
@@ -131,6 +137,10 @@ type BackendRecommendedProduct = {
   evidence_tags: string[];
   key_ingredients: string[];
   score_breakdown: BackendScoreBreakdown;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 type BackendPurchaseConstraints = {
@@ -251,6 +261,10 @@ type BackendCatalogSearchResponse = {
     name: string;
     product_id: string;
     thumbnail_url: string | null;
+    sales_status: string;
+    stock_status: string;
+    available_quantity: number | null;
+    in_stock: boolean;
   }>;
   pagination: { page: number; page_size: number; total_items: number; total_pages: number; has_next: boolean; has_prev: boolean };
   query: string;
@@ -289,7 +303,13 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     keyword_score: score.keyword_score ?? 0,
     vector_score: score.vector_score ?? 0,
     search_match_score: score.search_match_score ?? 0,
-    risk_penalty: score.risk_penalty ?? 0
+    risk_penalty: score.risk_penalty ?? 0,
+    review_quality_score: score.review_quality_score,
+    review_quality_applied: score.review_quality_applied,
+    review_quality_confidence: score.review_quality_confidence,
+    review_count: score.review_count,
+    review_profile_affinity_score: score.review_profile_affinity_score,
+    review_profile_affinity_applied: score.review_profile_affinity_applied
   };
 };
 
@@ -305,7 +325,11 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
   evidence_tags: product.evidence_tags,
   key_ingredients: product.key_ingredients,
   risk_flags: [],
-  score_breakdown: mapScoreBreakdown(product.score_breakdown)
+  score_breakdown: mapScoreBreakdown(product.score_breakdown),
+  sales_status: product.sales_status,
+  stock_status: product.stock_status,
+  available_quantity: product.available_quantity,
+  in_stock: product.in_stock
 });
 
 const mapHomeSection = (section: BackendHomeSection): HomeSection => ({
@@ -531,7 +555,11 @@ export const api: RecommendationApi = {
         lowest_price: item.lowest_price,
         evidence_tags: [],
         key_ingredients: [],
-        risk_flags: []
+        risk_flags: [],
+        sales_status: item.sales_status,
+        stock_status: item.stock_status,
+        available_quantity: item.available_quantity,
+        in_stock: item.in_stock
       }))
     };
   },

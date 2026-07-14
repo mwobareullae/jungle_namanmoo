@@ -65,6 +65,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
   const { isAuthLoading, user } = useAuth();
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSkinTestPromptOpen, setIsSkinTestPromptOpen] = useState(false);
 
   useEffect(() => installHomeRuntime(profile), [profile]);
@@ -78,6 +79,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
       const timerId = window.setTimeout(() => {
         setProfile(defaultRecommendationProfile);
         setHasSavedProfile(false);
+        setIsProfileLoading(false);
       }, 0);
 
       return () => window.clearTimeout(timerId);
@@ -97,6 +99,7 @@ function HomePage({ bodyHtml }: HomePageProps) {
         setProfile(defaultRecommendationProfile);
         setHasSavedProfile(false);
       }
+      setIsProfileLoading(false);
     });
 
     return () => {
@@ -132,7 +135,13 @@ function HomePage({ bodyHtml }: HomePageProps) {
         ) : section.id === "matchresultsection" ? (
           <HomeMatchResult key={section.id} />
         ) : section.id === "maincontent" ? (
-          <HomeMainContent key={section.id} initialProfile={profile} />
+          <HomeMainContent
+            key={section.id}
+            initialProfile={profile}
+            showForYouSkinTypeFilters={
+              !isAuthLoading && !isProfileLoading && (!user || !hasSavedProfile)
+            }
+          />
         ) : section.id === "howitworks" || section.id === "ingredients" ? null : section.id ===
           "footer" ? null : (
           <div

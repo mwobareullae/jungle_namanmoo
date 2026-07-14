@@ -121,6 +121,10 @@ class RecommendedProduct(BaseModel):
     key_ingredients: list[str]
     score_breakdown: ScoreBreakdown
     cart_handoff: CartHandoff
+    sales_status: str = "UNKNOWN"
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
+    in_stock: bool = False
 
 
 class Pagination(BaseModel):

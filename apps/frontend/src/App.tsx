@@ -25,6 +25,8 @@ const MyPageSettings = lazy(() => import("./pages/mypage/MyPageSettings"));
 const NewProductsPage = lazy(() => import("./pages/NewProductsPage"));
 const OrderDetail = lazy(() => import("./pages/mypage/OrderDetail"));
 const ReturnRequestPage = lazy(() => import("./pages/mypage/ReturnRequestPage"));
+const ClaimListPage = lazy(() => import("./pages/mypage/ClaimListPage"));
+const ClaimDetailPage = lazy(() => import("./pages/mypage/ClaimDetailPage"));
 const OrderList = lazy(() => import("./pages/mypage/OrderList"));
 const Addresses = lazy(() => import("./pages/mypage/Addresses"));
 const PaymentCompletePage = lazy(() => import("./pages/PaymentCompletePage"));
@@ -1080,6 +1082,26 @@ function App() {
               element={(
                 <ProtectedRoute>
                   <ReturnRequestPage />
+                </ProtectedRoute>
+              )}
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/claims"
+              element={(
+                <ProtectedRoute>
+                  <ClaimListPage />
+                </ProtectedRoute>
+              )}
+            />
+          )}
+          {appMode !== "community" && (
+            <Route
+              path="/mypage/claims/:claimCode"
+              element={(
+                <ProtectedRoute>
+                  <ClaimDetailPage />
                 </ProtectedRoute>
               )}
             />

@@ -36,12 +36,12 @@ export type MypageUserSummary = {
 
 type MyPageShellProps = {
   children?: ReactNode;
-  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
+  activePath?: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/claims" | "/mypage/addresses" | "/mypage/settings";
   user?: MypageUserSummary;
 };
 
 type MyPageNavItem = {
-  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/addresses" | "/mypage/settings";
+  path: "/mypage" | "/mypage/skin-profile" | "/mypage/wishlist" | "/mypage/recent" | "/mypage/reviews" | "/mypage/orders" | "/mypage/claims" | "/mypage/addresses" | "/mypage/settings";
   label: string;
   group: 1 | 2 | 3;
 };
@@ -56,6 +56,7 @@ const navItems: MyPageNavItem[] = [
   { path: "/mypage/recent", label: "최근 본 상품", group: 2 },
   { path: "/mypage/reviews", label: "리뷰 관리", group: 2 },
   { path: "/mypage/orders", label: "주문/배송내역", group: 3 },
+  { path: "/mypage/claims", label: "클레임 내역", group: 3 },
   { path: "/mypage/addresses", label: "배송지 관리", group: 3 },
   { path: "/mypage/settings", label: "개인정보 설정", group: 3 }
 ] as const;

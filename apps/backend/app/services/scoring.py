@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Cart, CartItem, Order, OrderItem, ProductPopularityMetric, RecentView, Wishlist
 from app.db.models.events import EventLog
@@ -121,10 +122,13 @@ WEIGHT_MULTIPLIER_CAPS = {
 }
 REVIEW_WEIGHT_SHARE_CAP = 0.18
 REVIEW_SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE = 5.0
+# review-scoring-revision 4.3: 올리브영 프로필에 민감도 축이 없어(피부타입 값 '민감성'만 존재)
+# SENSITIVITY는 low/medium 세그먼트가 구조적으로 생성 불가(G4). 이진 신호로 격하하고
+# 타깃이 없는 사용자는 가중 재정규화에서 차원 자체를 제외한다.
 REVIEW_AFFINITY_DIMENSION_WEIGHTS = {
-    "SKIN_TYPE": 0.40,
-    "SENSITIVITY": 0.25,
-    "SKIN_CONCERN": 0.35,
+    "SKIN_TYPE": 0.45,
+    "SENSITIVITY": 0.15,
+    "SKIN_CONCERN": 0.40,
 }
 SCORE_WEIGHT_FIELDS = (
     "ingredient_effect",
@@ -562,26 +566,84 @@ def score_candidates(
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
+    diagnostics: dict[str, object] | None = None,
 ) -> list[ScoredProduct]:
     if not candidates:
+        if diagnostics is not None:
+            diagnostics.update(
+                {
+                    "scoring_data_prefetch_ms": 0.0,
+                    "score_context_build_ms": 0.0,
+                    "score_loop_ms": 0.0,
+                    "score_sort_ms": 0.0,
+                    "scoring_prefetch_breakdown": {},
+                    "scoring_counts": {
+                        "prefetch_product_count": 0,
+                        "ingredient_effect_product_count": 0,
+                        "functional_info_count": 0,
+                        "skin_tag_product_count": 0,
+                        "skin_profile_product_count": 0,
+                        "risk_flag_product_count": 0,
+                        "market_signal_count": 0,
+                        "review_metric_count": 0,
+                        "review_segment_product_count": 0,
+                        "review_segment_count": 0,
+                        "behavior_signal_count": 0,
+                    },
+                }
+            )
         return []
 
     desired_effects = _build_desired_effects(intent)
     priority_effect_codes = tuple(effect.effect_id for effect in intent.priority_effects)
     product_ids = [candidate.db_product_id for candidate in candidates]
+
+    prefetch_started_at = current_time()
+    prefetch_breakdown: dict[str, float] = {}
+
+    stage_started_at = current_time()
     ingredients_by_product = _load_ingredient_effects(session, product_ids, desired_effects)
+    prefetch_breakdown["ingredient_effects_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     functional_info_by_product = _load_functional_info(session, product_ids)
+    prefetch_breakdown["functional_info_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     skin_tags_by_product = _load_skin_tags(session, product_ids)
+    prefetch_breakdown["skin_tags_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     skin_profiles_by_product = _load_skin_profiles(session, product_ids)
+    prefetch_breakdown["skin_profiles_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     risk_flags_by_product = _load_risk_flags(session, product_ids)
+    prefetch_breakdown["risk_flags_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     market_signals_by_product = _load_market_signals(session, product_ids)
+    prefetch_breakdown["market_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     review_metrics_by_product = _load_review_metrics(session, product_ids)
+    prefetch_breakdown["review_metrics_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     review_segments_by_product = _load_review_segments(session, product_ids)
+    prefetch_breakdown["review_segments_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    stage_started_at = current_time()
     behavior_signals_by_product = (
         _load_behavior_product_signals(session, product_ids)
         if behavior_personalization_context is not None
         else {}
     )
+    prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    prefetch_ms = round(elapsed_ms(prefetch_started_at), 2)
+
+    context_started_at = current_time()
     price_context = _build_price_score_context(candidates)
     matches_by_product_code = {match.product_id: match for match in matches}
     weight_resolution = _resolve_score_weights(
@@ -599,7 +661,9 @@ def score_candidates(
         manual_skin_type_explicit=manual_skin_type_explicit,
         manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
+    context_build_ms = round(elapsed_ms(context_started_at), 2)
 
+    loop_started_at = current_time()
     scored_products = [
         _score_candidate(
             candidate,
@@ -630,11 +694,38 @@ def score_candidates(
         )
         for candidate in candidates
     ]
+    score_loop_ms = round(elapsed_ms(loop_started_at), 2)
 
+    sort_started_at = current_time()
     ranked_products = sorted(
         scored_products,
         key=lambda product: (-product.total_score, product.rank),
     )
+    score_sort_ms = round(elapsed_ms(sort_started_at), 2)
+
+    if diagnostics is not None:
+        diagnostics.update(
+            {
+                "scoring_data_prefetch_ms": prefetch_ms,
+                "score_context_build_ms": context_build_ms,
+                "score_loop_ms": score_loop_ms,
+                "score_sort_ms": score_sort_ms,
+                "scoring_prefetch_breakdown": prefetch_breakdown,
+                "scoring_counts": {
+                    "prefetch_product_count": len(product_ids),
+                    "ingredient_effect_product_count": len(ingredients_by_product),
+                    "functional_info_count": len(functional_info_by_product),
+                    "skin_tag_product_count": len(skin_tags_by_product),
+                    "skin_profile_product_count": len(skin_profiles_by_product),
+                    "risk_flag_product_count": len(risk_flags_by_product),
+                    "market_signal_count": len(market_signals_by_product),
+                    "review_metric_count": len(review_metrics_by_product),
+                    "review_segment_product_count": len(review_segments_by_product),
+                    "review_segment_count": sum(len(segments) for segments in review_segments_by_product.values()),
+                    "behavior_signal_count": len(behavior_signals_by_product),
+                },
+            }
+        )
 
     return [
         ScoredProduct(
@@ -2484,16 +2575,22 @@ def _score_review_profile_affinity(
                     sources=target.sources,
                 )
             )
-        dimension_scores[dimension] = (
-            sum(target_scores) / len(target_scores) if target_scores else 0.5
-        )
+        if target_scores:
+            dimension_scores[dimension] = sum(target_scores) / len(target_scores)
 
-    score = _weighted_average(
-        tuple(
-            (dimension_scores[dimension], weight)
-            for dimension, weight in REVIEW_AFFINITY_DIMENSION_WEIGHTS.items()
-        )
+    # review-scoring-revision 4.3: 타깃이 존재하는 차원만으로 가중 재정규화한다.
+    # 비민감 사용자는 SENSITIVITY 타깃이 만들어지지 않으므로 이 차원이 자동 제외되어
+    # 중립 0.5 고정으로 인한 구조적 희석이 사라진다. 전 차원 무타깃이면 중립 0.5.
+    weighted_components = tuple(
+        (dimension_scores[dimension], weight)
+        for dimension, weight in REVIEW_AFFINITY_DIMENSION_WEIGHTS.items()
+        if dimension in dimension_scores
     )
+    score = (
+        _weighted_average(weighted_components) if weighted_components else 0.5
+    )
+    for dimension in REVIEW_AFFINITY_DIMENSION_WEIGHTS:
+        dimension_scores.setdefault(dimension, 0.5)
     return _ReviewProfileAffinityScore(
         score=_clamp(score),
         applied=applied,
@@ -2514,12 +2611,13 @@ def _review_skin_type_code(value: str | None) -> str | None:
 
 
 def _review_sensitivity_code(value: str | None) -> str | None:
+    # review-scoring-revision 4.3(G4): 리뷰 프로필 원천(올리브영)에는 민감도 축이 없고
+    # 피부타입 값 '민감성'만 존재하므로 세그먼트는 SENSITIVITY:high만 생성 가능하다.
+    # 민감(높음)일 때만 타깃을 만들고, 그 외는 None → 타깃 미생성 → 차원 재정규화 제외.
     normalized = _normalize_sensitivity_value(value)
-    return {
-        "낮음": "low",
-        "보통": "medium",
-        "높음": "high",
-    }.get(normalized)
+    if normalized == "높음":
+        return "high"
+    return None
 
 
 def _score_skin_test_context(

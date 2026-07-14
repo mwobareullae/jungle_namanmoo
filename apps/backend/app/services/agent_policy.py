@@ -113,6 +113,15 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         max_result_items=0,
         timeout_ms=2500,
     ),
+    "register_shipping_address": AgentToolPolicy(
+        tool_name="register_shipping_address",
+        risk_level="WRITE",
+        requires_auth=True,
+        requires_confirmation=False,
+        allowed_ui_actions=frozenset({"noop", "show_checkout_preview"}),
+        max_result_items=0,
+        timeout_ms=2500,
+    ),
     "compose_cart": AgentToolPolicy(
         tool_name="compose_cart",
         risk_level="WRITE",

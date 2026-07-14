@@ -60,6 +60,9 @@ export type CatalogSearchItem = {
   rating: number | null;
   review_count: number;
   sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
   thumbnail_url: string | null;
 };
 
@@ -102,6 +105,12 @@ export type ScoreBreakdown = {
   vector_score: number;
   search_match_score: number;
   risk_penalty: number;
+  review_quality_score?: number;
+  review_quality_applied?: boolean;
+  review_quality_confidence?: number;
+  review_count?: number;
+  review_profile_affinity_score?: number;
+  review_profile_affinity_applied?: boolean;
 };
 
 export type ProductCardItem = {
@@ -117,6 +126,8 @@ export type ProductCardItem = {
   key_ingredients: string[];
   risk_flags: string[];
   sales_status?: string;
+  stock_status?: string;
+  available_quantity?: number | null;
   in_stock?: boolean;
   score_breakdown?: ScoreBreakdown;
 };
@@ -136,6 +147,10 @@ export type HomeSectionProduct = {
   tags: string[];
   reason_summary: string;
   display_score: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 export type HomeSection = {

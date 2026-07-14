@@ -9,6 +9,10 @@ type BackendActivityProduct = {
   category_name: string;
   thumbnail_url: string;
   lowest_price: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
 };
 
 type BackendWishlistItem = {
@@ -52,6 +56,10 @@ export type ActivityProductItem = {
   rawDate?: string;
   tags: string[];
   isWished: boolean;
+  salesStatus: string;
+  stockStatus: string;
+  availableQuantity: number | null;
+  inStock: boolean;
 };
 
 const formatActivityDateLabel = (dateText: string) => {
@@ -93,7 +101,11 @@ const mapActivityProduct = (
   dateLabel: options.dateText ? formatActivityDateLabel(options.dateText) : undefined,
   rawDate: options.dateText,
   tags: mapProductTags(item.product),
-  isWished: options.isWished
+  isWished: options.isWished,
+  salesStatus: item.product.sales_status,
+  stockStatus: item.product.stock_status,
+  availableQuantity: item.product.available_quantity,
+  inStock: item.product.in_stock
 });
 
 export const getMyWishlist = async (limit = 50): Promise<ActivityProductItem[]> => {

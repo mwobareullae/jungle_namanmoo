@@ -26,6 +26,9 @@ class CatalogSearchItem(BaseModel):
     rating: float | None
     review_count: int
     sales_status: str
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
+    in_stock: bool = False
 
 
 class CatalogSearchPagination(BaseModel):

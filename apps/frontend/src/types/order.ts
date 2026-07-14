@@ -64,6 +64,15 @@ export type MockPaymentConfirmResponse = {
 export type OrderCancelResponse = {
   order_code: string;
   status: string;
+  request_code?: string | null;
+};
+
+export type OrderCancelReasonCode =
+  "CHANGE_OF_MIND" | "ORDER_MISTAKE" | "ORDER_INFO_CHANGE" | "DELIVERY_DELAY" | "OTHER";
+
+export type OrderCancelRequest = {
+  reason_code: OrderCancelReasonCode;
+  reason_detail?: string | null;
 };
 
 export type OrderListItem = {
@@ -140,4 +149,14 @@ export type OrderDetailResponse = {
   items: OrderDetailItem[];
   shipping_address?: OrderDetailShippingAddress | null;
   shipping_groups: OrderDetailShippingGroup[];
+  cancel_request?: {
+    request_code: string;
+    status: "REQUESTED" | "APPROVED" | "REJECTED";
+    reason_code?: OrderCancelReasonCode | null;
+    reason_detail?: string | null;
+    decision_reason?: string | null;
+    requested_at: string;
+    processed_at?: string | null;
+    payment_canceled_at?: string | null;
+  } | null;
 };

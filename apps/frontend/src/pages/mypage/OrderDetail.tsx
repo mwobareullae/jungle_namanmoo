@@ -2,10 +2,9 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import HomeProductCard from "../../components/HomeProductCard";
-import ConfirmModal from "../../components/ui/ConfirmModal";
 import { api } from "../../lib/api";
 import { getProductImageUrl } from "../../lib/imageUrls";
-import { cancelOrder, getOrderDetail } from "../../lib/orderApi";
+import { getOrderDetail } from "../../lib/orderApi";
 import type { OrderDetailResponse } from "../../types/order";
 import type { ProductCardItem } from "../../types/recommendation";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
@@ -20,6 +19,20 @@ const statusLabelMap: Record<string, string> = {
   SHIPPED: "배송중",
   DELIVERED: "배송완료",
   CANCEL_REQUESTED: "취소요청"
+};
+
+const cancelRequestStatusLabelMap: Record<string, string> = {
+  REQUESTED: "취소 요청 접수",
+  APPROVED: "취소 승인",
+  REJECTED: "취소 거절"
+};
+
+const cancelReasonLabelMap: Record<string, string> = {
+  CHANGE_OF_MIND: "단순 변심",
+  ORDER_MISTAKE: "주문 실수",
+  ORDER_INFO_CHANGE: "주문정보 변경",
+  DELIVERY_DELAY: "배송 지연",
+  OTHER: "기타"
 };
 
 const paymentProviderLabelMap: Record<string, string> = {
@@ -64,9 +77,6 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<OrderDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isCanceling, setIsCanceling] = useState(false);
-  const [cancelErrorMessage, setCancelErrorMessage] = useState("");
   const [recommendedProducts, setRecommendedProducts] = useState<ProductCardItem[]>([]);
 
   const loadOrderDetail = useCallback(async () => {
@@ -100,7 +110,10 @@ export default function OrderDetail() {
               evidence_tags: item.tags,
               key_ingredients: item.tags,
               risk_flags: [],
-              in_stock: true
+              sales_status: item.sales_status,
+              stock_status: item.stock_status,
+              available_quantity: item.available_quantity,
+              in_stock: item.in_stock
             }))
         );
       }
@@ -120,30 +133,15 @@ export default function OrderDetail() {
     return () => window.clearTimeout(timerId);
   }, [loadOrderDetail]);
 
-  const canCancelOrder = order?.status === "PENDING_PAYMENT" || order?.status === "PAID";
-  const cancelActionLabel = order?.status === "PAID" ? "주문 취소 요청" : "주문 취소";
-
-  const submitCancel = async () => {
-    if (!order || !canCancelOrder || isCanceling) return;
-
-    setIsCanceling(true);
-    setCancelErrorMessage("");
-    try {
-      await cancelOrder(order.order_code);
-      setIsCancelModalOpen(false);
-      await loadOrderDetail();
-    } catch (error) {
-      setCancelErrorMessage(error instanceof Error ? error.message : "주문 취소에 실패했습니다.");
-    } finally {
-      setIsCanceling(false);
-    }
-  };
-
   return (
     <MyPageLayout activePath="/mypage/orders">
       <PageTitle
         rightSlot={
-          <Link className="text-[#2aa6d1] hover:text-[#1A1A1A]" style={styles.backLink} to="/mypage/orders">
+          <Link
+            className="text-[#2aa6d1] hover:text-[#1A1A1A]"
+            style={styles.backLink}
+            to="/mypage/orders"
+          >
             목록으로
           </Link>
         }
@@ -167,137 +165,164 @@ export default function OrderDetail() {
         </section>
       ) : order ? (
         <>
-        <div style={styles.detailGrid}>
-          <section style={styles.card} aria-labelledby="orderInfoTitle">
-            <div style={styles.cardHeader}>
-              <h2 id="orderInfoTitle" style={styles.cardTitle}>주문 정보</h2>
-              {canCancelOrder ? (
-                <button
-                  className="bg-white hover:bg-[#FAFAFA]"
-                  onClick={() => {
-                    setCancelErrorMessage("");
-                    setIsCancelModalOpen(true);
-                  }}
-                  style={styles.cancelButton}
-                  type="button"
-                >
-                  {cancelActionLabel}
-                </button>
+          <div style={styles.detailGrid}>
+            <section style={styles.card} aria-labelledby="orderInfoTitle">
+              <div style={styles.cardHeader}>
+                <h2 id="orderInfoTitle" style={styles.cardTitle}>
+                  주문 정보
+                </h2>
+              </div>
+              <div style={styles.infoRows}>
+                <InfoRow label="주문번호" value={order.order_code} />
+                <InfoRow
+                  label="주문상태"
+                  value={statusLabelMap[order.status] ?? order.status}
+                  accent
+                />
+                <InfoRow label="주문일시" value={formatDateTime(order.ordered_at)} />
+                <InfoRow label="결제일시" value={formatDateTime(order.paid_at)} />
+              </div>
+              {order.cancel_request ? (
+                <div style={styles.cancelRequestPanel}>
+                  <strong style={styles.cancelRequestTitle}>취소 요청 처리 현황</strong>
+                  <InfoRow
+                    label="처리상태"
+                    value={cancelRequestStatusLabelMap[order.cancel_request.status] ?? order.cancel_request.status}
+                    accent
+                  />
+                  <InfoRow
+                    label="취소 사유"
+                    value={order.cancel_request.reason_code ? cancelReasonLabelMap[order.cancel_request.reason_code] ?? order.cancel_request.reason_code : "-"}
+                  />
+                  {order.cancel_request.reason_detail ? <InfoRow label="상세 사유" value={order.cancel_request.reason_detail} /> : null}
+                  <InfoRow label="요청일" value={formatDateTime(order.cancel_request.requested_at)} />
+                  <InfoRow label="처리일" value={formatDateTime(order.cancel_request.processed_at)} />
+                  {order.cancel_request.decision_reason ? <InfoRow label="거절 사유" value={order.cancel_request.decision_reason} /> : null}
+                  <InfoRow label="결제 취소일" value={formatDateTime(order.cancel_request.payment_canceled_at)} />
+                </div>
               ) : null}
-            </div>
-            <div style={styles.infoRows}>
-              <InfoRow label="주문번호" value={order.order_code} />
-              <InfoRow label="주문상태" value={statusLabelMap[order.status] ?? order.status} accent />
-              <InfoRow label="주문일시" value={formatDateTime(order.ordered_at)} />
-              <InfoRow label="결제일시" value={formatDateTime(order.paid_at)} />
-            </div>
-          </section>
+            </section>
 
-          <section style={styles.card} aria-labelledby="paymentInfoTitle">
-            <h2 id="paymentInfoTitle" style={styles.cardTitle}>결제 정보</h2>
-            <div style={styles.infoRows}>
-              <InfoRow label="상품금액" value={formatWon(order.subtotal)} />
-              <InfoRow label="배송비" value={formatWon(order.shipping_fee)} />
-              <InfoRow label="할인금액" value={formatWon(order.discount_total)} />
-              <InfoRow label="총 결제금액" value={formatWon(order.total)} strong />
-              <InfoRow
-                label="결제수단"
-                value={paymentProviderLabelMap[order.payment.provider] ?? order.payment.provider}
-              />
-              <InfoRow label="결제상태" value={order.payment.status} />
-            </div>
-          </section>
-
-          <section style={styles.card} aria-labelledby="shippingInfoTitle">
-            <h2 id="shippingInfoTitle" style={styles.cardTitle}>배송 정보</h2>
-            <div style={styles.infoRows}>
-              <InfoRow label="받는 분" value={order.shipping_address?.recipient_name ?? "-"} />
-              <InfoRow label="연락처" value={order.shipping_address?.phone ?? "-"} />
-              <InfoRow label="주소" value={formatAddress(order)} />
-              <InfoRow label="요청사항" value={order.shipping_address?.delivery_memo || "-"} />
-            </div>
-          </section>
-
-          <section style={styles.card} aria-labelledby="orderedItemsTitle">
-            <div style={styles.cardHeader}>
-              <h2 id="orderedItemsTitle" style={styles.cardTitle}>주문 상품</h2>
-              <div className="order-detail-order-actions">
-                <span className="order-detail-order-count">상품 {order.items.length}개</span>
-                {order.status === "DELIVERED" ? (
-                  <Link className="return-request-order-link" to={`/mypage/orders/${order.order_code}/return-request`}>
-                    <span>반품·교환·환불 신청</span>
-                    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
-                      <path d="m6 3 5 5-5 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
-                    </svg>
-                  </Link>
-                ) : null}
+            <section style={styles.card} aria-labelledby="paymentInfoTitle">
+              <h2 id="paymentInfoTitle" style={styles.cardTitle}>
+                결제 정보
+              </h2>
+              <div style={styles.infoRows}>
+                <InfoRow label="상품금액" value={formatWon(order.subtotal)} />
+                <InfoRow label="배송비" value={formatWon(order.shipping_fee)} />
+                <InfoRow label="할인금액" value={formatWon(order.discount_total)} />
+                <InfoRow label="총 결제금액" value={formatWon(order.total)} strong />
+                <InfoRow
+                  label="결제수단"
+                  value={paymentProviderLabelMap[order.payment.provider] ?? order.payment.provider}
+                />
+                <InfoRow label="결제상태" value={order.payment.status} />
               </div>
-            </div>
-            <div style={styles.itemList}>
-              {order.items.map((item) => {
-                const thumbnailUrl = getProductImageUrl(item.thumbnail_storage_key, "w400");
-                const productDetailPath = buildProductDetailPath(item);
-                return (
-                  <Link
-                    aria-label={`${item.product_name} 상품 상세 보기`}
-                    className="hover:bg-[#FAFAFA]"
-                    key={item.id}
-                    style={styles.itemLink}
-                    to={productDetailPath}
-                  >
-                    <article style={styles.item}>
-                    <div style={styles.thumbnail}>
-                      {thumbnailUrl ? (
-                        <img src={thumbnailUrl} alt="" style={styles.thumbnailImage} />
-                      ) : (
-                        <span style={styles.thumbnailEmpty}>이미지 준비중</span>
-                      )}
-                    </div>
-                    <div style={styles.itemBody}>
-                      <p style={styles.brand}>{item.brand_name}</p>
-                      <h3 style={styles.itemTitle}>{item.product_name}</h3>
-                      <p style={styles.itemMeta}>
-                        {item.seller_name} · 수량 {item.quantity}개 · {item.status}
-                      </p>
-                    </div>
-                    <strong style={styles.itemPrice}>{formatWon(item.line_total)}</strong>
-                    </article>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-        {recommendedProducts.length > 0 ? (
-          <section className="order-detail-recommendations" aria-labelledby="orderRecommendationsTitle" style={styles.recommendationCard}>
-            <div style={styles.cardHeader}>
-              <div className="order-detail-recommendations__heading">
-                <span className="order-detail-recommendations__eyebrow">FOR YOU</span>
-                <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>이 주문과 함께 볼 만한 제품</h2>
+            </section>
+
+            <section style={styles.card} aria-labelledby="shippingInfoTitle">
+              <h2 id="shippingInfoTitle" style={styles.cardTitle}>
+                배송 정보
+              </h2>
+              <div style={styles.infoRows}>
+                <InfoRow label="받는 분" value={order.shipping_address?.recipient_name ?? "-"} />
+                <InfoRow label="연락처" value={order.shipping_address?.phone ?? "-"} />
+                <InfoRow label="주소" value={formatAddress(order)} />
+                <InfoRow label="요청사항" value={order.shipping_address?.delivery_memo || "-"} />
               </div>
-              <span className="order-detail-recommendations__badge">피부 프로필 맞춤</span>
-            </div>
-            <div className="product-grid order-detail-recommendations__grid">
-              {recommendedProducts.slice(0, 4).map((product) => (
-                <HomeProductCard key={product.product_id} product={product} />
-              ))}
-            </div>
-          </section>
-        ) : null}
+            </section>
+
+            <section style={styles.card} aria-labelledby="orderedItemsTitle">
+              <div style={styles.cardHeader}>
+                <h2 id="orderedItemsTitle" style={styles.cardTitle}>
+                  주문 상품
+                </h2>
+                <div className="order-detail-order-actions">
+                  <span className="order-detail-order-count">상품 {order.items.length}개</span>
+                  {order.status === "DELIVERED" ? (
+                    <Link
+                      className="return-request-order-link"
+                      to={`/mypage/orders/${order.order_code}/return-request`}
+                    >
+                      <span>반품·교환·환불 신청</span>
+                      <svg
+                        aria-hidden="true"
+                        fill="none"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        width="14"
+                      >
+                        <path
+                          d="m6 3 5 5-5 5"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="1.6"
+                        />
+                      </svg>
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+              <div style={styles.itemList}>
+                {order.items.map((item) => {
+                  const thumbnailUrl = getProductImageUrl(item.thumbnail_storage_key, "w400");
+                  const productDetailPath = buildProductDetailPath(item);
+                  return (
+                    <Link
+                      aria-label={`${item.product_name} 상품 상세 보기`}
+                      className="hover:bg-[#FAFAFA]"
+                      key={item.id}
+                      style={styles.itemLink}
+                      to={productDetailPath}
+                    >
+                      <article style={styles.item}>
+                        <div style={styles.thumbnail}>
+                          {thumbnailUrl ? (
+                            <img src={thumbnailUrl} alt="" style={styles.thumbnailImage} />
+                          ) : (
+                            <span style={styles.thumbnailEmpty}>이미지 준비중</span>
+                          )}
+                        </div>
+                        <div style={styles.itemBody}>
+                          <p style={styles.brand}>{item.brand_name}</p>
+                          <h3 style={styles.itemTitle}>{item.product_name}</h3>
+                          <p style={styles.itemMeta}>
+                            {item.seller_name} · 수량 {item.quantity}개 · {item.status}
+                          </p>
+                        </div>
+                        <strong style={styles.itemPrice}>{formatWon(item.line_total)}</strong>
+                      </article>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+          {recommendedProducts.length > 0 ? (
+            <section
+              className="order-detail-recommendations"
+              aria-labelledby="orderRecommendationsTitle"
+              style={styles.recommendationCard}
+            >
+              <div style={styles.cardHeader}>
+                <div className="order-detail-recommendations__heading">
+                  <span className="order-detail-recommendations__eyebrow">FOR YOU</span>
+                  <h2 id="orderRecommendationsTitle" style={styles.cardTitle}>
+                    이 주문과 함께 볼 만한 제품
+                  </h2>
+                </div>
+                <span className="order-detail-recommendations__badge">피부 프로필 맞춤</span>
+              </div>
+              <div className="product-grid order-detail-recommendations__grid">
+                {recommendedProducts.slice(0, 4).map((product) => (
+                  <HomeProductCard key={product.product_id} product={product} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : null}
-      {cancelErrorMessage ? <p style={styles.cancelError} role="alert">{cancelErrorMessage}</p> : null}
-      <ConfirmModal
-        cancelLabel="돌아가기"
-        confirmLabel={isCanceling ? "처리 중" : cancelActionLabel}
-        message={order?.status === "PAID" ? "결제 완료 주문을 취소 요청할까요? 환불은 백엔드 확인 후 처리됩니다." : "이 주문을 취소할까요?"}
-        onCancel={() => {
-          if (!isCanceling) setIsCancelModalOpen(false);
-        }}
-        onConfirm={() => void submitCancel()}
-        open={isCancelModalOpen}
-        title={cancelActionLabel}
-      />
     </MyPageLayout>
   );
 }
@@ -316,7 +341,13 @@ function InfoRow({
   return (
     <div style={styles.infoRow}>
       <span style={styles.infoLabel}>{label}</span>
-      <strong style={{ ...styles.infoValue, ...(accent ? styles.infoValueAccent : {}), ...(strong ? styles.infoValueStrong : {}) }}>
+      <strong
+        style={{
+          ...styles.infoValue,
+          ...(accent ? styles.infoValueAccent : {}),
+          ...(strong ? styles.infoValueStrong : {})
+        }}
+      >
         {value}
       </strong>
     </div>
@@ -386,22 +417,6 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
     marginBottom: 18
   },
-  cancelButton: {
-    minHeight: 36,
-    padding: "0 14px",
-    border: "1px solid #d9e2e6",
-    borderRadius: 9,
-    color: "#43545b",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer"
-  },
-  cancelError: {
-    margin: "14px 0 0",
-    color: "#c44747",
-    fontSize: 14,
-    lineHeight: 1.5
-  },
   cardTitle: {
     margin: 0,
     color: "#1a1a1a",
@@ -418,6 +433,19 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 12,
     marginTop: 18
+  },
+  cancelRequestPanel: {
+    display: "grid",
+    gap: 12,
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 12,
+    background: "#f7fbfc"
+  },
+  cancelRequestTitle: {
+    color: "#2f7188",
+    fontSize: 15,
+    fontWeight: 700
   },
   infoRow: {
     display: "grid",

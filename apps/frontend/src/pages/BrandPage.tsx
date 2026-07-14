@@ -31,6 +31,8 @@ const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCa
   key_ingredients: [],
   risk_flags: [],
   sales_status: item.sales_status,
+  stock_status: item.stock_status,
+  available_quantity: item.available_quantity,
   in_stock: item.in_stock
 });
 

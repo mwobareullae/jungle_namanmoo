@@ -52,7 +52,9 @@ const mapSearchItemToCard = (item: CatalogSearchItem, rank: number): ProductCard
   key_ingredients: [],
   risk_flags: [],
   sales_status: item.sales_status,
-  in_stock: item.sales_status === "ON_SALE"
+  stock_status: item.stock_status,
+  available_quantity: item.available_quantity,
+  in_stock: item.in_stock
 });
 
 function CatalogSearchPage() {

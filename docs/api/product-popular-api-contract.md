@@ -4,6 +4,8 @@
 
 `GET /api/products/popular` returns products ranked by persisted popularity metrics.
 
+상품 카드 재고 필드는 [`product-card-availability-contract.md`](./product-card-availability-contract.md)를 따릅니다. 숨김 상품은 제외하고 품절 상품은 순위 응답에 유지하여 프론트가 품절 상태를 표시할 수 있습니다.
+
 This API does not calculate popularity from raw event/order/review tables on every request. It reads `product_popularity_metrics`, a read model prepared for fast home and best-seller screens.
 
 `data/product_market_signals.csv` is not trusted as real service behavior data. For local/dev P2 demos, seed imports it into `product_popularity_metrics` with `score_version=mock_market_signals_v1`; later event/order/review aggregation should replace it.
@@ -80,6 +82,10 @@ UNIQUE(product_id, window_days)
       "lowest_price": 19900,
       "purchase_url": "https://example.com/product",
       "popularity_score": 88.0,
+      "sales_status": "ON_SALE",
+      "stock_status": "IN_STOCK",
+      "available_quantity": 12,
+      "in_stock": true,
       "score_version": "popular_v1",
       "computed_at": "2026-07-05T00:00:00+09:00",
       "metrics": {

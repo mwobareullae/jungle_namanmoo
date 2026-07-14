@@ -49,15 +49,18 @@ const buildCriteria = (product: ProductDetail): CriteriaItem[] => {
       : undefined
   );
   const reviewSummary = product.review_summary;
-  const reviewScore = reviewSummary?.average_rating
-    ? Math.min(100, (reviewSummary.average_rating / 5) * 100)
-    : undefined;
+  const reviewQualityApplied = breakdown?.review_quality_applied === true && (breakdown.review_count ?? 0) > 0;
+  const reviewProfileApplied = breakdown?.review_profile_affinity_applied === true;
+  const reviewScore = reviewQualityApplied ? breakdown?.review_quality_score : undefined;
   const review = scoreToStatus(reviewScore);
+  const reviewProfile = scoreToStatus(
+    reviewProfileApplied ? breakdown?.review_profile_affinity_score : undefined,
+  );
   const price = scoreToStatus(breakdown?.price_value_score);
   const concentration = breakdown ? concentrationStatus(breakdown) : { status: "확인 필요", tone: "unknown" as const };
   const riskIsPresent = product.risk_flags.length > 0 || (breakdown?.risk_penalty ?? 0) < 0;
 
-  return [
+  const criteria: CriteriaItem[] = [
     {
       label: "입력 고민·피부 타입과의 일치",
       ...concern,
@@ -93,14 +96,6 @@ const buildCriteria = (product: ProductDetail): CriteriaItem[] => {
       description: "피부 타입과 민감도 조건을 추천 기준에 반영했어요.",
     },
     {
-      label: "정제 리뷰 기반 만족도 신호",
-      ...review,
-      score: reviewScore,
-      description: reviewSummary?.review_count
-        ? `리뷰 ${reviewSummary.review_count.toLocaleString("ko-KR")}개와 평균 평점을 참고했어요.`
-        : "비교할 리뷰 데이터가 부족해요.",
-    },
-    {
       label: "가격·카테고리 등 구매 조건",
       ...price,
       score: breakdown?.price_value_score,
@@ -118,6 +113,26 @@ const buildCriteria = (product: ProductDetail): CriteriaItem[] => {
       score: breakdown?.risk_penalty ? Math.min(100, Math.abs(breakdown.risk_penalty) * 10) : 0,
     },
   ];
+
+  if (reviewQualityApplied) {
+    criteria.splice(5, 0, {
+      label: "리뷰 만족도 신호",
+      ...review,
+      score: reviewScore,
+      description: `집계된 리뷰 ${Math.max(breakdown?.review_count ?? 0, reviewSummary?.review_count ?? 0).toLocaleString("ko-KR")}개를 추천 점수에 반영했어요.`,
+    });
+  }
+
+  if (reviewProfileApplied) {
+    criteria.splice(5, 0, {
+      label: "유사 피부 리뷰 신호",
+      ...reviewProfile,
+      score: breakdown?.review_profile_affinity_score,
+      description: "유사한 피부 타입·민감도 리뷰의 반응을 추천 점수에 반영했어요.",
+    });
+  }
+
+  return criteria;
 };
 
 function RecommendationCriteriaPanel({ product }: RecommendationCriteriaPanelProps) {
@@ -127,10 +142,10 @@ function RecommendationCriteriaPanel({ product }: RecommendationCriteriaPanelPro
     <section className="recommendation-criteria-panel" aria-labelledby="recommendation-criteria-title">
       <div className="recommendation-criteria-head">
         <div>
-          <p className="recommendation-criteria-eyebrow">Recommendation Basis</p>
-          <h2 id="recommendation-criteria-title">왜 이 상품인가요?</h2>
+          <p className="recommendation-criteria-eyebrow">추천 점수 설명</p>
+          <h2 id="recommendation-criteria-title">이 상품의 추천 점수를 만든 근거</h2>
         </div>
-        <p>내부 가중치 숫자 대신, 추천에 반영된 기준을 보여드려요.</p>
+        <p>내 피부 고민·프로필과 상품 데이터를 비교해, 점수에 반영된 항목과 구매 전 주의점을 보여드려요.</p>
       </div>
       <div className="recommendation-criteria-list">
         {criteria.map((item) => (

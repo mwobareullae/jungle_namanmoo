@@ -81,6 +81,10 @@ class PopularProductItem(BaseModel):
     score_version: str
     computed_at: datetime
     metrics: ProductPopularityMetrics
+    sales_status: str = "UNKNOWN"
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
+    in_stock: bool = False
 
 
 class PopularProductsResponse(BaseModel):

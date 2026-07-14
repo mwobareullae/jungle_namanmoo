@@ -1,11 +1,12 @@
 import type {
   CreateOrderRequest,
   CreateOrderResponse,
+  OrderCancelRequest,
   OrderCancelResponse,
   OrderDetailResponse,
   OrderListResponse,
   TossPaymentConfirmRequest,
-  TossPaymentConfirmResponse,
+  TossPaymentConfirmResponse
 } from "../types/order";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "./api";
 
@@ -22,9 +23,9 @@ export const createOrder = (request: CreateOrderRequest): Promise<CreateOrderRes
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Idempotency-Key": createIdempotencyKey(),
+      "Idempotency-Key": createIdempotencyKey()
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(request)
   }).then((response) => parseJson<CreateOrderResponse>(response));
 };
 
@@ -42,31 +43,40 @@ export const getOrders = (params: GetOrdersParams = {}): Promise<OrderListRespon
   if (params.cursor) searchParams.set("cursor", params.cursor);
 
   const queryString = searchParams.toString();
-  return fetchWithTimeout(`${API_BASE_URL}/orders${queryString ? `?${queryString}` : ""}`).then((response) =>
-    parseJson<OrderListResponse>(response),
+  return fetchWithTimeout(`${API_BASE_URL}/orders${queryString ? `?${queryString}` : ""}`).then(
+    (response) => parseJson<OrderListResponse>(response)
   );
 };
 
 export const confirmTossPayment = (
-  request: TossPaymentConfirmRequest,
+  request: TossPaymentConfirmRequest
 ): Promise<TossPaymentConfirmResponse> => {
   return fetchWithTimeout(`${API_BASE_URL}/payments/toss/confirm`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(request)
   }).then((response) => parseJson<TossPaymentConfirmResponse>(response));
 };
 
-export const cancelOrder = (orderCode: string): Promise<OrderCancelResponse> => {
+export const cancelOrder = (
+  orderCode: string,
+  request?: OrderCancelRequest
+): Promise<OrderCancelResponse> => {
   return fetchWithTimeout(`${API_BASE_URL}/orders/${encodeURIComponent(orderCode)}/cancel`, {
     method: "POST",
+    ...(request
+      ? {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request)
+        }
+      : {})
   }).then((response) => parseJson<OrderCancelResponse>(response));
 };
 
 export const getOrderDetail = (orderCode: string): Promise<OrderDetailResponse> => {
-  return fetchWithTimeout(`${API_BASE_URL}/orders/${encodeURIComponent(orderCode)}`).then((response) =>
-    parseJson<OrderDetailResponse>(response),
+  return fetchWithTimeout(`${API_BASE_URL}/orders/${encodeURIComponent(orderCode)}`).then(
+    (response) => parseJson<OrderDetailResponse>(response)
   );
 };
