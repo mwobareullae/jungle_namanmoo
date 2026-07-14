@@ -24,6 +24,7 @@ import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type {
   IngredientEvidence,
   ProductDetail,
+  RecommendationSummary,
   RecommendationNarrativeOverview,
   RecommendationNarrativeProduct,
 } from "../types/recommendation";
@@ -457,6 +458,7 @@ function ProductDetailSpaPage() {
     userId: number | null;
   }>({ matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET, userId: null });
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [recommendationSummary, setRecommendationSummary] = useState<RecommendationSummary | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
@@ -767,15 +769,20 @@ function ProductDetailSpaPage() {
   }, [productId, recommendationId]);
 
   useEffect(() => {
-    if (!recommendationId) {
-      return;
-    }
-
     let isMounted = true;
+    if (!recommendationId) {
+      void Promise.resolve().then(() => {
+        if (isMounted) setRecommendationSummary(null);
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
 
     api.getRecommendation(recommendationId, { page: 1, pageSize: 1 })
       .then((response) => {
         if (isMounted) {
+          setRecommendationSummary(response.summary);
           setCandidateTotalState({
             recommendationId,
             total: response.pagination.total_items,
@@ -783,7 +790,10 @@ function ProductDetailSpaPage() {
         }
       })
       .catch(() => {
-        if (isMounted) setCandidateTotalState(null);
+        if (isMounted) {
+          setCandidateTotalState(null);
+          setRecommendationSummary(null);
+        }
       });
 
     return () => {
@@ -1202,6 +1212,7 @@ function ProductDetailSpaPage() {
               onToggleWishlist={handleToggleWishlist}
               priceLabel={formatPrice(product.lowest_price)}
               product={product}
+              recommendationSummary={recommendationSummary}
             />
           ) : null}
         </section>
@@ -1383,7 +1394,8 @@ function ProductDetailSpaPage() {
                     해당 성분명은 식품의약품안전처 기준 및 성분 근거 데이터에 따른 표시입니다.
                   </p>
                 </div>
-                <div className="detail-subsection ingredient-evidence-section" id="ingredientEvidence">
+                {detailData.groupedEvidence.length > 0 ? (
+                  <div className="detail-subsection ingredient-evidence-section" id="ingredientEvidence">
                   <div className="detail-subsection-head">
                     <h3>성분 근거</h3>
                   </div>
@@ -1391,8 +1403,7 @@ function ProductDetailSpaPage() {
                     className="ingredient-evidence-list"
                     id="evidenceList"
                   >
-                    {detailData.groupedEvidence.length > 0 ? (
-                      detailData.groupedEvidence.map((group) => {
+                    {detailData.groupedEvidence.map((group) => {
                         const effectLabel = getEffectTagLabel(group.effectName);
 
                         return (
@@ -1411,10 +1422,7 @@ function ProductDetailSpaPage() {
                             <span className="ingredient-evidence-tile-count">관련 성분 {group.items.length}개</span>
                           </button>
                         );
-                      })
-                    ) : (
-                      <div className="ingredient-evidence-tile"><p>표시할 성분 효능 근거가 없습니다.</p></div>
-                    )}
+                    })}
                   </div>
                   {activeEvidenceGroup ? (
                     <Dialog onOpenChange={(open) => !open && closeEvidenceModal()} open>
@@ -1483,7 +1491,8 @@ function ProductDetailSpaPage() {
                       </DialogRawContent>
                     </Dialog>
                   ) : null}
-                </div>
+                  </div>
+                ) : null}
               </section>
               <section className={panelClassName("#reviews")} id="reviews">
                 <div className="product-review-head">

@@ -1,6 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
+import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
@@ -22,6 +23,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [isAgentSubmitting, setIsAgentSubmitting] = useState(false);
 
   useEffect(() => {
     callOriginal("setSearchMode", searchMode);
@@ -62,29 +64,28 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     };
   }, [query, searchMode]);
 
-  const goToSearch = (nextQuery = query) => {
+  const goToSearch = async (nextQuery = query) => {
     const trimmedQuery = nextQuery.trim();
-    if (!trimmedQuery) return;
+    if (!trimmedQuery || isAgentSubmitting) return;
 
     if (searchMode === "general") {
       window.location.assign(`/catalog-search?q=${encodeURIComponent(trimmedQuery)}`);
       return;
     }
 
-    const params = new URLSearchParams({
-      keyword: trimmedQuery,
-      search_mode: searchMode,
-      page_size: "10"
-    });
-    if (searchMode === "ai") {
-      params.set("skin_type", profile.skin);
-      params.set("sensitivity", profile.sensitivity);
+    setIsAgentSubmitting(true);
+    setIsSuggestionsOpen(false);
+    try {
+      await runAgentEntryMessage(trimmedQuery, profile);
+    } catch {
+      callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
+    } finally {
+      setIsAgentSubmitting(false);
     }
-      window.location.assign(`/search?${params.toString()}`);
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") goToSearch();
+    if (event.key === "Enter") void goToSearch();
   };
 
   const handleQueryChange = (nextQuery: string) => {
@@ -155,20 +156,23 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
                 type="text"
                 value={query}
               />
-              <button className="search-btn" onClick={() => goToSearch()} type="button">
-                <svg
-                  fill="none"
-                  height="14"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                  width="14"
-                >
-                  <path d="m22 2-7 20-4-9-9-4z" />
-                </svg>
-                {searchMode === "ai" ? "AI 추천 받기" : "검색"}
+              <button className="search-btn" disabled={isAgentSubmitting} onClick={() => void goToSearch()} type="button">
+                {!isAgentSubmitting ? (
+                  <svg
+                    fill="none"
+                    height="14"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2.5"
+                    viewBox="0 0 24 24"
+                    width="14"
+                  >
+                    <path d="m22 2-7 20-4-9-9-4z" />
+                  </svg>
+                ) : null}
+                {isAgentSubmitting ? "추천 준비 중" : searchMode === "ai" ? "AI 추천 받기" : "검색"}
+                {isAgentSubmitting ? <span aria-hidden="true" className="search-btn-spinner" /> : null}
               </button>
             </div>
 

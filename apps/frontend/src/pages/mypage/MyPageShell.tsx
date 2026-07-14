@@ -252,7 +252,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
       <HomeHeader />
       <nav
         aria-label="마이페이지 모바일 메뉴"
-        className="flex gap-1 overflow-x-auto border-b border-[#e0e0e0] md:hidden"
+        className="mypage-mobile-nav gap-1 overflow-x-auto border-b border-[#e0e0e0]"
       >
         {navItems.filter((item) => item.path).map((item) => (
           <Link
@@ -268,8 +268,8 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
           </Link>
         ))}
       </nav>
-      <main className="mx-auto grid w-[calc(100%-40px)] items-start gap-12 py-9 pb-[72px] md:w-[min(1180px,calc(100%-80px))] md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside aria-label="마이페이지 메뉴" className="sticky top-20 hidden md:block">
+      <main className="mypage-layout-main mx-auto grid w-[calc(100%-40px)] items-start gap-12 py-9 pb-[72px]">
+        <aside aria-label="마이페이지 메뉴" className="mypage-sidebar sticky top-20">
           <section style={styles.userBlock}>
             <ProfileAvatar size="small" />
             <div>
@@ -279,7 +279,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
               </p>
             </div>
           </section>
-          <nav className="mt-3.5 overflow-hidden rounded-lg border border-[#e0e0e0]">
+          <nav className="mypage-sidebar-nav mt-3.5 overflow-hidden rounded-lg border border-[#e0e0e0]">
             {[1, 2, 3].map((group) => (
               <div
                 className={group === 1 ? "py-7" : "border-t border-[#e0e0e0] py-7"}

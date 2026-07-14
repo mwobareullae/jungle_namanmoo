@@ -12,7 +12,10 @@ from app.services.concern_llm_parser import (
     OpenAIConcernLlmParser,
 )
 from app.services.parser import ConcernRepository, ParsedConcernResult, parse_concern_text
-from app.services.recommendation_intent import build_recommendation_intent
+from app.services.recommendation_intent import (
+    StructuredRecommendationIntent,
+    build_recommendation_intent,
+)
 from tests.repository_cache import cached_repository
 
 
@@ -97,6 +100,44 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
     assert float(diagnostics["intent_purchase_category_ms"]) >= 0
     assert float(diagnostics["intent_purchase_brand_alias_load_ms"]) >= 0
     assert float(diagnostics["intent_purchase_brand_match_ms"]) >= 0
+
+
+def test_build_recommendation_intent_uses_structured_agent_intent_without_llm() -> None:
+    repository = cached_repository(DATA_DIR)
+    diagnostics: dict[str, object] = {}
+    llm_parser = _FailingConcernLlmParser()
+
+    intent = build_recommendation_intent(
+        "화장이 들뜨지 않는 3만원 이하 세럼 추천",
+        repository=repository,
+        llm_parser=llm_parser,
+        structured_intent=StructuredRecommendationIntent(
+            resolved=True,
+            concern_ids=("concern_dry_barrier",),
+            effect_ids=("effect_moisture_barrier",),
+            priority_effect_ids=("effect_moisture_barrier",),
+            category_codes=("serum",),
+            price_max=30_000,
+        ),
+        diagnostics=diagnostics,
+    )
+
+    assert llm_parser.calls == 0
+    assert [concern.tag_id for concern in intent.concerns] == ["concern_dry_barrier"]
+    assert "effect_moisture_barrier" in [effect.effect_id for effect in intent.effects]
+    assert [effect.effect_id for effect in intent.priority_effects] == [
+        "effect_moisture_barrier"
+    ]
+    assert [category.category_code for category in intent.purchase_conditions.categories] == [
+        "serum"
+    ]
+    assert intent.purchase_conditions.price_max == 30_000
+    assert intent.purchase_conditions.price_text == "30000원 이하"
+    assert intent.unmatched_terms == ()
+    assert intent.llm_used is False
+    assert diagnostics["intent_structured_applied"] is True
+    assert diagnostics["intent_llm_attempted"] is False
+    assert diagnostics["intent_llm_outcome"] == "structured_agent"
 
 
 def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:

@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
-import HomeProductCard from "../components/HomeProductCard";
+import ProductThumbnail from "../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
+import HeartIcon from "../components/ui/HeartIcon";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import ActivityToast from "../components/ui/ActivityToast";
+import { useAuth } from "../contexts/useAuth";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { isProductSoldOut } from "../lib/productAvailability";
 import type { ProductListingItem } from "../types/product";
 import type { ProductCardItem } from "../types/recommendation";
 
@@ -39,12 +47,76 @@ const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCa
 function BrandPage() {
   const { brandName } = useParams();
   const decodedBrandName = getBrandName(brandName);
+  const { user } = useAuth();
+  const { message: toastMessage, showToast } = useActivityToast();
   const [brandCode, setBrandCode] = useState("");
   const [products, setProducts] = useState<ProductCardItem[]>([]);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      void Promise.resolve().then(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+    getMyWishlist()
+      .then((items) => {
+        if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const toggleWishlist = async (productId: string) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+    if (pendingWishlistProductIds.has(productId)) return;
+    const wasWished = wishedProductIds.has(productId);
+    setWishedProductIds((current) => {
+      const next = new Set(current);
+      if (wasWished) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+    try {
+      if (wasWished) {
+        await deleteMyWishlistItem(productId);
+        showToast(wishlistToastMessage.removed);
+      } else {
+        await addMyWishlistItem(productId);
+        showToast(wishlistToastMessage.added);
+      }
+    } catch {
+      setWishedProductIds((current) => {
+        const next = new Set(current);
+        if (wasWished) next.add(productId); else next.delete(productId);
+        return next;
+      });
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
 
   const loadProducts = useCallback(async (code: string, page: number, append: boolean) => {
     if (append) setIsLoadingMore(true);
@@ -111,24 +183,33 @@ function BrandPage() {
   }, [decodedBrandName, loadProducts]);
 
   return (
-    <div className="category-page brand-page">
+    <>
       <HomeHeader />
-      <main className="category-page__main">
-        <nav className="category-page__breadcrumb" aria-label="브랜드 경로">
-          <Link to="/">홈</Link>
-          <span aria-hidden="true">&gt;</span>
-          <Link to="/brands">브랜드</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>{decodedBrandName}</span>
-        </nav>
-        <h1 className="category-page__title">{decodedBrandName}</h1>
-        <div className="product-grid">
+      <main className="popular-products-page new-products-page brand-page">
+        <div className="popular-products-shell brand-page__shell">
+        <div className="popular-products-kicker">BRAND</div>
+        <h1>{decodedBrandName}</h1>
+        <p className="new-products-page__description">{decodedBrandName}의 상품을 확인해 보세요.</p>
+        <div className="popular-products-grid new-products-page__grid">
           {isLoading ? (
             <div className="search-loading-state">불러오는 중...</div>
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length > 0 ? (
-            products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+            products.map((product) => {
+              const isSoldOut = isProductSoldOut(product);
+              const isWished = wishedProductIds.has(product.product_id);
+              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`; }} role="link" tabIndex={0}>
+                <div className="popular-product-card__image-wrap">
+                  <ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+                  {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                  <button aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${isWished ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button>
+                </div>
+                <div className="popular-product-card__brand">{product.brand}</div>
+                <div className="popular-product-card__name">{product.name}</div>
+                <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div>
+              </article>;
+            })
           ) : (
             <div className="search-empty">표시할 상품이 없습니다.</div>
           )}
@@ -145,8 +226,11 @@ function BrandPage() {
             </button>
           </div>
         ) : null}
+        </div>
       </main>
-    </div>
+      <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
+      <ActivityToast message={toastMessage} />
+    </>
   );
 }
 

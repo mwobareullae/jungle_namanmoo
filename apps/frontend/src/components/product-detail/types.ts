@@ -1,4 +1,4 @@
-import type { ProductDetail, RecommendationNarrativeDetailSection } from "../../types/recommendation";
+import type { ProductDetail, RecommendationNarrativeDetailSection, RecommendationSummary } from "../../types/recommendation";
 
 export type ProductDetailStatusProps = {
   errorMessage: string;
@@ -50,4 +50,5 @@ export type ProductDetailHeroProps = {
   onToggleWishlist: () => void;
   priceLabel: string;
   product: ProductDetail;
+  recommendationSummary?: RecommendationSummary | null;
 };

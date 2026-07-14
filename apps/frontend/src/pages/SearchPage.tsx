@@ -6,7 +6,13 @@ import SearchBarPanel from "../components/SearchBarPanel";
 import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { getSavedSkinProfile } from "../lib/profileApi";
-import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
+import type {
+  RecommendationProfile,
+  RecommendationRefinementFilters,
+  SearchMode,
+  Sensitivity,
+  SkinType,
+} from "../types/recommendation";
 
 const skinTypes = ["건성", "지성", "복합성", "수부지", "중성"] as const;
 const sensitivities = ["낮음", "보통", "높음"] as const;
@@ -22,12 +28,29 @@ const normalizePositiveNumber = (value: string | null, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
 
+const normalizeOptionalNonNegativeNumber = (value: string | null) => {
+  if (value === null || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : undefined;
+};
+
 const getSearchParams = () => {
   const params = new URLSearchParams(window.location.search);
   const skinType = params.get("skin_type");
   const sensitivity = params.get("sensitivity");
   const hasSkinType = skinTypes.includes(skinType as SkinType);
   const hasSensitivity = sensitivities.includes(sensitivity as Sensitivity);
+  const refinementFilters: RecommendationRefinementFilters = {
+    min_price: normalizeOptionalNonNegativeNumber(params.get("refine_min_price")),
+    max_price: normalizeOptionalNonNegativeNumber(params.get("refine_max_price")),
+    category_code: params.get("refine_category_code") ?? undefined,
+    skin_type: params.get("refine_skin_type") ?? undefined,
+    sensitivity: params.get("refine_sensitivity") ?? undefined,
+    effect_keywords: params.getAll("refine_effect").filter(Boolean),
+  };
+  const hasRefinementFilters = Object.values(refinementFilters).some((value) =>
+    Array.isArray(value) ? value.length > 0 : value !== undefined,
+  );
 
   return {
     keyword: params.get("keyword") ?? "",
@@ -36,12 +59,14 @@ const getSearchParams = () => {
     page: normalizePositiveNumber(params.get("page"), 1),
     pageSize: normalizePositiveNumber(params.get("page_size"), 10),
     recommendationId: params.get("recommendation_id") ?? undefined,
+    refinementFilters: hasRefinementFilters ? refinementFilters : undefined,
+    agentPending: params.get("agent_pending") === "1",
     searchMode: params.get("search_mode") === "general" ? "general" as SearchMode : "ai" as SearchMode
   };
 };
 
 function SearchPage() {
-  const { keyword, skin, sensitivity, page, pageSize, recommendationId, searchMode } = useMemo(
+  const { keyword, skin, sensitivity, page, pageSize, recommendationId, refinementFilters, searchMode, agentPending } = useMemo(
     () => getSearchParams(),
     []
   );
@@ -92,9 +117,11 @@ function SearchPage() {
         initialQuery={isProfileResolved ? keyword : ""}
         initialPage={page}
         initialRecommendationId={recommendationId}
+        initialRefinementFilters={refinementFilters}
         initialSearchMode={searchMode}
         pageSize={pageSize}
         mode="search"
+        deferInitialSearch={agentPending}
         showDefaultSection={false}
       />
     </div>

@@ -6,17 +6,29 @@ from fastapi.encoders import jsonable_encoder
 
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatResponse, AgentToolConfirmResponse, AgentUiAction
+from app.schemas.agent import (
+    AgentChatResponse,
+    AgentError,
+    AgentResponseItem,
+    AgentToolConfirmResponse,
+    AgentUiAction,
+)
 from app.schemas.common import ApiError
 from app.schemas.order import OrderCreateRequest
 from app.services.address_service import get_user_addresses
 from app.services.agent_policy import validate_tool_access, validate_tool_ui_action
-from app.services.cart_service import add_cart_item, get_cart_response, get_checkout_preview
+from app.services.cart_service import (
+    add_cart_item,
+    get_cart_response,
+    get_checkout_preview,
+    update_cart_item_quantity,
+)
 from app.services.order_service import create_order
 
 
 GET_CART_TOOL = "get_cart"
 ADD_TO_CART_TOOL = "add_to_cart"
+PREPARE_PRODUCT_CHECKOUT_TOOL = "prepare_product_checkout"
 PREPARE_CHECKOUT_TOOL = "prepare_checkout"
 PREPARE_ORDER_TOOL = "prepare_order"
 ORDER_CONFIRMATION_TTL_MINUTES = 10
@@ -63,6 +75,120 @@ def add_agent_cart_item(
         message=f"상품 {quantity}개를 장바구니에 담았어요.",
         tool_name=ADD_TO_CART_TOOL,
         ui_action=action,
+    )
+
+
+def prepare_agent_product_checkout(
+    session: Session,
+    user: User,
+    *,
+    conversation_id: str | None,
+    product_id: str,
+    quantity: int,
+    recommendation_id: str | None,
+    recommendation_rank: int | None,
+) -> AgentChatResponse:
+    validate_tool_access(PREPARE_PRODUCT_CHECKOUT_TOOL, user_id=user.id)
+    cart = get_cart_response(session, user, None)
+    existing = next((item for item in cart.items if item.product_id == product_id), None)
+    if existing is None:
+        cart = add_cart_item(
+            session,
+            user,
+            None,
+            product_code=product_id,
+            quantity=quantity,
+            source="agent_product_checkout",
+            recommendation_id=recommendation_id,
+            recommendation_rank=recommendation_rank,
+        ).cart
+    else:
+        cart = update_cart_item_quantity(
+            session,
+            user,
+            None,
+            item_id=existing.id,
+            quantity=max(existing.quantity, quantity),
+        )
+
+    selected_item = next(item for item in cart.items if item.product_id == product_id)
+    response_item = AgentResponseItem(
+        item_type="product",
+        id=selected_item.product_id,
+        title=selected_item.product.name,
+        subtitle=selected_item.product.brand,
+        image_storage_key=selected_item.product.thumbnail_url or None,
+        price=selected_item.product.current_price,
+        currency=selected_item.product.currency,
+        metadata={
+            "cart_item_id": selected_item.id,
+            "quantity": selected_item.quantity,
+            "recommendation_id": selected_item.recommendation_id,
+            "recommendation_rank": selected_item.recommendation_rank,
+        },
+    )
+    addresses = get_user_addresses(session, user).items
+    default_address = next(
+        (item for item in addresses if item.is_default),
+        addresses[0] if addresses else None,
+    )
+    if default_address is None:
+        action = AgentUiAction(
+            type="noop",
+            payload={
+                "agent_flow": "product_checkout",
+                "cart_item_ids": [selected_item.id],
+                "highlight_product_id": product_id,
+                "continuation": "register_shipping_address",
+            },
+        )
+        validate_tool_ui_action(PREPARE_PRODUCT_CHECKOUT_TOOL, action)
+        return AgentChatResponse(
+            conversation_id=_conversation_id(conversation_id),
+            message=(
+                "상품은 장바구니에 반영했어요. 받는 분 이름, 연락처, 우편번호, "
+                "기본 주소와 상세 주소를 알려주시면 주문서를 이어서 열어드릴게요."
+            ),
+            tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            ui_action=action,
+            items=[response_item],
+            error=AgentError(
+                code="AGENT_ADDRESS_REQUIRED",
+                message="주문서 이동을 위해 배송지가 필요해요.",
+                retryable=False,
+            ),
+        )
+
+    preview = get_checkout_preview(
+        session,
+        user,
+        None,
+        cart_item_ids=[selected_item.id],
+        address_id=default_address.id,
+    )
+    if not preview.can_checkout:
+        raise ApiError(409, "AGENT_CHECKOUT_BLOCKED", "선택한 상품은 현재 주문할 수 없어요.")
+    payload = {
+        **jsonable_encoder(preview),
+        "address_id": default_address.id,
+        "agent_flow": "product_checkout",
+        "highlight_product_id": product_id,
+    }
+    action = AgentUiAction(
+        type="show_checkout_preview",
+        target="checkout_preview",
+        payload=payload,
+    )
+    validate_tool_ui_action(PREPARE_PRODUCT_CHECKOUT_TOOL, action)
+    return AgentChatResponse(
+        conversation_id=_conversation_id(conversation_id),
+        message=(
+            "선택한 상품을 장바구니에 반영하고 주문서를 열었어요. "
+            "상품과 배송지, 최종 금액을 확인해 주세요."
+        ),
+        tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+        ui_action=action,
+        items=[response_item],
     )
 
 
@@ -120,7 +246,7 @@ def prepare_agent_order(
         address_id=selected_address_id,
     )
     if not preview.can_checkout:
-        raise ApiError(409, "AGENT_CHECKOUT_BLOCKED", "The selected cart items cannot be checked out.")
+        raise ApiError(409, "AGENT_CHECKOUT_BLOCKED", "선택한 장바구니 상품은 현재 주문할 수 없어요.")
 
     now = datetime.now(UTC)
     tool_call_id = f"tool_{secrets.token_urlsafe(18)}"
@@ -176,9 +302,9 @@ def execute_confirmed_agent_order(
     cart_item_ids = input_json.get("cart_item_ids")
     address_id = input_json.get("address_id")
     if not isinstance(cart_item_ids, list) or not all(isinstance(item_id, int) for item_id in cart_item_ids):
-        raise ApiError(400, "AGENT_ORDER_INPUT_INVALID", "Stored cart selection is invalid.")
+        raise ApiError(400, "AGENT_ORDER_INPUT_INVALID", "저장된 장바구니 선택 정보를 확인할 수 없어요.")
     if not isinstance(address_id, int):
-        raise ApiError(400, "AGENT_ORDER_INPUT_INVALID", "Stored address selection is invalid.")
+        raise ApiError(400, "AGENT_ORDER_INPUT_INVALID", "저장된 배송지 선택 정보를 확인할 수 없어요.")
 
     order = create_order(
         session,
@@ -211,14 +337,14 @@ def _resolve_checkout_selection(
     cart = get_cart_response(session, user, None)
     selected_item_ids = cart_item_ids or [item.id for item in cart.items]
     if not selected_item_ids:
-        raise ApiError(400, "AGENT_CART_EMPTY", "The cart is empty.")
+        raise ApiError(400, "AGENT_CART_EMPTY", "장바구니가 비어 있어요.")
 
     selected_address_id = address_id
     if selected_address_id is None:
         addresses = get_user_addresses(session, user).items
         default_address = next((item for item in addresses if item.is_default), addresses[0] if addresses else None)
         if default_address is None:
-            raise ApiError(409, "AGENT_ADDRESS_REQUIRED", "A shipping address is required.")
+            raise ApiError(409, "AGENT_ADDRESS_REQUIRED", "주문서 이동을 위해 배송지가 필요해요.")
         selected_address_id = default_address.id
     return selected_item_ids, selected_address_id
 

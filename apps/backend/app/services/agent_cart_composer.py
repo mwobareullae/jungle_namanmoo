@@ -159,7 +159,7 @@ def confirm_composed_cart(
         cart = get_cart_response(session, user, None)
         return _executed_response(tool_call.tool_call_id, cart, "이미 장바구니에 반영된 구성이에요.")
     if tool_call.status != "AWAITING_CONFIRMATION":
-        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "This tool call cannot be confirmed.")
+        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "현재 상태에서는 이 요청을 확인할 수 없어요.")
     now = datetime.now(UTC)
     if tool_call.expires_at is not None and tool_call.expires_at.replace(tzinfo=UTC) <= now:
         tool_call.status = "EXPIRED"
@@ -182,14 +182,14 @@ def confirm_composed_cart(
             ui_action=AgentUiAction(),
         )
     if action != "confirm":
-        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "Invalid confirmation action.")
+        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "확인 응답을 처리할 수 없어요.")
 
     selections = (tool_call.output_json or {}).get("selections")
     if not isinstance(selections, list) or not selections:
-        raise ApiError(400, "AGENT_CART_COMPOSITION_INVALID", "Stored cart composition is invalid.")
+        raise ApiError(400, "AGENT_CART_COMPOSITION_INVALID", "저장된 장바구니 구성 정보를 확인할 수 없어요.")
     for item in selections:
         if not isinstance(item, dict) or not isinstance(item.get("product_id"), str):
-            raise ApiError(400, "AGENT_CART_COMPOSITION_INVALID", "Stored cart composition is invalid.")
+            raise ApiError(400, "AGENT_CART_COMPOSITION_INVALID", "저장된 장바구니 구성 정보를 확인할 수 없어요.")
         add_cart_item(
             session,
             user,
