@@ -231,6 +231,11 @@ const isCategoryMenuArea = (target: EventTarget | null) => {
 const installFunctions = () => {
   const runtime = getRuntime();
 
+  runtime.saveRecentConcern = (text) => {
+    saveRecentConcern(String(text), "ai");
+    renderRecentConcerns("ai");
+  };
+
   runtime.toggleCart = () => {
     document.getElementById("cartSidebar")?.classList.toggle("active");
     document.getElementById("cartOverlay")?.classList.toggle("active");

@@ -420,6 +420,28 @@ nav a.nav-ai {
   gap: 8px;
 }
 
+.search-btn-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid rgba(10, 72, 86, 0.24);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: search-btn-spin 0.7s linear infinite;
+}
+
+@keyframes search-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-btn-spinner {
+    animation-duration: 1.4s;
+  }
+}
+
 .search-btn:hover,
 .btn-primary:hover,
 .checkout-btn:hover {

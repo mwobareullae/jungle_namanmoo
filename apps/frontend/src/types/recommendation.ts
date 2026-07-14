@@ -205,6 +205,15 @@ export type RecommendationResponse = {
   pagination: RecommendationPagination;
 };
 
+export type RecommendationRefinementFilters = {
+  min_price?: number;
+  max_price?: number;
+  category_code?: string;
+  skin_type?: string;
+  sensitivity?: string;
+  effect_keywords?: string[];
+};
+
 export type RecommendationNarrativeRequest = {
   mode?: string;
   view?: "cards" | "detail" | "full";
