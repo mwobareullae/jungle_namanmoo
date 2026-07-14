@@ -6,7 +6,9 @@ param(
     [string]$UserType = "anonymous",
     [switch]$Prepare,
     [int]$Vus,
-    [string]$Duration
+    [string]$Duration,
+    [ValidatePattern("^[A-Za-z0-9][A-Za-z0-9_-]*$")]
+    [string]$QueryId
 )
 
 $ErrorActionPreference = "Stop"
@@ -159,13 +161,17 @@ if ($UserType -eq "full-personalized") {
 $effectiveVus = if ($Vus -gt 0) { $Vus } elseif ($Config.ContainsKey("VUS") -and $Config.VUS) { $Config.VUS } else { "1" }
 $effectiveDuration = if ($Duration) { $Duration } elseif ($Config.ContainsKey("DURATION") -and $Config.DURATION) { $Config.DURATION } else { "30s" }
 $sla = if ($Config.ContainsKey("SLA_MS") -and $Config.SLA_MS) { $Config.SLA_MS } else { "3000" }
+$effectiveQueryId = if ($QueryId) { $QueryId } elseif ($Config.ContainsKey("QUERY_ID") -and $Config.QUERY_ID) { $Config.QUERY_ID } else { "" }
+if ($effectiveQueryId -and $effectiveQueryId -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]*$') {
+    throw "QUERY_ID 형식이 올바르지 않습니다: $effectiveQueryId"
+}
 
 $RunStartedAt = (Get-Date).ToUniversalTime().ToString("o")
 Write-Host "[6/11] 서버 resource monitor 시작"
 $monitorStartCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' ' + $RemoteCtl + ' monitor-start ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $monitorStartCommand $Config
 
-Write-Host "[7/11] 로컬 k6 실행: dataset=$Dataset user_type=$UserType"
+Write-Host "[7/11] 로컬 k6 실행: dataset=$Dataset user_type=$UserType query_id=$(if ($effectiveQueryId) { $effectiveQueryId } else { 'all' })"
 $k6Args = @(
     "run",
     "--summary-export", $LocalK6Summary,
@@ -176,6 +182,9 @@ $k6Args = @(
     "-e", "DURATION=$effectiveDuration",
     "-e", "SLA_MS=$sla"
 )
+if ($effectiveQueryId) {
+    $k6Args += @("-e", "QUERY_ID=$effectiveQueryId")
+}
 foreach ($envName in @(
     "BENCHMARK_PROFILE_USER_EMAIL", "BENCHMARK_PROFILE_USER_PASSWORD",
     "BENCHMARK_SKIN_TEST_USER_EMAIL", "BENCHMARK_SKIN_TEST_USER_PASSWORD",
@@ -195,10 +204,13 @@ foreach ($envName in @(
 $k6Args += $K6Script
 $k6ExitCode = 0
 $RunFinishedAt = $null
+$previousErrorActionPreference = $ErrorActionPreference
 try {
+    $ErrorActionPreference = "Continue"
     & k6 @k6Args 2>&1 | Tee-Object -FilePath $LocalK6Output
     $k6ExitCode = $LASTEXITCODE
 } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
     $RunFinishedAt = (Get-Date).ToUniversalTime().ToString("o")
     Write-Host "[8/11] 서버 resource monitor 종료"
     $monitorStopCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' ' + $RemoteCtl + ' monitor-stop ' + $RunId + ' ' + $Dataset
@@ -230,7 +242,7 @@ if (Test-Path -LiteralPath $LocalK6Output) {
 }
 
 Write-Host "[10/11] 서버에서 결과 collect"
-$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_K6_OUTPUT_FILE=' + $RemoteK6Output + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_SERVER_HOST=' + $ServerHost + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' BENCHMARK_K6_EXIT_CODE=' + $k6ExitCode + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
+$collectCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_K6_RESULT_FILE=' + $RemoteK6Summary + ' BENCHMARK_K6_OUTPUT_FILE=' + $RemoteK6Output + ' BENCHMARK_USER_TYPE=' + $UserType + ' BENCHMARK_VUS=' + $effectiveVus + ' BENCHMARK_DURATION=' + $effectiveDuration + ' BENCHMARK_QUERY_ID=' + $effectiveQueryId + ' BENCHMARK_SERVER_HOST=' + $ServerHost + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' BENCHMARK_RUN_FINISHED_AT=' + $RunFinishedAt + ' BENCHMARK_K6_EXIT_CODE=' + $k6ExitCode + ' ' + $RemoteCtl + ' collect ' + $RunId + ' ' + $Dataset
 Invoke-Ssh $collectCommand $Config
 
 Write-Host "[11/11] 수집 결과 다운로드"

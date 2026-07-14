@@ -30,6 +30,7 @@ pytestmark = pytest.mark.slow
 
 def test_build_recommendation_intent_merges_llm_parser_output() -> None:
     repository = cached_repository(DATA_DIR)
+    diagnostics: dict[str, object] = {}
     llm_parser = _FakeConcernLlmParser(
         ConcernLlmParserOutput(
             matched_concerns=(
@@ -68,6 +69,7 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
         "brighten uneven tone",
         repository=repository,
         llm_parser=llm_parser,
+        diagnostics=diagnostics,
     )
 
     assert llm_parser.calls == 1
@@ -82,16 +84,25 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
     assert intent.llm_used is True
     assert intent.needs_review is False
     assert intent.parser_confidence == 0.84
+    assert diagnostics["intent_rule_needs_llm"] is True
+    assert float(diagnostics["intent_repository_load_ms"]) >= 0
+    assert diagnostics["intent_llm_attempted"] is True
+    assert diagnostics["intent_llm_outcome"] == "success"
+    assert diagnostics["intent_llm_used"] is True
+    assert float(diagnostics["intent_llm_call_ms"]) >= 0
+    assert float(diagnostics["intent_llm_merge_ms"]) >= 0
 
 
 def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:
     repository = cached_repository(DATA_DIR)
+    diagnostics: dict[str, object] = {}
     llm_parser = _FailingConcernLlmParser()
 
     intent = build_recommendation_intent(
         "unknown concern",
         repository=repository,
         llm_parser=llm_parser,
+        diagnostics=diagnostics,
     )
 
     assert llm_parser.calls == 1
@@ -101,6 +112,27 @@ def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:
     assert intent.needs_llm is True
     assert intent.llm_used is False
     assert intent.llm_error == "boom"
+    assert diagnostics["intent_llm_attempted"] is True
+    assert diagnostics["intent_llm_outcome"] == "timeout"
+    assert diagnostics["intent_llm_error_code"] == "timeout"
+    assert diagnostics["intent_llm_used"] is False
+
+
+def test_build_recommendation_intent_marks_disabled_llm() -> None:
+    repository = cached_repository(DATA_DIR)
+    diagnostics: dict[str, object] = {}
+
+    intent = build_recommendation_intent(
+        "unknown concern",
+        repository=repository,
+        diagnostics=diagnostics,
+    )
+
+    assert intent.needs_llm is True
+    assert diagnostics["intent_rule_needs_llm"] is True
+    assert diagnostics["intent_llm_attempted"] is False
+    assert diagnostics["intent_llm_http_attempted"] is False
+    assert diagnostics["intent_llm_outcome"] == "disabled"
 
 
 def test_concern_llm_parser_output_rejects_unknown_ids() -> None:
@@ -174,9 +206,97 @@ def test_openai_concern_llm_parser_sends_deterministic_seed(monkeypatch) -> None
     assert captured_payload["seed"] == 42
 
 
+def test_openai_concern_llm_parser_classifies_timeout(monkeypatch) -> None:
+    repository = cached_repository(DATA_DIR)
+    rule_result = parse_concern_text("까무잡잡한데 밝아지고 싶어", repository)
+    diagnostics: dict[str, object] = {}
+
+    def fake_urlopen(*_args, **_kwargs):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    parser = OpenAIConcernLlmParser(api_key="test-key", model="gpt-test")
+
+    with pytest.raises(ConcernLlmParserError) as exc_info:
+        parser._request_structured_output(
+            prompt="system prompt",
+            schema={"name": "concern_parser_output", "schema": {"type": "object"}},
+            concern_text="까무잡잡한데 밝아지고 싶어",
+            rule_result=rule_result,
+            diagnostics=diagnostics,
+        )
+
+    assert exc_info.value.code == "timeout"
+    assert diagnostics["intent_llm_http_attempted"] is True
+    assert float(diagnostics["intent_llm_http_ms"]) >= 0
+
+
+def test_openai_concern_llm_parser_records_success_diagnostics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    repository = cached_repository(DATA_DIR)
+    rule_result = parse_concern_text("까무잡잡한데 밝아지고 싶어", repository)
+    prompt_path = tmp_path / "prompt.md"
+    schema_path = tmp_path / "schema.json"
+    prompt_path.write_text("system prompt", encoding="utf-8")
+    schema_path.write_text(
+        json.dumps({"name": "concern_parser_output", "schema": {"type": "object"}}),
+        encoding="utf-8",
+    )
+
+    def fake_urlopen(*_args, **_kwargs):
+        return _FakeHTTPResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "matched_concerns": [],
+                                    "expected_effects": [],
+                                    "excluded_concerns": [],
+                                    "priority_effects": [],
+                                    "unmatched_terms": [],
+                                    "needs_review": False,
+                                    "confidence": 0,
+                                }
+                            )
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    parser = OpenAIConcernLlmParser(
+        api_key="test-key",
+        model="gpt-test",
+        prompt_path=prompt_path,
+        schema_path=schema_path,
+    )
+    diagnostics: dict[str, object] = {}
+
+    output = parser.parse(
+        "까무잡잡한데 밝아지고 싶어",
+        rule_result,
+        repository,
+        diagnostics=diagnostics,
+    )
+
+    assert output.confidence == 0
+    assert diagnostics["intent_llm_outcome"] == "success"
+    assert diagnostics["intent_llm_http_attempted"] is True
+    assert diagnostics["intent_llm_status_code"] == 200
+    assert float(diagnostics["intent_llm_response_parse_ms"]) >= 0
+    assert float(diagnostics["intent_llm_schema_validate_ms"]) >= 0
+
+
 class _FakeHTTPResponse:
     def __init__(self, payload: dict) -> None:
         self.payload = payload
+        self.status = 200
 
     def __enter__(self):
         return self
@@ -198,6 +318,8 @@ class _FakeConcernLlmParser:
         concern_text: str,
         rule_result: ParsedConcernResult,
         repository: ConcernRepository,
+        *,
+        diagnostics: dict[str, object] | None = None,
     ) -> ConcernLlmParserOutput:
         self.calls += 1
         assert concern_text
@@ -215,6 +337,8 @@ class _FailingConcernLlmParser:
         concern_text: str,
         rule_result: ParsedConcernResult,
         repository: ConcernRepository,
+        *,
+        diagnostics: dict[str, object] | None = None,
     ) -> ConcernLlmParserOutput:
         self.calls += 1
-        raise ConcernLlmParserError("boom")
+        raise ConcernLlmParserError("boom", code="timeout")

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from app.core.performance_logging import current_time, elapsed_ms
 from app.services.concern_repository import get_default_concern_repository
 from app.services.concern_llm_parser import (
     ConcernLlmParser,
@@ -63,29 +64,105 @@ def build_recommendation_intent(
     *,
     repository: ConcernRepository | None = None,
     llm_parser: ConcernLlmParser | None = None,
+    diagnostics: dict[str, object] | None = None,
 ) -> RecommendationIntent:
+    intent_diagnostics = diagnostics if diagnostics is not None else {}
+    intent_diagnostics.update(
+        {
+            "intent_input_length": len(concern_text),
+            "intent_llm_attempted": False,
+            "intent_llm_http_attempted": False,
+            "intent_llm_call_ms": 0.0,
+            "intent_llm_prompt_load_ms": 0.0,
+            "intent_llm_schema_load_ms": 0.0,
+            "intent_llm_request_build_ms": 0.0,
+            "intent_llm_http_ms": 0.0,
+            "intent_llm_response_parse_ms": 0.0,
+            "intent_llm_schema_validate_ms": 0.0,
+            "intent_llm_merge_ms": 0.0,
+            "intent_llm_status_code": None,
+            "intent_llm_error_code": None,
+        }
+    )
+    repository_started_at = current_time()
     concern_repository = repository or get_default_concern_repository()
+    _record_diagnostic_duration(
+        intent_diagnostics,
+        "intent_repository_load_ms",
+        repository_started_at,
+    )
+    rule_started_at = current_time()
     parsed_concern = parse_concern_text(concern_text, concern_repository)
+    _record_diagnostic_duration(
+        intent_diagnostics,
+        "intent_rule_parse_ms",
+        rule_started_at,
+    )
+    intent_diagnostics["intent_rule_needs_llm"] = parsed_concern.needs_llm
+    intent_diagnostics["intent_rule_matched_concern_count"] = len(
+        parsed_concern.concerns
+    )
+    intent_diagnostics["intent_rule_unmatched_term_count"] = len(
+        parsed_concern.unmatched_terms
+    )
     llm_used = False
     needs_review = False
     parser_confidence: float | None = None
     llm_error: str | None = None
 
     if parsed_concern.needs_llm and llm_parser is not None:
+        intent_diagnostics["intent_llm_attempted"] = True
+        llm_started_at = current_time()
         try:
-            llm_result = llm_parser.parse(concern_text, parsed_concern, concern_repository)
-            parsed_concern = _merge_llm_result(
+            llm_result = llm_parser.parse(
+                concern_text,
                 parsed_concern,
-                llm_result,
                 concern_repository,
+                diagnostics=intent_diagnostics,
             )
+            merge_started_at = current_time()
+            try:
+                parsed_concern = _merge_llm_result(
+                    parsed_concern,
+                    llm_result,
+                    concern_repository,
+                )
+            finally:
+                _record_diagnostic_duration(
+                    intent_diagnostics,
+                    "intent_llm_merge_ms",
+                    merge_started_at,
+                )
             llm_used = True
             needs_review = llm_result.needs_review
             parser_confidence = llm_result.confidence
+            intent_diagnostics["intent_llm_outcome"] = "success"
         except ConcernLlmParserError as exc:
             llm_error = str(exc)
+            intent_diagnostics["intent_llm_outcome"] = exc.code
+            intent_diagnostics["intent_llm_error_code"] = exc.code
+            if exc.status_code is not None:
+                intent_diagnostics["intent_llm_status_code"] = exc.status_code
+        finally:
+            _record_diagnostic_duration(
+                intent_diagnostics,
+                "intent_llm_call_ms",
+                llm_started_at,
+            )
+    elif parsed_concern.needs_llm:
+        intent_diagnostics["intent_llm_outcome"] = "disabled"
+    else:
+        intent_diagnostics["intent_llm_outcome"] = "not_needed"
 
+    purchase_started_at = current_time()
     purchase_conditions = parse_purchase_conditions(concern_text)
+    _record_diagnostic_duration(
+        intent_diagnostics,
+        "intent_purchase_parse_ms",
+        purchase_started_at,
+    )
+    intent_diagnostics["intent_llm_used"] = llm_used
+    intent_diagnostics["intent_final_needs_llm"] = parsed_concern.needs_llm
 
     return RecommendationIntent(
         concern_text=concern_text,
@@ -102,6 +179,14 @@ def build_recommendation_intent(
         parser_confidence=parser_confidence,
         llm_error=llm_error,
     )
+
+
+def _record_diagnostic_duration(
+    diagnostics: dict[str, object],
+    key: str,
+    started_at: float,
+) -> None:
+    diagnostics[key] = round(elapsed_ms(started_at), 2)
 
 
 def _dedupe_terms(terms: list[str]) -> tuple[str, ...]:

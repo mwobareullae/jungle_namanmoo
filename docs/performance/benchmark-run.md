@@ -110,6 +110,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\perf\benchmark
   -UserType full-personalized
 ```
 
+의도 파서만 진단할 때는 쿼리 세트의 `id` 하나를 고정한다. 이 경우 모든 VU가 같은
+문장을 반복하고, 선택한 ID는 수집 결과의 `manifest.json`에 `query_id`로 기록된다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\perf\benchmarkctl-local.ps1 `
+  -Dataset 80000 `
+  -UserType full-personalized `
+  -Vus 1 `
+  -Duration 30s `
+  -QueryId hydration-sensitive
+```
+
+사용할 수 있는 ID는 `docs/performance/queries/recommendation-v1.json`의 `id` 값이다.
+고정하지 않으려면 `-QueryId`를 생략한다.
+
+- `hydration-sensitive`: 현재 규칙 파서만 사용하는 대조군
+- `no-result`: 현재 규칙 파서가 LLM 보완 필요로 판정하는 실험군
+
 Only set `BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD` in ignored local config
 files. If no explicit email list is supplied, both the seeder and k6 use:
 
