@@ -64,11 +64,16 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 | `add_to_cart` | 상품 한 종류를 실제 장바구니에 추가 | 없음 | `show_cart` |
 | `compose_cart` | 카테고리·총예산·피부 조건으로 복수 상품 구성안 생성 후 일괄 추가 | 필수 | `open_modal/agent_confirmation`, `show_cart` |
 | `prepare_checkout` | 선택 상품과 배송지로 금액·재고 재검증 | 없음 | `show_checkout_preview` |
+| `register_shipping_address` | 사용자가 제공한 배송지를 등록하고 중단된 checkout 재개 | 없음 | `show_checkout_preview` |
 | `prepare_order` | 주문 내용을 고정하고 확인 대기 상태 생성 | 필수 | `open_modal/order_create_confirm` |
 | `prepare_review_draft` | 실제 구매·작성 가능 상품 확인 후 사용자가 말한 경험으로 리뷰 작성 화면 채우기 | 없음 | `navigate/review_write` |
 | `prepare_claim_draft` | 배송완료·신청 기간·잔여 수량 확인 후 클레임 신청 화면 채우기 | 없음 | `navigate/claim_request` |
 
 개별 장바구니 추가는 즉시 실행한다. `compose_cart`는 실제 DB의 카테고리, 최저가, 판매·재고 상태, 상품 피부 적합도와 사용자 피부 프로필의 제외 성분을 검증해 총예산 안의 조합을 제안한다. 구성안 조회만으로 장바구니를 바꾸지 않으며 사용자가 확인 API로 승인한 뒤에만 각 상품을 1개씩 같은 요청 트랜잭션에서 추가한다. 기존 장바구니 상품은 삭제하지 않는다. 주문 생성도 반드시 별도의 확인 API를 거친다.
+
+`prepare_checkout`에서 등록 배송지가 없으면 `AGENT_ADDRESS_REQUIRED`를 반환한다. 에이전트는 받는 분 이름, 연락처, 우편번호, 기본 주소와 선택 상세 주소를 요청한다. 사용자가 이 요청에 배송지 정보를 답하면 명시적인 등록 의사로 보고 `register_shipping_address`를 실행한다. 첫 배송지는 기존 주소 서비스 정책에 따라 기본 배송지가 되며, `continue_checkout=true`이면 등록된 주소로 checkout preview를 다시 생성해 장바구니와 주문서 이동을 재개한다. 이름·연락처가 생략된 경우 계정에 저장된 값만 사용할 수 있고, 값이 없으면 추측하지 않고 다시 질문한다.
+
+배송지 원문과 연락처는 `agent_tool_calls.input_json`에 기록하지 않는다. 감사 기록에는 각 필드의 제공 여부, 기본 배송지 여부, checkout 재개 여부와 장바구니 항목 ID만 남긴다. 프론트의 최근 대화 저장소에도 배송지 답변 원문 대신 `배송지 정보를 입력했어요.`라는 대체 문구를 저장한다.
 
 ```text
 "민감성 피부용 토너와 크림을 5만원 안으로 구성해줘"
@@ -85,6 +90,10 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 ```text
 사용자 주문 요청
 → prepare_checkout 및 장바구니 화면을 거쳐 주문서 이동
+→ 등록 배송지가 없으면 필요한 배송지 필드 요청
+→ 사용자가 배송지 제공
+→ register_shipping_address로 실제 배송지 등록
+→ checkout preview와 주문서 이동 재개
 → 주문서에서 사용자가 주문 진행 요청
 → prepare_order
 → 서버가 장바구니·주소·가격·재고 재조회
@@ -141,4 +150,4 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 
 대표 오류는 로그인 필요, 빈 장바구니, 배송지 필요, checkout 불가, 확인 만료, 소유권 불일치다. API 오류는 공통 `error.code`/`error.message` 구조를 따른다.
 
-tool 실행은 `agent_tool_calls`에 사용자, conversation, tool 이름, 입력·출력, 확인 여부, 만료 시각과 최종 상태를 기록한다. 사용자 채팅 원문 전체와 결제 비밀키는 저장하지 않는다.
+tool 실행은 `agent_tool_calls`에 사용자, conversation, tool 이름, 입력·출력, 확인 여부, 만료 시각과 최종 상태를 기록한다. 사용자 채팅 원문 전체와 결제 비밀키는 저장하지 않는다. `register_shipping_address`의 수령인·연락처·우편번호·주소·배송 메모 원문도 기록하지 않고 제공 여부만 저장한다.

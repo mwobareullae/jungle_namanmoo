@@ -168,7 +168,7 @@ const getReviewComparisonValue = (product: ProductDetail) => {
 const getPurchaseComparisonValue = (product: ProductDetail) => {
   if (!product.purchase_info) return "구매 상태 정보 없음";
   if (!product.purchase_info.can_purchase) return "현재 구매 불가";
-  return product.purchase_info.available_quantity === 0 ? "일시 품절" : "구매 가능";
+  return product.purchase_info.available_quantity === 0 ? "일시품절" : "구매 가능";
 };
 
 const getCautionComparisonValue = (product: ProductDetail) =>

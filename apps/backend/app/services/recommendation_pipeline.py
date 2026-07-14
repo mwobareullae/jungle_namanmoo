@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductPrice
+from app.db.models.commerce import Inventory
 from app.db.models.recommendation import (
     RecommendationResult,
     RecommendationRun,
@@ -32,6 +33,7 @@ from app.schemas.recommendation import (
 )
 from app.services.candidate_pool import CandidatePool, generate_candidate_pool
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.product_availability import build_product_availability
 from app.services.concern_llm_parser import get_default_concern_llm_parser
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_result_store import save_recommendation_results
@@ -106,6 +108,10 @@ class _ResultRow:
     brand: Brand
     lowest_price: int
     thumbnail_storage_key: str
+    sales_status: str
+    stock_status: str
+    available_quantity: int | None
+    in_stock: bool
 
 
 @dataclass(frozen=True)
@@ -529,10 +535,16 @@ def _load_result_rows(
             Product,
             Brand,
             lowest_prices.c.lowest_price,
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
         )
         .join(Product, RecommendationResult.product_id == Product.id)
         .join(Brand, Product.brand_id == Brand.id)
         .outerjoin(lowest_prices, lowest_prices.c.product_id == Product.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
         .where(RecommendationResult.recommendation_run_id == recommendation_run_id)
         .order_by(RecommendationResult.rank_order.asc())
         .offset(offset)
@@ -540,19 +552,30 @@ def _load_result_rows(
     ).all()
     thumbnail_storage_keys = load_thumbnail_storage_keys(
         session,
-        [int(product.id) for _, product, _, _ in rows],
+        [int(product.id) for _, product, _, _, _, _, _, _, _ in rows],
     )
 
-    return [
-        _ResultRow(
+    result_rows: list[_ResultRow] = []
+    for result, product, brand, lowest_price, inventory_id, stock_quantity, reserved_quantity, safety_stock, sales_status in rows:
+        availability = build_product_availability(
+            inventory_exists=inventory_id is not None,
+            sales_status=sales_status,
+            stock_quantity=stock_quantity,
+            reserved_quantity=reserved_quantity,
+            safety_stock=safety_stock,
+        )
+        result_rows.append(_ResultRow(
             result=result,
             product=product,
             brand=brand,
             lowest_price=int(lowest_price or 0),
             thumbnail_storage_key=thumbnail_storage_keys.get(int(product.id), ""),
-        )
-        for result, product, brand, lowest_price in rows
-    ]
+            sales_status=availability.sales_status,
+            stock_status=availability.stock_status,
+            available_quantity=availability.available_quantity,
+            in_stock=availability.in_stock,
+        ))
+    return result_rows
 
 
 def _build_pagination(*, page: int, page_size: int, total_items: int) -> Pagination:
@@ -638,6 +661,10 @@ def _result_row_to_recommended_product(
             recommendation_id=recommendation_id,
             recommendation_rank=rank,
         ),
+        sales_status=row.sales_status,
+        stock_status=row.stock_status,
+        available_quantity=row.available_quantity,
+        in_stock=row.in_stock,
     )
 
 

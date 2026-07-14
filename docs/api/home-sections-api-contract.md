@@ -4,6 +4,8 @@
 
 Home sections are loaded through separate APIs so the frontend can lazy-load each rail and infra can measure each section independently.
 
+각 섹션의 상품 카드 재고 필드는 [`product-card-availability-contract.md`](./product-card-availability-contract.md)를 따릅니다.
+
 The old bundled endpoint is removed:
 
 ```text
@@ -72,7 +74,11 @@ The section order is `market_popular`, `for_you`, then `evidence_picks`.
       "badges": ["추천"],
       "tags": ["보습"],
       "reason_summary": "추천 이유",
-      "display_score": 88
+      "display_score": 88,
+      "sales_status": "ON_SALE",
+      "stock_status": "IN_STOCK",
+      "available_quantity": 12,
+      "in_stock": true
     }
   ]
 }

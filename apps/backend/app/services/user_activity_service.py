@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
-from app.db.models.commerce import RecentView, Wishlist
+from app.db.models.commerce import Inventory, RecentView, Wishlist
 from app.schemas.common import ApiError
 from app.schemas.user_activity import (
     RecentViewItem,
@@ -15,6 +15,7 @@ from app.schemas.user_activity import (
     WishlistResponse,
 )
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.product_availability import build_product_availability
 
 
 DEFAULT_ACTIVITY_LIMIT = 50
@@ -232,11 +233,17 @@ def _activity_product_statement(activity_table, activity_id, activity_at):
             ProductCategory.category_code,
             ProductCategory.name.label("category_name"),
             price_subquery.c.lowest_price.label("lowest_price"),
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
         )
         .join(Product, activity_table.c.product_id == Product.id)
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .outerjoin(price_subquery, price_subquery.c.product_id == Product.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
         .where(
             Product.is_active.is_(True),
             Brand.is_active.is_(True),
@@ -246,6 +253,13 @@ def _activity_product_statement(activity_table, activity_id, activity_at):
 
 
 def _to_activity_product(row, thumbnail_url: str) -> UserActivityProduct:
+    availability = build_product_availability(
+        inventory_exists=row.inventory_id is not None,
+        sales_status=row.sales_status,
+        stock_quantity=row.stock_quantity,
+        reserved_quantity=row.reserved_quantity,
+        safety_stock=row.safety_stock,
+    )
     return UserActivityProduct(
         product_id=row.product_code,
         brand=row.brand,
@@ -254,6 +268,10 @@ def _to_activity_product(row, thumbnail_url: str) -> UserActivityProduct:
         category_name=row.category_name,
         thumbnail_url=thumbnail_url,
         lowest_price=int(row.lowest_price or 0),
+        sales_status=availability.sales_status,
+        stock_status=availability.stock_status,
+        available_quantity=availability.available_quantity,
+        in_stock=availability.in_stock,
     )
 
 

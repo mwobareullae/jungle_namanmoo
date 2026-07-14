@@ -4,6 +4,8 @@
 작성일: 2026-07-11
 범위: 일반 상품 검색과 검색어 제안. 피부 고민 추천 API는 변경하지 않는다.
 
+검색 결과의 상품 카드 재고 필드는 [`product-card-availability-contract.md`](./product-card-availability-contract.md)를 따릅니다.
+
 ## 1. API 경계
 
 - 상품을 알고 있거나 브랜드·카테고리·가격 조건을 직접 입력하면 일반 상품 검색을 사용한다.
@@ -72,7 +74,10 @@ API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 �
       "lowest_price": 19900,
       "rating": 4.72,
       "review_count": 1200,
-      "sales_status": "ON_SALE"
+      "sales_status": "ON_SALE",
+      "stock_status": "IN_STOCK",
+      "available_quantity": 12,
+      "in_stock": true
     }
   ],
   "pagination": {
@@ -108,7 +113,7 @@ API 파라미터로 전달된 필터는 검색어에서 추출한 조건보다 �
 }
 ```
 
-`lowest_price`와 `rating`은 데이터가 없으면 `null`이다. `review_count`는 집계가 없으면 `0`이다. 재고 행이 없으면 `sales_status=UNKNOWN`으로 반환하며 `in_stock=true` 결과에는 포함하지 않는다.
+`lowest_price`와 `rating`은 데이터가 없으면 `null`이다. `review_count`는 집계가 없으면 `0`이다. 재고 행이 없으면 `sales_status=UNKNOWN`, `stock_status=UNKNOWN`, `available_quantity=null`, `in_stock=false`로 반환하며 `in_stock=true` 결과에는 포함하지 않는다.
 
 내부 Elasticsearch 점수, match source, Elasticsearch 실패 사유는 공개 응답에 포함하지 않는다.
 

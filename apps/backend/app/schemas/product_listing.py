@@ -29,6 +29,8 @@ class ProductListingItem(BaseModel):
     review_count: int
     sales_status: str
     in_stock: bool
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
     released_at: datetime | None
 
 
