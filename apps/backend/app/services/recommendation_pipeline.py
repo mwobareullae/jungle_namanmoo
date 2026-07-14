@@ -154,10 +154,12 @@ def create_recommendation_response(
     )
     _record_stage_duration(stage_durations, "skin_test_context_load_ms", stage_started_at)
 
+    scoring_diagnostics: dict[str, object] = {}
     stage_started_at = current_time()
     behavior_personalization_context = load_behavior_personalization_context(
         session,
         current_user.id if current_user is not None else None,
+        diagnostics=scoring_diagnostics,
     )
     _record_stage_duration(stage_durations, "behavior_context_load_ms", stage_started_at)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
@@ -218,7 +220,6 @@ def create_recommendation_response(
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
-        scoring_diagnostics: dict[str, object] = {}
         scored_candidates = score_candidates(
             session,
             intent,
