@@ -414,6 +414,12 @@ PgBouncer와 read replica는 단일 요청의 느린 쿼리를 직접 해결하�
 - 최초 근거: 추천 생성 p95 52.17초, intent parse와 candidate/scoring 지연
 - 목표: 외부 LLM 제외 추천 core p95 3초 이하
 - 핵심 비교: `intent_parse_ms`, `candidate_pool_ms`, `scoring_ms`, 후보 수
+- intent 원인 분리는 `intent_repository_load_ms`, `intent_rule_parse_ms`,
+  `intent_llm_call_ms`, `intent_llm_http_ms`, `intent_llm_response_parse_ms`,
+  `intent_llm_schema_validate_ms`, `intent_llm_merge_ms`,
+  `intent_purchase_parse_ms`, `intent_unattributed_ms`를 사용한다.
+- 규칙 파서와 LLM 경로를 비교할 때는 `-QueryId`로 같은 쿼리를 고정하고,
+  `intent_llm_outcome` 및 `ai_call_completed/failed` 건수를 함께 확인한다.
 
 ### 4차: 상품 상세/인기상품 조회 최적화
 

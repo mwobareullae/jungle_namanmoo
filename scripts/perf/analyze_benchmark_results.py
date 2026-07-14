@@ -68,6 +68,24 @@ CONTEXT_LOAD_STAGES = [
     ("behavior_context_load_ms", "behavior"),
 ]
 
+INTENT_STAGES = [
+    ("intent_repository_load_ms", "repository load"),
+    ("intent_rule_parse_ms", "rule parser"),
+    ("intent_llm_call_ms", "LLM parser"),
+    ("intent_llm_merge_ms", "LLM merge"),
+    ("intent_purchase_parse_ms", "purchase parser"),
+    ("intent_unattributed_ms", "unattributed"),
+]
+
+INTENT_LLM_STAGES = [
+    ("intent_llm_prompt_load_ms", "prompt load"),
+    ("intent_llm_schema_load_ms", "schema load"),
+    ("intent_llm_request_build_ms", "request build"),
+    ("intent_llm_http_ms", "HTTP wait"),
+    ("intent_llm_response_parse_ms", "response parse"),
+    ("intent_llm_schema_validate_ms", "schema validate"),
+]
+
 
 def main() -> None:
     args = parse_args()
@@ -209,6 +227,7 @@ def build_run_row(input_dir: Path, run_dir: Path) -> dict[str, Any] | None:
         "dataset": dataset,
         "dataset_label": str(dataset),
         "user_type": user_type,
+        "query_id": str((manifest or {}).get("query_id") or "all"),
         "vus": int(vus or 0),
         "vus_label": f"VUS {int(vus or 0)}",
         "duration": duration,
@@ -365,10 +384,26 @@ def extract_backend_metrics(log_path: Path) -> dict[str, Any]:
 
     result.update(extract_nested_breakdown(events, "scoring_prefetch_breakdown", "prefetch"))
     result.update(extract_nested_breakdown(events, "scoring_counts", "count"))
+    for field_name in (
+        "intent_rule_needs_llm",
+        "intent_llm_attempted",
+        "intent_llm_http_attempted",
+        "intent_llm_used",
+    ):
+        result.update(extract_boolean_summary(events, field_name))
+    result.update(extract_categorical_summary(events, "intent_llm_outcome"))
+    result.update(extract_concern_parser_ai_metrics(log_path))
     return result
 
 
 def load_pipeline_events(log_path: Path) -> list[dict[str, Any]]:
+    return load_performance_events(log_path, {"recommendation_pipeline_completed"})
+
+
+def load_performance_events(
+    log_path: Path,
+    event_names: set[str],
+) -> list[dict[str, Any]]:
     if not log_path.exists():
         return []
 
@@ -381,9 +416,84 @@ def load_pipeline_events(log_path: Path) -> list[dict[str, Any]]:
             event = json.loads(line[json_start:])
         except json.JSONDecodeError:
             continue
-        if event.get("event") == "recommendation_pipeline_completed":
+        if event.get("event") in event_names:
             events.append(event)
     return events
+
+
+def extract_boolean_summary(
+    events: list[dict[str, Any]],
+    field_name: str,
+) -> dict[str, Any]:
+    values = [event[field_name] for event in events if isinstance(event.get(field_name), bool)]
+    if not values:
+        return {}
+    true_count = sum(value is True for value in values)
+    return {
+        f"{field_name}_sample_count": len(values),
+        f"{field_name}_true_count": true_count,
+        f"{field_name}_true_rate": round(true_count / len(values), 6),
+    }
+
+
+def extract_categorical_summary(
+    events: list[dict[str, Any]],
+    field_name: str,
+    *,
+    output_prefix: str | None = None,
+) -> dict[str, Any]:
+    values = [
+        str(event[field_name]).strip()
+        for event in events
+        if isinstance(event.get(field_name), str) and str(event[field_name]).strip()
+    ]
+    if not values:
+        return {}
+
+    prefix = output_prefix or field_name
+    result: dict[str, Any] = {f"{prefix}_sample_count": len(values)}
+    for value in sorted(set(values)):
+        count = values.count(value)
+        key = re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_") or "unknown"
+        result[f"{prefix}_{key}_count"] = count
+        result[f"{prefix}_{key}_rate"] = round(count / len(values), 6)
+    return result
+
+
+def extract_concern_parser_ai_metrics(log_path: Path) -> dict[str, Any]:
+    events = [
+        event
+        for event in load_performance_events(
+            log_path,
+            {"ai_call_completed", "ai_call_failed"},
+        )
+        if event.get("operation") == "concern_parser"
+    ]
+    if not events:
+        return {}
+
+    durations = [
+        float(event["duration_ms"])
+        for event in events
+        if isinstance(event.get("duration_ms"), (int, float))
+    ]
+    failed_count = sum(event.get("event") == "ai_call_failed" for event in events)
+    result: dict[str, Any] = {
+        "intent_ai_call_event_count": len(events),
+        "intent_ai_call_failed_count": failed_count,
+        "intent_ai_call_failed_rate": round(failed_count / len(events), 6),
+    }
+    if durations:
+        result["intent_ai_call_duration_ms_avg"] = round(statistics.mean(durations), 2)
+        result["intent_ai_call_duration_ms_p95"] = round(percentile(durations, 95), 2)
+    result.update(
+        extract_categorical_summary(
+            events,
+            "error",
+            output_prefix="intent_ai_call_error",
+        )
+    )
+    return result
 
 
 def extract_nested_breakdown(
@@ -883,6 +993,51 @@ def plot_stage_graphs(
         sns,
         statistic="p95",
     )
+    plot_stage_bar(
+        row,
+        INTENT_STAGES,
+        output_dir / f"intent_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"intent parser average ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        INTENT_STAGES,
+        output_dir / f"intent_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"intent parser p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_stage_bar(
+        row,
+        INTENT_LLM_STAGES,
+        output_dir / f"intent_llm_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"LLM parser detail average ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_donut(
+        row,
+        INTENT_LLM_STAGES,
+        output_dir / f"intent_llm_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"LLM parser measured share ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+        max_segments=len(INTENT_LLM_STAGES),
+        min_share_percent=0,
+    )
+    plot_intent_outcomes(
+        row,
+        output_dir / f"intent_llm_outcomes_{stage_dataset}_vus{stage_vus:02d}.png",
+        f"LLM parser outcomes ({scope})",
+        plt,
+        sns,
+    )
     plot_client_vs_backend_p95(
         df,
         output_dir / f"client_vs_backend_p95_{stage_dataset}.png",
@@ -904,6 +1059,47 @@ def plot_stage_graphs(
         plt=plt,
         sns=sns,
     )
+
+
+def plot_intent_outcomes(row, path: Path, title: str, plt, sns) -> None:
+    prefix = "intent_llm_outcome_"
+    suffix = "_count"
+    records = []
+    for key, value in row.items():
+        if not key.startswith(prefix) or not key.endswith(suffix):
+            continue
+        if key == "intent_llm_outcome_sample_count":
+            continue
+        numeric_value = float_value(value)
+        if numeric_value is None or numeric_value <= 0:
+            continue
+        outcome = key[len(prefix) : -len(suffix)].replace("_", " ")
+        records.append((outcome, numeric_value))
+    if not records:
+        return
+
+    records.sort(key=lambda item: item[1], reverse=True)
+    labels = [item[0] for item in records]
+    values = [item[1] for item in records]
+    total = sum(values)
+    positions = list(range(len(records)))
+    fig, ax = plt.subplots(
+        figsize=(10.5, max(4.8, len(records) * 0.7)),
+        layout="constrained",
+    )
+    bars = ax.barh(positions, values, color=sns.color_palette("colorblind")[2])
+    ax.set_yticks(positions, labels=labels)
+    ax.invert_yaxis()
+    ax.set_title(title)
+    ax.set_xlabel("pipeline event count")
+    ax.set_ylabel("")
+    ax.bar_label(
+        bars,
+        labels=[f"{value:,.0f} ({value / total * 100:.1f}%)" for value in values],
+        padding=4,
+        fontsize=9,
+    )
+    save_figure(fig, path, plt)
 
 
 def plot_line(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -93,6 +94,50 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual([record["stage"] for record in records], ["A", "B", "other (3 stages)"])
         self.assertEqual(sum(record["value"] for record in records), 100.0)
         self.assertEqual(sum(record["share_percent"] for record in records), 100.0)
+
+    def test_intent_diagnostics_include_outcomes_and_ai_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "backend.log"
+            events = [
+                {
+                    "event": "recommendation_pipeline_completed",
+                    "intent_llm_attempted": True,
+                    "intent_llm_http_attempted": True,
+                    "intent_llm_used": False,
+                    "intent_rule_needs_llm": True,
+                    "intent_llm_outcome": "timeout",
+                    "intent_llm_http_ms": 20000.0,
+                },
+                {
+                    "event": "recommendation_pipeline_completed",
+                    "intent_llm_attempted": False,
+                    "intent_llm_http_attempted": False,
+                    "intent_llm_used": False,
+                    "intent_rule_needs_llm": False,
+                    "intent_llm_outcome": "not_needed",
+                    "intent_llm_http_ms": 0.0,
+                },
+                {
+                    "event": "ai_call_failed",
+                    "operation": "concern_parser",
+                    "duration_ms": 20001.0,
+                    "error": "timeout",
+                },
+            ]
+            path.write_text(
+                "\n".join(json.dumps(event) for event in events),
+                encoding="utf-8",
+            )
+
+            result = analysis.extract_backend_metrics(path)
+
+        self.assertEqual(result["intent_llm_attempted_true_count"], 1)
+        self.assertEqual(result["intent_llm_attempted_true_rate"], 0.5)
+        self.assertEqual(result["intent_llm_outcome_timeout_count"], 1)
+        self.assertEqual(result["intent_llm_outcome_not_needed_count"], 1)
+        self.assertEqual(result["intent_ai_call_event_count"], 1)
+        self.assertEqual(result["intent_ai_call_failed_rate"], 1.0)
+        self.assertEqual(result["intent_ai_call_duration_ms_avg"], 20001.0)
 
 
 class BenchmarkResourceParsingTests(unittest.TestCase):
