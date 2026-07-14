@@ -52,7 +52,10 @@ export default function ClaimListPage() {
   };
 
   useEffect(() => {
-    loadClaims();
+    const timerId = window.setTimeout(() => {
+      loadClaims();
+    }, 0);
+    return () => window.clearTimeout(timerId);
   }, []);
 
   return (
