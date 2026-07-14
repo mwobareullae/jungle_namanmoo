@@ -2,6 +2,7 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
+import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
 import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
 import { useAdminAccess } from "../features/admin/hooks/useAdminAccess";
@@ -948,8 +949,6 @@ function AdminDashboardPage() {
   const [selectedSettlementId, setSelectedSettlementId] = useState(MOCK_SETTLEMENTS[0].id);
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [selectedProductId, setSelectedProductId] = useState(initialProducts[0]?.id ?? "draft");
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ProductStatus | "전체">("전체");
   const [draftProduct, setDraftProduct] = useState<ProductRow>(initialProducts[0] ?? emptyProduct);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("products_0706.xlsx");
@@ -973,21 +972,6 @@ function AdminDashboardPage() {
   const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
   const [ingredientSaveState, setIngredientSaveState] = useState<LocalSaveState>("idle");
   const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
-
-  const filteredProducts = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return products.filter((product) => {
-      const matchesQuery = normalizedQuery
-        ? [product.name, product.brand, product.productCode].some((value) =>
-            value.toLowerCase().includes(normalizedQuery),
-          )
-        : true;
-      const matchesStatus = statusFilter === "전체" ? true : product.status === statusFilter;
-
-      return matchesQuery && matchesStatus;
-    });
-  }, [products, query, statusFilter]);
 
   const selectedProduct = products.find((product) => product.id === selectedProductId) ?? products[0] ?? emptyProduct;
   const selectedStockProduct =
@@ -1098,17 +1082,6 @@ function AdminDashboardPage() {
     setSelectedProductId(product.id);
     setDraftProduct(product);
     setProductSaveState("idle");
-    setActiveView("productForm");
-  };
-
-  const handleNewProduct = () => {
-    setSelectedProductId("draft");
-    setDraftProduct({
-      ...emptyProduct,
-      productCode: `seller_sku_${products.length + 1}`,
-      updatedAt: "저장 전"
-    });
-    setProductSaveState("dirty");
     setActiveView("productForm");
   };
 
@@ -1448,8 +1421,6 @@ function AdminDashboardPage() {
     }
 
     if (item.action === "duplicateProduct") {
-      setQuery("");
-      setStatusFilter("전체");
       setActiveView("products");
       pushOperationLog("대시보드", "상품 중복 후보 확인", item.note, item.tone);
       return;
@@ -1938,116 +1909,6 @@ function AdminDashboardPage() {
 
       </section>
     </>
-  );
-
-  const renderProductList = () => (
-    <section className="admin-panel admin-product-panel">
-      <div className="admin-panel-header admin-product-header">
-        <div>
-          <p>상품 조회/상태 확인</p>
-          <h2>상품 운영 목록</h2>
-        </div>
-        <div className="admin-filter-row">
-          <input
-            aria-label="상품 검색"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="상품명, 브랜드, product_code"
-            type="search"
-            value={query}
-          />
-          <select
-            aria-label="판매 상태 필터"
-            onChange={(event) => setStatusFilter(event.target.value as ProductStatus | "전체")}
-            value={statusFilter}
-          >
-            <option>전체</option>
-            <option>판매중</option>
-            <option>검수필요</option>
-            <option>품절임박</option>
-            <option>판매중지</option>
-          </select>
-          <button className="admin-primary-button" onClick={handleNewProduct} type="button">
-            새 상품 등록
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-table-wrap">
-        <table className="admin-table admin-product-table">
-          <thead>
-            <tr>
-              <th scope="col">상품</th>
-              <th scope="col">가격/재고</th>
-              <th scope="col">판매</th>
-              <th scope="col">검수</th>
-              <th scope="col">이미지</th>
-              <th scope="col">성분</th>
-              <th scope="col">인덱스</th>
-              <th scope="col">수정</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
-                <tr key={product.id}>
-                  <td>
-                    <strong className="admin-product-name">{product.name}</strong>
-                    <small className="admin-product-code">{product.brand} · {product.productCode}</small>
-                  </td>
-                  <td>
-                    <strong>{formatCurrency(product.price)}</strong>
-                    <small className={product.stock < 20 ? "admin-danger-text" : "admin-product-code"}>
-                      재고 {product.stock.toLocaleString("ko-KR")}
-                    </small>
-                  </td>
-                  <td>
-                    <span className={`admin-badge ${getStatusTone(product.status)}`}>{product.status}</span>
-                  </td>
-                  <td>
-                    <span className={`admin-badge ${getStatusTone(product.reviewStatus)}`}>
-                      {product.reviewStatus}
-                    </span>
-                  </td>
-                  <td>{product.imageCount}개</td>
-                  <td>{product.ingredientState}</td>
-                  <td>
-                    <span className={`admin-badge ${getStatusTone(product.indexStatus)}`}>
-                      {product.indexStatus}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="admin-text-button"
-                      onClick={() => handleOpenProductForm(product)}
-                      type="button"
-                    >
-                      열기
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={8}>
-                  <div className="admin-empty-state">
-                    <strong>조건에 맞는 상품이 없습니다</strong>
-                    <span>검색어를 줄이거나 판매 상태 필터를 전체로 바꿔 확인하세요.</span>
-                    <button className="admin-text-button" onClick={handleNewProduct} type="button">
-                      새 상품 등록
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="admin-list-summary">
-        <span>표시 {filteredProducts.length}건</span>
-        <span>API 연결 전 mock 데이터</span>
-      </div>
-    </section>
   );
 
   const renderProductForm = () => (
@@ -3106,7 +2967,6 @@ function AdminDashboardPage() {
         </header>
 
         {activeView === "dashboard" && renderDashboard()}
-        {activeView === "products" && renderProductList()}
         {activeView === "productForm" && renderProductForm()}
         {activeView === "excelUpload" && renderExcelUpload()}
         {activeView === "imageUpload" && renderImageUpload()}
@@ -3117,6 +2977,11 @@ function AdminDashboardPage() {
           />
         )}
         {activeView === "stockPrice" && renderStockPrice()}
+        <AdminProductSection
+          key="admin-product"
+          active={activeView === "products"}
+          onOperationLog={pushOperationLog}
+        />
         <AdminOrderStatusSection
           key="admin-order-status"
           active={activeView === "orderStatus"}
