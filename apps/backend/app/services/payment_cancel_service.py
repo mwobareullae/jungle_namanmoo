@@ -4,13 +4,21 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models.commerce import Inventory, InventoryMovement, Order, OrderItem, Payment
+from app.db.models.commerce import (
+    Inventory,
+    InventoryMovement,
+    Order,
+    OrderItem,
+    Payment,
+    PaymentEvent,
+)
 from app.schemas.common import ApiError
 
 
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
 ORDER_STATUS_CANCELED = "CANCELED"
 PAYMENT_PROVIDER_MOCK = "MOCK"
+PAYMENT_PROVIDER_TOSS = "TOSS"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_STATUS_CANCELED = "CANCELED"
 ORDER_ITEM_STATUS_ORDERED = "ORDERED"
@@ -30,10 +38,15 @@ def cancel_paid_order(
     order_code: str,
     *,
     now: datetime | None = None,
+    simulate_toss_cancel: bool = False,
 ) -> PaidOrderCancelResult:
     """Cancel a single CANCEL_REQUESTED + APPROVED order for admin approval reuse.
 
     Locks Order, then Payment, then Inventory. Only flushes — the caller owns commit/rollback.
+
+    TOSS 결제는 기본적으로 외부 PG 취소 없이는 처리하지 않는다. 관리자 시뮬레이션
+    범위에서만 ``simulate_toss_cancel=True``를 명시해 내부 주문·결제·재고 상태를
+    취소하고, 외부 PG를 호출하지 않았다는 PaymentEvent를 남긴다.
     """
     resolved_now = now or datetime.now(UTC)
     order = _load_order_for_cancel(session, order_code)
@@ -60,7 +73,8 @@ def cancel_paid_order(
             "Order and payment are not in a cancelable or consistently canceled state.",
         )
 
-    if payment.provider != PAYMENT_PROVIDER_MOCK:
+    is_toss_simulation = payment.provider == PAYMENT_PROVIDER_TOSS and simulate_toss_cancel
+    if payment.provider != PAYMENT_PROVIDER_MOCK and not is_toss_simulation:
         raise ApiError(
             409,
             "MOCK_CANCEL_PROVIDER_MISMATCH",
@@ -77,6 +91,8 @@ def cancel_paid_order(
         )
 
     _apply_paid_cancel(session, order, payment, resolved_now)
+    if is_toss_simulation:
+        _record_toss_simulated_cancel_event(session, order, payment, resolved_now)
     session.flush()
     return PaidOrderCancelResult(
         order_code=order.order_code,
@@ -152,3 +168,31 @@ def _apply_paid_cancel(session: Session, order: Order, payment: Payment, now: da
     payment.status = PAYMENT_STATUS_CANCELED
     payment.canceled_at = now
     payment.updated_at = now
+
+
+def _record_toss_simulated_cancel_event(
+    session: Session,
+    order: Order,
+    payment: Payment,
+    now: datetime,
+) -> None:
+    session.add(
+        PaymentEvent(
+            payment_id=payment.id,
+            order_id=order.id,
+            event_type="ADMIN_TOSS_CANCEL_SIMULATED",
+            event_id=f"admin-toss-cancel:{order.order_code}",
+            provider=payment.provider,
+            provider_payment_key=payment.provider_payment_key,
+            provider_order_id=payment.provider_order_id,
+            amount=payment.amount,
+            currency=payment.currency,
+            status_before=PAYMENT_STATUS_APPROVED,
+            status_after=PAYMENT_STATUS_CANCELED,
+            raw_payload_json={
+                "mode": "INTERNAL_SIMULATION",
+                "external_provider_called": False,
+            },
+            created_at=now,
+        )
+    )

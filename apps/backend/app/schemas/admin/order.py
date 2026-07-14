@@ -97,6 +97,10 @@ class AdminOrderListItem(BaseModel):
         ...,
         description="주문 내 OrderItem 들의 recommendation_id 중복 제거 목록. 추천 주문이 아니면 서비스가 명시적으로 [] 전달.",
     )
+    ordered_at: datetime = Field(
+        ...,
+        description="Order creation timestamp used for newest-first sorting and display.",
+    )
     paid_at: datetime | None = Field(
         ...,
         description="Order.paid_at 그대로. 결제 미완료·정보 누락 주문은 None.",

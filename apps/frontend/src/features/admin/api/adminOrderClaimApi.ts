@@ -70,6 +70,17 @@ type BackendAdminClaimDetailResponse = BackendAdminClaimListItem & {
   events: BackendAdminClaimEventDetail[];
 };
 
+// 승인·거절·처리시작·완료 공통 응답. status 는 액션별로 다른 값(APPROVED/REJECTED/IN_PROGRESS/COMPLETED)이고
+// processed_at 은 승인·거절 시각, completed_at 은 완료 시각이라 둘 다 독립적으로 내려온다.
+type BackendAdminClaimActionResponse = {
+  claim_code: string;
+  order_code: string;
+  status: AdminClaimStatus;
+  processed_at: string | null;
+  completed_at: string | null;
+  available_actions: AdminClaimAction[];
+};
+
 export type AdminClaimRow = {
   claimCode: string;
   orderCode: string;
@@ -123,6 +134,16 @@ export type AdminClaimQuery = {
   claimType?: AdminClaimType | null;
   page?: number;
   pageSize?: number;
+};
+
+export type AdminClaimActionResult = {
+  claimCode: string;
+  orderCode: string;
+  status: AdminClaimStatus;
+  statusLabel: string;
+  processedAt: string | null;
+  completedAt: string | null;
+  availableActions: AdminClaimAction[];
 };
 
 // 백엔드가 UTC(예: ...Z)를 반환하므로 KST(Asia/Seoul)로 변환해 "YYYY-MM-DD HH:mm" 표기.
@@ -205,4 +226,46 @@ export const getAdminClaimDetail = async (claimCode: string): Promise<AdminClaim
       createdAt: formatKstDateTime(event.created_at)
     }))
   };
+};
+
+const adaptClaimActionResponse = (body: BackendAdminClaimActionResponse): AdminClaimActionResult => ({
+  claimCode: body.claim_code,
+  orderCode: body.order_code,
+  status: body.status,
+  statusLabel: CLAIM_STATUS_LABELS[body.status],
+  processedAt: body.processed_at === null ? null : formatKstDateTime(body.processed_at),
+  completedAt: body.completed_at === null ? null : formatKstDateTime(body.completed_at),
+  availableActions: body.available_actions
+});
+
+export const postApproveClaim = async (claimCode: string): Promise<AdminClaimActionResult> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/order-claims/${encodeURIComponent(claimCode)}/approve`, {
+    method: "POST"
+  });
+  return adaptClaimActionResponse(await parseJson<BackendAdminClaimActionResponse>(response));
+};
+
+export const postRejectClaim = async (claimCode: string, rejectionReason: string): Promise<AdminClaimActionResult> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/order-claims/${encodeURIComponent(claimCode)}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rejection_reason: rejectionReason })
+  });
+  return adaptClaimActionResponse(await parseJson<BackendAdminClaimActionResponse>(response));
+};
+
+export const postStartClaim = async (claimCode: string): Promise<AdminClaimActionResult> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/order-claims/${encodeURIComponent(claimCode)}/start`, {
+    method: "POST"
+  });
+  return adaptClaimActionResponse(await parseJson<BackendAdminClaimActionResponse>(response));
+};
+
+export const postCompleteClaim = async (claimCode: string, restock: boolean): Promise<AdminClaimActionResult> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/order-claims/${encodeURIComponent(claimCode)}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restock })
+  });
+  return adaptClaimActionResponse(await parseJson<BackendAdminClaimActionResponse>(response));
 };

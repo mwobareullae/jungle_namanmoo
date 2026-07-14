@@ -35,6 +35,8 @@ type TossConfirmStatus = "idle" | "confirming" | "approved" | "failed";
 
 const PAYMENT_COMPLETE_SNAPSHOT_KEY = "payment_complete_snapshot";
 const PAYMENT_COMPLETE_SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
+const ORDER_DETAIL_MAX_RETRIES = 2;
+const ORDER_DETAIL_RETRY_DELAY_MS = 1_500;
 
 const fallbackProducts: Record<string, CompleteProduct> = {
   "10": {
@@ -203,32 +205,45 @@ function PaymentCompletePage() {
     }
 
     let isMounted = true;
-    const timerId = window.setTimeout(() => {
+    let retryTimerId: number | null = null;
+
+    const loadOrderDetail = async (retryCount = 0): Promise<void> => {
+      try {
+        const detail = await getOrderDetail(detailOrderCode);
+        if (!isMounted) return;
+        setOrderDetail(detail);
+        setIsOrderDetailLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+
+        if (retryCount < ORDER_DETAIL_MAX_RETRIES) {
+          retryTimerId = window.setTimeout(
+            () => void loadOrderDetail(retryCount + 1),
+            ORDER_DETAIL_RETRY_DELAY_MS,
+          );
+          return;
+        }
+
+        setOrderDetail(null);
+        setOrderDetailErrorMessage(
+          error instanceof Error ? error.message : "주문 상세 정보를 불러오지 못했습니다.",
+        );
+        setIsOrderDetailLoading(false);
+      }
+    };
+
+    const initialTimerId = window.setTimeout(() => {
       setIsOrderDetailLoading(true);
       setOrderDetailErrorMessage("");
-
-      getOrderDetail(detailOrderCode)
-        .then((detail) => {
-          if (!isMounted) return;
-          setOrderDetail(detail);
-        })
-        .catch((error) => {
-          if (!isMounted) return;
-          setOrderDetail(null);
-          setOrderDetailErrorMessage(
-            error instanceof Error ? error.message : "주문 상세 정보를 불러오지 못했습니다.",
-          );
-        })
-        .finally(() => {
-          if (isMounted) {
-            setIsOrderDetailLoading(false);
-          }
-        });
+      void loadOrderDetail();
     }, 0);
 
     return () => {
       isMounted = false;
-      window.clearTimeout(timerId);
+      window.clearTimeout(initialTimerId);
+      if (retryTimerId !== null) {
+        window.clearTimeout(retryTimerId);
+      }
     };
   }, [detailOrderCode, paymentFailed, shouldConfirmTossPayment, tossConfirmStatus]);
 

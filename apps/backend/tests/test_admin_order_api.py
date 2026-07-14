@@ -177,6 +177,21 @@ def _seed_order(
         session.commit()
 
 
+def test_admin_orders_exposes_ordered_at(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+    _seed_order(
+        db_engine,
+        order_code="ord_api_ordered_at",
+        order_status="PAID",
+        payment_status="APPROVED",
+    )
+
+    response = client.get("/api/admin/orders")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["ordered_at"] is not None
+
+
 def _load_order_state(db_engine: Engine, order_code: str) -> tuple[str, list[str]]:
     with Session(db_engine) as session:
         order = session.execute(select(Order).where(Order.order_code == order_code)).scalar_one()
