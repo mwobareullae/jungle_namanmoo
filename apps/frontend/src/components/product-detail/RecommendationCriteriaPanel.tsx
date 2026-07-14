@@ -130,10 +130,10 @@ function RecommendationCriteriaPanel({ product, summary }: RecommendationCriteri
         <strong className="recommendation-criteria-hero-title">내 고민에서 근거까지</strong>
         <p className="recommendation-criteria-hero-sub">입력 고민을 효능·성분·함량·근거로 연결해 보여드려요.</p>
         <div className="recommendation-criteria-chain">
-          <div className="recommendation-criteria-node"><span>내 고민</span><div>{concerns.length ? concerns.map((item) => <b key={item}>{item}</b>) : <em>입력 고민 정보 없음</em>}</div><small>그래서 필요한 효능은</small></div>
-          <div className="recommendation-criteria-node"><span>필요한 효능</span><div>{effects.length ? effects.map((item) => <b key={item}>{item}</b>) : <em>기대 효능 정보 없음</em>}</div><small>그래서 고른 성분은</small></div>
-          <div className="recommendation-criteria-node"><span>핵심 성분</span><div>{ingredients.length ? ingredients.slice(0, 5).map((item) => <b className="ingredient" key={item}>{item}</b>) : <em>핵심 성분 정보 없음</em>}</div><small>이만큼 들었나 (함량)</small></div>
-          <div className="recommendation-criteria-node"><span>함량</span><div><b className={`recommendation-criteria-inline-status ${concentration.tone}`}>{concentration.status}</b></div><small>무슨 근거로</small></div>
+          <div className="recommendation-criteria-node"><span>내 고민</span><div>{concerns.length ? concerns.map((item) => <b key={item}>{item}</b>) : <em>입력 고민 정보 없음</em>}</div><small>↓ 그래서 필요한 효능은</small></div>
+          <div className="recommendation-criteria-node"><span>필요한 효능</span><div>{effects.length ? effects.map((item) => <b key={item}>{item}</b>) : <em>기대 효능 정보 없음</em>}</div><small>↓ 그래서 고른 성분은</small></div>
+          <div className="recommendation-criteria-node"><span>핵심 성분</span><div>{ingredients.length ? ingredients.slice(0, 5).map((item) => <b className="ingredient" key={item}>{item}</b>) : <em>핵심 성분 정보 없음</em>}</div><small>↓ 이 성분이 이만큼 들었나 (함량)</small></div>
+          <div className="recommendation-criteria-node"><span>함량 상태</span><div><b className={`recommendation-criteria-inline-status ${concentration.tone}`}>{concentration.status}</b></div><small>↓ 무슨 근거로</small></div>
           <div className="recommendation-criteria-node"><span>근거</span><div>{firstEvidence ? <><b>{firstEvidence.ingredient_name} → {firstEvidence.effect_name}</b><em>{firstEvidence.source_title || firstEvidence.evidence_text}</em>{firstEvidenceSource?.url ? <a href={firstEvidenceSource.url} target="_blank" rel="noreferrer">출처 보기 ↗</a> : null}</> : <em>표시 가능한 성분 근거 없음</em>}</div></div>
         </div>
         <div className="recommendation-criteria-reason"><span>한 줄 요약</span><strong>{product.reason_summary || "추천 근거를 준비 중입니다."}</strong></div>
