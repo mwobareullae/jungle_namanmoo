@@ -1,7 +1,7 @@
-# 백엔드 추천 스코어링 v6
+# 백엔드 추천 스코어링 v7
 
 이 문서는 현재 백엔드가 실제 추천 API에서 사용하는 점수 계산식을 기록한다.
-현재 scoring version은 `v6_independent_evidence_top3`이다. 아래 값은 동적 배수를 적용하기 전 기본 가중치다.
+현재 scoring version은 `v7_review_quality_v3`이다. 아래 값은 동적 배수를 적용하기 전 기본 가중치다.
 
 ## 총점 공식
 
@@ -31,9 +31,11 @@ total_score = clamp(raw_score, 0, 1) * 100 - risk_penalty
 
 ## 리뷰 점수
 
-`review_quality_score`는 `product_review_metrics`의 전체 상품 품질이다. 집계 버전은 `review_quality_v2`이며 별점 75%, 재구매 20%, Bayesian 사진리뷰율 5%를 사용한다. 값이 없는 신호는 가중치 분모에서 제외하고, effective sample confidence로 최종값을 0.5 쪽에 보수 보정한다. 일반/한달 후기 일관성은 진단값으로만 보존한다.
+`review_quality_score`는 `product_review_metrics`의 점수 대상 외부 리뷰 품질이다. 집계 버전은 `review_quality_v3`이며 별점 80%, 재구매 20%를 사용한다. 값이 없는 신호는 가중치 분모에서 제외하고, effective sample confidence로 최종값을 0.5 쪽에 보수 보정한다. 사진 존재·작성일·일반/한달 후기 일관성은 점수에 사용하지 않는다. 자사몰 `mubarelle` 리뷰는 공개 요약에는 남지만 품질·카테고리 prior·프로필 affinity에서 제외한다.
 
 `review_profile_affinity_score`는 상품 전체 대비 유사 프로필 segment의 상대 반응이다.
+
+추천 로더는 상품·segment 모두 `score_version=review_quality_v3`인 행만 읽는다. 이전 버전 행은 full rollup 완료 전까지 중립값으로 처리한다.
 
 ```text
 skin type  0.45
