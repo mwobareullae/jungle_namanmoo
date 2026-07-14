@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import Skeleton from "../components/ui/Skeleton";
@@ -16,35 +16,49 @@ function BrandsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadingRef = useRef(false);
 
-  const loadBrands = async (page: number) => {
+  const loadBrands = useCallback(async (page: number, append = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoadingPage(true);
     try {
       const response = await api.getBrands("", page, PAGE_SIZE);
-      setBrands(response.items);
+      setBrands((previous) => append ? [...previous, ...response.items.filter((item) => !previous.some((brand) => brand.code === item.code))] : response.items);
       setCurrentPage(page);
       setHasNextPage(response.items.length === PAGE_SIZE);
       setErrorMessage("");
     } catch {
-      setBrands([]);
-      setHasNextPage(false);
-      setErrorMessage("브랜드 목록을 불러오지 못했습니다.");
+      if (!append) {
+        setBrands([]);
+        setHasNextPage(false);
+        setErrorMessage("브랜드 목록을 불러오지 못했습니다.");
+      }
     } finally {
       setIsLoading(false);
       setIsLoadingPage(false);
+      loadingRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    queueMicrotask(() => {
-      if (isMounted) setIsLoading(true);
-    });
+    setIsLoading(true);
     void loadBrands(1);
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  }, [loadBrands]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasNextPage || isLoading || errorMessage) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadBrands(currentPage + 1, true);
+      },
+      { rootMargin: "320px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [currentPage, errorMessage, hasNextPage, isLoading, loadBrands]);
 
   const visibleBrands = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
@@ -100,12 +114,10 @@ function BrandsPage() {
         ) : (
           <div className="search-empty">일치하는 브랜드가 없습니다.</div>
         )}
-        {!isLoading && !errorMessage && (currentPage > 1 || hasNextPage) ? (
-          <nav className="brand-index-page__pagination" aria-label="브랜드 목록 페이지 이동">
-            <button disabled={isLoadingPage || currentPage === 1} onClick={() => void loadBrands(currentPage - 1)} type="button">이전</button>
-            <span>{currentPage}</span>
-            <button disabled={isLoadingPage || !hasNextPage} onClick={() => void loadBrands(currentPage + 1)} type="button">다음</button>
-          </nav>
+        {!isLoading && !errorMessage && hasNextPage ? (
+          <div className="brand-index-page__load-more" ref={loadMoreRef} aria-live="polite">
+            {isLoadingPage ? "브랜드를 더 불러오는 중입니다." : ""}
+          </div>
         ) : null}
       </main>
     </div>
