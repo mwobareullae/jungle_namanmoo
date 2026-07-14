@@ -4,7 +4,7 @@ import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel from "../components/ProductComparisonPanel";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import { api } from "../lib/api";
-import type { ProductDetail } from "../types/recommendation";
+import type { ProductDetail, RecommendationSummary } from "../types/recommendation";
 import type { ProductListingItem } from "../types/product";
 import { getProductImageUrl } from "../lib/imageUrls";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
@@ -56,6 +56,7 @@ function ProductDetailPreviewPage() {
   const productId = new URLSearchParams(window.location.search).get("id");
   const [activeTab, setActiveTab] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [recommendationSummary, setRecommendationSummary] = useState<RecommendationSummary | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [loadErrorMessage, setLoadErrorMessage] = useState(
     productId ? "" : "상품 정보를 찾을 수 없습니다.",
@@ -152,6 +153,24 @@ function ProductDetailPreviewPage() {
       isMounted = false;
     };
   }, [productId, recommendationId]);
+
+  useEffect(() => {
+    if (!recommendationId) {
+      setRecommendationSummary(null);
+      return;
+    }
+    let isMounted = true;
+    api.getRecommendation(recommendationId, { page: 1, pageSize: 1 })
+      .then((response) => {
+        if (isMounted) setRecommendationSummary(response.summary);
+      })
+      .catch(() => {
+        if (isMounted) setRecommendationSummary(null);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [recommendationId]);
 
   useEffect(() => {
     if (!user || !productId || product?.product_id !== productId) {
@@ -438,7 +457,7 @@ function ProductDetailPreviewPage() {
         />
       ) : null}
 
-      {(!recommendationId && hasProductReviews) || (recommendationId && product) ? <section className="naver-preview-review-strip">{!recommendationId && hasProductReviews ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button" onClick={handleShowAllReviews}>리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} /> : null}</section> : null}
+      {(!recommendationId && hasProductReviews) || (recommendationId && product) ? <section className="naver-preview-review-strip">{!recommendationId && hasProductReviews ? <><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button" onClick={handleShowAllReviews}>리뷰 전체보기 ›</button></> : null}{recommendationId && product ? <RecommendationCriteriaPanel product={product} summary={recommendationSummary} /> : null}</section> : null}
 
       <nav className="naver-preview-tabs">{visibleTabs.map((tab) => <a className={tab.index === activeTab ? "active" : ""} href={`#preview-${tab.index}`} key={tab.label} onClick={(event) => handleTabClick(event, tab.index)}>{tab.label}</a>)}</nav>
       <section className="naver-preview-detail-layout">

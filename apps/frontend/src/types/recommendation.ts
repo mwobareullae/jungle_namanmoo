@@ -99,6 +99,7 @@ export type ScoreBreakdown = {
   concentration_bucket: string | null;
   concentration_warning: string | null;
   skin_type_match_score: number;
+  skin_profile_score?: number;
   sensitivity_score?: number;
   price_value_score: number;
   keyword_score: number;
@@ -111,6 +112,10 @@ export type ScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  base_weights?: Record<string, number>;
+  adjusted_weights?: Record<string, number>;
+  risk_flag_count?: number;
+  risk_warnings?: string[];
 };
 
 export type ProductCardItem = {
@@ -187,6 +192,8 @@ export type RecommendationSummary = {
   avoid_ingredients: string[];
   concerns: string[];
   effects: string[];
+  matched_concerns?: string[];
+  expected_effects?: string[];
   purchase_constraints: PurchaseConstraints;
 };
 

@@ -24,6 +24,7 @@ import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type {
   IngredientEvidence,
   ProductDetail,
+  RecommendationSummary,
   RecommendationNarrativeOverview,
   RecommendationNarrativeProduct,
 } from "../types/recommendation";
@@ -457,6 +458,7 @@ function ProductDetailSpaPage() {
     userId: number | null;
   }>({ matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET, userId: null });
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [recommendationSummary, setRecommendationSummary] = useState<RecommendationSummary | null>(null);
   const [narrativeProduct, setNarrativeProduct] = useState<RecommendationNarrativeProduct | null>(null);
   const [narrativeOverview, setNarrativeOverview] = useState<RecommendationNarrativeOverview | null>(null);
   const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
@@ -768,6 +770,7 @@ function ProductDetailSpaPage() {
 
   useEffect(() => {
     if (!recommendationId) {
+      setRecommendationSummary(null);
       return;
     }
 
@@ -776,6 +779,7 @@ function ProductDetailSpaPage() {
     api.getRecommendation(recommendationId, { page: 1, pageSize: 1 })
       .then((response) => {
         if (isMounted) {
+          setRecommendationSummary(response.summary);
           setCandidateTotalState({
             recommendationId,
             total: response.pagination.total_items,
@@ -783,7 +787,10 @@ function ProductDetailSpaPage() {
         }
       })
       .catch(() => {
-        if (isMounted) setCandidateTotalState(null);
+        if (isMounted) {
+          setCandidateTotalState(null);
+          setRecommendationSummary(null);
+        }
       });
 
     return () => {
@@ -1202,6 +1209,7 @@ function ProductDetailSpaPage() {
               onToggleWishlist={handleToggleWishlist}
               priceLabel={formatPrice(product.lowest_price)}
               product={product}
+              recommendationSummary={recommendationSummary}
             />
           ) : null}
         </section>
