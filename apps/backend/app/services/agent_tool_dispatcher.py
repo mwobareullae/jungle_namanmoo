@@ -3,7 +3,7 @@ import secrets
 import time
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy.orm import Session
 
 from app.core.performance_logging import log_performance_event
@@ -13,7 +13,9 @@ from app.schemas.agent import AgentChatResponse, AgentToolName
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import (
     CANCEL_RECENT_ORDER_TOOL,
+    FILTER_ORDER_HISTORY_TOOL,
     ORDER_STATUS_LOOKUP_TOOL,
+    filter_order_history,
     lookup_order_status,
     prepare_recent_order_cancel,
 )
@@ -21,15 +23,24 @@ from app.services.agent_commerce_tools import (
     ADD_TO_CART_TOOL,
     GET_CART_TOOL,
     PREPARE_CHECKOUT_TOOL,
+    PREPARE_PRODUCT_CHECKOUT_TOOL,
     PREPARE_ORDER_TOOL,
     add_agent_cart_item,
     get_agent_cart,
     prepare_agent_checkout,
+    prepare_agent_product_checkout,
     prepare_agent_order,
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
 from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, register_shipping_address
 from app.services.agent_policy import get_tool_policy, validate_tool_access
+from app.services.agent_recommendation_tools import (
+    AgentCategoryCode,
+    AgentConcernId,
+    AgentEffectId,
+    CREATE_RECOMMENDATION_TOOL,
+    create_agent_recommendation,
+)
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
     FIND_SIMILAR_PRODUCTS_TOOL,
@@ -40,12 +51,58 @@ from app.services.agent_product_tools import (
 )
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL, prepare_review_draft
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL, prepare_claim_draft
+from app.services.agent_bulk_wishlist import (
+    BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+    prepare_bulk_wishlist_by_popular_ingredient,
+)
 
 
 class OrderStatusLookupArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     order_code: str | None = Field(default=None, max_length=40)
+
+
+class FilterOrderHistoryArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    period_months: Literal[1, 3, 6, 12] | None = None
+    status: Literal[
+        "ALL",
+        "PENDING_PAYMENT",
+        "PAID",
+        "PREPARING_SHIPMENT",
+        "SHIPPED",
+        "DELIVERED",
+    ] | None = None
+
+
+class CreateRecommendationArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    concern_text: str = Field(..., min_length=1, max_length=2000)
+    skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
+    sensitivity: Literal["낮음", "보통", "높음"] | None = None
+    avoid_ingredients: list[str] | None = Field(default=None, max_length=50)
+    page_size: int = Field(default=10, ge=1, le=20)
+    intent_resolved: bool = False
+    concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
+    effect_ids: list[AgentEffectId] | None = Field(default=None, max_length=6)
+    excluded_concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
+    priority_effect_ids: list[AgentEffectId] | None = Field(default=None, max_length=6)
+    category_codes: list[AgentCategoryCode] | None = Field(default=None, max_length=4)
+    price_min: int | None = Field(default=None, ge=0, le=100_000_000)
+    price_max: int | None = Field(default=None, ge=0, le=100_000_000)
+
+    @model_validator(mode="after")
+    def validate_price_range(self) -> "CreateRecommendationArgs":
+        if (
+            self.price_min is not None
+            and self.price_max is not None
+            and self.price_min > self.price_max
+        ):
+            raise ValueError("price_min must be less than or equal to price_max")
+        return self
 
 
 class CancelRecentOrderArgs(BaseModel):
@@ -72,8 +129,10 @@ class CompareProductsArgs(BaseModel):
 class RefineProductResultsArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    base_product_ids: list[str] = Field(..., min_length=1, max_length=100)
+    recommendation_id: str | None = Field(default=None, max_length=128)
+    base_product_ids: list[str] = Field(default_factory=list, max_length=100)
     limit: int = Field(default=10, ge=1, le=10)
+    page: int = Field(default=1, ge=1)
     min_price: int | None = Field(default=None, ge=0)
     max_price: int | None = Field(default=None, ge=0)
     category_code: str | None = Field(default=None, max_length=80)
@@ -81,12 +140,27 @@ class RefineProductResultsArgs(BaseModel):
     sensitivity: str | None = Field(default=None, max_length=40)
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
 
+    @model_validator(mode="after")
+    def validate_result_source(self) -> "RefineProductResultsArgs":
+        if not self.recommendation_id and not self.base_product_ids:
+            raise ValueError("recommendation_id or base_product_ids is required")
+        return self
+
 
 class GetCartArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
 class AddToCartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(..., min_length=1, max_length=128)
+    quantity: int = Field(default=1, ge=1, le=99)
+    recommendation_id: str | None = Field(default=None, max_length=128)
+    recommendation_rank: int | None = Field(default=None, ge=1)
+
+
+class PrepareProductCheckoutArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product_id: str = Field(..., min_length=1, max_length=128)
@@ -145,21 +219,35 @@ class PrepareClaimDraftArgs(BaseModel):
     reason_detail: str | None = Field(default=None, max_length=2000)
 
 
+class BulkWishlistByPopularIngredientArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ingredient_name: str = Field(..., min_length=1, max_length=160)
+    rank_limit: int = Field(default=20, ge=1, le=20)
+    window_days: Literal[1, 7, 30] = 7
+
+
 ToolArgs = (
-    OrderStatusLookupArgs
+    CreateRecommendationArgs
+    | FilterOrderHistoryArgs
+    | OrderStatusLookupArgs
     | CancelRecentOrderArgs
     | FindSimilarProductsArgs
     | CompareProductsArgs
     | RefineProductResultsArgs
     | GetCartArgs
     | AddToCartArgs
+    | PrepareProductCheckoutArgs
     | CheckoutArgs
     | RegisterShippingAddressArgs
     | ComposeCartArgs
     | PrepareReviewDraftArgs
     | PrepareClaimDraftArgs
+    | BulkWishlistByPopularIngredientArgs
 )
 TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
+    CREATE_RECOMMENDATION_TOOL: CreateRecommendationArgs,
+    FILTER_ORDER_HISTORY_TOOL: FilterOrderHistoryArgs,
     ORDER_STATUS_LOOKUP_TOOL: OrderStatusLookupArgs,
     CANCEL_RECENT_ORDER_TOOL: CancelRecentOrderArgs,
     FIND_SIMILAR_PRODUCTS_TOOL: FindSimilarProductsArgs,
@@ -167,12 +255,14 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     REFINE_PRODUCT_RESULTS_TOOL: RefineProductResultsArgs,
     GET_CART_TOOL: GetCartArgs,
     ADD_TO_CART_TOOL: AddToCartArgs,
+    PREPARE_PRODUCT_CHECKOUT_TOOL: PrepareProductCheckoutArgs,
     PREPARE_CHECKOUT_TOOL: CheckoutArgs,
     PREPARE_ORDER_TOOL: CheckoutArgs,
     REGISTER_SHIPPING_ADDRESS_TOOL: RegisterShippingAddressArgs,
     COMPOSE_CART_TOOL: ComposeCartArgs,
     PREPARE_REVIEW_DRAFT_TOOL: PrepareReviewDraftArgs,
     PREPARE_CLAIM_DRAFT_TOOL: PrepareClaimDraftArgs,
+    BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL: BulkWishlistByPopularIngredientArgs,
 }
 
 
@@ -232,7 +322,7 @@ def execute_agent_tool(
         raise
 
     latency_ms = _elapsed_ms(started_at)
-    if not policy.requires_confirmation:
+    if not policy.requires_confirmation or not response.requires_confirmation:
         _record_executed_tool_call(
             session,
             response=response,
@@ -270,11 +360,11 @@ def list_agent_tool_names() -> list[AgentToolName]:
 def _parse_tool_arguments(tool_name: str, arguments: dict[str, Any]) -> ToolArgs:
     model = TOOL_ARGUMENT_MODELS.get(tool_name)
     if model is None:
-        raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")
+        raise ApiError(400, "UNKNOWN_AGENT_TOOL", "지원하지 않는 에이전트 기능이에요.")
     try:
         return model.model_validate(arguments)
     except ValidationError as exc:
-        raise ApiError(400, "AGENT_TOOL_ARGUMENT_INVALID", "Agent tool arguments are invalid.") from exc
+        raise ApiError(400, "AGENT_TOOL_ARGUMENT_INVALID", "요청 내용을 실행 가능한 형식으로 해석하지 못했어요.") from exc
 
 
 def _execute_parsed_tool(
@@ -288,9 +378,41 @@ def _execute_parsed_tool(
     session_id: str | None,
     anonymous_user_id: str | None,
 ) -> AgentChatResponse:
+    if tool_name == CREATE_RECOMMENDATION_TOOL:
+        args = _require_args(arguments, CreateRecommendationArgs)
+        return create_agent_recommendation(
+            session,
+            concern_text=args.concern_text,
+            current_user=user,
+            conversation_id=conversation_id,
+            skin_type=args.skin_type,
+            sensitivity=args.sensitivity,
+            avoid_ingredients=args.avoid_ingredients,
+            page_size=args.page_size,
+            intent_resolved=args.intent_resolved,
+            concern_ids=args.concern_ids,
+            effect_ids=args.effect_ids,
+            excluded_concern_ids=args.excluded_concern_ids,
+            priority_effect_ids=args.priority_effect_ids,
+            category_codes=args.category_codes,
+            price_min=args.price_min,
+            price_max=args.price_max,
+        )
+
+    if tool_name == FILTER_ORDER_HISTORY_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
+        args = _require_args(arguments, FilterOrderHistoryArgs)
+        return filter_order_history(
+            user,
+            conversation_id=conversation_id,
+            period_months=args.period_months,
+            status=args.status,
+        )
+
     if tool_name == ORDER_STATUS_LOOKUP_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, OrderStatusLookupArgs)
         return lookup_order_status(
             session,
@@ -301,7 +423,7 @@ def _execute_parsed_tool(
 
     if tool_name == CANCEL_RECENT_ORDER_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, CancelRecentOrderArgs)
         return prepare_recent_order_cancel(
             session,
@@ -337,8 +459,10 @@ def _execute_parsed_tool(
         return refine_product_results(
             session,
             base_product_ids=args.base_product_ids,
+            recommendation_id=args.recommendation_id,
             conversation_id=conversation_id,
             limit=args.limit,
+            page=args.page,
             min_price=args.min_price,
             max_price=args.max_price,
             category_code=args.category_code,
@@ -349,13 +473,13 @@ def _execute_parsed_tool(
 
     if tool_name == GET_CART_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         _require_args(arguments, GetCartArgs)
         return get_agent_cart(session, user, conversation_id=conversation_id)
 
     if tool_name == ADD_TO_CART_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, AddToCartArgs)
         return add_agent_cart_item(
             session,
@@ -367,9 +491,23 @@ def _execute_parsed_tool(
             recommendation_rank=args.recommendation_rank,
         )
 
+    if tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
+        args = _require_args(arguments, PrepareProductCheckoutArgs)
+        return prepare_agent_product_checkout(
+            session,
+            user,
+            conversation_id=conversation_id,
+            product_id=args.product_id,
+            quantity=args.quantity,
+            recommendation_id=args.recommendation_id,
+            recommendation_rank=args.recommendation_rank,
+        )
+
     if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, CheckoutArgs)
         if tool_name == PREPARE_CHECKOUT_TOOL:
             return prepare_agent_checkout(
@@ -392,7 +530,7 @@ def _execute_parsed_tool(
 
     if tool_name == REGISTER_SHIPPING_ADDRESS_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, RegisterShippingAddressArgs)
         return register_shipping_address(
             session,
@@ -411,7 +549,7 @@ def _execute_parsed_tool(
 
     if tool_name == COMPOSE_CART_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, ComposeCartArgs)
         return prepare_composed_cart(
             session,
@@ -428,7 +566,7 @@ def _execute_parsed_tool(
 
     if tool_name == PREPARE_REVIEW_DRAFT_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, PrepareReviewDraftArgs)
         return prepare_review_draft(
             session,
@@ -443,7 +581,7 @@ def _execute_parsed_tool(
 
     if tool_name == PREPARE_CLAIM_DRAFT_TOOL:
         if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, PrepareClaimDraftArgs)
         return prepare_claim_draft(
             session,
@@ -456,12 +594,28 @@ def _execute_parsed_tool(
             reason_detail=args.reason_detail,
         )
 
-    raise ApiError(400, "UNKNOWN_AGENT_TOOL", "Unknown agent tool.")
+    if tool_name == BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
+        args = _require_args(arguments, BulkWishlistByPopularIngredientArgs)
+        return prepare_bulk_wishlist_by_popular_ingredient(
+            session,
+            user,
+            conversation_id=conversation_id,
+            ingredient_name=args.ingredient_name,
+            rank_limit=args.rank_limit,
+            window_days=args.window_days,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+        )
+
+    raise ApiError(400, "UNKNOWN_AGENT_TOOL", "지원하지 않는 에이전트 기능이에요.")
 
 
 def _require_args(arguments: ToolArgs, model: type[BaseModel]) -> Any:
     if not isinstance(arguments, model):
-        raise ApiError(400, "AGENT_TOOL_ARGUMENT_INVALID", "Agent tool arguments are invalid.")
+        raise ApiError(400, "AGENT_TOOL_ARGUMENT_INVALID", "요청 내용을 실행 가능한 형식으로 해석하지 못했어요.")
     return arguments
 
 

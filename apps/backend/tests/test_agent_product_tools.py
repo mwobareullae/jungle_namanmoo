@@ -1,4 +1,6 @@
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -9,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.catalog import Product
 from app.db.models.commerce import Inventory
+from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.schemas.common import ApiError
 from app.services.agent_product_tools import (
     compare_products,
@@ -48,6 +51,7 @@ def test_find_similar_products_returns_ranked_product_items(db_engine: Engine) -
     assert response.ui_action.target == "similar_products"
     assert response.ui_action.payload["source_product_id"] == "prod_001"
     assert [item.id for item in response.items] == ["prod_002"]
+    assert response.message == "비슷한 상품 1개를 찾았어요."
     assert response.items[0].item_type == "product"
     assert response.items[0].image_storage_key == "products/prod_002/thumbnail.jpg"
     assert response.items[0].metadata["similarity_score"] > 0
@@ -79,6 +83,7 @@ def test_compare_products_returns_comparison_payload(db_engine: Engine) -> None:
     assert response.tool_name == "compare_products"
     assert response.ui_action.type == "show_product_comparison"
     assert response.ui_action.target == "product_comparison"
+    assert response.message == "선택한 상품 2개를 비교했어요."
     payload = response.ui_action.payload
     assert payload["layout_hint"] == "bottom_panel"
     assert [product["product_id"] for product in payload["products"]] == ["prod_001", "prod_002"]
@@ -121,9 +126,89 @@ def test_refine_product_results_applies_price_and_skin_filters(db_engine: Engine
     assert response.tool_name == "refine_product_results"
     assert response.ui_action.type == "show_products"
     assert response.ui_action.target == "refined_products"
+    assert response.message == "조건에 맞는 상품 1개로 추천 결과를 다시 정리했어요."
     assert [item.id for item in response.items] == ["prod_001"]
     assert response.ui_action.payload["filters"]["max_price"] == 20_000
     assert response.ui_action.payload["products"][0]["product_id"] == "prod_001"
+
+
+def test_refine_product_results_filters_full_saved_recommendation_and_preserves_rank(
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+
+    with Session(db_engine) as session:
+        products = session.execute(
+            select(Product).where(Product.product_code.in_(["prod_001", "prod_002"]))
+        ).scalars().all()
+        product_ids = {product.product_code: product.id for product in products}
+        run = RecommendationRun(
+            recommendation_code="rec_agent_refine_full",
+            concern_text="보습과 진정 상품 추천",
+            skin_type="복합성",
+            sensitivity="보통",
+            avoid_ingredients=[],
+            scoring_version="test",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        session.add(run)
+        session.flush()
+        session.add_all([
+            RecommendationResult(
+                recommendation_run_id=run.id,
+                product_id=product_ids["prod_001"],
+                rank_order=1,
+                total_score=Decimal("91.00"),
+                reason_summary="첫 번째 추천",
+                score_breakdown={},
+            ),
+            RecommendationResult(
+                recommendation_run_id=run.id,
+                product_id=product_ids["prod_002"],
+                rank_order=2,
+                total_score=Decimal("87.00"),
+                reason_summary="두 번째 추천",
+                score_breakdown={},
+            ),
+        ])
+        session.commit()
+
+        response = refine_product_results(
+            session,
+            recommendation_id=run.recommendation_code,
+            base_product_ids=["prod_001"],
+            min_price=20_000,
+            limit=1,
+            conversation_id="conv_refine_full",
+        )
+        second_page_response = refine_product_results(
+            session,
+            recommendation_id=run.recommendation_code,
+            limit=1,
+            page=2,
+        )
+
+    assert response.message == "전체 추천 결과에서 조건에 맞는 상품 1개를 다시 정리했어요."
+    assert [item.id for item in response.items] == ["prod_002"]
+    assert response.items[0].metadata["rank"] == 2
+    assert response.items[0].metadata["total_score"] == 87
+    assert response.ui_action.payload["recommendation_id"] == "rec_agent_refine_full"
+    assert response.ui_action.payload["pagination"] == {
+        "page": 1,
+        "page_size": 1,
+        "total_items": 1,
+        "total_pages": 1,
+        "has_next": False,
+        "has_prev": False,
+    }
+    assert response.ui_action.payload["products"][0]["rank"] == 2
+    assert response.ui_action.payload["products"][0]["total_score"] == 87
+    assert "refine_min_price=20000" in response.ui_action.payload["result_url"]
+    assert [item.id for item in second_page_response.items] == ["prod_002"]
+    assert second_page_response.ui_action.payload["pagination"]["page"] == 2
+    assert second_page_response.ui_action.payload["pagination"]["total_pages"] == 2
+    assert second_page_response.ui_action.payload["pagination"]["has_prev"] is True
 
 
 def _set_inventory(

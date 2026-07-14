@@ -2,7 +2,7 @@ from typing import get_args
 
 import pytest
 
-from app.schemas.agent import AgentToolName, AgentUiAction
+from app.schemas.agent import AgentContext, AgentToolName, AgentUiAction
 from app.schemas.common import ApiError
 from app.services.agent_policy import (
     AGENT_TOOL_POLICIES,
@@ -18,6 +18,14 @@ def test_agent_tool_policies_cover_schema_tool_names() -> None:
     assert set(AGENT_TOOL_POLICIES) == set(get_args(AgentToolName))
 
 
+def test_agent_context_accepts_filtered_recommendation_route() -> None:
+    route = "/search?keyword=" + "%EB%AF%BC%EA%B0%90" * 40
+
+    context = AgentContext(route=route)
+
+    assert context.route == route
+
+
 def test_order_tools_require_login() -> None:
     with pytest.raises(ApiError) as exc_info:
         validate_tool_access("order_status_lookup", user_id=None)
@@ -28,6 +36,10 @@ def test_order_tools_require_login() -> None:
     policy = validate_tool_access("order_status_lookup", user_id=1)
     assert policy.requires_auth is True
     assert policy.requires_confirmation is False
+
+    history_policy = validate_tool_access("filter_order_history", user_id=1)
+    assert history_policy.risk_level == "READ"
+    assert history_policy.allowed_ui_actions == frozenset({"navigate"})
 
 
 def test_cancel_recent_order_requires_confirmation() -> None:
@@ -42,11 +54,23 @@ def test_cancel_recent_order_requires_confirmation() -> None:
     assert policy.requires_confirmation is True
 
 
+def test_bulk_popular_ingredient_wishlist_requires_auth_and_confirmation() -> None:
+    policy = AGENT_TOOL_POLICIES["bulk_wishlist_by_popular_ingredient"]
+    assert policy.risk_level == "WRITE"
+    assert policy.requires_auth is True
+    assert policy.requires_confirmation is True
+    assert policy.max_result_items == 20
+
+
 def test_product_read_tools_allow_anonymous_access() -> None:
     policy = validate_tool_access("find_similar_products", user_id=None)
 
     assert policy.requires_auth is False
     assert policy.risk_level == "READ"
+
+    recommendation_policy = validate_tool_access("create_recommendation", user_id=None)
+    assert recommendation_policy.requires_auth is False
+    assert recommendation_policy.allowed_ui_actions == frozenset({"show_products"})
 
 
 def test_shipping_address_tool_is_authenticated_reversible_write() -> None:
@@ -55,6 +79,17 @@ def test_shipping_address_tool_is_authenticated_reversible_write() -> None:
 
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
     policy = validate_tool_access("register_shipping_address", user_id=1)
+    assert policy.risk_level == "WRITE"
+    assert policy.requires_confirmation is False
+    assert policy.allowed_ui_actions == frozenset({"noop", "show_checkout_preview"})
+
+
+def test_product_checkout_tool_stops_at_checkout_preview() -> None:
+    with pytest.raises(ApiError) as exc_info:
+        validate_tool_access("prepare_product_checkout", user_id=None)
+
+    assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+    policy = validate_tool_access("prepare_product_checkout", user_id=1)
     assert policy.risk_level == "WRITE"
     assert policy.requires_confirmation is False
     assert policy.allowed_ui_actions == frozenset({"noop", "show_checkout_preview"})
