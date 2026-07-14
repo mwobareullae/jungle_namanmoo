@@ -107,6 +107,7 @@ def parse_purchase_conditions(
     *,
     category_aliases: tuple[CategoryAliasGroup, ...] = DEFAULT_CATEGORY_ALIASES,
     brand_aliases: tuple[BrandAliasGroup, ...] | None = None,
+    include_brand_filters: bool = True,
     diagnostics: dict[str, object] | None = None,
 ) -> ParsedPurchaseConditions:
     purchase_diagnostics = diagnostics if diagnostics is not None else {}
@@ -165,27 +166,30 @@ def parse_purchase_conditions(
         matched_categories
     )
 
-    stage_started_at = current_time()
-    resolved_brand_aliases = brand_aliases or get_default_brand_aliases()
-    _record_diagnostic_duration(
-        purchase_diagnostics,
-        "intent_purchase_brand_alias_load_ms",
-        stage_started_at,
-    )
-    purchase_diagnostics["intent_purchase_brand_group_count"] = len(
-        resolved_brand_aliases
-    )
-    purchase_diagnostics["intent_purchase_brand_alias_count"] = sum(
-        len(group.aliases) for group in resolved_brand_aliases
-    )
+    if include_brand_filters:
+        stage_started_at = current_time()
+        resolved_brand_aliases = brand_aliases or get_default_brand_aliases()
+        _record_diagnostic_duration(
+            purchase_diagnostics,
+            "intent_purchase_brand_alias_load_ms",
+            stage_started_at,
+        )
+        purchase_diagnostics["intent_purchase_brand_group_count"] = len(
+            resolved_brand_aliases
+        )
+        purchase_diagnostics["intent_purchase_brand_alias_count"] = sum(
+            len(group.aliases) for group in resolved_brand_aliases
+        )
 
-    stage_started_at = current_time()
-    matched_brands = _match_brands(normalized_text, resolved_brand_aliases)
-    _record_diagnostic_duration(
-        purchase_diagnostics,
-        "intent_purchase_brand_match_ms",
-        stage_started_at,
-    )
+        stage_started_at = current_time()
+        matched_brands = _match_brands(normalized_text, resolved_brand_aliases)
+        _record_diagnostic_duration(
+            purchase_diagnostics,
+            "intent_purchase_brand_match_ms",
+            stage_started_at,
+        )
+    else:
+        matched_brands = ()
     purchase_diagnostics["intent_purchase_matched_brand_count"] = len(matched_brands)
 
     return ParsedPurchaseConditions(

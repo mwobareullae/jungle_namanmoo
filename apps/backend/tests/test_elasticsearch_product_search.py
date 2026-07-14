@@ -33,15 +33,36 @@ def test_search_elasticsearch_product_candidates_builds_keyword_query_with_hard_
     assert call["index"] == "products_current"
     assert call["size"] == 10
     assert call["query"]["bool"]["must"][0]["multi_match"]["fields"] == [
-        "title^4",
+        "brand_name^8",
+        "brand_aliases^8",
+        "title^5",
         "keywords^3",
-        "brand_name^2",
-        "category_name^2",
+        "category_name^3",
         "content",
     ]
     filters = call["query"]["bool"]["filter"]
     assert {"terms": {"category_code": ["cream"]}} in filters
     assert {"range": {"lowest_price": {"lte": 20000}}} in filters
+
+
+def test_search_elasticsearch_product_candidates_keeps_brand_text_without_brand_filter() -> None:
+    client = _FakeElasticsearchClient({"hits": {"hits": []}})
+    provider = _FakeElasticsearchProvider(client)
+    intent = build_recommendation_intent("round lab serum 20000 under")
+
+    search_elasticsearch_product_candidates(
+        intent,
+        limit=10,
+        client_provider=provider,
+        index_alias="products_current",
+    )
+
+    call = client.search_calls[0]
+    multi_match = call["query"]["bool"]["must"][0]["multi_match"]
+    assert "round lab" in multi_match["query"]
+    filters = call["query"]["bool"]["filter"]
+    assert {"range": {"lowest_price": {"lte": 19999}}} in filters
+    assert not any("brand_code" in terms for item in filters for terms in item.values())
 
 
 def test_search_elasticsearch_product_candidates_returns_failure_result_on_exception() -> None:
