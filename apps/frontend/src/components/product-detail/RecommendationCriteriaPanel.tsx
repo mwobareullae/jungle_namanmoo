@@ -48,9 +48,8 @@ const buildCriteria = (product: ProductDetail): CriteriaItem[] => {
       ? (breakdown.skin_type_match_score + (breakdown.sensitivity_score ?? breakdown.skin_type_match_score)) / 2
       : undefined
   );
-  const reviewSummary = product.review_summary;
-  const reviewScore = reviewSummary?.average_rating
-    ? Math.min(100, (reviewSummary.average_rating / 5) * 100)
+  const reviewScore = breakdown?.review_quality_applied
+    ? breakdown.review_quality_score
     : undefined;
   const review = scoreToStatus(reviewScore);
   const price = scoreToStatus(breakdown?.price_value_score);
@@ -96,9 +95,9 @@ const buildCriteria = (product: ProductDetail): CriteriaItem[] => {
       label: "정제 리뷰 기반 만족도 신호",
       ...review,
       score: reviewScore,
-      description: reviewSummary?.review_count
-        ? `리뷰 ${reviewSummary.review_count.toLocaleString("ko-KR")}개와 평균 평점을 참고했어요.`
-        : "비교할 리뷰 데이터가 부족해요.",
+      description: breakdown?.review_quality_applied
+        ? "점수 대상 외부 리뷰의 별점과 재구매 반응을 보조 신호로 참고했어요."
+        : "점수에 반영할 외부 리뷰 데이터가 부족해요.",
     },
     {
       label: "가격·카테고리 등 구매 조건",

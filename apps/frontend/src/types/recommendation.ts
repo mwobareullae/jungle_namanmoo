@@ -101,6 +101,8 @@ export type ScoreBreakdown = {
   keyword_score: number;
   vector_score: number;
   search_match_score: number;
+  review_quality_score?: number;
+  review_quality_applied?: boolean;
   risk_penalty: number;
 };
 

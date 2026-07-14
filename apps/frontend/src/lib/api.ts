@@ -116,6 +116,8 @@ type BackendScoreBreakdown = {
   keyword_score?: number;
   vector_score?: number;
   search_match_score?: number;
+  review_quality_score?: number;
+  review_quality_applied?: boolean;
   risk_penalty?: number;
 };
 
@@ -289,6 +291,8 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     keyword_score: score.keyword_score ?? 0,
     vector_score: score.vector_score ?? 0,
     search_match_score: score.search_match_score ?? 0,
+    review_quality_score: score.review_quality_score,
+    review_quality_applied: score.review_quality_applied,
     risk_penalty: score.risk_penalty ?? 0
   };
 };
