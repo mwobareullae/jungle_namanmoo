@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 import secrets
 from typing import Any
+from urllib.parse import urlencode
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
@@ -17,13 +18,19 @@ from app.db.models.catalog import (
 from app.db.models.commerce import Inventory, Seller
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, RiskFlag
 from app.schemas.agent import AgentChatResponse, AgentResponseItem, AgentUiAction
-from app.schemas.common import ApiError
+from app.schemas.common import ApiError, dump_model
+from app.schemas.recommendation import Pagination, RecommendationResponse, RecommendedProduct
 from app.services.agent_policy import (
     validate_result_item_count,
     validate_tool_access,
     validate_tool_ui_action,
 )
 from app.services.product_image_service import load_thumbnail_storage_keys
+from app.services.recommendation_pipeline import (
+    MAX_PAGE_SIZE,
+    get_recommendation_response,
+    normalize_pagination,
+)
 
 
 FIND_SIMILAR_PRODUCTS_TOOL = "find_similar_products"
@@ -119,7 +126,7 @@ def find_similar_products(
     validate_tool_ui_action(FIND_SIMILAR_PRODUCTS_TOOL, action)
     return AgentChatResponse(
         conversation_id=_resolve_conversation_id(conversation_id),
-        message="Similar products were found.",
+        message=f"비슷한 상품 {len(ranked)}개를 찾았어요.",
         tool_name=FIND_SIMILAR_PRODUCTS_TOOL,
         ui_action=action,
         items=[
@@ -145,7 +152,7 @@ def compare_products(
     normalized_product_ids = _normalize_product_ids(product_ids)
     validate_result_item_count(COMPARE_PRODUCTS_TOOL, len(normalized_product_ids))
     if len(normalized_product_ids) < 2:
-        raise ApiError(400, "AGENT_COMPARE_REQUIRES_TWO_PRODUCTS", "At least two products are required.")
+        raise ApiError(400, "AGENT_COMPARE_REQUIRES_TWO_PRODUCTS", "비교할 상품을 2개 이상 선택해 주세요.")
 
     snapshots = _load_snapshots_by_product_codes(session, normalized_product_ids)
     ordered_snapshots = _order_snapshots(snapshots, normalized_product_ids)
@@ -158,7 +165,7 @@ def compare_products(
     validate_tool_ui_action(COMPARE_PRODUCTS_TOOL, action)
     return AgentChatResponse(
         conversation_id=_resolve_conversation_id(conversation_id),
-        message="Selected products were compared.",
+        message=f"선택한 상품 {len(ordered_snapshots)}개를 비교했어요.",
         tool_name=COMPARE_PRODUCTS_TOOL,
         ui_action=action,
         items=[_to_product_response_item(snapshot) for snapshot in ordered_snapshots],
@@ -168,9 +175,11 @@ def compare_products(
 def refine_product_results(
     session: Session,
     *,
-    base_product_ids: list[str],
+    base_product_ids: list[str] | None = None,
+    recommendation_id: str | None = None,
     conversation_id: str | None = None,
     limit: int = DEFAULT_REFINE_LIMIT,
+    page: int = 1,
     min_price: int | None = None,
     max_price: int | None = None,
     category_code: str | None = None,
@@ -181,9 +190,63 @@ def refine_product_results(
     validate_tool_access(REFINE_PRODUCT_RESULTS_TOOL, user_id=None)
     normalized_limit = _normalize_limit(limit, DEFAULT_REFINE_LIMIT)
     validate_result_item_count(REFINE_PRODUCT_RESULTS_TOOL, normalized_limit)
-    normalized_product_ids = _normalize_product_ids(base_product_ids)
+    if recommendation_id:
+        recommendation = get_refined_recommendation_response(
+            session,
+            recommendation_id,
+            page=page,
+            page_size=normalized_limit,
+            min_price=min_price,
+            max_price=max_price,
+            category_code=category_code,
+            skin_type=skin_type,
+            sensitivity=sensitivity,
+            effect_keywords=effect_keywords,
+        )
+        result_url = _build_refined_result_url(
+            recommendation,
+            min_price=min_price,
+            max_price=max_price,
+            category_code=category_code,
+            skin_type=skin_type,
+            sensitivity=sensitivity,
+            effect_keywords=effect_keywords,
+        )
+        action = AgentUiAction(
+            type="show_products",
+            target="refined_products",
+            payload={
+                "recommendation_id": recommendation.recommendation_id,
+                "result_url": result_url,
+                "filters": _refinement_filters_payload(
+                    min_price=min_price,
+                    max_price=max_price,
+                    category_code=category_code,
+                    skin_type=skin_type,
+                    sensitivity=sensitivity,
+                    effect_keywords=effect_keywords,
+                ),
+                "summary": dump_model(recommendation.summary),
+                "unmatched_terms": recommendation.unmatched_terms,
+                "pagination": dump_model(recommendation.pagination),
+                "products": [dump_model(product) for product in recommendation.products],
+            },
+        )
+        validate_tool_ui_action(REFINE_PRODUCT_RESULTS_TOOL, action)
+        return AgentChatResponse(
+            conversation_id=_resolve_conversation_id(conversation_id),
+            message=(
+                f"전체 추천 결과에서 조건에 맞는 상품 "
+                f"{recommendation.pagination.total_items}개를 다시 정리했어요."
+            ),
+            tool_name=REFINE_PRODUCT_RESULTS_TOOL,
+            ui_action=action,
+            items=[_recommended_product_to_response_item(product) for product in recommendation.products],
+        )
+
+    normalized_product_ids = _normalize_product_ids(base_product_ids or [])
     if not normalized_product_ids:
-        raise ApiError(400, "AGENT_REFINE_PRODUCTS_REQUIRED", "base_product_ids is required.")
+        raise ApiError(400, "AGENT_REFINE_PRODUCTS_REQUIRED", "조건을 적용할 상품 목록이 필요해요.")
 
     snapshots = _load_snapshots_by_product_codes(session, normalized_product_ids)
     ordered_snapshots = _order_snapshots(snapshots, normalized_product_ids)
@@ -217,20 +280,147 @@ def refine_product_results(
     validate_tool_ui_action(REFINE_PRODUCT_RESULTS_TOOL, action)
     return AgentChatResponse(
         conversation_id=_resolve_conversation_id(conversation_id),
-        message="Product results were refined.",
+        message=f"조건에 맞는 상품 {len(filtered)}개로 추천 결과를 다시 정리했어요.",
         tool_name=REFINE_PRODUCT_RESULTS_TOOL,
         ui_action=action,
         items=[_to_product_response_item(snapshot) for snapshot in filtered],
     )
 
 
+def get_refined_recommendation_response(
+    session: Session,
+    recommendation_id: str,
+    *,
+    page: int = 1,
+    page_size: int = DEFAULT_REFINE_LIMIT,
+    min_price: int | None = None,
+    max_price: int | None = None,
+    category_code: str | None = None,
+    skin_type: str | None = None,
+    sensitivity: str | None = None,
+    effect_keywords: list[str] | None = None,
+) -> RecommendationResponse:
+    pagination = normalize_pagination(page, page_size)
+    full_response = get_recommendation_response(
+        session,
+        recommendation_id,
+        page=1,
+        page_size=MAX_PAGE_SIZE,
+    )
+    product_ids = [product.product_id for product in full_response.products]
+    snapshots = _load_snapshots_by_product_codes(session, product_ids) if product_ids else []
+    snapshots_by_product_id = {snapshot.product_id: snapshot for snapshot in snapshots}
+    filtered_products = [
+        product
+        for product in full_response.products
+        if (snapshot := snapshots_by_product_id.get(product.product_id)) is not None
+        and _matches_price_filter(snapshot, min_price=min_price, max_price=max_price)
+        and _matches_category_filter(snapshot, category_code)
+        and _matches_skin_filter(snapshot, skin_type=skin_type, sensitivity=sensitivity)
+        and _matches_effect_filter(snapshot, effect_keywords)
+    ]
+    total_items = len(filtered_products)
+    page_products = filtered_products[pagination.offset:pagination.offset + pagination.page_size]
+    total_pages = (total_items + pagination.page_size - 1) // pagination.page_size if total_items else 0
+    return RecommendationResponse(
+        recommendation_id=full_response.recommendation_id,
+        summary=full_response.summary,
+        unmatched_terms=full_response.unmatched_terms,
+        products=page_products,
+        pagination=Pagination(
+            page=pagination.page,
+            page_size=pagination.page_size,
+            total_items=total_items,
+            total_pages=total_pages,
+            has_next=pagination.page < total_pages,
+            has_prev=pagination.page > 1 and total_pages > 0,
+        ),
+    )
+
+
+def _refinement_filters_payload(
+    *,
+    min_price: int | None,
+    max_price: int | None,
+    category_code: str | None,
+    skin_type: str | None,
+    sensitivity: str | None,
+    effect_keywords: list[str] | None,
+) -> dict[str, Any]:
+    return {
+        "min_price": min_price,
+        "max_price": max_price,
+        "category_code": category_code,
+        "skin_type": skin_type,
+        "sensitivity": sensitivity,
+        "effect_keywords": effect_keywords or [],
+    }
+
+
+def _build_refined_result_url(
+    recommendation: RecommendationResponse,
+    *,
+    min_price: int | None,
+    max_price: int | None,
+    category_code: str | None,
+    skin_type: str | None,
+    sensitivity: str | None,
+    effect_keywords: list[str] | None,
+) -> str:
+    params: list[tuple[str, str]] = [
+        ("keyword", recommendation.summary.concern_text),
+        ("search_mode", "ai"),
+        ("page_size", str(recommendation.pagination.page_size)),
+        ("skin_type", recommendation.summary.skin_type),
+        ("sensitivity", recommendation.summary.sensitivity),
+        ("recommendation_id", recommendation.recommendation_id),
+    ]
+    optional_filters = {
+        "refine_min_price": min_price,
+        "refine_max_price": max_price,
+        "refine_category_code": category_code,
+        "refine_skin_type": skin_type,
+        "refine_sensitivity": sensitivity,
+    }
+    params.extend(
+        (key, str(value))
+        for key, value in optional_filters.items()
+        if value is not None and str(value).strip()
+    )
+    params.extend(
+        ("refine_effect", keyword.strip())
+        for keyword in effect_keywords or []
+        if keyword.strip()
+    )
+    return f"/search?{urlencode(params)}"
+
+
+def _recommended_product_to_response_item(product: RecommendedProduct) -> AgentResponseItem:
+    return AgentResponseItem(
+        item_type="product",
+        id=product.product_id,
+        title=product.name,
+        subtitle=product.brand,
+        image_storage_key=product.thumbnail_url or None,
+        price=product.lowest_price,
+        currency="KRW",
+        metadata={
+            "rank": product.rank,
+            "total_score": product.total_score,
+            "recommendation_id": product.cart_handoff.recommendation_id,
+            "recommendation_rank": product.cart_handoff.recommendation_rank,
+            "score_breakdown": dump_model(product.score_breakdown),
+        },
+    )
+
+
 def _load_single_snapshot(session: Session, product_code: str) -> _ProductSnapshot:
     normalized_code = product_code.strip()
     if not normalized_code:
-        raise ApiError(404, "PRODUCT_NOT_FOUND", "Product was not found.")
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾지 못했어요.")
     snapshots = _load_snapshots_by_product_codes(session, [normalized_code])
     if not snapshots:
-        raise ApiError(404, "PRODUCT_NOT_FOUND", "Product was not found.")
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾지 못했어요.")
     return snapshots[0]
 
 
@@ -299,7 +489,7 @@ def _load_snapshots_by_product_codes(
     if len(rows) != len(set(normalized_codes)):
         found_codes = {row[0].product_code for row in rows}
         missing = [code for code in normalized_codes if code not in found_codes]
-        raise ApiError(404, "PRODUCT_NOT_FOUND", f"Product was not found: {missing[0]}")
+        raise ApiError(404, "PRODUCT_NOT_FOUND", f"상품을 찾지 못했어요: {missing[0]}")
 
     product_db_ids = [int(row[0].id) for row in rows]
     thumbnails = load_thumbnail_storage_keys(session, product_db_ids)
@@ -510,12 +700,12 @@ def _build_difference_points(
     points: list[str] = []
     categories = {snapshot.category_code for snapshot in snapshots}
     if len(categories) > 1:
-        points.append("Products are from different categories.")
+        points.append("서로 다른 카테고리의 상품이에요.")
     if cheapest is not None:
-        points.append(f"{cheapest.product_id} has the lowest price.")
+        points.append(f"{cheapest.product_id} 상품의 가격이 가장 낮아요.")
     for snapshot in snapshots:
         if snapshot.risk_flags:
-            points.append(f"{snapshot.product_id} has caution flags.")
+            points.append(f"{snapshot.product_id} 상품에 확인이 필요한 주의 정보가 있어요.")
     return points[:5]
 
 
@@ -574,12 +764,12 @@ def _build_product_summary(snapshot: _ProductSnapshot) -> str:
     effects = ", ".join(snapshot.effects[:2])
     ingredients = ", ".join(snapshot.ingredients[:2])
     if effects and ingredients:
-        return f"Effect focus: {effects}. Key ingredients: {ingredients}."
+        return f"기대 효능: {effects}. 핵심 성분: {ingredients}."
     if effects:
-        return f"Effect focus: {effects}."
+        return f"기대 효능: {effects}."
     if ingredients:
-        return f"Key ingredients: {ingredients}."
-    return "Candidate based on product profile."
+        return f"핵심 성분: {ingredients}."
+    return "상품 정보를 기준으로 확인한 후보예요."
 
 
 def _order_snapshots(

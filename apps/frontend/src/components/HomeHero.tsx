@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
+import { buildAgentPendingEntryUrl, runAgentEntryMessage } from "../lib/agentRecommendationSearch";
+import { navigateWithinApp } from "../lib/navigation";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
-
-const setSearch = (text: string) => callOriginal("setSearch", text);
 
 const placeholderExamples = [
   "모공과 피지가 고민이에요",
@@ -34,11 +34,13 @@ function HomeHero({
 }: HomeHeroProps) {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(initialQuery);
+  const [profile, setProfile] = useState(initialProfile);
   const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("ai");
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [isAgentSubmitting, setIsAgentSubmitting] = useState(false);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -163,17 +165,27 @@ function HomeHero({
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") handleSearch();
+    if (event.key === "Enter") void handleSearch();
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const normalized = query.trim();
-    if (!normalized) return;
+    if (!normalized || isAgentSubmitting) return;
     if (searchMode === "general") {
       window.location.assign(`/catalog-search?q=${encodeURIComponent(normalized)}`);
       return;
     }
-    callOriginal("doSearch", searchMode);
+
+    setIsAgentSubmitting(true);
+    setIsSuggestionsOpen(false);
+    try {
+      await navigateWithinApp(buildAgentPendingEntryUrl(normalized, profile));
+      await runAgentEntryMessage(normalized, profile);
+    } catch {
+      callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
+    } finally {
+      setIsAgentSubmitting(false);
+    }
   };
 
   const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
@@ -185,9 +197,19 @@ function HomeHero({
     setQuery(suggestion.text);
   };
 
-  const handleExampleClick = (text: string) => {
+  const handleExampleClick = async (text: string) => {
+    if (isAgentSubmitting) return;
     setQuery(text);
-    setSearch(text);
+    setIsSuggestionsOpen(false);
+    setIsAgentSubmitting(true);
+    try {
+      await navigateWithinApp(buildAgentPendingEntryUrl(text, profile));
+      await runAgentEntryMessage(text, profile);
+    } catch {
+      callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
+    } finally {
+      setIsAgentSubmitting(false);
+    }
   };
 
   const selectSearchMode = (mode: SearchMode) => {
@@ -247,7 +269,7 @@ function HomeHero({
                   onClick={openSuggestions}
                   type="button"
                 >
-                  {initialProfile.skin} · {initialProfile.sensitivity}
+                  {profile.skin} · {profile.sensitivity}
                 </button>
               ) : null}
               <input
@@ -261,20 +283,23 @@ function HomeHero({
                 type="text"
                 value={query}
               />
-              <button className="search-btn" onClick={handleSearch} type="button">
-                <svg
-                  fill="none"
-                  height="14"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                  width="14"
-                >
-                  <path d="m22 2-7 20-4-9-9-4z" />
-                </svg>
-                {searchMode === "ai" ? "AI 추천 받기" : "검색"}
+              <button className="search-btn" disabled={isAgentSubmitting} onClick={() => void handleSearch()} type="button">
+                {!isAgentSubmitting ? (
+                  <svg
+                    fill="none"
+                    height="14"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2.5"
+                    viewBox="0 0 24 24"
+                    width="14"
+                  >
+                    <path d="m22 2-7 20-4-9-9-4z" />
+                  </svg>
+                ) : null}
+                {isAgentSubmitting ? "추천 준비 중" : searchMode === "ai" ? "AI 추천 받기" : "검색"}
+                {isAgentSubmitting ? <span aria-hidden="true" className="search-btn-spinner" /> : null}
               </button>
             </div>
 
@@ -324,11 +349,14 @@ function HomeHero({
                       <div aria-label="피부 타입" className="profile-segments skin" role="radiogroup">
                         {["건성", "지성", "복합성", "수부지", "중성"].map((skinType) => (
                           <button
-                            className={`profile-option${skinType === initialProfile.skin ? " active" : ""}`}
+                            className={`profile-option${skinType === profile.skin ? " active" : ""}`}
                             data-profile="skin"
                             data-value={skinType}
                             key={skinType}
-                            onClick={() => callOriginal("selectProfileOption", "skin", skinType)}
+                            onClick={() => {
+                              setProfile((current) => ({ ...current, skin: skinType as RecommendationProfile["skin"] }));
+                              callOriginal("selectProfileOption", "skin", skinType);
+                            }}
                             type="button"
                           >
                             {skinType}
@@ -346,13 +374,14 @@ function HomeHero({
                       >
                         {["낮음", "보통", "높음"].map((sensitivity) => (
                           <button
-                            className={`profile-option${sensitivity === initialProfile.sensitivity ? " active" : ""}`}
+                            className={`profile-option${sensitivity === profile.sensitivity ? " active" : ""}`}
                             data-profile="sensitivity"
                             data-value={sensitivity}
                             key={sensitivity}
-                            onClick={() =>
-                              callOriginal("selectProfileOption", "sensitivity", sensitivity)
-                            }
+                            onClick={() => {
+                              setProfile((current) => ({ ...current, sensitivity: sensitivity as RecommendationProfile["sensitivity"] }));
+                              callOriginal("selectProfileOption", "sensitivity", sensitivity);
+                            }}
                             type="button"
                           >
                             {sensitivity}
@@ -364,7 +393,7 @@ function HomeHero({
 
                   <div className="suggest-actions">
                     <span className="profile-summary" id="profileSummary">
-                      {initialProfile.skin} · 민감도 {initialProfile.sensitivity} 기준으로 추천
+                      {profile.skin} · 민감도 {profile.sensitivity} 기준으로 추천
                     </span>
                   </div>
                 </div>
@@ -375,19 +404,19 @@ function HomeHero({
           <div className="search-examples search-examples--with-guide">
             <span
               className="example-chip"
-              onClick={() => handleExampleClick("모공이 넓고 피지가 많아요")}
+              onClick={() => void handleExampleClick("모공이 넓고 피지가 많아요")}
             >
               모공이 넓고 피지가 많아요
             </span>
             <span
               className="example-chip"
-              onClick={() => handleExampleClick("건조하고 주름이 걱정돼요")}
+              onClick={() => void handleExampleClick("건조하고 주름이 걱정돼요")}
             >
               건조하고 주름이 걱정돼요
             </span>
             <span
               className="example-chip"
-              onClick={() => handleExampleClick("색소침착과 잡티가 있어요")}
+              onClick={() => void handleExampleClick("색소침착과 잡티가 있어요")}
             >
               색소침착과 잡티가 있어요
             </span>

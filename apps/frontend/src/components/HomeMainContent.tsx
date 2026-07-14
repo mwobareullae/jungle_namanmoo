@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
@@ -11,6 +12,7 @@ import type {
   RecommendationResponse,
   RecommendationPagination,
   RecommendationProfile,
+  RecommendationRefinementFilters,
   SearchMode
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
@@ -356,13 +358,93 @@ function HomeDealSection({
   onForYouFilterChange?: (key: keyof ForYouFilters, value: string) => void;
 }) {
   const visibleProducts = products.slice(0, 8);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [infoPosition, setInfoPosition] = useState({ left: 0, top: 0 });
+  const infoButtonRef = useRef<HTMLButtonElement>(null);
+
+  const openInfo = () => {
+    const rect = infoButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const maxLeft = Math.max(16, window.innerWidth - 336);
+      setInfoPosition({ left: Math.min(rect.left, maxLeft), top: rect.bottom + 10 });
+    }
+    setIsInfoOpen(true);
+  };
+
+  const sourceLabels: Record<string, string> = {
+    request_context: "이번 화면에서 선택한 피부 타입·조건",
+    manual_skin_profile: "저장된 피부 프로필",
+    skin_test_context: "피부 테스트 결과",
+    behavior_affinity: "최근 조회·찜·장바구니 행동",
+    fallback: "기본 추천 기준"
+  };
+  const personalizationSources = section.personalization_sources
+    .map((source) => sourceLabels[source] ?? source)
+    .filter((source, index, sources) => sources.indexOf(source) === index);
+  const recommendationSources = [
+    ...personalizationSources,
+    "성분·효능 근거",
+    "가격 및 인기 지표"
+  ].filter((source, index, sources) => sources.indexOf(source) === index);
 
   return (
-    <section className={`home-api-section home-deal-section${toneMint ? " tone-mint" : ""}`}>
+    <section className={`home-api-section home-deal-section${toneMint ? " tone-mint" : ""}${isInfoOpen ? " is-info-open" : ""}`}>
       <div className="home-section-head">
         <div>
           <div className="home-section-kicker">{getHomeSectionKicker(section.section_id)}</div>
-          <div className="section-title">{section.title}</div>
+          <div className="home-section-title-row">
+            <div className="section-title">{section.title}</div>
+            {section.section_id === "for_you" ? (
+              <div
+                className="home-recommendation-info"
+                onMouseEnter={openInfo}
+              >
+                <button
+                  aria-expanded={isInfoOpen}
+                  aria-label="너를 위한 추천 기준 보기"
+                  className="home-recommendation-info-button"
+                  onClick={() => (isInfoOpen ? setIsInfoOpen(false) : openInfo())}
+                  onFocus={openInfo}
+                  ref={infoButtonRef}
+                  type="button"
+                >
+                  i
+                </button>
+                {isInfoOpen ? createPortal(
+                  <div
+                    className="home-recommendation-info-popover"
+                    role="dialog"
+                    aria-label="너를 위한 추천 기준"
+                    onMouseLeave={() => setIsInfoOpen(false)}
+                    style={{ left: infoPosition.left, top: infoPosition.top }}
+                  >
+                    <div className="home-recommendation-info-head">
+                      <strong>너를 위한 추천 기준</strong>
+                      <button
+                        aria-label="추천 기준 닫기"
+                        className="home-recommendation-info-close"
+                        onClick={() => setIsInfoOpen(false)}
+                        type="button"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <p>
+                      {section.skin_type ?? "현재 선택한 피부 타입"}
+                      {section.sensitivity ? ` · 민감도 ${section.sensitivity}` : ""}
+                    </p>
+                    <span>추천에 참고한 정보</span>
+                    <ul>
+                      {recommendationSources.map((source) => (
+                        <li key={source}>{source}</li>
+                      ))}
+                    </ul>
+                  </div>,
+                  document.body
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
         <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
@@ -490,12 +572,21 @@ function HomeOriginalGridSection({
 type HomeSearchEvent = CustomEvent<{
   query: string;
   profile: RecommendationProfile;
+  recommendationId?: string;
+  refinementFilters?: RecommendationRefinementFilters;
+}>;
+
+type AgentRefinedProductsEvent = CustomEvent<{
+  products?: Array<Record<string, unknown>>;
+  filters?: Record<string, unknown>;
 }>;
 
 type HomeMainContentProps = {
+  deferInitialSearch?: boolean;
   initialQuery?: string;
   initialPage?: number;
   initialRecommendationId?: string;
+  initialRefinementFilters?: RecommendationRefinementFilters;
   initialSearchMode?: SearchMode;
   initialProfile?: RecommendationProfile;
   mode?: "home" | "search";
@@ -505,9 +596,11 @@ type HomeMainContentProps = {
 };
 
 function HomeMainContent({
+  deferInitialSearch = false,
   initialQuery = "",
   initialPage = 1,
   initialRecommendationId,
+  initialRefinementFilters,
   initialSearchMode = "ai",
   initialProfile = {
     skin: "수부지",
@@ -521,7 +614,7 @@ function HomeMainContent({
 }: HomeMainContentProps) {
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(deferInitialSearch && mode === "search");
   const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
   const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
   const [forYouSections, setForYouSections] = useState<Record<string, HomeSection | null>>({});
@@ -538,6 +631,9 @@ function HomeMainContent({
     skinType: initialProfile.skin
   });
   const [sortType, setSortType] = useState("score");
+  const [agentRefinementFilters, setAgentRefinementFilters] = useState<RecommendationRefinementFilters | null>(
+    initialRefinementFilters ?? null,
+  );
   const [errorMessage, setErrorMessage] = useState("");
   const isGeneralSearch = initialSearchMode === "general";
 
@@ -546,7 +642,8 @@ function HomeMainContent({
       nextQuery: string,
       profile: RecommendationProfile,
       page: number,
-      recommendationId?: string
+      recommendationId?: string,
+      refinementFilters?: RecommendationRefinementFilters,
     ) => {
       if (mode !== "search") return;
 
@@ -561,6 +658,12 @@ function HomeMainContent({
       }
       if (page > 1) params.set("page", String(page));
       if (recommendationId) params.set("recommendation_id", recommendationId);
+      if (refinementFilters?.min_price != null) params.set("refine_min_price", String(refinementFilters.min_price));
+      if (refinementFilters?.max_price != null) params.set("refine_max_price", String(refinementFilters.max_price));
+      if (refinementFilters?.category_code) params.set("refine_category_code", refinementFilters.category_code);
+      if (refinementFilters?.skin_type) params.set("refine_skin_type", refinementFilters.skin_type);
+      if (refinementFilters?.sensitivity) params.set("refine_sensitivity", refinementFilters.sensitivity);
+      refinementFilters?.effect_keywords?.forEach((keyword) => params.append("refine_effect", keyword));
       window.history.replaceState(null, "", `/search?${params.toString()}`);
     },
     [initialSearchMode, isGeneralSearch, mode, pageSize]
@@ -572,7 +675,8 @@ function HomeMainContent({
       profile: RecommendationProfile,
       page = 1,
       recommendationId?: string,
-      shouldScrollToResults = mode !== "search"
+      shouldScrollToResults = mode !== "search",
+      refinementFilters?: RecommendationRefinementFilters,
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
@@ -580,6 +684,7 @@ function HomeMainContent({
       setQuery(trimmedQuery);
       setIsLoading(true);
       setErrorMessage("");
+      setAgentRefinementFilters(refinementFilters ?? null);
       setRecommendation(null);
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
@@ -600,7 +705,8 @@ function HomeMainContent({
           : recommendationId
             ? await api.getRecommendation(recommendationId, {
               page,
-              pageSize
+              pageSize,
+              filters: refinementFilters,
             })
             : await api.createRecommendation(
               {
@@ -636,7 +742,8 @@ function HomeMainContent({
           trimmedQuery,
           profile,
           displayResponse.pagination.page,
-          nextRecommendationId
+          nextRecommendationId,
+          refinementFilters,
         );
         setRecommendation(displayResponse);
         window.dispatchEvent(
@@ -665,21 +772,135 @@ function HomeMainContent({
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
-      const { query: nextQuery, profile } = (event as HomeSearchEvent).detail;
-      runSearch(nextQuery, profile);
+      const { query: nextQuery, profile, recommendationId, refinementFilters } = (event as HomeSearchEvent).detail;
+      await runSearch(nextQuery, profile, 1, recommendationId, mode !== "search", refinementFilters);
     };
 
     window.addEventListener("home-search-request", handleSearchRequest);
     return () => window.removeEventListener("home-search-request", handleSearchRequest);
-  }, [runSearch]);
+  }, [mode, runSearch]);
 
   useEffect(() => {
+    if (mode !== "search") return;
+
+    const handleAgentRefinement = (event: Event) => {
+      const { products: rawProducts = [], filters = {} } = (event as AgentRefinedProductsEvent).detail;
+      setAgentRefinementFilters(filters);
+      setRecommendation((current) => {
+        if (!current) return current;
+
+        const currentProducts = new Map(
+          current.products.map((product) => [product.product_id, product]),
+        );
+        const refinedProducts = rawProducts.flatMap<ProductCardItem>((rawProduct, index) => {
+          const productId = String(rawProduct.product_id ?? rawProduct.id ?? "");
+          if (!productId) return [];
+
+          const existingProduct = currentProducts.get(productId);
+          if (existingProduct) {
+            return [{
+              ...existingProduct,
+              lowest_price: typeof rawProduct.price === "number"
+                ? rawProduct.price
+                : existingProduct.lowest_price,
+              sales_status: typeof rawProduct.sales_status === "string"
+                ? rawProduct.sales_status
+                : existingProduct.sales_status,
+              stock_status: typeof rawProduct.stock_status === "string"
+                ? rawProduct.stock_status
+                : existingProduct.stock_status,
+              available_quantity: typeof rawProduct.available_quantity === "number"
+                ? rawProduct.available_quantity
+                : existingProduct.available_quantity,
+              in_stock: rawProduct.in_stock === false ? false : existingProduct.in_stock,
+            }];
+          }
+
+          const effects = Array.isArray(rawProduct.effects)
+            ? rawProduct.effects.filter((value): value is string => typeof value === "string")
+            : [];
+          const ingredients = Array.isArray(rawProduct.key_ingredients)
+            ? rawProduct.key_ingredients.filter((value): value is string => typeof value === "string")
+            : Array.isArray(rawProduct.ingredients)
+              ? rawProduct.ingredients.filter((value): value is string => typeof value === "string")
+              : [];
+          const cautionFlags = Array.isArray(rawProduct.caution_flags)
+            ? rawProduct.caution_flags.filter((value): value is string => typeof value === "string")
+            : [];
+
+          return [{
+            product_id: productId,
+            rank: index + 1,
+            total_score: 0,
+            reason_summary: typeof rawProduct.summary === "string" ? rawProduct.summary : "현재 검색 결과 조건에 맞는 상품이에요.",
+            brand: typeof rawProduct.brand === "string" ? rawProduct.brand : "브랜드 정보 없음",
+            name: typeof rawProduct.name === "string" ? rawProduct.name : "상품명 정보 없음",
+            thumbnail_url: typeof rawProduct.thumbnail_url === "string"
+              ? rawProduct.thumbnail_url
+              : typeof rawProduct.thumbnail_storage_key === "string"
+                ? rawProduct.thumbnail_storage_key
+                : null,
+            lowest_price: typeof rawProduct.price === "number" ? rawProduct.price : null,
+            evidence_tags: effects,
+            key_ingredients: ingredients,
+            risk_flags: cautionFlags,
+            sales_status: typeof rawProduct.sales_status === "string" ? rawProduct.sales_status : "ON_SALE",
+            stock_status: typeof rawProduct.stock_status === "string" ? rawProduct.stock_status : "IN_STOCK",
+            available_quantity: typeof rawProduct.available_quantity === "number" ? rawProduct.available_quantity : null,
+            in_stock: rawProduct.in_stock !== false,
+          }];
+        });
+
+        return {
+          ...current,
+          products: refinedProducts,
+          pagination: {
+            page: 1,
+            page_size: refinedProducts.length,
+            total_items: refinedProducts.length,
+            total_pages: refinedProducts.length ? 1 : 0,
+            has_next: false,
+            has_prev: false
+          }
+        };
+      });
+    };
+
+    window.addEventListener("agent-refined-products", handleAgentRefinement);
+    return () => window.removeEventListener("agent-refined-products", handleAgentRefinement);
+  }, [mode]);
+
+  useEffect(() => {
+    if (deferInitialSearch && mode === "search" && initialQuery) {
+      let isActive = true;
+      queueMicrotask(() => {
+        if (!isActive) return;
+        setQuery(initialQuery);
+        setIsLoading(true);
+        window.dispatchEvent(
+          new CustomEvent("home-recommendation-state", {
+            detail: { status: "loading", query: initialQuery, recommendation: null }
+          })
+        );
+      });
+      return () => {
+        isActive = false;
+      };
+    }
+
     if (initialQuery) {
       queueMicrotask(() => {
-        runSearch(initialQuery, initialProfile, initialPage, initialRecommendationId, false);
+        runSearch(
+          initialQuery,
+          initialProfile,
+          initialPage,
+          initialRecommendationId,
+          false,
+          initialRefinementFilters,
+        );
       });
     }
-  }, [initialPage, initialProfile, initialQuery, initialRecommendationId, runSearch]);
+  }, [deferInitialSearch, initialPage, initialProfile, initialQuery, initialRecommendationId, initialRefinementFilters, mode, runSearch]);
 
   const loadHomeSection = useCallback(
     async (sectionKey: HomeSectionKey) => {
@@ -773,7 +994,14 @@ function HomeMainContent({
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
     if (nextPage === pagination.page) return;
     const currentRecommendationId = recommendation?.recommendation_id ?? initialRecommendationId;
-    runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId, true);
+    runSearch(
+      query || initialQuery,
+      initialProfile,
+      nextPage,
+      currentRecommendationId,
+      true,
+      agentRefinementFilters ?? undefined,
+    );
   };
 
   return (
@@ -803,7 +1031,9 @@ function HomeMainContent({
                 <div className="section-subtitle" style={{ marginTop: 4 }}>
                   {isLoading
                     ? isGeneralSearch ? "상품 검색 결과를 불러오는 중입니다" : "추천 결과를 불러오는 중입니다"
-                    : isGeneralSearch ? `${pagination.total_items}개 제품을 찾았습니다` : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
+                    : agentRefinementFilters?.max_price
+                      ? `${pagination.total_items}개 제품 · ${Number(agentRefinementFilters.max_price).toLocaleString("ko-KR")}원 이하로 좁혔습니다`
+                      : isGeneralSearch ? `${pagination.total_items}개 제품을 찾았습니다` : `${pagination.total_items}개 제품이 피부 고민에 매칭되었습니다`}
                 </div>
               </div>
               {!isGeneralSearch ? (
@@ -851,7 +1081,9 @@ function HomeMainContent({
                     displayRank={
                       isGeneralSearch
                         ? undefined
-                        : (pagination.page - 1) * pagination.page_size + index + 1
+                        : agentRefinementFilters
+                          ? product.rank
+                          : (pagination.page - 1) * pagination.page_size + index + 1
                     }
                     eventContext={{
                       sectionId: "recommendation_results",

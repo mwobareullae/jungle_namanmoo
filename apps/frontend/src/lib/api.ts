@@ -9,6 +9,7 @@ import type {
   PurchaseConstraints,
   RecommendationNarrativeRequest,
   RecommendationNarrativeResponse,
+  RecommendationRefinementFilters,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
@@ -45,7 +46,7 @@ type RecommendationApi = {
   ) => Promise<RecommendationResponse>;
   getRecommendation: (
     recommendationId: string,
-    params?: { page?: number; pageSize?: number }
+    params?: { page?: number; pageSize?: number; filters?: RecommendationRefinementFilters }
   ) => Promise<RecommendationResponse>;
   createRecommendationNarrative: (
     recommendationId: string,
@@ -111,6 +112,7 @@ type BackendScoreBreakdown = {
   concentration_bucket?: string | null;
   concentration_warning?: string | null;
   skin_type_score: number;
+  skin_profile_score?: number;
   sensitivity_score?: number;
   price_score: number;
   keyword_score?: number;
@@ -123,6 +125,10 @@ type BackendScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  base_weights?: Record<string, number>;
+  adjusted_weights?: Record<string, number>;
+  risk_flag_count?: number;
+  risk_warnings?: string[];
 };
 
 type BackendRecommendedProduct = {
@@ -298,12 +304,17 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     concentration_bucket: score.concentration_bucket ?? null,
     concentration_warning: score.concentration_warning ?? null,
     skin_type_match_score: score.skin_type_score,
+    skin_profile_score: score.skin_profile_score,
     sensitivity_score: score.sensitivity_score,
     price_value_score: score.price_score,
     keyword_score: score.keyword_score ?? 0,
     vector_score: score.vector_score ?? 0,
     search_match_score: score.search_match_score ?? 0,
     risk_penalty: score.risk_penalty ?? 0,
+    base_weights: score.base_weights,
+    adjusted_weights: score.adjusted_weights,
+    risk_flag_count: score.risk_flag_count,
+    risk_warnings: score.risk_warnings,
     review_quality_score: score.review_quality_score,
     review_quality_applied: score.review_quality_applied,
     review_quality_confidence: score.review_quality_confidence,
@@ -357,6 +368,8 @@ const mapRecommendation = (response: BackendRecommendationResponse): Recommendat
     avoid_ingredients: response.summary.avoid_ingredients,
     concerns: response.summary.matched_concerns,
     effects: response.summary.expected_effects,
+    matched_concerns: response.summary.matched_concerns,
+    expected_effects: response.summary.expected_effects,
     purchase_constraints: response.summary.purchase_constraints ?? emptyPurchaseConstraints
   },
   unmatched_terms: response.unmatched_terms,
@@ -503,6 +516,13 @@ export const api: RecommendationApi = {
     const searchParams = new URLSearchParams();
     if (params.page) searchParams.set("page", String(params.page));
     if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    const filters = params.filters;
+    if (filters?.min_price != null) searchParams.set("min_price", String(filters.min_price));
+    if (filters?.max_price != null) searchParams.set("max_price", String(filters.max_price));
+    if (filters?.category_code) searchParams.set("category_code", filters.category_code);
+    if (filters?.skin_type) searchParams.set("skin_type", filters.skin_type);
+    if (filters?.sensitivity) searchParams.set("sensitivity", filters.sensitivity);
+    filters?.effect_keywords?.forEach((keyword) => searchParams.append("effect_keyword", keyword));
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(

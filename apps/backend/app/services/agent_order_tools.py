@@ -28,9 +28,62 @@ from app.services.order_query_service import get_order_detail, list_orders
 
 
 CANCEL_RECENT_ORDER_TOOL = "cancel_recent_order"
+FILTER_ORDER_HISTORY_TOOL = "filter_order_history"
 ORDER_STATUS_LOOKUP_TOOL = "order_status_lookup"
 CANCEL_CONFIRMATION_TTL_MINUTES = 10
 CANCELABLE_ORDER_STATUSES = {"PENDING_PAYMENT", "PAID"}
+ORDER_STATUS_LABELS = {
+    "PENDING_PAYMENT": "결제 대기",
+    "PAID": "결제 완료",
+    "PREPARING_SHIPMENT": "배송 준비 중",
+    "SHIPPED": "배송 중",
+    "DELIVERED": "배송 완료",
+    "CANCEL_REQUESTED": "취소 요청",
+    "CANCELED": "취소 완료",
+}
+PAYMENT_STATUS_LABELS = {
+    "PENDING": "결제 대기",
+    "PAID": "결제 완료",
+    "CANCELED": "결제 취소",
+    "FAILED": "결제 실패",
+}
+
+
+def filter_order_history(
+    user: User,
+    *,
+    conversation_id: str | None = None,
+    period_months: int | None = None,
+    status: str | None = None,
+) -> AgentChatResponse:
+    validate_tool_access(FILTER_ORDER_HISTORY_TOOL, user_id=user.id)
+    payload: dict[str, Any] = {}
+    if period_months is not None:
+        payload["period_months"] = period_months
+    if status is not None:
+        payload["status"] = status
+
+    action = AgentUiAction(type="navigate", target="order_history", payload=payload)
+    validate_result_item_count(FILTER_ORDER_HISTORY_TOOL, 0)
+    validate_tool_ui_action(FILTER_ORDER_HISTORY_TOOL, action)
+
+    period_copy = f"최근 {period_months}개월" if period_months and period_months < 12 else "최근 1년"
+    status_labels = {
+        "ALL": "전체 상태",
+        "PENDING_PAYMENT": "주문접수",
+        "PAID": "결제완료",
+        "PREPARING_SHIPMENT": "배송준비중",
+        "SHIPPED": "배송중",
+        "DELIVERED": "배송완료",
+    }
+    status_copy = f", {status_labels[status]}만" if status else ""
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=f"{period_copy} 주문 내역{status_copy} 보이도록 화면에 반영했어요.",
+        tool_name=FILTER_ORDER_HISTORY_TOOL,
+        ui_action=action,
+        items=[],
+    )
 
 
 def lookup_order_status(
@@ -135,6 +188,13 @@ def confirm_agent_tool_call(
 
     from app.services.agent_commerce_tools import PREPARE_ORDER_TOOL
     from app.services.agent_cart_composer import COMPOSE_CART_TOOL, confirm_composed_cart
+    from app.services.agent_bulk_wishlist import (
+        BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        confirm_bulk_wishlist_by_popular_ingredient,
+    )
+
+    if tool_call.tool_name == BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL:
+        return confirm_bulk_wishlist_by_popular_ingredient(session, user, tool_call=tool_call, action=action)
 
     if tool_call.tool_name == COMPOSE_CART_TOOL:
         return confirm_composed_cart(session, user, tool_call=tool_call, action=action)
@@ -149,28 +209,28 @@ def confirm_agent_tool_call(
         )
 
     if tool_call.tool_name != CANCEL_RECENT_ORDER_TOOL:
-        raise ApiError(400, "AGENT_TOOL_CONFIRM_UNSUPPORTED", "This tool call cannot be confirmed.")
+        raise ApiError(400, "AGENT_TOOL_CONFIRM_UNSUPPORTED", "확인할 수 없는 요청이에요.")
     if tool_call.status == "EXECUTED":
         return _already_executed_response(tool_call)
     if tool_call.status not in {"AWAITING_CONFIRMATION", "CONFIRMED"}:
-        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "This tool call cannot be confirmed.")
+        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "현재 상태에서는 이 요청을 확인할 수 없어요.")
 
     now = datetime.now(UTC)
     if tool_call.expires_at is not None and _as_utc(tool_call.expires_at) <= now:
         tool_call.status = "EXPIRED"
         tool_call.error_code = "AGENT_TOOL_CALL_EXPIRED"
-        tool_call.error_message = "This confirmation request has expired."
+        tool_call.error_message = "확인 시간이 만료됐어요."
         tool_call.updated_at = now
         tool_call.latency_ms = _elapsed_ms(started_at)
         session.flush()
         return AgentToolConfirmResponse(
             tool_call_id=tool_call.tool_call_id,
             status="EXPIRED",
-            message="The cancellation confirmation expired. Please request it again.",
+            message="주문 취소 확인 시간이 만료됐어요. 다시 요청해 주세요.",
             ui_action=AgentUiAction(),
             error=AgentError(
                 code="AGENT_TOOL_CALL_EXPIRED",
-                message="This confirmation request has expired.",
+                message="확인 시간이 만료됐어요.",
                 retryable=True,
             ),
         )
@@ -183,11 +243,11 @@ def confirm_agent_tool_call(
         return AgentToolConfirmResponse(
             tool_call_id=tool_call.tool_call_id,
             status="REJECTED",
-            message="Order cancellation was not executed.",
+            message="주문 취소를 진행하지 않았어요.",
             ui_action=AgentUiAction(),
         )
     if action != "confirm":
-        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "Invalid confirmation action.")
+        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "확인 응답을 처리할 수 없어요.")
 
     order_code = _get_tool_call_order_code(tool_call)
     tool_call.status = "CONFIRMED"
@@ -207,7 +267,7 @@ def confirm_agent_tool_call(
         return AgentToolConfirmResponse(
             tool_call_id=tool_call.tool_call_id,
             status="FAILED",
-            message="Order cancellation could not be completed.",
+            message="주문 취소를 완료하지 못했어요.",
             ui_action=AgentUiAction(),
             error=AgentError(code=exc.code, message=exc.message, retryable=False),
         )
@@ -259,13 +319,13 @@ def _confirm_prepared_order_tool_call(
             ui_action=AgentUiAction(type="open_payment", target="toss_payment", payload=output),
         )
     if tool_call.status not in {"AWAITING_CONFIRMATION", "CONFIRMED"}:
-        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "This tool call cannot be confirmed.")
+        raise ApiError(409, "AGENT_TOOL_CALL_NOT_CONFIRMABLE", "현재 상태에서는 이 요청을 확인할 수 없어요.")
 
     now = datetime.now(UTC)
     if tool_call.expires_at is not None and _as_utc(tool_call.expires_at) <= now:
         tool_call.status = "EXPIRED"
         tool_call.error_code = "AGENT_TOOL_CALL_EXPIRED"
-        tool_call.error_message = "This confirmation request has expired."
+        tool_call.error_message = "확인 시간이 만료됐어요."
         tool_call.updated_at = now
         tool_call.latency_ms = _elapsed_ms(started_at)
         session.flush()
@@ -274,7 +334,7 @@ def _confirm_prepared_order_tool_call(
             status="EXPIRED",
             message="주문 확인 시간이 만료됐어요. 다시 요청해 주세요.",
             ui_action=AgentUiAction(),
-            error=AgentError(code="AGENT_TOOL_CALL_EXPIRED", message="This confirmation request has expired.", retryable=True),
+            error=AgentError(code="AGENT_TOOL_CALL_EXPIRED", message="확인 시간이 만료됐어요.", retryable=True),
         )
     if action == "reject":
         tool_call.status = "REJECTED"
@@ -288,7 +348,7 @@ def _confirm_prepared_order_tool_call(
             ui_action=AgentUiAction(),
         )
     if action != "confirm":
-        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "Invalid confirmation action.")
+        raise ApiError(400, "AGENT_CONFIRM_ACTION_INVALID", "확인 응답을 처리할 수 없어요.")
 
     tool_call.status = "CONFIRMED"
     tool_call.confirmed_at = now
@@ -332,7 +392,7 @@ def _load_order_detail_for_tool(
 
     orders = list_orders(session, user, status=None, limit=1, cursor=None)
     if not orders.items:
-        raise ApiError(404, "AGENT_ORDER_NOT_FOUND", "No orders were found.")
+        raise ApiError(404, "AGENT_ORDER_NOT_FOUND", "주문 내역을 찾지 못했어요.")
     return get_order_detail(session, user, orders.items[0].order_code)
 
 
@@ -350,9 +410,9 @@ def _load_cancelable_order(
             )
         ).scalar_one_or_none()
         if order is None:
-            raise ApiError(404, "ORDER_NOT_FOUND", "Order was not found.")
+            raise ApiError(404, "ORDER_NOT_FOUND", "주문을 찾지 못했어요.")
         if order.status not in CANCELABLE_ORDER_STATUSES:
-            raise ApiError(409, "ORDER_NOT_CANCELABLE", "Order cannot be canceled in the current status.")
+            raise ApiError(409, "ORDER_NOT_CANCELABLE", "현재 상태에서는 주문을 취소할 수 없어요.")
         return order
 
     conditions = [
@@ -367,7 +427,7 @@ def _load_cancelable_order(
     )
     order = session.execute(statement).scalars().first()
     if order is None:
-        raise ApiError(404, "AGENT_CANCELABLE_ORDER_NOT_FOUND", "No cancelable recent order was found.")
+        raise ApiError(404, "AGENT_CANCELABLE_ORDER_NOT_FOUND", "취소할 수 있는 최근 주문을 찾지 못했어요.")
     return order
 
 
@@ -378,7 +438,7 @@ def _load_user_tool_call_for_update(
 ) -> AgentToolCall:
     normalized_id = tool_call_id.strip()
     if not normalized_id:
-        raise ApiError(404, "AGENT_TOOL_CALL_NOT_FOUND", "Tool call was not found.")
+        raise ApiError(404, "AGENT_TOOL_CALL_NOT_FOUND", "실행 요청을 찾지 못했어요.")
     tool_call = session.execute(
         select(AgentToolCall)
         .where(
@@ -388,7 +448,7 @@ def _load_user_tool_call_for_update(
         .with_for_update()
     ).scalar_one_or_none()
     if tool_call is None:
-        raise ApiError(404, "AGENT_TOOL_CALL_NOT_FOUND", "Tool call was not found.")
+        raise ApiError(404, "AGENT_TOOL_CALL_NOT_FOUND", "실행 요청을 찾지 못했어요.")
     return tool_call
 
 
@@ -398,7 +458,10 @@ def _to_order_response_item(detail: OrderDetailResponse) -> AgentResponseItem:
         item_type="order",
         id=detail.order_code,
         title=_build_order_title(detail),
-        subtitle=f"{detail.status} / {detail.payment.status}",
+        subtitle=(
+            f"{_order_status_label(detail.status)} / "
+            f"{_payment_status_label(detail.payment.status)}"
+        ),
         image_storage_key=first_item.thumbnail_storage_key if first_item else None,
         price=detail.total,
         currency=detail.currency,
@@ -448,7 +511,7 @@ def _get_tool_call_order_code(tool_call: AgentToolCall) -> str:
         value = (payload or {}).get("order_code")
         if isinstance(value, str) and value.strip():
             return value.strip()
-    raise ApiError(409, "AGENT_TOOL_CALL_INVALID", "Tool call is missing order_code.")
+    raise ApiError(409, "AGENT_TOOL_CALL_INVALID", "주문번호가 없어 요청을 이어갈 수 없어요.")
 
 
 def _already_executed_response(tool_call: AgentToolCall) -> AgentToolConfirmResponse:
@@ -467,30 +530,38 @@ def _already_executed_response(tool_call: AgentToolCall) -> AgentToolConfirmResp
     return AgentToolConfirmResponse(
         tool_call_id=tool_call.tool_call_id,
         status="EXECUTED",
-        message="This tool call was already executed.",
+        message="이미 처리된 요청이에요.",
         ui_action=action,
     )
 
 
 def _build_order_title(detail: OrderDetailResponse) -> str:
     if not detail.items:
-        return "Order"
+        return "주문"
     first_item_name = detail.items[0].product_name
     if len(detail.items) == 1:
         return first_item_name
-    return f"{first_item_name} and {len(detail.items) - 1} more"
+    return f"{first_item_name} 외 {len(detail.items) - 1}개"
+
+
+def _order_status_label(status: str) -> str:
+    return ORDER_STATUS_LABELS.get(status, status)
+
+
+def _payment_status_label(status: str) -> str:
+    return PAYMENT_STATUS_LABELS.get(status, status)
 
 
 def _build_order_status_message(detail: OrderDetailResponse) -> str:
-    return f"Order {detail.order_code} is currently {detail.status}."
+    return f"주문 {detail.order_code}의 현재 상태는 {_order_status_label(detail.status)}예요."
 
 
 def _build_cancel_confirmation_message(detail: OrderDetailResponse) -> str:
     if detail.status == "PENDING_PAYMENT":
-        return "This pending payment order can be canceled immediately. Please confirm cancellation."
+        return "결제 전 주문이라 즉시 취소돼요. 주문 취소를 진행할까요?"
     if detail.status == "PAID":
-        return "This paid order will move to cancel requested status. Please confirm cancellation request."
-    return "Please confirm order cancellation."
+        return "결제 완료 주문의 취소를 요청할까요?"
+    return "주문 취소를 진행할까요?"
 
 
 def _build_cancel_executed_message(status: str) -> str:

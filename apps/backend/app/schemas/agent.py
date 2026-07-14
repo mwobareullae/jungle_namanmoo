@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 AgentToolName = Literal[
+    "create_recommendation",
+    "filter_order_history",
     "order_status_lookup",
     "cancel_recent_order",
     "find_similar_products",
@@ -11,12 +13,14 @@ AgentToolName = Literal[
     "refine_product_results",
     "get_cart",
     "add_to_cart",
+    "prepare_product_checkout",
     "prepare_checkout",
     "prepare_order",
     "register_shipping_address",
     "compose_cart",
     "prepare_review_draft",
     "prepare_claim_draft",
+    "bulk_wishlist_by_popular_ingredient",
 ]
 
 AgentToolCallStatus = Literal[
@@ -46,7 +50,7 @@ class AgentContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     page: str | None = Field(default=None, max_length=80)
-    route: str | None = Field(default=None, max_length=255)
+    route: str | None = Field(default=None, max_length=2000)
     current_product_id: str | None = Field(default=None, max_length=128)
     visible_product_ids: list[str] = Field(default_factory=list, max_length=100)
     selected_product_ids: list[str] = Field(default_factory=list, max_length=20)
