@@ -90,7 +90,9 @@
 .naver-preview-review-strip article p { min-height: 45px; line-height: 1.5; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .naver-preview-gallery-main img { width: 100%; height: 100%; object-fit: contain; }
 .naver-preview-gallery-main .product-sold-out-overlay {
+  inset: 0;
   background: rgba(28, 31, 35, 0.46);
+  border-radius: 0;
   font-size: 18px;
   font-weight: 800;
 }
