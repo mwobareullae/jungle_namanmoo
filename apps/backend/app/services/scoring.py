@@ -1457,6 +1457,22 @@ def _load_ingredient_effects(
     return result
 
 
+def load_all_product_ingredient_effects(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, tuple[_IngredientEffectInfo, ...]]:
+    if not product_ids:
+        return {}
+    effect_rows = session.execute(
+        select(Effect.effect_code, Effect.name).order_by(Effect.id.asc())
+    ).all()
+    desired_effects = tuple(
+        _DesiredEffect(effect_code=str(effect_code), name=str(name), weight=1.0)
+        for effect_code, name in effect_rows
+    )
+    return _load_ingredient_effects(session, product_ids, desired_effects)
+
+
 def _load_functional_info(session: Session, product_ids: list[int]) -> dict[int, _FunctionalInfo]:
     if not product_ids:
         return {}
