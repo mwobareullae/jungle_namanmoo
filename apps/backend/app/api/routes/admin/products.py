@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.admin.product import AdminProductDetail, AdminProductListResponse
+from app.schemas.admin.product import (
+    AdminProductCreateRequest,
+    AdminProductDetail,
+    AdminProductListResponse,
+    AdminProductUpdateRequest,
+)
 from app.schemas.common import ErrorResponse
 from app.services.admin.product_service import (
     DEFAULT_PAGE,
@@ -11,6 +16,7 @@ from app.services.admin.product_service import (
     get_admin_product_detail,
     list_admin_products,
 )
+from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
 
 
 router = APIRouter()
@@ -45,6 +51,27 @@ def list_products(
     )
 
 
+@router.post(
+    "/products",
+    response_model=AdminProductDetail,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def create_product(
+    body: AdminProductCreateRequest,
+    session: Session = Depends(get_db),
+) -> AdminProductDetail:
+    """자사 상품과 HIDDEN/0 기본 재고·자사몰 가격을 한 트랜잭션으로 등록한다."""
+
+    try:
+        result = create_admin_product(session, body)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+
+
 @router.get(
     "/products/{product_code}",
     response_model=AdminProductDetail,
@@ -56,3 +83,24 @@ def get_product(
 ) -> AdminProductDetail:
     """관리자 상품 상세 조회(조회 전용). 인증/인가는 admin_router 공통 가드가 적용."""
     return get_admin_product_detail(session, product_code)
+
+
+@router.patch(
+    "/products/{product_code}",
+    response_model=AdminProductDetail,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def update_product(
+    product_code: str,
+    body: AdminProductUpdateRequest,
+    session: Session = Depends(get_db),
+) -> AdminProductDetail:
+    """상품 기본정보·가격·노출 여부를 부분 수정한다."""
+
+    try:
+        result = update_admin_product(session, product_code, body)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise

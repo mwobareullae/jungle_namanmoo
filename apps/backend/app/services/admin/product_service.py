@@ -48,11 +48,20 @@ def _normalize_sales_status(sales_status: str | None) -> str | None:
 
 
 def _base_statement() -> Any:
-    # 자사몰 가격은 상품당 1행이지만, 방어적으로 min 을 써서 상품당 단일 행을 보장한다.
-    lowest_price = (
+    # 자사몰 운영 가격은 해당 상품 seller.display_name/원화/is_lowest 행이다. 외부몰
+    # 가격이 더 낮더라도 관리자 기본가격으로 섞지 않는다. 중복 오염 시에도 목록
+    # 행이 늘어나지 않도록 자사몰 후보 안에서만 min 집계한다.
+    first_party_price = (
         select(
             ProductPrice.product_id.label("product_id"),
             func.min(ProductPrice.price).label("price"),
+        )
+        .join(Product, ProductPrice.product_id == Product.id)
+        .join(Seller, Product.seller_id == Seller.id)
+        .where(
+            ProductPrice.mall_name == Seller.display_name,
+            ProductPrice.currency == "KRW",
+            ProductPrice.is_lowest.is_(True),
         )
         .group_by(ProductPrice.product_id)
         .subquery()
@@ -82,7 +91,7 @@ def _base_statement() -> Any:
             ProductCategory.name.label("category_name"),
             Seller.seller_code,
             Seller.display_name.label("seller_name"),
-            lowest_price.c.price.label("price"),
+            first_party_price.c.price.label("price"),
             Inventory.id.label("inventory_id"),
             Inventory.sales_status,
             Inventory.stock_quantity,
@@ -94,7 +103,7 @@ def _base_statement() -> Any:
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .join(Seller, Product.seller_id == Seller.id)
-        .outerjoin(lowest_price, lowest_price.c.product_id == Product.id)
+        .outerjoin(first_party_price, first_party_price.c.product_id == Product.id)
         .outerjoin(Inventory, Inventory.product_id == Product.id)
         .outerjoin(image_count, image_count.c.product_id == Product.id)
     )
