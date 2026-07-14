@@ -48,6 +48,19 @@ const orderPeriodItems = [
   { value: 12, label: "최근 1년" }
 ] as const;
 
+const orderPeriodValues = new Set(orderPeriodItems.map((item) => item.value));
+const orderStatusValues = new Set<string>(statusFilterItems.flatMap((item) => item.value ? [item.value] : []));
+
+const readOrderFiltersFromLocation = () => {
+  const params = new URLSearchParams(window.location.search);
+  const rawPeriod = Number(params.get("period_months"));
+  const rawStatus = params.get("status");
+  return {
+    periodMonths: orderPeriodValues.has(rawPeriod as 1 | 3 | 6 | 12) ? rawPeriod : 12,
+    status: rawStatus && orderStatusValues.has(rawStatus) ? rawStatus : null,
+  };
+};
+
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
 const removeAdditionalItemSuffix = (title: string) => title.replace(/\s+and\s+\d+\s+more\s*$/i, "").trim();
 
@@ -88,8 +101,9 @@ export default function OrderList() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [periodMonths, setPeriodMonths] = useState(12);
+  const initialFilters = useMemo(() => readOrderFiltersFromLocation(), []);
+  const [statusFilter, setStatusFilter] = useState<string | null>(initialFilters.status);
+  const [periodMonths, setPeriodMonths] = useState(initialFilters.periodMonths);
   const [expandedOrderCodes, setExpandedOrderCodes] = useState<Set<string>>(() => new Set());
   const [orderDetailItems, setOrderDetailItems] = useState<Record<string, OrderDetailItem[]>>({});
   const [loadingDetailOrderCodes, setLoadingDetailOrderCodes] = useState<Set<string>>(() => new Set());
@@ -139,6 +153,29 @@ export default function OrderList() {
       setIsLoadingMore(false);
     }
   }, [statusFilter]);
+
+  useEffect(() => {
+    const syncFiltersFromLocation = () => {
+      const nextFilters = readOrderFiltersFromLocation();
+      setPeriodMonths(nextFilters.periodMonths);
+      setStatusFilter(nextFilters.status);
+    };
+
+    window.addEventListener("popstate", syncFiltersFromLocation);
+    window.addEventListener("agent-order-history-filters", syncFiltersFromLocation);
+    return () => {
+      window.removeEventListener("popstate", syncFiltersFromLocation);
+      window.removeEventListener("agent-order-history-filters", syncFiltersFromLocation);
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("period_months", String(periodMonths));
+    if (statusFilter) params.set("status", statusFilter);
+    else params.delete("status");
+    window.history.replaceState(null, "", `/mypage/orders?${params.toString()}`);
+  }, [periodMonths, statusFilter]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

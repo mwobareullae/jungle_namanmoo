@@ -9,6 +9,7 @@ import type {
   PurchaseConstraints,
   RecommendationNarrativeRequest,
   RecommendationNarrativeResponse,
+  RecommendationRefinementFilters,
   RecommendationRequest,
   RecommendationResponse,
   ScoreBreakdown
@@ -45,7 +46,7 @@ type RecommendationApi = {
   ) => Promise<RecommendationResponse>;
   getRecommendation: (
     recommendationId: string,
-    params?: { page?: number; pageSize?: number }
+    params?: { page?: number; pageSize?: number; filters?: RecommendationRefinementFilters }
   ) => Promise<RecommendationResponse>;
   createRecommendationNarrative: (
     recommendationId: string,
@@ -515,6 +516,13 @@ export const api: RecommendationApi = {
     const searchParams = new URLSearchParams();
     if (params.page) searchParams.set("page", String(params.page));
     if (params.pageSize) searchParams.set("page_size", String(params.pageSize));
+    const filters = params.filters;
+    if (filters?.min_price != null) searchParams.set("min_price", String(filters.min_price));
+    if (filters?.max_price != null) searchParams.set("max_price", String(filters.max_price));
+    if (filters?.category_code) searchParams.set("category_code", filters.category_code);
+    if (filters?.skin_type) searchParams.set("skin_type", filters.skin_type);
+    if (filters?.sensitivity) searchParams.set("sensitivity", filters.sensitivity);
+    filters?.effect_keywords?.forEach((keyword) => searchParams.append("effect_keyword", keyword));
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(

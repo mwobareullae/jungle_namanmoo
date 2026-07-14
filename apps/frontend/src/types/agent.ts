@@ -1,4 +1,6 @@
 export type AgentToolName =
+  | "create_recommendation"
+  | "filter_order_history"
   | "order_status_lookup"
   | "cancel_recent_order"
   | "find_similar_products"
@@ -6,12 +8,14 @@ export type AgentToolName =
   | "refine_product_results"
   | "get_cart"
   | "add_to_cart"
+  | "prepare_product_checkout"
   | "prepare_checkout"
   | "prepare_order"
   | "register_shipping_address"
   | "compose_cart"
   | "prepare_review_draft"
-  | "prepare_claim_draft";
+  | "prepare_claim_draft"
+  | "bulk_wishlist_by_popular_ingredient";
 
 export type AgentToolCallStatus =
   | "PROPOSED"
@@ -38,6 +42,7 @@ export type AgentUiTarget =
   | "login"
   | "product_detail"
   | "order_detail"
+  | "order_history"
   | "checkout"
   | "agent_confirmation"
   | "order_cancel_confirm"
@@ -51,7 +56,8 @@ export type AgentUiTarget =
   | "order_create_confirm"
   | "toss_payment"
   | "review_write"
-  | "claim_request";
+  | "claim_request"
+  | "popular_wishlist";
 
 export type AgentContext = {
   page?: string | null;
