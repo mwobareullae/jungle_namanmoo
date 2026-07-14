@@ -5,42 +5,42 @@ import Skeleton from "../components/ui/Skeleton";
 import { api } from "../lib/api";
 import type { BrandListItem } from "../types/product";
 
+const PAGE_SIZE = 24;
+
 function BrandsPage() {
   const navigate = useNavigate();
   const [brands, setBrands] = useState<BrandListItem[]>([]);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPage, setIsLoadingPage] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const loadBrands = async (page: number) => {
+    setIsLoadingPage(true);
+    try {
+      const response = await api.getBrands("", page, PAGE_SIZE);
+      setBrands(response.items);
+      setCurrentPage(page);
+      setHasNextPage(response.items.length === PAGE_SIZE);
+      setErrorMessage("");
+    } catch {
+      setBrands([]);
+      setHasNextPage(false);
+      setErrorMessage("브랜드 목록을 불러오지 못했습니다.");
+    } finally {
+      setIsLoading(false);
+      setIsLoadingPage(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
     queueMicrotask(() => {
       if (isMounted) setIsLoading(true);
     });
-    const loadAllBrands = async () => {
-      const allBrands: BrandListItem[] = [];
-      const pageSize = 100;
-      for (let page = 1; page <= 20; page += 1) {
-        const response = await api.getBrands("", page, pageSize);
-        allBrands.push(...response.items);
-        if (response.items.length < pageSize) break;
-      }
-      return allBrands;
-    };
-
-    loadAllBrands()
-      .then((items) => {
-        if (isMounted) setBrands(items);
-      })
-      .catch(() => {
-        if (isMounted) {
-          setBrands([]);
-          setErrorMessage("브랜드 목록을 불러오지 못했습니다.");
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    void loadBrands(1);
     return () => {
       isMounted = false;
     };
@@ -100,6 +100,13 @@ function BrandsPage() {
         ) : (
           <div className="search-empty">일치하는 브랜드가 없습니다.</div>
         )}
+        {!isLoading && !errorMessage && (currentPage > 1 || hasNextPage) ? (
+          <nav className="brand-index-page__pagination" aria-label="브랜드 목록 페이지 이동">
+            <button disabled={isLoadingPage || currentPage === 1} onClick={() => void loadBrands(currentPage - 1)} type="button">이전</button>
+            <span>{currentPage}</span>
+            <button disabled={isLoadingPage || !hasNextPage} onClick={() => void loadBrands(currentPage + 1)} type="button">다음</button>
+          </nav>
+        ) : null}
       </main>
     </div>
   );
