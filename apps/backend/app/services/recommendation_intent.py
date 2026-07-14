@@ -155,7 +155,10 @@ def build_recommendation_intent(
         intent_diagnostics["intent_llm_outcome"] = "not_needed"
 
     purchase_started_at = current_time()
-    purchase_conditions = parse_purchase_conditions(concern_text)
+    purchase_conditions = parse_purchase_conditions(
+        concern_text,
+        diagnostics=intent_diagnostics,
+    )
     _record_diagnostic_duration(
         intent_diagnostics,
         "intent_purchase_parse_ms",
