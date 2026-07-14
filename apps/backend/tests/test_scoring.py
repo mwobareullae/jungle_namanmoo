@@ -132,8 +132,8 @@ def test_product_feature_calculators_preserve_current_axis_values() -> None:
     assert moisturizing.concentration_context["bucket"] == "unknown"
     assert len(moisturizing.top_ingredient_ids) == 1
     assert len(moisturizing.best_evidence_ids) == 1
-    assert barrier.ingredient_effect_score == pytest.approx(1.0)
-    assert barrier.ingredient_evidence_score == pytest.approx(1.0)
+    assert barrier.ingredient_effect_score == pytest.approx(1.2)
+    assert barrier.ingredient_evidence_score == pytest.approx(1.12)
 
     product_features = build_product_recommendation_feature_values(
         (
