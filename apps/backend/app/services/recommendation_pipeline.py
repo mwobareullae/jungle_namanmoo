@@ -157,11 +157,17 @@ def create_recommendation_response(
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
 
     stage_started_at = current_time()
+    intent_diagnostics: dict[str, object] = {}
     intent = build_recommendation_intent(
         normalized_request.concern_text,
         llm_parser=llm_parser,
+        diagnostics=intent_diagnostics,
     )
     _record_stage_duration(stage_durations, "intent_parse_ms", stage_started_at)
+    intent_diagnostics["intent_unattributed_ms"] = _intent_unattributed_ms(
+        stage_durations["intent_parse_ms"],
+        intent_diagnostics,
+    )
 
     try:
         stage_started_at = current_time()
@@ -264,6 +270,7 @@ def create_recommendation_response(
             duration_ms=elapsed_ms(total_started_at),
             metadata={
                 **stage_durations,
+                **intent_diagnostics,
                 **scoring_diagnostics,
                 "recommendation_id": recommendation_code,
                 "llm_available": llm_parser is not None,
@@ -331,6 +338,7 @@ def create_recommendation_response(
             duration_ms=elapsed_ms(total_started_at),
             metadata={
                 **stage_durations,
+                **intent_diagnostics,
                 "llm_available": llm_parser is not None,
                 "llm_used": intent.llm_used,
                 "result_limit": result_limit,
@@ -386,6 +394,25 @@ def _record_stage_duration(
     started_at: float,
 ) -> None:
     stage_durations[key] = round(elapsed_ms(started_at), 2)
+
+
+def _intent_unattributed_ms(
+    total_ms: float,
+    diagnostics: dict[str, object],
+) -> float:
+    measured_keys = (
+        "intent_repository_load_ms",
+        "intent_rule_parse_ms",
+        "intent_llm_call_ms",
+        "intent_llm_merge_ms",
+        "intent_purchase_parse_ms",
+    )
+    measured_ms = 0.0
+    for key in measured_keys:
+        value = diagnostics.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            measured_ms += float(value)
+    return round(max(0.0, total_ms - measured_ms), 2)
 
 
 def normalize_recommendation_request(
