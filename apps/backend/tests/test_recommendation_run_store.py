@@ -72,7 +72,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     assert concerns[0].confidence == Decimal("1.0000")
 
 
-def test_save_recommendation_run_persists_brand_category_and_default_inputs() -> None:
+def test_save_recommendation_run_persists_category_and_default_inputs() -> None:
     session = _seed_example_session()
     repository = load_repository(EXAMPLES_DIR)
     intent = build_recommendation_intent(
@@ -95,11 +95,9 @@ def test_save_recommendation_run_persists_brand_category_and_default_inputs() ->
     assert saved.run.avoid_ingredients == ["알코올"]
 
     constraints = _load_constraints(session, saved.run.id)
-    assert [constraint.constraint_type for constraint in constraints] == ["category", "brand"]
+    assert [constraint.constraint_type for constraint in constraints] == ["category"]
     assert constraints[0].category_id is not None
     assert constraints[0].normalized_value == "cream"
-    assert constraints[1].brand_id is not None
-    assert constraints[1].normalized_value == "라운드랩"
 
 
 def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:

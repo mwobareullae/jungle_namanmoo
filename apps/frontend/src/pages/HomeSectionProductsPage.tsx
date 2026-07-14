@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
-import HomeProductCard from "../components/HomeProductCard";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import Skeleton from "../components/ui/Skeleton";
@@ -116,24 +115,6 @@ function DealSkeletons() {
   ));
 }
 
-function ProductSkeletons() {
-  return Array.from({ length: 8 }, (_, index) => (
-    <article className="product-card product-card-loading" key={index} aria-hidden="true">
-      <Skeleton className="product-img" />
-      <div className="product-info">
-        <Skeleton className="skeleton-line skeleton-brand" />
-        <Skeleton className="skeleton-line skeleton-title" />
-        <Skeleton className="skeleton-line skeleton-title short" />
-        <div className="skeleton-pill-row">
-          <Skeleton className="skeleton-pill" />
-          <Skeleton className="skeleton-pill" />
-        </div>
-        <Skeleton className="skeleton-price" />
-      </div>
-    </article>
-  ));
-}
-
 function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) {
   const config = pageConfig[sectionType];
   const [title, setTitle] = useState<string>(config.fallbackTitle);
@@ -184,6 +165,7 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
           <span aria-hidden="true">&gt;</span>
           <span>{title}</span>
         </nav>
+        <div className="home-section-kicker">{sectionType === "evidence-picks" ? "성분 근거 기준 큐레이션" : "피부 조건 기준 큐레이션"}</div>
         <h1 className="category-page__title">{title}</h1>
         {subtitle ? <p className="new-products-page__description" style={{ textAlign: "left" }}>{subtitle}</p> : null}
         {sectionType === "for-you" ? (
@@ -203,26 +185,14 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
             </div>
           </section>
         ) : (
-          <section className="home-api-section home-original-section home-personal-section home-section-products-page__section">
-            <div className="product-grid">
+          <section className="home-api-section home-deal-section home-section-products-page__section">
+            <div className="home-deal-grid">
               {isLoading ? (
-                <ProductSkeletons />
+                <DealSkeletons />
               ) : errorMessage ? (
                 <div className="search-empty">{errorMessage}</div>
               ) : products.length > 0 ? (
-                products.map((product) => (
-                  <HomeProductCard
-                    eventContext={{
-                      sectionId: config.source,
-                      page: "recommendation_result",
-                      source: config.source,
-                      clickEvent: "search_result_click",
-                      impressionEvent: "search_result_impression"
-                    }}
-                    key={product.product_id}
-                    product={product}
-                  />
-                ))
+                products.map((product) => <DealCard key={product.product_id} product={product} source={config.source} />)
               ) : (
                 <div className="search-empty">표시할 상품이 없습니다.</div>
               )}

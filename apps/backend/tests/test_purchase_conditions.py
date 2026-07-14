@@ -118,6 +118,24 @@ def test_parse_purchase_conditions_can_match_data_driven_brand_names() -> None:
     assert [category.category_code for category in result.categories] == ["toner"]
 
 
+def test_parse_purchase_conditions_matches_multiple_brands_in_group_order() -> None:
+    result = parse_purchase_conditions(
+        "아누아 또는 라운드랩 세럼을 보여줘",
+        brand_aliases=build_brand_aliases(("라운드랩", "아누아")),
+    )
+
+    assert [brand.name for brand in result.brands] == ["라운드랩", "아누아"]
+
+
+def test_parse_purchase_conditions_does_not_match_brand_inside_longer_word() -> None:
+    result = parse_purchase_conditions(
+        "라운드랩스러운 세럼 추천",
+        brand_aliases=build_brand_aliases(("라운드랩",)),
+    )
+
+    assert result.brands == ()
+
+
 def test_parse_purchase_conditions_returns_empty_result_without_constraints() -> None:
     result = parse_purchase_conditions("속건조랑 모공이 고민이야")
 

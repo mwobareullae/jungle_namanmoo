@@ -2,7 +2,11 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
-import { AGENT_SHOW_CART_EVENT } from "../lib/agentUiEvents";
+import {
+  AGENT_ENTRY_MESSAGE_EVENT,
+  AGENT_SHOW_CART_EVENT,
+  type AgentEntryMessageDetail,
+} from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getOrderDetail } from "../lib/orderApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
@@ -226,6 +230,16 @@ const activeStatusSteps: AgentStatusStep[] = [
 ];
 
 function getCommerceStatusSteps(message: string, isActive: boolean): { steps: AgentStatusStep[]; title: string } | null {
+  if (/인기|베스트/.test(message) && /찜/.test(message) && /(성분|들어간|포함)/.test(message)) {
+    return {
+      title: isActive ? "인기 상품의 전성분을 확인하고 있어요" : "찜할 상품을 확인했어요",
+      steps: [
+        { label: "인기 상품 순위 확인", status: "done" },
+        { label: "전성분 확인", status: isActive ? "active" : "done" },
+        { label: "현재 찜 상태 구분", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
   if (/배송지|주소|우편번호|연락처/.test(message)) {
     return {
       title: isActive ? "배송지를 등록하고 있어요" : "배송지를 등록했어요",
@@ -243,6 +257,16 @@ function getCommerceStatusSteps(message: string, isActive: boolean): { steps: Ag
         { label: "상품 확인", status: "done" },
         { label: "재고·가격 확인", status: isActive ? "active" : "done" },
         { label: "장바구니 화면 반영", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
+  if (/(상품|번째|첫\s*번째|두\s*번째).*(주문|구매)|(주문|구매).*(상품|번째)/.test(message)) {
+    return {
+      title: isActive ? "상품을 주문서까지 준비하고 있어요" : "주문서 준비를 마쳤어요",
+      steps: [
+        { label: "요청한 상품 선택", status: "done" },
+        { label: "재고·가격 확인", status: isActive ? "active" : "done" },
+        { label: "장바구니 반영·주문서 이동", status: isActive ? "todo" : "done" },
       ],
     };
   }
@@ -601,6 +625,8 @@ const collectVisibleProductIds = (currentProductId: string | null) => {
 const resolveAgentPage = (pathname: string) => {
   if (pathname.startsWith("/product-detail")) return "product_detail";
   if (pathname.startsWith("/search")) return "search_results";
+  if (pathname === "/mypage/orders") return "order_history";
+  if (pathname.startsWith("/mypage/orders/")) return "order_detail";
   if (pathname.startsWith("/checkout")) return "checkout";
   if (pathname.startsWith("/payment-complete")) return "payment_complete";
   if (pathname.startsWith("/skin-test")) return "skin_test";
@@ -623,12 +649,28 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   const sensitivity = readString(params.get("sensitivity"));
   const pageSize = readNumber(params.get("page_size"));
   const page = readNumber(params.get("page"));
+  const periodMonths = readNumber(params.get("period_months"));
+  const orderStatus = readString(params.get("status"));
+  const refineMinPrice = readNumber(params.get("refine_min_price"));
+  const refineMaxPrice = readNumber(params.get("refine_max_price"));
+  const refineCategoryCode = readString(params.get("refine_category_code"));
+  const refineSkinType = readString(params.get("refine_skin_type"));
+  const refineSensitivity = readString(params.get("refine_sensitivity"));
+  const refineEffects = params.getAll("refine_effect").filter(Boolean);
 
   if (skinType || skinProfile?.skin) filters.skin_type = skinType ?? skinProfile?.skin;
   if (sensitivity || skinProfile?.sensitivity) filters.sensitivity = sensitivity ?? skinProfile?.sensitivity;
   if (skinProfile?.avoidIngredients?.length) filters.avoid_ingredients = skinProfile.avoidIngredients;
   if (pageSize) filters.page_size = pageSize;
   if (page) filters.page = page;
+  if (periodMonths) filters.period_months = periodMonths;
+  if (orderStatus) filters.status = orderStatus;
+  if (refineMinPrice !== null) filters.min_price = refineMinPrice;
+  if (refineMaxPrice !== null) filters.max_price = refineMaxPrice;
+  if (refineCategoryCode) filters.category_code = refineCategoryCode;
+  if (refineSkinType) filters.skin_type = refineSkinType;
+  if (refineSensitivity) filters.sensitivity = refineSensitivity;
+  if (refineEffects.length) filters.effect_keywords = refineEffects;
 
   return {
     current_product_id: currentProductId,
@@ -644,6 +686,14 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
 }
 
 const getApprovalCopy = (toolName?: AgentToolName | null) => {
+  if (toolName === "bulk_wishlist_by_popular_ingredient") {
+    return {
+      approveLabel: "찜 목록에 반영",
+      description: "표시된 인기 상품 여러 개의 찜 상태를 변경하기 전에 확인이 필요해요.",
+      rejectLabel: "반영 안 함",
+      title: "조건에 맞는 상품을 모두 찜할까요?",
+    };
+  }
   if (toolName === "cancel_recent_order") {
     return {
       approveLabel: "취소 진행",
@@ -860,6 +910,7 @@ const mapOrderPayload = (action: AgentUiAction): AgentChatResultItem | null => {
 };
 
 const getResultTitle = (action: AgentUiAction) => {
+  if (action.payload.ingredient_name && Array.isArray(action.payload.products)) return "인기 상품 성분 확인 결과";
   if (action.type === "show_product_comparison") return "상품 비교 결과";
   if (action.type === "show_order_status") return "주문 상태";
   if (action.target === "similar_products") return "비슷한 상품";
@@ -1179,6 +1230,19 @@ const resolveNavigateUrl = (action: AgentUiAction) => {
   if (action.target === "home") return "/";
   if (action.target === "login") return "/login";
   if (action.target === "checkout") return "/checkout";
+  if (action.target === "order_history") {
+    const currentParams = window.location.pathname === "/mypage/orders"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+    const periodMonths = readNumber(action.payload.period_months)
+      ?? readNumber(currentParams.get("period_months"))
+      ?? 12;
+    const status = readString(action.payload.status);
+    currentParams.set("period_months", String(periodMonths));
+    if (status === "ALL") currentParams.delete("status");
+    else if (status) currentParams.set("status", status);
+    return `/mypage/orders?${currentParams.toString()}`;
+  }
   if (action.target === "review_write") {
     const orderCode = readString(action.payload.order_code);
     const params = new URLSearchParams({ agent_draft: "1" });
@@ -1243,6 +1307,53 @@ const applyAgentUiAction = async (
   currentProductId: string | null,
   openComparison: (intent: ProductComparisonIntent) => void,
 ) => {
+  if (
+    action.type === "open_modal"
+    && action.target === "agent_confirmation"
+    && normalizeInternalResultUrl(action.payload.result_url) === "/products/popular"
+    && typeof window !== "undefined"
+  ) {
+    await waitForAgentInteraction(240);
+    if (window.location.pathname === "/products/popular") {
+      window.dispatchEvent(new CustomEvent("agent-popular-wishlist-previewed", { detail: action.payload }));
+    } else {
+      window.sessionStorage.setItem("agent-popular-wishlist-preview", JSON.stringify(action.payload));
+      await navigateWithinApp("/products/popular");
+    }
+    return;
+  }
+
+  if (action.type === "show_products" && action.target === "popular_wishlist" && typeof window !== "undefined") {
+    const matchedCount = readNumber(action.payload.matched_count) ?? 0;
+    const addedCount = readNumber(action.payload.added_count) ?? 0;
+    const alreadyWishedCount = readNumber(action.payload.already_wished_count) ?? 0;
+    const allMatchedProductsApplied = addedCount > 0
+      && matchedCount > 0
+      && addedCount + alreadyWishedCount >= matchedCount;
+    if (window.location.pathname !== "/products/popular") {
+      window.sessionStorage.setItem("agent-popular-wishlist-result", JSON.stringify(action.payload));
+      await navigateWithinApp("/products/popular");
+    } else {
+      window.sessionStorage.removeItem("agent-popular-wishlist-result");
+      window.dispatchEvent(new CustomEvent("agent-popular-wishlist-updated", { detail: action.payload }));
+    }
+    if (allMatchedProductsApplied) {
+      await waitForAgentInteraction(Math.max(900, addedCount * 240 + 520));
+      await navigateWithinApp("/mypage/wishlist");
+    }
+    return;
+  }
+  const isProductCheckoutFlow = action.payload.agent_flow === "product_checkout";
+  if (isProductCheckoutFlow && typeof window !== "undefined") {
+    const productId = readString(action.payload.highlight_product_id);
+    const productTarget = productId
+      ? findVisibleAgentTarget(`[data-agent-product-id="${CSS.escape(productId)}"]`)
+      : null;
+    await playAgentClickInteraction(productTarget);
+    window.dispatchEvent(new Event("cart:updated"));
+    await waitForAgentInteraction(360);
+  }
+
   const interactionTarget = resolveAgentInteractionTarget(action);
   await playAgentClickInteraction(interactionTarget);
 
@@ -1267,6 +1378,22 @@ const applyAgentUiAction = async (
     return;
   }
 
+  if (
+    action.type === "show_products"
+    && (action.target === "product_results" || action.target === "refined_products")
+    && readPayloadString(action.payload, ["recommendation_id", "recommendationId"])
+  ) {
+    const resultUrl = buildProductsResultUrl(action);
+    if (resultUrl) {
+      if (window.location.pathname === "/search") {
+        window.history.replaceState(null, "", resultUrl);
+      } else {
+        await navigateWithinApp(resultUrl);
+      }
+    }
+    return;
+  }
+
   const comparisonIntent = createComparisonIntent(action, items, message, currentProductId);
   if (comparisonIntent) {
     openComparison(comparisonIntent);
@@ -1282,6 +1409,12 @@ const applyAgentUiAction = async (
 
   const url = resolveNavigateUrl(action);
   if (!url) {
+    return;
+  }
+
+  if (action.type === "navigate" && action.target === "order_history" && window.location.pathname === "/mypage/orders") {
+    window.history.replaceState(null, "", url);
+    window.dispatchEvent(new CustomEvent("agent-order-history-filters"));
     return;
   }
 
@@ -1330,7 +1463,13 @@ function AgentFloatingButton({
   const teaserTimerRef = useRef<number | null>(null);
   const copyFeedbackTimerRef = useRef<number | null>(null);
   const teaserVisibilityFrameRef = useRef<number | null>(null);
+  const openChatRef = useRef<() => void>(() => undefined);
+  const sendMessageRef = useRef<(
+    message: string,
+    contextProfile?: AgentFloatingButtonProps["skinProfile"],
+  ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
+  const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
     () => quickQuestionsByContext[quickQuestionContext],
@@ -1380,6 +1519,8 @@ function AgentFloatingButton({
       setIsChatMounted(false);
     }
   };
+
+  openChatRef.current = openChat;
 
   const handleTeaserClick = (question: string) => {
     openChat();
@@ -1588,6 +1729,7 @@ function AgentFloatingButton({
     setMessages([]);
     setLastToolResultContext(null);
     setIsAwaitingAddressInput(false);
+    pendingCheckoutCartItemIdsRef.current = [];
     setActiveView("home");
   };
 
@@ -1602,11 +1744,14 @@ function AgentFloatingButton({
     resetDeletedCurrentThread(threadIds);
   };
 
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (
+    message: string,
+    contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
+  ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
     if (!nextMessage || isSubmitting) {
-      return;
+      return null;
     }
 
     const timestamp = Date.now();
@@ -1645,8 +1790,12 @@ function AgentFloatingButton({
     if (isCartAddRequest) setAgentCartTargetBusy(true);
 
     try {
+      const requestContext = buildAgentContext(contextProfile);
+      if (isAwaitingAddressInput && pendingCheckoutCartItemIdsRef.current.length > 0) {
+        requestContext.cart_item_ids = [...pendingCheckoutCartItemIdsRef.current];
+      }
       const response = await api.sendAgentMessage({
-        context: buildAgentContext(skinProfile),
+        context: requestContext,
         conversation_id: requestConversationId,
         last_tool_result: lastToolResult,
         message: nextMessage,
@@ -1657,12 +1806,65 @@ function AgentFloatingButton({
         || response.error?.code === "AGENT_ADDRESS_DETAILS_REQUIRED";
       if (addressError) {
         setIsAwaitingAddressInput(true);
+        const cartItemIds = Array.isArray(response.ui_action.payload.cart_item_ids)
+          ? response.ui_action.payload.cart_item_ids.filter(
+              (value): value is number => typeof value === "number" && Number.isInteger(value) && value > 0,
+            )
+          : [];
+        if (cartItemIds.length > 0) pendingCheckoutCartItemIdsRef.current = cartItemIds;
       } else if (response.tool_name === "register_shipping_address") {
         setIsAwaitingAddressInput(false);
+        pendingCheckoutCartItemIdsRef.current = [];
       }
       setConversationId(response.conversation_id);
       const nextToolResultContext = buildToolResultContext(response.ui_action, response.items);
       if (nextToolResultContext) setLastToolResultContext(nextToolResultContext);
+      if (response.ui_action.type === "show_products" && response.ui_action.target === "refined_products") {
+        const refinementFilters = isRecord(response.ui_action.payload.filters)
+          ? response.ui_action.payload.filters
+          : {};
+        const refinementRecommendationId = readPayloadString(
+          response.ui_action.payload,
+          ["recommendation_id", "recommendationId"],
+        );
+        if (refinementRecommendationId && window.location.pathname === "/search") {
+          window.dispatchEvent(new CustomEvent("home-search-request", {
+            detail: {
+              profile: contextProfile,
+              query: buildAgentContext(contextProfile).search_query ?? nextMessage,
+              recommendationId: refinementRecommendationId,
+              refinementFilters,
+            },
+          }));
+        } else {
+          window.dispatchEvent(new CustomEvent("agent-refined-products", {
+            detail: {
+              filters: refinementFilters,
+              products: Array.isArray(response.ui_action.payload.products) ? response.ui_action.payload.products : [],
+            },
+          }));
+        }
+      }
+      if (
+        response.ui_action.type === "show_products"
+        && response.ui_action.target === "product_results"
+        && window.location.pathname === "/search"
+      ) {
+        const resultUrl = buildProductsResultUrl(response.ui_action);
+        const resultParams = resultUrl
+          ? new URL(resultUrl, window.location.origin).searchParams
+          : null;
+        const recommendationId = resultParams?.get("recommendation_id") ?? undefined;
+        const resultQuery = resultParams?.get("keyword")?.trim() || nextMessage;
+
+        window.dispatchEvent(new CustomEvent("home-search-request", {
+          detail: {
+            profile: contextProfile,
+            query: resultQuery,
+            recommendationId,
+          },
+        }));
+      }
       const isRecommendationResponse = response.ui_action.type === "show_products"
         || response.ui_action.type === "show_product_comparison"
         || response.items.some((item) => item.item_type === "product");
@@ -1697,6 +1899,7 @@ function AgentFloatingButton({
           openComparison,
         );
       }
+      return response;
     } catch (error) {
       setMessages((currentMessages) =>
         [
@@ -1708,11 +1911,36 @@ function AgentFloatingButton({
           ),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
+      return null;
     } finally {
       if (isCartAddRequest) setAgentCartTargetBusy(false);
       setIsSubmitting(false);
     }
   };
+
+  sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    const handleEntryMessage = (event: Event) => {
+      const detail = (event as CustomEvent<AgentEntryMessageDetail>).detail;
+      if (!detail?.message.trim()) {
+        detail?.reject(new Error("에이전트 메시지가 비어 있습니다."));
+        return;
+      }
+
+      openChatRef.current();
+      void sendMessageRef.current(detail.message, detail.profile)
+        .then((response) => {
+          detail.resolve(response);
+        })
+        .catch((error) => {
+          detail.reject(error);
+        });
+    };
+
+    window.addEventListener(AGENT_ENTRY_MESSAGE_EVENT, handleEntryMessage);
+    return () => window.removeEventListener(AGENT_ENTRY_MESSAGE_EVENT, handleEntryMessage);
+  }, []);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1729,8 +1957,11 @@ function AgentFloatingButton({
     }
 
     const statusId = `status-confirm-${Date.now()}`;
+    const confirmationStatusContext = approvalMessage.toolName === "bulk_wishlist_by_popular_ingredient"
+      ? "인기 상품 성분 조건 일괄 찜"
+      : "";
     setIsSubmitting(true);
-    appendMessages([createStatusMessage(statusId, true)]);
+    appendMessages([createStatusMessage(statusId, true, confirmationStatusContext)]);
 
     try {
       const response = await api.confirmAgentToolCall(approvalMessage.toolCallId, { action });
@@ -1746,7 +1977,9 @@ function AgentFloatingButton({
                 ? { ...message, resolved: action === "confirm" ? "approved" as const : "cancelled" as const }
                 : message,
             ),
-          ...(isRecommendationResponse ? [createStatusMessage(`status-confirmed-${timestamp}`)] : []),
+          ...(isRecommendationResponse
+            ? [createStatusMessage(`status-confirmed-${timestamp}`, false, confirmationStatusContext)]
+            : []),
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
@@ -1789,7 +2022,7 @@ function AgentFloatingButton({
               ? {
                   ...message,
                   items: message.items.map((item) =>
-                    item.itemType === "order" && item.id === orderCode ? { ...item, subtitle: "CANCELED" } : item,
+                    item.itemType === "order" && item.id === orderCode ? { ...item, subtitle: "취소 완료" } : item,
                   ),
                 }
               : message,
@@ -1872,7 +2105,8 @@ function AgentFloatingButton({
   };
 
   const renderStatusMessage = (message: AgentChatStatusMessage) => (
-    message.steps.some((step) => step.status === "active") ? (
+    message.steps.some((step) => step.status === "active")
+    && !/(장바구니|배송지|주문서)/.test(message.title) ? (
       <div className="agent-chat-typing" key={message.id} aria-label="답변을 준비하고 있어요">
         <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" />
         <span className="agent-chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
@@ -1924,8 +2158,8 @@ function AgentFloatingButton({
             {message.resolved === "approved"
               ? message.toolName === "cancel_recent_order"
                 ? "취소 처리 중"
-                : message.toolName === "compose_cart" ? "반영됨" : "승인됨"
-              : message.toolName === "compose_cart" ? "반영 안 함" : "취소 안 함"}
+                : message.toolName === "compose_cart" || message.toolName === "bulk_wishlist_by_popular_ingredient" ? "반영됨" : "승인됨"
+              : message.toolName === "compose_cart" || message.toolName === "bulk_wishlist_by_popular_ingredient" ? "반영 안 함" : "취소 안 함"}
           </span>
         ) : null}
       </div>
@@ -2013,10 +2247,12 @@ function AgentFloatingButton({
         {message.actionType === "show_products" && message.actionUrl ? (
           <button
             className="agent-chat-result-more"
-            onClick={() => openResultAction(message.actionUrl)}
+            onClick={() => openResultAction(
+              message.actionTarget === "popular_wishlist" ? "/mypage/wishlist" : message.actionUrl,
+            )}
             type="button"
           >
-            전체 보기
+            {message.actionTarget === "popular_wishlist" ? "찜 목록 보기" : "전체 보기"}
           </button>
         ) : null}
         {message.actionType === "show_cart" && message.actionUrl ? (
@@ -2137,7 +2373,7 @@ function AgentFloatingButton({
               </span>
               <div className="agent-chat-popup__title">
                 <h2 id="agent-chat-title">뭐바를래 AI</h2>
-                <p>성분 근거로 답해드려요</p>
+                <p>당신만의 쇼핑 에이전트</p>
               </div>
               {isThreadView ? (
                 <button className="agent-chat-back-button" onClick={() => setActiveView("home")} type="button">
