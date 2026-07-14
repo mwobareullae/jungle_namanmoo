@@ -16,6 +16,10 @@ class HomeSectionProduct(BaseModel):
     tags: list[str]
     reason_summary: str
     display_score: int
+    sales_status: str = "UNKNOWN"
+    stock_status: str = "UNKNOWN"
+    available_quantity: int | None = None
+    in_stock: bool = False
 
 
 class HomeSection(BaseModel):

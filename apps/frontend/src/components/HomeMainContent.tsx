@@ -4,7 +4,6 @@ import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
 import { observeProductImpressions } from "../lib/appSignals/impressions";
 import { navigateWithinApp } from "../lib/navigation";
-import { createFallbackRecommendation } from "../lib/fallbackProducts";
 import type {
   HomeSection,
   HomeSectionProduct,
@@ -15,7 +14,9 @@ import type {
   SearchMode
 } from "../types/recommendation";
 import HomeProductCard from "./HomeProductCard";
+import ProductSoldOutOverlay from "./ProductSoldOutOverlay";
 import ProductThumbnail from "./ProductThumbnail";
+import { isProductSoldOut } from "../lib/productAvailability";
 import Skeleton from "./ui/Skeleton";
 
 const createFallbackPagination = (productCount: number): RecommendationPagination => ({
@@ -38,7 +39,11 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   lowest_price: product.lowest_price,
   evidence_tags: product.tags,
   key_ingredients: product.tags,
-  risk_flags: []
+  risk_flags: [],
+  sales_status: product.sales_status,
+  stock_status: product.stock_status,
+  available_quantity: product.available_quantity,
+  in_stock: product.in_stock
 });
 
 const formatPrice = (price: number | null) =>
@@ -276,11 +281,12 @@ function HomeRankingSection({
                 <div className="home-ranking-rail">
                   {pageProducts.map((product, index) => {
                     const displayRank = pageOffset * 5 + index + 1;
+                    const isSoldOut = isProductSoldOut(product);
 
                     return (
                       <article
                         aria-label={`${product.brand} ${product.name} 상세 보기`}
-                        className="home-ranking-card"
+                        className={`home-ranking-card${isSoldOut ? " is-sold-out" : ""}`}
                         data-event-page="home"
                         data-event-source={section.section_id}
                         data-impression-event="home_product_impression"
@@ -306,11 +312,12 @@ function HomeRankingSection({
                           ) : null}
                           <div className="home-ranking-media">
                             <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+                            {isSoldOut ? <ProductSoldOutOverlay /> : null}
                           </div>
                         </div>
                         <div className="home-ranking-brand">{product.brand}</div>
                         <div className="home-ranking-name">{product.name}</div>
-                        <div className="home-ranking-price">{formatPrice(product.lowest_price)}</div>
+                        <div className={`home-ranking-price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</div>
                       </article>
                     );
                   })}
@@ -384,10 +391,11 @@ function HomeDealSection({
       <div className="home-deal-grid">
         {visibleProducts.length ? (
           visibleProducts.map((product) => {
+            const isSoldOut = isProductSoldOut(product);
             return (
               <article
                 aria-label={`${product.brand} ${product.name} 상세 보기`}
-                className="home-deal-card"
+                className={`home-deal-card${isSoldOut ? " is-sold-out" : ""}`}
                 data-event-page="home"
                 data-event-source={section.section_id}
                 data-impression-event="home_product_impression"
@@ -407,6 +415,7 @@ function HomeDealSection({
               >
                 <div className="home-deal-media">
                   <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+                  {isSoldOut ? <ProductSoldOutOverlay /> : null}
                 </div>
                 <div className="home-deal-body">
                   <div className="home-ranking-brand">{product.brand}</div>
@@ -416,7 +425,7 @@ function HomeDealSection({
                       <span key={tag}>{tag}</span>
                     ))}
                   </div>
-                  <div className="home-deal-price">{formatPrice(product.lowest_price)}</div>
+                  <div className={`home-deal-price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</div>
                 </div>
               </article>
             );
@@ -492,6 +501,7 @@ type HomeMainContentProps = {
   mode?: "home" | "search";
   pageSize?: number;
   showDefaultSection?: boolean;
+  showForYouSkinTypeFilters?: boolean;
 };
 
 function HomeMainContent({
@@ -506,7 +516,8 @@ function HomeMainContent({
   },
   mode = "home",
   pageSize = 10,
-  showDefaultSection = true
+  showDefaultSection = true,
+  showForYouSkinTypeFilters = true
 }: HomeMainContentProps) {
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
@@ -524,7 +535,7 @@ function HomeMainContent({
     evidencePicks: showDefaultSection
   });
   const [forYouFilters, setForYouFilters] = useState<ForYouFilters>({
-    skinType: "건성"
+    skinType: initialProfile.skin
   });
   const [sortType, setSortType] = useState("score");
   const [errorMessage, setErrorMessage] = useState("");
@@ -619,14 +630,8 @@ function HomeMainContent({
           });
         }
 
-        const displayResponse =
-          isGeneralSearch || response.products.length > 0
-            ? response
-            : createFallbackRecommendation(trimmedQuery, profile);
-        const nextRecommendationId =
-          isGeneralSearch || displayResponse.recommendation_id === "fallback-original-design"
-            ? undefined
-            : displayResponse.recommendation_id;
+        const displayResponse = response;
+        const nextRecommendationId = isGeneralSearch ? undefined : displayResponse.recommendation_id;
         updateSearchUrl(
           trimmedQuery,
           profile,
@@ -644,13 +649,11 @@ function HomeMainContent({
           setErrorMessage("상품 검색을 일시적으로 사용할 수 없습니다.");
           return;
         }
-        const fallbackResponse = createFallbackRecommendation(trimmedQuery, profile);
-        updateSearchUrl(trimmedQuery, profile, fallbackResponse.pagination.page);
-        setRecommendation(fallbackResponse);
-        setErrorMessage("");
+        setRecommendation(null);
+        setErrorMessage("추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         window.dispatchEvent(
           new CustomEvent("home-recommendation-state", {
-            detail: { status: "success", query: trimmedQuery, recommendation: fallbackResponse }
+            detail: { status: "error", query: trimmedQuery, recommendation: null }
           })
         );
       } finally {
@@ -743,9 +746,12 @@ function HomeMainContent({
     Boolean(marketPopularSection?.products.length) ||
     Boolean(forYouSection?.products.length) ||
     Boolean(evidencePicksSection?.products.length);
+  const selectedForYouSkinType = showForYouSkinTypeFilters
+    ? forYouFilters.skinType
+    : initialProfile.skin;
   const selectedForYouSection =
-    forYouSections[forYouFilters.skinType] ?? (forYouFilters.skinType === "건성" ? forYouSection : null);
-  const selectedForYouLoading = forYouLoading[forYouFilters.skinType] ?? homeSectionLoading.forYou;
+    forYouSections[selectedForYouSkinType] ?? (selectedForYouSkinType === "건성" ? forYouSection : null);
+  const selectedForYouLoading = forYouLoading[selectedForYouSkinType] ?? homeSectionLoading.forYou;
 
   const sortedProducts = useMemo(() => {
     const products = recommendation?.products ?? [];
@@ -761,17 +767,12 @@ function HomeMainContent({
 
   const products = recommendation?.products ?? [];
   const pagination = recommendation?.pagination ?? createFallbackPagination(products.length);
-  const isFallbackResult = recommendation?.recommendation_id === "fallback-original-design";
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
   const showPagination = mode === "search" && !isLoading && pagination.total_pages > 1;
   const goToPage = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
     if (nextPage === pagination.page) return;
-    const currentRecommendationId =
-      recommendation?.recommendation_id &&
-      recommendation.recommendation_id !== "fallback-original-design"
-        ? recommendation.recommendation_id
-        : initialRecommendationId;
+    const currentRecommendationId = recommendation?.recommendation_id ?? initialRecommendationId;
     runSearch(query || initialQuery, initialProfile, nextPage, currentRecommendationId, true);
   };
 
@@ -832,14 +833,9 @@ function HomeMainContent({
               ) : null}
             </div>
             <div
-              className={`api-result-summary${recommendation?.unmatched_terms.length || isFallbackResult ? " active" : ""}`}
+              className={`api-result-summary${recommendation?.unmatched_terms.length ? " active" : ""}`}
               id="apiResultSummary"
             >
-              {isFallbackResult ? (
-                <span className="api-summary-chip warning">
-                  API 응답 전 원본 샘플 결과를 표시 중입니다
-                </span>
-              ) : null}
               {recommendation?.unmatched_terms.map((term) => (
                 <span className="api-summary-chip warning" key={term}>
                   추가 확인 필요: {term}
@@ -852,7 +848,11 @@ function HomeMainContent({
               ) : sortedProducts.length ? (
                 sortedProducts.map((product, index) => (
                   <HomeProductCard
-                    displayRank={isGeneralSearch ? undefined : index + 1}
+                    displayRank={
+                      isGeneralSearch
+                        ? undefined
+                        : (pagination.page - 1) * pagination.page_size + index + 1
+                    }
                     eventContext={{
                       sectionId: "recommendation_results",
                       page: "search",
@@ -961,8 +961,10 @@ function HomeMainContent({
                 products={selectedForYouSection.products.map(mapHomeProductToCard)}
                 section={selectedForYouSection}
                 toneMint
-                forYouFilters={forYouFilters}
-                onForYouFilterChange={updateForYouFilter}
+                forYouFilters={showForYouSkinTypeFilters ? forYouFilters : undefined}
+                onForYouFilterChange={
+                  showForYouSkinTypeFilters ? updateForYouFilter : undefined
+                }
               />
             ) : selectedForYouLoading ? <HomeSectionLoadingSkeleton sectionKey="forYou" /> : null}
             {evidencePicksSection?.products.length ? (

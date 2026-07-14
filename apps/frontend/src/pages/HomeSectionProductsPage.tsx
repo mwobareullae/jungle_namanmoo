@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import HomeProductCard from "../components/HomeProductCard";
 import ProductThumbnail from "../components/ProductThumbnail";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import Skeleton from "../components/ui/Skeleton";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
 import { observeProductImpressions } from "../lib/appSignals/impressions";
 import { navigateWithinApp } from "../lib/navigation";
+import { isProductSoldOut } from "../lib/productAvailability";
 import type { HomeSectionProduct, ProductCardItem } from "../types/recommendation";
 
 type HomeSectionProductsPageProps = {
@@ -36,13 +38,18 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
   lowest_price: product.lowest_price,
   evidence_tags: product.tags,
   key_ingredients: product.tags,
-  risk_flags: []
+  risk_flags: [],
+  sales_status: product.sales_status,
+  stock_status: product.stock_status,
+  available_quantity: product.available_quantity,
+  in_stock: product.in_stock
 });
 
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
 function DealCard({ product, source }: { product: ProductCardItem; source: string }) {
+  const isSoldOut = isProductSoldOut(product);
   const openDetail = () => {
     trackEvent("search_result_click", {
       productId: product.product_id,
@@ -57,7 +64,7 @@ function DealCard({ product, source }: { product: ProductCardItem; source: strin
   return (
     <article
       aria-label={`${product.brand} ${product.name} 상세 보기`}
-      className="home-deal-card"
+      className={`home-deal-card${isSoldOut ? " is-sold-out" : ""}`}
       data-event-page="recommendation_result"
       data-event-source={source}
       data-impression-event="search_result_impression"
@@ -76,6 +83,7 @@ function DealCard({ product, source }: { product: ProductCardItem; source: strin
     >
       <div className="home-deal-media">
         <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
+        {isSoldOut ? <ProductSoldOutOverlay /> : null}
       </div>
       <div className="home-deal-body">
         <div className="home-ranking-brand">{product.brand}</div>
@@ -85,7 +93,7 @@ function DealCard({ product, source }: { product: ProductCardItem; source: strin
             <span key={tag}>{tag}</span>
           ))}
         </div>
-        <div className="home-deal-price">{formatPrice(product.lowest_price)}</div>
+        <div className={`home-deal-price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</div>
       </div>
     </article>
   );

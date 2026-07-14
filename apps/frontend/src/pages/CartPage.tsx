@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import { useAuth } from "../contexts/useAuth";
 import { deleteCartItem, getCart, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import { navigateWithinApp } from "../lib/navigation";
+import { isProductSoldOut } from "../lib/productAvailability";
 import type { CartResponse, CheckoutPreviewResponse } from "../types/cart";
 import type { CartItem } from "../types/cart";
 
@@ -31,7 +33,7 @@ const formatStockStatus = (stockStatus: string) => {
       return "재고 부족";
     case "OUT_OF_STOCK":
     case "SOLD_OUT":
-      return "품절";
+      return "일시품절";
     case "UNAVAILABLE":
       return "구매 불가";
     default:
@@ -109,6 +111,21 @@ const getCartItemOptionLabel = (item: CartItem) => {
   return parts.length > 0 ? parts.join(" · ") : null;
 };
 
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+  }
+
+  return fallback;
+};
+
+const notifyCartUpdated = () => {
+  window.dispatchEvent(new CustomEvent("cart:updated", { detail: { source: "cart-page" } }));
+};
+
 function CartPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -125,6 +142,7 @@ function CartPage() {
   const [isCheckoutPreviewLoading, setIsCheckoutPreviewLoading] = useState(false);
   const [checkoutPreviewErrorMessage, setCheckoutPreviewErrorMessage] = useState("");
   const agentCheckoutStartedRef = useRef(false);
+  const cartMutationPendingRef = useRef(false);
   const agentCheckoutParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isAgentCheckout = agentCheckoutParams.get("agent_checkout") === "1";
   const requestedAgentCartItemIds = useMemo(
@@ -161,7 +179,10 @@ function CartPage() {
       }
     };
 
-    const handleCartUpdated = () => {
+    const handleCartUpdated = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail?.source === "cart-page") {
+        return;
+      }
       void loadCart();
     };
 
@@ -175,10 +196,11 @@ function CartPage() {
   }, [isAgentCheckout, requestedAgentCartItemIds]);
 
   const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
-    if (nextQuantity < 1) {
+    if (nextQuantity < 1 || cartMutationPendingRef.current) {
       return;
     }
 
+    cartMutationPendingRef.current = true;
     setUpdatingItemId(itemId);
     setErrorMessage(null);
 
@@ -188,15 +210,21 @@ function CartPage() {
       setSelectedItemIds((currentIds) =>
         currentIds.filter((id) => updatedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
       );
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "수량 변경에 실패했습니다.");
+      setErrorMessage(getRequestErrorMessage(error, "수량 변경에 실패했습니다."));
     } finally {
+      cartMutationPendingRef.current = false;
       setUpdatingItemId(null);
     }
   };
 
   const handleDeleteItem = async (itemId: number) => {
+    if (cartMutationPendingRef.current) {
+      return;
+    }
+
+    cartMutationPendingRef.current = true;
     setDeletingItemId(itemId);
     setErrorMessage(null);
 
@@ -204,10 +232,24 @@ function CartPage() {
       const response = await deleteCartItem(itemId);
       setCart(response.cart);
       setSelectedItemIds((currentIds) => currentIds.filter((id) => id !== itemId));
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "상품 삭제에 실패했습니다.");
+      try {
+        const refreshedCart = await getCart();
+        setCart(refreshedCart);
+        setSelectedItemIds((currentIds) =>
+          currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+        );
+        if (refreshedCart.items.some((item) => item.id === itemId)) {
+          setErrorMessage(getRequestErrorMessage(error, "상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "상품 삭제에 실패했습니다."));
+      }
     } finally {
+      cartMutationPendingRef.current = false;
       setDeletingItemId(null);
     }
   };
@@ -393,10 +435,11 @@ function CartPage() {
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedItemIds.length === 0) {
+    if (selectedItemIds.length === 0 || cartMutationPendingRef.current) {
       return;
     }
 
+    cartMutationPendingRef.current = true;
     setIsDeletingSelected(true);
     setErrorMessage(null);
 
@@ -413,19 +456,35 @@ function CartPage() {
       }
 
       setSelectedItemIds([]);
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "선택한 상품 삭제에 실패했습니다.");
+      try {
+        const refreshedCart = await getCart();
+        const remainingIds = selectedItemIds.filter((itemId) =>
+          refreshedCart.items.some((item) => item.id === itemId),
+        );
+        setCart(refreshedCart);
+        setSelectedItemIds(remainingIds);
+        if (remainingIds.length > 0) {
+          setErrorMessage(getRequestErrorMessage(error, "선택한 상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "선택한 상품 삭제에 실패했습니다."));
+      }
     } finally {
+      cartMutationPendingRef.current = false;
       setIsDeletingSelected(false);
     }
   };
 
   const handleDeleteUnavailableItems = async () => {
-    if (unavailableItemIds.length === 0) {
+    if (unavailableItemIds.length === 0 || cartMutationPendingRef.current) {
       return;
     }
 
+    cartMutationPendingRef.current = true;
     setIsDeletingUnavailable(true);
     setErrorMessage(null);
 
@@ -444,13 +503,36 @@ function CartPage() {
         );
       }
 
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "구매 불가 상품 삭제에 실패했습니다.");
+      try {
+        const refreshedCart = await getCart();
+        const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
+          refreshedCart.items.some((item) => item.id === itemId),
+        );
+        setCart(refreshedCart);
+        setSelectedItemIds((currentIds) =>
+          currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+        );
+        if (remainingUnavailableIds.length > 0) {
+          setErrorMessage(getRequestErrorMessage(error, "구매 불가 상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "구매 불가 상품 삭제에 실패했습니다."));
+      }
     } finally {
+      cartMutationPendingRef.current = false;
       setIsDeletingUnavailable(false);
     }
   };
+
+  const isCartMutationPending =
+    updatingItemId !== null ||
+    deletingItemId !== null ||
+    isDeletingSelected ||
+    isDeletingUnavailable;
 
   return (
     <>
@@ -586,7 +668,7 @@ function CartPage() {
                   </label>
                   <div className="cart-page-selection-actions">
                     <button
-                      disabled={selectedItemIds.length === 0 || isDeletingSelected}
+                      disabled={selectedItemIds.length === 0 || isCartMutationPending}
                       onClick={handleDeleteSelected}
                       type="button"
                     >
@@ -594,7 +676,7 @@ function CartPage() {
                     </button>
                     {hasUnavailableItems && (
                       <button
-                        disabled={isDeletingUnavailable}
+                        disabled={isCartMutationPending}
                         onClick={handleDeleteUnavailableItems}
                         type="button"
                       >
@@ -614,6 +696,7 @@ function CartPage() {
                     const imageUrl = getProductImageUrl(item.product.thumbnail_url, "w400");
                     const optionLabel = getCartItemOptionLabel(item);
                     const isUnavailableItem = !isPurchasableCartItem(item);
+                    const isSoldOut = isProductSoldOut(item.product);
                     const stockStatusClassName = getStockStatusClassName(item.product.stock_status);
 
                     return (
@@ -634,6 +717,7 @@ function CartPage() {
                           ) : (
                             <span>이미지 준비중</span>
                           )}
+                          {isSoldOut ? <ProductSoldOutOverlay /> : null}
                         </div>
 
                         <div className="cart-page-item-main">
@@ -649,7 +733,7 @@ function CartPage() {
                           <button
                             className="cart-page-remove-button"
                             aria-label={`${item.product.name} 삭제`}
-                            disabled={deletingItemId === item.id || updatingItemId === item.id}
+                            disabled={isCartMutationPending}
                             onClick={() => handleDeleteItem(item.id)}
                             type="button"
                           >
@@ -658,7 +742,7 @@ function CartPage() {
                           <div className="cart-page-quantity-control" aria-label={`${item.product.name} 수량`}>
                             <button
                               aria-label={`${item.product.name} 수량 감소`}
-                              disabled={isUnavailableItem || updatingItemId === item.id || item.quantity <= 1}
+                              disabled={isUnavailableItem || isCartMutationPending || item.quantity <= 1}
                               onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                               type="button"
                             >
@@ -667,7 +751,7 @@ function CartPage() {
                             <span>{item.quantity}개</span>
                             <button
                               aria-label={`${item.product.name} 수량 증가`}
-                              disabled={isUnavailableItem || updatingItemId === item.id}
+                              disabled={isUnavailableItem || isCartMutationPending}
                               onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                               type="button"
                             >
@@ -676,7 +760,7 @@ function CartPage() {
                           </div>
                           <div className="cart-page-item-price">
                             <span>상품 금액</span>
-                            <strong>{item.line_subtotal.toLocaleString()}원</strong>
+                            <strong className={isSoldOut ? "product-price--sold-out" : ""}>{item.line_subtotal.toLocaleString()}원</strong>
                           </div>
                         </div>
                       </article>

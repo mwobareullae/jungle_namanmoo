@@ -65,7 +65,7 @@ function ProductDetailHero({
         <h1 className="detail-title" id="productName">{product.name}</h1>
         <div className="detail-price-panel">
           <div className="detail-price-row">
-            <span className="detail-price" id="productPrice">{priceLabel}</span>
+            <span className={`detail-price${isProductSoldOut ? " product-price--sold-out" : ""}`} id="productPrice">{priceLabel}</span>
           </div>
         </div>
         <div className="detail-tags" id="productTags">

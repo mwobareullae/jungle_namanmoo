@@ -58,6 +58,7 @@ type AgentChatTextMessage = AgentChatBaseMessage & {
   content: string;
   evidenceExpanded?: boolean;
   showActions?: boolean;
+  sensitive?: boolean;
 };
 
 type AgentStatusStep = {
@@ -83,7 +84,7 @@ type AgentChatApprovalMessage = AgentChatBaseMessage & {
 };
 
 type AgentChatErrorMessage = AgentChatBaseMessage & {
-  action: "login" | "profile" | "retry";
+  action: "input" | "login" | "profile" | "retry";
   actionLabel: string;
   kind: "error";
   message: string;
@@ -138,6 +139,7 @@ const MAX_AGENT_CONTEXT_MESSAGES = 8;
 const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
+const REDACTED_ADDRESS_MESSAGE = "배송지 정보를 입력했어요.";
 
 const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   auth: [
@@ -224,6 +226,16 @@ const activeStatusSteps: AgentStatusStep[] = [
 ];
 
 function getCommerceStatusSteps(message: string, isActive: boolean): { steps: AgentStatusStep[]; title: string } | null {
+  if (/배송지|주소|우편번호|연락처/.test(message)) {
+    return {
+      title: isActive ? "배송지를 등록하고 있어요" : "배송지를 등록했어요",
+      steps: [
+        { label: "배송지 정보 확인", status: "done" },
+        { label: "배송지 등록", status: isActive ? "active" : "done" },
+        { label: "주문서 연결", status: isActive ? "todo" : "done" },
+      ],
+    };
+  }
   if (/장바구니.*(담|추가)|(담|추가).*장바구니/.test(message)) {
     return {
       title: isActive ? "상품을 장바구니에 담고 있어요" : "장바구니에 반영했어요",
@@ -350,10 +362,10 @@ function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
       (candidate.tone === "amber" || candidate.tone === "info")
       ? {
           id: candidate.id,
-          action:
-            candidate.action === "login" || candidate.action === "profile" || candidate.action === "retry"
-              ? candidate.action
-              : "retry",
+            action:
+              candidate.action === "input" || candidate.action === "login" || candidate.action === "profile" || candidate.action === "retry"
+                ? candidate.action
+                : "retry",
           actionLabel: candidate.actionLabel,
           createdAt,
           kind: "error",
@@ -454,14 +466,24 @@ const createThreadTitleFromMessages = (messages: AgentChatMessage[]) => {
   const firstUserMessage = messages.find(
     (message): message is AgentChatTextMessage => message.kind === "chat" && message.role === "user",
   );
-  return firstUserMessage ? createThreadTitle(firstUserMessage.content) : "새 대화";
+  return firstUserMessage
+    ? createThreadTitle(firstUserMessage.sensitive ? REDACTED_ADDRESS_MESSAGE : firstUserMessage.content)
+    : "새 대화";
 };
 
 const buildRecentMessages = (messages: AgentChatMessage[]) =>
   messages
     .filter((message): message is AgentChatTextMessage => message.kind === "chat")
     .slice(-MAX_AGENT_CONTEXT_MESSAGES)
-    .map((message) => ({ role: message.role, content: message.content.slice(0, 2000) }));
+    .map((message) => ({
+      role: message.role,
+      content: (message.sensitive ? REDACTED_ADDRESS_MESSAGE : message.content).slice(0, 2000),
+    }));
+
+const sanitizeMessagesForStorage = (messages: AgentChatMessage[]) => messages.map((message) => {
+  if (message.kind !== "chat" || !message.sensitive) return message;
+  return { ...message, content: REDACTED_ADDRESS_MESSAGE, sensitive: false };
+});
 
 const buildLastToolResult = (messages: AgentChatMessage[]) => {
   const result = [...messages].reverse().find(
@@ -705,6 +727,14 @@ function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: 
     });
   }
 
+  if (code === "AGENT_ADDRESS_REQUIRED" || code === "AGENT_ADDRESS_DETAILS_REQUIRED") {
+    return createAgentErrorMessage(id, "배송지가 필요해요", message, {
+      action: "input",
+      actionLabel: "배송지 입력하기",
+      tone: "info",
+    });
+  }
+
   if (status === 408) {
     return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
       retryMessage,
@@ -731,6 +761,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     return createAgentErrorMessage(id, "로그인이 필요해요", response.error.message, {
       action: "login",
       actionLabel: "로그인하기",
+      tone: "info",
+    });
+  }
+
+  if (response.error.code === "AGENT_ADDRESS_REQUIRED" || response.error.code === "AGENT_ADDRESS_DETAILS_REQUIRED") {
+    return createAgentErrorMessage(id, "배송지가 필요해요", response.error.message, {
+      action: "input",
+      actionLabel: "배송지 입력하기",
       tone: "info",
     });
   }
@@ -1275,6 +1313,7 @@ function AgentFloatingButton({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
+  const [isAwaitingAddressInput, setIsAwaitingAddressInput] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
@@ -1470,7 +1509,10 @@ function AgentFloatingButton({
       return;
     }
 
-    window.localStorage.setItem(AGENT_CHAT_HISTORY_KEY, JSON.stringify(messages.slice(-MAX_STORED_AGENT_MESSAGES)));
+    window.localStorage.setItem(
+      AGENT_CHAT_HISTORY_KEY,
+      JSON.stringify(sanitizeMessagesForStorage(messages).slice(-MAX_STORED_AGENT_MESSAGES)),
+    );
   }, [messages]);
 
   useEffect(() => {
@@ -1482,7 +1524,7 @@ function AgentFloatingButton({
       upsertAgentChatThread(currentThreads, {
         id: currentThreadId,
         conversationId,
-        messages: messages.slice(-MAX_STORED_AGENT_MESSAGES),
+        messages: sanitizeMessagesForStorage(messages).slice(-MAX_STORED_AGENT_MESSAGES),
         title: createThreadTitleFromMessages(messages),
         updatedAt: Date.now(),
       }),
@@ -1545,6 +1587,7 @@ function AgentFloatingButton({
     setConversationId(null);
     setMessages([]);
     setLastToolResultContext(null);
+    setIsAwaitingAddressInput(false);
     setActiveView("home");
   };
 
@@ -1567,6 +1610,7 @@ function AgentFloatingButton({
     }
 
     const timestamp = Date.now();
+    const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = activeView === "home";
     const requestConversationId = shouldStartNewThread ? null : conversationId;
@@ -1578,6 +1622,7 @@ function AgentFloatingButton({
       content: nextMessage,
       kind: "chat",
       role: "user",
+      sensitive: isSensitiveAddressMessage,
     };
 
     setLastSentMessage(nextMessage);
@@ -1608,6 +1653,13 @@ function AgentFloatingButton({
         recent_messages: recentMessages,
       });
       const responseTimestamp = Date.now();
+      const addressError = response.error?.code === "AGENT_ADDRESS_REQUIRED"
+        || response.error?.code === "AGENT_ADDRESS_DETAILS_REQUIRED";
+      if (addressError) {
+        setIsAwaitingAddressInput(true);
+      } else if (response.tool_name === "register_shipping_address") {
+        setIsAwaitingAddressInput(false);
+      }
       setConversationId(response.conversation_id);
       const nextToolResultContext = buildToolResultContext(response.ui_action, response.items);
       if (nextToolResultContext) setLastToolResultContext(nextToolResultContext);
@@ -1618,7 +1670,9 @@ function AgentFloatingButton({
         [
           ...currentMessages.flatMap((currentMessage) =>
             currentMessage.id === statusId
-              ? (isRecommendationResponse || getCommerceStatusSteps(nextMessage, false) ? [createStatusMessage(statusId, false, nextMessage)] : [])
+              ? (isRecommendationResponse || (!addressError && getCommerceStatusSteps(nextMessage, false))
+                  ? [createStatusMessage(statusId, false, nextMessage)]
+                  : [])
               : [currentMessage],
           ),
           ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
@@ -1647,7 +1701,11 @@ function AgentFloatingButton({
       setMessages((currentMessages) =>
         [
           ...currentMessages.filter((currentMessage) => currentMessage.id !== statusId),
-          createAgentErrorFromUnknown(error, `error-${Date.now()}`, nextMessage),
+          createAgentErrorFromUnknown(
+            error,
+            `error-${Date.now()}`,
+            isSensitiveAddressMessage ? undefined : nextMessage,
+          ),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
     } finally {
@@ -1875,6 +1933,10 @@ function AgentFloatingButton({
   };
 
   const handleErrorAction = (message: AgentChatErrorMessage) => {
+    if (message.action === "input") {
+      chatInputRef.current?.focus();
+      return;
+    }
     if (message.action === "login") {
       const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`;

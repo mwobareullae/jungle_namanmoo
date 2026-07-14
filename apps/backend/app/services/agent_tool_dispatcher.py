@@ -28,6 +28,7 @@ from app.services.agent_commerce_tools import (
     prepare_agent_order,
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
+from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, register_shipping_address
 from app.services.agent_policy import get_tool_policy, validate_tool_access
 from app.services.agent_product_tools import (
     COMPARE_PRODUCTS_TOOL,
@@ -101,6 +102,20 @@ class CheckoutArgs(BaseModel):
     address_id: int | None = Field(default=None, ge=1)
 
 
+class RegisterShippingAddressArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    recipient_name: str | None = Field(default=None, min_length=1, max_length=100)
+    phone: str | None = Field(default=None, min_length=1, max_length=30)
+    postal_code: str = Field(..., min_length=1, max_length=20)
+    address1: str = Field(..., min_length=1, max_length=255)
+    address2: str | None = Field(default=None, max_length=255)
+    delivery_memo: str | None = Field(default=None, max_length=255)
+    is_default: bool = False
+    continue_checkout: bool = True
+    cart_item_ids: list[int] | None = Field(default=None, max_length=100)
+
+
 class ComposeCartArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -139,6 +154,7 @@ ToolArgs = (
     | GetCartArgs
     | AddToCartArgs
     | CheckoutArgs
+    | RegisterShippingAddressArgs
     | ComposeCartArgs
     | PrepareReviewDraftArgs
     | PrepareClaimDraftArgs
@@ -153,6 +169,7 @@ TOOL_ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     ADD_TO_CART_TOOL: AddToCartArgs,
     PREPARE_CHECKOUT_TOOL: CheckoutArgs,
     PREPARE_ORDER_TOOL: CheckoutArgs,
+    REGISTER_SHIPPING_ADDRESS_TOOL: RegisterShippingAddressArgs,
     COMPOSE_CART_TOOL: ComposeCartArgs,
     PREPARE_REVIEW_DRAFT_TOOL: PrepareReviewDraftArgs,
     PREPARE_CLAIM_DRAFT_TOOL: PrepareClaimDraftArgs,
@@ -373,6 +390,25 @@ def _execute_parsed_tool(
             anonymous_user_id=anonymous_user_id,
         )
 
+    if tool_name == REGISTER_SHIPPING_ADDRESS_TOOL:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
+        args = _require_args(arguments, RegisterShippingAddressArgs)
+        return register_shipping_address(
+            session,
+            user,
+            conversation_id=conversation_id,
+            recipient_name=args.recipient_name,
+            phone=args.phone,
+            postal_code=args.postal_code,
+            address1=args.address1,
+            address2=args.address2,
+            delivery_memo=args.delivery_memo,
+            is_default=args.is_default,
+            continue_checkout=args.continue_checkout,
+            cart_item_ids=args.cart_item_ids,
+        )
+
     if tool_name == COMPOSE_CART_TOOL:
         if user is None:
             raise ApiError(401, "AGENT_AUTH_REQUIRED", "Login is required for this agent tool.")
@@ -452,7 +488,7 @@ def _record_executed_tool_call(
         status="EXECUTED",
         confirmation_required=False,
         executed_at=now,
-        input_json=dump_model(arguments),
+        input_json=_safe_tool_input(response.tool_name or "", arguments),
         output_json=dump_model(response),
         latency_ms=latency_ms,
         created_at=now,
@@ -486,7 +522,7 @@ def _record_failed_tool_call(
         tool_name=tool_name,
         status="FAILED",
         confirmation_required=False,
-        input_json=dump_model(arguments),
+        input_json=_safe_tool_input(tool_name, arguments),
         output_json={},
         error_code=error.code,
         error_message=error.message,
@@ -500,6 +536,25 @@ def _record_failed_tool_call(
 
 def _generate_tool_call_id() -> str:
     return f"tool_{secrets.token_urlsafe(18).replace('-', '').replace('_', '')[:24]}"
+
+
+def _safe_tool_input(tool_name: str, arguments: ToolArgs) -> dict[str, Any]:
+    if tool_name != REGISTER_SHIPPING_ADDRESS_TOOL:
+        return dump_model(arguments)
+
+    args = _require_args(arguments, RegisterShippingAddressArgs)
+    return {
+        "recipient_name_provided": bool(args.recipient_name),
+        "phone_provided": bool(args.phone),
+        "postal_code_provided": bool(args.postal_code),
+        "address1_provided": bool(args.address1),
+        "address2_provided": bool(args.address2),
+        "delivery_memo_provided": bool(args.delivery_memo),
+        "is_default": args.is_default,
+        "continue_checkout": args.continue_checkout,
+        "cart_item_ids": args.cart_item_ids,
+        "pii_redacted": True,
+    }
 
 
 def _elapsed_ms(started_at: float) -> int:

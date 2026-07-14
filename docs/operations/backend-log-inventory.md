@@ -339,6 +339,16 @@ event:
 - `refine_product_results`
 - `order_status_lookup`
 - `cancel_recent_order`
+- `get_cart`
+- `add_to_cart`
+- `compose_cart`
+- `prepare_checkout`
+- `register_shipping_address`
+- `prepare_order`
+- `prepare_review_draft`
+- `prepare_claim_draft`
+
+`register_shipping_address`는 개인정보 원문을 `agent_tool_calls.input_json`에 남기지 않는다. 필드 제공 여부와 checkout 재개 여부만 기록한다.
 
 ## 9. 주문 / 결제 / 재고 Transaction 로그
 

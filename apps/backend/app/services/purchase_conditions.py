@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.core.config import settings
+from app.core.performance_logging import current_time, elapsed_ms
 
 
 @dataclass(frozen=True)
@@ -106,8 +107,32 @@ def parse_purchase_conditions(
     *,
     category_aliases: tuple[CategoryAliasGroup, ...] = DEFAULT_CATEGORY_ALIASES,
     brand_aliases: tuple[BrandAliasGroup, ...] | None = None,
+    diagnostics: dict[str, object] | None = None,
 ) -> ParsedPurchaseConditions:
+    purchase_diagnostics = diagnostics if diagnostics is not None else {}
+    purchase_diagnostics.update(
+        {
+            "intent_purchase_normalize_ms": 0.0,
+            "intent_purchase_price_ms": 0.0,
+            "intent_purchase_category_ms": 0.0,
+            "intent_purchase_brand_alias_load_ms": 0.0,
+            "intent_purchase_brand_match_ms": 0.0,
+            "intent_purchase_category_group_count": len(category_aliases),
+            "intent_purchase_brand_group_count": 0,
+            "intent_purchase_brand_alias_count": 0,
+            "intent_purchase_matched_category_count": 0,
+            "intent_purchase_matched_brand_count": 0,
+            "intent_purchase_has_price_constraint": False,
+        }
+    )
+
+    stage_started_at = current_time()
     normalized_text = _normalize_text(text or "")
+    _record_diagnostic_duration(
+        purchase_diagnostics,
+        "intent_purchase_normalize_ms",
+        stage_started_at,
+    )
     if not normalized_text:
         return ParsedPurchaseConditions(
             categories=(),
@@ -118,10 +143,54 @@ def parse_purchase_conditions(
             price_max_text=None,
         )
 
+    stage_started_at = current_time()
     price_min, price_max, price_text = _match_price_condition(normalized_text)
+    _record_diagnostic_duration(
+        purchase_diagnostics,
+        "intent_purchase_price_ms",
+        stage_started_at,
+    )
+    purchase_diagnostics["intent_purchase_has_price_constraint"] = (
+        price_min is not None or price_max is not None
+    )
+
+    stage_started_at = current_time()
+    matched_categories = _match_categories(normalized_text, category_aliases)
+    _record_diagnostic_duration(
+        purchase_diagnostics,
+        "intent_purchase_category_ms",
+        stage_started_at,
+    )
+    purchase_diagnostics["intent_purchase_matched_category_count"] = len(
+        matched_categories
+    )
+
+    stage_started_at = current_time()
+    resolved_brand_aliases = brand_aliases or get_default_brand_aliases()
+    _record_diagnostic_duration(
+        purchase_diagnostics,
+        "intent_purchase_brand_alias_load_ms",
+        stage_started_at,
+    )
+    purchase_diagnostics["intent_purchase_brand_group_count"] = len(
+        resolved_brand_aliases
+    )
+    purchase_diagnostics["intent_purchase_brand_alias_count"] = sum(
+        len(group.aliases) for group in resolved_brand_aliases
+    )
+
+    stage_started_at = current_time()
+    matched_brands = _match_brands(normalized_text, resolved_brand_aliases)
+    _record_diagnostic_duration(
+        purchase_diagnostics,
+        "intent_purchase_brand_match_ms",
+        stage_started_at,
+    )
+    purchase_diagnostics["intent_purchase_matched_brand_count"] = len(matched_brands)
+
     return ParsedPurchaseConditions(
-        categories=_match_categories(normalized_text, category_aliases),
-        brands=_match_brands(normalized_text, brand_aliases or get_default_brand_aliases()),
+        categories=matched_categories,
+        brands=matched_brands,
         price_min=price_min,
         price_max=price_max,
         price_text=price_text,
@@ -339,4 +408,12 @@ def _unique_aliases(values: tuple[str, ...]) -> tuple[str, ...]:
             aliases.append(value)
             seen.add(normalized)
     return tuple(aliases)
+
+
+def _record_diagnostic_duration(
+    diagnostics: dict[str, object],
+    key: str,
+    started_at: float,
+) -> None:
+    diagnostics[key] = round(elapsed_ms(started_at), 2)
 
