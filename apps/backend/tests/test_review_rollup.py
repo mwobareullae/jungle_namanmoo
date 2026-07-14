@@ -49,8 +49,28 @@ def db_engine() -> Generator[Engine, None, None]:
 
 def test_review_weight_and_statistical_formulas() -> None:
     computed_at = datetime(2026, 7, 12, tzinfo=UTC)
+    # OliveYoung seed의 MONTH_USE·verified 값은 리뷰 간 변별력이 없으므로
+    # helpful×recency만 남는다. helpful=20 → 1.10, 나이 0일 → 1.0.
     assert calculate_review_weight(
         source="oliveyoung",
+        review_type="MONTH_USE",
+        verified_purchase=True,
+        helpful_count=20,
+        reviewed_at=computed_at,
+        computed_at=computed_at,
+    ) == pytest.approx(1.10)
+    # 자사몰 구매인증은 실제 주문 검증 신호이므로 1.10 배율을 유지한다.
+    assert calculate_review_weight(
+        source="mubarelle",
+        review_type="GENERAL",
+        verified_purchase=True,
+        helpful_count=0,
+        reviewed_at=computed_at,
+        computed_at=computed_at,
+    ) == pytest.approx(1.10)
+    # 다른 소스는 별도 계약이 생기기 전까지 기존 필드 배율을 보존한다.
+    assert calculate_review_weight(
+        source="partner",
         review_type="MONTH_USE",
         verified_purchase=True,
         helpful_count=20,
@@ -68,11 +88,30 @@ def test_review_weight_and_statistical_formulas() -> None:
     quality, confidence = calculate_review_quality_score(
         rating_score=1.0,
         repurchase_score=1.0,
-        month_consistency_score=1.0,
+        photo_rate_score=1.0,
         effective_sample_size=20.0,
     )
     assert confidence == pytest.approx(0.5)
     assert quality == pytest.approx(0.75)
+
+    quality_without_photo, _ = calculate_review_quality_score(
+        rating_score=1.0,
+        repurchase_score=0.0,
+        photo_rate_score=None,
+        effective_sample_size=20.0,
+    )
+    quality_without_photo_signal = 0.75 / (0.75 + 0.20)
+    assert quality_without_photo == pytest.approx(
+        0.5 + (0.5 * (quality_without_photo_signal - 0.5))
+    )
+
+    quality_with_photo, _ = calculate_review_quality_score(
+        rating_score=1.0,
+        repurchase_score=0.0,
+        photo_rate_score=1.0,
+        effective_sample_size=20.0,
+    )
+    assert quality_with_photo == pytest.approx(0.65)
 
 
 def test_review_rollup_builds_product_and_segment_metrics_idempotently(
@@ -184,6 +223,32 @@ def test_review_rollup_builds_product_and_segment_metrics_idempotently(
         assert metric.repurchase_review_count == 2
         assert metric.profile_labeled_review_count == 2
         assert metric.source_photo_marker_count == 1
+        review_weights = [
+            calculate_review_weight(
+                source=review.source,
+                review_type=review.review_type,
+                verified_purchase=review.verified_purchase,
+                helpful_count=review.helpful_count,
+                reviewed_at=review.reviewed_at,
+                computed_at=computed_at,
+            )
+            for review in reviews
+        ]
+        expected_photo_rate = review_weights[1] / sum(review_weights)
+        expected_quality, expected_confidence = calculate_review_quality_score(
+            rating_score=float(metric.rating_score),
+            repurchase_score=float(metric.repurchase_score),
+            photo_rate_score=expected_photo_rate,
+            effective_sample_size=float(metric.effective_sample_size),
+        )
+        assert float(metric.review_quality_score) == pytest.approx(
+            expected_quality,
+            abs=1e-6,
+        )
+        assert float(metric.confidence) == pytest.approx(
+            expected_confidence,
+            abs=1e-6,
+        )
         assert metric.helpful_count_sum == 22
         assert metric.month_consistency_score is not None
         assert Decimal("0") <= metric.review_quality_score <= Decimal("1")
