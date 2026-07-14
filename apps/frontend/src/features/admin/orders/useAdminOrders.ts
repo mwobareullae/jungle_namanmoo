@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ApiError } from "../../../types/recommendation";
+import { useAdminRowAction } from "../hooks/useAdminRowAction";
 import {
   AdminOrderRow,
   AdminOrderShipmentActionResult,
@@ -16,10 +17,14 @@ import {
 export type ShipmentStep = "prepare" | "dispatch" | "deliver";
 
 const PAGE_SIZE = 50;
+const AUTO_REFRESH_INTERVAL_MS = 30_000;
 
-export type AdminOrderPreviewPatch = Partial<
-  Pick<AdminOrderRow, "status" | "orderStatusRaw" | "paymentStatus" | "paymentStatusRaw" | "paymentMissing" | "stockReserved" | "updatedAt">
->;
+const describeApiError = (caughtError: unknown, fallbackMessage: string): string => {
+  const apiError = caughtError as Partial<ApiError> | undefined;
+  return apiError?.message ?? fallbackMessage;
+};
+
+type FetchPageOptions = { cursor: string | null; append: boolean; silent?: boolean };
 
 export type UseAdminOrdersOptions = {
   enabled: boolean;
@@ -32,7 +37,6 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
   const [items, setItems] = useState<AdminOrderRow[]>([]);
   const [summary, setSummary] = useState<AdminOrderSummary | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [previewOverrides, setPreviewOverrides] = useState<Record<string, AdminOrderPreviewPatch>>({});
 
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -43,11 +47,32 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
   // 최신 목록 요청이 진행 중인 동안 배송 전이를 시작하지 않도록 요청 ID를 ref 로 관리한다.
   // state 기반 loading 은 렌더 전에 즉시 바뀌지 않으므로 훅 내부 경합 방어에는 ref 가 필요하다.
   const activeListRequestIdRef = useRef<number | null>(null);
-  // 같은 이벤트 루프 안에서 연속 입력이 들어와도 배송 처리와 목록 요청이 겹치지 않게 하는 즉시 잠금이다.
-  const actionInFlightRef = useRef(false);
+
+  // useAdminRowAction 의 resync 콜백은 아래 fetchPage 를 가리켜야 하는데, fetchPage 자체가
+  // useAdminRowAction 이 돌려주는 actionInFlightRef 를 필요로 해 서로를 참조한다. ref 로
+  // "최신 fetchPage" 를 담아 이 순환을 끊는다.
+  const fetchPageRef = useRef<(options: FetchPageOptions) => Promise<boolean>>(() => Promise.resolve(false));
+
+  const { actionInFlightRef, actionTargetKey, actionError, syncWarning, runAction, clearFeedback } =
+    useAdminRowAction<AdminOrderRow, AdminOrderShipmentActionResult>({
+      setItems,
+      getKey: (row) => row.id,
+      applyResult: (row, result) => ({
+        ...row,
+        status: result.status,
+        orderStatusRaw: result.orderStatusRaw,
+        shippedAt: result.shippedAt,
+        deliveredAt: result.deliveredAt,
+        availableActions: result.availableActions,
+        updatedAt: result.updatedAt
+      }),
+      resync: () => fetchPageRef.current({ cursor: null, append: false, silent: true }),
+      resyncFailureMessage: "배송 상태는 반영됐지만 목록 재조회에 실패했습니다. 새로고침을 눌러 최신 상태를 확인해 주세요.",
+      describeError: describeApiError
+    });
 
   const fetchPage = useCallback(
-    async (options: { cursor: string | null; append: boolean; silent?: boolean }): Promise<boolean> => {
+    async (options: FetchPageOptions): Promise<boolean> => {
       if (actionInFlightRef.current && !options.silent) return false;
       const requestId = ++requestIdRef.current;
       activeListRequestIdRef.current = requestId;
@@ -78,13 +103,11 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
         setItems((current) => (options.append ? [...current, ...result.items] : result.items));
         setSummary(result.summary);
         setNextCursor(result.nextCursor);
-        if (!options.append) setPreviewOverrides({});
         return true;
       } catch (caughtError: unknown) {
         if (requestId !== requestIdRef.current) return false;
         if (!options.silent) {
-          const apiError = caughtError as Partial<ApiError> | undefined;
-          setError(apiError?.message ?? "주문 목록을 불러오지 못했습니다.");
+          setError(describeApiError(caughtError, "주문 목록을 불러오지 못했습니다."));
           if (!options.append) {
             setItems([]);
             setSummary(null);
@@ -105,127 +128,92 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
         }
       }
     },
-    [orderStatusFilter, paymentStatusFilter]
+    [orderStatusFilter, paymentStatusFilter, actionInFlightRef]
   );
+
+  useEffect(() => {
+    fetchPageRef.current = fetchPage;
+  }, [fetchPage]);
 
   useEffect(() => {
     if (!enabled) return;
     void Promise.resolve().then(() => fetchPage({ cursor: null, append: false }));
   }, [enabled, fetchPage]);
 
+  // 고객 결제·결제 만료 배치 등 다른 화면/프로세스에서 바뀐 상태를 열린 관리자 화면에도 반영한다.
+  // 화면이 보일 때만 30초마다 조용히 재조회하고, 다른 탭에서 돌아오거나 창이 다시 포커스되면 즉시 갱신한다.
+  // 배송 액션·목록 조회 중에는 새 요청을 겹치지 않아 기존 요청의 상태와 응답 순서를 보존한다.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const refreshIfAvailable = () => {
+      if (document.visibilityState !== "visible") return;
+      if (actionInFlightRef.current || activeListRequestIdRef.current !== null) return;
+      void fetchPage({ cursor: null, append: false, silent: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshIfAvailable();
+    };
+
+    const intervalId = window.setInterval(refreshIfAvailable, AUTO_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshIfAvailable);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfAvailable);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [enabled, fetchPage, actionInFlightRef]);
+
   const refresh = useCallback((): Promise<boolean> => {
     if (!enabled || actionInFlightRef.current) return Promise.resolve(false);
     return fetchPage({ cursor: null, append: false });
-  }, [enabled, fetchPage]);
+  }, [enabled, fetchPage, actionInFlightRef]);
 
   const loadMore = useCallback(() => {
     if (!enabled || !nextCursor || loadingMore || actionInFlightRef.current) return;
     void fetchPage({ cursor: nextCursor, append: true });
-  }, [enabled, nextCursor, loadingMore, fetchPage]);
+  }, [enabled, nextCursor, loadingMore, fetchPage, actionInFlightRef]);
 
   const resetFilters = useCallback(() => {
     if (actionInFlightRef.current) return;
     setOrderStatusFilter(null);
     setPaymentStatusFilter(null);
-  }, []);
+  }, [actionInFlightRef]);
 
-  const applyPreviewOverride = useCallback((orderId: string, patch: AdminOrderPreviewPatch) => {
-    setPreviewOverrides((current) => ({
-      ...current,
-      [orderId]: { ...current[orderId], ...patch }
-    }));
-  }, []);
-
-  // 배송 전이(준비/시작/완료) 실 API 호출. previewOverrides 와 달리 로컬 미리보기가
-  // 아니라 서버가 실제로 반영한 값이므로, 성공하면 items 안 해당 행을 서버 응답으로
+  // 배송 전이(준비/시작/완료) 실 API 호출. 성공하면 items 안 해당 행을 서버 응답으로
   // 직접 교체한다(새로고침 없이 즉시 반영). 그 다음 현재 필터 기준 1페이지·summary 를
   // 백그라운드로 다시 조회해 필터에서 벗어난 주문 제거·요약 카드 갱신까지 맞춘다.
-  const [actionOrderId, setActionOrderId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const applyShipmentActionResult = useCallback(
-    (orderId: string, result: AdminOrderShipmentActionResult) => {
-      setItems((current) =>
-        current.map((item) =>
-          item.id === orderId
-            ? {
-                ...item,
-                status: result.status,
-                orderStatusRaw: result.orderStatusRaw,
-                shippedAt: result.shippedAt,
-                deliveredAt: result.deliveredAt,
-                availableActions: result.availableActions,
-                updatedAt: result.updatedAt
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
-
-  const resyncAfterShipmentAction = useCallback(async () => {
-    const succeeded = await fetchPage({ cursor: null, append: false, silent: true });
-    setSyncWarning(
-      succeeded ? null : "배송 상태는 반영됐지만 목록 재조회에 실패했습니다. 새로고침을 눌러 최신 상태를 확인해 주세요."
-    );
-  }, [fetchPage]);
-
   const runShipmentAction = useCallback(
-    async (orderId: string, orderCode: string, step: ShipmentStep): Promise<boolean> => {
+    (orderId: string, orderCode: string, step: ShipmentStep): Promise<boolean> => {
       // 다른 배송 액션 또는 목록 조회가 진행 중이면 상태 전이를 시작하지 않는다.
       // 화면의 disabled 처리와 별개로 훅 내부에서도 경합을 차단한다.
-      if (actionInFlightRef.current || activeListRequestIdRef.current !== null) return false;
-      actionInFlightRef.current = true;
-      setActionOrderId(orderId);
-      setActionError(null);
-      try {
-        const call =
-          step === "prepare" ? postShipPrepare : step === "dispatch" ? postShipDispatch : postShipDeliver;
-        const result = await call(orderCode);
-        applyShipmentActionResult(orderId, result);
-        await resyncAfterShipmentAction();
-        return true;
-      } catch (caughtError: unknown) {
-        const apiError = caughtError as Partial<ApiError> | undefined;
-        setActionError(apiError?.message ?? "배송 상태 변경에 실패했습니다.");
-        return false;
-      } finally {
-        actionInFlightRef.current = false;
-        setActionOrderId(null);
-      }
+      if (activeListRequestIdRef.current !== null) return Promise.resolve(false);
+      const call = step === "prepare" ? postShipPrepare : step === "dispatch" ? postShipDispatch : postShipDeliver;
+      return runAction(orderId, () => call(orderCode), "배송 상태 변경에 실패했습니다.");
     },
-    [applyShipmentActionResult, resyncAfterShipmentAction]
+    [runAction]
   );
 
-  const clearShipmentActionFeedback = useCallback(() => {
-    setActionError(null);
-    setSyncWarning(null);
-  }, []);
+  const changeOrderStatusFilter = useCallback(
+    (value: AdminOrderStatus | null) => {
+      if (actionInFlightRef.current) return;
+      setOrderStatusFilter(value);
+    },
+    [actionInFlightRef]
+  );
 
-  const changeOrderStatusFilter = useCallback((value: AdminOrderStatus | null) => {
-    if (actionInFlightRef.current) return;
-    setOrderStatusFilter(value);
-  }, []);
-
-  const changePaymentStatusFilter = useCallback((value: AdminPaymentStatus | null) => {
-    if (actionInFlightRef.current) return;
-    setPaymentStatusFilter(value);
-  }, []);
-
-  // 서버 응답(items) 위에 로컬 미리보기(previewOverrides)만 얹어서 화면에 보여준다.
-  // 서버 데이터·필터·summary는 이 과정에서 전혀 바뀌지 않는다.
-  const mergedItems = useMemo(
-    () =>
-      items.map((item) => {
-        const override = previewOverrides[item.id];
-        return override ? { ...item, ...override } : item;
-      }),
-    [items, previewOverrides]
+  const changePaymentStatusFilter = useCallback(
+    (value: AdminPaymentStatus | null) => {
+      if (actionInFlightRef.current) return;
+      setPaymentStatusFilter(value);
+    },
+    [actionInFlightRef]
   );
 
   return {
-    items: mergedItems,
+    items,
     summary,
     hasMore: nextCursor !== null,
     loading,
@@ -238,11 +226,10 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
     resetFilters,
     refresh,
     loadMore,
-    applyPreviewOverride,
-    actionOrderId,
+    actionOrderId: actionTargetKey,
     actionError,
     syncWarning,
     runShipmentAction,
-    clearShipmentActionFeedback
+    clearShipmentActionFeedback: clearFeedback
   };
 }

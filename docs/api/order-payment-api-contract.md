@@ -831,14 +831,18 @@ POST /api/admin/order-cancel-requests/{request_code}/approve
 POST /api/admin/order-cancel-requests/{request_code}/reject
 ```
 
-Approving a `MOCK` payment cancels it synchronously: the order and order
-items move to `CANCELED`, the payment moves to `CANCELED`, and the sold
-quantity is restored to inventory with a `SALE_CANCEL` movement. Approving a
-non-`MOCK` payment is rejected with `409 MOCK_CANCEL_PROVIDER_MISMATCH` —
-external (`TOSS`, etc.) provider cancellation still needs a dedicated
-processor and is out of scope until a real PG integration exists. Rejecting a
-request requires a `rejection_reason` and returns the order to `PAID`, so the
-customer can re-request cancellation or the order can continue to shipment.
+Approving a `MOCK` or `TOSS` payment cancels it synchronously in the internal
+commerce simulation: the order and order items move to `CANCELED`, the local
+payment row moves to `CANCELED`, and the sold quantity is restored to
+inventory with a `SALE_CANCEL` movement. For a `TOSS` payment this endpoint
+does **not** call the external Toss cancellation API. It records an
+`ADMIN_TOSS_CANCEL_SIMULATED` payment event with
+`external_provider_called=false`, so the local simulation is distinguishable
+from a real PG cancellation. The shared cancellation service still rejects a
+TOSS payment unless the admin path explicitly enables this simulation mode.
+Rejecting a request requires a `rejection_reason` and returns the order to
+`PAID`, so the customer can re-request cancellation or the order can continue
+to shipment.
 
 The previous `python -m app.cli.cancel_requested_orders` batch script
 (unattended, no admin review) has been removed — it predates the admin

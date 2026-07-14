@@ -33,6 +33,8 @@ ORDER_STATUS_PAID = "PAID"
 PAYMENT_STATUS_APPROVED = "APPROVED"
 PAYMENT_STATUS_CANCELED = "CANCELED"
 PAYMENT_PROVIDER_MOCK = "MOCK"
+PAYMENT_PROVIDER_TOSS = "TOSS"
+ADMIN_CANCEL_SUPPORTED_PROVIDERS = {PAYMENT_PROVIDER_MOCK, PAYMENT_PROVIDER_TOSS}
 
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 50
@@ -129,7 +131,11 @@ def approve_admin_cancel_request(session: Session, request_code: str) -> AdminOr
             "Order and payment are not in an approvable state.",
         )
 
-    result = cancel_paid_order(session, order.order_code)
+    result = cancel_paid_order(
+        session,
+        order.order_code,
+        simulate_toss_cancel=True,
+    )
 
     now = datetime.now(UTC)
     request.status = CANCEL_REQUEST_STATUS_APPROVED
@@ -331,11 +337,9 @@ def _compute_available_actions(
         return []
     if payment is None or payment.status != PAYMENT_STATUS_APPROVED:
         return []
-    actions = []
-    if payment.provider == PAYMENT_PROVIDER_MOCK:
-        actions.append("APPROVE")
-    actions.append("REJECT")
-    return actions
+    if payment.provider not in ADMIN_CANCEL_SUPPORTED_PROVIDERS:
+        return ["REJECT"]
+    return ["APPROVE", "REJECT"]
 
 
 def _customer_display(order: Order, user: User | None) -> str:

@@ -1,10 +1,10 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.core.performance_logging import current_time, elapsed_ms, log_error_event, log_performance_event
 from app.db.models.commerce import Order, Payment
 from app.schemas.common import ApiError
 from app.services.pending_payment_terminal_service import (
@@ -24,6 +24,8 @@ PAYMENT_STATUS_EXPIRED = "EXPIRED"
 class ExpirePendingOrdersResult:
     expired_count: int
     order_codes: list[str]
+    failed_count: int = 0
+    failed_order_codes: list[str] = field(default_factory=list)
 
 
 def expire_pending_orders(
@@ -51,18 +53,43 @@ def expire_pending_orders(
         ).all()
 
         expired_codes: list[str] = []
+        failed_codes: list[str] = []
         released_quantity_total = 0
         restored_quantity_total = 0
         restore_overflow_quantity_total = 0
         for order, payment in rows:
-            termination = _expire_order(session, order, payment, normalized_now)
+            order_code = order.order_code
+            try:
+                # 주문 하나를 savepoint 로 격리한다. 세션이 autoflush=False 라 with 블록을
+                # 정상 종료할 때 커밋이 자동으로 flush 를 트리거하므로, 같은 유저의 다른 만료
+                # 대상 주문이 이번에 만든/이동한 장바구니 상품을 바로 볼 수 있다(같은 상품을
+                # 중복으로 활성 장바구니에 옮기려다 (cart_id, product_id) 유니크 제약을
+                # 위반하는 문제를 방지). 이 주문 처리 중 예외(유니크 제약 위반 등)가 나면
+                # 이 주문만 롤백되고 나머지 주문은 계속 처리된다.
+                with session.begin_nested():
+                    termination = _expire_order(session, order, payment, normalized_now)
+            except Exception as exc:  # noqa: BLE001 - 배치의 나머지 주문을 계속 처리하기 위해 주문 단위로 실패를 격리한다.
+                failed_codes.append(order_code)
+                log_error_event(
+                    "payment_expiry_order_failed",
+                    started_at=started_at,
+                    metadata={"order_code": order_code, "error_message": str(exc)[:500]},
+                    exc=exc,
+                )
+                continue
+            # with 블록이 예외 없이 끝나 이 주문의 savepoint 가 실제로 커밋된 뒤에만 집계한다.
+            # 블록 안에서 집계하면, _expire_order 는 성공했지만 with 종료 시 flush 가 실패하는
+            # 경우(예: 유니크 제약 위반) 실제로는 롤백된 주문의 수치까지 합산될 수 있다.
             released_quantity_total += termination.released_quantity_total
             restored_quantity_total += termination.restored_quantity_total
             restore_overflow_quantity_total += termination.restore_overflow_quantity_total
-            expired_codes.append(order.order_code)
-
-        session.flush()
-        result = ExpirePendingOrdersResult(expired_count=len(expired_codes), order_codes=expired_codes)
+            expired_codes.append(order_code)
+        result = ExpirePendingOrdersResult(
+            expired_count=len(expired_codes),
+            order_codes=expired_codes,
+            failed_count=len(failed_codes),
+            failed_order_codes=failed_codes,
+        )
         log_performance_event(
             "payment_expiry_sweep_completed",
             duration_ms=elapsed_ms(started_at),
@@ -70,6 +97,7 @@ def expire_pending_orders(
                 "limit": normalized_limit,
                 "scanned_count": len(rows),
                 "expired_count": result.expired_count,
+                "failed_count": result.failed_count,
                 "released_quantity_total": released_quantity_total,
                 "restored_quantity_total": restored_quantity_total,
                 "restore_overflow_quantity_total": restore_overflow_quantity_total,

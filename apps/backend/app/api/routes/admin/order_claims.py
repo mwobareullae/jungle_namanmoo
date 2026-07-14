@@ -1,10 +1,9 @@
-import logging
 from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.core.performance_logging import current_time, elapsed_ms, log_error_event, log_performance_event
 from app.db.session import get_db
 from app.schemas.admin.order_claim import (
     AdminClaimCompleteBody,
@@ -160,16 +159,11 @@ def _run_claim_decision(
         raise
     except Exception as exc:
         session.rollback()
-        log_performance_event(
+        log_error_event(
             "admin_claim_decision_failed",
-            duration_ms=elapsed_ms(started_at),
-            metadata={
-                "claim_code": claim_code,
-                "action": action,
-                "error_code": "UNEXPECTED_ERROR",
-                "error_type": type(exc).__name__,
-            },
-            level=logging.ERROR,
+            started_at=started_at,
+            metadata={"claim_code": claim_code, "action": action, "error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
         )
         raise
 
