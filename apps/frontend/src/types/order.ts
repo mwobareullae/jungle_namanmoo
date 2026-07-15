@@ -35,7 +35,7 @@ export type CreateOrderResponse = {
   discount_total: number;
   total: number;
   currency: string;
-  payment_expires_at: string;
+  payment_expires_at: string | null;
 };
 
 export type TossPaymentConfirmRequest = {
