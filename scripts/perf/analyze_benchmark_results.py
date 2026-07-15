@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import re
+import shutil
 import statistics
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -117,34 +119,75 @@ PURCHASE_PARSER_STAGES = [
     ("intent_purchase_brand_match_ms", "brand match"),
 ]
 
+ANALYSIS_SUBDIRS = {
+    "summary": "00-summary",
+    "pipeline": "10-pipeline",
+    "instrumentation": "20-instrumentation",
+    "intent": "30-root-cause/intent-parser",
+    "scoring": "30-root-cause/scoring",
+    "data_loading": "30-root-cause/data-loading",
+    "guardrails": "40-guardrails",
+    "data": "data",
+}
+
 
 def main() -> None:
     args = parse_args()
     input_dir = args.input.resolve()
     output_dir = args.output.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dirs = prepare_analysis_output(output_dir)
 
     rows = collect_rows(input_dir)
     if not rows:
         raise SystemExit(f"No benchmark runs found under: {input_dir}")
 
     rows = sorted(rows, key=row_sort_key)
-    write_summary_csv(rows, output_dir / "summary.csv")
+    write_summary_csv(rows, output_dirs["data"] / "summary.csv")
+    coverage_rows = build_instrumentation_coverage(rows)
+    write_dict_csv(
+        coverage_rows,
+        output_dirs["data"] / "instrumentation-coverage.csv",
+    )
+    stage_id = args.stage_id or infer_stage_id(input_dir)
+    stage_context = load_stage_context(args.registry.resolve(), stage_id)
+    write_analysis_manifest(
+        input_dir,
+        rows,
+        output_dirs["data"] / "analysis-manifest.json",
+        stage_id=stage_id,
+        purpose=args.purpose,
+    )
 
     pd, plt, sns = load_plot_dependencies()
     df = prepare_plot_dataframe(pd.DataFrame(rows), pd)
     sns.set_theme(style="whitegrid", context="talk")
-    plot_summary_graphs(df, output_dir, plt, sns)
+    plot_summary_graphs(df, output_dirs, plt, sns)
+    plot_instrumentation_coverage(
+        coverage_rows,
+        output_dirs["instrumentation"] / "metric-coverage.png",
+        plt,
+        sns,
+    )
     plot_stage_graphs(
         df,
-        output_dir,
+        output_dirs,
         plt,
         sns,
         stage_dataset=args.stage_dataset,
         stage_vus=args.stage_vus,
     )
+    write_analysis_readme(
+        output_dir / "README.md",
+        rows,
+        coverage_rows,
+        stage_id=stage_id,
+        purpose=args.purpose,
+        stage_context=stage_context,
+        stage_dataset=args.stage_dataset,
+        stage_vus=args.stage_vus,
+    )
 
-    print(f"summary={output_dir / 'summary.csv'}")
+    print(f"summary={output_dirs['data'] / 'summary.csv'}")
     print(f"graphs={output_dir}")
 
 
@@ -176,7 +219,56 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="VUS value used for stage breakdown graphs.",
     )
+    parser.add_argument(
+        "--stage-id",
+        help="Implementation stage recorded in analysis-manifest.json.",
+    )
+    parser.add_argument(
+        "--purpose",
+        default="단계별 추천 성능과 병목 진단",
+        help="Reason for producing this analysis.",
+    )
+    parser.add_argument(
+        "--registry",
+        type=Path,
+        default=Path("scripts/perf/recommendation-performance-report.json"),
+        help="Stage registry used to describe the next optimization.",
+    )
     return parser.parse_args()
+
+
+def prepare_analysis_output(output_dir: Path) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+    for key, relative in ANALYSIS_SUBDIRS.items():
+        path = output_dir / relative
+        if path.exists():
+            shutil.rmtree(path)
+        path.mkdir(parents=True, exist_ok=True)
+        paths[key] = path
+    return paths
+
+
+def infer_stage_id(input_dir: Path) -> str:
+    parts = input_dir.parts
+    if "stages" in parts:
+        index = parts.index("stages")
+        if index + 1 < len(parts):
+            return parts[index + 1]
+    return "unassigned"
+
+
+def load_stage_context(registry_path: Path, stage_id: str) -> dict[str, Any]:
+    if not registry_path.exists():
+        return {}
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    stages = sorted(registry.get("stages", []), key=lambda stage: stage.get("order", 0))
+    for index, stage in enumerate(stages):
+        if stage.get("id") != stage_id:
+            continue
+        next_stage = stages[index + 1] if index + 1 < len(stages) else None
+        return {"stage": stage, "next_stage": next_stage}
+    return {}
 
 
 def load_plot_dependencies():
@@ -719,7 +811,287 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         writer.writerows(rows)
 
 
-def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
+def write_dict_csv(rows: list[dict[str, Any]], path: Path) -> None:
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def metric_family(metric: str) -> str:
+    if metric.startswith("intent_"):
+        return "intent-parser"
+    if metric.startswith("score_") or metric.startswith("scoring_"):
+        return "scoring"
+    if metric in {key for key, _ in CONTEXT_LOAD_STAGES}:
+        return "pipeline"
+    if metric.startswith("prefetch_") or metric.startswith("behavior_"):
+        return "data-loading"
+    if metric.startswith("resource_"):
+        return "guardrails"
+    return "pipeline"
+
+
+def build_instrumentation_coverage(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    metrics = sorted(
+        {
+            key.rsplit("_", 1)[0]
+            for row in rows
+            for key in row
+            if key.endswith(("_avg", "_p95"))
+        }
+    )
+    coverage: list[dict[str, Any]] = []
+    for metric in metrics:
+        populated = sum(
+            1
+            for row in rows
+            if row.get(f"{metric}_avg") is not None
+            or row.get(f"{metric}_p95") is not None
+        )
+        total = len(rows)
+        coverage.append(
+            {
+                "metric": metric,
+                "family": metric_family(metric),
+                "run_count": total,
+                "populated_run_count": populated,
+                "null_run_count": total - populated,
+                "null_rate": (total - populated) / total if total else 0.0,
+                "coverage_rate": populated / total if total else 0.0,
+            }
+        )
+    return coverage
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_analysis_manifest(
+    input_dir: Path,
+    rows: list[dict[str, Any]],
+    path: Path,
+    *,
+    stage_id: str,
+    purpose: str,
+) -> None:
+    sources = []
+    for row in sorted(rows, key=row_sort_key):
+        run_dir = Path(str(row["run_dir"]))
+        try:
+            relative_dir = run_dir.relative_to(input_dir).as_posix()
+        except ValueError:
+            relative_dir = run_dir.as_posix()
+        sources.append(
+            {
+                "run_id": row.get("run_id"),
+                "relative_dir": relative_dir,
+                "dataset": row.get("dataset"),
+                "vus": row.get("vus"),
+                "duration": row.get("duration"),
+                "user_type": row.get("user_type"),
+                "query_id": row.get("query_id"),
+                "cache_state": row.get("cache_state"),
+                "manifest_sha256": file_sha256(run_dir / "manifest.json"),
+                "k6_summary_sha256": file_sha256(find_k6_summary(run_dir)),
+                "backend_log_sha256": file_sha256(run_dir / "backend" / "backend.log"),
+                "resource_log_sha256": file_sha256(
+                    run_dir / "resources" / "docker-stats.csv"
+                ),
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "analysis_purpose": purpose,
+        "stage_id": stage_id,
+        "input_dir": input_dir.as_posix(),
+        "run_count": len(sources),
+        "run_ids": [source["run_id"] for source in sources],
+        "execution_conditions": [
+            {
+                "dataset": source["dataset"],
+                "vus": source["vus"],
+                "duration": source["duration"],
+                "user_type": source["user_type"],
+                "query_id": source["query_id"],
+                "cache_state": source["cache_state"],
+            }
+            for source in sources
+        ],
+        "output_layout": ANALYSIS_SUBDIRS,
+        "sources": sources,
+    }
+    path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def representative_analysis_row(
+    rows: list[dict[str, Any]],
+    *,
+    dataset: int,
+    vus: int,
+) -> dict[str, Any] | None:
+    candidates = [
+        row
+        for row in rows
+        if row.get("dataset") == dataset and row.get("vus") == vus
+    ]
+    return sorted(candidates, key=row_sort_key)[-1] if candidates else None
+
+
+def write_analysis_readme(
+    path: Path,
+    rows: list[dict[str, Any]],
+    coverage_rows: list[dict[str, Any]],
+    *,
+    stage_id: str,
+    purpose: str,
+    stage_context: dict[str, Any],
+    stage_dataset: int,
+    stage_vus: int,
+) -> None:
+    row = representative_analysis_row(rows, dataset=stage_dataset, vus=stage_vus)
+    pipeline_records = build_stage_records(row or {}, PIPELINE_STAGES, statistic="avg")
+    bottleneck = max(pipeline_records, key=lambda item: item["value"], default=None)
+    detailed_stages = (
+        INTENT_STAGES
+        + INTENT_LLM_STAGES
+        + PURCHASE_PARSER_STAGES
+        + SCORING_STAGES
+        + SCORE_LOOP_DETAIL_STAGES
+        + BEHAVIOR_SIGNAL_DETAIL_STAGES
+        + INGREDIENT_EFFECT_DETAIL_STAGES
+    )
+    cause_records = build_stage_records(row or {}, detailed_stages, statistic="avg")
+    cause = max(cause_records, key=lambda item: item["value"], default=None)
+    missing = [
+        item["metric"]
+        for item in coverage_rows
+        if item["null_rate"] == 1.0
+    ][:8]
+    populated_families = sorted(
+        {
+            item["family"]
+            for item in coverage_rows
+            if item["populated_run_count"] > 0
+        }
+    )
+    stage = stage_context.get("stage") or {}
+    next_stage = stage_context.get("next_stage")
+    if next_stage:
+        next_optimization = next_stage.get("change", next_stage.get("label", "-"))
+        transition_link = f"../../../transitions/{next_stage['id']}/README.md"
+    else:
+        next_optimization = stage.get(
+            "next_bottleneck",
+            "후속 최적화는 다음 측정 결과를 확인한 뒤 선택한다.",
+        )
+        transition_link = "후속 transition 없음"
+    datasets = sorted({row.get("dataset") for row in rows if row.get("dataset")})
+    vus_values = sorted({row.get("vus") for row in rows if row.get("vus")})
+    lines = [
+        f"# {stage.get('label', stage_id)} 로컬 분석",
+        "",
+        f"> 목적: {purpose}",
+        "",
+        "## 1. 전체 성능",
+        "",
+        f"- 원본 run: {len(rows)}건",
+        f"- dataset: {', '.join(map(str, datasets)) or '-'}",
+        f"- VUS: {', '.join(map(str, vus_values)) or '-'}",
+    ]
+    if row:
+        lines.extend(
+            [
+                f"- 기준 조건: dataset {stage_dataset}, VUS {stage_vus}",
+                f"- p95: {float(row.get('latency_p95_ms') or 0) / 1000:.3f}초",
+                f"- RPS: {float(row.get('recommendation_rps') or row.get('rps') or 0):.3f}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## 2. 큰 파이프라인 병목",
+            "",
+            (
+                f"평균 기준 가장 큰 구간은 `{bottleneck['stage']}` "
+                f"({bottleneck['value']:.2f}ms)이다."
+                if bottleneck
+                else "해당 조건에 pipeline stage 표본이 없다."
+            ),
+            "",
+            "## 3. 기존 로그의 부족한 부분",
+            "",
+            (
+                "모든 run에서 비어 있는 대표 metric: " + ", ".join(f"`{item}`" for item in missing)
+                if missing
+                else "분석 대상 metric에서 전체 누락 필드는 확인되지 않았다."
+            ),
+            "",
+            "## 4. 추가한 세부 계측",
+            "",
+            "관측 가능한 metric 계열: "
+            + ", ".join(f"`{family}`" for family in populated_families),
+            "",
+            "## 5. 확인한 실제 원인",
+            "",
+            (
+                f"현재 세부 계측에서 가장 큰 구간은 `{cause['stage']}` "
+                f"({cause['value']:.2f}ms)이다."
+                if cause
+                else "세부 원인을 확정할 표본이 부족하다."
+            ),
+            "",
+            "## 6. 선택한 다음 최적화",
+            "",
+            next_optimization,
+            "",
+            "## 7. 대응하는 transition 결과",
+            "",
+            f"- {transition_link}" if transition_link.endswith(".md") else transition_link,
+            "",
+            "원본 목록과 해시는 [analysis-manifest.json](./data/analysis-manifest.json), "
+            "계측 커버리지는 [instrumentation-coverage.csv](./data/instrumentation-coverage.csv)에서 확인한다.",
+            "",
+        ]
+    )
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def plot_instrumentation_coverage(rows, path: Path, plt, sns) -> None:
+    if not rows:
+        return
+    family_values: dict[str, list[float]] = {}
+    for row in rows:
+        family_values.setdefault(row["family"], []).append(row["coverage_rate"] * 100)
+    labels = sorted(family_values)
+    values = [statistics.mean(family_values[label]) for label in labels]
+    fig, axis = plt.subplots(figsize=(10, 5.5))
+    sns.barplot(x=values, y=labels, orient="h", color="#2563EB", ax=axis)
+    axis.set_xlim(0, 100)
+    axis.set_xlabel("average run coverage (%)")
+    axis.set_ylabel("")
+    axis.set_title("instrumentation coverage by metric family")
+    for index, value in enumerate(values):
+        axis.text(value + 1, index, f"{value:.1f}%", va="center", fontsize=10)
+    save_figure(fig, path, plt)
+
+
+def plot_summary_graphs(df, output_dirs: dict[str, Path], plt, sns) -> None:
+    output_dir = output_dirs["summary"]
     plot_line(
         df,
         output_dir / "latency_p95_by_dataset.png",
@@ -806,7 +1178,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "backend_cpu_peak_by_dataset.png",
+        output_dirs["guardrails"] / "backend_cpu_peak_by_dataset.png",
         x="dataset_label",
         y="resource_backend_cpu_percent_max",
         hue="vus_label",
@@ -818,7 +1190,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "backend_memory_peak_by_dataset.png",
+        output_dirs["guardrails"] / "backend_memory_peak_by_dataset.png",
         x="dataset_label",
         y="resource_backend_mem_percent_max",
         hue="vus_label",
@@ -830,7 +1202,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "elasticsearch_cpu_peak_by_dataset.png",
+        output_dirs["guardrails"] / "elasticsearch_cpu_peak_by_dataset.png",
         x="dataset_label",
         y="resource_elasticsearch_cpu_percent_max",
         hue="vus_label",
@@ -842,7 +1214,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "elasticsearch_memory_peak_by_dataset.png",
+        output_dirs["guardrails"] / "elasticsearch_memory_peak_by_dataset.png",
         x="dataset_label",
         y="resource_elasticsearch_mem_percent_max",
         hue="vus_label",
@@ -878,7 +1250,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
 
 def plot_stage_graphs(
     df,
-    output_dir: Path,
+    output_dirs: dict[str, Path],
     plt,
     sns,
     *,
@@ -890,11 +1262,17 @@ def plot_stage_graphs(
         return
     row = target.sort_values("run_id").iloc[-1]
     scope = f"{stage_dataset:,} products / VUS {stage_vus}"
+    summary_dir = output_dirs["summary"]
+    pipeline_dir = output_dirs["pipeline"]
+    intent_dir = output_dirs["intent"]
+    scoring_dir = output_dirs["scoring"]
+    data_loading_dir = output_dirs["data_loading"]
+    guardrails_dir = output_dirs["guardrails"]
 
     plot_stage_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage average ({scope})",
         plt,
         sns,
@@ -903,7 +1281,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage p95 ({scope})",
         plt,
         sns,
@@ -912,7 +1290,7 @@ def plot_stage_graphs(
     plot_stage_ratio_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_ratio_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_ratio_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage share of average latency ({scope})",
         plt,
         sns,
@@ -921,7 +1299,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage share ({scope})",
         plt,
         sns,
@@ -930,7 +1308,7 @@ def plot_stage_graphs(
     plot_stage_pareto(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_pareto_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_pareto_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline bottleneck Pareto ({scope})",
         plt,
         sns,
@@ -939,7 +1317,7 @@ def plot_stage_graphs(
     plot_stage_composition_by_vus(
         df,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_share_by_vus_{stage_dataset}.png",
+        pipeline_dir / f"pipeline_stage_share_by_vus_{stage_dataset}.png",
         stage_dataset=stage_dataset,
         plt=plt,
         sns=sns,
@@ -947,7 +1325,7 @@ def plot_stage_graphs(
     plot_stage_share_comparison(
         df,
         PIPELINE_STAGES,
-        output_dir
+        pipeline_dir
         / (
             f"pipeline_stage_share_compare_1000_vs_{stage_dataset}"
             f"_vus{stage_vus:02d}.png"
@@ -960,7 +1338,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage average ({scope})",
         plt,
         sns,
@@ -969,7 +1347,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage p95 ({scope})",
         plt,
         sns,
@@ -978,7 +1356,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage share ({scope})",
         plt,
         sns,
@@ -993,7 +1371,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         prefetch_columns,
-        output_dir / f"scoring_prefetch_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"scoring_prefetch_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring prefetch average ({scope})",
         plt,
         sns,
@@ -1002,7 +1380,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         prefetch_columns,
-        output_dir / f"scoring_prefetch_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"scoring_prefetch_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring prefetch p95 ({scope})",
         plt,
         sns,
@@ -1011,7 +1389,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         BEHAVIOR_SIGNAL_DETAIL_STAGES,
-        output_dir / f"behavior_signal_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"behavior_signal_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"behavior signal prefetch detail ({scope})",
         plt,
         sns,
@@ -1020,7 +1398,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         BEHAVIOR_SIGNAL_DETAIL_STAGES,
-        output_dir / f"behavior_signal_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"behavior_signal_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"behavior signal prefetch detail p95 ({scope})",
         plt,
         sns,
@@ -1029,7 +1407,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INGREDIENT_EFFECT_DETAIL_STAGES,
-        output_dir / f"ingredient_effect_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"ingredient_effect_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"ingredient effect prefetch detail ({scope})",
         plt,
         sns,
@@ -1038,7 +1416,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INGREDIENT_EFFECT_DETAIL_STAGES,
-        output_dir / f"ingredient_effect_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"ingredient_effect_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"ingredient effect prefetch detail p95 ({scope})",
         plt,
         sns,
@@ -1047,7 +1425,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop detail ({scope})",
         plt,
         sns,
@@ -1056,7 +1434,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop detail p95 ({scope})",
         plt,
         sns,
@@ -1065,7 +1443,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop measured share ({scope})",
         plt,
         sns,
@@ -1076,7 +1454,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         CONTEXT_LOAD_STAGES,
-        output_dir / f"context_load_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"context_load_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"personalization context average ({scope})",
         plt,
         sns,
@@ -1085,7 +1463,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         CONTEXT_LOAD_STAGES,
-        output_dir / f"context_load_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"context_load_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"personalization context p95 ({scope})",
         plt,
         sns,
@@ -1094,7 +1472,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_STAGES,
-        output_dir / f"intent_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"intent parser average ({scope})",
         plt,
         sns,
@@ -1103,7 +1481,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_STAGES,
-        output_dir / f"intent_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"intent parser p95 ({scope})",
         plt,
         sns,
@@ -1112,7 +1490,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_LLM_STAGES,
-        output_dir / f"intent_llm_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser detail average ({scope})",
         plt,
         sns,
@@ -1121,7 +1499,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         INTENT_LLM_STAGES,
-        output_dir / f"intent_llm_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser measured share ({scope})",
         plt,
         sns,
@@ -1131,14 +1509,14 @@ def plot_stage_graphs(
     )
     plot_intent_outcomes(
         row,
-        output_dir / f"intent_llm_outcomes_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_outcomes_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser outcomes ({scope})",
         plt,
         sns,
     )
     plot_intent_detail_graphs(
         row,
-        output_dir,
+        intent_dir,
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
@@ -1146,20 +1524,20 @@ def plot_stage_graphs(
     )
     plot_client_vs_backend_p95(
         df,
-        output_dir / f"client_vs_backend_p95_{stage_dataset}.png",
+        pipeline_dir / f"client_vs_backend_p95_{stage_dataset}.png",
         stage_dataset=stage_dataset,
         plt=plt,
     )
     plot_resource_timeseries(
         row,
-        output_dir,
+        guardrails_dir,
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
     )
     plot_optimization_timeline(
         df,
-        output_dir / f"optimization_timeline_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        summary_dir / f"optimization_timeline_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
