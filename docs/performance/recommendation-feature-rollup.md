@@ -1,5 +1,7 @@
 # 추천 사전 계산 특징 배치
 
+> 동일 조건 재측정 수치와 scoring 하위 단계 변화는 [Opt2 측정 결과](results/recommendation/details/opt2-precomputed-features/README.md)에서 확인한다.
+
 추천 점수 공식과 API 응답은 유지하면서 반복 계산되는 상품 특징과 사용자 행동 선호를 DB에 미리 저장한다. 최종 `total_score`나 순위는 저장하지 않으며 검색어, 요청 효능 가중치, 수동 피부 프로필, 스킨 테스트, 회피 성분, 가격 조건은 요청 시점에 계산한다.
 
 ## 저장 테이블

@@ -479,6 +479,16 @@ class ProductRecommendationFeatureValues:
 
 
 @dataclass(frozen=True)
+class _CandidateScoringBundle:
+    product_feature: ProductRecommendationFeatureValues | None
+    functional_info: _FunctionalInfo
+    skin_tags: tuple[str, ...]
+    skin_profile: _SkinProfileInfo | None
+    market_signal: _MarketSignalInfo | None
+    review_metric: _ReviewMetricInfo | None
+
+
+@dataclass(frozen=True)
 class ProductEffectRecommendationFeatureValues:
     effect_code: str
     ingredient_effect_score: float
@@ -740,6 +750,7 @@ def score_candidates(
                     "score_sort_ms": 0.0,
                     "score_detail_materialization_ms": 0.0,
                     "score_detail_count": 0,
+                    "candidate_bundle_load_ms": 0.0,
                     "product_feature_load_ms": 0.0,
                     "product_feature_hit_count": 0,
                     "product_feature_miss_count": 0,
@@ -787,11 +798,41 @@ def score_candidates(
     prefetch_breakdown: dict[str, float] = {}
 
     stage_started_at = current_time()
-    product_features_by_product, product_feature_miss_ids = (
-        _load_product_recommendation_features(session, candidates)
+    candidate_bundles, product_feature_miss_ids = _load_candidate_scoring_bundles(
+        session,
+        candidates,
     )
-    product_feature_load_ms = round(elapsed_ms(stage_started_at), 2)
-    prefetch_breakdown["product_features_ms"] = product_feature_load_ms
+    candidate_bundle_load_ms = round(elapsed_ms(stage_started_at), 2)
+    product_feature_load_ms = candidate_bundle_load_ms
+    prefetch_breakdown["candidate_bundle_ms"] = candidate_bundle_load_ms
+    product_features_by_product = {
+        product_id: bundle.product_feature
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.product_feature is not None
+    }
+    functional_info_by_product = {
+        product_id: bundle.functional_info
+        for product_id, bundle in candidate_bundles.items()
+    }
+    skin_tags_by_product = {
+        product_id: bundle.skin_tags
+        for product_id, bundle in candidate_bundles.items()
+    }
+    skin_profiles_by_product = {
+        product_id: bundle.skin_profile
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.skin_profile is not None
+    }
+    market_signals_by_product = {
+        product_id: bundle.market_signal
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.market_signal is not None
+    }
+    review_metrics_by_product = {
+        product_id: bundle.review_metric
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.review_metric is not None
+    }
 
     stage_started_at = current_time()
     (
@@ -826,28 +867,8 @@ def score_candidates(
     prefetch_breakdown["ingredient_effects_ms"] = round(legacy_fallback_ms, 2)
 
     stage_started_at = current_time()
-    functional_info_by_product = _load_functional_info(session, product_ids)
-    prefetch_breakdown["functional_info_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
-    skin_tags_by_product = _load_skin_tags(session, product_ids)
-    prefetch_breakdown["skin_tags_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
-    skin_profiles_by_product = _load_skin_profiles(session, product_ids)
-    prefetch_breakdown["skin_profiles_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     prefetch_breakdown["risk_flags_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
-    market_signals_by_product = _load_market_signals(session, product_ids)
-    prefetch_breakdown["market_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
-    review_metrics_by_product = _load_review_metrics(session, product_ids)
-    prefetch_breakdown["review_metrics_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
     review_segments_by_product = _load_review_segments(session, product_ids)
@@ -1018,6 +1039,7 @@ def score_candidates(
                 "score_sort_ms": score_sort_ms,
                 "score_detail_materialization_ms": detail_materialization_ms,
                 "score_detail_count": detail_count,
+                "candidate_bundle_load_ms": candidate_bundle_load_ms,
                 "product_feature_load_ms": product_feature_load_ms,
                 "product_feature_hit_count": len(product_features_by_product),
                 "product_feature_miss_count": len(product_feature_miss_ids),
@@ -1793,29 +1815,137 @@ def load_all_product_ingredient_effects(
     return _load_ingredient_effects(session, product_ids, desired_effects)
 
 
-def _load_functional_info(session: Session, product_ids: list[int]) -> dict[int, _FunctionalInfo]:
+def _load_candidate_scoring_bundles(
+    session: Session,
+    candidates: list[ProductCandidate],
+) -> tuple[dict[int, _CandidateScoringBundle], set[int]]:
+    product_ids = list(
+        dict.fromkeys(candidate.db_product_id for candidate in candidates)
+    )
     if not product_ids:
-        return {}
+        return {}, set()
 
     rows = session.execute(
         select(
-            Product.id,
+            Product.id.label("product_id"),
+            Product.updated_at.label("product_updated_at"),
             Product.functional_cosmetic_status,
             Product.functional_cosmetic_claims,
             Product.functional_claim_confidence,
             Product.functional_claim_basis,
-        ).where(Product.id.in_(product_ids))
+            Product.skin_type_tags,
+            ProductRecommendationFeature.product_id.label("feature_product_id"),
+            ProductRecommendationFeature.top_ingredient_codes,
+            ProductRecommendationFeature.top_effect_codes,
+            ProductRecommendationFeature.feature_version,
+            ProductRecommendationFeature.source_updated_at,
+            ProductSkinProfile.product_id.label("skin_profile_product_id"),
+            ProductSkinProfile.dry_fit,
+            ProductSkinProfile.oily_fit,
+            ProductSkinProfile.combination_fit,
+            ProductSkinProfile.normal_fit,
+            ProductSkinProfile.dehydrated_oily_fit,
+            ProductSkinProfile.sensitive_fit,
+            ProductSkinProfile.sensitivity_tag,
+            ProductSkinProfile.confidence.label("skin_profile_confidence"),
+            ProductSkinProfile.reason,
+            ProductPopularityMetric.product_id.label("popularity_product_id"),
+            ProductPopularityMetric.popularity_score,
+            ProductReviewMetric.product_id.label("review_metric_product_id"),
+            ProductReviewMetric.review_quality_score,
+            ProductReviewMetric.confidence.label("review_metric_confidence"),
+            ProductReviewMetric.review_count,
+        )
+        .outerjoin(
+            ProductRecommendationFeature,
+            ProductRecommendationFeature.product_id == Product.id,
+        )
+        .outerjoin(
+            ProductSkinProfile,
+            ProductSkinProfile.product_id == Product.id,
+        )
+        .outerjoin(
+            ProductPopularityMetric,
+            and_(
+                ProductPopularityMetric.product_id == Product.id,
+                ProductPopularityMetric.window_days == MARKET_SIGNAL_WINDOW_DAYS,
+            ),
+        )
+        .outerjoin(
+            ProductReviewMetric,
+            ProductReviewMetric.product_id == Product.id,
+        )
+        .where(Product.id.in_(product_ids))
     ).all()
 
-    return {
-        int(row.id): _FunctionalInfo(
-            status=row.functional_cosmetic_status,
-            claims=_split_tags(row.functional_cosmetic_claims),
-            claim_confidence=row.functional_claim_confidence,
-            basis=row.functional_claim_basis,
+    bundles: dict[int, _CandidateScoringBundle] = {}
+    feature_product_ids: set[int] = set()
+    for row in rows:
+        product_id = int(row.product_id)
+        product_feature = None
+        if (
+            row.feature_product_id is not None
+            and row.feature_version == PRODUCT_RECOMMENDATION_FEATURE_VERSION
+            and _feature_source_is_current(
+                row.source_updated_at,
+                row.product_updated_at,
+            )
+        ):
+            product_feature = ProductRecommendationFeatureValues(
+                top_ingredient_codes=tuple(
+                    str(code) for code in row.top_ingredient_codes or ()
+                ),
+                top_effect_codes=tuple(
+                    str(code) for code in row.top_effect_codes or ()
+                ),
+            )
+            feature_product_ids.add(product_id)
+
+        skin_profile = None
+        if row.skin_profile_product_id is not None:
+            skin_profile = _SkinProfileInfo(
+                dry_fit=_decimal_to_float(row.dry_fit),
+                oily_fit=_decimal_to_float(row.oily_fit),
+                combination_fit=_decimal_to_float(row.combination_fit),
+                normal_fit=_decimal_to_float(row.normal_fit),
+                dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
+                sensitive_fit=_decimal_to_float(row.sensitive_fit),
+                sensitivity_tag=row.sensitivity_tag,
+                confidence=row.skin_profile_confidence,
+                reason=row.reason,
+            )
+
+        market_signal = None
+        if row.popularity_product_id is not None:
+            market_signal = _MarketSignalInfo(
+                popularity_score=_decimal_to_float(row.popularity_score),
+            )
+
+        review_metric = None
+        if row.review_metric_product_id is not None:
+            review_metric = _ReviewMetricInfo(
+                review_quality_score=_decimal_to_float(
+                    row.review_quality_score
+                ),
+                confidence=_decimal_to_float(row.review_metric_confidence),
+                review_count=int(row.review_count),
+            )
+
+        bundles[product_id] = _CandidateScoringBundle(
+            product_feature=product_feature,
+            functional_info=_FunctionalInfo(
+                status=row.functional_cosmetic_status,
+                claims=_split_tags(row.functional_cosmetic_claims),
+                claim_confidence=row.functional_claim_confidence,
+                basis=row.functional_claim_basis,
+            ),
+            skin_tags=_split_tags(row.skin_type_tags),
+            skin_profile=skin_profile,
+            market_signal=market_signal,
+            review_metric=review_metric,
         )
-        for row in rows
-    }
+
+    return bundles, set(product_ids) - feature_product_ids
 
 
 def _row_to_evidence(row) -> _EvidenceInfo | None:
@@ -1864,36 +1994,6 @@ def _is_better_evidence(candidate: _EvidenceInfo | None, existing: _EvidenceInfo
     return _effective_evidence_score(candidate) > _effective_evidence_score(existing)
 
 
-def _load_skin_tags(session: Session, product_ids: list[int]) -> dict[int, tuple[str, ...]]:
-    rows = session.execute(
-        select(Product.id, Product.skin_type_tags).where(Product.id.in_(product_ids))
-    ).all()
-    return {
-        int(row.id): _split_tags(row.skin_type_tags)
-        for row in rows
-    }
-
-
-def _load_skin_profiles(session: Session, product_ids: list[int]) -> dict[int, _SkinProfileInfo]:
-    rows = session.execute(
-        select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_ids))
-    ).scalars()
-    return {
-        int(row.product_id): _SkinProfileInfo(
-            dry_fit=_decimal_to_float(row.dry_fit),
-            oily_fit=_decimal_to_float(row.oily_fit),
-            combination_fit=_decimal_to_float(row.combination_fit),
-            normal_fit=_decimal_to_float(row.normal_fit),
-            dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
-            sensitive_fit=_decimal_to_float(row.sensitive_fit),
-            sensitivity_tag=row.sensitivity_tag,
-            confidence=row.confidence,
-            reason=row.reason,
-        )
-        for row in rows
-    }
-
-
 def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tuple[RiskFlag, ...]]:
     rows = (
         session.execute(
@@ -1909,43 +2009,6 @@ def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tupl
     return {
         product_id: tuple(flags)
         for product_id, flags in flags_by_product.items()
-    }
-
-
-def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, _MarketSignalInfo]:
-    if not product_ids:
-        return {}
-
-    rows = session.execute(
-        select(ProductPopularityMetric).where(
-            ProductPopularityMetric.product_id.in_(product_ids),
-            ProductPopularityMetric.window_days == MARKET_SIGNAL_WINDOW_DAYS,
-        )
-    ).scalars()
-    return {
-        int(row.product_id): _MarketSignalInfo(
-            popularity_score=_decimal_to_float(row.popularity_score),
-        )
-        for row in rows
-    }
-
-
-def _load_review_metrics(
-    session: Session,
-    product_ids: list[int],
-) -> dict[int, _ReviewMetricInfo]:
-    if not product_ids:
-        return {}
-    rows = session.execute(
-        select(ProductReviewMetric).where(ProductReviewMetric.product_id.in_(product_ids))
-    ).scalars()
-    return {
-        int(row.product_id): _ReviewMetricInfo(
-            review_quality_score=_decimal_to_float(row.review_quality_score),
-            confidence=_decimal_to_float(row.confidence),
-            review_count=int(row.review_count),
-        )
-        for row in rows
     }
 
 
@@ -2253,34 +2316,6 @@ def build_product_recommendation_feature_values(
         )
         for product_id in product_ids
     }
-
-
-def _load_product_recommendation_features(
-    session: Session,
-    candidates: list[ProductCandidate],
-) -> tuple[dict[int, ProductRecommendationFeatureValues], set[int]]:
-    product_ids = [candidate.db_product_id for candidate in candidates]
-    rows = session.execute(
-        select(ProductRecommendationFeature, Product.updated_at)
-        .join(Product, ProductRecommendationFeature.product_id == Product.id)
-        .where(ProductRecommendationFeature.product_id.in_(product_ids))
-    ).all()
-    features: dict[int, ProductRecommendationFeatureValues] = {}
-    for row, product_updated_at in rows:
-        if row.feature_version != PRODUCT_RECOMMENDATION_FEATURE_VERSION:
-            continue
-        if not _feature_source_is_current(
-            row.source_updated_at,
-            product_updated_at,
-        ):
-            continue
-        features[int(row.product_id)] = ProductRecommendationFeatureValues(
-            top_ingredient_codes=tuple(
-                str(code) for code in row.top_ingredient_codes or ()
-            ),
-            top_effect_codes=tuple(str(code) for code in row.top_effect_codes or ()),
-        )
-    return features, set(product_ids) - set(features)
 
 
 def _load_product_effect_recommendation_features(

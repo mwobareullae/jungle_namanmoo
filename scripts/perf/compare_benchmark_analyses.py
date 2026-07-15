@@ -29,13 +29,11 @@ STAGE_GROUPS = {
         ("score_sort_ms_p95", "sort"),
     ],
     "prefetch": [
+        ("prefetch_candidate_bundle_ms_p95", "candidate bundle"),
+        ("prefetch_effect_features_ms_p95", "effect features"),
         ("prefetch_behavior_signals_ms_p95", "behavior signals"),
         ("prefetch_ingredient_effects_ms_p95", "ingredient effects"),
-        ("prefetch_functional_info_ms_p95", "functional info"),
-        ("prefetch_skin_profiles_ms_p95", "skin profiles"),
-        ("prefetch_review_metrics_ms_p95", "review metrics"),
         ("prefetch_review_segments_ms_p95", "review segments"),
-        ("prefetch_market_signals_ms_p95", "market signals"),
         ("prefetch_risk_flags_ms_p95", "risk flags"),
     ],
 }

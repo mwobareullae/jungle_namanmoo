@@ -2,6 +2,8 @@
 
 작성일: 2026-07-14
 
+> 동일 조건 재측정 수치와 요청별 분포는 [Opt1 측정 결과](results/recommendation/details/opt1-es-retrieval/README.md)에서 확인한다.
+
 ## 1. 목적
 
 추천검색의 후보 추출 책임을 Python 전처리 파서에서 Elasticsearch 색인 기반 retrieval로 이동한다.
