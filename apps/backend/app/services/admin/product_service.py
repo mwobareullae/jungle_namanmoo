@@ -18,6 +18,8 @@ from app.schemas.admin.product import (
     AdminProductDetail,
     AdminProductListItem,
     AdminProductListResponse,
+    AdminProductMasterOption,
+    AdminProductMasterOptionListResponse,
     AdminProductPagination,
 )
 from app.schemas.common import ApiError
@@ -34,6 +36,28 @@ MAX_PAGE_SIZE = 200
 # 다른 관리자 라우트(order_service._normalize_order_status 등)와 동일하게 서비스
 # 레이어에서 ApiError(400) 로 통일한다.
 VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN", "UNKNOWN"})
+
+
+def list_active_product_brands(session: Session) -> AdminProductMasterOptionListResponse:
+    rows = session.execute(
+        select(Brand.brand_code, Brand.name)
+        .where(Brand.is_active.is_(True))
+        .order_by(Brand.name.asc(), Brand.brand_code.asc())
+    ).all()
+    return AdminProductMasterOptionListResponse(
+        items=[AdminProductMasterOption(code=row.brand_code, name=row.name) for row in rows]
+    )
+
+
+def list_active_product_categories(session: Session) -> AdminProductMasterOptionListResponse:
+    rows = session.execute(
+        select(ProductCategory.category_code, ProductCategory.name)
+        .where(ProductCategory.is_active.is_(True))
+        .order_by(ProductCategory.name.asc(), ProductCategory.category_code.asc())
+    ).all()
+    return AdminProductMasterOptionListResponse(
+        items=[AdminProductMasterOption(code=row.category_code, name=row.name) for row in rows]
+    )
 
 
 def _normalize_sales_status(sales_status: str | None) -> str | None:

@@ -59,6 +59,15 @@ class AdminProductListResponse(BaseModel):
     pagination: AdminProductPagination
 
 
+class AdminProductMasterOption(BaseModel):
+    code: str
+    name: str
+
+
+class AdminProductMasterOptionListResponse(BaseModel):
+    items: list[AdminProductMasterOption]
+
+
 class AdminProductDetail(AdminProductListItem):
     # thumbnail_url(대표 storage_key)은 AdminProductListItem 에서 상속. 이미지 목록 전체가
     # 필요해지면 별도 필드로 확장(계약 §9: 대표 storage_key까지가 M3-A 범위).
@@ -74,6 +83,11 @@ class AdminProductCreateRequest(BaseModel):
 
     product_code·seller·판매/재고 상태·추천 가능 여부·product_url은 서버가
     계약값으로 생성한다. 성분과 재고 수량은 M3-A 요청에 포함하지 않는다.
+
+    thumbnail_storage_key: 이미 스토리지/CDN에 올라가 있는 대표 이미지의 storage_key를
+    admin이 직접 입력한다(파일 업로드 API는 M3-A 범위 밖). 파일 실존 여부는 검증하지
+    않는다 — 관리자가 이미 올린 값을 신뢰한다. 대표 이미지 1개만 다룬다(갤러리 관리는
+    M3-B "이미지 대량 연결" 영역).
     """
 
     name: str
@@ -82,6 +96,7 @@ class AdminProductCreateRequest(BaseModel):
     price: int
     description: str | None = None
     released_at: datetime | None = None
+    thumbnail_storage_key: str | None = None
 
 
 class AdminProductUpdateRequest(BaseModel):
@@ -89,6 +104,8 @@ class AdminProductUpdateRequest(BaseModel):
 
     sales_status·재고 수량·추천 가능 여부는 다른 운영 단계의 책임이므로 받지
     않는다. 명시적으로 전달한 필드만 변경한다.
+
+    thumbnail_storage_key: 대표 이미지 storage_key 를 교체한다(생성 요청과 동일 정책).
     """
 
     name: str | None = None
@@ -98,3 +115,4 @@ class AdminProductUpdateRequest(BaseModel):
     description: str | None = None
     released_at: datetime | None = None
     is_active: bool | None = None
+    thumbnail_storage_key: str | None = None

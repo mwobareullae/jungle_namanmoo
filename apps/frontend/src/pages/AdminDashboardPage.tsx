@@ -2,6 +2,7 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
+import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
 import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
@@ -889,26 +890,6 @@ function normalizeIngredientName(value: string) {
     .trim();
 }
 
-function parseIngredientPreview(ingredientsRaw: string) {
-  const canonicalMap = new Map(
-    canonicalIngredientNames.map((name) => [normalizeIngredientName(name), name]),
-  );
-
-  return ingredientsRaw
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean)
-    .map((rawName) => {
-      const canonicalName = canonicalMap.get(normalizeIngredientName(rawName));
-
-      return {
-        rawName,
-        canonicalName,
-        status: canonicalName ? "exact" : "pending"
-      };
-    });
-}
-
 function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): BadgeTone {
   if (status === "판매중" || status === "정상" || status === "반영 완료" || status === "검색 문서 완료") {
     return "success";
@@ -948,8 +929,7 @@ function AdminDashboardPage() {
   const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
   const [selectedSettlementId, setSelectedSettlementId] = useState(MOCK_SETTLEMENTS[0].id);
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
-  const [selectedProductId, setSelectedProductId] = useState(initialProducts[0]?.id ?? "draft");
-  const [draftProduct, setDraftProduct] = useState<ProductRow>(initialProducts[0] ?? emptyProduct);
+  const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("products_0706.xlsx");
   const excelFileRef = useRef<File | null>(null);
@@ -966,14 +946,12 @@ function AdminDashboardPage() {
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
   const [stockHistory, setStockHistory] = useState(stockHistoryRows);
   const [toast, setToast] = useState<AdminToast>(null);
-  const [productSaveState, setProductSaveState] = useState<LocalSaveState>("idle");
   const [excelQueueState, setExcelQueueState] = useState<QueueState>("idle");
   const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
   const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
   const [ingredientSaveState, setIngredientSaveState] = useState<LocalSaveState>("idle");
   const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
 
-  const selectedProduct = products.find((product) => product.id === selectedProductId) ?? products[0] ?? emptyProduct;
   const selectedStockProduct =
     products.find((product) => product.id === selectedStockProductId) ?? products[0] ?? emptyProduct;
   const filteredStockProducts = useMemo(
@@ -1054,13 +1032,6 @@ function AdminDashboardPage() {
       { label: "보류/반려", value: (holdingCount + rejectedCount).toLocaleString("ko-KR"), tone: "review" }
     ];
   }, [ingredientRows]);
-  const draftIngredientPreview = useMemo(
-    () => parseIngredientPreview(draftProduct.ingredientsRaw),
-    [draftProduct.ingredientsRaw],
-  );
-  const draftIngredientExactCount = draftIngredientPreview.filter((ingredient) => ingredient.status === "exact").length;
-  const draftIngredientPendingCount = draftIngredientPreview.length - draftIngredientExactCount;
-
   const pushOperationLog = (area: string, title: string, detail: string, tone: BadgeTone = "success") => {
     const time = formatCurrentTime();
 
@@ -1076,70 +1047,6 @@ function AdminDashboardPage() {
       ...currentLogs
     ].slice(0, 6));
     setToast({ message: `${title} · ${detail}`, tone });
-  };
-
-  const handleOpenProductForm = (product: ProductRow) => {
-    setSelectedProductId(product.id);
-    setDraftProduct(product);
-    setProductSaveState("idle");
-    setActiveView("productForm");
-  };
-
-  const handleDraftProductPatch = (patch: Partial<ProductRow>) => {
-    setDraftProduct((product) => ({ ...product, ...patch }));
-    setProductSaveState("dirty");
-  };
-
-  const handleSaveProduct = () => {
-    const savedProduct: ProductRow = {
-      ...draftProduct,
-      id: draftProduct.id === "draft" ? `local_${products.length + 1}` : draftProduct.id,
-      imageCount: Number(draftProduct.imageCount) || 0,
-      price: Number(draftProduct.price) || 0,
-      stock: Number(draftProduct.stock) || 0,
-      updatedAt: "로컬 미리보기 저장"
-    };
-
-    setProducts((currentProducts) => {
-      if (draftProduct.id === "draft") {
-        return [savedProduct, ...currentProducts];
-      }
-
-      return currentProducts.map((product) => (product.id === draftProduct.id ? savedProduct : product));
-    });
-    setSelectedProductId(savedProduct.id);
-    setDraftProduct(savedProduct);
-    setProductSaveState("saved");
-    const canonicalNormalizedNames = new Set(canonicalIngredientNames.map((name) => normalizeIngredientName(name)));
-    const localPendingNames = (savedProduct.ingredientsRaw || "")
-      .split(",")
-      .map((token) => token.trim())
-      .filter((token) => token.length > 0 && !canonicalNormalizedNames.has(normalizeIngredientName(token)));
-    if (localPendingNames.length > 0) {
-      setIngredientRows((currentRows) => {
-        const knownNames = new Set(currentRows.map((row) => row.rawName));
-        const appended = localPendingNames
-          .filter((name) => !knownNames.has(name))
-          .map((name, index) => ({
-            id: `pend_local_${Date.now()}_${index}`,
-            pendingCode: `ing_pending_local_${currentRows.length + index + 1}`,
-            rawName: name,
-            normalizedName: name,
-            productCount: 1,
-            connectionCount: 1,
-            suggestedCanonical: "-",
-            confidence: "로컬",
-            status: "검토 대기" as const,
-          }));
-        return appended.length > 0 ? [...appended, ...currentRows] : currentRows;
-      });
-    }
-    pushOperationLog(
-      "상품",
-      draftProduct.id === "draft" ? "새 상품 로컬 저장" : "상품 기본정보 로컬 저장",
-      savedProduct.name || savedProduct.productCode,
-      "success",
-    );
   };
 
   const handleStockPatch = (productId: string, patch: Partial<Pick<ProductRow, "price" | "stock" | "status">>) => {
@@ -1909,151 +1816,6 @@ function AdminDashboardPage() {
 
       </section>
     </>
-  );
-
-  const renderProductForm = () => (
-    <section className="admin-product-layout">
-      <form className="admin-panel admin-product-form" onSubmit={(event) => event.preventDefault()}>
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>상품 등록/수정</p>
-            <h2>{draftProduct.id === "draft" ? "새 상품 등록" : "상품 기본정보 수정"}</h2>
-          </div>
-          <div className="admin-filter-row">
-            <button className="admin-secondary-button" onClick={() => handleOpenProductForm(selectedProduct)} type="button">
-              선택 상품 불러오기
-            </button>
-            <button className="admin-primary-button" onClick={handleSaveProduct} type="button">
-              로컬 저장
-            </button>
-          </div>
-        </div>
-
-        <div className={`admin-state-banner ${productSaveState === "saved" ? "success" : productSaveState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>
-            {productSaveState === "saved"
-              ? "로컬 저장 완료"
-              : productSaveState === "dirty"
-                ? "저장 대기"
-                : "변경 없음"}
-          </strong>
-          <span>
-            {productSaveState === "saved"
-              ? "실제 저장 API 연결 전까지는 화면 미리보기 상태로 보관됩니다."
-              : productSaveState === "dirty"
-                ? "수정값은 아직 API로 전송되지 않았습니다. 로컬 저장으로 검수 흐름만 확인합니다."
-                : "상품 정보를 수정하면 저장 대기 상태로 바뀝니다."}
-          </span>
-        </div>
-
-        <div className="admin-form-grid">
-          <label>
-            상품명
-            <input
-              onChange={(event) => handleDraftProductPatch({ name: event.target.value })}
-              placeholder="상품명을 입력하세요"
-              value={draftProduct.name}
-            />
-          </label>
-          <label>
-            브랜드
-            <input
-              onChange={(event) => handleDraftProductPatch({ brand: event.target.value })}
-              placeholder="브랜드"
-              value={draftProduct.brand}
-            />
-          </label>
-          <label>
-            product_code / seller SKU
-            <input
-              onChange={(event) => handleDraftProductPatch({ productCode: event.target.value })}
-              value={draftProduct.productCode}
-            />
-          </label>
-          <label>
-            판매가
-            <input
-              min="0"
-              onChange={(event) => handleDraftProductPatch({ price: Number(event.target.value) })}
-              type="number"
-              value={draftProduct.price}
-            />
-          </label>
-          <label>
-            재고
-            <input
-              min="0"
-              onChange={(event) => handleDraftProductPatch({ stock: Number(event.target.value) })}
-              type="number"
-              value={draftProduct.stock}
-            />
-          </label>
-          <label>
-            판매 상태
-            <select
-              onChange={(event) => handleDraftProductPatch({ status: event.target.value as ProductStatus })}
-              value={draftProduct.status}
-            >
-              <option>판매중</option>
-              <option>검수필요</option>
-              <option>품절임박</option>
-              <option>판매중지</option>
-            </select>
-          </label>
-          <label>
-            이미지 파일명
-            <input placeholder="product_code_main.jpg, product_code_01.jpg" />
-          </label>
-          <label>
-            추천 가능 여부
-            <select defaultValue="true">
-              <option value="true">추천 가능</option>
-              <option value="false">추천 제외</option>
-            </select>
-          </label>
-          <label className="admin-form-wide">
-            전성분 원문
-            <textarea
-              onChange={(event) => handleDraftProductPatch({ ingredientsRaw: event.target.value })}
-              placeholder="전성분을 쉼표로 구분해 모두 입력하세요"
-              rows={5}
-              value={draftProduct.ingredientsRaw}
-            />
-          </label>
-        </div>
-
-        <div className="admin-ingredient-preview">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>전성분 자동 판정</p>
-              <h2>정규화 exact match 미리보기</h2>
-            </div>
-            <span className="admin-badge warning">
-              exact {draftIngredientExactCount} / pending {draftIngredientPendingCount}
-            </span>
-          </div>
-          <div className="admin-ingredient-chip-list">
-            {draftIngredientPreview.length > 0 ? (
-              draftIngredientPreview.map((ingredient) => (
-                <span
-                  className={`admin-ingredient-chip ${ingredient.status === "exact" ? "success" : "warning"}`}
-                  key={`${ingredient.rawName}-${ingredient.canonicalName ?? "pending"}`}
-                >
-                  <strong>{ingredient.rawName}</strong>
-                  <small>{ingredient.canonicalName ? `${ingredient.canonicalName} 연결` : "pending 검수"}</small>
-                </span>
-              ))
-            ) : (
-              <span className="admin-ingredient-chip neutral">
-                <strong>전성분 없음</strong>
-                <small>원문을 입력하면 exact/pending 판정이 표시됩니다</small>
-              </span>
-            )}
-          </div>
-        </div>
-      </form>
-
-    </section>
   );
 
   const renderExcelUpload = () => (
@@ -2909,9 +2671,7 @@ function AdminDashboardPage() {
                     item.view === "sellerInspection" ||
                     item.view === "sellerSettlement"
                   ) {
-                    if (item.view === "productForm" && selectedProductId !== "draft") {
-                      setDraftProduct(selectedProduct);
-                    }
+                    if (item.view === "productForm") setEditingProductCode(null);
                     setActiveView(item.view);
                   }
                 }}
@@ -2967,7 +2727,6 @@ function AdminDashboardPage() {
         </header>
 
         {activeView === "dashboard" && renderDashboard()}
-        {activeView === "productForm" && renderProductForm()}
         {activeView === "excelUpload" && renderExcelUpload()}
         {activeView === "imageUpload" && renderImageUpload()}
         {activeView === "ingredientReview" && renderIngredientReview()}
@@ -2980,7 +2739,18 @@ function AdminDashboardPage() {
         <AdminProductSection
           key="admin-product"
           active={activeView === "products"}
+          onEditProduct={(productCode) => {
+            setEditingProductCode(productCode);
+            setActiveView("productForm");
+          }}
           onOperationLog={pushOperationLog}
+        />
+        <AdminProductFormSection
+          key="admin-product-form"
+          active={activeView === "productForm"}
+          productCode={editingProductCode}
+          onOperationLog={pushOperationLog}
+          onSaved={setEditingProductCode}
         />
         <AdminOrderStatusSection
           key="admin-order-status"

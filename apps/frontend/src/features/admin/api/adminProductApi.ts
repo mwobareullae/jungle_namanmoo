@@ -1,7 +1,7 @@
 import { fetchWithTimeout, parseJson } from "../../../lib/api";
 import { ADMIN_API_BASE } from "./adminApi";
 
-// 관리자 상품 조회 API 레이어 (P1-M3-A, 조회 전용).
+// 관리자 상품 조회·등록·수정 API 레이어 (P1-M3-A).
 // 백엔드는 snake_case·영문 상태를 반환하고, 여기서 camelCase 로 변환한다.
 // 계약: docs/admin/admin-m3a-product-crud-contract.md
 
@@ -53,6 +53,25 @@ export type AdminProductPagination = {
 export type AdminProductListResult = {
   items: AdminProductRow[];
   pagination: AdminProductPagination;
+};
+
+export type AdminProductMasterOption = {
+  code: string;
+  name: string;
+};
+
+export type AdminProductCreateInput = {
+  name: string;
+  brandCode: string;
+  categoryCode: string;
+  price: number;
+  description?: string | null;
+  releasedAt?: string | null;
+  thumbnailStorageKey?: string | null;
+};
+
+export type AdminProductUpdateInput = Partial<AdminProductCreateInput> & {
+  isActive?: boolean;
 };
 
 export type AdminProductQuery = {
@@ -109,6 +128,13 @@ type BackendProductPagination = {
 type BackendProductListResponse = {
   items: BackendProductListItem[];
   pagination: BackendProductPagination;
+};
+
+type BackendProductMasterOptionListResponse = {
+  items: Array<{
+    code: string;
+    name: string;
+  }>;
 };
 
 // 백엔드가 UTC ISO 를 주므로 KST(Asia/Seoul) "YYYY-MM-DD HH:mm" 로 표시한다.
@@ -196,6 +222,55 @@ export const getAdminProducts = async (query: AdminProductQuery = {}): Promise<A
 export const getAdminProductDetail = async (productCode: string): Promise<AdminProductDetail> => {
   const response = await fetchWithTimeout(
     `${ADMIN_API_BASE}/products/${encodeURIComponent(productCode)}`
+  );
+  return adaptDetail(await parseJson<BackendProductDetail>(response));
+};
+
+const getAdminProductMasterOptions = async (path: string): Promise<AdminProductMasterOption[]> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/${path}`);
+  const body = await parseJson<BackendProductMasterOptionListResponse>(response);
+  return body.items;
+};
+
+export const getAdminProductBrands = (): Promise<AdminProductMasterOption[]> =>
+  getAdminProductMasterOptions("product-brands");
+
+export const getAdminProductCategories = (): Promise<AdminProductMasterOption[]> =>
+  getAdminProductMasterOptions("product-categories");
+
+const toProductMutationBody = (input: AdminProductUpdateInput): Record<string, unknown> => {
+  const body: Record<string, unknown> = {};
+  if (input.name !== undefined) body.name = input.name;
+  if (input.brandCode !== undefined) body.brand_code = input.brandCode;
+  if (input.categoryCode !== undefined) body.category_code = input.categoryCode;
+  if (input.price !== undefined) body.price = input.price;
+  if (input.description !== undefined) body.description = input.description;
+  if (input.releasedAt !== undefined) body.released_at = input.releasedAt;
+  if (input.isActive !== undefined) body.is_active = input.isActive;
+  if (input.thumbnailStorageKey !== undefined) body.thumbnail_storage_key = input.thumbnailStorageKey;
+  return body;
+};
+
+export const createAdminProduct = async (input: AdminProductCreateInput): Promise<AdminProductDetail> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/products`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(toProductMutationBody(input))
+  });
+  return adaptDetail(await parseJson<BackendProductDetail>(response));
+};
+
+export const updateAdminProduct = async (
+  productCode: string,
+  input: AdminProductUpdateInput
+): Promise<AdminProductDetail> => {
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/products/${encodeURIComponent(productCode)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(toProductMutationBody(input))
+    }
   );
   return adaptDetail(await parseJson<BackendProductDetail>(response));
 };
