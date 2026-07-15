@@ -95,6 +95,7 @@ export type CatalogSearchParams = {
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  functional_claim_score?: number;
   concentration_fit_score: number;
   concentration_bucket: string | null;
   concentration_warning: string | null;
@@ -112,6 +113,17 @@ export type ScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  skin_test_context_score?: number;
+  skin_test_context_applied?: boolean;
+  skin_test_context_axes?: Record<string, number>;
+  skin_test_context_matched_axes?: string[];
+  skin_test_context_query_conflict_axes?: string[];
+  skin_test_context_manual_conflict_axes?: string[];
+  behavior_personalization_score?: number;
+  behavior_personalization_applied?: boolean;
+  behavior_personalization_sources?: string[];
+  behavior_personalization_event_counts?: Record<string, number>;
+  market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
   risk_flag_count?: number;
