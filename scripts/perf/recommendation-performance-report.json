@@ -10,12 +10,8 @@
     "cache_state": "cold",
     "max_error_rate": 0.01
   },
-  "loose_run_root": "perf-runs",
-  "supplemental_run_roots": [
-    "perf-runs/sweeps",
-    "perf-runs/INTENT",
-    "perf-runs/_quarantine"
-  ],
+  "loose_run_root": "perf-runs/inbox",
+  "supplemental_run_roots": [],
   "stages": [
     {
       "id": "baseline-v1",
@@ -25,9 +21,12 @@
       "status": "measured",
       "compared_to": null,
       "roots": [
-        "perf-runs/baseline-v1-full-personalized"
+        "perf-runs/stages/baseline-v1/runs"
       ],
       "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260714-053424"
+      ],
       "change": "최적화 전 개인화 추천 파이프라인",
       "focus_metrics": [
         "candidate_pool_ms_p95",
@@ -44,9 +43,14 @@
       "status": "measured",
       "compared_to": "baseline-v1",
       "roots": [
-        "perf-runs/opt1-es-retrieval-full-personalized"
+        "perf-runs/stages/opt1-es-retrieval/runs"
       ],
       "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260714-225808",
+        "recommendation-80000-full-personalized-20260715-001631",
+        "recommendation-80000-full-personalized-20260715-004324"
+      ],
       "change": "브랜드 전수 매칭을 제거하고 ES 중심 후보 추출로 전환",
       "observation": "의도 분석 안의 구매 조건 파서가 일반 고민 문장에도 브랜드 alias 전체를 검사했다.",
       "cause": "약 2,657개 alias 정규식 전수 검사가 후보 추출 전에 매 요청 반복됐고, 검색 책임이 Python 파서와 Elasticsearch에 중복 배치돼 있었다.",
@@ -68,9 +72,14 @@
       "status": "measured",
       "compared_to": "opt1-es-retrieval",
       "roots": [
-        "perf-runs/opt2-precomputed-features-full-personalized"
+        "perf-runs/stages/opt2-precomputed-features/runs"
       ],
       "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260715-053752",
+        "recommendation-80000-full-personalized-20260715-054137",
+        "recommendation-80000-full-personalized-20260715-054517"
+      ],
       "change": "상품 특징과 사용자 선호를 rollup/read model로 사전 계산",
       "observation": "후보마다 성분·효능 특징을 만들고 사용자 행동 로그를 다시 집계하는 작업이 scoring에서 반복됐다.",
       "cause": "요청 시점에 변하지 않는 상품 특징과 느리게 변하는 사용자 선호까지 온라인 경로에서 매번 계산했다.",
@@ -93,9 +102,14 @@
       "status": "measured",
       "compared_to": "opt2-precomputed-features",
       "roots": [
-        "perf-runs/opt3-bulk-prefetch-full-personalized"
+        "perf-runs/stages/opt3-bulk-prefetch/runs"
       ],
       "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260715-092247",
+        "recommendation-80000-full-personalized-20260715-092634",
+        "recommendation-80000-full-personalized-20260715-093021"
+      ],
       "change": "후보 점수 데이터를 단일 bulk JOIN 경로로 통합",
       "observation": "Opt2 이후 scoring 사전 조회 구간에서 후보별 점수 데이터 loader 비용이 남아 있다.",
       "cause": "동일 후보 집합에 필요한 관계 데이터를 여러 조회와 Python 조립 단계로 나눠 가져온다.",

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from scripts.perf import generate_recommendation_stage_comparison as comparison
 
@@ -20,6 +22,16 @@ class RecommendationStageComparisonTests(unittest.TestCase):
             [row["run_id"] for row in selected["opt1-es-retrieval"]],
             ["opt1-valid"],
         )
+
+    def test_unselected_headline_run_is_not_used_for_official_comparison(self) -> None:
+        rows = [
+            self._row("baseline-v1", "selected"),
+            {**self._row("baseline-v1", "sweep"), "headline_selected": False},
+        ]
+
+        selected = comparison.select_comparable_rows(rows)
+
+        self.assertEqual([row["run_id"] for row in selected["baseline-v1"]], ["selected"])
 
     def test_opt3_requires_bulk_prefetch_measurement_schema(self) -> None:
         stage_rows = {
@@ -45,6 +57,31 @@ class RecommendationStageComparisonTests(unittest.TestCase):
         self.assertEqual(transitions[1]["e2e_avg_reduction_ms"], 3_000.0)
         self.assertAlmostEqual(transitions[2]["e2e_p95_reduction_pct"], 6.25)
         self.assertAlmostEqual(transitions[2]["rps_gain_pct"], 10.0)
+
+    def test_local_transition_index_links_each_stage(self) -> None:
+        transitions = [
+            {
+                "optimization": "Opt1",
+                "after_stage": "opt1-es-retrieval",
+                "e2e_p95_before_ms": 52_000.0,
+                "e2e_p95_after_ms": 13_000.0,
+                "e2e_p95_reduction_ms": 39_000.0,
+                "e2e_p95_reduction_pct": 75.0,
+                "rps_before": 0.25,
+                "rps_after": 1.0,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir) / "transitions"
+            comparison.write_local_transition_readmes(output_root, transitions)
+
+            index = (output_root / "README.md").read_text(encoding="utf-8")
+            detail = (output_root / "opt1-es-retrieval" / "README.md").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertIn("./opt1-es-retrieval/README.md", index)
+        self.assertIn("docs/performance/results/recommendation", detail)
 
     def test_pipeline_markdown_keeps_regression_sign(self) -> None:
         metrics = []
@@ -86,6 +123,7 @@ class RecommendationStageComparisonTests(unittest.TestCase):
             "run_id": run_id,
             "complete": True,
             "condition_matches": True,
+            "headline_selected": True,
             "error_gate_passed": error_gate_passed,
             "measurement_schema": "bulk-prefetch-v4",
             "started_at": "2026-07-15T00:00:00+09:00",
@@ -106,6 +144,9 @@ class RecommendationStageComparisonTests(unittest.TestCase):
             "latency_avg_ms": avg,
             "duration_ms_p95": backend_p95,
             "recommendation_rps": rps,
+            "error_rate": 0.0,
+            "run_count": 3,
+            "run_ids": f"{stage_id}-1;{stage_id}-2;{stage_id}-3",
         }
 
 
