@@ -44,6 +44,7 @@ def _make_order(
     order_status: str = "PAID",
     payment_status: str | None = "APPROVED",
     item_count: int = 1,
+    item_status: str | None = None,
 ) -> Order:
     global _seq
     _seq += 1
@@ -72,6 +73,12 @@ def _make_order(
     )
     session.add(order)
     session.flush()
+    resolved_item_status = item_status or {
+        "PAID": "ORDERED",
+        "PREPARING_SHIPMENT": "PREPARING_SHIPMENT",
+        "SHIPPED": "SHIPPED",
+        "DELIVERED": "DELIVERED",
+    }.get(order_status, "ORDERED")
     for idx in range(item_count):
         session.add(
             OrderItem(
@@ -87,7 +94,7 @@ def _make_order(
                 line_discount_amount=0,
                 line_total=1000,
                 currency="KRW",
-                status="ORDERED",
+                status=resolved_item_status,
                 created_at=now,
                 updated_at=now,
             )
@@ -112,7 +119,9 @@ def _make_order(
 def _item_statuses(session: Session, order_id: int) -> list[str]:
     return list(
         session.execute(
-            select(OrderItem.status).where(OrderItem.order_id == order_id)
+            select(OrderItem.status)
+            .where(OrderItem.order_id == order_id)
+            .order_by(OrderItem.id.asc())
         ).scalars()
     )
 
@@ -239,6 +248,48 @@ def test_prepare_inconsistent_item_count_rejected(session: Session) -> None:
         start_preparation(session, order_code=order.order_code)
     assert ei.value.status_code == 409
     assert ei.value.code == "ORDER_ITEMS_INCONSISTENT"
+
+
+@pytest.mark.parametrize(
+    ("order_status", "expected_item_status", "transition"),
+    [
+        ("PAID", "ORDERED", start_preparation),
+        ("PREPARING_SHIPMENT", "PREPARING_SHIPMENT", start_shipment),
+        ("SHIPPED", "SHIPPED", complete_delivery),
+    ],
+)
+def test_transition_rejects_unexpected_order_item_status(
+    session: Session,
+    order_status: str,
+    expected_item_status: str,
+    transition,
+) -> None:
+    order = _make_order(
+        session,
+        order_status=order_status,
+        payment_status="APPROVED",
+        item_count=2,
+    )
+    session.flush()
+    items = session.execute(
+        select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.id)
+    ).scalars().all()
+    items[1].status = "RETURNED"
+    session.commit()
+
+    with pytest.raises(ApiError) as ei:
+        transition(session, order_code=order.order_code)
+    assert ei.value.status_code == 409
+    assert ei.value.code == "ORDER_ITEMS_INCONSISTENT"
+
+    # 첫 번째 아이템과 Order 는 UPDATE 됐더라도 API 경계의 rollback 으로 모두 원복된다.
+    session.rollback()
+    reloaded = session.execute(select(Order).where(Order.id == order.id)).scalar_one()
+    assert reloaded.status == order_status
+    assert _item_statuses(session, reloaded.id) == [expected_item_status, "RETURNED"]
+    assert session.execute(
+        select(OrderFulfillmentEvent).where(OrderFulfillmentEvent.order_id == reloaded.id)
+    ).scalars().all() == []
 
 
 def test_prepare_idempotent_also_rejects_inconsistent_item_count(session: Session) -> None:
