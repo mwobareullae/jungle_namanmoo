@@ -250,7 +250,10 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         setCart(refreshedCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -476,7 +479,10 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         const remainingIds = selectedItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -525,7 +531,10 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
