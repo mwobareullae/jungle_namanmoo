@@ -1,33 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
-import HomeProductCard from "../components/HomeProductCard";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
+import ProductThumbnail from "../components/ProductThumbnail";
 import { api } from "../lib/api";
-import { getCategoryCodesByGroupTitle } from "../lib/categoryMapping";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { navigateWithinApp } from "../lib/navigation";
+import { isProductSoldOut } from "../lib/productAvailability";
 import type { ProductCardItem } from "../types/recommendation";
-import type { ProductListingItem } from "../types/product";
+import type { CategoryListItem, ProductListingItem } from "../types/product";
 
 const PAGE_SIZE = 20;
-
-const SKINCARE_FILTERS = [
-  { label: "전체", code: "" },
-  { label: "스킨/토너", code: "toner" },
-  { label: "앰플/세럼", code: "serum" },
-  { label: "크림", code: "cream" }
-] as const;
-
-const getCategoryTitle = (value?: string) => {
-  if (!value) {
-    return "";
-  }
-
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
 
 const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCardItem => ({
   product_id: item.product_id,
@@ -47,14 +30,31 @@ const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCa
   in_stock: item.in_stock
 });
 
+const formatPrice = (price: number | null) =>
+  price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
+
 function CategoryPage() {
-  const { categoryTitle: rawTitle } = useParams();
-  const categoryTitle = getCategoryTitle(rawTitle);
-  const categoryCodes = useMemo(() => getCategoryCodesByGroupTitle(categoryTitle), [categoryTitle]);
-  const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+  const { groupCode = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedCategoryCode = searchParams.get("category_code") ?? "";
+  const [categories, setCategories] = useState<CategoryListItem[]>([]);
+  const [isCategoryMetadataLoading, setIsCategoryMetadataLoading] = useState(true);
+  const [categoryMetadataError, setCategoryMetadataError] = useState("");
+  const categoryItems = useMemo(
+    () => categories.filter((category) => category.group === groupCode),
+    [categories, groupCode]
+  );
+  const categoryCodes = useMemo(
+    () => categoryItems.map((category) => category.code),
+    [categoryItems]
+  );
+  const categoryTitle = categoryItems[0]?.group_name ?? "카테고리";
+  const hasInvalidCategoryCode = Boolean(
+    selectedCategoryCode && !categoryCodes.includes(selectedCategoryCode)
+  );
   const effectiveCategoryCodes = useMemo(
-    () => selectedCategoryCode ? [selectedCategoryCode] : categoryCodes,
-    [categoryCodes, selectedCategoryCode]
+    () => selectedCategoryCode && !hasInvalidCategoryCode ? [selectedCategoryCode] : categoryCodes,
+    [categoryCodes, hasInvalidCategoryCode, selectedCategoryCode]
   );
 
   const [products, setProducts] = useState<ProductCardItem[]>([]);
@@ -62,6 +62,27 @@ function CategoryPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void api.getCategories()
+      .then((response) => {
+        if (!isMounted) return;
+        setCategories(response.items);
+        setCategoryMetadataError("");
+      })
+      .catch(() => {
+        if (isMounted) setCategoryMetadataError("카테고리 정보를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (isMounted) setIsCategoryMetadataLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const loadProducts = useCallback(async (page: number, append: boolean) => {
     if (effectiveCategoryCodes.length === 0) return;
@@ -94,11 +115,19 @@ function CategoryPage() {
   }, [effectiveCategoryCodes]);
 
   useEffect(() => {
-    queueMicrotask(() => setSelectedCategoryCode(""));
-  }, [categoryTitle]);
+    if (isCategoryMetadataLoading) return;
 
-  useEffect(() => {
-    if (categoryCodes.length === 0) {
+    if (categoryMetadataError) {
+      queueMicrotask(() => {
+        setProducts([]);
+        setNextPage(null);
+        setIsLoading(false);
+        setErrorMessage(categoryMetadataError);
+      });
+      return;
+    }
+
+    if (!groupCode || categoryCodes.length === 0 || hasInvalidCategoryCode) {
       queueMicrotask(() => {
         setProducts([]);
         setNextPage(null);
@@ -112,42 +141,80 @@ function CategoryPage() {
       setProducts([]);
       setNextPage(null);
       setErrorMessage("");
+      void loadProducts(1, false);
     });
-    queueMicrotask(() => void loadProducts(1, false));
-  }, [categoryCodes, loadProducts]);
+  }, [categoryCodes, categoryMetadataError, groupCode, hasInvalidCategoryCode, isCategoryMetadataLoading, loadProducts]);
+
+  const handleCategoryFilterChange = (categoryCode: string) => {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (categoryCode) nextSearchParams.set("category_code", categoryCode);
+    else nextSearchParams.delete("category_code");
+    setSearchParams(nextSearchParams);
+  };
 
   return (
-    <div className="category-page">
+    <>
       <HomeHeader />
-      <main className="category-page__main">
-        <nav className="category-page__breadcrumb" aria-label="카테고리 경로">
-          <Link to="/">홈</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>{categoryTitle || "카테고리"}</span>
-        </nav>
-        <h1 className="category-page__title">{categoryTitle || "카테고리"}</h1>
-        {categoryTitle === "스킨케어" ? (
-          <div className="category-page__filters" aria-label="스킨케어 세부 카테고리" role="group">
-            {SKINCARE_FILTERS.map((filter) => (
+      <main className="popular-products-page new-products-page category-page category-listing-page">
+        <div className="popular-products-shell">
+        <div className="popular-products-kicker">CATEGORY</div>
+        <h1>{categoryTitle}</h1>
+        <p className="new-products-page__description">{categoryTitle} 상품을 확인해 보세요.</p>
+        {categoryItems.length > 1 ? (
+          <div className="category-page__filters" aria-label={`${categoryTitle} 세부 카테고리`} role="group">
+            {[{ code: "", name: "전체" }, ...categoryItems].map((filter) => (
               <button
                 aria-pressed={selectedCategoryCode === filter.code}
                 className={selectedCategoryCode === filter.code ? "is-active" : ""}
                 key={filter.code || "all"}
-                onClick={() => setSelectedCategoryCode(filter.code)}
+                onClick={() => handleCategoryFilterChange(filter.code)}
                 type="button"
               >
-                {filter.label}
+                {filter.name}
               </button>
             ))}
           </div>
         ) : null}
-        <div className="product-grid">
+        <div className="popular-products-grid new-products-page__grid category-listing-page__grid">
           {isLoading ? (
             <div className="search-loading-state">불러오는 중...</div>
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length ? (
-            products.map((product) => <HomeProductCard key={product.product_id} product={product} />)
+            products.map((product) => {
+              const isSoldOut = isProductSoldOut(product);
+
+              return (
+                <article
+                  className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`}
+                  data-agent-product-id={product.product_id}
+                  key={product.product_id}
+                  onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  <div className="popular-product-card__image-wrap">
+                    <ProductThumbnail
+                      alt={`${product.brand} ${product.name}`}
+                      className="popular-product-card__image"
+                      src={product.thumbnail_url}
+                    />
+                    {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                  </div>
+                  <div className="popular-product-card__brand">{product.brand}</div>
+                  <div className="popular-product-card__name">{product.name}</div>
+                  <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>
+                    {formatPrice(product.lowest_price)}
+                  </div>
+                </article>
+              );
+            })
           ) : (
             <div className="search-empty">표시할 상품이 없습니다.</div>
           )}
@@ -164,8 +231,9 @@ function CategoryPage() {
             </button>
           </div>
         ) : null}
+        </div>
       </main>
-    </div>
+    </>
   );
 }
 
