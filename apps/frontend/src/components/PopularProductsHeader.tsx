@@ -2,8 +2,8 @@ type Category = { code: string; label: string; icon?: string };
 
 const categories: Category[] = [
   { code: "", label: "전체" },
-  { code: "ampoule", label: "앰플", icon: "/category-icons/serum.png" },
-  { code: "skin", label: "스킨", icon: "/category-icons/toner.png" },
+  { code: "serum", label: "앰플", icon: "/category-icons/serum.png" },
+  { code: "toner", label: "스킨", icon: "/category-icons/toner.png" },
   { code: "lotion", label: "로션", icon: "/category-icons/cream.png" }
 ];
 
