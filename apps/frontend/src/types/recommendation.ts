@@ -142,6 +142,7 @@ export type ProductCardItem = {
   evidence_tags: string[];
   key_ingredients: string[];
   risk_flags: string[];
+  risk_flag_count?: number;
   sales_status?: string;
   stock_status?: string;
   available_quantity?: number | null;
