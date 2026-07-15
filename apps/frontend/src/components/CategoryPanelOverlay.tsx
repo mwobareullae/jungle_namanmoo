@@ -30,7 +30,9 @@ const CATEGORY_GROUP_ORDER = [
   "beauty_tool",
 ] as const;
 
-const categoryGroupOrder = new Map(CATEGORY_GROUP_ORDER.map((group, index) => [group, index]));
+const categoryGroupOrder = new Map<string, number>(
+  CATEGORY_GROUP_ORDER.map((group, index) => [group, index])
+);
 const CATEGORY_PRIMARY_GROUPS = ["skincare", "cleansing", "makeup", "men"] as const;
 const CATEGORY_SECONDARY_GROUPS = ["mask_pack", "suncare", "fragrance", "nail", "beauty_tool"] as const;
 
@@ -139,7 +141,7 @@ function CategoryPanelOverlay({ onOpenChange }: CategoryPanelOverlayProps) {
                 <section className="category-panel__section" key={group.group}>
                   <Link
                     className="category-panel__title"
-                    to={`/category/${encodeURIComponent(group.title)}`}
+                    to={`/category/${encodeURIComponent(group.group)}`}
                     onClick={handleClose}
                   >
                     <span>{group.title}</span>
@@ -147,7 +149,7 @@ function CategoryPanelOverlay({ onOpenChange }: CategoryPanelOverlayProps) {
                   <div className="category-panel__links">
                     {group.items.map((item) => (
                       <Link
-                        to={`/category/${encodeURIComponent(group.title)}`}
+                        to={`/category/${encodeURIComponent(group.group)}?category_code=${encodeURIComponent(item.code)}`}
                         key={item.code}
                         onClick={handleClose}
                       >
