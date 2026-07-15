@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ProductThumbnail from "../components/ProductThumbnail";
@@ -43,7 +43,67 @@ function PopularProductsPage() {
   const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
   const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const [agentMatchedProductIds, setAgentMatchedProductIds] = useState<Set<string>>(() => new Set());
+  const [agentAddedProductIds, setAgentAddedProductIds] = useState<Set<string>>(() => new Set());
+  const [agentAlreadyWishedProductIds, setAgentAlreadyWishedProductIds] = useState<Set<string>>(() => new Set());
+  const agentAnimationTimerIdsRef = useRef<number[]>([]);
   const { message: toastMessage, showToast } = useActivityToast();
+
+  useEffect(() => {
+    const readProductIds = (value: unknown) => Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [];
+    const applyPayload = (payload: Record<string, unknown>, animate: boolean) => {
+      agentAnimationTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      agentAnimationTimerIdsRef.current = [];
+      const matchedIds = readProductIds(payload.matched_product_ids);
+      const addedIds = readProductIds(payload.added_product_ids);
+      const alreadyIds = readProductIds(payload.already_wished_product_ids);
+      setAgentMatchedProductIds(new Set(matchedIds));
+      setAgentAddedProductIds(new Set());
+      setAgentAlreadyWishedProductIds(new Set(alreadyIds));
+      if (!animate) return;
+      addedIds.forEach((productId, index) => {
+        const timerId = window.setTimeout(() => {
+          setWishedProductIds((previous) => new Set(previous).add(productId));
+          setAgentAddedProductIds((previous) => new Set(previous).add(productId));
+        }, index * 240);
+        agentAnimationTimerIdsRef.current.push(timerId);
+      });
+      if (addedIds.length > 0) showToast(`${addedIds.length}개 상품을 찜 목록에 반영했어요.`);
+    };
+    const readStoredPayload = (key: string) => {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      window.sessionStorage.removeItem(key);
+      try {
+        const value: unknown = JSON.parse(raw);
+        return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+      } catch {
+        return null;
+      }
+    };
+    const preview = readStoredPayload("agent-popular-wishlist-preview");
+    if (preview) applyPayload(preview, false);
+    const result = readStoredPayload("agent-popular-wishlist-result");
+    if (result) applyPayload(result, true);
+    const handlePreviewed = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail) applyPayload(detail, false);
+    };
+    const handleUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail) applyPayload(detail, true);
+    };
+    window.addEventListener("agent-popular-wishlist-previewed", handlePreviewed);
+    window.addEventListener("agent-popular-wishlist-updated", handleUpdated);
+    return () => {
+      agentAnimationTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      agentAnimationTimerIdsRef.current = [];
+      window.removeEventListener("agent-popular-wishlist-previewed", handlePreviewed);
+      window.removeEventListener("agent-popular-wishlist-updated", handleUpdated);
+    };
+  }, [showToast]);
 
   useEffect(() => {
     if (!user) {
@@ -52,8 +112,21 @@ function PopularProductsPage() {
     }
 
     getMyWishlist()
-      .then((wishlistItems) => setWishedProductIds(new Set(wishlistItems.map((item) => item.productId))))
-      .catch(() => setWishedProductIds(new Set()));
+      .then((wishlistItems) => {
+        const actualWishedProductIds = new Set(wishlistItems.map((item) => item.productId));
+        setWishedProductIds(actualWishedProductIds);
+        setAgentAddedProductIds((previous) => new Set(
+          [...previous].filter((productId) => actualWishedProductIds.has(productId)),
+        ));
+        setAgentAlreadyWishedProductIds((previous) => new Set(
+          [...previous].filter((productId) => actualWishedProductIds.has(productId)),
+        ));
+      })
+      .catch(() => {
+        setWishedProductIds(new Set());
+        setAgentAddedProductIds(new Set());
+        setAgentAlreadyWishedProductIds(new Set());
+      });
   }, [user]);
 
   const toggleWishlist = async (productId: string) => {
@@ -64,6 +137,8 @@ function PopularProductsPage() {
     if (pendingWishlistProductIds.has(productId)) return;
 
     const wasWished = wishedProductIds.has(productId);
+    const wasAgentAdded = agentAddedProductIds.has(productId);
+    const wasAgentAlreadyWished = agentAlreadyWishedProductIds.has(productId);
     setWishedProductIds((previous) => {
       const next = new Set(previous);
       if (wasWished) next.delete(productId);
@@ -71,6 +146,18 @@ function PopularProductsPage() {
       return next;
     });
     setPendingWishlistProductIds((previous) => new Set(previous).add(productId));
+    if (wasWished) {
+      setAgentAddedProductIds((previous) => {
+        const next = new Set(previous);
+        next.delete(productId);
+        return next;
+      });
+      setAgentAlreadyWishedProductIds((previous) => {
+        const next = new Set(previous);
+        next.delete(productId);
+        return next;
+      });
+    }
 
     try {
       if (wasWished) {
@@ -87,6 +174,10 @@ function PopularProductsPage() {
         else next.delete(productId);
         return next;
       });
+      if (wasAgentAdded) setAgentAddedProductIds((previous) => new Set(previous).add(productId));
+      if (wasAgentAlreadyWished) {
+        setAgentAlreadyWishedProductIds((previous) => new Set(previous).add(productId));
+      }
       showToast(wishlistToastMessage.failed);
     } finally {
       setPendingWishlistProductIds((previous) => {
@@ -161,10 +252,15 @@ function PopularProductsPage() {
                 ))
               : items.map((item, index) => {
                   const isSoldOut = isProductSoldOut(item);
+                  const isAgentAdded = wishedProductIds.has(item.product_id)
+                    && agentAddedProductIds.has(item.product_id);
+                  const isAgentAlreadyWished = wishedProductIds.has(item.product_id)
+                    && agentAlreadyWishedProductIds.has(item.product_id);
                   return (
                   <article
-                    className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`}
+                    className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}${agentMatchedProductIds.has(item.product_id) ? " is-agent-matched" : ""}${isAgentAdded ? " is-agent-wishlist-added" : ""}${isAgentAlreadyWished ? " is-agent-already-wished" : ""}`}
                     key={item.product_id}
+                    data-agent-product-id={item.product_id}
                     onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(item.product_id)}`; }}
                     role="link"
                     tabIndex={0}
@@ -185,6 +281,11 @@ function PopularProductsPage() {
                       >
                         <HeartIcon size={12} />
                       </button>
+                      {agentMatchedProductIds.has(item.product_id) ? (
+                        <span className={`popular-product-card__agent-state${isAgentAdded ? " added" : isAgentAlreadyWished ? " existing" : ""}`}>
+                          {isAgentAdded ? "새로 찜했어요" : isAgentAlreadyWished ? "이미 찜한 상품" : "성분 확인"}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="popular-product-card__brand">{item.brand}</div>
                     <div className="popular-product-card__name">{item.name}</div>

@@ -35,7 +35,10 @@ from app.services.candidate_pool import CandidatePool, generate_candidate_pool
 from app.services.product_image_service import load_thumbnail_storage_keys
 from app.services.product_availability import build_product_availability
 from app.services.concern_llm_parser import get_default_concern_llm_parser
-from app.services.recommendation_intent import build_recommendation_intent
+from app.services.recommendation_intent import (
+    StructuredRecommendationIntent,
+    build_recommendation_intent,
+)
 from app.services.recommendation_result_store import save_recommendation_results
 from app.services.recommendation_run_store import (
     ensure_recommendation_run_active,
@@ -131,6 +134,7 @@ def create_recommendation_response(
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
     commit: bool = True,
+    structured_intent: StructuredRecommendationIntent | None = None,
 ) -> RecommendationResponse:
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
@@ -154,10 +158,12 @@ def create_recommendation_response(
     )
     _record_stage_duration(stage_durations, "skin_test_context_load_ms", stage_started_at)
 
+    scoring_diagnostics: dict[str, object] = {}
     stage_started_at = current_time()
     behavior_personalization_context = load_behavior_personalization_context(
         session,
         current_user.id if current_user is not None else None,
+        diagnostics=scoring_diagnostics,
     )
     _record_stage_duration(stage_durations, "behavior_context_load_ms", stage_started_at)
     llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
@@ -167,6 +173,7 @@ def create_recommendation_response(
     intent = build_recommendation_intent(
         normalized_request.concern_text,
         llm_parser=llm_parser,
+        structured_intent=structured_intent,
         diagnostics=intent_diagnostics,
     )
     _record_stage_duration(stage_durations, "intent_parse_ms", stage_started_at)
@@ -218,7 +225,6 @@ def create_recommendation_response(
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
-        scoring_diagnostics: dict[str, object] = {}
         scored_candidates = score_candidates(
             session,
             intent,
@@ -231,6 +237,7 @@ def create_recommendation_response(
             saved_concerns=saved_concerns,
             manual_skin_type_explicit=normalized_request.manual_skin_type_explicit,
             manual_sensitivity_explicit=normalized_request.manual_sensitivity_explicit,
+            result_limit=result_limit,
             diagnostics=scoring_diagnostics,
         )
         _record_stage_duration(stage_durations, "scoring_ms", stage_started_at)

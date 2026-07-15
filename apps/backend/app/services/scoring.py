@@ -10,6 +10,11 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngred
 from app.db.models.commerce import Cart, CartItem, Order, OrderItem, ProductPopularityMetric, RecentView, Wishlist
 from app.db.models.events import EventLog
 from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
+from app.db.models.recommendation import (
+    ProductEffectRecommendationFeature,
+    ProductRecommendationFeature,
+    UserPreferenceProfile,
+)
 from app.db.models.skin import SkinProfile, SkinTestResult
 from app.db.models.taxonomy import (
     Effect,
@@ -22,6 +27,11 @@ from app.db.models.taxonomy import (
 from app.services.product_candidates import ProductCandidate
 from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
+from app.services.recommendation_feature_versions import (
+    PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION,
+    PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+    USER_PREFERENCE_PROFILE_VERSION,
+)
 from app.services.scoring_policy import (
     DEFAULT_INGREDIENT_EFFECT_WEIGHT,
     EFFECT_CAP,
@@ -427,6 +437,11 @@ class _BehaviorPreferenceProfile:
     effect_scores: dict[str, float]
     price_band_scores: dict[str, float]
     total_weight: float
+    effect_top3_sum: float
+    ingredient_top5_sum: float
+    category_max: float
+    brand_max: float
+    price_band_max: float
 
 
 @dataclass(frozen=True)
@@ -445,6 +460,43 @@ class _BehaviorProductSignals:
     ingredient_codes: tuple[str, ...]
     effect_codes: tuple[str, ...]
     price_band: str | None
+
+
+@dataclass(frozen=True)
+class ProductRecommendationFeatureSource:
+    product_db_id: int
+    product_ingredient_id: int
+    display_order: int | None
+    ingredient_code: str | None
+    effect_code: str | None
+    effect_score: float
+
+
+@dataclass(frozen=True)
+class ProductRecommendationFeatureValues:
+    top_ingredient_codes: tuple[str, ...]
+    top_effect_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _CandidateScoringBundle:
+    product_feature: ProductRecommendationFeatureValues | None
+    functional_info: _FunctionalInfo
+    skin_tags: tuple[str, ...]
+    skin_profile: _SkinProfileInfo | None
+    market_signal: _MarketSignalInfo | None
+    review_metric: _ReviewMetricInfo | None
+
+
+@dataclass(frozen=True)
+class ProductEffectRecommendationFeatureValues:
+    effect_code: str
+    ingredient_effect_score: float
+    ingredient_evidence_score: float
+    concentration_score: float
+    concentration_context: dict[str, object]
+    top_ingredient_ids: tuple[int, ...]
+    best_evidence_ids: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -502,20 +554,56 @@ def load_skin_test_scoring_context(
 def load_behavior_personalization_context(
     session: Session,
     user_id: int | None,
+    *,
+    diagnostics: dict[str, object] | None = None,
 ) -> BehaviorPersonalizationContext | None:
     if user_id is None:
+        if diagnostics is not None:
+            diagnostics.update(
+                {
+                    "user_profile_load_ms": 0.0,
+                    "user_profile_hit": False,
+                }
+            )
         return None
 
+    profile_load_started_at = current_time()
+    profile_rows = session.execute(
+        select(UserPreferenceProfile)
+        .where(UserPreferenceProfile.user_id == user_id)
+        .order_by(UserPreferenceProfile.source.asc())
+    ).scalars().all()
+    profile_load_ms = round(elapsed_ms(profile_load_started_at), 2)
+    profile_hit = bool(profile_rows) and all(
+        row.profile_version == USER_PREFERENCE_PROFILE_VERSION
+        for row in profile_rows
+    )
+    if diagnostics is not None:
+        diagnostics.update(
+            {
+                "user_profile_load_ms": profile_load_ms,
+                "user_profile_hit": profile_hit,
+            }
+        )
+    if profile_hit:
+        return _behavior_context_from_preference_profiles(user_id, profile_rows)
+
+    fallback_started_at = current_time()
     now = datetime.now(UTC)
-    positive_events, negative_events = _load_behavior_events(session, user_id, now)
+    positive_events, negative_events = load_behavior_events(session, user_id, now)
     if not positive_events and not negative_events:
+        _record_legacy_fallback(
+            diagnostics,
+            elapsed_ms(fallback_started_at),
+            count=1,
+        )
         return None
 
     product_ids = sorted({
         event.product_db_id
         for event in (*positive_events, *negative_events)
     })
-    signals_by_product = _load_behavior_product_signals(session, product_ids)
+    signals_by_product = load_behavior_product_signals(session, product_ids)
     source_profiles: dict[str, _BehaviorPreferenceProfile] = {}
     source_event_counts: dict[str, int] = {}
     for source in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS:
@@ -526,7 +614,7 @@ def load_behavior_personalization_context(
         ]
         if not source_events:
             continue
-        source_profiles[source] = _build_behavior_preference_profile(source_events, signals_by_product, now)
+        source_profiles[source] = build_behavior_preference_profile(source_events, signals_by_product, now)
         source_event_counts[source] = len(source_events)
 
     negative_profile = None
@@ -536,17 +624,95 @@ def load_behavior_personalization_context(
         if event.product_db_id in signals_by_product
     ]
     if valid_negative_events:
-        negative_profile = _build_behavior_preference_profile(valid_negative_events, signals_by_product, now)
+        negative_profile = build_behavior_preference_profile(valid_negative_events, signals_by_product, now)
         source_event_counts["negative_feedback"] = len(valid_negative_events)
 
     if not source_profiles and negative_profile is None:
+        _record_legacy_fallback(
+            diagnostics,
+            elapsed_ms(fallback_started_at),
+            count=1,
+        )
         return None
 
+    context = BehaviorPersonalizationContext(
+        user_id=user_id,
+        source_profiles=source_profiles,
+        negative_profile=negative_profile,
+        source_event_counts=source_event_counts,
+    )
+    _record_legacy_fallback(
+        diagnostics,
+        elapsed_ms(fallback_started_at),
+        count=1,
+    )
+    return context
+
+
+def _behavior_context_from_preference_profiles(
+    user_id: int,
+    rows: list[UserPreferenceProfile],
+) -> BehaviorPersonalizationContext:
+    source_profiles: dict[str, _BehaviorPreferenceProfile] = {}
+    negative_profile = None
+    source_event_counts: dict[str, int] = {}
+    for row in rows:
+        profile = _behavior_preference_profile_from_row(row)
+        source_event_counts[row.source] = int(row.event_count)
+        if row.source == "negative_feedback":
+            negative_profile = profile
+        else:
+            source_profiles[row.source] = profile
     return BehaviorPersonalizationContext(
         user_id=user_id,
         source_profiles=source_profiles,
         negative_profile=negative_profile,
         source_event_counts=source_event_counts,
+    )
+
+
+def _behavior_preference_profile_from_row(
+    row: UserPreferenceProfile,
+) -> _BehaviorPreferenceProfile:
+    return _BehaviorPreferenceProfile(
+        product_ids=tuple(int(product_id) for product_id in row.product_ids or ()),
+        category_scores=_float_score_mapping(row.category_scores),
+        brand_scores=_float_score_mapping(row.brand_scores),
+        ingredient_scores=_float_score_mapping(row.ingredient_scores),
+        effect_scores=_float_score_mapping(row.effect_scores),
+        price_band_scores=_float_score_mapping(row.price_band_scores),
+        total_weight=_decimal_to_float(row.total_weight),
+        effect_top3_sum=_decimal_to_float(row.effect_top3_sum),
+        ingredient_top5_sum=_decimal_to_float(row.ingredient_top5_sum),
+        category_max=_decimal_to_float(row.category_max),
+        brand_max=_decimal_to_float(row.brand_max),
+        price_band_max=_decimal_to_float(row.price_band_max),
+    )
+
+
+def _float_score_mapping(value: object) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): _decimal_to_float(score)
+        for key, score in value.items()
+    }
+
+
+def _record_legacy_fallback(
+    diagnostics: dict[str, object] | None,
+    duration_ms: float,
+    *,
+    count: int,
+) -> None:
+    if diagnostics is None:
+        return
+    diagnostics["legacy_fallback_ms"] = round(
+        float(diagnostics.get("legacy_fallback_ms", 0.0)) + duration_ms,
+        2,
+    )
+    diagnostics["legacy_fallback_count"] = (
+        int(diagnostics.get("legacy_fallback_count", 0)) + count
     )
 
 
@@ -566,8 +732,14 @@ def score_candidates(
     weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
+    result_limit: int | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> list[ScoredProduct]:
+    if diagnostics is not None:
+        diagnostics.setdefault("user_profile_load_ms", 0.0)
+        diagnostics.setdefault("user_profile_hit", False)
+        diagnostics.setdefault("legacy_fallback_ms", 0.0)
+        diagnostics.setdefault("legacy_fallback_count", 0)
     if not candidates:
         if diagnostics is not None:
             diagnostics.update(
@@ -576,7 +748,31 @@ def score_candidates(
                     "score_context_build_ms": 0.0,
                     "score_loop_ms": 0.0,
                     "score_sort_ms": 0.0,
+                    "score_detail_materialization_ms": 0.0,
+                    "score_detail_count": 0,
+                    "candidate_bundle_load_ms": 0.0,
+                    "product_feature_load_ms": 0.0,
+                    "product_feature_hit_count": 0,
+                    "product_feature_miss_count": 0,
+                    "effect_feature_load_ms": 0.0,
+                    "effect_feature_hit_count": 0,
+                    "effect_feature_miss_count": 0,
+                    "user_profile_load_ms": float(
+                        diagnostics.get("user_profile_load_ms", 0.0)
+                    ),
+                    "user_profile_hit": bool(
+                        diagnostics.get("user_profile_hit", False)
+                    ),
+                    "legacy_fallback_ms": float(
+                        diagnostics.get("legacy_fallback_ms", 0.0)
+                    ),
+                    "legacy_fallback_count": int(
+                        diagnostics.get("legacy_fallback_count", 0)
+                    ),
                     "scoring_prefetch_breakdown": {},
+                    "scoring_prefetch_detail": {},
+                    "score_loop_breakdown": {},
+                    "score_detail_breakdown": {},
                     "scoring_counts": {
                         "prefetch_product_count": 0,
                         "ingredient_effect_product_count": 0,
@@ -602,43 +798,103 @@ def score_candidates(
     prefetch_breakdown: dict[str, float] = {}
 
     stage_started_at = current_time()
-    ingredients_by_product = _load_ingredient_effects(session, product_ids, desired_effects)
-    prefetch_breakdown["ingredient_effects_ms"] = round(elapsed_ms(stage_started_at), 2)
+    candidate_bundles, product_feature_miss_ids = _load_candidate_scoring_bundles(
+        session,
+        candidates,
+    )
+    candidate_bundle_load_ms = round(elapsed_ms(stage_started_at), 2)
+    product_feature_load_ms = candidate_bundle_load_ms
+    prefetch_breakdown["candidate_bundle_ms"] = candidate_bundle_load_ms
+    product_features_by_product = {
+        product_id: bundle.product_feature
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.product_feature is not None
+    }
+    functional_info_by_product = {
+        product_id: bundle.functional_info
+        for product_id, bundle in candidate_bundles.items()
+    }
+    skin_tags_by_product = {
+        product_id: bundle.skin_tags
+        for product_id, bundle in candidate_bundles.items()
+    }
+    skin_profiles_by_product = {
+        product_id: bundle.skin_profile
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.skin_profile is not None
+    }
+    market_signals_by_product = {
+        product_id: bundle.market_signal
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.market_signal is not None
+    }
+    review_metrics_by_product = {
+        product_id: bundle.review_metric
+        for product_id, bundle in candidate_bundles.items()
+        if bundle.review_metric is not None
+    }
 
     stage_started_at = current_time()
-    functional_info_by_product = _load_functional_info(session, product_ids)
-    prefetch_breakdown["functional_info_ms"] = round(elapsed_ms(stage_started_at), 2)
+    (
+        effect_features_by_product,
+        effect_feature_miss_ids,
+        effect_feature_hit_count,
+    ) = _load_product_effect_recommendation_features(
+        session,
+        sorted(set(product_ids) - product_feature_miss_ids),
+        desired_effects,
+    )
+    effect_feature_load_ms = round(elapsed_ms(stage_started_at), 2)
+    prefetch_breakdown["effect_features_ms"] = effect_feature_load_ms
 
-    stage_started_at = current_time()
-    skin_tags_by_product = _load_skin_tags(session, product_ids)
-    prefetch_breakdown["skin_tags_ms"] = round(elapsed_ms(stage_started_at), 2)
+    legacy_fallback_ids = product_feature_miss_ids | effect_feature_miss_ids
+    legacy_started_at = current_time()
+    ingredient_effect_detail: dict[str, float | int] = {}
+    legacy_ingredients_by_product = _load_ingredient_effects(
+        session,
+        sorted(legacy_fallback_ids),
+        desired_effects,
+        diagnostics=ingredient_effect_detail if diagnostics is not None else None,
+    )
+    legacy_fallback_ms = elapsed_ms(legacy_started_at)
+    _record_legacy_fallback(
+        diagnostics,
+        legacy_fallback_ms,
+        count=len(legacy_fallback_ids),
+    )
 
-    stage_started_at = current_time()
-    skin_profiles_by_product = _load_skin_profiles(session, product_ids)
-    prefetch_breakdown["skin_profiles_ms"] = round(elapsed_ms(stage_started_at), 2)
+    ingredients_by_product = dict(legacy_ingredients_by_product)
+    prefetch_breakdown["ingredient_effects_ms"] = round(legacy_fallback_ms, 2)
 
     stage_started_at = current_time()
     risk_flags_by_product = _load_risk_flags(session, product_ids)
     prefetch_breakdown["risk_flags_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
-    market_signals_by_product = _load_market_signals(session, product_ids)
-    prefetch_breakdown["market_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
-    review_metrics_by_product = _load_review_metrics(session, product_ids)
-    prefetch_breakdown["review_metrics_ms"] = round(elapsed_ms(stage_started_at), 2)
-
-    stage_started_at = current_time()
     review_segments_by_product = _load_review_segments(session, product_ids)
     prefetch_breakdown["review_segments_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
-    behavior_signals_by_product = (
-        _load_behavior_product_signals(session, product_ids)
-        if behavior_personalization_context is not None
-        else {}
-    )
+    behavior_signal_detail: dict[str, float | int] = {}
+    if behavior_personalization_context is not None:
+        behavior_signals_by_product = _build_behavior_signals_from_product_features(
+            candidates,
+            product_features_by_product,
+        )
+        behavior_fallback_ids = sorted(
+            set(product_ids) - set(behavior_signals_by_product)
+        )
+        behavior_signals_by_product.update(
+            load_behavior_product_signals(
+                session,
+                behavior_fallback_ids,
+                diagnostics=(
+                    behavior_signal_detail if diagnostics is not None else None
+                ),
+            )
+        )
+    else:
+        behavior_signals_by_product = {}
     prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     prefetch_ms = round(elapsed_ms(prefetch_started_at), 2)
@@ -664,8 +920,79 @@ def score_candidates(
     context_build_ms = round(elapsed_ms(context_started_at), 2)
 
     loop_started_at = current_time()
-    scored_products = [
-        _score_candidate(
+    score_loop_breakdown: dict[str, float] = {}
+    scored_products = []
+    for candidate in candidates:
+        scored_products.append(
+            _score_candidate(
+                candidate,
+                desired_effects,
+                priority_effect_codes,
+                ingredients_by_product.get(candidate.db_product_id, ()),
+                functional_info_by_product.get(candidate.db_product_id),
+                skin_tags_by_product.get(candidate.db_product_id, ()),
+                skin_profiles_by_product.get(candidate.db_product_id),
+                risk_flags_by_product.get(candidate.db_product_id, ()),
+                market_signals_by_product.get(candidate.db_product_id),
+                review_metrics_by_product.get(candidate.db_product_id),
+                review_segments_by_product.get(candidate.db_product_id, {}),
+                review_affinity_targets,
+                behavior_signals_by_product.get(candidate.db_product_id),
+                (
+                    effect_features_by_product.get(candidate.db_product_id, {})
+                    if candidate.db_product_id not in legacy_fallback_ids
+                    else None
+                ),
+                matches_by_product_code.get(candidate.product_id),
+                intent.purchase_conditions,
+                skin_type=skin_type,
+                sensitivity=sensitivity,
+                skin_test_context=skin_test_context,
+                behavior_personalization_context=behavior_personalization_context,
+                manual_skin_type_explicit=manual_skin_type_explicit,
+                manual_sensitivity_explicit=manual_sensitivity_explicit,
+                price_context=price_context,
+                weight_resolution=weight_resolution,
+                concentration_policy=concentration_policy,
+                skin_profile_weights=skin_profile_weights,
+                include_details=False,
+                timing_accumulator=score_loop_breakdown if diagnostics is not None else None,
+            )
+        )
+    score_loop_ms = round(elapsed_ms(loop_started_at), 2)
+
+    sort_started_at = current_time()
+    ranked_products = sorted(
+        scored_products,
+        key=lambda product: (-product.total_score, product.rank),
+    )
+    score_sort_ms = round(elapsed_ms(sort_started_at), 2)
+
+    detail_started_at = current_time()
+    detail_count = (
+        len(ranked_products)
+        if result_limit is None
+        else min(len(ranked_products), max(0, int(result_limit)))
+    )
+    detail_products = ranked_products[:detail_count]
+    detail_product_ids = [product.db_product_id for product in detail_products]
+    detail_precomputed_ids = sorted(
+        set(detail_product_ids) - legacy_fallback_ids
+    )
+    detail_ingredients_by_product = _load_ingredient_effects(
+        session,
+        detail_precomputed_ids,
+        desired_effects,
+    )
+    ingredients_by_product.update(detail_ingredients_by_product)
+    candidates_by_product_id = {
+        candidate.db_product_id: candidate for candidate in candidates
+    }
+    detail_loop_breakdown: dict[str, float] = {}
+    detailed_products_by_id: dict[int, ScoredProduct] = {}
+    for scored_product in detail_products:
+        candidate = candidates_by_product_id[scored_product.db_product_id]
+        detailed_products_by_id[scored_product.db_product_id] = _score_candidate(
             candidate,
             desired_effects,
             priority_effect_codes,
@@ -679,6 +1006,11 @@ def score_candidates(
             review_segments_by_product.get(candidate.db_product_id, {}),
             review_affinity_targets,
             behavior_signals_by_product.get(candidate.db_product_id),
+            (
+                effect_features_by_product.get(candidate.db_product_id, {})
+                if candidate.db_product_id not in legacy_fallback_ids
+                else None
+            ),
             matches_by_product_code.get(candidate.product_id),
             intent.purchase_conditions,
             skin_type=skin_type,
@@ -691,17 +1023,12 @@ def score_candidates(
             weight_resolution=weight_resolution,
             concentration_policy=concentration_policy,
             skin_profile_weights=skin_profile_weights,
+            include_details=True,
+            timing_accumulator=(
+                detail_loop_breakdown if diagnostics is not None else None
+            ),
         )
-        for candidate in candidates
-    ]
-    score_loop_ms = round(elapsed_ms(loop_started_at), 2)
-
-    sort_started_at = current_time()
-    ranked_products = sorted(
-        scored_products,
-        key=lambda product: (-product.total_score, product.rank),
-    )
-    score_sort_ms = round(elapsed_ms(sort_started_at), 2)
+    detail_materialization_ms = round(elapsed_ms(detail_started_at), 2)
 
     if diagnostics is not None:
         diagnostics.update(
@@ -710,7 +1037,34 @@ def score_candidates(
                 "score_context_build_ms": context_build_ms,
                 "score_loop_ms": score_loop_ms,
                 "score_sort_ms": score_sort_ms,
+                "score_detail_materialization_ms": detail_materialization_ms,
+                "score_detail_count": detail_count,
+                "candidate_bundle_load_ms": candidate_bundle_load_ms,
+                "product_feature_load_ms": product_feature_load_ms,
+                "product_feature_hit_count": len(product_features_by_product),
+                "product_feature_miss_count": len(product_feature_miss_ids),
+                "effect_feature_load_ms": effect_feature_load_ms,
+                "effect_feature_hit_count": effect_feature_hit_count,
+                "effect_feature_miss_count": len(effect_feature_miss_ids),
                 "scoring_prefetch_breakdown": prefetch_breakdown,
+                "scoring_prefetch_detail": {
+                    **{
+                        f"ingredient_effects_{key}": value
+                        for key, value in ingredient_effect_detail.items()
+                    },
+                    **{
+                        f"behavior_signals_{key}": value
+                        for key, value in behavior_signal_detail.items()
+                    },
+                },
+                "score_loop_breakdown": {
+                    key: round(value, 2)
+                    for key, value in score_loop_breakdown.items()
+                },
+                "score_detail_breakdown": {
+                    key: round(value, 2)
+                    for key, value in detail_loop_breakdown.items()
+                },
                 "scoring_counts": {
                     "prefetch_product_count": len(product_ids),
                     "ingredient_effect_product_count": len(ingredients_by_product),
@@ -727,20 +1081,23 @@ def score_candidates(
             }
         )
 
-    return [
-        ScoredProduct(
-            product_id=product.product_id,
-            db_product_id=product.db_product_id,
-            rank=rank,
-            total_score=product.total_score,
-            reason_summary=product.reason_summary,
-            evidence_tags=product.evidence_tags,
-            key_ingredients=product.key_ingredients,
-            score_breakdown=product.score_breakdown,
-            score_evidence=product.score_evidence,
+    results: list[ScoredProduct] = []
+    for rank, product in enumerate(ranked_products, start=1):
+        materialized = detailed_products_by_id.get(product.db_product_id, product)
+        results.append(
+            ScoredProduct(
+                product_id=materialized.product_id,
+                db_product_id=materialized.db_product_id,
+                rank=rank,
+                total_score=product.total_score,
+                reason_summary=materialized.reason_summary,
+                evidence_tags=materialized.evidence_tags,
+                key_ingredients=materialized.key_ingredients,
+                score_breakdown=materialized.score_breakdown,
+                score_evidence=materialized.score_evidence,
+            )
         )
-        for rank, product in enumerate(ranked_products, start=1)
-    ]
+    return results
 
 
 def _score_candidate(
@@ -757,6 +1114,11 @@ def _score_candidate(
     review_segments: dict[tuple[str, str], _ReviewSegmentInfo],
     review_affinity_targets: tuple[_ReviewAffinityTarget, ...],
     behavior_signal: _BehaviorProductSignals | None,
+    precomputed_effect_features: dict[
+        str,
+        ProductEffectRecommendationFeatureValues,
+    ]
+    | None,
     match: SearchMatch | None,
     purchase_conditions: ParsedPurchaseConditions,
     *,
@@ -770,26 +1132,60 @@ def _score_candidate(
     weight_resolution: ScoreWeightResolution,
     concentration_policy: ConcentrationScorePolicy,
     skin_profile_weights: SkinProfileWeights,
+    include_details: bool,
+    timing_accumulator: dict[str, float] | None = None,
 ) -> ScoredProduct:
+    stage_started_at = current_time()
     contributions_by_effect = _build_contributions_by_effect(ingredients)
     evidence_contributions_by_effect = _build_evidence_contributions_by_effect(
         ingredients
     )
-    ingredient_effect_score = _score_ingredient_effects(desired_effects, contributions_by_effect)
-    ingredient_evidence_score = _score_ingredient_evidence(
-        desired_effects,
-        evidence_contributions_by_effect,
-    )
+    _add_elapsed_timing(timing_accumulator, "contribution_build_ms", stage_started_at)
+
+    stage_started_at = current_time()
+    if precomputed_effect_features is None:
+        ingredient_effect_score = _score_ingredient_effects(
+            desired_effects,
+            contributions_by_effect,
+        )
+        ingredient_evidence_score = _score_ingredient_evidence(
+            desired_effects,
+            evidence_contributions_by_effect,
+        )
+        concentration_result = _score_concentration_fit(
+            desired_effects,
+            contributions_by_effect,
+            concentration_policy,
+        )
+    else:
+        ingredient_effect_score = _score_precomputed_effect_axis(
+            desired_effects,
+            precomputed_effect_features,
+            field="ingredient_effect_score",
+            missing_score=0.0,
+        )
+        ingredient_evidence_score = _score_precomputed_effect_axis(
+            desired_effects,
+            precomputed_effect_features,
+            field="ingredient_evidence_score",
+            missing_score=0.0,
+        )
+        concentration_result = _score_precomputed_concentration_fit(
+            desired_effects,
+            precomputed_effect_features,
+            concentration_policy,
+        )
+    _add_elapsed_timing(timing_accumulator, "ingredient_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     functional_claim_score, functional_claim_context = _score_functional_claim(
         functional_info,
         desired_effects,
         priority_effect_codes,
     )
-    concentration_result = _score_concentration_fit(
-        desired_effects,
-        contributions_by_effect,
-        concentration_policy,
-    )
+    _add_elapsed_timing(timing_accumulator, "functional_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     skin_type_score = _score_skin_type(skin_type, skin_tags, skin_profile)
     sensitivity_score = _score_sensitivity(sensitivity, skin_tags, risk_flags, skin_profile)
     skin_profile_score = _weighted_average(
@@ -798,6 +1194,10 @@ def _score_candidate(
             (sensitivity_score, skin_profile_weights.sensitivity),
         )
     )
+    risk_penalty = _score_risk_penalty(sensitivity, risk_flags)
+    _add_elapsed_timing(timing_accumulator, "skin_profile_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     search_match_score = match.search_match_score if match else 0.0
     keyword_score = match.keyword_score if match else 0.0
     vector_score = match.vector_score if match else 0.0
@@ -808,6 +1208,9 @@ def _score_candidate(
         price_context=price_context,
     )
     market_signal_score = _score_market_signal(market_signal)
+    _add_elapsed_timing(timing_accumulator, "search_price_market_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     review_quality_score = (
         _clamp(review_metric.review_quality_score)
         if review_metric is not None and review_metric.review_count > 0
@@ -817,6 +1220,9 @@ def _score_candidate(
         review_segments,
         review_affinity_targets,
     )
+    _add_elapsed_timing(timing_accumulator, "review_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     skin_test_score = _score_skin_test_context(
         skin_test_context,
         intent_purchase_conditions=purchase_conditions,
@@ -824,19 +1230,25 @@ def _score_candidate(
         skin_profile=skin_profile,
         risk_flags=risk_flags,
         contributions_by_effect=contributions_by_effect,
+        precomputed_effect_features=precomputed_effect_features,
         functional_info=functional_info,
         manual_skin_type=skin_type,
         manual_sensitivity=sensitivity,
         manual_skin_type_explicit=manual_skin_type_explicit,
         manual_sensitivity_explicit=manual_sensitivity_explicit,
     )
-    risk_penalty = _score_risk_penalty(sensitivity, risk_flags)
+    _add_elapsed_timing(timing_accumulator, "skin_test_axis_ms", stage_started_at)
+
+    stage_started_at = current_time()
     behavior_score = _score_behavior_personalization(
         behavior_personalization_context,
         behavior_signal,
     )
+    _add_elapsed_timing(timing_accumulator, "behavior_axis_ms", stage_started_at)
+
     weights = weight_resolution.weights
 
+    stage_started_at = current_time()
     raw_score = (
         ingredient_effect_score * weights.ingredient_effect
         + ingredient_evidence_score * weights.ingredient_evidence
@@ -852,7 +1264,26 @@ def _score_candidate(
         + review_profile_affinity.score * weights.review_profile_affinity
     )
     total_score = _round_score(_clamp(raw_score) * 100 - risk_penalty)
+    _add_elapsed_timing(timing_accumulator, "final_score_ms", stage_started_at)
+
+    if not include_details:
+        return ScoredProduct(
+            product_id=candidate.product_id,
+            db_product_id=candidate.db_product_id,
+            rank=0,
+            total_score=total_score,
+            reason_summary="",
+            evidence_tags=(),
+            key_ingredients=(),
+            score_breakdown={},
+            score_evidence=(),
+        )
+
+    stage_started_at = current_time()
     score_evidence = _build_score_evidence(contributions_by_effect)
+    _add_elapsed_timing(timing_accumulator, "evidence_build_ms", stage_started_at)
+
+    stage_started_at = current_time()
     score_breakdown = {
         "scoring_version": SCORING_VERSION,
         "ingredient_effect_score": _round_component(ingredient_effect_score),
@@ -980,18 +1411,35 @@ def _score_candidate(
         ),
         "total_score": total_score,
     }
+    _add_elapsed_timing(timing_accumulator, "breakdown_build_ms", stage_started_at)
+
+    stage_started_at = current_time()
+    reason_summary = _build_reason_summary(score_evidence)
+    evidence_tags = _build_evidence_tags(score_evidence)
+    key_ingredients = _build_key_ingredients(score_evidence)
+    _add_elapsed_timing(timing_accumulator, "summary_build_ms", stage_started_at)
 
     return ScoredProduct(
         product_id=candidate.product_id,
         db_product_id=candidate.db_product_id,
         rank=0,
         total_score=total_score,
-        reason_summary=_build_reason_summary(score_evidence),
-        evidence_tags=_build_evidence_tags(score_evidence),
-        key_ingredients=_build_key_ingredients(score_evidence),
+        reason_summary=reason_summary,
+        evidence_tags=evidence_tags,
+        key_ingredients=key_ingredients,
         score_breakdown=score_breakdown,
         score_evidence=score_evidence,
     )
+
+
+def _add_elapsed_timing(
+    timings: dict[str, float] | None,
+    key: str,
+    started_at: float,
+) -> None:
+    if timings is None:
+        return
+    timings[key] = timings.get(key, 0.0) + elapsed_ms(started_at)
 
 
 def _resolve_score_weights(
@@ -1222,11 +1670,24 @@ def _load_ingredient_effects(
     session: Session,
     product_ids: list[int],
     desired_effects: tuple[_DesiredEffect, ...],
+    *,
+    diagnostics: dict[str, float | int] | None = None,
 ) -> dict[int, tuple[_IngredientEffectInfo, ...]]:
     if not product_ids or not desired_effects:
+        if diagnostics is not None:
+            diagnostics.update(
+                {
+                    "query_ms": 0.0,
+                    "build_ms": 0.0,
+                    "row_count": 0,
+                    "grouped_count": 0,
+                    "product_count": 0,
+                }
+            )
         return {}
 
     desired_effect_codes = [effect.effect_code for effect in desired_effects]
+    query_started_at = current_time()
     rows = session.execute(
         select(
             ProductIngredient.product_id.label("product_db_id"),
@@ -1282,7 +1743,11 @@ def _load_ingredient_effects(
             Effect.effect_code.in_(desired_effect_codes),
         )
     ).all()
+    if diagnostics is not None:
+        diagnostics["query_ms"] = round(elapsed_ms(query_started_at), 2)
+        diagnostics["row_count"] = len(rows)
 
+    build_started_at = current_time()
     grouped: dict[tuple[int, int, str], _IngredientEffectInfo] = {}
     for row in rows:
         key = (int(row.product_db_id), int(row.ingredient_id), row.effect_code)
@@ -1323,35 +1788,164 @@ def _load_ingredient_effects(
     for info in grouped.values():
         ingredients_by_product.setdefault(info.product_db_id, []).append(info)
 
-    return {
+    result = {
         product_id: tuple(ingredients)
         for product_id, ingredients in ingredients_by_product.items()
     }
+    if diagnostics is not None:
+        diagnostics["build_ms"] = round(elapsed_ms(build_started_at), 2)
+        diagnostics["grouped_count"] = len(grouped)
+        diagnostics["product_count"] = len(result)
+    return result
 
 
-def _load_functional_info(session: Session, product_ids: list[int]) -> dict[int, _FunctionalInfo]:
+def load_all_product_ingredient_effects(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, tuple[_IngredientEffectInfo, ...]]:
     if not product_ids:
         return {}
+    effect_rows = session.execute(
+        select(Effect.effect_code, Effect.name).order_by(Effect.id.asc())
+    ).all()
+    desired_effects = tuple(
+        _DesiredEffect(effect_code=str(effect_code), name=str(name), weight=1.0)
+        for effect_code, name in effect_rows
+    )
+    return _load_ingredient_effects(session, product_ids, desired_effects)
+
+
+def _load_candidate_scoring_bundles(
+    session: Session,
+    candidates: list[ProductCandidate],
+) -> tuple[dict[int, _CandidateScoringBundle], set[int]]:
+    product_ids = list(
+        dict.fromkeys(candidate.db_product_id for candidate in candidates)
+    )
+    if not product_ids:
+        return {}, set()
 
     rows = session.execute(
         select(
-            Product.id,
+            Product.id.label("product_id"),
+            Product.updated_at.label("product_updated_at"),
             Product.functional_cosmetic_status,
             Product.functional_cosmetic_claims,
             Product.functional_claim_confidence,
             Product.functional_claim_basis,
-        ).where(Product.id.in_(product_ids))
+            Product.skin_type_tags,
+            ProductRecommendationFeature.product_id.label("feature_product_id"),
+            ProductRecommendationFeature.top_ingredient_codes,
+            ProductRecommendationFeature.top_effect_codes,
+            ProductRecommendationFeature.feature_version,
+            ProductRecommendationFeature.source_updated_at,
+            ProductSkinProfile.product_id.label("skin_profile_product_id"),
+            ProductSkinProfile.dry_fit,
+            ProductSkinProfile.oily_fit,
+            ProductSkinProfile.combination_fit,
+            ProductSkinProfile.normal_fit,
+            ProductSkinProfile.dehydrated_oily_fit,
+            ProductSkinProfile.sensitive_fit,
+            ProductSkinProfile.sensitivity_tag,
+            ProductSkinProfile.confidence.label("skin_profile_confidence"),
+            ProductSkinProfile.reason,
+            ProductPopularityMetric.product_id.label("popularity_product_id"),
+            ProductPopularityMetric.popularity_score,
+            ProductReviewMetric.product_id.label("review_metric_product_id"),
+            ProductReviewMetric.review_quality_score,
+            ProductReviewMetric.confidence.label("review_metric_confidence"),
+            ProductReviewMetric.review_count,
+        )
+        .outerjoin(
+            ProductRecommendationFeature,
+            ProductRecommendationFeature.product_id == Product.id,
+        )
+        .outerjoin(
+            ProductSkinProfile,
+            ProductSkinProfile.product_id == Product.id,
+        )
+        .outerjoin(
+            ProductPopularityMetric,
+            and_(
+                ProductPopularityMetric.product_id == Product.id,
+                ProductPopularityMetric.window_days == MARKET_SIGNAL_WINDOW_DAYS,
+            ),
+        )
+        .outerjoin(
+            ProductReviewMetric,
+            ProductReviewMetric.product_id == Product.id,
+        )
+        .where(Product.id.in_(product_ids))
     ).all()
 
-    return {
-        int(row.id): _FunctionalInfo(
-            status=row.functional_cosmetic_status,
-            claims=_split_tags(row.functional_cosmetic_claims),
-            claim_confidence=row.functional_claim_confidence,
-            basis=row.functional_claim_basis,
+    bundles: dict[int, _CandidateScoringBundle] = {}
+    feature_product_ids: set[int] = set()
+    for row in rows:
+        product_id = int(row.product_id)
+        product_feature = None
+        if (
+            row.feature_product_id is not None
+            and row.feature_version == PRODUCT_RECOMMENDATION_FEATURE_VERSION
+            and _feature_source_is_current(
+                row.source_updated_at,
+                row.product_updated_at,
+            )
+        ):
+            product_feature = ProductRecommendationFeatureValues(
+                top_ingredient_codes=tuple(
+                    str(code) for code in row.top_ingredient_codes or ()
+                ),
+                top_effect_codes=tuple(
+                    str(code) for code in row.top_effect_codes or ()
+                ),
+            )
+            feature_product_ids.add(product_id)
+
+        skin_profile = None
+        if row.skin_profile_product_id is not None:
+            skin_profile = _SkinProfileInfo(
+                dry_fit=_decimal_to_float(row.dry_fit),
+                oily_fit=_decimal_to_float(row.oily_fit),
+                combination_fit=_decimal_to_float(row.combination_fit),
+                normal_fit=_decimal_to_float(row.normal_fit),
+                dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
+                sensitive_fit=_decimal_to_float(row.sensitive_fit),
+                sensitivity_tag=row.sensitivity_tag,
+                confidence=row.skin_profile_confidence,
+                reason=row.reason,
+            )
+
+        market_signal = None
+        if row.popularity_product_id is not None:
+            market_signal = _MarketSignalInfo(
+                popularity_score=_decimal_to_float(row.popularity_score),
+            )
+
+        review_metric = None
+        if row.review_metric_product_id is not None:
+            review_metric = _ReviewMetricInfo(
+                review_quality_score=_decimal_to_float(
+                    row.review_quality_score
+                ),
+                confidence=_decimal_to_float(row.review_metric_confidence),
+                review_count=int(row.review_count),
+            )
+
+        bundles[product_id] = _CandidateScoringBundle(
+            product_feature=product_feature,
+            functional_info=_FunctionalInfo(
+                status=row.functional_cosmetic_status,
+                claims=_split_tags(row.functional_cosmetic_claims),
+                claim_confidence=row.functional_claim_confidence,
+                basis=row.functional_claim_basis,
+            ),
+            skin_tags=_split_tags(row.skin_type_tags),
+            skin_profile=skin_profile,
+            market_signal=market_signal,
+            review_metric=review_metric,
         )
-        for row in rows
-    }
+
+    return bundles, set(product_ids) - feature_product_ids
 
 
 def _row_to_evidence(row) -> _EvidenceInfo | None:
@@ -1400,36 +1994,6 @@ def _is_better_evidence(candidate: _EvidenceInfo | None, existing: _EvidenceInfo
     return _effective_evidence_score(candidate) > _effective_evidence_score(existing)
 
 
-def _load_skin_tags(session: Session, product_ids: list[int]) -> dict[int, tuple[str, ...]]:
-    rows = session.execute(
-        select(Product.id, Product.skin_type_tags).where(Product.id.in_(product_ids))
-    ).all()
-    return {
-        int(row.id): _split_tags(row.skin_type_tags)
-        for row in rows
-    }
-
-
-def _load_skin_profiles(session: Session, product_ids: list[int]) -> dict[int, _SkinProfileInfo]:
-    rows = session.execute(
-        select(ProductSkinProfile).where(ProductSkinProfile.product_id.in_(product_ids))
-    ).scalars()
-    return {
-        int(row.product_id): _SkinProfileInfo(
-            dry_fit=_decimal_to_float(row.dry_fit),
-            oily_fit=_decimal_to_float(row.oily_fit),
-            combination_fit=_decimal_to_float(row.combination_fit),
-            normal_fit=_decimal_to_float(row.normal_fit),
-            dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
-            sensitive_fit=_decimal_to_float(row.sensitive_fit),
-            sensitivity_tag=row.sensitivity_tag,
-            confidence=row.confidence,
-            reason=row.reason,
-        )
-        for row in rows
-    }
-
-
 def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tuple[RiskFlag, ...]]:
     rows = (
         session.execute(
@@ -1445,43 +2009,6 @@ def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tupl
     return {
         product_id: tuple(flags)
         for product_id, flags in flags_by_product.items()
-    }
-
-
-def _load_market_signals(session: Session, product_ids: list[int]) -> dict[int, _MarketSignalInfo]:
-    if not product_ids:
-        return {}
-
-    rows = session.execute(
-        select(ProductPopularityMetric).where(
-            ProductPopularityMetric.product_id.in_(product_ids),
-            ProductPopularityMetric.window_days == MARKET_SIGNAL_WINDOW_DAYS,
-        )
-    ).scalars()
-    return {
-        int(row.product_id): _MarketSignalInfo(
-            popularity_score=_decimal_to_float(row.popularity_score),
-        )
-        for row in rows
-    }
-
-
-def _load_review_metrics(
-    session: Session,
-    product_ids: list[int],
-) -> dict[int, _ReviewMetricInfo]:
-    if not product_ids:
-        return {}
-    rows = session.execute(
-        select(ProductReviewMetric).where(ProductReviewMetric.product_id.in_(product_ids))
-    ).scalars()
-    return {
-        int(row.product_id): _ReviewMetricInfo(
-            review_quality_score=_decimal_to_float(row.review_quality_score),
-            confidence=_decimal_to_float(row.confidence),
-            review_count=int(row.review_count),
-        )
-        for row in rows
     }
 
 
@@ -1513,7 +2040,7 @@ def _load_review_segments(
     return by_product
 
 
-def _load_behavior_events(
+def load_behavior_events(
     session: Session,
     user_id: int,
     now: datetime,
@@ -1629,26 +2156,51 @@ def _load_behavior_events(
     return positive_events, negative_events
 
 
-def _load_behavior_product_signals(
+def load_behavior_product_signals(
     session: Session,
     product_ids: list[int],
+    *,
+    diagnostics: dict[str, float | int] | None = None,
 ) -> dict[int, _BehaviorProductSignals]:
     normalized_product_ids = sorted({int(product_id) for product_id in product_ids})
     if not normalized_product_ids:
+        if diagnostics is not None:
+            diagnostics.update(
+                {
+                    "base_query_ms": 0.0,
+                    "price_load_ms": 0.0,
+                    "ingredient_query_ms": 0.0,
+                    "build_ms": 0.0,
+                    "base_row_count": 0,
+                    "ingredient_row_count": 0,
+                    "price_count": 0,
+                    "product_count": 0,
+                }
+            )
         return {}
 
+    base_query_started_at = current_time()
     base_rows = session.execute(
         select(Product.id, Brand.brand_code, ProductCategory.category_code)
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .where(Product.id.in_(normalized_product_ids))
     ).all()
+    if diagnostics is not None:
+        diagnostics["base_query_ms"] = round(elapsed_ms(base_query_started_at), 2)
+        diagnostics["base_row_count"] = len(base_rows)
+
+    price_started_at = current_time()
     prices_by_product = _load_lowest_prices(session, normalized_product_ids)
-    ingredient_codes_by_product: dict[int, list[str]] = {}
-    effect_scores_by_product: dict[int, dict[str, float]] = {}
+    if diagnostics is not None:
+        diagnostics["price_load_ms"] = round(elapsed_ms(price_started_at), 2)
+        diagnostics["price_count"] = len(prices_by_product)
+
+    ingredient_query_started_at = current_time()
     rows = session.execute(
         select(
             ProductIngredient.product_id,
+            ProductIngredient.id,
             ProductIngredient.display_order,
             Ingredient.ingredient_code,
             Effect.effect_code,
@@ -1660,40 +2212,53 @@ def _load_behavior_product_signals(
         .where(ProductIngredient.product_id.in_(normalized_product_ids))
         .order_by(ProductIngredient.product_id.asc(), ProductIngredient.display_order.asc(), ProductIngredient.id.asc())
     ).all()
-    for product_id, _display_order, ingredient_code, effect_code, effect_score in rows:
-        normalized_product_id = int(product_id)
-        if ingredient_code:
-            _append_unique_limited(
-                ingredient_codes_by_product.setdefault(normalized_product_id, []),
-                str(ingredient_code),
-                limit=8,
+    if diagnostics is not None:
+        diagnostics["ingredient_query_ms"] = round(elapsed_ms(ingredient_query_started_at), 2)
+        diagnostics["ingredient_row_count"] = len(rows)
+
+    build_started_at = current_time()
+    feature_values_by_product = build_product_recommendation_feature_values(
+        tuple(
+            ProductRecommendationFeatureSource(
+                product_db_id=int(product_id),
+                product_ingredient_id=int(product_ingredient_id),
+                display_order=display_order,
+                ingredient_code=str(ingredient_code) if ingredient_code else None,
+                effect_code=str(effect_code) if effect_code else None,
+                effect_score=_decimal_to_float(effect_score),
             )
-        if effect_code:
-            effect_scores = effect_scores_by_product.setdefault(normalized_product_id, {})
-            effect_scores[str(effect_code)] = max(
-                effect_scores.get(str(effect_code), 0.0),
-                _decimal_to_float(effect_score),
-            )
+            for (
+                product_id,
+                product_ingredient_id,
+                display_order,
+                ingredient_code,
+                effect_code,
+                effect_score,
+            ) in rows
+        )
+    )
 
     signals: dict[int, _BehaviorProductSignals] = {}
     for product_id, brand_code, category_code in base_rows:
         normalized_product_id = int(product_id)
-        effect_scores = effect_scores_by_product.get(normalized_product_id, {})
-        effect_codes = tuple(
-            effect_code
-            for effect_code, _score in sorted(
-                effect_scores.items(),
-                key=lambda item: (-item[1], item[0]),
-            )[:8]
+        feature_values = feature_values_by_product.get(
+            normalized_product_id,
+            ProductRecommendationFeatureValues(
+                top_ingredient_codes=(),
+                top_effect_codes=(),
+            ),
         )
         signals[normalized_product_id] = _BehaviorProductSignals(
             product_db_id=normalized_product_id,
             category_code=str(category_code or ""),
             brand_code=str(brand_code or ""),
-            ingredient_codes=tuple(ingredient_codes_by_product.get(normalized_product_id, [])),
-            effect_codes=effect_codes,
+            ingredient_codes=feature_values.top_ingredient_codes,
+            effect_codes=feature_values.top_effect_codes,
             price_band=_price_band(prices_by_product.get(normalized_product_id)),
         )
+    if diagnostics is not None:
+        diagnostics["build_ms"] = round(elapsed_ms(build_started_at), 2)
+        diagnostics["product_count"] = len(signals)
     return signals
 
 
@@ -1709,7 +2274,149 @@ def _load_lowest_prices(session: Session, product_ids: list[int]) -> dict[int, i
     return prices
 
 
-def _build_behavior_preference_profile(
+def build_product_recommendation_feature_values(
+    sources: tuple[ProductRecommendationFeatureSource, ...],
+) -> dict[int, ProductRecommendationFeatureValues]:
+    ingredient_codes_by_product: dict[int, list[str]] = {}
+    effect_scores_by_product: dict[int, dict[str, float]] = {}
+    ordered_sources = sorted(
+        sources,
+        key=lambda source: (
+            source.product_db_id,
+            source.display_order if source.display_order is not None else 999,
+            source.product_ingredient_id,
+            source.effect_code or "",
+        ),
+    )
+    for source in ordered_sources:
+        if source.ingredient_code:
+            _append_unique_limited(
+                ingredient_codes_by_product.setdefault(source.product_db_id, []),
+                source.ingredient_code,
+                limit=8,
+            )
+        if source.effect_code:
+            effect_scores = effect_scores_by_product.setdefault(source.product_db_id, {})
+            effect_scores[source.effect_code] = max(
+                effect_scores.get(source.effect_code, 0.0),
+                source.effect_score,
+            )
+
+    product_ids = set(ingredient_codes_by_product) | set(effect_scores_by_product)
+    return {
+        product_id: ProductRecommendationFeatureValues(
+            top_ingredient_codes=tuple(ingredient_codes_by_product.get(product_id, [])),
+            top_effect_codes=tuple(
+                effect_code
+                for effect_code, _score in sorted(
+                    effect_scores_by_product.get(product_id, {}).items(),
+                    key=lambda item: (-item[1], item[0]),
+                )[:8]
+            ),
+        )
+        for product_id in product_ids
+    }
+
+
+def _load_product_effect_recommendation_features(
+    session: Session,
+    product_ids: list[int],
+    desired_effects: tuple[_DesiredEffect, ...],
+) -> tuple[
+    dict[int, dict[str, ProductEffectRecommendationFeatureValues]],
+    set[int],
+    int,
+]:
+    desired_effect_codes = [effect.effect_code for effect in desired_effects]
+    if not product_ids or not desired_effect_codes:
+        return {}, set(), len(product_ids)
+    rows = session.execute(
+        select(ProductEffectRecommendationFeature, Effect.effect_code)
+        .join(Effect, ProductEffectRecommendationFeature.effect_id == Effect.id)
+        .where(
+            ProductEffectRecommendationFeature.product_id.in_(product_ids),
+            Effect.effect_code.in_(desired_effect_codes),
+        )
+    ).all()
+    stale_product_ids = {
+        int(row.product_id)
+        for row, _effect_code in rows
+        if row.feature_version != PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION
+    }
+    features_by_product: dict[
+        int,
+        dict[str, ProductEffectRecommendationFeatureValues],
+    ] = {}
+    for row, effect_code in rows:
+        product_id = int(row.product_id)
+        if product_id in stale_product_ids:
+            continue
+        features_by_product.setdefault(product_id, {})[str(effect_code)] = (
+            ProductEffectRecommendationFeatureValues(
+                effect_code=str(effect_code),
+                ingredient_effect_score=_decimal_to_float(
+                    row.ingredient_effect_score
+                ),
+                ingredient_evidence_score=_decimal_to_float(
+                    row.ingredient_evidence_score
+                ),
+                concentration_score=_decimal_to_float(row.concentration_score),
+                concentration_context=dict(row.concentration_context or {}),
+                top_ingredient_ids=tuple(
+                    int(ingredient_id)
+                    for ingredient_id in row.top_ingredient_ids or ()
+                ),
+                best_evidence_ids=tuple(
+                    int(evidence_id)
+                    for evidence_id in row.best_evidence_ids or ()
+                ),
+            )
+        )
+    return (
+        features_by_product,
+        stale_product_ids,
+        len(product_ids) - len(stale_product_ids),
+    )
+
+
+def _feature_source_is_current(
+    source_updated_at: datetime,
+    product_updated_at: datetime,
+) -> bool:
+    return _normalized_datetime(source_updated_at) >= _normalized_datetime(
+        product_updated_at
+    )
+
+
+def _normalized_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _build_behavior_signals_from_product_features(
+    candidates: list[ProductCandidate],
+    features_by_product: dict[int, ProductRecommendationFeatureValues],
+) -> dict[int, _BehaviorProductSignals]:
+    return {
+        candidate.db_product_id: _BehaviorProductSignals(
+            product_db_id=candidate.db_product_id,
+            category_code=candidate.category_code,
+            brand_code=candidate.brand_code,
+            ingredient_codes=features_by_product[
+                candidate.db_product_id
+            ].top_ingredient_codes,
+            effect_codes=features_by_product[
+                candidate.db_product_id
+            ].top_effect_codes,
+            price_band=_price_band(candidate.lowest_price),
+        )
+        for candidate in candidates
+        if candidate.db_product_id in features_by_product
+    }
+
+
+def build_behavior_preference_profile(
     events: list[_BehaviorEvent],
     signals_by_product: dict[int, _BehaviorProductSignals],
     now: datetime,
@@ -1748,6 +2455,11 @@ def _build_behavior_preference_profile(
         effect_scores=effect_scores,
         price_band_scores=price_band_scores,
         total_weight=total_weight,
+        effect_top3_sum=_top_score_sum(effect_scores, 3),
+        ingredient_top5_sum=_top_score_sum(ingredient_scores, 5),
+        category_max=max(category_scores.values(), default=0.0),
+        brand_max=max(brand_scores.values(), default=0.0),
+        price_band_max=max(price_band_scores.values(), default=0.0),
     )
 
 
@@ -1810,11 +2522,31 @@ def _score_behavior_affinity(
     profile: _BehaviorPreferenceProfile,
 ) -> tuple[float, dict[str, float]]:
     components = {
-        "effect": _profile_set_score(signals.effect_codes, profile.effect_scores, max_matches=3),
-        "ingredient": _profile_set_score(signals.ingredient_codes, profile.ingredient_scores, max_matches=5),
-        "category": _profile_value_score(signals.category_code, profile.category_scores),
-        "price_band": _profile_value_score(signals.price_band, profile.price_band_scores),
-        "brand": _profile_value_score(signals.brand_code, profile.brand_scores),
+        "effect": _profile_set_score(
+            signals.effect_codes,
+            profile.effect_scores,
+            normalizer=profile.effect_top3_sum,
+        ),
+        "ingredient": _profile_set_score(
+            signals.ingredient_codes,
+            profile.ingredient_scores,
+            normalizer=profile.ingredient_top5_sum,
+        ),
+        "category": _profile_value_score(
+            signals.category_code,
+            profile.category_scores,
+            normalizer=profile.category_max,
+        ),
+        "price_band": _profile_value_score(
+            signals.price_band,
+            profile.price_band_scores,
+            normalizer=profile.price_band_max,
+        ),
+        "brand": _profile_value_score(
+            signals.brand_code,
+            profile.brand_scores,
+            normalizer=profile.brand_max,
+        ),
     }
     return (
         _weighted_average(
@@ -1843,28 +2575,32 @@ def _profile_set_score(
     candidate_values: tuple[str, ...],
     profile_scores: dict[str, float],
     *,
-    max_matches: int,
+    normalizer: float,
 ) -> float:
     if not candidate_values or not profile_scores:
         return 0.0
     values = tuple(dict.fromkeys(value for value in candidate_values if value))
     matched_score = sum(profile_scores.get(value, 0.0) for value in values)
-    best_possible = sum(sorted(profile_scores.values(), reverse=True)[:max(1, max_matches)])
-    if best_possible <= 0:
+    if normalizer <= 0:
         return 0.0
-    return _clamp(matched_score / best_possible)
+    return _clamp(matched_score / normalizer)
 
 
 def _profile_value_score(
     candidate_value: str | None,
     profile_scores: dict[str, float],
+    *,
+    normalizer: float,
 ) -> float:
     if not candidate_value or not profile_scores:
         return 0.0
-    max_score = max(profile_scores.values(), default=0.0)
-    if max_score <= 0:
+    if normalizer <= 0:
         return 0.0
-    return _clamp(profile_scores.get(candidate_value, 0.0) / max_score)
+    return _clamp(profile_scores.get(candidate_value, 0.0) / normalizer)
+
+
+def _top_score_sum(scores: dict[str, float], limit: int) -> float:
+    return sum(sorted(scores.values(), reverse=True)[:max(1, limit)])
 
 
 def _add_behavior_score(scores: dict[str, float], key: str | None, value: float) -> None:
@@ -2222,6 +2958,143 @@ def _score_weighted_effect_axis(
         weighted_scores.append((capped_effect_score, desired_effect.weight))
 
     return _clamp(_weighted_average(tuple(weighted_scores)))
+
+
+def _score_precomputed_effect_axis(
+    desired_effects: tuple[_DesiredEffect, ...],
+    features_by_effect: dict[str, ProductEffectRecommendationFeatureValues],
+    *,
+    field: str,
+    missing_score: float,
+) -> float:
+    weighted_scores = tuple(
+        (
+            float(getattr(features_by_effect[effect.effect_code], field))
+            if effect.effect_code in features_by_effect
+            else missing_score,
+            effect.weight,
+        )
+        for effect in desired_effects
+    )
+    return _clamp(_weighted_average(weighted_scores))
+
+
+def _score_precomputed_concentration_fit(
+    desired_effects: tuple[_DesiredEffect, ...],
+    features_by_effect: dict[str, ProductEffectRecommendationFeatureValues],
+    policy: ConcentrationScorePolicy,
+) -> _ConcentrationResult:
+    if not desired_effects:
+        return _ConcentrationResult(bucket="unknown", score=policy.unknown)
+
+    weighted_scores: list[tuple[float, float]] = []
+    context_results: list[_ConcentrationResult] = []
+    for desired_effect in desired_effects:
+        feature = features_by_effect.get(desired_effect.effect_code)
+        if feature is None:
+            weighted_scores.append((policy.unknown, desired_effect.weight))
+            continue
+        weighted_scores.append((feature.concentration_score, desired_effect.weight))
+        context = feature.concentration_context
+        context_results.append(
+            _ConcentrationResult(
+                bucket=str(context.get("bucket") or "unknown"),
+                score=feature.concentration_score,
+                ingredient_name=_optional_string(context.get("ingredient_name")),
+                effect_name=_optional_string(context.get("effect_name")),
+                concentration_text=_optional_string(
+                    context.get("concentration_text")
+                ),
+                warning=_optional_string(context.get("warning")),
+            )
+        )
+
+    aggregate_score = _clamp(_weighted_average(tuple(weighted_scores)))
+    display_result = _select_display_concentration_result(context_results, policy)
+    warning_result = next(
+        (result for result in context_results if result.warning),
+        None,
+    )
+    return _ConcentrationResult(
+        bucket=display_result.bucket,
+        score=aggregate_score,
+        ingredient_name=display_result.ingredient_name,
+        effect_name=display_result.effect_name,
+        concentration_text=display_result.concentration_text,
+        warning=warning_result.warning if warning_result else None,
+    )
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def build_product_effect_recommendation_feature_values(
+    ingredients: tuple[_IngredientEffectInfo, ...],
+    policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
+) -> dict[str, ProductEffectRecommendationFeatureValues]:
+    contributions_by_effect = _build_contributions_by_effect(ingredients)
+    evidence_contributions_by_effect = _build_evidence_contributions_by_effect(
+        ingredients
+    )
+    effect_names = {
+        ingredient.effect_code: ingredient.effect_name
+        for ingredient in ingredients
+    }
+    feature_values: dict[str, ProductEffectRecommendationFeatureValues] = {}
+    for effect_code in sorted(set(contributions_by_effect) | set(evidence_contributions_by_effect)):
+        desired_effect = (
+            _DesiredEffect(
+                effect_code=effect_code,
+                name=effect_names.get(effect_code, effect_code),
+                weight=1.0,
+            ),
+        )
+        effect_contributions = contributions_by_effect.get(effect_code, ())
+        evidence_contributions = evidence_contributions_by_effect.get(effect_code, ())
+        concentration_result = _score_concentration_fit(
+            desired_effect,
+            contributions_by_effect,
+            policy,
+        )
+        feature_values[effect_code] = ProductEffectRecommendationFeatureValues(
+            effect_code=effect_code,
+            ingredient_effect_score=min(
+                sum(
+                    contribution.effect_component
+                    for contribution in effect_contributions
+                ),
+                EFFECT_CAP,
+            ),
+            ingredient_evidence_score=min(
+                sum(
+                    contribution.evidence_component
+                    for contribution in evidence_contributions
+                ),
+                EFFECT_CAP,
+            ),
+            concentration_score=concentration_result.score,
+            concentration_context={
+                "bucket": concentration_result.bucket,
+                "ingredient_name": concentration_result.ingredient_name,
+                "effect_name": concentration_result.effect_name,
+                "concentration_text": concentration_result.concentration_text,
+                "warning": concentration_result.warning,
+            },
+            top_ingredient_ids=tuple(
+                contribution.ingredient.ingredient_id
+                for contribution in effect_contributions
+            ),
+            best_evidence_ids=tuple(
+                contribution.ingredient.evidence.evidence_id
+                for contribution in evidence_contributions
+                if contribution.ingredient.evidence is not None
+            ),
+        )
+
+    return feature_values
 
 
 def _score_skin_type(
@@ -2628,6 +3501,11 @@ def _score_skin_test_context(
     skin_profile: _SkinProfileInfo | None,
     risk_flags: tuple[RiskFlag, ...],
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    precomputed_effect_features: dict[
+        str,
+        ProductEffectRecommendationFeatureValues,
+    ]
+    | None,
     functional_info: _FunctionalInfo | None,
     manual_skin_type: str | None,
     manual_sensitivity: str | None,
@@ -2689,6 +3567,7 @@ def _score_skin_test_context(
     pn_score = _score_pn_effect_fit(
         skin_test_context,
         contributions_by_effect,
+        precomputed_effect_features,
         functional_info,
     )
     axis_scores["PN"] = pn_score
@@ -2697,6 +3576,7 @@ def _score_skin_test_context(
     wt_score = _score_wt_effect_fit(
         skin_test_context,
         contributions_by_effect,
+        precomputed_effect_features,
         functional_info,
     )
     axis_scores["WT"] = wt_score
@@ -2786,24 +3666,44 @@ def _score_category_preference_fit(
 def _score_pn_effect_fit(
     skin_test_context: SkinTestScoringContext,
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    precomputed_effect_features: dict[
+        str,
+        ProductEffectRecommendationFeatureValues,
+    ]
+    | None,
     functional_info: _FunctionalInfo | None,
 ) -> float:
     winner = _axis_winner(skin_test_context, "PN")
     if winner != "P":
         return DEFAULT_PROFILE_SCORE
-    raw_score = _score_effect_signal(PIGMENT_EFFECT_CODES, contributions_by_effect, functional_info)
+    raw_score = _score_effect_signal(
+        PIGMENT_EFFECT_CODES,
+        contributions_by_effect,
+        precomputed_effect_features,
+        functional_info,
+    )
     return _adjust_skin_test_axis_score(raw_score, _axis_strength(skin_test_context, "PN"))
 
 
 def _score_wt_effect_fit(
     skin_test_context: SkinTestScoringContext,
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    precomputed_effect_features: dict[
+        str,
+        ProductEffectRecommendationFeatureValues,
+    ]
+    | None,
     functional_info: _FunctionalInfo | None,
 ) -> float:
     winner = _axis_winner(skin_test_context, "WT")
     if winner != "W":
         return DEFAULT_PROFILE_SCORE
-    raw_score = _score_effect_signal(WRINKLE_EFFECT_CODES, contributions_by_effect, functional_info)
+    raw_score = _score_effect_signal(
+        WRINKLE_EFFECT_CODES,
+        contributions_by_effect,
+        precomputed_effect_features,
+        functional_info,
+    )
     return _adjust_skin_test_axis_score(raw_score, _axis_strength(skin_test_context, "WT"))
 
 
@@ -2822,15 +3722,31 @@ def _score_sensitive_safety_fit(
 def _score_effect_signal(
     effect_codes: tuple[str, ...],
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
+    precomputed_effect_features: dict[
+        str,
+        ProductEffectRecommendationFeatureValues,
+    ]
+    | None,
     functional_info: _FunctionalInfo | None,
 ) -> float:
     signal = 0.0
     for effect_code in effect_codes:
-        contributions = contributions_by_effect.get(effect_code, ())
-        contribution_signal = min(
-            EFFECT_CAP,
-            sum(contribution.effect_component for contribution in contributions),
-        ) / EFFECT_CAP
+        if precomputed_effect_features is not None:
+            feature = precomputed_effect_features.get(effect_code)
+            contribution_signal = (
+                min(EFFECT_CAP, feature.ingredient_effect_score) / EFFECT_CAP
+                if feature is not None
+                else 0.0
+            )
+        else:
+            contributions = contributions_by_effect.get(effect_code, ())
+            contribution_signal = min(
+                EFFECT_CAP,
+                sum(
+                    contribution.effect_component
+                    for contribution in contributions
+                ),
+            ) / EFFECT_CAP
         signal = max(signal, contribution_signal)
 
     if functional_info is not None and functional_info.status == FUNCTIONAL_CONFIRMED_STATUS:

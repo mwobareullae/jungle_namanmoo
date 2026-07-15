@@ -555,12 +555,12 @@ def test_create_recommendation_includes_purchase_constraints(client: TestClient)
 
     constraints = response.json()["summary"]["purchase_constraints"]
     assert constraints["categories"][0]["category_code"] == "cream"
-    assert constraints["brands"][0]["brand_code"] == "라운드랩"
+    assert constraints["brands"] == []
     assert constraints["price_min"] is None
     assert constraints["price_max"] == 20000
 
 
-def test_create_recommendation_applies_category_brand_and_price_hard_filters(
+def test_create_recommendation_applies_category_and_price_hard_filters(
     client: TestClient,
 ) -> None:
     response = client.post(
@@ -572,7 +572,7 @@ def test_create_recommendation_applies_category_brand_and_price_hard_filters(
 
     constraints = response.json()["summary"]["purchase_constraints"]
     assert constraints["categories"][0]["category_code"] == "serum"
-    assert constraints["brands"][0]["brand_code"] == "아누아"
+    assert constraints["brands"] == []
     assert constraints["price_min"] == 20000
     assert constraints["price_max"] == 29999
     assert constraints["price_text"] == "2만원대"
@@ -698,6 +698,35 @@ def test_recommendation_response_supports_pagination(client: TestClient) -> None
     assert second_page["pagination"]["page_size"] == 1
     assert second_page["pagination"]["total_items"] == first_page["pagination"]["total_items"]
     assert second_page["pagination"]["has_prev"] is True
+
+
+def test_recommendation_response_filters_full_saved_result_and_keeps_original_rank(
+    client: TestClient,
+) -> None:
+    created = client.post(
+        "/api/recommendations",
+        params={"page": 1, "page_size": 1},
+        json={"concern_text": "속건조 보습 추천"},
+    ).json()
+    full = client.get(
+        f"/api/recommendations/{created['recommendation_id']}",
+        params={"page": 1, "page_size": 50},
+    ).json()
+    threshold = max(product["lowest_price"] for product in full["products"])
+    expected = [product for product in full["products"] if product["lowest_price"] >= threshold]
+
+    response = client.get(
+        f"/api/recommendations/{created['recommendation_id']}",
+        params={"page": 1, "page_size": 1, "min_price": threshold},
+    )
+
+    assert response.status_code == 200
+    refined = response.json()
+    assert refined["pagination"]["total_items"] == len(expected)
+    assert refined["products"][0]["product_id"] == expected[0]["product_id"]
+    assert refined["products"][0]["rank"] == expected[0]["rank"]
+    assert refined["products"][0]["total_score"] == expected[0]["total_score"]
+    assert refined["products"][0]["thumbnail_url"] == expected[0]["thumbnail_url"]
 
 
 def test_create_recommendation_narrative_returns_card_payload_by_default(client: TestClient) -> None:

@@ -60,8 +60,12 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 
 | tool | 동작 | 확인 | 대표 `ui_action` |
 | --- | --- | --- | --- |
+| `create_recommendation` | 자연어 요청을 구조화하고 실제 추천·스코어링 파이프라인 실행 | 없음 | `show_products/product_results` |
+| `refine_product_results` | `recommendation_id`가 있으면 저장된 전체 추천 결과를 조건으로 필터링하고 기존 순위·점수·이미지와 페이지네이션 유지. 추천 문맥이 없을 때만 현재 표시 상품을 fallback으로 사용 | 없음 | `show_products/refined_products` |
+| `bulk_wishlist_by_popular_ingredient` | 실제 인기 순위 범위에서 canonical 성분이 확인된 상품을 추려 현재 찜 여부를 구분하고, 확인 후 새 상품만 일괄 찜 | 필수 | `open_modal/agent_confirmation`, `show_products/popular_wishlist` |
 | `get_cart` | 로그인 사용자의 실제 장바구니 조회 | 없음 | `show_cart` |
 | `add_to_cart` | 상품 한 종류를 실제 장바구니에 추가 | 없음 | `show_cart` |
+| `prepare_product_checkout` | 대화에서 지목한 상품 한 종류의 재고·가격을 검증하고 실제 장바구니 반영 후 주문서까지 이동 | 없음 | `noop`, `show_checkout_preview` |
 | `compose_cart` | 카테고리·총예산·피부 조건으로 복수 상품 구성안 생성 후 일괄 추가 | 필수 | `open_modal/agent_confirmation`, `show_cart` |
 | `prepare_checkout` | 선택 상품과 배송지로 금액·재고 재검증 | 없음 | `show_checkout_preview` |
 | `register_shipping_address` | 사용자가 제공한 배송지를 등록하고 중단된 checkout 재개 | 없음 | `show_checkout_preview` |
@@ -69,9 +73,48 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 | `prepare_review_draft` | 실제 구매·작성 가능 상품 확인 후 사용자가 말한 경험으로 리뷰 작성 화면 채우기 | 없음 | `navigate/review_write` |
 | `prepare_claim_draft` | 배송완료·신청 기간·잔여 수량 확인 후 클레임 신청 화면 채우기 | 없음 | `navigate/claim_request` |
 
-개별 장바구니 추가는 즉시 실행한다. `compose_cart`는 실제 DB의 카테고리, 최저가, 판매·재고 상태, 상품 피부 적합도와 사용자 피부 프로필의 제외 성분을 검증해 총예산 안의 조합을 제안한다. 구성안 조회만으로 장바구니를 바꾸지 않으며 사용자가 확인 API로 승인한 뒤에만 각 상품을 1개씩 같은 요청 트랜잭션에서 추가한다. 기존 장바구니 상품은 삭제하지 않는다. 주문 생성도 반드시 별도의 확인 API를 거친다.
+개별 장바구니 추가는 즉시 실행한다. `prepare_product_checkout`은 “두 번째 상품 주문해줘”처럼 직전 결과의 상품 한 종류를 지목한 요청에 사용한다. 실제 장바구니에 같은 상품이 없으면 추가하고 이미 있으면 요청 수량보다 적을 때만 수량을 맞춘 뒤, 선택 상품만 checkout preview로 검증한다. 이 도구의 종료점은 주문서 검토 화면이며 주문 생성이나 결제를 실행하지 않는다. `compose_cart`는 실제 DB의 카테고리, 최저가, 판매·재고 상태, 상품 피부 적합도와 사용자 피부 프로필의 제외 성분을 검증해 총예산 안의 조합을 제안한다. 구성안 조회만으로 장바구니를 바꾸지 않으며 사용자가 확인 API로 승인한 뒤에만 각 상품을 1개씩 같은 요청 트랜잭션에서 추가한다. 기존 장바구니 상품은 삭제하지 않는다. 주문 생성도 반드시 별도의 확인 API를 거친다.
 
-`prepare_checkout`에서 등록 배송지가 없으면 `AGENT_ADDRESS_REQUIRED`를 반환한다. 에이전트는 받는 분 이름, 연락처, 우편번호, 기본 주소와 선택 상세 주소를 요청한다. 사용자가 이 요청에 배송지 정보를 답하면 명시적인 등록 의사로 보고 `register_shipping_address`를 실행한다. 첫 배송지는 기존 주소 서비스 정책에 따라 기본 배송지가 되며, `continue_checkout=true`이면 등록된 주소로 checkout preview를 다시 생성해 장바구니와 주문서 이동을 재개한다. 이름·연락처가 생략된 경우 계정에 저장된 값만 사용할 수 있고, 값이 없으면 추측하지 않고 다시 질문한다.
+### 에이전트 추천 의도 계약
+
+`create_recommendation`은 원문 `concern_text`와 함께 에이전트가 구조화한 고민·효능·제외 고민·우선 효능·카테고리·가격 조건을 내부 tool 인자로 받는다. `intent_resolved=true`이고 허용된 코드와 범위 검증을 통과하면 추천 파이프라인은 별도의 의도분석 LLM을 다시 호출하지 않는다. 구조화가 불완전하거나 `intent_resolved=false`이면 기존 규칙·LLM 의도분석으로 fallback한다.
+
+```json
+{
+  "concern_text": "속건조로 화장이 들떠요. 보습 세럼을 3만원 이하로 추천해줘",
+  "intent_resolved": true,
+  "concern_ids": ["concern_dry_barrier"],
+  "effect_ids": ["effect_moisture_barrier"],
+  "excluded_concern_ids": [],
+  "priority_effect_ids": ["effect_moisture_barrier"],
+  "category_codes": ["serum"],
+  "price_min": null,
+  "price_max": 30000
+}
+```
+
+허용 카테고리는 `serum`, `cream`, `toner`, `lotion`이다. 가격은 0 이상 100,000,000 이하이고 `price_min <= price_max`여야 한다. LLM은 의도와 구매 조건을 구조화할 뿐이며 후보 추출, 성분 근거 점수와 최종 순위는 기존 결정론적 추천 엔진이 계산한다. 일반 `POST /api/recommendations` 요청 계약은 변경하지 않는다.
+
+### 추천 결과 재필터링 계약
+
+`refine_product_results`는 현재 문맥에 `recommendation_id`가 있으면 `visible_product_ids`보다 이를 우선한다. 저장된 추천 결과 최대 50개 전체에 가격·카테고리·피부 타입·민감도·효능 조건을 적용하고, 원래 `rank`, `total_score`, `score_breakdown`, 이미지와 추천 사유를 변경하지 않는다. 응답에는 필터 후 `total_items`, `total_pages`, `has_next`, `has_prev`를 포함한다.
+
+### 인기 상품 성분 조건 일괄 찜
+
+`bulk_wishlist_by_popular_ingredient`는 `ingredient_name`, `rank_limit(1~20)`, `window_days(1/7/30)`만 LLM 인자로 받는다. 상품 ID와 canonical 성분 ID는 모델이 만들지 않는다.
+
+- 후보 순서는 기존 `get_popular_product_items()`의 실제 롤업 순서를 그대로 사용한다.
+- 성분은 canonical code, 등록 alias, 정규화된 한글·영문 이름의 정확 일치 순으로 확정한다.
+- `Product → ProductIngredient → Ingredient` 관계를 상위 상품에 대해 일괄 조회한다.
+- 첫 호출은 `AWAITING_CONFIRMATION` 도구 호출과 대상 미리보기만 저장하며 wishlist는 변경하지 않는다.
+- 승인 시 활성·비노출 여부와 현재 wishlist를 다시 검사하고 새 상품만 하나의 트랜잭션으로 저장한다.
+- 각 신규 상품은 기존 공식 이벤트 `wishlist_added`를 기록하며 `source=agent_bulk_wishlist`로 구분한다.
+- 성공 payload는 `inspected_count`, `matched_count`, `added_count`, `already_wished_count`, 각 상품 ID 목록, 인기 순위·이미지·브랜드·상품명을 포함한다.
+- 품절 상품은 후보가 될 수 있지만 비활성 상품, 비활성 브랜드·카테고리, `HIDDEN` 상품은 실행 시 제외한다.
+
+`GET /api/recommendations/{recommendation_id}`는 기존 `page`, `page_size`와 함께 선택적으로 `min_price`, `max_price`, `category_code`, `skin_type`, `sensitivity`, 반복 가능한 `effect_keyword`를 받는다. 검색 화면 URL에는 이 값들을 `refine_*` 이름으로 보존하고, 페이지를 이동할 때 API 쿼리로 다시 전달한다. `recommendation_id`가 없는 일반 상품 화면에서만 `base_product_ids`를 사용해 현재 표시 상품을 필터링한다.
+
+`prepare_checkout` 또는 `prepare_product_checkout`에서 등록 배송지가 없으면 `AGENT_ADDRESS_REQUIRED`를 반환한다. 복합 도구는 먼저 지목한 상품을 실제 장바구니에 반영하고 중단된 선택을 `cart_item_ids`로 반환한다. 에이전트는 받는 분 이름, 연락처, 우편번호, 기본 주소와 선택 상세 주소를 요청한다. 사용자가 이 요청에 배송지 정보를 답하면 명시적인 등록 의사로 보고 `register_shipping_address`를 실행한다. 첫 배송지는 기존 주소 서비스 정책에 따라 기본 배송지가 되며, `continue_checkout=true`이면 보존한 `cart_item_ids`와 등록 주소로 checkout preview를 다시 생성해 장바구니와 주문서 이동을 재개한다. 이름·연락처가 생략된 경우 계정에 저장된 값만 사용할 수 있고, 값이 없으면 추측하지 않고 다시 질문한다.
 
 배송지 원문과 연락처는 `agent_tool_calls.input_json`에 기록하지 않는다. 감사 기록에는 각 필드의 제공 여부, 기본 배송지 여부, checkout 재개 여부와 장바구니 항목 ID만 남긴다. 프론트의 최근 대화 저장소에도 배송지 답변 원문 대신 `배송지 정보를 입력했어요.`라는 대체 문구를 저장한다.
 

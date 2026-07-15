@@ -29,6 +29,7 @@ function ProductDetailHero({
   onToggleWishlist,
   priceLabel,
   product,
+  recommendationSummary,
 }: ProductDetailHeroProps) {
   return (
     <div className="detail-hero">
@@ -143,7 +144,7 @@ function ProductDetailHero({
             ) : null}
           </div>
         </div> : null}
-        {showRecommendationCriteria ? <RecommendationCriteriaPanel product={product} /> : null}
+        {showRecommendationCriteria ? <RecommendationCriteriaPanel product={product} summary={recommendationSummary} /> : null}
         <ProductPurchasePanel
           cartErrorMessage={cartErrorMessage}
           cartMessage={cartMessage}
