@@ -18,7 +18,13 @@ type ApiReviewItem = {
   option_text: string | null;
   review_type: string | null;
   is_repurchase_review: boolean | null;
+  verified_purchase: boolean | null;
   helpful_count: number;
+  updated_at: string | null;
+  is_mine: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+  badges: string[];
   author: { display_name: string; profile_image_url: string | null } | null;
   profile_labels: ApiReviewProfileLabel[];
   media: { media_type: string; url: string }[];
@@ -74,6 +80,22 @@ const mapReview = (review: ApiReviewItem): ProductReview => {
     likeCount: review.helpful_count,
     isRepurchase: review.is_repurchase_review === true,
     usedOverMonth: review.review_type === "MONTH_USE",
+    verifiedPurchase: review.verified_purchase,
+    updatedAt: review.updated_at,
+    isMine: review.is_mine,
+    badges: review.badges,
+    author: review.author
+      ? { displayName: review.author.display_name, profileImageUrl: review.author.profile_image_url }
+      : null,
+    profileLabels: review.profile_labels.map((label) => ({
+      dimension: label.dimension,
+      valueCode: label.value_code,
+      displayLabel: label.display_label,
+    })),
+    media: review.media.map((media) => ({
+      mediaType: media.media_type,
+      url: media.url,
+    })),
   };
 };
 
