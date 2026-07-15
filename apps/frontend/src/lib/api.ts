@@ -108,6 +108,7 @@ type BackendErrorResponse = {
 type BackendScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  functional_claim_score?: number;
   concentration_fit_score?: number;
   concentration_bucket?: string | null;
   concentration_warning?: string | null;
@@ -125,6 +126,17 @@ type BackendScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  skin_test_context_score?: number;
+  skin_test_context_applied?: boolean;
+  skin_test_context_axes?: Record<string, number>;
+  skin_test_context_matched_axes?: string[];
+  skin_test_context_query_conflict_axes?: string[];
+  skin_test_context_manual_conflict_axes?: string[];
+  behavior_personalization_score?: number;
+  behavior_personalization_applied?: boolean;
+  behavior_personalization_sources?: string[];
+  behavior_personalization_event_counts?: Record<string, number>;
+  market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
   risk_flag_count?: number;
@@ -300,6 +312,7 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
   return {
     ingredient_effect_score: score.ingredient_effect_score,
     ingredient_evidence_score: score.ingredient_evidence_score,
+    functional_claim_score: score.functional_claim_score,
     concentration_fit_score: score.concentration_fit_score ?? 50,
     concentration_bucket: score.concentration_bucket ?? null,
     concentration_warning: score.concentration_warning ?? null,
@@ -320,7 +333,18 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     review_quality_confidence: score.review_quality_confidence,
     review_count: score.review_count,
     review_profile_affinity_score: score.review_profile_affinity_score,
-    review_profile_affinity_applied: score.review_profile_affinity_applied
+    review_profile_affinity_applied: score.review_profile_affinity_applied,
+    skin_test_context_score: score.skin_test_context_score,
+    skin_test_context_applied: score.skin_test_context_applied,
+    skin_test_context_axes: score.skin_test_context_axes,
+    skin_test_context_matched_axes: score.skin_test_context_matched_axes,
+    skin_test_context_query_conflict_axes: score.skin_test_context_query_conflict_axes,
+    skin_test_context_manual_conflict_axes: score.skin_test_context_manual_conflict_axes,
+    behavior_personalization_score: score.behavior_personalization_score,
+    behavior_personalization_applied: score.behavior_personalization_applied,
+    behavior_personalization_sources: score.behavior_personalization_sources,
+    behavior_personalization_event_counts: score.behavior_personalization_event_counts,
+    market_signal_score: score.market_signal_score
   };
 };
 
