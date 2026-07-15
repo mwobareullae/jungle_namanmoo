@@ -103,9 +103,14 @@ def collect_report_rows(repo_root: Path, registry: dict[str, Any]) -> list[dict[
         for path in loose_root.glob("recommendation-*")
         if path.is_dir()
     }
+    supplemental_runs: set[Path] = set()
+    for root_name in registry.get("supplemental_run_roots", []):
+        root = (repo_root / root_name).resolve()
+        if root.exists():
+            supplemental_runs.update(path.resolve() for path in legacy_analysis.find_run_dirs(root))
 
     rows: list[dict[str, Any]] = []
-    for run_dir in sorted(set(assignments) | loose_runs):
+    for run_dir in sorted(set(assignments) | loose_runs | supplemental_runs):
         rows.append(
             build_report_row(
                 repo_root,

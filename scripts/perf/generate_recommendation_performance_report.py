@@ -186,6 +186,22 @@ GRAPH_CONTRACT = [
         "location": "details/opt2-precomputed-features",
         "output": "scoring-p95-breakdown.png",
     },
+    {
+        "id": "opt3-request-distribution",
+        "question": "후보 점수 데이터 통합 조회로 scoring 하위 단계의 요청별 분포가 어떻게 바뀌었는가?",
+        "metrics": "backend 요청별 scoring/prefetch/loop latency",
+        "chart": "ECDF small multiples",
+        "location": "details/opt3-bulk-prefetch",
+        "output": "scoring-latency-ecdf.png",
+    },
+    {
+        "id": "opt3-stage-effect",
+        "question": "bulk prefetch가 scoring 하위 단계 p95를 직접 줄였는가?",
+        "metrics": "반복 run의 scoring 하위 stage p95 중앙값",
+        "chart": "dumbbell",
+        "location": "details/opt3-bulk-prefetch",
+        "output": "scoring-p95-breakdown.png",
+    },
 ]
 
 
@@ -848,14 +864,20 @@ def save_stage_detail_graphs(repo_root, registry, rows, details_root, plt) -> di
             plt,
         )
         outputs["opt1_ecdf"] = output.as_posix()
-    if "opt1-es-retrieval" in stage_map and "opt2-precomputed-features" in stage_map:
-        output = details_root / "opt2-precomputed-features" / "scoring-latency-ecdf.png"
+    for stage in measured_stages(registry):
+        stage_id = stage["id"]
+        if stage_id == "opt1-es-retrieval" or not stage.get("compared_to"):
+            continue
+        parent = stage_map.get(stage["compared_to"])
+        if parent is None:
+            continue
+        output = details_root / stage_id / "scoring-latency-ecdf.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         save_backend_ecdf(
             repo_root,
             rows,
-            stage_map["opt1-es-retrieval"],
-            stage_map["opt2-precomputed-features"],
+            parent,
+            stage,
             [
                 ("scoring_ms", "전체 scoring"),
                 ("scoring_data_prefetch_ms", "데이터 사전 조회"),
@@ -864,17 +886,17 @@ def save_stage_detail_graphs(repo_root, registry, rows, details_root, plt) -> di
             output,
             plt,
         )
-        outputs["opt2_ecdf"] = output.as_posix()
-        breakdown = details_root / "opt2-precomputed-features" / "scoring-p95-breakdown.png"
+        outputs[f"{stage_id}_scoring_ecdf"] = output.as_posix()
+        breakdown = details_root / stage_id / "scoring-p95-breakdown.png"
         save_component_before_after(
             rows,
-            stage_map["opt1-es-retrieval"],
-            stage_map["opt2-precomputed-features"],
+            parent,
+            stage,
             SCORING_COMPONENTS,
             breakdown,
             plt,
         )
-        outputs["opt2_breakdown"] = breakdown.as_posix()
+        outputs[f"{stage_id}_scoring_breakdown"] = breakdown.as_posix()
     return outputs
 
 
@@ -1128,7 +1150,7 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
                     "```",
                 ]
             )
-        else:
+        elif stage_id == "opt2-precomputed-features":
             lines.extend(
                 [
                     "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
@@ -1148,6 +1170,35 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
                     "  F --> H[Scoring]",
                     "  G --> H",
                     "```",
+                ]
+            )
+        elif stage_id == "opt3-bulk-prefetch":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[추천 후보 ID 묶음] --> B1[성분·효능 loader]",
+                    "  A --> B2[피부·리뷰 loader]",
+                    "  A --> B3[행동·가격 loader]",
+                    "  B1 --> C[Python 결과 조립]",
+                    "  B2 --> C",
+                    "  B3 --> C",
+                    "  A -. Opt3 .-> D[단일 bulk JOIN 조회]",
+                    "  D --> E[후보별 점수 입력 bundle]",
+                    "  E --> F[기존 점수식]",
+                    "```",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
                 ]
             )
         lines.extend(

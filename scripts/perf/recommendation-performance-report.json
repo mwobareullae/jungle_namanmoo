@@ -11,6 +11,11 @@
     "max_error_rate": 0.01
   },
   "loose_run_root": "perf-runs",
+  "supplemental_run_roots": [
+    "perf-runs/sweeps",
+    "perf-runs/INTENT",
+    "perf-runs/_quarantine"
+  ],
   "stages": [
     {
       "id": "baseline-v1",
@@ -41,9 +46,7 @@
       "roots": [
         "perf-runs/opt1-es-retrieval-full-personalized"
       ],
-      "runs": [
-        "perf-runs/recommendation-80000-full-personalized-20260715-004324"
-      ],
+      "runs": [],
       "change": "브랜드 전수 매칭을 제거하고 ES 중심 후보 추출로 전환",
       "observation": "의도 분석 안의 구매 조건 파서가 일반 고민 문장에도 브랜드 alias 전체를 검사했다.",
       "cause": "약 2,657개 alias 정규식 전수 검사가 후보 추출 전에 매 요청 반복됐고, 검색 책임이 Python 파서와 Elasticsearch에 중복 배치돼 있었다.",
@@ -89,18 +92,17 @@
       "color": "#EA580C",
       "status": "measured",
       "compared_to": "opt2-precomputed-features",
-      "roots": [],
-      "runs": [
-        "perf-runs/recommendation-80000-full-personalized-20260715-092247",
-        "perf-runs/recommendation-80000-full-personalized-20260715-092634"
+      "roots": [
+        "perf-runs/opt3-bulk-prefetch-full-personalized"
       ],
+      "runs": [],
       "change": "후보 점수 데이터를 단일 bulk JOIN 경로로 통합",
       "observation": "Opt2 이후 scoring 사전 조회 구간에서 후보별 점수 데이터 loader 비용이 남아 있다.",
       "cause": "동일 후보 집합에 필요한 관계 데이터를 여러 조회와 Python 조립 단계로 나눠 가져온다.",
       "alternatives": "완전한 상품 snapshot 테이블도 대안이지만 중복 데이터와 갱신 비용이 커서 측정 없이 먼저 도입하지 않는다.",
       "tradeoff": "bulk JOIN은 왕복 횟수를 줄이지만 행 폭과 중복 전송량이 커질 수 있어 batch 크기와 메모리를 함께 관찰해야 한다.",
       "implementation": "후보 ID 묶음을 기준으로 점수 입력 데이터를 한 번에 prefetch하고 기존 점수식에는 같은 구조를 전달한다.",
-      "next_bottleneck": "측정 run이 아직 없어 다음 병목은 확정하지 않는다.",
+      "next_bottleneck": "후보 일괄 조회로 scoring prefetch는 줄었지만 candidate retrieval과 score loop 비용이 다음 관찰 대상이다.",
       "focus_metrics": [
         "scoring_data_prefetch_ms_p95",
         "prefetch_candidate_bundle_ms_p95"
