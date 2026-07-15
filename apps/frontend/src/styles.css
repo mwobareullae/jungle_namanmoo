@@ -17203,8 +17203,8 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-mock-group article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
 .recommendation-mock-group article strong { font-size: 14px; font-weight: 600; }
 .recommendation-mock-group article p { margin: 0; color: #697273; font-size: 12.5px; }
-.recommendation-mock-modal-backdrop { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; padding: 24px; background: rgba(12,17,23,.42); }
-.recommendation-mock-modal { position: relative; width: min(760px, 100%); max-height: min(860px, calc(100vh - 48px)); overflow: auto; padding: 28px 24px 28px; border: 1px solid #c9edf7; border-radius: 18px; background: #fff; box-shadow: 0 20px 60px rgba(12,17,23,.22); }
+.recommendation-mock-modal-backdrop { position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; padding: clamp(12px, 3vh, 24px); background: rgba(12,17,23,.42); }
+.recommendation-mock-modal { position: relative; width: min(760px, 100%); max-height: min(860px, calc(100dvh - clamp(24px, 6vh, 48px))); overflow: auto; padding: 28px 24px 28px; border: 1px solid #c9edf7; border-radius: 18px; background: #fff; box-shadow: 0 20px 60px rgba(12,17,23,.22); }
 .recommendation-mock-modal { scrollbar-width: thin; scrollbar-color: #b9dfe8 transparent; }
 .recommendation-mock-modal::-webkit-scrollbar { width: 9px; }
 .recommendation-mock-modal::-webkit-scrollbar-track { margin: 10px 0; border-radius: 999px; background: transparent; }
