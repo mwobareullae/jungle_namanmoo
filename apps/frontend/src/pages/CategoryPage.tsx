@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
 import { isProductSoldOut } from "../lib/productAvailability";
+import { useListHistoryRestoration } from "../hooks/useListHistoryRestoration";
 import type { ProductCardItem } from "../types/recommendation";
 import type { CategoryListItem, ProductListingItem } from "../types/product";
 
@@ -37,6 +38,7 @@ function CategoryPage() {
   const { groupCode = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedCategoryCode = searchParams.get("category_code") ?? "";
+  const { restoration, restoreListPosition, saveListRestoration } = useListHistoryRestoration();
   const [categories, setCategories] = useState<CategoryListItem[]>([]);
   const [isCategoryMetadataLoading, setIsCategoryMetadataLoading] = useState(true);
   const [categoryMetadataError, setCategoryMetadataError] = useState("");
@@ -61,7 +63,10 @@ function CategoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextPage, setNextPage] = useState<number | null>(null);
+  const [loadedPageCount, setLoadedPageCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
+  const productCardRefs = useRef(new Map<string, HTMLElement>());
+  const restoredLocationKeys = useRef(new Set<string>());
 
   useEffect(() => {
     let isMounted = true;
@@ -84,35 +89,60 @@ function CategoryPage() {
     };
   }, []);
 
-  const loadProducts = useCallback(async (page: number, append: boolean) => {
+  const fetchProductPage = useCallback(async (page: number) => {
+    const response = await api.getProductListing({
+      page,
+      pageSize: PAGE_SIZE,
+      categoryCodes: effectiveCategoryCodes,
+      sort: "popular"
+    });
+
+    return {
+      items: response.items.map((item, index) =>
+        mapListingItemToCard(item, (page - 1) * PAGE_SIZE + index + 1)
+      ),
+      response,
+    };
+  }, [effectiveCategoryCodes]);
+
+  const loadInitialProducts = useCallback(async (pageCount: number) => {
     if (effectiveCategoryCodes.length === 0) return;
-    if (append) setIsLoadingMore(true);
-    else setIsLoading(true);
+    setIsLoading(true);
 
     try {
-      const response = await api.getProductListing({
-        page,
-        pageSize: PAGE_SIZE,
-        categoryCodes: effectiveCategoryCodes,
-        sort: "popular"
-      });
-      const mapped = response.items.map((item, index) =>
-        mapListingItemToCard(item, (page - 1) * PAGE_SIZE + index + 1)
+      const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, index) => fetchProductPage(index + 1))
       );
-      setProducts((current) => (append ? [...current, ...mapped] : mapped));
-      setNextPage(response.pagination.has_next ? page + 1 : null);
+      const lastPage = pages[pages.length - 1];
+      setProducts(pages.flatMap((page) => page.items));
+      setNextPage(lastPage?.response.pagination.has_next ? pageCount + 1 : null);
+      setLoadedPageCount(pageCount);
       setErrorMessage("");
     } catch {
-      if (!append) {
-        setProducts([]);
-        setNextPage(null);
-        setErrorMessage("상품을 불러오지 못했습니다.");
-      }
+      setProducts([]);
+      setNextPage(null);
+      setLoadedPageCount(0);
+      setErrorMessage("상품을 불러오지 못했습니다.");
     } finally {
       setIsLoading(false);
+    }
+  }, [effectiveCategoryCodes.length, fetchProductPage]);
+
+  const loadProducts = useCallback(async (page: number) => {
+    setIsLoadingMore(true);
+
+    try {
+      const { items, response } = await fetchProductPage(page);
+      setProducts((current) => [...current, ...items]);
+      setNextPage(response.pagination.has_next ? page + 1 : null);
+      setLoadedPageCount((current) => Math.max(current, page));
+      setErrorMessage("");
+    } catch {
+      // 기존 목록은 유지하고, 다음 시도에서 다시 불러온다.
+    } finally {
       setIsLoadingMore(false);
     }
-  }, [effectiveCategoryCodes]);
+  }, [fetchProductPage]);
 
   useEffect(() => {
     if (isCategoryMetadataLoading) return;
@@ -121,6 +151,7 @@ function CategoryPage() {
       queueMicrotask(() => {
         setProducts([]);
         setNextPage(null);
+        setLoadedPageCount(0);
         setIsLoading(false);
         setErrorMessage(categoryMetadataError);
       });
@@ -131,6 +162,7 @@ function CategoryPage() {
       queueMicrotask(() => {
         setProducts([]);
         setNextPage(null);
+        setLoadedPageCount(0);
         setIsLoading(false);
         setErrorMessage("존재하지 않는 카테고리입니다.");
       });
@@ -140,16 +172,30 @@ function CategoryPage() {
     queueMicrotask(() => {
       setProducts([]);
       setNextPage(null);
+      setLoadedPageCount(0);
       setErrorMessage("");
-      void loadProducts(1, false);
+      void loadInitialProducts(restoration?.loadedPageCount ?? 1);
     });
-  }, [categoryCodes, categoryMetadataError, groupCode, hasInvalidCategoryCode, isCategoryMetadataLoading, loadProducts]);
+  }, [categoryCodes, categoryMetadataError, groupCode, hasInvalidCategoryCode, isCategoryMetadataLoading, loadInitialProducts, restoration?.loadedPageCount]);
+
+  useEffect(() => {
+    if (!restoration || isLoading || loadedPageCount < restoration.loadedPageCount) return;
+    if (restoredLocationKeys.current.has(restoration.locationKey)) return;
+
+    restoredLocationKeys.current.add(restoration.locationKey);
+    void restoreListPosition(productCardRefs.current.get(restoration.productId) ?? null);
+  }, [isLoading, loadedPageCount, restoration, restoreListPosition]);
 
   const handleCategoryFilterChange = (categoryCode: string) => {
     const nextSearchParams = new URLSearchParams(searchParams);
     if (categoryCode) nextSearchParams.set("category_code", categoryCode);
     else nextSearchParams.delete("category_code");
     setSearchParams(nextSearchParams);
+  };
+
+  const handleProductNavigation = (productId: string) => {
+    saveListRestoration(productId, loadedPageCount);
+    void navigateWithinApp(`/product-detail?id=${encodeURIComponent(productId)}`);
   };
 
   return (
@@ -189,12 +235,16 @@ function CategoryPage() {
                   className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`}
                   data-agent-product-id={product.product_id}
                   key={product.product_id}
-                  onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)}
+                  onClick={() => handleProductNavigation(product.product_id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
+                      handleProductNavigation(product.product_id);
                     }
+                  }}
+                  ref={(element) => {
+                    if (element) productCardRefs.current.set(product.product_id, element);
+                    else productCardRefs.current.delete(product.product_id);
                   }}
                   role="link"
                   tabIndex={0}
@@ -224,7 +274,7 @@ function CategoryPage() {
             <button
               className="page-btn nav"
               disabled={isLoadingMore}
-              onClick={() => void loadProducts(nextPage, true)}
+              onClick={() => void loadProducts(nextPage)}
               type="button"
             >
               {isLoadingMore ? "불러오는 중" : "더보기"}
