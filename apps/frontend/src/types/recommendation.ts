@@ -103,9 +103,9 @@ export type ScoreBreakdown = {
   skin_profile_score?: number;
   sensitivity_score?: number;
   price_value_score: number;
-  keyword_score: number;
-  vector_score: number;
-  search_match_score: number;
+  keyword_score?: number;
+  vector_score?: number;
+  search_match_score?: number;
   risk_penalty: number;
   review_quality_score?: number;
   review_quality_applied?: boolean;
