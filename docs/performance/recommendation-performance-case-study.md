@@ -26,49 +26,49 @@
 - backend latency: `recommendation_pipeline_completed` 단계 계측
 - 상세 환경: [벤치마크 환경](./benchmark-environment.md), [실행 방법](./benchmark-run.md)
 
-![상품 수와 VUS별 성능 지형](./results/recommendation/main/01-scale-latency-heatmaps.png)
+![상품 수와 VUS별 성능 지형](./results/recommendation/overview/01-scale-latency-heatmaps.png)
 
 ## Baseline에서 확인한 최초 병목
 
 Baseline 8만/VUS10의 오류율은 `2.00%`였다. 아래 Pareto는 성공 요청의 평균 단계 시간으로 병목 위치를 설명하며, 실패 요청을 숨긴 성공 지표로 사용하지 않는다.
 
-![Baseline 파이프라인 Pareto](./results/recommendation/main/02-baseline-pipeline-pareto.png)
+![Baseline 파이프라인 Pareto](./results/recommendation/overview/02-baseline-pipeline-pareto.png)
 
 ## 최적화 타임라인
 
 구현 단계는 발견된 병목 이름이 아니라 해당 run에서 적용된 코드 변경을 뜻한다. 병목은 매 단계의 전체 계측값에서 다시 발견한다.
 
-![최적화 타임라인](./results/recommendation/main/03-optimization-timeline.png)
+![최적화 타임라인](./results/recommendation/overview/03-optimization-timeline.png)
 
-![파이프라인 병목 이동](./results/recommendation/main/04-pipeline-evolution.png)
+![파이프라인 병목 이동](./results/recommendation/overview/04-pipeline-evolution.png)
 
 ## 단계별 기술 선택과 직접 효과
 
 ### Opt1 ES retrieval
 
-브랜드 전수 매칭을 제거하고 ES 중심 후보 추출로 전환. 후보 품질이 Elasticsearch 색인과 field boost 설정에 더 의존한다. 대신 Python은 점수 계산에 필요한 고민·효능 구조화에 집중한다. 설계 근거는 [Opt1 ES retrieval 상세 설계](./recommendation-es-retrieval-optimization.md), 측정 근거는 [Opt1 ES retrieval 결과](./results/recommendation/details/opt1-es-retrieval/README.md)에 정리했다.
+브랜드 전수 매칭을 제거하고 ES 중심 후보 추출로 전환. 후보 품질이 Elasticsearch 색인과 field boost 설정에 더 의존한다. 대신 Python은 점수 계산에 필요한 고민·효능 구조화에 집중한다. 설계 근거는 [Opt1 ES retrieval 상세 설계](./recommendation-es-retrieval-optimization.md), 측정 근거는 [Opt1 ES retrieval 결과](./results/recommendation/stages/opt1-es-retrieval/README.md)에 정리했다.
 
 ### Opt2 precomputed features
 
-상품 특징과 사용자 선호를 rollup/read model로 사전 계산. rollup 최신성 관리와 배치 운영이 필요하다. 누락·구버전 행은 기존 온라인 계산으로 fallback해 정확성을 보존한다. 설계 근거는 [Opt2 precomputed features 상세 설계](./recommendation-feature-rollup.md), 측정 근거는 [Opt2 precomputed features 결과](./results/recommendation/details/opt2-precomputed-features/README.md)에 정리했다.
+상품 특징과 사용자 선호를 rollup/read model로 사전 계산. rollup 최신성 관리와 배치 운영이 필요하다. 누락·구버전 행은 기존 온라인 계산으로 fallback해 정확성을 보존한다. 설계 근거는 [Opt2 precomputed features 상세 설계](./recommendation-feature-rollup.md), 측정 근거는 [Opt2 precomputed features 결과](./results/recommendation/stages/opt2-precomputed-features/README.md)에 정리했다.
 
 ### Opt3 bulk prefetch
 
-후보 점수 데이터를 단일 bulk JOIN 경로로 통합. bulk JOIN은 왕복 횟수를 줄이지만 행 폭과 중복 전송량이 커질 수 있어 batch 크기와 메모리를 함께 관찰해야 한다. 설계 근거는 [Opt3 bulk prefetch 상세 설계](./recommendation-bulk-prefetch.md), 측정 근거는 [Opt3 bulk prefetch 결과](./results/recommendation/details/opt3-bulk-prefetch/README.md)에 정리했다.
+후보 점수 데이터를 단일 bulk JOIN 경로로 통합. bulk JOIN은 왕복 횟수를 줄이지만 행 폭과 중복 전송량이 커질 수 있어 batch 크기와 메모리를 함께 관찰해야 한다. 설계 근거는 [Opt3 bulk prefetch 상세 설계](./recommendation-bulk-prefetch.md), 측정 근거는 [Opt3 bulk prefetch 결과](./results/recommendation/stages/opt3-bulk-prefetch/README.md)에 정리했다.
 
-![최적화별 목표 지표 변화](./results/recommendation/main/05-optimization-effects.png)
+![최적화별 목표 지표 변화](./results/recommendation/overview/05-optimization-effects.png)
 
 ## 현재 병목과 다음 최적화
 
 최신 단계에서도 전체 시간이 사라진 것은 아니다. 아래 확대 그래프는 동일 대표 run의 평균값을 사용해 다음 조사 대상을 보여준다.
 
-![현재 병목 확대](./results/recommendation/main/06-current-bottleneck-drilldown.png)
+![현재 병목 확대](./results/recommendation/overview/06-current-bottleneck-drilldown.png)
 
-다음 구현 단계인 bulk prefetch는 후보 점수 데이터의 순차 조회를 통합하는 작업이다. 아직 registry에 검증된 측정 run이 없으므로 결과를 0이나 예상치로 그리지 않는다. 설계는 [Opt3 bulk prefetch](./recommendation-bulk-prefetch.md)에 기록한다.
+최신 단계에서 새로 드러난 관찰 대상은 `후보 일괄 조회로 scoring prefetch는 줄었지만 candidate retrieval과 score loop 비용이 다음 관찰 대상이다.`이다. 측정하지 않은 후속 개선값은 예상치로 그리지 않는다.
 
 ## 반복 안정성과 한계
 
-![반복 실행 안정성](./results/recommendation/main/07-repeat-stability.png)
+![반복 실행 안정성](./results/recommendation/overview/07-repeat-stability.png)
 
 자원 사용량과 run 수집 범위는 메인 결론과 분리해 [resource guardrail](./results/recommendation/appendix/resource-guardrails.png), [run coverage](./results/recommendation/appendix/run-coverage.png)에서 확인한다.
 
