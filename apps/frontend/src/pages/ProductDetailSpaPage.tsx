@@ -148,6 +148,7 @@ const getDetailParams = () => {
   return {
     productId: params.get("id") ?? "",
     recommendationId: params.get("recommendation_id") ?? undefined,
+    recommendationRank: Number.parseInt(params.get("recommendation_rank") ?? "", 10),
     skinType: params.get("skin_type") ?? "",
     sensitivity: params.get("sensitivity") ?? "",
   };
@@ -450,7 +451,7 @@ const createComparisonRequest = (
 };
 
 function ProductDetailSpaPage() {
-  const [{ productId, recommendationId, skinType, sensitivity }] = useState(getDetailParams);
+  const [{ productId, recommendationId, recommendationRank, skinType, sensitivity }] = useState(getDetailParams);
   const navigate = useNavigate();
   const { user } = useAuth();
   const [avoidIngredientMatchState, setAvoidIngredientMatchState] = useState<{
@@ -926,8 +927,9 @@ function ProductDetailSpaPage() {
     const updatedCart = await addCartItem({
       product_id: productId,
       quantity: 1,
-      source: "product_detail",
+      source: recommendationId ? "ai_recommendation" : "product_detail",
       recommendation_id: recommendationId ?? null,
+      recommendation_rank: Number.isFinite(recommendationRank) ? recommendationRank : null,
     });
     window.dispatchEvent(new Event("cart:updated"));
     return updatedCart;

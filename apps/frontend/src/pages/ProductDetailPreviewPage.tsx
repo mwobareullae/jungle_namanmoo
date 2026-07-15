@@ -55,6 +55,7 @@ function ProductDetailPreviewPage() {
   const location = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const recommendationId = searchParams.get("recommendation_id");
+  const recommendationRank = Number.parseInt(searchParams.get("recommendation_rank") ?? "", 10);
   const productId = searchParams.get("id");
   const [activeTab, setActiveTab] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -312,8 +313,9 @@ function ProductDetailPreviewPage() {
       const updatedCart = await addCartItem({
         product_id: product.product_id,
         quantity,
-        source: "product_detail",
+        source: recommendationId ? "ai_recommendation" : "product_detail",
         recommendation_id: recommendationId,
+        recommendation_rank: Number.isFinite(recommendationRank) ? recommendationRank : null,
       });
       window.dispatchEvent(new Event("cart:updated"));
       const checkoutItem = updatedCart.items.find((item) => item.product_id === product.product_id);
@@ -332,8 +334,9 @@ function ProductDetailPreviewPage() {
       await addCartItem({
         product_id: product.product_id,
         quantity,
-        source: "product_detail",
+        source: recommendationId ? "ai_recommendation" : "product_detail",
         recommendation_id: recommendationId,
+        recommendation_rank: Number.isFinite(recommendationRank) ? recommendationRank : null,
       });
       window.dispatchEvent(new Event("cart:updated"));
       showToast("장바구니에 담았습니다.");
