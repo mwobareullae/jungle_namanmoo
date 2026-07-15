@@ -113,6 +113,8 @@ export type ScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  review_profile_affinity_dimensions?: Record<string, number>;
+  review_profile_matched_segments?: ReviewProfileMatchedSegment[];
   skin_test_context_score?: number;
   skin_test_context_applied?: boolean;
   skin_test_context_axes?: Record<string, number>;
@@ -122,12 +124,29 @@ export type ScoreBreakdown = {
   behavior_personalization_score?: number;
   behavior_personalization_applied?: boolean;
   behavior_personalization_sources?: string[];
+  behavior_personalization_source_scores?: Record<string, number>;
+  behavior_personalization_affinity_components?: Record<string, number>;
+  behavior_personalization_negative_guard_score?: number;
   behavior_personalization_event_counts?: Record<string, number>;
   market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
+  applied_multipliers?: Record<string, number>;
   risk_flag_count?: number;
   risk_warnings?: string[];
+  risk_policy?: string | null;
+};
+
+export type ReviewProfileMatchedSegment = {
+  dimension: string;
+  value_code: string;
+  strength: number;
+  segment_score: number;
+  applied_score: number;
+  effective_sample_size: number;
+  review_count: number;
+  eligible: boolean;
+  sources: string[];
 };
 
 export type ProductCardItem = {

@@ -126,6 +126,18 @@ type BackendScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  review_profile_affinity_dimensions?: Record<string, number>;
+  review_profile_matched_segments?: Array<{
+    dimension: string;
+    value_code: string;
+    strength: number;
+    segment_score: number;
+    applied_score: number;
+    effective_sample_size: number;
+    review_count: number;
+    eligible: boolean;
+    sources: string[];
+  }>;
   skin_test_context_score?: number;
   skin_test_context_applied?: boolean;
   skin_test_context_axes?: Record<string, number>;
@@ -135,12 +147,17 @@ type BackendScoreBreakdown = {
   behavior_personalization_score?: number;
   behavior_personalization_applied?: boolean;
   behavior_personalization_sources?: string[];
+  behavior_personalization_source_scores?: Record<string, number>;
+  behavior_personalization_affinity_components?: Record<string, number>;
+  behavior_personalization_negative_guard_score?: number;
   behavior_personalization_event_counts?: Record<string, number>;
   market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
+  applied_multipliers?: Record<string, number>;
   risk_flag_count?: number;
   risk_warnings?: string[];
+  risk_policy?: string | null;
 };
 
 type BackendRecommendedProduct = {
@@ -335,6 +352,8 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     review_count: score.review_count,
     review_profile_affinity_score: score.review_profile_affinity_score,
     review_profile_affinity_applied: score.review_profile_affinity_applied,
+    review_profile_affinity_dimensions: score.review_profile_affinity_dimensions,
+    review_profile_matched_segments: score.review_profile_matched_segments,
     skin_test_context_score: score.skin_test_context_score,
     skin_test_context_applied: score.skin_test_context_applied,
     skin_test_context_axes: score.skin_test_context_axes,
@@ -344,8 +363,13 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     behavior_personalization_score: score.behavior_personalization_score,
     behavior_personalization_applied: score.behavior_personalization_applied,
     behavior_personalization_sources: score.behavior_personalization_sources,
+    behavior_personalization_source_scores: score.behavior_personalization_source_scores,
+    behavior_personalization_affinity_components: score.behavior_personalization_affinity_components,
+    behavior_personalization_negative_guard_score: score.behavior_personalization_negative_guard_score,
     behavior_personalization_event_counts: score.behavior_personalization_event_counts,
-    market_signal_score: score.market_signal_score
+    market_signal_score: score.market_signal_score,
+    applied_multipliers: score.applied_multipliers,
+    risk_policy: score.risk_policy
   };
 };
 
