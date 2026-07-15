@@ -284,7 +284,7 @@ export type RecommendationPagination = {
 export type IngredientEvidence = {
   ingredient_name: string;
   effect_name: string;
-  evidence_level: "high" | "medium" | "low";
+  evidence_level?: "high" | "medium" | "low" | null;
   evidence_text: string;
   source_title: string | null;
 };

@@ -259,6 +259,7 @@ type BackendProductDetailResponse = {
       effect: string;
       description: string;
       source_title: string;
+      evidence_level?: "high" | "medium" | "low" | null;
     }[];
     recommendation_reason?: string | null;
   };
@@ -470,7 +471,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,
-      evidence_level: "medium",
+      evidence_level: item.evidence_level ?? null,
       evidence_text: item.description,
       source_title: item.source_title || null
     })),

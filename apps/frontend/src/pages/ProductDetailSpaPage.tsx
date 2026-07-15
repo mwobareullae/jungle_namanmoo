@@ -32,16 +32,18 @@ import type {
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const evidenceLevelLabel: Record<IngredientEvidence["evidence_level"], string> = {
+const evidenceLevelLabel: Record<NonNullable<IngredientEvidence["evidence_level"]> | "unknown", string> = {
   high: "근거 높음",
   medium: "근거 보통",
   low: "근거 낮음",
+  unknown: "등급 정보 없음",
 };
 
-const evidenceLevelBadgeClass: Record<IngredientEvidence["evidence_level"], string> = {
+const evidenceLevelBadgeClass: Record<NonNullable<IngredientEvidence["evidence_level"]> | "unknown", string> = {
   high: "evidence-badge-high",
   medium: "evidence-badge-medium",
   low: "evidence-badge-low",
+  unknown: "evidence-badge-unknown",
 };
 
 type ReviewTypeFilter = "all" | "photo" | "month" | "repurchase";
@@ -95,10 +97,11 @@ const isInternalNoteText = (value: string | null | undefined) => {
   return INTERNAL_NOTE_PATTERN.test(normalized);
 };
 
-const evidenceLevelDisplayText: Record<IngredientEvidence["evidence_level"], string> = {
+const evidenceLevelDisplayText: Record<NonNullable<IngredientEvidence["evidence_level"]> | "unknown", string> = {
   high: "관련 효능 근거가 비교적 명확하게 확인된 성분입니다.",
   medium: "관련 효능 근거가 확인되며, 제품 내 함량과 사용 조건에 따라 체감은 달라질 수 있습니다.",
   low: "관련 효능과 연결된 참고 근거가 있어 보조 정보로 확인할 수 있습니다.",
+  unknown: "근거 등급 정보가 공개되지 않았습니다.",
 };
 
 const isConsumerFacingEvidenceText = (value: string | null | undefined) => {
@@ -119,7 +122,8 @@ const getIngredientEvidenceDisplayText = (
 
   const ingredientName = evidence.ingredient_name?.trim() || "이 성분";
   const normalizedEffectLabel = effectLabel.trim() || "해당 효능";
-  return `${ingredientName}은 ${normalizedEffectLabel}과 관련된 성분 근거가 확인되었습니다. ${evidenceLevelDisplayText[evidence.evidence_level]}`;
+  const evidenceLevel = evidence.evidence_level ?? "unknown";
+  return `${ingredientName}은 ${normalizedEffectLabel}과 관련된 성분 근거가 확인되었습니다. ${evidenceLevelDisplayText[evidenceLevel]}`;
 };
 
 const getAvoidIngredientMatchSet = (avoidValues: string[]) => {
@@ -1467,8 +1471,8 @@ function ProductDetailSpaPage() {
                                     <strong className="ingredient-evidence-effect-label">
                                       {evidence.ingredient_name || "성분"}
                                     </strong>
-                                    <span className={evidenceLevelBadgeClass[evidence.evidence_level]}>
-                                      {evidenceLevelLabel[evidence.evidence_level]}
+                                    <span className={evidenceLevelBadgeClass[evidence.evidence_level ?? "unknown"]}>
+                                      {evidenceLevelLabel[evidence.evidence_level ?? "unknown"]}
                                     </span>
                                   </div>
                                   <p className="ingredient-evidence-effect-text">
