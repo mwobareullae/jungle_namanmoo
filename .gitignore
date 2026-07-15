@@ -59,7 +59,8 @@ scripts/perf/config.env
 scripts/perf/config.benchmark.env
 scripts/perf/config.benchmark.local.env
 scripts/perf/results/
-perf-runs/
+perf-runs/*
+!perf-runs/README.md
 
 # Generated evidence-discovery reports
 artifacts/evidence-discovery/
