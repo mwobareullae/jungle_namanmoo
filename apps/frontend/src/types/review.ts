@@ -27,6 +27,7 @@ export type CreateProductReviewRequest = {
 };
 
 export type ProductReviewMutationResponse = {
+  review: MyProductReview | null;
   review_id: string;
   product_id: string;
   status: string;
