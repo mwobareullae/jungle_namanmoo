@@ -23,20 +23,38 @@ const statusFromScore = (score: number | undefined) => {
 };
 
 const concentrationState = (breakdown: ScoreBreakdown | undefined) => {
-  if (!breakdown || !breakdown.concentration_bucket || breakdown.concentration_bucket === "unknown") {
-    return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
+  switch (breakdown?.concentration_bucket) {
+    case "optimal":
+      return { status: "적정", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 적정 수준으로 분류했어요." };
+    case "meaningful":
+      return { status: "의미 있는 수준", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 의미 있는 수준으로 분류했어요." };
+    case "below_meaningful":
+      return { status: "기준 미달", tone: "caution" as const, description: "현재 확인된 함량이 기대 효능을 뒷받침하기에 충분하지 않을 수 있어요." };
+    case "above_optimal":
+      return { status: "권장 범위 초과", tone: "caution" as const, description: "확인된 함량이 일반적인 권장 범위를 넘어 주의가 필요해요." };
+    case "excessive":
+      return { status: "과다 사용 주의", tone: "caution" as const, description: "함량이 높은 편으로 사용 전 주의사항을 확인해 주세요." };
+    case "unknown":
+    default:
+      return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
   }
-  if (breakdown.concentration_bucket === "optimal") {
-    return { status: "적정", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 적정 수준으로 분류했어요." };
-  }
-  if (breakdown.concentration_bucket === "meaningful") {
-    return { status: "의미 있는 수준", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 의미 있는 수준으로 분류했어요." };
-  }
-  return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
 };
 
 const getConcerns = (summary?: RecommendationSummary | null) => summary?.matched_concerns ?? summary?.concerns ?? [];
 const getEffects = (summary?: RecommendationSummary | null) => summary?.expected_effects ?? summary?.effects ?? [];
+
+const getLargestWeightLabel = (weights?: Record<string, number>) => {
+  if (!weights) return null;
+  const entries = Object.entries(weights).filter(([, value]) => typeof value === "number" && Number.isFinite(value));
+  if (!entries.length) return null;
+  const [key] = entries.reduce((largest, current) => current[1] > largest[1] ? current : largest);
+  const normalized = key.toLowerCase();
+  if (normalized.includes("ingredient_effect") || normalized.includes("ingredient_evidence")) return "성분·효능 근거";
+  if (normalized.includes("concentration")) return "함량";
+  if (normalized.includes("skin") || normalized.includes("sensitivity") || normalized.includes("behavior") || normalized.includes("review_profile")) return "내 피부 적합도";
+  if (normalized.includes("price") || normalized.includes("search") || normalized.includes("keyword") || normalized.includes("market") || normalized.includes("review_quality")) return "구매·시장 신호";
+  return "상품 기준";
+};
 
 const buildCriteriaGroups = (product: ProductDetail, summary?: RecommendationSummary | null) => {
   const breakdown = product.score_breakdown;
@@ -127,7 +145,7 @@ function RecommendationCriteriaPanel({ product, summary }: RecommendationCriteri
   const firstEvidence = product.evidence[0];
   const firstEvidenceSource = firstEvidence?.source_title ? product.sources.find((source) => source.title === firstEvidence.source_title) : undefined;
   const adjustedWeights = product.score_breakdown?.adjusted_weights;
-  const hasEvidenceWeight = adjustedWeights && (adjustedWeights.ingredient_effect !== undefined || adjustedWeights.ingredient_evidence !== undefined);
+  const largestWeightLabel = getLargestWeightLabel(adjustedWeights);
   const groups = buildCriteriaGroups(product, summary);
 
   return (
@@ -152,7 +170,7 @@ function RecommendationCriteriaPanel({ product, summary }: RecommendationCriteri
           <div className="recommendation-criteria-node"><span>근거</span><div>{firstEvidence ? <><b>{firstEvidence.ingredient_name} → {firstEvidence.effect_name}</b><em>{firstEvidence.source_title || firstEvidence.evidence_text}</em>{firstEvidenceSource?.url ? <a href={firstEvidenceSource.url} target="_blank" rel="noreferrer">출처 보기 ↗</a> : null}</> : <em>표시 가능한 성분 근거 없음</em>}</div></div>
         </div>
         <div className="recommendation-criteria-reason"><span>한 줄 요약</span><strong>{product.reason_summary || "추천 근거를 준비 중입니다."}</strong></div>
-        {hasEvidenceWeight ? <p className="recommendation-criteria-headline">이 추천에서 성분·효능 근거가 가장 큰 비중</p> : null}
+        {largestWeightLabel ? <p className="recommendation-criteria-headline">이 추천에서 {largestWeightLabel} 관련 기준이 가장 큰 비중</p> : null}
       </div>
 
       <button className="recommendation-criteria-details-toggle" type="button" aria-expanded={isDetailsOpen} onClick={() => setIsDetailsOpen((open) => !open)}>

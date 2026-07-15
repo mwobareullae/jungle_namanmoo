@@ -8717,7 +8717,8 @@ html[data-app-mode="community"] .search-results-shell {
 
 .ingredient-evidence-effect-head span.evidence-badge-high,
 .ingredient-evidence-effect-head span.evidence-badge-medium,
-.ingredient-evidence-effect-head span.evidence-badge-low {
+.ingredient-evidence-effect-head span.evidence-badge-low,
+.ingredient-evidence-effect-head span.evidence-badge-unknown {
   flex: 0 0 auto;
   padding: 4px 10px;
   border-radius: 999px;
@@ -8740,6 +8741,11 @@ html[data-app-mode="community"] .search-results-shell {
   background: transparent;
   border: 1px solid rgba(148, 224, 248, 0.55);
   color: var(--muted);
+}
+
+.ingredient-evidence-effect-head span.evidence-badge-unknown {
+  background: #eef2f2;
+  color: #6c807e;
 }
 
 .ingredient-evidence-card p {
@@ -9870,6 +9876,17 @@ html[data-app-mode="community"] .search-results-shell {
 .review-write-page__review-copy strong {
   color: #1a1a1a;
   font-size: 15px;
+}
+
+.review-write-page__product-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.review-write-page__product-name-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 .review-write-page__review-copy p {
@@ -11236,6 +11253,12 @@ html[data-app-mode="community"] .search-results-shell {
   text-align: center;
 }
 
+.product-comparison-card__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
 .product-comparison-card__image img {
   display: block;
   width: min(180px, 64%);
@@ -11733,6 +11756,12 @@ html[data-app-mode="community"] .search-results-shell {
   font-size: 12px;
   font-weight: 650;
   line-height: 1.4;
+}
+
+.product-comparison-table__product-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
 .product-comparison-table tbody tr:hover td,
@@ -14925,6 +14954,14 @@ html[data-app-mode="community"] .search-results-shell {
   border-top: 1px solid var(--color-edge);
 }
 
+.complete-product__link {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
 .complete-product img,
 .complete-image-empty {
   width: 64px;
@@ -15440,6 +15477,12 @@ html[data-app-mode="community"] .search-results-shell {
   object-fit: cover;
 }
 
+.cart-page-item-thumb a {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .cart-page-item-thumb span {
   padding: 0 8px;
   color: var(--color-faint-text);
@@ -15472,6 +15515,11 @@ html[data-app-mode="community"] .search-results-shell {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.cart-page-item-name a {
+  color: inherit;
+  text-decoration: none;
 }
 
 .cart-page-item-option {
@@ -17627,4 +17675,16 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   .mypage-sidebar {
     display: block !important;
   }
+}
+.login-google-hitbox {
+  cursor: pointer;
+}
+
+.login-google-hitbox:not(.pointer-events-none) {
+  pointer-events: auto;
+}
+
+.login-google-hitbox iframe {
+  cursor: pointer !important;
+  pointer-events: auto !important;
 }

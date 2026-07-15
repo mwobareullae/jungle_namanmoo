@@ -8,10 +8,17 @@ type BackendSkinProfileData = {
   sensitivity?: string | null;
   skin_type_source?: string | null;
   sensitivity_source?: string | null;
+  explicit_skin_type?: string | null;
+  explicit_sensitivity?: string | null;
   avoid_ingredients?: unknown;
   concerns?: unknown;
   latest_skin_test_result_id?: number | null;
   latest_skin_test_result_code?: string | null;
+  baumann_type_code?: string | null;
+  baumann_inferred_skin_type?: string | null;
+  baumann_inferred_sensitivity?: string | null;
+  baumann_signal_weight?: number | null;
+  commerce_profile?: Record<string, unknown> | null;
   source?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -29,10 +36,17 @@ export type SkinProfileData = {
   sensitivity: Sensitivity;
   skinTypeSource?: string | null;
   sensitivitySource?: string | null;
+  explicitSkinType?: string | null;
+  explicitSensitivity?: string | null;
   avoidIngredients: string[];
   concerns: string[];
   latestSkinTestResultId?: number | null;
   latestSkinTestResultCode?: string | null;
+  baumannTypeCode?: string | null;
+  baumannInferredSkinType?: string | null;
+  baumannInferredSensitivity?: string | null;
+  baumannSignalWeight?: number | null;
+  commerceProfile?: Record<string, unknown> | null;
   source?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -73,10 +87,17 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
     sensitivity,
     skin_type_source,
     sensitivity_source,
+    explicit_skin_type,
+    explicit_sensitivity,
     avoid_ingredients,
     concerns,
     latest_skin_test_result_id,
     latest_skin_test_result_code,
+    baumann_type_code,
+    baumann_inferred_skin_type,
+    baumann_inferred_sensitivity,
+    baumann_signal_weight,
+    commerce_profile,
     source,
     created_at,
     updated_at
@@ -92,10 +113,17 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
     sensitivity,
     skinTypeSource: skin_type_source,
     sensitivitySource: sensitivity_source,
+    explicitSkinType: explicit_skin_type,
+    explicitSensitivity: explicit_sensitivity,
     avoidIngredients: normalizeAvoidIngredients(avoid_ingredients),
     concerns: normalizeStringList(concerns),
     latestSkinTestResultId: latest_skin_test_result_id,
     latestSkinTestResultCode: latest_skin_test_result_code,
+    baumannTypeCode: baumann_type_code,
+    baumannInferredSkinType: baumann_inferred_skin_type,
+    baumannInferredSensitivity: baumann_inferred_sensitivity,
+    baumannSignalWeight: baumann_signal_weight,
+    commerceProfile: commerce_profile,
     source,
     createdAt: created_at,
     updatedAt: updated_at
