@@ -40,6 +40,7 @@ COMPARABILITY_COLUMNS = [
     "measurement_schema",
     "complete",
     "condition_matches",
+    "headline_selected",
     "error_rate",
     "error_gate_passed",
     "headline_eligible",
@@ -174,13 +175,21 @@ def build_report_row(
     error_gate_passed = error_rate is not None and error_rate <= float(comparison["max_error_rate"])
     condition_matches = matches_condition(row, comparison)
     assigned = stage is not None and stage.get("status") == "measured"
-    headline_eligible = bool(assigned and complete and condition_matches and error_gate_passed)
+    headline_run_ids = set(stage.get("headline_run_ids", [])) if stage else set()
+    headline_selected = bool(
+        assigned and (not headline_run_ids or run_id in headline_run_ids)
+    )
+    headline_eligible = bool(
+        headline_selected and complete and condition_matches and error_gate_passed
+    )
     problem_evidence_eligible = bool(assigned and complete and condition_matches)
     pipeline_eligible = bool(problem_evidence_eligible and numeric(row.get("pipeline_event_count"), 0) > 0)
 
     exclusion_reasons: list[str] = []
     if not assigned:
         exclusion_reasons.append("unassigned_stage")
+    if assigned and not headline_selected:
+        exclusion_reasons.append("not_selected_for_headline")
     if not complete:
         exclusion_reasons.append("incomplete_run")
     if complete and not condition_matches:
@@ -193,6 +202,7 @@ def build_report_row(
         {
             "complete": complete,
             "condition_matches": condition_matches,
+            "headline_selected": headline_selected,
             "error_rate": error_rate,
             "error_gate_passed": error_gate_passed,
             "headline_eligible": headline_eligible,

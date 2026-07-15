@@ -229,7 +229,7 @@ class PerformanceReportDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
             renderer.write_stage_details(registry, rows, {}, output_root)
-            detail = output_root / "details" / "opt4-example" / "README.md"
+            detail = output_root / "stages" / "opt4-example" / "README.md"
             content = detail.read_text(encoding="utf-8")
 
         self.assertIn("# Opt4 example 측정 결과", content)
@@ -265,18 +265,18 @@ class PerformanceReportDataTests(unittest.TestCase):
                     root,
                     registry,
                     [],
-                    root / "details",
+                    root / "stages",
                     mock.sentinel.plt,
                 )
 
         self.assertTrue(
             save_ecdf.call_args.args[5].as_posix().endswith(
-                "details/opt4-example/scoring-latency-ecdf.png"
+                "stages/opt4-example/scoring-latency-ecdf.png"
             )
         )
         self.assertTrue(
             save_breakdown.call_args.args[4].as_posix().endswith(
-                "details/opt4-example/scoring-p95-breakdown.png"
+                "stages/opt4-example/scoring-p95-breakdown.png"
             )
         )
         self.assertIn("opt4-example_scoring_ecdf", outputs)
@@ -320,7 +320,7 @@ class PerformanceReportDataTests(unittest.TestCase):
             output_root = Path(temp_dir)
             renderer.write_stage_details(registry, rows, {}, output_root)
             content = (
-                output_root / "details" / "opt3-bulk-prefetch" / "README.md"
+                output_root / "stages" / "opt3-bulk-prefetch" / "README.md"
             ).read_text(encoding="utf-8")
 
         self.assertIn("단일 bulk JOIN 조회", content)
