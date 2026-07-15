@@ -7304,12 +7304,12 @@ body .category-panel {
   z-index: 910;
   display: block;
   width: 100vw;
-  height: var(--category-panel-height, 380px);
+  height: auto;
   box-sizing: border-box;
   max-height: var(--category-panel-max-height, 520px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 34px clamp(28px, 5vw, 72px) 38px;
+  padding: 34px clamp(28px, 5vw, 72px) 40px;
   border: 1px solid rgba(11, 42, 58, 0.08);
   border-right: 0;
   border-left: 0;
@@ -7443,23 +7443,21 @@ body:has(.category-panel:hover) .category-panel {
 
 body .category-panel__inner {
   display: grid;
-  grid-template-columns: repeat(5, minmax(180px, 1fr));
-  gap: 26px clamp(32px, 4vw, 72px);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  gap: 30px clamp(24px, 2vw, 40px);
   align-items: start;
   align-content: start;
   justify-items: stretch;
   width: min(1680px, calc(100vw - clamp(72px, 10vw, 168px)));
-  min-height: 100%;
+  min-height: 0;
   margin: 0 auto;
 }
 
-body .category-panel__column {
+.category-panel__section-stack {
   display: grid;
-  grid-template-rows: 164px auto;
-  gap: 18px;
   align-content: start;
-  justify-items: stretch;
-  min-width: 0;
+  gap: 10px;
 }
 
 body .category-panel__section {
@@ -7468,10 +7466,6 @@ body .category-panel__section {
   justify-items: start;
   gap: 10px;
   min-width: 0;
-}
-
-body .category-panel__column .category-panel__section:first-child {
-  min-height: 0;
 }
 
 body .category-panel__title {
@@ -7542,9 +7536,6 @@ body .category-panel__links a:focus-visible {
     gap: 22px 28px;
   }
 
-  body .category-panel__column .category-panel__section:first-child {
-    min-height: 0;
-  }
 }
 
 @media (max-width: 960px) {
@@ -7556,11 +7547,6 @@ body .category-panel__links a:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 22px 26px;
     width: 100%;
-  }
-
-  body .category-panel__column {
-    grid-template-rows: auto auto;
-    gap: 22px;
   }
 
   body .category-panel__links {
@@ -7600,23 +7586,12 @@ body .category-panel__links a:focus-visible {
     height: auto;
   }
 
-  body .category-panel__column {
-    grid-template-rows: auto auto;
-    gap: 18px;
-    align-content: start;
-    height: auto;
-  }
-
   body .category-panel__title {
     font-size: 17px;
   }
 
   body .category-panel__section {
     gap: 4px;
-  }
-
-  body .category-panel__column .category-panel__section:first-child {
-    min-height: 0;
   }
 
   body .category-panel__links {
