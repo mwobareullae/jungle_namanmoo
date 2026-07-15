@@ -36,7 +36,7 @@ function axisData(product: ProductDetail): Axis[] {
     if (key === "review_profile_affinity_score" && !profileReviewApplied) return { key, label, score: numeric, status: "데이터 부족", description: "비슷한 피부의 리뷰 정보가 부족해 중립적으로 반영했어요." };
     if (key === "skin_test_context_score" && !skinTestApplied) return { key, label, score: numeric, status: "데이터 부족", description: "연결된 피부 고민 테스트 결과가 없어 이 기준의 가중치를 제외했어요." };
     if (key === "behavior_personalization_score" && !behaviorApplied) return { key, label, score: numeric, status: "데이터 부족", description: "추천에 사용할 조회·찜·장바구니 기록이 없어 이 기준의 가중치를 제외했어요." };
-    if (key === "search_match_score" && (!numeric || numeric === 0)) return { key, label, score: numeric, status: "데이터 부족", description: "입력한 고민과 비교할 정보가 부족해 중립적으로 반영했어요." };
+    if (key === "search_match_score" && numeric === 0) return { key, label, score: numeric, status: "매칭 없음", description: "입력한 고민과 일치하는 검색 기준을 찾지 못했어요." };
     if (numeric === undefined) return { key, label, status: "정보 없음", description: "API 응답에 이 기준의 점수 정보가 없어 표시하지 못했어요." };
     return { key, label, score: numeric, status: "반영됨", description: "이 기준을 추천 점수에 반영했어요." };
   });
