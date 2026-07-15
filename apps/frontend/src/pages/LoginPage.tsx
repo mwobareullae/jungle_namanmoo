@@ -484,7 +484,7 @@ function LoginPage() {
               </div>
               <div
                 ref={googleButtonRef}
-                className={`absolute inset-0 z-20 overflow-hidden rounded-full ${
+                className={`login-google-hitbox absolute inset-0 z-20 overflow-hidden rounded-full ${
                   isGoogleSubmitting ? "pointer-events-none opacity-0" : "opacity-0"
                 }`}
               />
