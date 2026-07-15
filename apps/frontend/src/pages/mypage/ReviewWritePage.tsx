@@ -103,15 +103,35 @@ function ReviewWritePage() {
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      await createProductReview(selectedItem.product_id, {
+      const createdReview = await createProductReview(selectedItem.product_id, {
         order_item_id: selectedItem.order_item_id,
         rating,
         review_text: normalizedText,
         is_repurchase_review: isRepurchase
       });
+      const createdReviewItem = createdReview.review;
+      if (createdReviewItem) {
+        setMyReviews((current) => [
+          {
+            product_id: selectedItem.product_id,
+            product_name: selectedItem.product_name,
+            brand_name: selectedItem.brand_name,
+            thumbnail_storage_key: selectedItem.thumbnail_storage_key,
+            status: createdReview.status,
+            review: createdReviewItem
+          },
+          ...current.filter((item) => item.review.review_id !== createdReview.review_id)
+        ]);
+      }
       setItems((current) => current.filter((item) => item.order_item_id !== selectedItem.order_item_id));
       setSelectedItem(null);
       setReviewText("");
+      setActiveTab("mine");
+      void getMyProductReviews().then((response) => {
+        setMyReviews(response.items);
+      }).catch(() => {
+        // 등록 응답으로 화면을 먼저 갱신했으므로 재검증 실패 시에도 성공 상태를 유지한다.
+      });
       showToast("리뷰가 등록되었습니다.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "리뷰를 등록하지 못했습니다.");
