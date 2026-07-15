@@ -178,12 +178,14 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
                   <td>{product.categoryName}</td>
                   <td>{formatPrice(product.price)}</td>
                   <td>
-                    <span className={`admin-badge ${salesTone(product.availability.salesStatus)}`}>
-                      {SALES_STATUS_LABELS[product.availability.salesStatus]}
-                    </span>{" "}
-                    <span className={`admin-badge ${stockTone(product.availability.stockStatus)}`}>
-                      {STOCK_STATUS_LABELS[product.availability.stockStatus]}
-                    </span>
+                    <div className="admin-product-status-badges">
+                      <span className={`admin-badge ${salesTone(product.availability.salesStatus)}`}>
+                        {SALES_STATUS_LABELS[product.availability.salesStatus]}
+                      </span>
+                      <span className={`admin-badge ${stockTone(product.availability.stockStatus)}`}>
+                        {STOCK_STATUS_LABELS[product.availability.stockStatus]}
+                      </span>
+                    </div>
                     <small className="admin-product-code">
                       가용 {product.availability.availableQuantity ?? "-"} / 재고 {product.stockQuantity ?? "-"}
                     </small>
