@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -126,3 +138,120 @@ class RecommendationScoreEvidence(Base):
     )
     contribution_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 4), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProductRecommendationFeature(Base):
+    __tablename__ = "product_recommendation_features"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    top_ingredient_codes: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    top_effect_codes: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class ProductEffectRecommendationFeature(Base):
+    __tablename__ = "product_effect_recommendation_features"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    effect_id: Mapped[int] = mapped_column(
+        ForeignKey("effects.id"),
+        primary_key=True,
+    )
+    ingredient_effect_score: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
+    ingredient_evidence_score: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
+    concentration_score: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
+    concentration_context: Mapped[dict] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    top_ingredient_ids: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    best_evidence_ids: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class UserPreferenceProfile(Base):
+    __tablename__ = "user_preference_profiles"
+    __table_args__ = (
+        CheckConstraint(
+            "source in ('wishlist', 'cart', 'purchase', 'recent_view', 'click', 'negative_feedback')",
+            name="ck_user_preference_profiles_source",
+        ),
+        CheckConstraint(
+            "event_count >= 0",
+            name="ck_user_preference_profiles_event_count_nonnegative",
+        ),
+    )
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), primary_key=True)
+    category_scores: Mapped[dict] = mapped_column(
+        jsonb_type(), nullable=False, default=dict, server_default="{}"
+    )
+    brand_scores: Mapped[dict] = mapped_column(
+        jsonb_type(), nullable=False, default=dict, server_default="{}"
+    )
+    ingredient_scores: Mapped[dict] = mapped_column(
+        jsonb_type(), nullable=False, default=dict, server_default="{}"
+    )
+    effect_scores: Mapped[dict] = mapped_column(
+        jsonb_type(), nullable=False, default=dict, server_default="{}"
+    )
+    price_band_scores: Mapped[dict] = mapped_column(
+        jsonb_type(), nullable=False, default=dict, server_default="{}"
+    )
+    product_ids: Mapped[list] = mapped_column(
+        jsonb_type(), nullable=False, default=list, server_default="[]"
+    )
+    total_weight: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    effect_top3_sum: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    ingredient_top5_sum: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    category_max: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    brand_max: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    price_band_max: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    profile_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

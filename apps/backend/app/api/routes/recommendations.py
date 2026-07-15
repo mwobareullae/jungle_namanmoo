@@ -16,6 +16,7 @@ from app.schemas.recommendation import (
     RecommendationResponse,
 )
 from app.services.recommendation_narrative import create_recommendation_narrative_response
+from app.services.agent_product_tools import get_refined_recommendation_response
 from app.services.recommendation_pipeline import (
     create_recommendation_response,
     DEFAULT_PAGE,
@@ -103,15 +104,40 @@ def get_recommendation_by_id(
     recommendation_id: str,
     page: int = Query(DEFAULT_PAGE, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    min_price: int | None = Query(default=None, ge=0),
+    max_price: int | None = Query(default=None, ge=0),
+    category_code: str | None = Query(default=None, max_length=80),
+    skin_type: str | None = Query(default=None, max_length=40),
+    sensitivity: str | None = Query(default=None, max_length=40),
+    effect_keyword: list[str] = Query(default=[]),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
     started_at = current_time()
-    response = get_recommendation_response(
-        session,
-        recommendation_id,
-        page=page,
-        page_size=page_size,
+    has_refinement = any(
+        value is not None
+        for value in (min_price, max_price, category_code, skin_type, sensitivity)
+    ) or bool(effect_keyword)
+    response = (
+        get_refined_recommendation_response(
+            session,
+            recommendation_id,
+            page=page,
+            page_size=page_size,
+            min_price=min_price,
+            max_price=max_price,
+            category_code=category_code,
+            skin_type=skin_type,
+            sensitivity=sensitivity,
+            effect_keywords=effect_keyword,
+        )
+        if has_refinement
+        else get_recommendation_response(
+            session,
+            recommendation_id,
+            page=page,
+            page_size=page_size,
+        )
     )
     _record_recommendation_event(
         session,
@@ -131,6 +157,7 @@ def get_recommendation_by_id(
             "total_items": response.pagination.total_items,
             "page": response.pagination.page,
             "page_size": response.pagination.page_size,
+            "refined": has_refinement,
         },
     )
     return response

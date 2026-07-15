@@ -22,10 +22,15 @@ from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_pipeline import score_breakdown_to_api
 from app.services.repository import load_repository
 from app.services.scoring import (
+    ProductRecommendationFeatureSource,
     REVIEW_AFFINITY_DIMENSION_WEIGHTS,
     SCORING_VERSION,
     SkinTestScoringContext,
+    _build_desired_effects,
     _build_review_affinity_targets,
+    _load_ingredient_effects,
+    build_product_effect_recommendation_feature_values,
+    build_product_recommendation_feature_values,
     load_behavior_personalization_context,
     load_skin_test_scoring_context,
     score_candidates,
@@ -68,6 +73,77 @@ def test_score_candidates_prioritizes_ingredient_effect_and_evidence_data() -> N
     assert top.score_breakdown["skin_profile_score"] == pytest.approx(0.788)
     assert top.score_breakdown["risk_penalty"] == 0.0
     assert set(top.key_ingredients) >= {"글리세린", "세라마이드엔피"}
+
+
+def test_current_recommendation_score_contract_is_pinned() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("속건조 보습 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    matches = match_product_search_documents(session, intent, candidates)
+
+    scored_products = score_candidates(
+        session,
+        intent,
+        candidates,
+        matches,
+        skin_type="건성",
+        sensitivity="보통",
+    )
+
+    assert [
+        (
+            product.product_id,
+            product.rank,
+            product.total_score,
+            product.score_breakdown["ingredient_effect_score"],
+            product.score_breakdown["ingredient_evidence_score"],
+            product.score_breakdown["concentration_fit_score"],
+        )
+        for product in scored_products
+    ] == [
+        ("prod_001", 1, 74.98, 1.0, 0.9478, 0.5),
+        ("prod_002", 2, 21.55, 0.0, 0.0, 0.5),
+    ]
+
+
+def test_product_feature_calculators_preserve_current_axis_values() -> None:
+    session = _seed_example_session()
+    repository = load_repository(EXAMPLES_DIR)
+    intent = build_recommendation_intent("속건조 보습 추천", repository=repository)
+    candidates = list_product_candidates(session, intent.purchase_conditions)
+    desired_effects = _build_desired_effects(intent)
+    ingredients_by_product = _load_ingredient_effects(
+        session,
+        [candidate.db_product_id for candidate in candidates],
+        desired_effects,
+    )
+
+    product = next(candidate for candidate in candidates if candidate.product_id == "prod_001")
+    effect_features = build_product_effect_recommendation_feature_values(
+        ingredients_by_product[product.db_product_id]
+    )
+    moisturizing = effect_features["effect_moisturizing"]
+    barrier = effect_features["effect_barrier"]
+
+    assert moisturizing.ingredient_effect_score == pytest.approx(0.9)
+    assert moisturizing.ingredient_evidence_score == pytest.approx(0.81)
+    assert moisturizing.concentration_score == pytest.approx(0.5)
+    assert moisturizing.concentration_context["bucket"] == "unknown"
+    assert len(moisturizing.top_ingredient_ids) == 1
+    assert len(moisturizing.best_evidence_ids) == 1
+    assert barrier.ingredient_effect_score == pytest.approx(1.2)
+    assert barrier.ingredient_evidence_score == pytest.approx(1.12)
+
+    product_features = build_product_recommendation_feature_values(
+        (
+            ProductRecommendationFeatureSource(1, 2, 2, "ing_b", "effect_b", 70.0),
+            ProductRecommendationFeatureSource(1, 1, 1, "ing_a", "effect_a", 90.0),
+            ProductRecommendationFeatureSource(1, 1, 1, "ing_a", "effect_b", 80.0),
+        )
+    )
+    assert product_features[1].top_ingredient_codes == ("ing_a", "ing_b")
+    assert product_features[1].top_effect_codes == ("effect_a", "effect_b")
 
 
 def test_score_candidates_uses_skin_type_and_sensitivity_profile() -> None:
