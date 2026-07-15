@@ -32,6 +32,39 @@ MEASURED_STAGE = {
 
 
 class PerformanceReportDataTests(unittest.TestCase):
+    def test_supplemental_run_roots_are_collected_without_stage_assignment(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            run_dir = repo_root / "perf-runs" / "sweeps" / "opt3" / "recommendation-test"
+            run_dir.mkdir(parents=True)
+            registry = {
+                "stages": [],
+                "comparison": {},
+                "loose_run_root": "perf-runs",
+                "supplemental_run_roots": ["perf-runs/sweeps"],
+            }
+
+            with (
+                mock.patch.object(
+                    report_data.legacy_analysis,
+                    "find_run_dirs",
+                    return_value=[run_dir],
+                ),
+                mock.patch.object(
+                    report_data,
+                    "build_report_row",
+                    return_value={
+                        "run_id": "recommendation-test",
+                        "implementation_stage": "unassigned",
+                    },
+                ) as build_row,
+            ):
+                rows = report_data.collect_report_rows(repo_root, registry)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["implementation_stage"], "unassigned")
+        self.assertIsNone(build_row.call_args.args[2])
+
     def test_implementation_stage_is_independent_from_measurement_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -202,6 +235,96 @@ class PerformanceReportDataTests(unittest.TestCase):
         self.assertIn("# Opt4 example 측정 결과", content)
         self.assertIn("bulk 경로로 통합했다.", content)
         self.assertIn("다음 병목은 저장 구간이다.", content)
+
+    def test_scoring_detail_graphs_are_generated_for_each_measured_stage(self) -> None:
+        registry = {
+            "stages": [
+                {
+                    "id": "baseline",
+                    "label": "Baseline",
+                    "order": 0,
+                    "status": "measured",
+                    "compared_to": None,
+                },
+                {
+                    "id": "opt4-example",
+                    "label": "Opt4 example",
+                    "order": 4,
+                    "status": "measured",
+                    "compared_to": "baseline",
+                },
+            ]
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with (
+                mock.patch.object(renderer, "save_backend_ecdf") as save_ecdf,
+                mock.patch.object(renderer, "save_component_before_after") as save_breakdown,
+            ):
+                outputs = renderer.save_stage_detail_graphs(
+                    root,
+                    registry,
+                    [],
+                    root / "details",
+                    mock.sentinel.plt,
+                )
+
+        self.assertTrue(
+            save_ecdf.call_args.args[5].as_posix().endswith(
+                "details/opt4-example/scoring-latency-ecdf.png"
+            )
+        )
+        self.assertTrue(
+            save_breakdown.call_args.args[4].as_posix().endswith(
+                "details/opt4-example/scoring-p95-breakdown.png"
+            )
+        )
+        self.assertIn("opt4-example_scoring_ecdf", outputs)
+        self.assertIn("opt4-example_scoring_breakdown", outputs)
+
+    def test_opt3_detail_document_uses_bulk_prefetch_flow(self) -> None:
+        registry = {
+            "stages": [
+                {
+                    "id": "opt2-precomputed-features",
+                    "label": "Opt2",
+                    "order": 2,
+                    "status": "measured",
+                    "compared_to": None,
+                },
+                {
+                    "id": "opt3-bulk-prefetch",
+                    "label": "Opt3",
+                    "order": 3,
+                    "status": "measured",
+                    "compared_to": "opt2-precomputed-features",
+                    "change": "bulk prefetch 적용",
+                    "detail_doc": "docs/performance/opt3.md",
+                },
+            ]
+        }
+        common = {
+            "condition_matches": True,
+            "complete": True,
+            "headline_eligible": True,
+            "error_rate": 0.0,
+            "latency_p95_ms": 1000.0,
+            "recommendation_rps": 1.0,
+            "scoring_ms_p95": 500.0,
+        }
+        rows = [
+            {**common, "run_id": "before", "implementation_stage": "opt2-precomputed-features"},
+            {**common, "run_id": "after", "implementation_stage": "opt3-bulk-prefetch"},
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir)
+            renderer.write_stage_details(registry, rows, {}, output_root)
+            content = (
+                output_root / "details" / "opt3-bulk-prefetch" / "README.md"
+            ).read_text(encoding="utf-8")
+
+        self.assertIn("단일 bulk JOIN 조회", content)
+        self.assertNotIn("배치 rollup", content)
 
     @staticmethod
     def _make_run(repo_root: Path, *, k6_result_present: bool = True) -> tuple[Path, Path]:
