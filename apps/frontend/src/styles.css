@@ -11022,10 +11022,6 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
 }
 
-.product-comparison-row-list__row.is-caution > strong {
-  color: var(--color-danger, #ff6b52);
-}
-
 .product-comparison-row-list__values {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -11046,11 +11042,6 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-panel--inline .product-comparison-row-list__values .product-comparison-table__value-list strong {
   color: #2aa6d1;
-  font-weight: 700;
-}
-
-.product-comparison-panel--inline .product-comparison-caution-value {
-  color: var(--color-danger, #ff6b52);
   font-weight: 700;
 }
 
@@ -11081,7 +11072,7 @@ html[data-app-mode="community"] .search-results-shell {
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: clamp(22px, 1.9vw, 26px);
-  font-weight: 850;
+  font-weight: 550;
   line-height: 1.35;
   letter-spacing: 0;
 }
