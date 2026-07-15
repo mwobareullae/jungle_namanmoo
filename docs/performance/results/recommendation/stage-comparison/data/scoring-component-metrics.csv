@@ -1,0 +1,23 @@
+﻿avg_ms,avg_run_count,component,component_label,p95_ms,p95_run_count,stage_id,stage_order
+6969.28,1,scoring_ms,Scoring total,14105.42,1,baseline-v1,0
+5843.95,1,scoring_data_prefetch_ms,Feature prefetch,11781.95,1,baseline-v1,0
+1084.61,1,score_loop_ms,Score loop,2122.76,1,baseline-v1,0
+4.22,1,score_context_build_ms,Context build,5.62,1,baseline-v1,0
+5.05,1,score_sort_ms,Sort,31.71,1,baseline-v1,0
+3699.74,3,scoring_ms,Scoring total,6560.77,3,opt1-es-retrieval,1
+2746.17,3,scoring_data_prefetch_ms,Feature prefetch,4406.0,3,opt1-es-retrieval,1
+946.29,3,score_loop_ms,Score loop,2711.6,3,opt1-es-retrieval,1
+1.97,3,score_context_build_ms,Context build,5.96,3,opt1-es-retrieval,1
+1.65,3,score_sort_ms,Sort,5.76,3,opt1-es-retrieval,1
+2016.55,3,scoring_ms,Scoring total,3161.11,3,opt2-precomputed-features,2
+1290.75,3,scoring_data_prefetch_ms,Feature prefetch,2061.76,3,opt2-precomputed-features,2
+419.56,3,score_loop_ms,Score loop,860.32,3,opt2-precomputed-features,2
+284.18,3,score_detail_materialization_ms,Detail materialization,744.27,3,opt2-precomputed-features,2
+1.36,3,score_context_build_ms,Context build,6.09,3,opt2-precomputed-features,2
+1.07,3,score_sort_ms,Sort,1.35,3,opt2-precomputed-features,2
+1653.115,2,scoring_ms,Scoring total,2706.71,2,opt3-bulk-prefetch,3
+877.375,2,scoring_data_prefetch_ms,Feature prefetch,1518.7199999999998,2,opt3-bulk-prefetch,3
+453.20500000000004,2,score_loop_ms,Score loop,919.015,2,opt3-bulk-prefetch,3
+301.285,2,score_detail_materialization_ms,Detail materialization,813.125,2,opt3-bulk-prefetch,3
+2.325,2,score_context_build_ms,Context build,9.375,2,opt3-bulk-prefetch,3
+1.225,2,score_sort_ms,Sort,4.5649999999999995,2,opt3-bulk-prefetch,3
