@@ -121,7 +121,7 @@ function ProductDetailPage({ product, onBack }: ProductDetailPageProps) {
                 {evidence.source_title ? (
                   <p className="muted-copy">출처: {evidence.source_title}</p>
                 ) : null}
-                <Badge tone="notice">근거 {evidence.evidence_level}</Badge>
+                <Badge tone="notice">근거 {evidence.evidence_level ?? "등급 정보 없음"}</Badge>
               </article>
             ))}
           </div>

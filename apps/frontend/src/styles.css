@@ -8710,7 +8710,8 @@ html[data-app-mode="community"] .search-results-shell {
 
 .ingredient-evidence-effect-head span.evidence-badge-high,
 .ingredient-evidence-effect-head span.evidence-badge-medium,
-.ingredient-evidence-effect-head span.evidence-badge-low {
+.ingredient-evidence-effect-head span.evidence-badge-low,
+.ingredient-evidence-effect-head span.evidence-badge-unknown {
   flex: 0 0 auto;
   padding: 4px 10px;
   border-radius: 999px;
@@ -8733,6 +8734,11 @@ html[data-app-mode="community"] .search-results-shell {
   background: transparent;
   border: 1px solid rgba(148, 224, 248, 0.55);
   color: var(--muted);
+}
+
+.ingredient-evidence-effect-head span.evidence-badge-unknown {
+  background: #eef2f2;
+  color: #6c807e;
 }
 
 .ingredient-evidence-card p {
