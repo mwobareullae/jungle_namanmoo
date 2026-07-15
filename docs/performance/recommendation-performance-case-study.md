@@ -5,13 +5,13 @@
 
 ## 한눈에 보는 결과
 
-아래 값은 `Opt1 ES retrieval → Opt2 precomputed features`의 동일 조건 반복 run 중앙값이다.
+아래 값은 `Opt2 precomputed features → Opt3 bulk prefetch`의 동일 조건 반복 run 중앙값이다.
 
 | 지표 | 이전 | 이후 | 변화 |
 |---|---:|---:|---:|
-| End-to-end p95 | 12.80초 | 7.77초 | +39.3% |
-| 처리량 | 1.08 RPS | 1.69 RPS | +56.7% |
-| Scoring p95 | 6.56초 | 3.16초 | +51.8% |
+| End-to-end p95 | 7.77초 | 7.38초 | +5.0% |
+| 처리량 | 1.69 RPS | 1.74 RPS | +2.4% |
+| Scoring p95 | 3.16초 | 2.72초 | +14.1% |
 | 오류율 | 0.00% | 0.00% | 유지 |
 
 > Baseline 8만/VUS10 실행은 오류율 기준을 초과했다. 성능 붕괴를 보여주는 문제 재현 자료로만 사용하며 확정 개선율 계산에서는 제외한다.
@@ -51,6 +51,10 @@ Baseline 8만/VUS10의 오류율은 `2.00%`였다. 아래 Pareto는 성공 요�
 ### Opt2 precomputed features
 
 상품 특징과 사용자 선호를 rollup/read model로 사전 계산. rollup 최신성 관리와 배치 운영이 필요하다. 누락·구버전 행은 기존 온라인 계산으로 fallback해 정확성을 보존한다. 설계 근거는 [Opt2 precomputed features 상세 설계](./recommendation-feature-rollup.md), 측정 근거는 [Opt2 precomputed features 결과](./results/recommendation/details/opt2-precomputed-features/README.md)에 정리했다.
+
+### Opt3 bulk prefetch
+
+후보 점수 데이터를 단일 bulk JOIN 경로로 통합. bulk JOIN은 왕복 횟수를 줄이지만 행 폭과 중복 전송량이 커질 수 있어 batch 크기와 메모리를 함께 관찰해야 한다. 설계 근거는 [Opt3 bulk prefetch 상세 설계](./recommendation-bulk-prefetch.md), 측정 근거는 [Opt3 bulk prefetch 결과](./results/recommendation/details/opt3-bulk-prefetch/README.md)에 정리했다.
 
 ![최적화별 목표 지표 변화](./results/recommendation/main/05-optimization-effects.png)
 

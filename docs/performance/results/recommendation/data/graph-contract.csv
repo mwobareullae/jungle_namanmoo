@@ -11,3 +11,5 @@ run-coverage,각 구현 단계에서 어떤 dataset/VUS 조건을 측정했고 �
 opt1-request-distribution,ES retrieval 전환으로 의도 분석과 후보 추출의 요청별 분포가 어떻게 바뀌었는가?,backend 원시 요청의 intent/candidate latency,ECDF small multiples,details/opt1-es-retrieval,backend-latency-ecdf.png
 opt2-request-distribution,사전 계산 후 scoring 하위 단계의 요청별 분포가 어떻게 이동했는가?,backend 원시 요청의 scoring/prefetch/loop latency,ECDF small multiples,details/opt2-precomputed-features,scoring-latency-ecdf.png
 opt2-stage-effect,사전 계산이 목표 scoring 단계 p95를 직접 줄였는가?,반복 run의 scoring 하위 stage p95 중앙값,dumbbell,details/opt2-precomputed-features,scoring-p95-breakdown.png
+opt3-request-distribution,후보 점수 데이터 통합 조회로 scoring 하위 단계의 요청별 분포가 어떻게 바뀌었는가?,backend 요청별 scoring/prefetch/loop latency,ECDF small multiples,details/opt3-bulk-prefetch,scoring-latency-ecdf.png
+opt3-stage-effect,bulk prefetch가 scoring 하위 단계 p95를 직접 줄였는가?,반복 run의 scoring 하위 stage p95 중앙값,dumbbell,details/opt3-bulk-prefetch,scoring-p95-breakdown.png
