@@ -3201,9 +3201,9 @@ body {
 .search-mode-tabs button {
   min-height: 32px;
   padding: 0 14px;
-  border: 0;
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: transparent;
+  background: #ffffff;
   color: var(--muted);
   font: inherit;
   font-size: 13px;
@@ -3212,8 +3212,10 @@ body {
 }
 
 .search-mode-tabs button.active {
-  background: #94e0f8;
-  color: #0b2a3a;
+  background: #ffffff;
+  border-color: #75CDE9;
+  box-shadow: none;
+  color: #25313F;
 }
 
 .search-mode-suggestions {
