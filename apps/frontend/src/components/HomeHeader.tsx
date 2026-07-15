@@ -1,7 +1,8 @@
 import { useEffect, useState, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
-import { getCart } from "../lib/cartApi";
+import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
 import { navigateWithinApp } from "../lib/navigation";
 import { callOriginal } from "../lib/originalRuntime";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
@@ -10,7 +11,9 @@ function HomeHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [cartCount, setCartCount] = useState(0);
+  const queryClient = useQueryClient();
+  const cartQuery = useCartQuery(user?.id ?? null);
+  const cartCount = cartQuery.data?.total_quantity ?? 0;
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isPopularPage = location.pathname === "/products/popular";
@@ -56,35 +59,21 @@ function HomeHeader() {
   }, [isProductDetailPreviewPage]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadCartCount = async () => {
-      try {
-        const cart = await getCart();
-        if (!isMounted) return;
-        setCartCount(cart.total_quantity);
-      } catch {
-        if (!isMounted) return;
-        setCartCount(0);
-      }
-    };
-
     const handleCartUpdated = () => {
-      void loadCartCount();
+      void queryClient.invalidateQueries({ queryKey: cartQueryKey(user?.id ?? null) });
     };
 
-    void loadCartCount();
     window.addEventListener("cart:updated", handleCartUpdated);
 
     return () => {
-      isMounted = false;
       window.removeEventListener("cart:updated", handleCartUpdated);
     };
-  }, []);
+  }, [queryClient, user?.id]);
 
   const handleLogout = async () => {
     try {
       await logout();
+      queryClient.removeQueries({ queryKey: cartQueryKey(user?.id ?? null) });
       callOriginal("showToast", "로그아웃되었습니다.");
     } catch {
       callOriginal("showToast", "로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");

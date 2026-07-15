@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import { useAuth } from "../contexts/useAuth";
-import { deleteCartItem, getCart, previewCheckout, updateCartItem } from "../lib/cartApi";
+import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
+import { deleteCartItem, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import { navigateWithinApp } from "../lib/navigation";
@@ -130,6 +132,8 @@ function CartPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
+  const queryClient = useQueryClient();
+  const cartQuery = useCartQuery(user?.id ?? null);
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -153,47 +157,31 @@ function CartPage() {
   );
 
   useEffect(() => {
-    let isMounted = true;
+    setIsLoading(cartQuery.isPending);
+    if (cartQuery.error) {
+      setErrorMessage(cartQuery.error instanceof Error ? cartQuery.error.message : "장바구니를 불러오지 못했습니다.");
+      return;
+    }
+    if (cartQuery.data) {
+      setErrorMessage(null);
+      setCart(cartQuery.data);
+      const purchasableIds = cartQuery.data.items.filter(isPurchasableCartItem).map((item) => item.id);
+      const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
+      setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
+    }
+  }, [cartQuery.data, cartQuery.error, cartQuery.isPending, isAgentCheckout, requestedAgentCartItemIds]);
 
-    const loadCart = async () => {
-      try {
-        setIsLoading(true);
-        setErrorMessage(null);
-
-        const cartResponse = await getCart();
-
-        if (isMounted) {
-          setCart(cartResponse);
-          const purchasableIds = cartResponse.items.filter(isPurchasableCartItem).map((item) => item.id);
-          const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
-          setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : "장바구니를 불러오지 못했습니다.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
+  useEffect(() => {
     const handleCartUpdated = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail?.source === "cart-page") {
-        return;
-      }
-      void loadCart();
+      if (event instanceof CustomEvent && event.detail?.source === "cart-page") return;
+      void queryClient.invalidateQueries({ queryKey: cartQueryKey(user?.id ?? null) });
     };
-
-    void loadCart();
     window.addEventListener("cart:updated", handleCartUpdated);
 
     return () => {
-      isMounted = false;
       window.removeEventListener("cart:updated", handleCartUpdated);
     };
-  }, [isAgentCheckout, requestedAgentCartItemIds]);
+  }, [queryClient, user?.id]);
 
   const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
     if (nextQuantity < 1 || cartMutationPendingRef.current) {
@@ -206,6 +194,7 @@ function CartPage() {
 
     try {
       const updatedCart = await updateCartItem(itemId, { quantity: nextQuantity });
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), updatedCart);
       setCart(updatedCart);
       setSelectedItemIds((currentIds) =>
         currentIds.filter((id) => updatedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -230,12 +219,14 @@ function CartPage() {
 
     try {
       const response = await deleteCartItem(itemId);
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), response.cart);
       setCart(response.cart);
       setSelectedItemIds((currentIds) => currentIds.filter((id) => id !== itemId));
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
         setCart(refreshedCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -452,6 +443,7 @@ function CartPage() {
       }
 
       if (latestCart) {
+        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
         setCart(latestCart);
       }
 
@@ -459,7 +451,8 @@ function CartPage() {
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
         const remainingIds = selectedItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -497,6 +490,7 @@ function CartPage() {
       }
 
       if (latestCart) {
+        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
         setCart(latestCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => latestCart?.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -506,7 +500,8 @@ function CartPage() {
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
         const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
