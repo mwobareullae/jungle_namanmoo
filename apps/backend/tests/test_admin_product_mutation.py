@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,10 +17,12 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage,
 from app.db.models.commerce import Inventory, Seller
 from app.db.session import get_db
 from app.main import app
+from app.api.routes.admin import products as admin_products_route
 from app.schemas.admin.product import AdminProductCreateRequest, AdminProductUpdateRequest
 from app.schemas.common import ApiError
 from app.services.admin import product_mutation_service
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
+from app.services.elasticsearch_catalog_index import ElasticsearchCatalogIndexError
 
 
 ADMIN_EMAIL = "admin-product-mutation@example.com"
@@ -432,3 +435,101 @@ def test_admin_product_form_options_return_only_active_masters(client: TestClien
     assert categories.status_code == 200
     assert {item["code"] for item in brands.json()["items"]} == {"brand_a", "brand_b"}
     assert {item["code"] for item in categories.json()["items"]} == {"cat_a", "cat_b"}
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body", "expected_status", "expected_action"),
+    [
+        (
+            "post",
+            "/api/admin/products",
+            {
+                "name": "색인 후처리 등록 상품",
+                "brand_code": "brand_a",
+                "category_code": "cat_a",
+                "price": 19_900,
+            },
+            201,
+            "DELETED_OR_MISSING",
+        ),
+        (
+            "patch",
+            "/api/admin/products/prod_mwbl_editable",
+            {"name": "색인 후처리 수정 상품"},
+            200,
+            "INDEXED",
+        ),
+    ],
+)
+def test_admin_product_mutation_reindexes_after_commit(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    path: str,
+    body: dict[str, object],
+    expected_status: int,
+    expected_action: str,
+) -> None:
+    _authed_admin(client, db_engine)
+    sync_calls: list[str] = []
+    performance_events: list[tuple[str, dict[str, object]]] = []
+
+    def fake_reindex(session: Session, *, product_id: str):
+        assert session.in_transaction() is False
+        sync_calls.append(product_id)
+        return SimpleNamespace(action=expected_action)
+
+    def fake_log(event: str, **kwargs: object) -> None:
+        performance_events.append((event, kwargs))
+
+    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fake_reindex)
+    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+
+    response = getattr(client, method)(path, json=body)
+
+    assert response.status_code == expected_status
+    product_code = response.json()["product_code"]
+    assert sync_calls == [product_code]
+    assert [event for event, _ in performance_events] == ["admin_product_catalog_sync_completed"]
+    assert performance_events[0][1]["metadata"] == {
+        "product_id": product_code,
+        "action": expected_action,
+    }
+
+
+def test_admin_product_es_failure_keeps_committed_update(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authed_admin(client, db_engine)
+    performance_events: list[tuple[str, dict[str, object]]] = []
+
+    def fail_reindex(session: Session, *, product_id: str):
+        assert session.in_transaction() is False
+        raise ElasticsearchCatalogIndexError("test Elasticsearch failure")
+
+    def fake_log(event: str, **kwargs: object) -> None:
+        performance_events.append((event, kwargs))
+
+    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fail_reindex)
+    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+
+    response = client.patch(
+        "/api/admin/products/prod_mwbl_editable",
+        json={"name": "ES 실패 후에도 저장되는 상품"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "ES 실패 후에도 저장되는 상품"
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_mwbl_editable")
+        ).scalar_one()
+        assert product.product_name == "ES 실패 후에도 저장되는 상품"
+    assert [event for event, _ in performance_events] == ["admin_product_catalog_sync_failed"]
+    assert performance_events[0][1]["metadata"] == {
+        "product_id": "prod_mwbl_editable",
+        "error": "ElasticsearchCatalogIndexError",
+    }
