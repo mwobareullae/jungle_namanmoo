@@ -146,8 +146,14 @@ function CartPage() {
   const queryClient = useQueryClient();
   const cartQuery = useCartQuery(user?.id ?? null);
   const [cart, setCart] = useState<CartResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = cartQuery.isPending;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const queryErrorMessage = cartQuery.error
+    ? cartQuery.error instanceof Error
+      ? cartQuery.error.message
+      : "장바구니를 불러오지 못했습니다."
+    : null;
+  const visibleErrorMessage = queryErrorMessage ?? errorMessage;
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
@@ -168,18 +174,25 @@ function CartPage() {
   );
 
   useEffect(() => {
-    setIsLoading(cartQuery.isPending);
+    let isMounted = true;
     if (cartQuery.error) {
-      setErrorMessage(cartQuery.error instanceof Error ? cartQuery.error.message : "장바구니를 불러오지 못했습니다.");
-      return;
+      return () => {
+        isMounted = false;
+      };
     }
     if (cartQuery.data) {
-      setErrorMessage(null);
-      setCart(cartQuery.data);
-      const purchasableIds = cartQuery.data.items.filter(isPurchasableCartItem).map((item) => item.id);
-      const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
-      setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
+      queueMicrotask(() => {
+        if (!isMounted) return;
+        setErrorMessage(null);
+        setCart(cartQuery.data);
+        const purchasableIds = cartQuery.data.items.filter(isPurchasableCartItem).map((item) => item.id);
+        const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
+        setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
+      });
     }
+    return () => {
+      isMounted = false;
+    };
   }, [cartQuery.data, cartQuery.error, cartQuery.isPending, isAgentCheckout, requestedAgentCartItemIds]);
 
   useEffect(() => {
@@ -237,7 +250,7 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
         setCart(refreshedCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -463,7 +476,7 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
         const remainingIds = selectedItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -512,7 +525,7 @@ function CartPage() {
     } catch (error) {
       try {
         const refreshedCart = await cartQuery.refetch().then((result) => result.data);
-        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.");
+        if (!refreshedCart) throw new Error("장바구니를 불러오지 못했습니다.", { cause: error });
         const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -592,17 +605,17 @@ function CartPage() {
             </div>
           )}
 
-          {!isLoading && (errorMessage || !cart) && (
+          {!isLoading && (visibleErrorMessage || !cart) && (
             <div className="cart-page-status-card">
-              {errorMessage ? (
-                <p>{errorMessage}</p>
+              {visibleErrorMessage ? (
+                <p>{visibleErrorMessage}</p>
               ) : (
                 <p>장바구니 정보가 없습니다.</p>
               )}
             </div>
           )}
 
-          {!isLoading && !errorMessage && cart && !isAuthLoading && !user && (
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && !user && (
             <section className="cart-page-login-banner" aria-label="비로그인 장바구니 안내">
               <div className="cart-page-login-banner-copy">
                 <span className="cart-page-login-banner-icon" aria-hidden="true">
@@ -619,11 +632,11 @@ function CartPage() {
             </section>
           )}
 
-          {!isLoading && !errorMessage && cart && !isAuthLoading && user && (
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && user && (
             <div className="cart-page-login-banner-spacer" aria-hidden="true" />
           )}
 
-          {!isLoading && !errorMessage && cart && cart.total_quantity === 0 && (
+          {!isLoading && !visibleErrorMessage && cart && cart.total_quantity === 0 && (
             <div className="cart-page-empty-state">
               <span className="cart-page-empty-icon" aria-hidden="true">
                 EMPTY
