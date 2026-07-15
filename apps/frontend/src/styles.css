@@ -846,6 +846,13 @@
   min-width: 1040px;
 }
 
+.admin-product-status-badges {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .admin-table.compact th,
 .admin-table.compact td {
   height: 46px;
@@ -16983,6 +16990,24 @@ nav.admin-nav button { font-weight: 500 !important; }
 }
 .admin-main .admin-panel, .admin-main [class*="grid"] { min-width: 0 !important; max-width: 100% !important; }
 
+@media (max-width: 760px) {
+  /* 주문 상태 확인·취소·클레임 관리 표: 주문코드처럼 끊어지지 않는 문자열이
+     글자 단위로 줄바꿈되는 대신 가로 스크롤로 보이게 한다(데스크톱·태블릿은 위 규칙 그대로 적용). */
+  .admin-main .admin-order-table-panel .admin-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-main .admin-order-table-panel table.admin-table {
+    table-layout: auto !important;
+    width: auto !important;
+    min-width: 100% !important;
+  }
+  .admin-main .admin-order-table-panel .admin-table-wrap th,
+  .admin-main .admin-order-table-panel .admin-table-wrap td {
+    overflow-wrap: normal !important;
+  }
+}
+
 .admin-main { container-type: inline-size; }
 .admin-main h1 { font-size: clamp(20px, 3.2cqw, 30px) !important; }
 .admin-main h2, .admin-main .admin-panel h2 { font-size: clamp(13px, 1.95cqw, 18px) !important; }
@@ -17020,6 +17045,25 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 .admin-main .admin-product-table td:nth-child(8) button,
 .admin-main .admin-product-table td:nth-child(8) a { white-space: nowrap !important; padding: 4px 8px !important; }
+
+@media (max-width: 760px) {
+  /* 상품 조회/상태 확인 표: 위 nth-child 고정 폭 대신 가로 스크롤 허용(데스크톱·태블릿은 위 규칙 그대로 적용) */
+  .admin-main .admin-product-panel .admin-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-main table.admin-product-table {
+    table-layout: auto !important;
+    width: auto !important;
+    min-width: 100% !important;
+  }
+  .admin-main .admin-product-table th:nth-child(n),
+  .admin-main .admin-product-table td:nth-child(n) {
+    width: auto !important;
+    overflow: visible !important;
+    overflow-wrap: normal !important;
+  }
+}
 
 .admin-main .admin-excel-summary { background: #fff !important; border: 1px solid #e7eaef !important; }
 .admin-main .admin-excel-summary > span:first-child, .admin-main .admin-excel-summary > p:first-child {
