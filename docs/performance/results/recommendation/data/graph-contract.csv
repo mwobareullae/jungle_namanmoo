@@ -1,0 +1,13 @@
+﻿id,question,metrics,chart,location,output
+scale-map,상품 수와 동시 사용자가 늘 때 어디서 성능이 무너지는가?,"k6 recommendation p95, error rate",공유 색상 범위 heatmap small multiples,main,01-scale-latency-heatmaps.png
+baseline-bottleneck,최적화 전 평균 요청에서 가장 큰 병목은 무엇인가?,동일 대표 run의 backend pipeline stage 평균,Pareto,main,02-baseline-pipeline-pareto.png
+optimization-timeline,구현 단계를 거치며 p95와 처리량이 어떻게 변했는가?,반복 run의 k6 p95/RPS 중앙값과 개별 값,상하 2단 point/line panels,main,03-optimization-timeline.png
+pipeline-evolution,병목이 구현 단계마다 어디로 이동했는가?,각 단계 대표 run의 동일 요청계측 평균,절대시간 horizontal stacked bars,main,04-pipeline-evolution.png
+direct-effects,각 최적화가 목표 지표를 실제로 줄였는가?,공통 backend stage p95 중앙값,stage-faceted dumbbell,main,05-optimization-effects.png
+current-bottleneck,최신 측정에서 다음으로 줄일 병목은 어디인가?,최신 대표 run의 pipeline/scoring/prefetch 평균,3단 nested horizontal bars,main,06-current-bottleneck-drilldown.png
+repeat-stability,개선 결과가 반복 실행에서도 유지되고 실패를 숨기지 않았는가?,"개별 p95, 중앙값, min/max, error rate",strip/range and error panels,main,07-repeat-stability.png
+resource-guardrails,지연 개선 중 CPU와 메모리가 위험하게 증가하지 않았는가?,대표 run의 backend CPU/memory p95,small-multiple bars,appendix,resource-guardrails.png
+run-coverage,각 구현 단계에서 어떤 dataset/VUS 조건을 측정했고 오류 기준을 통과했는가?,완료 run 수와 error gate 통과 run 수,annotated heatmap,appendix,run-coverage.png
+opt1-request-distribution,ES retrieval 전환으로 의도 분석과 후보 추출의 요청별 분포가 어떻게 바뀌었는가?,backend 원시 요청의 intent/candidate latency,ECDF small multiples,details/opt1-es-retrieval,backend-latency-ecdf.png
+opt2-request-distribution,사전 계산 후 scoring 하위 단계의 요청별 분포가 어떻게 이동했는가?,backend 원시 요청의 scoring/prefetch/loop latency,ECDF small multiples,details/opt2-precomputed-features,scoring-latency-ecdf.png
+opt2-stage-effect,사전 계산이 목표 scoring 단계 p95를 직접 줄였는가?,반복 run의 scoring 하위 stage p95 중앙값,dumbbell,details/opt2-precomputed-features,scoring-p95-breakdown.png

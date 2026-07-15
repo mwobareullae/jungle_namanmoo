@@ -1,4 +1,4 @@
-"""Generate recommendation benchmark summary CSV and portfolio graphs.
+"""Generate recommendation benchmark summary CSV and performance graphs.
 
 The script reads benchmark run folders produced by scripts/perf/benchmarkctl-local.ps1.
 It supports both old logs that only have pipeline-level timings and newer logs
