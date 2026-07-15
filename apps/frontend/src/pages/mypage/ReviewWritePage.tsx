@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Skeleton from "../../components/ui/Skeleton";
@@ -237,14 +238,16 @@ function ReviewWritePage() {
             ) : myReviews.length > 0 ? (
               myReviews.map((item) => (
                 <article className="review-write-page__review" key={item.review.review_id}>
-                  <span className="review-write-page__thumbnail">
-                    {item.thumbnail_storage_key ? (
-                      <img alt="" src={getProductImageUrl(item.thumbnail_storage_key, "w400")} />
-                    ) : null}
-                  </span>
+                  <Link className="review-write-page__product-link" to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                    <span className="review-write-page__thumbnail">
+                      {item.thumbnail_storage_key ? <img alt="" src={getProductImageUrl(item.thumbnail_storage_key, "w400")} /> : null}
+                    </span>
+                  </Link>
                   <div className="review-write-page__review-copy">
                     <small>{item.brand_name}</small>
-                    <strong>{item.product_name}</strong>
+                    <Link className="review-write-page__product-name-link" to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                      <strong>{item.product_name}</strong>
+                    </Link>
                     <span className="review-write-page__review-rating" aria-label={`${item.review.rating ?? 0}점`}>
                       {"★".repeat(item.review.rating ?? 0)}<i>{"★".repeat(5 - (item.review.rating ?? 0))}</i>
                     </span>

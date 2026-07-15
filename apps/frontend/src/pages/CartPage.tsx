@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
@@ -708,7 +708,9 @@ function CartPage() {
 
                         <div className="cart-page-item-thumb">
                           {imageUrl ? (
-                            <img alt={item.product.name} src={imageUrl} />
+                            <Link aria-label={`${item.product.name} 상품 상세 보기`} to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                              <img alt={item.product.name} src={imageUrl} />
+                            </Link>
                           ) : (
                             <span>이미지 준비중</span>
                           )}
@@ -717,7 +719,9 @@ function CartPage() {
 
                         <div className="cart-page-item-main">
                           <p className="cart-page-item-brand">{item.product.brand}</p>
-                          <h2 className="cart-page-item-name">{item.product.name}</h2>
+                          <h2 className="cart-page-item-name">
+                            <Link to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>{item.product.name}</Link>
+                          </h2>
                           {optionLabel && <p className="cart-page-item-option">{optionLabel}</p>}
                           <p className={`cart-page-stock-text${stockStatusClassName}`}>
                             {formatStockStatus(item.product.stock_status)}
