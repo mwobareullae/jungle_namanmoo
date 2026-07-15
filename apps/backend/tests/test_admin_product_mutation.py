@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductPrice
 from app.db.models.commerce import Inventory, Seller
 from app.db.session import get_db
 from app.main import app
@@ -161,6 +161,128 @@ def test_create_product_builds_default_inventory_and_first_party_price(db_engine
         assert price.product_url == f"/product-detail?id={product.product_code}"
 
 
+def test_create_product_with_thumbnail_storage_key(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        result = create_admin_product(
+            session,
+            _create_request(thumbnail_storage_key="  products/qa/thumb_0  "),
+            now=FIXED_NOW,
+        )
+    # 공백은 trim 되어 저장되고(원문 그대로 신뢰, 파일 실존 검증은 하지 않음), image_count 에 반영된다.
+    assert result.thumbnail_url == "products/qa/thumb_0"
+    assert result.image_count == 1
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "https://image.oliveyoung.co.kr/x.jpg",
+        "http://evil.com/a.jpg",
+        "products/../../etc/passwd",
+        "../secret",
+    ],
+)
+def test_create_product_rejects_absolute_url_and_path_traversal_thumbnail(
+    db_engine: Engine, bad_key: str
+) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as exc:
+            create_admin_product(session, _create_request(thumbnail_storage_key=bad_key), now=FIXED_NOW)
+    assert exc.value.code == "INVALID_PRODUCT_FIELD"
+
+
+def test_create_product_blank_thumbnail_storage_key_is_no_image(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        result = create_admin_product(session, _create_request(thumbnail_storage_key="   "), now=FIXED_NOW)
+    assert result.thumbnail_url == ""
+    assert result.image_count == 0
+
+
+def test_update_thumbnail_storage_key_replaces_without_duplicate_row(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        create_admin_product(
+            session,
+            AdminProductCreateRequest(
+                name="이미지 교체용",
+                brand_code="brand_a",
+                category_code="cat_a",
+                price=1000,
+                thumbnail_storage_key="products/qa/thumb_0",
+            ),
+            now=FIXED_NOW,
+        )
+        product = session.execute(
+            select(Product).where(Product.product_name == "이미지 교체용")
+        ).scalar_one()
+
+        updated = update_admin_product(
+            session,
+            product.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key="products/qa/thumb_1"),
+            now=FIXED_NOW,
+        )
+        image_rows = session.execute(
+            select(ProductImage).where(ProductImage.product_id == product.id)
+        ).scalars().all()
+
+    assert updated.thumbnail_url == "products/qa/thumb_1"
+    assert len(image_rows) == 1  # upsert — 새 행이 추가되는 게 아니라 기존 행이 교체됨
+
+
+def test_update_thumbnail_storage_key_null_clears_image(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        created = create_admin_product(
+            session,
+            AdminProductCreateRequest(
+                name="이미지 삭제용",
+                brand_code="brand_a",
+                category_code="cat_a",
+                price=1000,
+                thumbnail_storage_key="products/qa/thumb_0",
+            ),
+            now=FIXED_NOW,
+        )
+        product = session.execute(
+            select(Product).where(Product.product_code == created.product_code)
+        ).scalar_one()
+
+        cleared = update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key=None),
+            now=FIXED_NOW,
+        )
+        image_rows = session.execute(
+            select(ProductImage).where(ProductImage.product_id == product.id)
+        ).scalars().all()
+
+    assert cleared.thumbnail_url == ""
+    assert cleared.image_count == 0
+    assert image_rows == []
+
+
+def test_update_thumbnail_storage_key_conflict_with_existing_image(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_mwbl_editable")
+        ).scalar_one()
+        session.add(
+            ProductImage(product_id=product.id, image_type="detail", display_order=1, storage_key="products/dup/key")
+        )
+        session.flush()
+
+        with pytest.raises(ApiError) as exc:
+            update_admin_product(
+                session,
+                "prod_mwbl_editable",
+                AdminProductUpdateRequest(thumbnail_storage_key="products/dup/key"),
+                now=FIXED_NOW,
+            )
+
+    assert exc.value.status_code == 409
+    assert exc.value.code == "PRODUCT_IMAGE_STORAGE_KEY_CONFLICT"
+
+
 def test_update_product_changes_only_requested_basic_fields_and_price(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         result = update_admin_product(
@@ -261,8 +383,52 @@ def test_admin_patch_route_rejects_empty_body(client: TestClient, db_engine: Eng
     assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
 
 
+def test_admin_patch_route_omitted_thumbnail_keeps_existing_image(
+    client: TestClient, db_engine: Engine
+) -> None:
+    _authed_admin(client, db_engine)
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_mwbl_editable")
+        ).scalar_one()
+        session.add(
+            ProductImage(
+                product_id=product.id,
+                image_type="thumbnail",
+                display_order=0,
+                storage_key="products/qa/keep_thumbnail",
+            )
+        )
+        session.commit()
+
+    response = client.patch(
+        "/api/admin/products/prod_mwbl_editable",
+        json={"name": "이미지 유지 수정"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["thumbnail_url"] == "products/qa/keep_thumbnail"
+    assert response.json()["image_count"] == 1
+    with Session(db_engine) as session:
+        image_rows = session.execute(
+            select(ProductImage).join(Product).where(Product.product_code == "prod_mwbl_editable")
+        ).scalars().all()
+        assert [image.storage_key for image in image_rows] == ["products/qa/keep_thumbnail"]
+
+
 def test_admin_patch_route_rejects_missing_product(client: TestClient, db_engine: Engine) -> None:
     _authed_admin(client, db_engine)
     response = client.patch("/api/admin/products/prod_missing", json={"name": "없는 상품"})
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "PRODUCT_NOT_FOUND"
+
+
+def test_admin_product_form_options_return_only_active_masters(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+    brands = client.get("/api/admin/product-brands")
+    categories = client.get("/api/admin/product-categories")
+
+    assert brands.status_code == 200
+    assert categories.status_code == 200
+    assert {item["code"] for item in brands.json()["items"]} == {"brand_a", "brand_b"}
+    assert {item["code"] for item in categories.json()["items"]} == {"cat_a", "cat_b"}

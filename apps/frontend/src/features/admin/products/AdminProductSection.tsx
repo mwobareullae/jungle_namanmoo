@@ -10,6 +10,7 @@ type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 
 type AdminProductSectionProps = {
   active: boolean;
+  onEditProduct: (productCode: string) => void;
   onOperationLog: (area: string, title: string, detail: string, tone?: BadgeTone) => void;
 };
 
@@ -45,7 +46,7 @@ const stockTone = (status: string): BadgeTone => {
 const formatPrice = (price: number | null): string =>
   price === null ? "-" : `${price.toLocaleString("ko-KR")}원`;
 
-export function AdminProductSection({ active, onOperationLog }: AdminProductSectionProps) {
+export function AdminProductSection({ active, onEditProduct, onOperationLog }: AdminProductSectionProps) {
   const {
     items,
     pagination,
@@ -261,51 +262,60 @@ export function AdminProductSection({ active, onOperationLog }: AdminProductSect
             <span>잠시만 기다려 주세요.</span>
           </div>
         ) : detail ? (
-          <dl className="admin-metric-list">
-            <div>
-              <dt>product_code</dt>
-              <dd>{detail.productCode}</dd>
-            </div>
-            <div>
-              <dt>브랜드</dt>
-              <dd>{detail.brand}</dd>
-            </div>
-            <div>
-              <dt>카테고리</dt>
-              <dd>{detail.categoryName}</dd>
-            </div>
-            <div>
-              <dt>셀러</dt>
-              <dd>{detail.sellerName}</dd>
-            </div>
-            <div>
-              <dt>가격</dt>
-              <dd>{formatPrice(detail.price)}</dd>
-            </div>
-            <div>
-              <dt>판매 상태</dt>
-              <dd>{SALES_STATUS_LABELS[detail.availability.salesStatus]}</dd>
-            </div>
-            <div>
-              <dt>재고 상태</dt>
-              <dd>
-                {STOCK_STATUS_LABELS[detail.availability.stockStatus]} (가용{" "}
-                {detail.availability.availableQuantity ?? "-"} / 재고 {detail.stockQuantity ?? "-"})
-              </dd>
-            </div>
-            <div>
-              <dt>추천 가능</dt>
-              <dd>{detail.isRecommendable ? "가능" : "제외"}</dd>
-            </div>
-            <div>
-              <dt>이미지</dt>
-              <dd>{detail.imageCount}개</dd>
-            </div>
-            <div>
-              <dt>수정일</dt>
-              <dd>{detail.updatedAt}</dd>
-            </div>
-          </dl>
+          <>
+            <dl className="admin-metric-list">
+              <div>
+                <dt>product_code</dt>
+                <dd>{detail.productCode}</dd>
+              </div>
+              <div>
+                <dt>브랜드</dt>
+                <dd>{detail.brand}</dd>
+              </div>
+              <div>
+                <dt>카테고리</dt>
+                <dd>{detail.categoryName}</dd>
+              </div>
+              <div>
+                <dt>셀러</dt>
+                <dd>{detail.sellerName}</dd>
+              </div>
+              <div>
+                <dt>가격</dt>
+                <dd>{formatPrice(detail.price)}</dd>
+              </div>
+              <div>
+                <dt>판매 상태</dt>
+                <dd>{SALES_STATUS_LABELS[detail.availability.salesStatus]}</dd>
+              </div>
+              <div>
+                <dt>재고 상태</dt>
+                <dd>
+                  {STOCK_STATUS_LABELS[detail.availability.stockStatus]} (가용{" "}
+                  {detail.availability.availableQuantity ?? "-"} / 재고 {detail.stockQuantity ?? "-"})
+                </dd>
+              </div>
+              <div>
+                <dt>추천 가능</dt>
+                <dd>{detail.isRecommendable ? "가능" : "제외"}</dd>
+              </div>
+              <div>
+                <dt>이미지</dt>
+                <dd>{detail.imageCount}개</dd>
+              </div>
+              <div>
+                <dt>수정일</dt>
+                <dd>{detail.updatedAt}</dd>
+              </div>
+            </dl>
+            <button
+              className="admin-primary-button"
+              onClick={() => onEditProduct(detail.productCode)}
+              type="button"
+            >
+              이 상품 수정
+            </button>
+          </>
         ) : (
           <div className="admin-state-banner neutral">
             <strong>선택된 상품 없음</strong>

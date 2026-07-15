@@ -6,6 +6,7 @@ from app.schemas.admin.product import (
     AdminProductCreateRequest,
     AdminProductDetail,
     AdminProductListResponse,
+    AdminProductMasterOptionListResponse,
     AdminProductUpdateRequest,
 )
 from app.schemas.common import ErrorResponse
@@ -14,12 +15,28 @@ from app.services.admin.product_service import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
     get_admin_product_detail,
+    list_active_product_brands,
+    list_active_product_categories,
     list_admin_products,
 )
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
 
 
 router = APIRouter()
+
+
+@router.get("/product-brands", response_model=AdminProductMasterOptionListResponse)
+def list_product_brands(session: Session = Depends(get_db)) -> AdminProductMasterOptionListResponse:
+    """관리자 상품 폼에서 선택할 활성 브랜드 master를 반환한다."""
+
+    return list_active_product_brands(session)
+
+
+@router.get("/product-categories", response_model=AdminProductMasterOptionListResponse)
+def list_product_categories(session: Session = Depends(get_db)) -> AdminProductMasterOptionListResponse:
+    """관리자 상품 폼에서 선택할 활성 카테고리 master를 반환한다."""
+
+    return list_active_product_categories(session)
 
 
 @router.get("/products", response_model=AdminProductListResponse)
