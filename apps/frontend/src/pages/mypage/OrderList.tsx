@@ -528,18 +528,31 @@ export default function OrderList() {
                                   </svg>
                                 </button>
                                 <div style={styles.detailItemMain}>
-                                <div style={styles.detailItemThumbnail}>
-                                  {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
-                                    <img
-                                      alt=""
-                                      src={getProductImageUrl(item.thumbnail_storage_key, "w400")}
-                                      style={styles.thumbnailImage}
-                                    />
-                                  ) : null}
-                                </div>
+                                <Link
+                                  aria-label={`${item.product_name} 상품 상세 보기`}
+                                  onClick={(event) => event.stopPropagation()}
+                                  style={styles.detailItemThumbnailLink}
+                                  to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}
+                                >
+                                  <div style={styles.detailItemThumbnail}>
+                                    {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
+                                      <img
+                                        alt=""
+                                        src={getProductImageUrl(item.thumbnail_storage_key, "w400")}
+                                        style={styles.thumbnailImage}
+                                      />
+                                    ) : null}
+                                  </div>
+                                </Link>
                                 <div style={styles.detailItemBody}>
                                   <strong style={styles.detailItemStatus}>{statusLabelMap[item.status] ?? item.status}</strong>
-                                  <span style={styles.detailItemName}>{item.product_name}</span>
+                                  <Link
+                                    onClick={(event) => event.stopPropagation()}
+                                    style={styles.detailItemNameLink}
+                                    to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}
+                                  >
+                                    <span style={styles.detailItemName}>{item.product_name}</span>
+                                  </Link>
                                   <div style={styles.detailItemMeta}>
                                     <strong style={styles.detailItemPrice}>{formatWon(item.line_total)}</strong>
                                     <span>{item.quantity}개</span>
@@ -998,6 +1011,13 @@ const styles: Record<string, CSSProperties> = {
     background: "#f7f8f9",
     overflow: "hidden"
   },
+  detailItemThumbnailLink: {
+    display: "block",
+    width: 92,
+    height: 92,
+    color: "inherit",
+    textDecoration: "none"
+  },
   detailItemMain: {
     display: "grid",
     gridTemplateColumns: "92px minmax(0, 1fr)",
@@ -1039,6 +1059,11 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
+  },
+  detailItemNameLink: {
+    minWidth: 0,
+    color: "inherit",
+    textDecoration: "none"
   },
   detailItemMeta: {
     display: "flex",
