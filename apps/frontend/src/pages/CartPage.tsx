@@ -43,6 +43,17 @@ const formatStockStatus = (stockStatus: string) => {
   }
 };
 
+const getCartProductDetailPath = (item: CartItem) => {
+  const params = new URLSearchParams({ id: item.product_id });
+  if (item.source === "ai_recommendation" && item.recommendation_id) {
+    params.set("recommendation_id", item.recommendation_id);
+    if (item.recommendation_rank != null) {
+      params.set("recommendation_rank", String(item.recommendation_rank));
+    }
+  }
+  return `/product-detail?${params.toString()}`;
+};
+
 const isPurchasableCartItem = (item: CartItem) =>
   !unavailableStockStatuses.has(item.product.stock_status) &&
   !unavailableSalesStatuses.has(item.product.sales_status);
@@ -693,6 +704,7 @@ function CartPage() {
                     const isUnavailableItem = !isPurchasableCartItem(item);
                     const isSoldOut = isProductSoldOut(item.product);
                     const stockStatusClassName = getStockStatusClassName(item.product.stock_status);
+                    const productDetailPath = getCartProductDetailPath(item);
 
                     return (
                       <article className={`cart-page-item${isUnavailableItem ? " unavailable" : ""}`} key={item.id}>
@@ -708,7 +720,7 @@ function CartPage() {
 
                         <div className="cart-page-item-thumb">
                           {imageUrl ? (
-                            <Link aria-label={`${item.product.name} 상품 상세 보기`} to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                            <Link aria-label={`${item.product.name} 상품 상세 보기`} to={productDetailPath}>
                               <img alt={item.product.name} src={imageUrl} />
                             </Link>
                           ) : (
@@ -720,7 +732,7 @@ function CartPage() {
                         <div className="cart-page-item-main">
                           <p className="cart-page-item-brand">{item.product.brand}</p>
                           <h2 className="cart-page-item-name">
-                            <Link to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>{item.product.name}</Link>
+                            <Link to={productDetailPath}>{item.product.name}</Link>
                           </h2>
                           {optionLabel && <p className="cart-page-item-option">{optionLabel}</p>}
                           <p className={`cart-page-stock-text${stockStatusClassName}`}>
