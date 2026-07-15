@@ -9,6 +9,7 @@ import PopularProductsHeader from "./components/PopularProductsHeader";
 import Skeleton from "./components/ui/Skeleton";
 import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
+import { getListHistoryRestoration } from "./hooks/useListHistoryRestoration";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
 
@@ -965,6 +966,7 @@ function ScrollToTop() {
   const location = useLocation();
 
   useLayoutEffect(() => {
+    if (getListHistoryRestoration()) return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname, location.search]);
 
