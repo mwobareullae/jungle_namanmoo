@@ -1,0 +1,49 @@
+﻿avg_ms,avg_run_count,component,component_label,p95_ms,p95_run_count,stage_id,stage_order
+114.25,1,user_context_load_ms,User profile,368.58,1,baseline-v1,0
+278.98,1,skin_test_context_load_ms,Skin test,920.08,1,baseline-v1,0
+1167.47,1,behavior_context_load_ms,Behavior context,2201.65,1,baseline-v1,0
+21932.32,1,intent_parse_ms,Intent parse,35250.7,1,baseline-v1,0
+278.33,1,run_save_ms,Run save,812.39,1,baseline-v1,0
+2182.72,1,candidate_pool_ms,Candidate retrieval,3800.41,1,baseline-v1,0
+403.89,1,search_match_ms,Search match,1129.12,1,baseline-v1,0
+759.95,1,search_candidate_save_ms,Candidate save,2024.71,1,baseline-v1,0
+6969.28,1,scoring_ms,Personalized scoring,14105.42,1,baseline-v1,0
+517.25,1,result_save_ms,Result save,1130.2,1,baseline-v1,0
+94.02,1,commit_ms,Commit,424.01,1,baseline-v1,0
+1117.08,1,response_load_ms,Response load,2468.58,1,baseline-v1,0
+39.86,3,user_context_load_ms,User profile,111.96,3,opt1-es-retrieval,1
+92.41,3,skin_test_context_load_ms,Skin test,339.81,3,opt1-es-retrieval,1
+477.92,3,behavior_context_load_ms,Behavior context,1015.98,3,opt1-es-retrieval,1
+1039.43,3,intent_parse_ms,Intent parse,2486.43,3,opt1-es-retrieval,1
+160.41,3,run_save_ms,Run save,461.37,3,opt1-es-retrieval,1
+871.29,3,candidate_pool_ms,Candidate retrieval,1778.51,3,opt1-es-retrieval,1
+203.96,3,search_match_ms,Search match,621.13,3,opt1-es-retrieval,1
+417.45,3,search_candidate_save_ms,Candidate save,1007.3,3,opt1-es-retrieval,1
+3699.74,3,scoring_ms,Personalized scoring,6560.77,3,opt1-es-retrieval,1
+303.33,3,result_save_ms,Result save,697.53,3,opt1-es-retrieval,1
+46.7,3,commit_ms,Commit,219.16,3,opt1-es-retrieval,1
+518.67,3,response_load_ms,Response load,1024.97,3,opt1-es-retrieval,1
+31.47,3,user_context_load_ms,User profile,87.89,3,opt2-precomputed-features,2
+68.3,3,skin_test_context_load_ms,Skin test,219.39,3,opt2-precomputed-features,2
+43.59,3,behavior_context_load_ms,Behavior context,126.35,3,opt2-precomputed-features,2
+822.92,3,intent_parse_ms,Intent parse,1797.23,3,opt2-precomputed-features,2
+128.21,3,run_save_ms,Run save,387.77,3,opt2-precomputed-features,2
+737.33,3,candidate_pool_ms,Candidate retrieval,1342.22,3,opt2-precomputed-features,2
+168.86,3,search_match_ms,Search match,413.36,3,opt2-precomputed-features,2
+377.02,3,search_candidate_save_ms,Candidate save,717.98,3,opt2-precomputed-features,2
+2016.55,3,scoring_ms,Personalized scoring,3161.11,3,opt2-precomputed-features,2
+251.68,3,result_save_ms,Result save,514.62,3,opt2-precomputed-features,2
+37.7,3,commit_ms,Commit,111.27,3,opt2-precomputed-features,2
+458.99,3,response_load_ms,Response load,812.73,3,opt2-precomputed-features,2
+39.965,2,user_context_load_ms,User profile,129.155,2,opt3-bulk-prefetch,3
+81.75,2,skin_test_context_load_ms,Skin test,276.645,2,opt3-bulk-prefetch,3
+54.34,2,behavior_context_load_ms,Behavior context,190.265,2,opt3-bulk-prefetch,3
+834.5150000000001,2,intent_parse_ms,Intent parse,1864.7350000000001,2,opt3-bulk-prefetch,3
+140.615,2,run_save_ms,Run save,375.585,2,opt3-bulk-prefetch,3
+801.05,2,candidate_pool_ms,Candidate retrieval,1405.255,2,opt3-bulk-prefetch,3
+189.64,2,search_match_ms,Search match,457.28,2,opt3-bulk-prefetch,3
+395.36,2,search_candidate_save_ms,Candidate save,749.52,2,opt3-bulk-prefetch,3
+1653.115,2,scoring_ms,Personalized scoring,2706.71,2,opt3-bulk-prefetch,3
+263.64,2,result_save_ms,Result save,563.345,2,opt3-bulk-prefetch,3
+40.04,2,commit_ms,Commit,121.22999999999999,2,opt3-bulk-prefetch,3
+478.405,2,response_load_ms,Response load,869.155,2,opt3-bulk-prefetch,3

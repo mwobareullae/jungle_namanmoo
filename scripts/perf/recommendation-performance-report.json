@@ -87,10 +87,13 @@
       "label": "Opt3 bulk prefetch",
       "order": 3,
       "color": "#EA580C",
-      "status": "pending",
+      "status": "measured",
       "compared_to": "opt2-precomputed-features",
       "roots": [],
-      "runs": [],
+      "runs": [
+        "perf-runs/recommendation-80000-full-personalized-20260715-092247",
+        "perf-runs/recommendation-80000-full-personalized-20260715-092634"
+      ],
       "change": "후보 점수 데이터를 단일 bulk JOIN 경로로 통합",
       "observation": "Opt2 이후 scoring 사전 조회 구간에서 후보별 점수 데이터 loader 비용이 남아 있다.",
       "cause": "동일 후보 집합에 필요한 관계 데이터를 여러 조회와 Python 조립 단계로 나눠 가져온다.",

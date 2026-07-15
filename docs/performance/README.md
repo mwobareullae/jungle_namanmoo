@@ -5,6 +5,7 @@
 ## 먼저 읽을 문서
 
 - [추천 성능 최적화 Case Study](recommendation-performance-case-study.md)
+- [Baseline → Opt3 정확한 단계 비교](results/recommendation/stage-comparison/README.md)
 - [추천 성능 리포트 재생성](#추천-성능-리포트-재생성)
 - [부하 테스트 실행 방법](load-testing.md)
 - [검색 성능 최적화 기록](catalog-search-performance-optimization.md)
@@ -36,9 +37,10 @@ YYYY-MM-DD_<scenario>_<data-size>.md
 ```powershell
 python -m pip install -r scripts/perf/requirements-analysis.txt
 python scripts/perf/generate_recommendation_performance_report.py
+python scripts/perf/generate_recommendation_stage_comparison.py
 ```
 
-산출물은 `results/recommendation` 아래 `main`, `details`, `appendix`, `data`로 분리된다. 새 최적화 단계는 `scripts/perf/recommendation-performance-report.json`에 다음 항목을 추가하고 다시 생성한다.
+전체 리포트는 `results/recommendation` 아래 `main`, `details`, `appendix`, `data`로 분리된다. Baseline부터 Opt3까지의 정확한 수치·감소량·그래프는 `results/recommendation/stage-comparison`에 생성된다. 새 최적화 단계는 `scripts/perf/recommendation-performance-report.json`에 다음 항목을 추가하고 다시 생성한다.
 
 1. 구현 변경을 설명하는 고유 `id`, 순서, 색상
 2. 직전 비교 단계인 `compared_to`
