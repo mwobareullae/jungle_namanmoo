@@ -446,25 +446,25 @@ function PaymentCompletePage() {
                 <div className="complete-product-list" id="completeProductList">
                   {completeProducts.map((completeProduct) => (
                     <article className="complete-product" key={`${completeProduct.id}-${completeProduct.name}`}>
-                      {completeProduct.image ? (
-                        <img
-                          src={completeProduct.image}
-                          alt={`${completeProduct.brand} ${completeProduct.name}`}
-                        />
-                      ) : (
-                        <div className="complete-image-empty">
-                          이미지 준비중
+                      <Link className="complete-product__link" to={`/product-detail?id=${encodeURIComponent(completeProduct.id)}`}>
+                        {completeProduct.image ? (
+                          <img
+                            src={completeProduct.image}
+                            alt={`${completeProduct.brand} ${completeProduct.name}`}
+                          />
+                        ) : (
+                          <div className="complete-image-empty">이미지 준비중</div>
+                        )}
+                        <div>
+                          <div className="complete-brand">{completeProduct.brand}</div>
+                          <div className="complete-name">{completeProduct.name}</div>
+                          <div className="complete-meta">
+                            {completeProduct.option ? <span>{completeProduct.option}</span> : null}
+                            <span>수량 {completeProduct.quantity ?? 1}개</span>
+                            {completeProduct.price ? <span>{formatWon(completeProduct.price)}</span> : null}
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <div className="complete-brand">{completeProduct.brand}</div>
-                        <div className="complete-name">{completeProduct.name}</div>
-                        <div className="complete-meta">
-                          {completeProduct.option ? <span>{completeProduct.option}</span> : null}
-                          <span>수량 {completeProduct.quantity ?? 1}개</span>
-                          {completeProduct.price ? <span>{formatWon(completeProduct.price)}</span> : null}
-                        </div>
-                      </div>
+                      </Link>
                     </article>
                   ))}
                 </div>

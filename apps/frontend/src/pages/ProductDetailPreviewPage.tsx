@@ -1,5 +1,6 @@
 import "./ProductDetailPreviewPage.css";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useLocation } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductComparisonPanel from "../components/ProductComparisonPanel";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
@@ -51,8 +52,11 @@ function EvidenceIcon({ icon }: { icon: EvidenceIconKey }) {
 }
 
 function ProductDetailPreviewPage() {
-  const recommendationId = new URLSearchParams(window.location.search).get("recommendation_id");
-  const productId = new URLSearchParams(window.location.search).get("id");
+  const location = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const recommendationId = searchParams.get("recommendation_id");
+  const recommendationRank = Number.parseInt(searchParams.get("recommendation_rank") ?? "", 10);
+  const productId = searchParams.get("id");
   const [activeTab, setActiveTab] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [recommendationSummary, setRecommendationSummary] = useState<RecommendationSummary | null>(null);
@@ -309,8 +313,9 @@ function ProductDetailPreviewPage() {
       const updatedCart = await addCartItem({
         product_id: product.product_id,
         quantity,
-        source: "product_detail",
+        source: recommendationId ? "ai_recommendation" : "product_detail",
         recommendation_id: recommendationId,
+        recommendation_rank: Number.isFinite(recommendationRank) ? recommendationRank : null,
       });
       window.dispatchEvent(new Event("cart:updated"));
       const checkoutItem = updatedCart.items.find((item) => item.product_id === product.product_id);
@@ -329,8 +334,9 @@ function ProductDetailPreviewPage() {
       await addCartItem({
         product_id: product.product_id,
         quantity,
-        source: "product_detail",
+        source: recommendationId ? "ai_recommendation" : "product_detail",
         recommendation_id: recommendationId,
+        recommendation_rank: Number.isFinite(recommendationRank) ? recommendationRank : null,
       });
       window.dispatchEvent(new Event("cart:updated"));
       showToast("장바구니에 담았습니다.");

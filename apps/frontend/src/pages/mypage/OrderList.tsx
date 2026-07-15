@@ -77,6 +77,8 @@ const formatDate = (value: string) => {
   }).format(date);
 };
 
+const formatShippingDate = (value?: string | null) => (value ? formatDate(value) : "아직 없음");
+
 function OrderListSkeleton() {
   return (
     <div style={styles.skeletonList}>
@@ -214,7 +216,6 @@ export default function OrderList() {
   };
 
   const handleReview = (orderCode: string) => navigate(`/mypage/reviews?order_code=${encodeURIComponent(orderCode)}`);
-  const handleUnavailableAction = () => showToast("준비 중입니다.");
   const handleDeleteConfirm = () => {
     setDeleteTargetOrderCode(null);
     showToast("주문 내역 삭제 기능은 준비 중입니다.");
@@ -307,7 +308,19 @@ export default function OrderList() {
 
   return (
     <MyPageLayout activePath="/mypage/orders">
-      <PageTitle title="주문/배송내역" />
+      <PageTitle
+        rightSlot={
+          <button
+            className="bg-white hover:bg-[#FAFAFA]"
+            onClick={() => void loadOrders()}
+            style={styles.refreshButton}
+            type="button"
+          >
+            새로고침
+          </button>
+        }
+        title="주문/배송내역"
+      />
       <section style={styles.card} aria-label="주문/배송내역 목록">
         <div aria-label="주문 상태 필터" role="tablist" style={styles.statusFilters}>
           {statusFilterItems.map((item) => (
@@ -482,6 +495,9 @@ export default function OrderList() {
                       <span style={styles.itemMetaDivider}>|</span>
                       <span style={styles.paymentDate}>{formatDate(order.ordered_at)} 결제</span>
                     </div>
+                    <div style={styles.shippingDateLine}>
+                      배송 시작 {formatShippingDate(order.shipped_at)} · 배송 완료 {formatShippingDate(order.delivered_at)}
+                    </div>
                     </div>
                     </div>
                     ) : null}
@@ -512,18 +528,31 @@ export default function OrderList() {
                                   </svg>
                                 </button>
                                 <div style={styles.detailItemMain}>
-                                <div style={styles.detailItemThumbnail}>
-                                  {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
-                                    <img
-                                      alt=""
-                                      src={getProductImageUrl(item.thumbnail_storage_key, "w400")}
-                                      style={styles.thumbnailImage}
-                                    />
-                                  ) : null}
-                                </div>
+                                <Link
+                                  aria-label={`${item.product_name} 상품 상세 보기`}
+                                  onClick={(event) => event.stopPropagation()}
+                                  style={styles.detailItemThumbnailLink}
+                                  to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}
+                                >
+                                  <div style={styles.detailItemThumbnail}>
+                                    {getProductImageUrl(item.thumbnail_storage_key, "w400") ? (
+                                      <img
+                                        alt=""
+                                        src={getProductImageUrl(item.thumbnail_storage_key, "w400")}
+                                        style={styles.thumbnailImage}
+                                      />
+                                    ) : null}
+                                  </div>
+                                </Link>
                                 <div style={styles.detailItemBody}>
-                                  <strong style={styles.detailItemStatus}>{statusLabelMap[order.status] ?? order.status}</strong>
-                                  <span style={styles.detailItemName}>{item.product_name}</span>
+                                  <strong style={styles.detailItemStatus}>{statusLabelMap[item.status] ?? item.status}</strong>
+                                  <Link
+                                    onClick={(event) => event.stopPropagation()}
+                                    style={styles.detailItemNameLink}
+                                    to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}
+                                  >
+                                    <span style={styles.detailItemName}>{item.product_name}</span>
+                                  </Link>
                                   <div style={styles.detailItemMeta}>
                                     <strong style={styles.detailItemPrice}>{formatWon(item.line_total)}</strong>
                                     <span>{item.quantity}개</span>
@@ -599,7 +628,7 @@ export default function OrderList() {
                             className="mypage-order-action-button mypage-order-action-button--accent bg-white"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleUnavailableAction();
+                              navigate(`/mypage/orders/${encodeURIComponent(order.order_code)}`);
                             }}
                             style={styles.reviewButton}
                             type="button"
@@ -789,6 +818,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: "pointer"
   },
+  refreshButton: {
+    minHeight: 36,
+    padding: "0 14px",
+    border: "1px solid #d5d9dd",
+    borderRadius: 9,
+    color: "#1a1a1a",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   primaryLink: {
     display: "inline-flex",
     alignItems: "center",
@@ -972,6 +1011,13 @@ const styles: Record<string, CSSProperties> = {
     background: "#f7f8f9",
     overflow: "hidden"
   },
+  detailItemThumbnailLink: {
+    display: "block",
+    width: 92,
+    height: 92,
+    color: "inherit",
+    textDecoration: "none"
+  },
   detailItemMain: {
     display: "grid",
     gridTemplateColumns: "92px minmax(0, 1fr)",
@@ -1013,6 +1059,11 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
+  },
+  detailItemNameLink: {
+    minWidth: 0,
+    color: "inherit",
+    textDecoration: "none"
   },
   detailItemMeta: {
     display: "flex",
@@ -1099,6 +1150,13 @@ const styles: Record<string, CSSProperties> = {
   paymentDate: {
     fontSize: 13,
     fontWeight: 400
+  },
+  shippingDateLine: {
+    marginTop: 8,
+    color: "#6b7280",
+    fontSize: 12,
+    fontWeight: 500,
+    lineHeight: 1.5
   },
   itemDescription: {
     margin: "8px 0 0",

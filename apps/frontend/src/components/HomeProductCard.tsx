@@ -27,7 +27,10 @@ const hasUsableImageUrl = (url: string | null) =>
 
 function HomeProductCard({ displayRank, product, recommendationId, showScore = false, eventContext }: HomeProductCardProps) {
   const searchParams = new URLSearchParams({ id: product.product_id });
-  if (recommendationId) searchParams.set("recommendation_id", recommendationId);
+  if (recommendationId) {
+    searchParams.set("recommendation_id", recommendationId);
+    searchParams.set("recommendation_rank", String(product.rank));
+  }
   const currentParams = new URLSearchParams(window.location.search);
   const skinType = currentParams.get("skin_type");
   const sensitivity = currentParams.get("sensitivity");
