@@ -23,16 +23,21 @@ const statusFromScore = (score: number | undefined) => {
 };
 
 const concentrationState = (breakdown: ScoreBreakdown | undefined) => {
-  if (!breakdown || !breakdown.concentration_bucket || breakdown.concentration_bucket === "unknown") {
-    return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
+  switch (breakdown?.concentration_bucket) {
+    case "optimal":
+      return { status: "적정", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 적정 수준으로 분류했어요." };
+    case "meaningful":
+      return { status: "의미 있는 수준", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 의미 있는 수준으로 분류했어요." };
+    case "below_meaningful":
+      return { status: "기준 미달", tone: "caution" as const, description: "현재 확인된 함량이 기대 효능을 뒷받침하기에 충분하지 않을 수 있어요." };
+    case "above_optimal":
+      return { status: "권장 범위 초과", tone: "caution" as const, description: "확인된 함량이 일반적인 권장 범위를 넘어 주의가 필요해요." };
+    case "excessive":
+      return { status: "과다 사용 주의", tone: "caution" as const, description: "함량이 높은 편으로 사용 전 주의사항을 확인해 주세요." };
+    case "unknown":
+    default:
+      return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
   }
-  if (breakdown.concentration_bucket === "optimal") {
-    return { status: "적정", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 적정 수준으로 분류했어요." };
-  }
-  if (breakdown.concentration_bucket === "meaningful") {
-    return { status: "의미 있는 수준", tone: "positive" as const, description: "함량 구간과 근거 데이터를 기준으로 의미 있는 수준으로 분류했어요." };
-  }
-  return { status: "정보 없음", tone: "unknown" as const, description: "함량 정보가 공개되지 않았어요." };
 };
 
 const getConcerns = (summary?: RecommendationSummary | null) => summary?.matched_concerns ?? summary?.concerns ?? [];
