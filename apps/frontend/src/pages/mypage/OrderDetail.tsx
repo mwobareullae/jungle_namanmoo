@@ -21,6 +21,18 @@ const statusLabelMap: Record<string, string> = {
   CANCEL_REQUESTED: "취소요청"
 };
 
+const shippingStatusSteps = [
+  { status: "PAID", label: "결제완료" },
+  { status: "PREPARING_SHIPMENT", label: "배송준비중" },
+  { status: "SHIPPED", label: "배송중" },
+  { status: "DELIVERED", label: "배송완료" }
+] as const;
+
+const shippingStatusIndex = (status: string) => {
+  const index = shippingStatusSteps.findIndex((step) => step.status === status);
+  return index;
+};
+
 const cancelRequestStatusLabelMap: Record<string, string> = {
   REQUESTED: "취소 요청 접수",
   APPROVED: "취소 승인",
@@ -79,14 +91,14 @@ export default function OrderDetail() {
   const [errorMessage, setErrorMessage] = useState("");
   const [recommendedProducts, setRecommendedProducts] = useState<ProductCardItem[]>([]);
 
-  const loadOrderDetail = useCallback(async () => {
+  const loadOrderDetail = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!orderCode) {
       setErrorMessage("주문번호가 없습니다.");
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     setErrorMessage("");
 
     try {
@@ -118,10 +130,12 @@ export default function OrderDetail() {
         );
       }
     } catch (error) {
-      setOrder(null);
-      setErrorMessage(error instanceof Error ? error.message : "주문 상세를 불러오지 못했습니다.");
+      if (!silent) {
+        setOrder(null);
+        setErrorMessage(error instanceof Error ? error.message : "주문 상세를 불러오지 못했습니다.");
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [orderCode]);
 
@@ -133,17 +147,35 @@ export default function OrderDetail() {
     return () => window.clearTimeout(timerId);
   }, [loadOrderDetail]);
 
+  useEffect(() => {
+    if (!order || !["PREPARING_SHIPMENT", "SHIPPED"].includes(order.status)) return;
+    const timerId = window.setInterval(() => {
+      void loadOrderDetail({ silent: true });
+    }, 30000);
+    return () => window.clearInterval(timerId);
+  }, [loadOrderDetail, order]);
+
   return (
     <MyPageLayout activePath="/mypage/orders">
       <PageTitle
         rightSlot={
-          <Link
-            className="text-[#2aa6d1] hover:text-[#1A1A1A]"
-            style={styles.backLink}
-            to="/mypage/orders"
-          >
-            목록으로
-          </Link>
+          <div style={styles.pageActions}>
+            <button
+              className="bg-white hover:bg-[#FAFAFA]"
+              onClick={() => void loadOrderDetail()}
+              style={styles.refreshButton}
+              type="button"
+            >
+              새로고침
+            </button>
+            <Link
+              className="text-[#2aa6d1] hover:text-[#1A1A1A]"
+              style={styles.backLink}
+              to="/mypage/orders"
+            >
+              목록으로
+            </Link>
+          </div>
         }
         title="주문 상세"
       />
@@ -221,10 +253,25 @@ export default function OrderDetail() {
             </section>
 
             <section style={styles.card} aria-labelledby="shippingInfoTitle">
-              <h2 id="shippingInfoTitle" style={styles.cardTitle}>
-                배송 정보
-              </h2>
+              <div style={styles.cardHeader}>
+                <h2 id="shippingInfoTitle" style={styles.cardTitle}>배송 정보</h2>
+                <strong style={styles.shippingStatusBadge}>{statusLabelMap[order.status] ?? order.status}</strong>
+              </div>
+              <div style={styles.shippingProgress} aria-label="배송 진행 상태">
+                {shippingStatusSteps.map((step, index) => {
+                  const active = index <= shippingStatusIndex(order.status);
+                  return (
+                    <div key={step.status} style={styles.shippingStep}>
+                      <span style={{ ...styles.shippingDot, ...(active ? styles.shippingDotActive : {}) }} />
+                      <span style={{ ...styles.shippingStepLabel, ...(active ? styles.shippingStepLabelActive : {}) }}>{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
               <div style={styles.infoRows}>
+                <InfoRow label="현재 상태" value={statusLabelMap[order.status] ?? order.status} accent />
+                <InfoRow label="배송 시작" value={formatDateTime(order.shipped_at) === "-" ? "아직 시작되지 않았어요" : formatDateTime(order.shipped_at)} />
+                <InfoRow label="배송 완료" value={formatDateTime(order.delivered_at) === "-" ? "아직 완료되지 않았어요" : formatDateTime(order.delivered_at)} />
                 <InfoRow label="받는 분" value={order.shipping_address?.recipient_name ?? "-"} />
                 <InfoRow label="연락처" value={order.shipping_address?.phone ?? "-"} />
                 <InfoRow label="주소" value={formatAddress(order)} />
@@ -288,7 +335,7 @@ export default function OrderDetail() {
                           <p style={styles.brand}>{item.brand_name}</p>
                           <h3 style={styles.itemTitle}>{item.product_name}</h3>
                           <p style={styles.itemMeta}>
-                            {item.seller_name} · 수량 {item.quantity}개 · {item.status}
+                            {item.seller_name} · 수량 {item.quantity}개 · {statusLabelMap[item.status] ?? item.status}
                           </p>
                         </div>
                         <strong style={styles.itemPrice}>{formatWon(item.line_total)}</strong>
@@ -360,6 +407,21 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     textDecoration: "none"
   },
+  pageActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14
+  },
+  refreshButton: {
+    minHeight: 36,
+    padding: "0 14px",
+    border: "1px solid #d5d9dd",
+    borderRadius: 9,
+    color: "#1a1a1a",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   stateCard: {
     display: "grid",
     gap: 12,
@@ -423,6 +485,51 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 20,
     fontWeight: 700,
     lineHeight: 1.35
+  },
+  shippingStatusBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 28,
+    padding: "0 10px",
+    borderRadius: 999,
+    background: "#e8f6fb",
+    color: "#2aa6d1",
+    fontSize: 13,
+    fontWeight: 700
+  },
+  shippingProgress: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 8,
+    margin: "20px 0 4px",
+    padding: "16px 12px",
+    borderRadius: 12,
+    background: "#f8fafb"
+  },
+  shippingStep: {
+    display: "grid",
+    justifyItems: "center",
+    gap: 7,
+    textAlign: "center"
+  },
+  shippingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    background: "#d5dce0"
+  },
+  shippingDotActive: {
+    background: "#2aa6d1",
+    boxShadow: "0 0 0 4px #dff4fa"
+  },
+  shippingStepLabel: {
+    color: "#9ca3af",
+    fontSize: 12,
+    fontWeight: 500
+  },
+  shippingStepLabelActive: {
+    color: "#2aa6d1",
+    fontWeight: 700
   },
   cardCount: {
     color: "#6b7280",

@@ -83,6 +83,8 @@ export type OrderListItem = {
   item_count: number;
   ordered_at: string;
   paid_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
   thumbnail_storage_key?: string | null;
   title: string;
 };
@@ -144,6 +146,8 @@ export type OrderDetailResponse = {
   currency: string;
   ordered_at: string;
   paid_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
   payment_expires_at?: string | null;
   payment: OrderDetailPayment;
   items: OrderDetailItem[];
