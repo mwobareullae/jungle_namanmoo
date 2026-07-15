@@ -17584,3 +17584,15 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
     display: block !important;
   }
 }
+.login-google-hitbox {
+  cursor: pointer;
+}
+
+.login-google-hitbox:not(.pointer-events-none) {
+  pointer-events: auto;
+}
+
+.login-google-hitbox iframe {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
