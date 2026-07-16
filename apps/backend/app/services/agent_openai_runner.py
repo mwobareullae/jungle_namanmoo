@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_logging import extract_agents_usage, log_ai_call
 from app.core.config import settings
-from app.core.performance_logging import current_time, elapsed_ms
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
 from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentError, AgentUiAction
 from app.schemas.common import ApiError, dump_model
@@ -116,7 +116,9 @@ class CommerceAgentContext:
     request_id: str | None
     session_id: str | None
     anonymous_user_id: str | None
+    anonymous_cart_id: str | None = None
     last_tool_response: AgentChatResponse | None = None
+    tool_execution_ms: float = 0.0
 
 
 async def run_openai_agent_chat(
@@ -127,6 +129,7 @@ async def run_openai_agent_chat(
     request_id: str | None = None,
     session_id: str | None = None,
     anonymous_user_id: str | None = None,
+    anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "에이전트 대화 설정을 확인해 주세요.")
@@ -145,6 +148,7 @@ async def run_openai_agent_chat(
         request_id=request_id,
         session_id=session_id,
         anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
     )
     agent = Agent[CommerceAgentContext](
         name="mwobareullae_action_agent",
@@ -195,7 +199,9 @@ async def run_openai_agent_chat(
                 "tool_called": False,
             },
         )
-        raise
+        if isinstance(exc, ApiError):
+            raise
+        raise ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
 
     if context.last_tool_response is not None:
         # Every commerce tool already returns a user-facing message and authoritative
@@ -214,6 +220,8 @@ async def run_openai_agent_chat(
                 "tool_name": response.tool_name,
                 "item_count": len(response.items),
                 "ui_action_type": response.ui_action.type,
+                "tool_execution_ms": round(context.tool_execution_ms, 2),
+                "agent_route_and_model_ms": round(max(elapsed_ms(started_at) - context.tool_execution_ms, 0.0), 2),
             },
         )
         return response
@@ -243,14 +251,25 @@ async def run_openai_agent_chat(
 
 def _build_agent_input(request: AgentChatRequest) -> str:
     return json.dumps(
-        {
-            "message": request.message,
-            "context": dump_model(request.context),
-            "recent_messages": [dump_model(message) for message in request.recent_messages],
-            "last_tool_result": dump_model(request.last_tool_result) if request.last_tool_result else None,
-        },
+        _compact_agent_payload(
+            {
+                "message": request.message,
+                "context": dump_model(request.context),
+                "recent_messages": [dump_model(message) for message in request.recent_messages],
+                "last_tool_result": dump_model(request.last_tool_result) if request.last_tool_result else None,
+            }
+        ),
         ensure_ascii=False,
     )
+
+
+def _compact_agent_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        compacted = {key: _compact_agent_payload(item) for key, item in value.items()}
+        return {key: item for key, item in compacted.items() if item not in (None, "", [], {})}
+    if isinstance(value, list):
+        return [_compact_agent_payload(item) for item in value]
+    return value
 
 
 def _with_agent_message(response: AgentChatResponse, final_output: Any) -> AgentChatResponse:
@@ -285,6 +304,7 @@ def _execute_tool(
     arguments: dict[str, Any],
 ) -> str:
     runtime_context: CommerceAgentContext = ctx.context
+    started_at = current_time()
     try:
         response = execute_agent_tool(
             runtime_context.session,
@@ -295,6 +315,7 @@ def _execute_tool(
             request_id=runtime_context.request_id,
             session_id=runtime_context.session_id,
             anonymous_user_id=runtime_context.anonymous_user_id,
+            anonymous_cart_id=runtime_context.anonymous_cart_id,
         )
     except ApiError as exc:
         if exc.code == "AGENT_AUTH_REQUIRED":
@@ -325,7 +346,38 @@ def _execute_tool(
                 error=AgentError(code=exc.code, message=exc.message, retryable=False),
             )
         else:
-            raise
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(
+                    code="AGENT_TOOL_EXECUTION_FAILED",
+                    message="요청을 처리하지 못했어요.",
+                    retryable=True,
+                ),
+            )
+    except Exception as exc:
+        runtime_context.session.rollback()
+        log_performance_event(
+            "agent_tool_unexpected_error",
+            request_id=runtime_context.request_id,
+            duration_ms=elapsed_ms(started_at),
+            metadata={"tool_name": tool_name, "exception_type": type(exc).__name__},
+        )
+        response = AgentChatResponse(
+            conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+            message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            tool_name=tool_name,
+            ui_action=AgentUiAction(),
+            error=AgentError(
+                code="AGENT_TOOL_EXECUTION_FAILED",
+                message="요청을 처리하지 못했어요.",
+                retryable=True,
+            ),
+        )
+    finally:
+        runtime_context.tool_execution_ms += elapsed_ms(started_at)
     runtime_context.last_tool_response = response
     if tool_name == CREATE_RECOMMENDATION_TOOL and response.error is None:
         return json.dumps(
