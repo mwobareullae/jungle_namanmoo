@@ -98,7 +98,7 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
     "get_cart": AgentToolPolicy(
         tool_name="get_cart",
         risk_level="READ",
-        requires_auth=True,
+        requires_auth=False,
         requires_confirmation=False,
         allowed_ui_actions=frozenset({"show_cart"}),
         max_result_items=0,
@@ -107,7 +107,7 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
     "add_to_cart": AgentToolPolicy(
         tool_name="add_to_cart",
         risk_level="WRITE",
-        requires_auth=True,
+        requires_auth=False,
         requires_confirmation=False,
         allowed_ui_actions=frozenset({"show_cart"}),
         max_result_items=0,

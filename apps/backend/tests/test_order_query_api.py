@@ -83,6 +83,8 @@ def test_get_orders_can_filter_by_status(
     paid = _create_pending_order(client, db_engine, product_code="prod_002", quantity=1, key="paid-status")
     confirm_response = _confirm_toss_payment(client, paid)
     assert confirm_response.status_code == 200
+    assert confirm_response.json()["order_snapshot"]["order_code"] == paid["order_code"]
+    assert confirm_response.json()["order_snapshot"]["status"] == "PAID"
 
     response = client.get("/api/orders", params={"status": "PAID"})
 
@@ -90,6 +92,50 @@ def test_get_orders_can_filter_by_status(
     data = response.json()
     assert [item["order_code"] for item in data["items"]] == [paid["order_code"]]
     assert pending["order_code"] not in [item["order_code"] for item in data["items"]]
+
+
+def test_get_order_summary_returns_all_status_counts_for_current_user(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="order-summary@example.com", nickname="order-summary")
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_001",
+        quantity=1,
+        key="summary-pending",
+    )
+    paid = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_002",
+        quantity=1,
+        key="summary-paid",
+    )
+    assert _confirm_toss_payment(client, paid).status_code == 200
+
+    response = client.get("/api/orders/summary")
+
+    assert response.status_code == 200
+    status_counts = response.json()["status_counts"]
+    assert status_counts["PENDING_PAYMENT"] == 1
+    assert status_counts["PAID"] == 1
+    assert status_counts["DELIVERED"] == 0
+    assert set(status_counts) == {
+        "PENDING_PAYMENT",
+        "PAID",
+        "PREPARING_SHIPMENT",
+        "SHIPPED",
+        "DELIVERED",
+    }
+    assert pending["order_code"]
+
+
+def test_get_order_summary_requires_authentication(client: TestClient) -> None:
+    response = client.get("/api/orders/summary")
+
+    assert response.status_code == 401
 
 
 def test_get_order_detail_returns_order_snapshots(
@@ -184,6 +230,8 @@ def _create_pending_order(
     )
     assert order_response.status_code == 200
     data = order_response.json()
+    assert data["order_snapshot"]["order_code"] == data["order_code"]
+    assert data["order_snapshot"]["items"]
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],

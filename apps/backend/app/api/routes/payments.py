@@ -15,6 +15,7 @@ from app.schemas.event import EventLogCreateRequest
 from app.schemas.payment import PaymentActionResponse, TossPaymentConfirmRequest
 from app.services.event_service import create_event_log
 from app.services.event_tracking import anonymous_user_id_from_request, request_id_from_request, session_id_from_request
+from app.services.order_query_service import get_order_detail
 from app.services.payment_service import confirm_mock_payment, confirm_toss_payment, fail_mock_payment
 from app.services.payment_reconciliation_service import reconcile_pending_payments
 from app.services.toss_payments_client import TossPaymentsClient, TossPaymentsClientError
@@ -167,6 +168,9 @@ def post_toss_payment_confirm(
         )
         raise
     session.commit()
+    response = response.model_copy(
+        update={"order_snapshot": get_order_detail(session, current_user, response.order_code)}
+    )
     _record_payment_event_log(
         session,
         current_user=current_user,

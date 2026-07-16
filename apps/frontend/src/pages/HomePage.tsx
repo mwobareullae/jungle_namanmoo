@@ -5,9 +5,10 @@ import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import SkinTestPromptModal from "../components/SkinTestPromptModal";
 import { useAuth } from "../contexts/useAuth";
+import { useSkinProfileQuery } from "../hooks/useSkinProfileQuery";
 import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
-import { getSavedSkinProfile } from "../lib/profileApi";
+import { toRecommendationProfile } from "../lib/profileApi";
 import { consumeSkinTestPromptPending, hasDismissedSkinTestPrompt } from "../lib/skinTestPrompt";
 import type { RecommendationProfile } from "../types/recommendation";
 
@@ -63,6 +64,7 @@ const splitHomeSections = (bodyHtml: string): HomeSection[] => {
 function HomePage({ bodyHtml }: HomePageProps) {
   const sections = splitHomeSections(bodyHtml);
   const { isAuthLoading, user } = useAuth();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, !isAuthLoading && Boolean(user));
   const [profile, setProfile] = useState<RecommendationProfile>(defaultRecommendationProfile);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
@@ -85,27 +87,19 @@ function HomePage({ bodyHtml }: HomePageProps) {
       return () => window.clearTimeout(timerId);
     }
 
-    let isMounted = true;
+    if (skinProfileQuery.isPending) {
+      const timerId = window.setTimeout(() => setIsProfileLoading(true), 0);
+      return () => window.clearTimeout(timerId);
+    }
 
-    getSavedSkinProfile().then((savedProfile) => {
-      if (!isMounted) {
-        return;
-      }
-
-      if (savedProfile) {
-        setProfile(savedProfile);
-        setHasSavedProfile(true);
-      } else {
-        setProfile(defaultRecommendationProfile);
-        setHasSavedProfile(false);
-      }
+    const savedProfile = skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null;
+    const timerId = window.setTimeout(() => {
+      setProfile(savedProfile ?? defaultRecommendationProfile);
+      setHasSavedProfile(Boolean(savedProfile));
       setIsProfileLoading(false);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthLoading, user]);
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user]);
 
   useEffect(() => {
     if (!user) {

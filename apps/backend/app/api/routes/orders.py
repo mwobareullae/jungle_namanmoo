@@ -16,9 +16,10 @@ from app.schemas.order import (
     OrderCreateResponse,
     OrderDetailResponse,
     OrderListResponse,
+    OrderSummaryResponse,
 )
 from app.services.order_cancel_service import cancel_order
-from app.services.order_query_service import get_order_detail, list_orders
+from app.services.order_query_service import get_order_detail, get_order_summary, list_orders
 from app.services.order_service import create_order
 from app.services.event_tracking import (
     anonymous_user_id_from_request,
@@ -51,6 +52,9 @@ def post_order(
 ) -> OrderCreateResponse:
     response = create_order(session, current_user, request, idempotency_key)
     session.commit()
+    response = response.model_copy(
+        update={"order_snapshot": get_order_detail(session, current_user, response.order_code)}
+    )
     _record_order_event(
         session,
         http_request,
@@ -78,6 +82,18 @@ def get_orders(
     session: Session = Depends(get_db),
 ) -> OrderListResponse:
     return list_orders(session, current_user, status=status, limit=limit, cursor=cursor)
+
+
+@router.get(
+    "/orders/summary",
+    response_model=OrderSummaryResponse,
+    responses={401: {"model": ErrorResponse}},
+)
+def get_orders_summary(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> OrderSummaryResponse:
+    return get_order_summary(session, current_user)
 
 
 @router.get(
