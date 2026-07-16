@@ -77,8 +77,17 @@ def test_agent_input_includes_bounded_conversation_context() -> None:
     assert payload["message"] == "그중 두 번째를 비교해줘"
 
 
+def test_agent_input_omits_empty_context_fields() -> None:
+    payload = json.loads(_build_agent_input(AgentChatRequest(message="보습 세럼 추천해줘")))
+
+    assert payload == {"message": "보습 세럼 추천해줘"}
+
+
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    runner_arguments: dict[str, object] = {}
+
     async def fake_run_openai_agent_chat(*args, **kwargs) -> AgentChatResponse:
+        runner_arguments.update(kwargs)
         return AgentChatResponse(
             conversation_id="conv_route",
             message="Similar products are ready.",
@@ -108,3 +117,23 @@ def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatc
     assert data["tool_name"] == "find_similar_products"
     assert data["ui_action"]["type"] == "show_products"
     assert data["ui_action"]["target"] == "similar_products"
+    assert "mwbl_cart=" in response.headers["set-cookie"]
+    assert isinstance(runner_arguments["anonymous_cart_id"], str)
+
+
+def test_agent_chat_rejects_sensitive_input_before_runner(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail_if_called(*args, **kwargs) -> AgentChatResponse:
+        raise AssertionError("runner must not receive sensitive input")
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fail_if_called)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={"message": "password: secret-value"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "AGENT_SENSITIVE_INPUT"

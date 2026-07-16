@@ -34,9 +34,15 @@ PREPARE_ORDER_TOOL = "prepare_order"
 ORDER_CONFIRMATION_TTL_MINUTES = 10
 
 
-def get_agent_cart(session: Session, user: User, *, conversation_id: str | None) -> AgentChatResponse:
-    validate_tool_access(GET_CART_TOOL, user_id=user.id)
-    cart = get_cart_response(session, user, None)
+def get_agent_cart(
+    session: Session,
+    user: User | None,
+    *,
+    conversation_id: str | None,
+    anonymous_cart_id: str | None = None,
+) -> AgentChatResponse:
+    validate_tool_access(GET_CART_TOOL, user_id=user.id if user is not None else None)
+    cart = get_cart_response(session, user, anonymous_cart_id)
     action = AgentUiAction(type="show_cart", target="cart", payload=jsonable_encoder(cart))
     validate_tool_ui_action(GET_CART_TOOL, action)
     return AgentChatResponse(
@@ -49,19 +55,20 @@ def get_agent_cart(session: Session, user: User, *, conversation_id: str | None)
 
 def add_agent_cart_item(
     session: Session,
-    user: User,
+    user: User | None,
     *,
     conversation_id: str | None,
     product_id: str,
     quantity: int,
     recommendation_id: str | None,
     recommendation_rank: int | None,
+    anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
-    validate_tool_access(ADD_TO_CART_TOOL, user_id=user.id)
+    validate_tool_access(ADD_TO_CART_TOOL, user_id=user.id if user is not None else None)
     result = add_cart_item(
         session,
         user,
-        None,
+        anonymous_cart_id,
         product_code=product_id,
         quantity=quantity,
         source="agent",

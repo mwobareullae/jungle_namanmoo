@@ -276,6 +276,7 @@ def execute_agent_tool(
     request_id: str | None = None,
     session_id: str | None = None,
     anonymous_user_id: str | None = None,
+    anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
     started_at = time.perf_counter()
     policy = get_tool_policy(tool_name)
@@ -292,6 +293,7 @@ def execute_agent_tool(
             request_id=request_id,
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
         )
     except ApiError as exc:
         latency_ms = _elapsed_ms(started_at)
@@ -377,6 +379,7 @@ def _execute_parsed_tool(
     request_id: str | None,
     session_id: str | None,
     anonymous_user_id: str | None,
+    anonymous_cart_id: str | None,
 ) -> AgentChatResponse:
     if tool_name == CREATE_RECOMMENDATION_TOOL:
         args = _require_args(arguments, CreateRecommendationArgs)
@@ -472,18 +475,20 @@ def _execute_parsed_tool(
         )
 
     if tool_name == GET_CART_TOOL:
-        if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         _require_args(arguments, GetCartArgs)
-        return get_agent_cart(session, user, conversation_id=conversation_id)
+        return get_agent_cart(
+            session,
+            user,
+            anonymous_cart_id=anonymous_cart_id,
+            conversation_id=conversation_id,
+        )
 
     if tool_name == ADD_TO_CART_TOOL:
-        if user is None:
-            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
         args = _require_args(arguments, AddToCartArgs)
         return add_agent_cart_item(
             session,
             user,
+            anonymous_cart_id=anonymous_cart_id,
             conversation_id=conversation_id,
             product_id=args.product_id,
             quantity=args.quantity,
