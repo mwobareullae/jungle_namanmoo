@@ -5,7 +5,10 @@ import { useAuth } from "../contexts/useAuth";
 import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
 import { navigateWithinApp } from "../lib/navigation";
 import { callOriginal } from "../lib/originalRuntime";
+import { getSavedSkinProfile } from "../lib/profileApi";
+import type { RecommendationProfile } from "../types/recommendation";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
+import HeaderSearchPanel from "./HeaderSearchPanel";
 
 function HomeHeader() {
   const location = useLocation();
@@ -15,6 +18,12 @@ function HomeHeader() {
   const cartQuery = useCartQuery(user?.id ?? null);
   const cartCount = cartQuery.data?.total_quantity ?? 0;
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
+  const [searchProfile, setSearchProfile] = useState<RecommendationProfile>({
+    skin: "수부지",
+    sensitivity: "보통",
+    avoidIngredients: []
+  });
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isPopularPage = location.pathname === "/products/popular";
   const isNewProductsPage = location.pathname === "/products/new";
@@ -79,6 +88,28 @@ function HomeHeader() {
     };
   }, [queryClient, user?.id]);
 
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      setSearchProfile({ skin: "수부지", sensitivity: "보통", avoidIngredients: [] });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getSavedSkinProfile().then((profile) => {
+      if (isMounted && profile) setSearchProfile(profile);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    setIsHeaderSearchOpen(false);
+  }, [location.pathname, location.search]);
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -94,8 +125,8 @@ function HomeHeader() {
   return (
     <>
       <CategoryPanelOverlay onOpenChange={setIsCategoryMenuOpen} />
-      <header className="site-header" onMouseLeave={handleCategoryAreaLeave}>
-        <div className="header-inner">
+      <header className={`site-header${isHeaderSearchOpen ? " is-header-search-open" : ""}`} onMouseLeave={handleCategoryAreaLeave}>
+        <div className={`header-inner${isHeaderSearchOpen ? " is-header-search-open" : ""}`}>
           <div className="header-brand">
             <button
               aria-controls="categoryPanel"
@@ -136,11 +167,17 @@ function HomeHeader() {
               맞춤 추천
             </a>
           </nav>
+          <div className={`header-search-slot${isHeaderSearchOpen ? " is-open" : ""}`}>
+            {isHeaderSearchOpen ? <HeaderSearchPanel onClose={() => setIsHeaderSearchOpen(false)} profile={searchProfile} /> : null}
+          </div>
           <div className="header-actions">
             <button
-              aria-label="일반 상품 검색으로 이동"
-              className={`icon-btn${isCatalogSearchPage ? " nav-active" : ""}`}
-              onClick={() => navigate("/catalog-search")}
+              aria-controls="header-search-panel"
+              aria-expanded={isHeaderSearchOpen}
+              aria-label={isHeaderSearchOpen ? "검색 닫기" : "검색 열기"}
+              className={`icon-btn${isHeaderSearchOpen ? " is-search-open" : ""}${isCatalogSearchPage ? " nav-active" : ""}`}
+              data-header-search-toggle
+              onClick={() => setIsHeaderSearchOpen((isOpen) => !isOpen)}
               type="button"
             >
               <svg
