@@ -92,6 +92,7 @@ type AgentChatErrorMessage = AgentChatBaseMessage & {
   action: "input" | "login" | "profile" | "retry";
   actionLabel: string;
   kind: "error";
+  idempotencyKey?: string;
   message: string;
   retryMessage?: string;
   title: string;
@@ -394,6 +395,7 @@ function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
           actionLabel: candidate.actionLabel,
           createdAt,
           kind: "error",
+          idempotencyKey: typeof candidate.idempotencyKey === "string" ? candidate.idempotencyKey : undefined,
           message: candidate.message,
           retryMessage: typeof candidate.retryMessage === "string" ? candidate.retryMessage : undefined,
           title: candidate.title,
@@ -756,13 +758,14 @@ function createAgentErrorMessage(
   id: string,
   title: string,
   message: string,
-  options: Partial<Pick<AgentChatErrorMessage, "action" | "actionLabel" | "retryMessage" | "tone">> = {},
+  options: Partial<Pick<AgentChatErrorMessage, "action" | "actionLabel" | "idempotencyKey" | "retryMessage" | "tone">> = {},
 ): AgentChatErrorMessage {
   return {
     id,
     action: options.action ?? "retry",
     actionLabel: options.actionLabel ?? "다시 시도",
     kind: "error",
+    idempotencyKey: options.idempotencyKey,
     message,
     retryMessage: options.retryMessage,
     title,
@@ -770,7 +773,12 @@ function createAgentErrorMessage(
   };
 }
 
-function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: string): AgentChatErrorMessage {
+function createAgentErrorFromUnknown(
+  error: unknown,
+  id: string,
+  retryMessage?: string,
+  idempotencyKey?: string,
+): AgentChatErrorMessage {
   const apiError = error as Partial<ApiError>;
   const status = typeof apiError.status === "number" ? apiError.status : 0;
   const code = typeof apiError.code === "string" ? apiError.code : "";
@@ -803,25 +811,43 @@ function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: 
   if (status === 408 || status === 504 || code === "AGENT_OPENAI_TIMEOUT") {
     return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
       retryMessage,
+      idempotencyKey,
     });
   }
 
   if (status === 429 || code === "AGENT_OPENAI_RATE_LIMITED") {
     return createAgentErrorMessage(id, "AI 요청이 잠시 많아요", message, {
       retryMessage,
+      idempotencyKey,
+    });
+  }
+
+  if (code === "AGENT_REQUEST_IN_PROGRESS") {
+    return createAgentErrorMessage(id, "같은 요청을 처리 중이에요", message, {
+      retryMessage,
+      idempotencyKey,
     });
   }
 
   if (status === 503 || code.startsWith("AGENT_OPENAI_") || code === "AGENT_SDK_NOT_INSTALLED") {
     return createAgentErrorMessage(id, "AI 연결을 확인해야 해요", message, {
       retryMessage,
+      idempotencyKey,
     });
   }
 
   return createAgentErrorMessage(id, "답변을 만들지 못했어요", message, {
     retryMessage,
+    idempotencyKey,
   });
 }
+
+const createAgentIdempotencyKey = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `agent-${crypto.randomUUID()}`;
+  }
+  return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+};
 
 function createAgentErrorFromResponse(response: AgentChatResponse, id: string, retryMessage?: string) {
   if (!response.error) {
@@ -1504,6 +1530,7 @@ function AgentFloatingButton({
   const sendMessageRef = useRef<(
     message: string,
     contextProfile?: AgentFloatingButtonProps["skinProfile"],
+    retryIdempotencyKey?: string,
   ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
@@ -1784,6 +1811,7 @@ function AgentFloatingButton({
   const sendMessage = async (
     message: string,
     contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
+    retryIdempotencyKey?: string,
   ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
@@ -1812,6 +1840,7 @@ function AgentFloatingButton({
     }
 
     const timestamp = Date.now();
+    const idempotencyKey = retryIdempotencyKey ?? createAgentIdempotencyKey();
     const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = activeView === "home";
@@ -1851,13 +1880,16 @@ function AgentFloatingButton({
       if (isAwaitingAddressInput && pendingCheckoutCartItemIdsRef.current.length > 0) {
         requestContext.cart_item_ids = [...pendingCheckoutCartItemIdsRef.current];
       }
-      const response = await api.sendAgentMessage({
-        context: requestContext,
-        conversation_id: requestConversationId,
-        last_tool_result: lastToolResult,
-        message: nextMessage,
-        recent_messages: recentMessages,
-      });
+      const response = await api.sendAgentMessage(
+        {
+          context: requestContext,
+          conversation_id: requestConversationId,
+          last_tool_result: lastToolResult,
+          message: nextMessage,
+          recent_messages: recentMessages,
+        },
+        { idempotencyKey },
+      );
       const responseTimestamp = Date.now();
       const addressError = response.error?.code === "AGENT_ADDRESS_REQUIRED"
         || response.error?.code === "AGENT_ADDRESS_DETAILS_REQUIRED";
@@ -1971,6 +2003,7 @@ function AgentFloatingButton({
             error,
             `error-${Date.now()}`,
             isSensitiveAddressMessage ? undefined : nextMessage,
+            idempotencyKey,
           ),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
@@ -2106,10 +2139,10 @@ function AgentFloatingButton({
     }
   };
 
-  const handleRetry = (retryMessage?: string) => {
+  const handleRetry = (retryMessage?: string, idempotencyKey?: string) => {
     const nextRetryMessage = retryMessage || lastSentMessage;
     if (nextRetryMessage) {
-      void sendMessage(nextRetryMessage);
+      void sendMessage(nextRetryMessage, skinProfile, idempotencyKey);
     }
   };
 
@@ -2245,7 +2278,7 @@ function AgentFloatingButton({
       return;
     }
 
-    handleRetry(message.retryMessage);
+    handleRetry(message.retryMessage, message.idempotencyKey);
   };
 
   const renderErrorMessage = (message: AgentChatErrorMessage) => (

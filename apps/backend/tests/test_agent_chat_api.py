@@ -182,6 +182,52 @@ def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatc
     assert isinstance(runner_arguments["anonymous_cart_id"], str)
 
 
+def test_agent_chat_replays_completed_response_for_same_idempotency_key(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call_count = 0
+
+    async def fake_run_openai_agent_chat(*_args, **_kwargs) -> AgentChatResponse:
+        nonlocal call_count
+        call_count += 1
+        return AgentChatResponse(
+            conversation_id="conv_idempotent",
+            message="장바구니에 담았어요.",
+            tool_name="add_to_cart",
+            ui_action=AgentUiAction(type="show_cart", target="cart", payload={"cart_item_id": 1}),
+        )
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fake_run_openai_agent_chat)
+    headers = {"Idempotency-Key": "agent-request-replay-0001"}
+    payload = {"message": "현재 상품을 장바구니에 담아줘"}
+
+    first = client.post("/api/agent/chat", json=payload, headers=headers)
+    second = client.post("/api/agent/chat", json=payload, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert call_count == 1
+
+
+def test_agent_chat_rejects_different_request_with_reused_idempotency_key(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_run_openai_agent_chat(*_args, **_kwargs) -> AgentChatResponse:
+        return AgentChatResponse(conversation_id="conv_idempotent", message="확인했어요.")
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fake_run_openai_agent_chat)
+    headers = {"Idempotency-Key": "agent-request-reuse-0001"}
+
+    assert client.post("/api/agent/chat", json={"message": "보습 세럼 추천해줘"}, headers=headers).status_code == 200
+    response = client.post("/api/agent/chat", json={"message": "진정 토너 추천해줘"}, headers=headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "AGENT_IDEMPOTENCY_KEY_REUSED"
+
+
 def test_agent_chat_rejects_sensitive_input_before_runner(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

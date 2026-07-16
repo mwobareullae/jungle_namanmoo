@@ -1,4 +1,4 @@
-from app.db.models.agent import AgentToolCall
+from app.db.models.agent import AgentRequestExecution, AgentToolCall
 from app.db.models.catalog import (
     Brand,
     BrandAlias,
@@ -95,6 +95,7 @@ __all__ = [
     "AuthAccount",
     "AuthSession",
     "AgentToolCall",
+    "AgentRequestExecution",
     "BaumannTypeProfile",
     "Cart",
     "CartItem",
