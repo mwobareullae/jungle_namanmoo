@@ -125,6 +125,19 @@ async def test_agent_ambiguous_requests_ask_for_missing_scope_without_openai(mes
     assert expected in response.message
 
 
+@pytest.mark.anyio
+async def test_agent_multi_action_request_requires_staged_selection_without_openai() -> None:
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 장바구니에 담아줘"),
+    )
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert "먼저 조건에 맞는 추천 결과" in response.message
+
+
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     runner_arguments: dict[str, object] = {}
 

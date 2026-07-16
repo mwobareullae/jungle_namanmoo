@@ -142,6 +142,9 @@ _BULK_CART_REQUEST_PATTERN = re.compile(
 _BARE_CART_REQUEST_PATTERN = re.compile(r"^\s*(?:담아줘|넣어줘|장바구니에\s*담아줘)\s*$")
 _BARE_RECOMMENDATION_REQUEST_PATTERN = re.compile(r"^\s*(?:추천해줘|제품\s*추천해줘|상품\s*추천해줘)\s*$")
 _AMBIGUOUS_BULK_REQUEST_PATTERN = re.compile(r"^\s*(?:상위\s*상품|인기\s*상품)\s*(?:담아줘|넣어줘)\s*$")
+_COMPLEX_MULTI_ACTION_PATTERN = re.compile(
+    r"(?:인기|베스트|수부지|건성|지성|복합성|민감).{0,80}(?:\d+\s*개|상위\s*\d+).{0,40}(?:장바구니|찜|담아|넣어)"
+)
 
 
 @dataclass
@@ -172,13 +175,17 @@ async def run_openai_agent_chat(
     if generic_clarification:
         return _clarification_response(request.conversation_id, generic_clarification)
 
-    clarification_message = _get_bulk_cart_clarification(request.message)
-    if clarification_message:
-        return _clarification_response(request.conversation_id, clarification_message)
-
     unsupported_wishlist_message = _get_unsupported_popular_wishlist_clarification(request.message)
     if unsupported_wishlist_message:
         return _clarification_response(request.conversation_id, unsupported_wishlist_message)
+
+    multi_action_clarification = _get_multi_action_clarification(request.message)
+    if multi_action_clarification:
+        return _clarification_response(request.conversation_id, multi_action_clarification)
+
+    clarification_message = _get_bulk_cart_clarification(request.message)
+    if clarification_message:
+        return _clarification_response(request.conversation_id, clarification_message)
 
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "에이전트 대화 설정을 확인해 주세요.")
@@ -361,6 +368,15 @@ def _get_generic_clarification(message: str) -> str | None:
     if _AMBIGUOUS_BULK_REQUEST_PATTERN.search(message):
         return "어떤 목록의 상품을 몇 개 담을까요? 인기 순위 범위와 품절 상품 처리 기준을 알려주세요."
     return None
+
+
+def _get_multi_action_clarification(message: str) -> str | None:
+    if not _COMPLEX_MULTI_ACTION_PATTERN.search(message):
+        return None
+    return (
+        "여러 상품을 바로 반영하기 전에 먼저 조건에 맞는 추천 결과를 확인할게요. "
+        "추천 결과에서 상품 순위를 알려주시면 선택한 상품만 장바구니에 담아드릴게요."
+    )
 
 
 def _get_unsupported_popular_wishlist_clarification(message: str) -> str | None:
