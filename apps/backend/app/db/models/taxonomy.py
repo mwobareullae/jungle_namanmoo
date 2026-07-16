@@ -19,7 +19,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.types import big_integer_pk_type
+from app.db.types import big_integer_pk_type, jsonb_type
+
+
+INGREDIENT_MAPPING_REVIEW_STATUS_VALUES = "'HELD', 'APPROVED', 'REJECTED'"
 
 
 class Concern(Base):
@@ -106,6 +109,91 @@ class IngredientAlias(Base):
     alias_type: Mapped[str] = mapped_column(String(20), nullable=False)
     confidence: Mapped[str] = mapped_column(String(20), nullable=False)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class IngredientMappingReview(Base):
+    __tablename__ = "ingredient_mapping_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_ingredient_id",
+            "normalized_source_name",
+            name="uq_ingredient_mapping_reviews_source_normalized_name",
+        ),
+        CheckConstraint(
+            f"status in ({INGREDIENT_MAPPING_REVIEW_STATUS_VALUES})",
+            name="ck_ingredient_mapping_reviews_status",
+        ),
+        CheckConstraint(
+            "(status = 'APPROVED' and target_ingredient_id is not null) or "
+            "(status in ('HELD', 'REJECTED') and target_ingredient_id is null)",
+            name="ck_ingredient_mapping_reviews_status_target",
+        ),
+        CheckConstraint(
+            "status not in ('HELD', 'REJECTED') or decision_reason is not null",
+            name="ck_ingredient_mapping_reviews_status_reason",
+        ),
+        CheckConstraint(
+            "decision_reason is null or length(trim(decision_reason)) > 0",
+            name="ck_ingredient_mapping_reviews_decision_reason_not_blank",
+        ),
+        Index("ix_ingredient_mapping_reviews_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    source_ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"), nullable=False)
+    source_ingredient_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_source_name: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="", server_default=""
+    )
+    target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class IngredientMappingReviewEvent(Base):
+    __tablename__ = "ingredient_mapping_review_events"
+    __table_args__ = (
+        CheckConstraint(
+            f"to_status in ({INGREDIENT_MAPPING_REVIEW_STATUS_VALUES})",
+            name="ck_ingredient_mapping_review_events_to_status",
+        ),
+        CheckConstraint(
+            f"from_status is null or from_status in ({INGREDIENT_MAPPING_REVIEW_STATUS_VALUES})",
+            name="ck_ingredient_mapping_review_events_from_status",
+        ),
+        CheckConstraint(
+            "(to_status = 'APPROVED' and to_target_ingredient_id is not null) or "
+            "(to_status in ('HELD', 'REJECTED') and to_target_ingredient_id is null)",
+            name="ck_ingredient_mapping_review_events_to_status_target",
+        ),
+        CheckConstraint(
+            "(from_status is null and from_target_ingredient_id is null) or "
+            "(from_status = 'APPROVED' and from_target_ingredient_id is not null) or "
+            "(from_status in ('HELD', 'REJECTED') and from_target_ingredient_id is null)",
+            name="ck_ingredient_mapping_review_events_from_status_target",
+        ),
+        CheckConstraint(
+            "to_status not in ('HELD', 'REJECTED') or "
+            "(reason is not null and length(trim(reason)) > 0)",
+            name="ck_ingredient_mapping_review_events_to_status_reason",
+        ),
+        Index("ix_ingredient_mapping_review_events_review_created_at", "review_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("ingredient_mapping_reviews.id"), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    from_target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
+    to_target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class IngredientEffect(Base):
