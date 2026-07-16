@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import HomeHeader from "../../components/HomeHeader";
 import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
-import { getOrderSummary } from "../../lib/orderApi";
+import { getOrderSummary, invalidateOrderSummary } from "../../lib/orderApi";
 import type { SkinProfileData } from "../../lib/profileApi";
 import { useSkinProfileQuery } from "../../hooks/useSkinProfileQuery";
 import { getSkinTestImageUrl } from "../../lib/skinTest";
@@ -138,7 +138,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     const loadOrderStatusSummary = async () => {
       try {
-        const response = await getOrderSummary();
+        const response = await getOrderSummary(authUser.id);
 
         if (isMounted) {
           setOrderStatusSummary(buildOrderStatusSummary(response.status_counts));
@@ -153,6 +153,7 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     void loadOrderStatusSummary();
 
     const refreshOrderStatusSummary = () => {
+      invalidateOrderSummary(authUser.id);
       void loadOrderStatusSummary();
     };
     window.addEventListener("orders:updated", refreshOrderStatusSummary);
