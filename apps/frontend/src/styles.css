@@ -7263,14 +7263,14 @@ header.site-header .header-search-slot.is-open {
   align-items: center;
   min-height: 42px;
   overflow: visible;
-  border: 1px solid #94e0f8;
+  border: 1.5px solid #75CDE9;
   border-radius: 9px;
   background: #ffffff;
   box-shadow: none;
 }
 
 .header-search-panel__form:focus-within {
-  border-color: #2aa6d1;
+  border-color: #75CDE9;
   box-shadow: none;
 }
 
@@ -7335,11 +7335,11 @@ header.site-header .header-search-slot.is-open {
 .header-search-panel__mode-menu button:hover,
 .header-search-panel__mode-menu button:focus-visible {
   color: #0d6077;
-  border-width: 2px;
+  border-width: 1.5px;
 }
 
 .header-search-panel__mode-menu button.is-selected {
-  border-color: #2aa6d1;
+  border-color: #75CDE9;
   background: #ffffff;
   color: #0d6077;
   font-weight: 700;
@@ -10732,7 +10732,7 @@ html[data-app-mode="community"] .search-results-shell {
 /* AI 검색 결과 헤더의 실제 계산값과 일반 검색의 글자 계층을 맞춘다. */
 #searchResultsSection .catalog-search-page__results-header .results-query {
   color: #222222;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.2;
 }
