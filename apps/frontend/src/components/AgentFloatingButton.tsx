@@ -1009,6 +1009,29 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
   return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
 };
 
+const resolveAgentSearchProfile = (
+  profile?: AgentFloatingButtonProps["skinProfile"],
+  resultParams?: URLSearchParams | null,
+) => {
+  const currentParams = typeof window === "undefined"
+    ? new URLSearchParams()
+    : new URLSearchParams(window.location.search);
+
+  return {
+    avoidIngredients: profile?.avoidIngredients ?? [],
+    sensitivity:
+      resultParams?.get("sensitivity")
+      ?? currentParams.get("sensitivity")
+      ?? profile?.sensitivity
+      ?? "보통",
+    skin:
+      resultParams?.get("skin_type")
+      ?? currentParams.get("skin_type")
+      ?? profile?.skin
+      ?? "수부지",
+  };
+};
+
 const isSimilarProductsAction = (action: AgentUiAction) =>
   action.type === "show_products" && action.target === "similar_products";
 
@@ -1498,6 +1521,7 @@ function AgentFloatingButton({
   const sendMessageRef = useRef<(
     message: string,
     contextProfile?: AgentFloatingButtonProps["skinProfile"],
+    startNewThread?: boolean,
   ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
@@ -1778,6 +1802,7 @@ function AgentFloatingButton({
   const sendMessage = async (
     message: string,
     contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
+    startNewThread = false,
   ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
@@ -1808,7 +1833,7 @@ function AgentFloatingButton({
     const timestamp = Date.now();
     const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
-    const shouldStartNewThread = activeView === "home";
+    const shouldStartNewThread = startNewThread || activeView === "home";
     const requestConversationId = shouldStartNewThread ? null : conversationId;
     const recentMessages = shouldStartNewThread ? [] : buildRecentMessages(messages);
     const lastToolResult = shouldStartNewThread ? null : lastToolResultContext ?? buildLastToolResult(messages);
@@ -1881,7 +1906,7 @@ function AgentFloatingButton({
         if (refinementRecommendationId && window.location.pathname === "/search") {
           window.dispatchEvent(new CustomEvent("home-search-request", {
             detail: {
-              profile: contextProfile,
+              profile: resolveAgentSearchProfile(contextProfile),
               query: buildAgentContext(contextProfile).search_query ?? nextMessage,
               recommendationId: refinementRecommendationId,
               refinementFilters,
@@ -1910,7 +1935,7 @@ function AgentFloatingButton({
 
         window.dispatchEvent(new CustomEvent("home-search-request", {
           detail: {
-            profile: contextProfile,
+            profile: resolveAgentSearchProfile(contextProfile, resultParams),
             query: resultQuery,
             recommendationId,
           },
@@ -1986,7 +2011,7 @@ function AgentFloatingButton({
       }
 
       openChatRef.current();
-      void sendMessageRef.current(detail.message, detail.profile)
+      void sendMessageRef.current(detail.message, detail.profile, detail.startNewThread)
         .then((response) => {
           detail.resolve(response);
         })
@@ -2276,11 +2301,7 @@ function AgentFloatingButton({
           window.history.replaceState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
           window.dispatchEvent(new CustomEvent("home-search-request", {
             detail: {
-              profile: {
-                avoidIngredients: skinProfile?.avoidIngredients ?? [],
-                sensitivity: targetUrl.searchParams.get("sensitivity") ?? skinProfile?.sensitivity ?? "보통",
-                skin: targetUrl.searchParams.get("skin_type") ?? skinProfile?.skin ?? "수부지",
-              },
+              profile: resolveAgentSearchProfile(skinProfile, targetUrl.searchParams),
               query,
               recommendationId,
             },

@@ -31,10 +31,15 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
 
   useEffect(() => {
     const handleSearchRequest = (event: Event) => {
-      const nextQuery = (event as CustomEvent<{ query?: unknown }>).detail?.query;
+      const detail = (event as CustomEvent<{
+        profile?: RecommendationProfile;
+        query?: unknown;
+      }>).detail;
+      const nextQuery = detail?.query;
       if (typeof nextQuery !== "string" || !nextQuery.trim()) return;
 
       setQuery(nextQuery);
+      if (detail.profile) setProfile(detail.profile);
       setIsSuggestionsOpen(false);
     };
 
