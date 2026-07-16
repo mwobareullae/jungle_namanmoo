@@ -122,6 +122,68 @@
         "prefetch_candidate_bundle_ms_p95"
       ],
       "detail_doc": "docs/performance/recommendation-bulk-prefetch.md"
+    },
+    {
+      "id": "opt4b-compact-read-model",
+      "label": "Opt4b compact read model",
+      "order": 4,
+      "color": "#B91C1C",
+      "status": "measured",
+      "compared_to": "opt3-bulk-prefetch",
+      "roots": [
+        "perf-runs/stages/opt4b-compact-read-model/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260716-233731",
+        "recommendation-80000-full-personalized-20260716-234122",
+        "recommendation-80000-full-personalized-20260716-234511"
+      ],
+      "change": "500개 후보의 스코어링 입력을 compact read model 한 번으로 조회",
+      "observation": "Opt3의 여러 loader를 합치기 위해 상품별 상세 피처를 넓은 read model에 평탄화했다.",
+      "cause": "DB 왕복은 줄었지만 500개 후보의 넓은 행과 JSON payload를 매 요청 역직렬화하고 Python 객체로 다시 조립하는 비용이 커졌다.",
+      "alternatives": "read model 컬럼과 payload를 더 줄이는 방법도 가능하지만, 정확 점수에 필요한 상세 데이터를 500개 전부 읽는 구조 자체가 남는다.",
+      "tradeoff": "조회 횟수 감소만으로는 전송량·역직렬화·객체 조립 비용을 상쇄하지 못했다. 실패 실험으로 보존하고 기본 경로로 채택하지 않는다.",
+      "implementation": "compact_v2 경로를 계측해 Opt3 대비 회귀를 확인하고 legacy_bulk rollback 경로를 유지했다.",
+      "next_bottleneck": "정확 스코어링용 상세 조회 대상을 500개보다 먼저 줄여야 한다.",
+      "focus_metrics": [
+        "scoring_ms_p95",
+        "scoring_compact_read_model_load_ms_p95",
+        "score_loop_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-scoring-snapshot.md"
+    },
+    {
+      "id": "opt4c-coarse-top50",
+      "label": "Opt4c coarse top-50",
+      "order": 5,
+      "color": "#0891B2",
+      "status": "measured",
+      "compared_to": "opt3-bulk-prefetch",
+      "roots": [
+        "perf-runs/stages/opt4c-coarse-top50/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260717-043340",
+        "recommendation-80000-full-personalized-20260717-043735",
+        "recommendation-80000-full-personalized-20260717-044128"
+      ],
+      "change": "경량 피처로 후보를 먼저 선별하고 상위 50개만 정확 스코어링",
+      "observation": "최종 정확도에 필요한 상세 피처를 약 500개 후보 모두에 조회·계산하는 비용이 scoring을 지배했다.",
+      "cause": "최종 노출 경쟁과 거리가 먼 후보까지 리뷰·기능성·성분 상세 데이터를 읽고 동일한 정확 점수식을 실행했다.",
+      "alternatives": "최종 결과 캐시나 500개 전체 read model 축소도 가능하지만 질의·사용자 조합 무효화 또는 상세 조회량 문제가 남는다.",
+      "tradeoff": "1차 근사 선별의 품질 guardrail과 피처 최신성 관리가 필요하다. 상위 50개에는 기존 정확 점수식과 설명 생성을 그대로 적용한다.",
+      "implementation": "약 500개를 숫자형 coarse 피처로 순위화한 뒤 상위 50개만 legacy_bulk로 조회해 정확 재랭킹한다.",
+      "next_bottleneck": "scoring은 감소했지만 exact top-50 prefetch와 coarse Python loop, 저장·응답 구간이 다음 측정 대상이다.",
+      "focus_metrics": [
+        "scoring_ms_p95",
+        "coarse_feature_query_ms_p95",
+        "coarse_score_loop_ms_p95",
+        "exact_prefetch_ms_p95",
+        "exact_score_loop_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-coarse-top50.md"
     }
   ]
 }
