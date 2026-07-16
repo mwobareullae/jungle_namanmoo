@@ -5,7 +5,8 @@ import HomeHeader from "../../components/HomeHeader";
 import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
 import { getOrderSummary } from "../../lib/orderApi";
-import { getMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
+import type { SkinProfileData } from "../../lib/profileApi";
+import { useSkinProfileQuery } from "../../hooks/useSkinProfileQuery";
 import { getSkinTestImageUrl } from "../../lib/skinTest";
 import type { SkinTestResult } from "../../types/skinTest";
 
@@ -45,7 +46,6 @@ type MyPageNavItem = {
   group: 1 | 2 | 3;
 };
 
-let cachedSkinProfile: SkinProfileData | null | undefined;
 let cachedSkinTestResult: SkinTestResult | null | undefined;
 
 const navItems: MyPageNavItem[] = [
@@ -115,7 +115,8 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const location = useLocation();
   const authContext = useContext(AuthContext);
   const authUser = authContext?.user ?? null;
-  const [skinProfile, setSkinProfile] = useState<SkinProfileData | null>(() => cachedSkinProfile ?? null);
+  const skinProfileQuery = useSkinProfileQuery(authUser?.id ?? null, !userOverride);
+  const skinProfile = userOverride ? null : (skinProfileQuery.data ?? null);
   const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(null);
   const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
@@ -126,46 +127,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
     () => userOverride ?? buildUserSummary(authUser, skinProfile),
     [authUser, skinProfile, userOverride]
   );
-
-  useEffect(() => {
-    if (userOverride || !authUser) {
-      const timerId = window.setTimeout(() => setSkinProfile(null), 0);
-      return () => window.clearTimeout(timerId);
-    }
-
-    let isMounted = true;
-    const hasCachedProfile = cachedSkinProfile !== undefined;
-    let cachedProfileTimerId: number | null = null;
-
-    if (hasCachedProfile) {
-      cachedProfileTimerId = window.setTimeout(() => {
-        if (isMounted) {
-          setSkinProfile(cachedSkinProfile ?? null);
-        }
-      }, 0);
-    }
-
-    getMySkinProfile()
-      .then((profile) => {
-        cachedSkinProfile = profile;
-        if (isMounted) {
-          setSkinProfile(profile);
-        }
-      })
-      .catch(() => {
-        cachedSkinProfile = null;
-        if (isMounted) {
-          setSkinProfile(null);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-      if (cachedProfileTimerId !== null) {
-        window.clearTimeout(cachedProfileTimerId);
-      }
-    };
-  }, [authUser, userOverride]);
 
   useEffect(() => {
     if (!authUser) {
