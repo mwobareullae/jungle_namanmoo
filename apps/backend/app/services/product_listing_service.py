@@ -107,17 +107,25 @@ def get_categories_response(session: Session) -> CategoryListResponse:
         .group_by(ProductCategory.id, ProductCategory.category_code, ProductCategory.name)
         .order_by(func.count(Product.id).desc(), ProductCategory.name.asc(), ProductCategory.category_code.asc())
     )
+    category_rows = {row.category_code: row for row in session.execute(statement).all()}
+    known_category_codes = tuple(CATEGORY_CODE_LABELS)
+    additional_category_codes = tuple(
+        sorted(category_code for category_code in category_rows if category_code not in CATEGORY_CODE_LABELS)
+    )
+
+    def to_category_list_item(category_code: str) -> CategoryListItem:
+        row = category_rows.get(category_code)
+        group = category_group_for_code(category_code)
+        return CategoryListItem(
+            code=category_code,
+            name=CATEGORY_CODE_LABELS.get(category_code, row.name if row is not None else category_code),
+            group=group,
+            group_name=CATEGORY_GROUP_LABELS.get(group, "기타"),
+            product_count=int(row.product_count) if row is not None else 0,
+        )
+
     return CategoryListResponse(
-        items=[
-            CategoryListItem(
-                code=row.category_code,
-                name=CATEGORY_CODE_LABELS.get(row.category_code, row.name),
-                group=category_group_for_code(row.category_code),
-                group_name=CATEGORY_GROUP_LABELS.get(category_group_for_code(row.category_code), "기타"),
-                product_count=int(row.product_count),
-            )
-            for row in session.execute(statement).all()
-        ]
+        items=[to_category_list_item(category_code) for category_code in (*known_category_codes, *additional_category_codes)]
     )
 
 
