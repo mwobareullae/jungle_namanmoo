@@ -389,7 +389,12 @@ Response:
   "discount_total": 0,
   "total": 41000,
   "currency": "KRW",
-  "payment_expires_at": "2026-07-05T12:15:00+09:00"
+  "payment_expires_at": "2026-07-05T12:15:00+09:00",
+  "order_snapshot": {
+    "order_code": "ord_20260705_k7x9q2m4",
+    "status": "PENDING_PAYMENT",
+    "items": []
+  }
 }
 ```
 
@@ -699,6 +704,10 @@ Behavior:
 - Stores `provider_payment_key`.
 - Stores a payment event with a deterministic SHA-256-based event id so provider key length cannot exceed the DB event-id limit.
 - Applies the same successful-payment DB transition as mock confirm.
+- Returns `order_snapshot` with the authenticated order's current detail after
+  the payment transition. This is optional for backward compatibility and
+  prevents the payment-complete screen from needing an immediate second order
+  detail request.
 
 Hardening deferred:
 

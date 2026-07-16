@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.order import OrderDetailResponse
+
 
 class TossPaymentConfirmRequest(BaseModel):
     payment_key: str = Field(..., min_length=1, max_length=200)
@@ -16,3 +18,4 @@ class PaymentActionResponse(BaseModel):
     payment_status: str
     approved_at: datetime | None = None
     failed_at: datetime | None = None
+    order_snapshot: OrderDetailResponse | None = None

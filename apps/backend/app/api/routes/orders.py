@@ -52,6 +52,9 @@ def post_order(
 ) -> OrderCreateResponse:
     response = create_order(session, current_user, request, idempotency_key)
     session.commit()
+    response = response.model_copy(
+        update={"order_snapshot": get_order_detail(session, current_user, response.order_code)}
+    )
     _record_order_event(
         session,
         http_request,

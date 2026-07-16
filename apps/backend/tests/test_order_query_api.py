@@ -83,6 +83,8 @@ def test_get_orders_can_filter_by_status(
     paid = _create_pending_order(client, db_engine, product_code="prod_002", quantity=1, key="paid-status")
     confirm_response = _confirm_toss_payment(client, paid)
     assert confirm_response.status_code == 200
+    assert confirm_response.json()["order_snapshot"]["order_code"] == paid["order_code"]
+    assert confirm_response.json()["order_snapshot"]["status"] == "PAID"
 
     response = client.get("/api/orders", params={"status": "PAID"})
 
@@ -238,6 +240,8 @@ def _create_pending_order(
     )
     assert order_response.status_code == 200
     data = order_response.json()
+    assert data["order_snapshot"]["order_code"] == data["order_code"]
+    assert data["order_snapshot"]["items"]
     return {
         "order_code": data["order_code"],
         "payment_code": data["payment"]["payment_code"],
