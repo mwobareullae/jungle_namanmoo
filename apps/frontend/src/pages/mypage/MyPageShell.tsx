@@ -4,11 +4,11 @@ import { Link, useLocation } from "react-router-dom";
 import HomeHeader from "../../components/HomeHeader";
 import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
-import { getOrders } from "../../lib/orderApi";
-import { getMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
+import { getOrderSummary, invalidateOrderSummary } from "../../lib/orderApi";
+import type { SkinProfileData } from "../../lib/profileApi";
+import { useSkinProfileQuery } from "../../hooks/useSkinProfileQuery";
 import { getSkinTestImageUrl } from "../../lib/skinTest";
 import type { SkinTestResult } from "../../types/skinTest";
-import type { OrderListItem } from "../../types/order";
 
 export type MypageEventContext = {
   page: "mypage" | "mypage_skin_profile" | "mypage_wishlist" | "mypage_recent";
@@ -46,7 +46,6 @@ type MyPageNavItem = {
   group: 1 | 2 | 3;
 };
 
-let cachedSkinProfile: SkinProfileData | null | undefined;
 let cachedSkinTestResult: SkinTestResult | null | undefined;
 
 const navItems: MyPageNavItem[] = [
@@ -74,13 +73,13 @@ type OrderStatusSummaryItem = {
   count: number;
 };
 
-const buildOrderStatusSummary = (orders: OrderListItem[]): OrderStatusSummaryItem[] =>
+const buildOrderStatusSummary = (statusCounts: Record<string, number>): OrderStatusSummaryItem[] =>
   orderStatusItems.map((item) => ({
     label: item.label,
-    count: orders.filter((order) => (item.statuses as readonly string[]).includes(order.status)).length
+    count: item.statuses.reduce((total, status) => total + (statusCounts[status] ?? 0), 0)
   }));
 
-const emptyOrderStatusSummary = buildOrderStatusSummary([]);
+const emptyOrderStatusSummary = buildOrderStatusSummary({});
 
 const formatSensitivityLabel = (label: string) => (label === "미설정" ? "민감도 미설정" : `민감 ${label}`);
 
@@ -116,7 +115,8 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   const location = useLocation();
   const authContext = useContext(AuthContext);
   const authUser = authContext?.user ?? null;
-  const [skinProfile, setSkinProfile] = useState<SkinProfileData | null>(() => cachedSkinProfile ?? null);
+  const skinProfileQuery = useSkinProfileQuery(authUser?.id ?? null, !userOverride);
+  const skinProfile = userOverride ? null : (skinProfileQuery.data ?? null);
   const [skinTestResult, setSkinTestResult] = useState<SkinTestResult | null>(null);
   const [orderStatusSummary, setOrderStatusSummary] = useState<OrderStatusSummaryItem[]>(emptyOrderStatusSummary);
   const currentPath = activePath ?? (location.pathname as MyPageShellProps["activePath"]) ?? "/mypage";
@@ -129,46 +129,6 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
   );
 
   useEffect(() => {
-    if (userOverride || !authUser) {
-      const timerId = window.setTimeout(() => setSkinProfile(null), 0);
-      return () => window.clearTimeout(timerId);
-    }
-
-    let isMounted = true;
-    const hasCachedProfile = cachedSkinProfile !== undefined;
-    let cachedProfileTimerId: number | null = null;
-
-    if (hasCachedProfile) {
-      cachedProfileTimerId = window.setTimeout(() => {
-        if (isMounted) {
-          setSkinProfile(cachedSkinProfile ?? null);
-        }
-      }, 0);
-    }
-
-    getMySkinProfile()
-      .then((profile) => {
-        cachedSkinProfile = profile;
-        if (isMounted) {
-          setSkinProfile(profile);
-        }
-      })
-      .catch(() => {
-        cachedSkinProfile = null;
-        if (isMounted) {
-          setSkinProfile(null);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-      if (cachedProfileTimerId !== null) {
-        window.clearTimeout(cachedProfileTimerId);
-      }
-    };
-  }, [authUser, userOverride]);
-
-  useEffect(() => {
     if (!authUser) {
       const timerId = window.setTimeout(() => setOrderStatusSummary(emptyOrderStatusSummary), 0);
       return () => window.clearTimeout(timerId);
@@ -178,18 +138,10 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     const loadOrderStatusSummary = async () => {
       try {
-        const orders: OrderListItem[] = [];
-        let cursor: string | null | undefined = null;
-
-        for (let page = 0; page < 5; page += 1) {
-          const response = await getOrders({ limit: 50, cursor });
-          orders.push(...response.items);
-          cursor = response.next_cursor;
-          if (!cursor) break;
-        }
+        const response = await getOrderSummary(authUser.id);
 
         if (isMounted) {
-          setOrderStatusSummary(buildOrderStatusSummary(orders));
+          setOrderStatusSummary(buildOrderStatusSummary(response.status_counts));
         }
       } catch {
         if (isMounted) {
@@ -200,8 +152,15 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     void loadOrderStatusSummary();
 
+    const refreshOrderStatusSummary = () => {
+      invalidateOrderSummary(authUser.id);
+      void loadOrderStatusSummary();
+    };
+    window.addEventListener("orders:updated", refreshOrderStatusSummary);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("orders:updated", refreshOrderStatusSummary);
     };
   }, [authUser]);
 

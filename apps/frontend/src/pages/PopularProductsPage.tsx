@@ -111,7 +111,7 @@ function PopularProductsPage() {
       return;
     }
 
-    getMyWishlist()
+    getMyWishlist(50, user?.id)
       .then((wishlistItems) => {
         const actualWishedProductIds = new Set(wishlistItems.map((item) => item.productId));
         setWishedProductIds(actualWishedProductIds);
@@ -161,10 +161,10 @@ function PopularProductsPage() {
 
     try {
       if (wasWished) {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       } else {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       }
     } catch {

@@ -19,7 +19,8 @@ import { addCartItem } from "../lib/cartApi";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
-import { getSavedSkinProfile } from "../lib/profileApi";
+import { toRecommendationProfile } from "../lib/profileApi";
+import { useSkinProfileQuery } from "../hooks/useSkinProfileQuery";
 import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type {
   IngredientEvidence,
@@ -458,6 +459,7 @@ function ProductDetailSpaPage() {
   const [{ productId, recommendationId, recommendationRank, skinType, sensitivity }] = useState(getDetailParams);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, Boolean(user));
   const [avoidIngredientMatchState, setAvoidIngredientMatchState] = useState<{
     matchSet: Set<string>;
     userId: number | null;
@@ -592,12 +594,13 @@ function ProductDetailSpaPage() {
     }
 
     let isMounted = true;
+    const controller = new AbortController();
 
     const loadProduct = async () => {
       setIsLoading(true);
 
       try {
-        const response = await api.getProduct(productId, recommendationId);
+        const response = await api.getProduct(productId, recommendationId, controller.signal);
         if (isMounted) setProduct(response);
       } catch {
         if (!isMounted) return;
@@ -612,6 +615,7 @@ function ProductDetailSpaPage() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [productId, recommendationId]);
 
@@ -632,7 +636,7 @@ function ProductDetailSpaPage() {
 
     let isMounted = true;
 
-    getMyWishlist()
+    getMyWishlist(50, user.id)
       .then((items) => {
         if (!isMounted) return;
         setIsWished(items.some((item) => item.productId === productId));
@@ -654,32 +658,19 @@ function ProductDetailSpaPage() {
       return;
     }
 
-    let isMounted = true;
     const currentUserId = user.id;
+    if (skinProfileQuery.isPending) return;
 
-    getSavedSkinProfile()
-      .then((profile) => {
-        if (!isMounted) return;
-        setReviewProfileSkinType(profile?.skin ?? (skinType || null));
-        setAvoidIngredientMatchState({
-          matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
-          userId: currentUserId,
-        });
-      })
-      .catch(() => {
-        if (isMounted) {
-          setReviewProfileSkinType(skinType || null);
-          setAvoidIngredientMatchState({
-            matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET,
-            userId: currentUserId,
-          });
-        }
+    const profile = skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null;
+    const timerId = window.setTimeout(() => {
+      setReviewProfileSkinType(profile?.skin ?? (skinType || null));
+      setAvoidIngredientMatchState({
+        matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
+        userId: currentUserId,
       });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [skinType, user]);
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [skinProfileQuery.data, skinProfileQuery.isPending, skinType, user]);
 
   useEffect(() => {
     if (!comparisonRequest) {
@@ -1060,10 +1051,10 @@ function ProductDetailSpaPage() {
 
     try {
       if (nextIsWished) {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       } else {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       }
     } catch {

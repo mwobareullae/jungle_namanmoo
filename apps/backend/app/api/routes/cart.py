@@ -19,6 +19,8 @@ from app.schemas.cart import (
     CheckoutPreviewRequest,
     CheckoutPreviewResponse,
     DeleteCartItemResponse,
+    DeleteCartItemsRequest,
+    DeleteCartItemsResponse,
 )
 from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogCreateRequest
@@ -30,6 +32,7 @@ from app.services.cart_service import (
     get_checkout_preview,
     merge_anonymous_cart,
     remove_cart_item,
+    remove_cart_items,
     update_cart_item_quantity,
 )
 from app.services.event_service import create_event_log
@@ -130,6 +133,52 @@ def patch_cart_item(
             fallback_session_id=session_id_from_request(http_request),
         )
     return cart
+
+
+@router.delete("/cart/items/bulk", response_model=DeleteCartItemsResponse)
+def delete_cart_items(
+    request: DeleteCartItemsRequest,
+    http_request: Request,
+    anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
+    current_user: User | None = Depends(get_optional_current_user),
+    session: Session = Depends(get_db),
+) -> DeleteCartItemsResponse:
+    event_contexts = [
+        context
+        for item_id in dict.fromkeys(request.cart_item_ids)
+        if (context := _load_cart_item_event_context(
+            session,
+            current_user=current_user,
+            anonymous_cart_id=anonymous_cart_id,
+            item_id=item_id,
+        )) is not None
+    ]
+    result = remove_cart_items(
+        session,
+        current_user,
+        anonymous_cart_id,
+        item_ids=request.cart_item_ids,
+    )
+    session.commit()
+    for context in event_contexts:
+        _record_cart_item_event(
+            session,
+            current_user=current_user,
+            anonymous_cart_id=anonymous_cart_id,
+            cart_id=context["cart_id"],
+            product_id=context["product_id"],
+            event_name="cart_removed",
+            previous_quantity=context["quantity"],
+            quantity=0,
+            fallback_request_id=request_id_from_request(http_request),
+            fallback_anonymous_user_id=anonymous_user_id_from_request(http_request),
+            fallback_session_id=session_id_from_request(http_request),
+        )
+    return DeleteCartItemsResponse(
+        success=True,
+        deleted_item_ids=result.deleted_item_ids,
+        cart=result.cart,
+    )
 
 
 @router.delete("/cart/items/{item_id}", response_model=DeleteCartItemResponse)

@@ -69,7 +69,7 @@ function BrandPage() {
         isMounted = false;
       };
     }
-    getMyWishlist()
+    getMyWishlist(50, user?.id)
       .then((items) => {
         if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
       })
@@ -96,10 +96,10 @@ function BrandPage() {
     setPendingWishlistProductIds((current) => new Set(current).add(productId));
     try {
       if (wasWished) {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       } else {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       }
     } catch {

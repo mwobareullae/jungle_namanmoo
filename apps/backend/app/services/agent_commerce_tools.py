@@ -17,6 +17,7 @@ from app.schemas.common import ApiError
 from app.schemas.order import OrderCreateRequest
 from app.services.address_service import get_user_addresses
 from app.services.agent_policy import validate_tool_access, validate_tool_ui_action
+from app.services.agent_product_reference import ProductReferenceSource, resolve_product_reference
 from app.services.cart_service import (
     add_cart_item,
     get_cart_response,
@@ -34,9 +35,15 @@ PREPARE_ORDER_TOOL = "prepare_order"
 ORDER_CONFIRMATION_TTL_MINUTES = 10
 
 
-def get_agent_cart(session: Session, user: User, *, conversation_id: str | None) -> AgentChatResponse:
-    validate_tool_access(GET_CART_TOOL, user_id=user.id)
-    cart = get_cart_response(session, user, None)
+def get_agent_cart(
+    session: Session,
+    user: User | None,
+    *,
+    conversation_id: str | None,
+    anonymous_cart_id: str | None = None,
+) -> AgentChatResponse:
+    validate_tool_access(GET_CART_TOOL, user_id=user.id if user is not None else None)
+    cart = get_cart_response(session, user, anonymous_cart_id)
     action = AgentUiAction(type="show_cart", target="cart", payload=jsonable_encoder(cart))
     validate_tool_ui_action(GET_CART_TOOL, action)
     return AgentChatResponse(
@@ -49,30 +56,42 @@ def get_agent_cart(session: Session, user: User, *, conversation_id: str | None)
 
 def add_agent_cart_item(
     session: Session,
-    user: User,
+    user: User | None,
     *,
     conversation_id: str | None,
-    product_id: str,
+    product_id: str | None,
     quantity: int,
     recommendation_id: str | None,
     recommendation_rank: int | None,
+    reference_source: ProductReferenceSource | None = None,
+    reference_rank: int | None = None,
+    current_product_id: str | None = None,
+    anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
-    validate_tool_access(ADD_TO_CART_TOOL, user_id=user.id)
+    validate_tool_access(ADD_TO_CART_TOOL, user_id=user.id if user is not None else None)
+    reference = resolve_product_reference(
+        session,
+        product_id=product_id,
+        source=reference_source,
+        rank=reference_rank,
+        current_product_id=current_product_id,
+        recommendation_id=recommendation_id,
+    )
     result = add_cart_item(
         session,
         user,
-        None,
-        product_code=product_id,
+        anonymous_cart_id,
+        product_code=reference.product_id,
         quantity=quantity,
-        source="agent",
-        recommendation_id=recommendation_id,
-        recommendation_rank=recommendation_rank,
+        source=f"agent:{reference.source}",
+        recommendation_id=reference.recommendation_id or recommendation_id,
+        recommendation_rank=reference.rank if reference.source == "recommendation" else recommendation_rank,
     )
     action = AgentUiAction(type="show_cart", target="cart", payload=jsonable_encoder(result.cart))
     validate_tool_ui_action(ADD_TO_CART_TOOL, action)
     return AgentChatResponse(
         conversation_id=_conversation_id(conversation_id),
-        message=f"상품 {quantity}개를 장바구니에 담았어요.",
+        message=f"{reference.label} 장바구니에 담았어요.",
         tool_name=ADD_TO_CART_TOOL,
         ui_action=action,
     )
