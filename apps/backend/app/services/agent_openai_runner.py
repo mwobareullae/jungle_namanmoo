@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import json
 import re
@@ -167,7 +168,8 @@ async def run_openai_agent_chat(
         raise ApiError(503, "AGENT_OPENAI_MODEL_NOT_CONFIGURED", "에이전트 모델 설정을 확인해 주세요.")
 
     try:
-        from agents import Agent, ModelSettings, Runner
+        from agents import Agent, ModelSettings, OpenAIProvider, RunConfig, Runner
+        from openai import AsyncOpenAI
     except ImportError as exc:
         raise ApiError(503, "AGENT_SDK_NOT_INSTALLED", "에이전트 실행 환경을 사용할 수 없어요.") from exc
 
@@ -208,14 +210,22 @@ async def run_openai_agent_chat(
         ],
     )
 
+    openai_client = AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        timeout=settings.openai_agent_timeout_seconds,
+        max_retries=settings.openai_agent_max_retries,
+    )
+    run_config = RunConfig(model_provider=OpenAIProvider(openai_client=openai_client))
     started_at = current_time()
     try:
-        result = await Runner.run(
-            agent,
-            input=_build_agent_input(request),
-            context=context,
-            max_turns=4,
-        )
+        async with asyncio.timeout(settings.agent_request_timeout_seconds):
+            result = await Runner.run(
+                agent,
+                input=_build_agent_input(request),
+                context=context,
+                max_turns=4,
+                run_config=run_config,
+            )
     except Exception as exc:
         log_ai_call(
             "agent_chat",
@@ -232,7 +242,9 @@ async def run_openai_agent_chat(
         )
         if isinstance(exc, ApiError):
             raise
-        raise ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
+        raise _to_agent_execution_error(exc) from exc
+    finally:
+        await openai_client.close()
 
     if context.last_tool_response is not None:
         # Every commerce tool already returns a user-facing message and authoritative
@@ -326,6 +338,29 @@ def _resolve_conversation_id(conversation_id: str | None) -> str:
     if conversation_id and conversation_id.strip():
         return conversation_id.strip()
     return "conv_agent_openai"
+
+
+def _to_agent_execution_error(exc: Exception) -> ApiError:
+    """Map provider failures to safe, actionable public API errors.
+
+    Provider exception classes differ slightly between the OpenAI SDK and the
+    Agents SDK, so status code and class-name checks are both used here. The
+    original exception remains chained for server-side logs only.
+    """
+    error_name = type(exc).__name__
+    status_code = getattr(exc, "status_code", None)
+
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or error_name in {"APITimeoutError", "TimeoutException"}:
+        return ApiError(504, "AGENT_OPENAI_TIMEOUT", "AI 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.")
+    if error_name in {"APIConnectionError", "APIConnectionTimeoutError", "ConnectError", "NetworkError"}:
+        return ApiError(503, "AGENT_OPENAI_UNAVAILABLE", "AI 연결이 일시적으로 원활하지 않아요. 잠시 후 다시 시도해주세요.")
+    if status_code == 429 or error_name == "RateLimitError":
+        return ApiError(429, "AGENT_OPENAI_RATE_LIMITED", "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.")
+    if status_code in {401, 403} or error_name in {"AuthenticationError", "PermissionDeniedError"}:
+        return ApiError(503, "AGENT_OPENAI_CONFIGURATION_ERROR", "AI 연결 설정을 확인하고 있어요. 잠시 후 다시 시도해주세요.")
+    if isinstance(status_code, int) and status_code >= 500:
+        return ApiError(503, "AGENT_OPENAI_UNAVAILABLE", "AI 연결이 일시적으로 원활하지 않아요. 잠시 후 다시 시도해주세요.")
+    return ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.")
 
 
 def _get_bulk_cart_clarification(message: str) -> str | None:

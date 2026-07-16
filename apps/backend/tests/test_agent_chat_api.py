@@ -1,5 +1,6 @@
 from collections.abc import Generator
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
+from app.core.config import settings
 from app.schemas.agent import (
     AgentChatRequest,
     AgentContextResultItem,
@@ -19,7 +21,7 @@ from app.schemas.agent import (
     AgentChatResponse,
     AgentUiAction,
 )
-from app.services.agent_openai_runner import _build_agent_input, run_openai_agent_chat
+from app.services.agent_openai_runner import _build_agent_input, _to_agent_execution_error, run_openai_agent_chat
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -81,6 +83,53 @@ def test_agent_input_omits_empty_context_fields() -> None:
     payload = json.loads(_build_agent_input(AgentChatRequest(message="보습 세럼 추천해줘")))
 
     assert payload == {"message": "보습 세럼 추천해줘"}
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "code"),
+    [
+        (TimeoutError(), 504, "AGENT_OPENAI_TIMEOUT"),
+        (type("APIConnectionError", (Exception,), {})(), 503, "AGENT_OPENAI_UNAVAILABLE"),
+        (type("RateLimitError", (Exception,), {"status_code": 429})(), 429, "AGENT_OPENAI_RATE_LIMITED"),
+        (type("AuthenticationError", (Exception,), {"status_code": 401})(), 503, "AGENT_OPENAI_CONFIGURATION_ERROR"),
+        (type("InternalServerError", (Exception,), {"status_code": 500})(), 503, "AGENT_OPENAI_UNAVAILABLE"),
+        (RuntimeError("database details must not leak"), 503, "AGENT_EXECUTION_FAILED"),
+    ],
+)
+def test_agent_execution_errors_are_classified_without_leaking_details(
+    error: Exception,
+    status_code: int,
+    code: str,
+) -> None:
+    mapped = _to_agent_execution_error(error)
+
+    assert mapped.status_code == status_code
+    assert mapped.code == code
+    assert "database details" not in mapped.message
+
+
+@pytest.mark.anyio
+async def test_agent_runner_uses_explicit_openai_timeout_and_retry_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    async def fake_runner_run(*_args, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(final_output="요청을 확인했어요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_timeout_seconds", 25)
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 1)
+    monkeypatch.setattr("agents.Runner.run", fake_runner_run)
+
+    response = await run_openai_agent_chat(Session(), AgentChatRequest(message="도움이 필요해요."))
+
+    run_config = captured["run_config"]
+    client = run_config.model_provider._client
+    assert client.timeout == 25
+    assert client.max_retries == 1
+    assert response.message == "요청을 확인했어요."
 
 
 @pytest.mark.anyio
