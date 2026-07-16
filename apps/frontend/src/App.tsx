@@ -277,7 +277,7 @@ function LegacyApp() {
         align-items: start !important;
         align-content: start !important;
         justify-items: stretch !important;
-        width: min(1680px, calc(100vw - clamp(72px, 10vw, 168px))) !important;
+        width: min(1264px, calc(100vw - 64px)) !important;
         min-height: 0 !important;
         margin: 0 auto !important;
       }
