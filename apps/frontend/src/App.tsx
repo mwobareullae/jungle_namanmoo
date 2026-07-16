@@ -10,7 +10,9 @@ import Skeleton from "./components/ui/Skeleton";
 import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
 import { getListHistoryRestoration } from "./hooks/useListHistoryRestoration";
-import { getSavedSkinProfile } from "./lib/profileApi";
+import { useSkinProfileQuery } from "./hooks/useSkinProfileQuery";
+import { toRecommendationProfile } from "./lib/profileApi";
+import type { RecommendationProfile } from "./types/recommendation";
 import type { OriginalPageKey } from "./originalPages";
 
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -841,40 +843,16 @@ function LegacyApp() {
 function GlobalAgentEntry() {
   const location = useLocation();
   const { user, isAuthLoading } = useAuth();
-  const [savedSkinProfile, setSavedSkinProfile] = useState<Awaited<ReturnType<typeof getSavedSkinProfile>>>(null);
-  const [isSkinProfileResolved, setIsSkinProfileResolved] = useState(false);
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, !isAuthLoading && Boolean(user));
+  const savedSkinProfile: RecommendationProfile | null = skinProfileQuery.data
+    ? toRecommendationProfile(skinProfileQuery.data)
+    : null;
+  const isSkinProfileResolved = !isAuthLoading && (!user || !skinProfileQuery.isPending);
 
   const hasTemporarySkinProfile = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return Boolean(params.get("skin_type") && params.get("sensitivity"));
   }, [location.search]);
-
-  useEffect(() => {
-    if (isAuthLoading) {
-      return;
-    }
-
-    if (!user) {
-      const timerId = window.setTimeout(() => {
-        setSavedSkinProfile(null);
-        setIsSkinProfileResolved(true);
-      }, 0);
-      return () => window.clearTimeout(timerId);
-    }
-
-    let isMounted = true;
-
-    getSavedSkinProfile().then((profile) => {
-      if (isMounted) {
-        setSavedSkinProfile(profile);
-        setIsSkinProfileResolved(true);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthLoading, user]);
 
   if (appMode === "community" || location.pathname.startsWith("/admin")) {
     return null;

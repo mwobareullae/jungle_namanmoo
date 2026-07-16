@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "../lib/api";
+import { invalidateMySkinProfileCache } from "../lib/profileApi";
+import { skinProfileQueryKey } from "../hooks/useSkinProfileQuery";
 import { AuthContext, type AuthUser } from "./authContextValue";
 
 const AUTH_USER_STORAGE_KEY = "mwobareullae.auth.user";
@@ -65,6 +68,7 @@ const requestAuthenticatedUser = async (): Promise<AuthUser | null> => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(() => readStoredAuthUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
@@ -128,9 +132,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("logout failed");
     }
 
+    const previousUserId = user?.id ?? null;
+    invalidateMySkinProfileCache(previousUserId);
+    queryClient.removeQueries({ queryKey: skinProfileQueryKey(previousUserId) });
     clearStoredAuthUser();
     setUser(null);
-  }, []);
+  }, [queryClient, user?.id]);
 
   const value = useMemo(
     () => ({
