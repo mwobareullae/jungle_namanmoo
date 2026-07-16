@@ -34,6 +34,7 @@ from app.services.agent_commerce_tools import (
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
 from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, register_shipping_address
 from app.services.agent_policy import get_tool_policy, validate_tool_access
+from app.services.agent_product_reference import ProductReferenceSource
 from app.services.agent_recommendation_tools import (
     AgentCategoryCode,
     AgentConcernId,
@@ -154,10 +155,20 @@ class GetCartArgs(BaseModel):
 class AddToCartArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product_id: str = Field(..., min_length=1, max_length=128)
+    product_id: str | None = Field(default=None, min_length=1, max_length=128)
     quantity: int = Field(default=1, ge=1, le=99)
     recommendation_id: str | None = Field(default=None, max_length=128)
     recommendation_rank: int | None = Field(default=None, ge=1)
+    reference_source: ProductReferenceSource | None = None
+    reference_rank: int | None = Field(default=None, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_product_reference(self) -> "AddToCartArgs":
+        if self.product_id and self.reference_source:
+            raise ValueError("product_id and reference_source cannot be used together")
+        if not self.product_id and not self.reference_source:
+            raise ValueError("product_id or reference_source is required")
+        return self
 
 
 class PrepareProductCheckoutArgs(BaseModel):
@@ -277,6 +288,7 @@ def execute_agent_tool(
     session_id: str | None = None,
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
+    current_product_id: str | None = None,
 ) -> AgentChatResponse:
     started_at = time.perf_counter()
     policy = get_tool_policy(tool_name)
@@ -294,6 +306,7 @@ def execute_agent_tool(
             session_id=session_id,
             anonymous_user_id=anonymous_user_id,
             anonymous_cart_id=anonymous_cart_id,
+            current_product_id=current_product_id,
         )
     except ApiError as exc:
         latency_ms = _elapsed_ms(started_at)
@@ -380,6 +393,7 @@ def _execute_parsed_tool(
     session_id: str | None,
     anonymous_user_id: str | None,
     anonymous_cart_id: str | None,
+    current_product_id: str | None,
 ) -> AgentChatResponse:
     if tool_name == CREATE_RECOMMENDATION_TOOL:
         args = _require_args(arguments, CreateRecommendationArgs)
@@ -494,6 +508,9 @@ def _execute_parsed_tool(
             quantity=args.quantity,
             recommendation_id=args.recommendation_id,
             recommendation_rank=args.recommendation_rank,
+            reference_source=args.reference_source,
+            reference_rank=args.reference_rank,
+            current_product_id=current_product_id,
         )
 
     if tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:

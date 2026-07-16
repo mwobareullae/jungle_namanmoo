@@ -779,6 +779,105 @@ def test_openai_tool_adds_to_anonymous_cart(db_engine: Engine) -> None:
     assert context.last_tool_response is not None
 
 
+def test_dispatcher_resolves_popular_rank_before_adding_to_anonymous_cart(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    anonymous_cart_id = "agent-popular-cart"
+    now = datetime.now(UTC)
+
+    with Session(db_engine) as session:
+        products = session.scalars(select(Product).order_by(Product.product_code.asc())).all()
+        assert len(products) >= 2
+        session.add_all([
+            ProductPopularityMetric(
+                product_id=products[0].id,
+                window_days=7,
+                popularity_score=100,
+                score_version="behavior_rollup_v1",
+                computed_at=now,
+            ),
+            ProductPopularityMetric(
+                product_id=products[1].id,
+                window_days=7,
+                popularity_score=90,
+                score_version="behavior_rollup_v1",
+                computed_at=now,
+            ),
+        ])
+        session.flush()
+
+        response = execute_agent_tool(
+            session,
+            tool_name="add_to_cart",
+            arguments={"reference_source": "popular", "reference_rank": 1},
+            anonymous_cart_id=anonymous_cart_id,
+            conversation_id="conv_popular_cart",
+        )
+        cart = get_cart_response(session, None, anonymous_cart_id)
+
+    assert response.message == "인기 1위 상품을 장바구니에 담았어요."
+    assert response.ui_action.type == "show_cart"
+    assert [item.product_id for item in cart.items] == [products[0].product_code]
+
+
+def test_dispatcher_resolves_current_product_reference_before_adding_to_cart(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    anonymous_cart_id = "agent-current-product-cart"
+
+    with Session(db_engine) as session:
+        response = execute_agent_tool(
+            session,
+            tool_name="add_to_cart",
+            arguments={"reference_source": "current_product"},
+            current_product_id="prod_002",
+            anonymous_cart_id=anonymous_cart_id,
+            conversation_id="conv_current_product_cart",
+        )
+        cart = get_cart_response(session, None, anonymous_cart_id)
+
+    assert response.message == "상품을 장바구니에 담았어요."
+    assert [item.product_id for item in cart.items] == ["prod_002"]
+
+
+def test_dispatcher_resolves_recommendation_rank_before_adding_to_cart(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    anonymous_cart_id = "agent-recommendation-cart"
+
+    with Session(db_engine) as session:
+        recommendation = execute_agent_tool(
+            session,
+            tool_name="create_recommendation",
+            arguments={
+                "concern_text": "민감 피부용 보습 세럼을 추천해줘",
+                "page_size": 10,
+                "intent_resolved": True,
+                "concern_ids": ["concern_sensitive"],
+                "effect_ids": ["effect_moisture_barrier"],
+                "category_codes": ["serum"],
+            },
+            conversation_id="conv_recommendation_cart",
+        )
+        recommendation_id = str(recommendation.ui_action.payload["recommendation_id"])
+        expected_product_id = recommendation.items[0].id
+
+        response = execute_agent_tool(
+            session,
+            tool_name="add_to_cart",
+            arguments={
+                "reference_source": "recommendation",
+                "reference_rank": 1,
+                "recommendation_id": recommendation_id,
+            },
+            anonymous_cart_id=anonymous_cart_id,
+            conversation_id="conv_recommendation_cart",
+        )
+        cart = get_cart_response(session, None, anonymous_cart_id)
+
+    assert response.message == "추천 결과 1위 상품을 장바구니에 담았어요."
+    assert [item.product_id for item in cart.items] == [expected_product_id]
+
+
 def test_openai_tool_hides_unexpected_internal_error(
     db_engine: Engine,
     monkeypatch: pytest.MonkeyPatch,
@@ -807,6 +906,35 @@ def test_openai_tool_hides_unexpected_internal_error(
     assert payload["error"]["code"] == "AGENT_TOOL_EXECUTION_FAILED"
     assert "private_table" not in payload["message"]
     assert "잠시 후 다시 시도" in payload["message"]
+
+
+def test_openai_tool_turns_missing_comparison_selection_into_clarification(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_clarification",
+            request_id="req_clarification",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+
+        def raise_missing_selection(*args, **kwargs):
+            raise ApiError(400, "AGENT_COMPARE_REQUIRES_TWO_PRODUCTS", "internal detail")
+
+        monkeypatch.setattr("app.services.agent_openai_runner.execute_agent_tool", raise_missing_selection)
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="compare_products",
+            arguments={"product_ids": ["prod_001"]},
+        )
+
+    payload = json.loads(result)
+    assert payload["error"]["code"] == "AGENT_CLARIFICATION_REQUIRED"
+    assert "비교할 상품을 2개 이상" in payload["message"]
 
 
 def _set_inventory(
