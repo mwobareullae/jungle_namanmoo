@@ -185,6 +185,49 @@ def test_invalid_snapshot_rows_fall_back_without_changing_output(
 
 
 @pytest.mark.parametrize(
+    "stale_source",
+    ["review_metric", "review_segments", "market_signal"],
+)
+def test_stale_optional_source_policy_falls_back_without_changing_output(
+    stale_source: str,
+) -> None:
+    session = _seed_example_session(include_optional_sources=True)
+    intent, candidates, matches = _recommendation_inputs(session)
+    baseline = score_candidates(session, intent, candidates, matches)
+    rollup_product_recommendation_scoring_snapshots(session)
+    target = session.get(
+        ProductRecommendationScoringSnapshot,
+        candidates[0].db_product_id,
+    )
+    assert target is not None
+    source_versions = dict(target.source_versions)
+    if stale_source == "review_metric":
+        source_versions["review_metric"] = "stale"
+    elif stale_source == "review_segments":
+        source_versions["review_segments"] = ["stale"]
+    else:
+        market_signal = dict(source_versions["market_signal"])
+        market_signal["window_days"] = 30
+        source_versions["market_signal"] = market_signal
+    target.source_versions = source_versions
+    session.commit()
+    diagnostics: dict[str, object] = {}
+
+    actual = score_candidates(
+        session,
+        intent,
+        candidates,
+        matches,
+        diagnostics=diagnostics,
+    )
+
+    assert actual == baseline
+    assert diagnostics["scoring_snapshot_hit_count"] == 1
+    assert diagnostics["scoring_snapshot_miss_count"] == 1
+    assert diagnostics["scoring_snapshot_parse_error_count"] == 0
+
+
+@pytest.mark.parametrize(
     "missing_source",
     [
         "skin_profile",
