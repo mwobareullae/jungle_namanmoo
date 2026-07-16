@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
 import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
-import type { CatalogSearchItem, CatalogSuggestionItem } from "../types/product";
 
 type HeaderSearchPanelProps = {
   onClose: () => void;
   profile: RecommendationProfile;
-};
-
-const getSuggestionLabel = (suggestion: CatalogSuggestionItem) => {
-  if (suggestion.type === "PRODUCT") return "상품";
-  if (suggestion.type === "BRAND") return "브랜드";
-  if (suggestion.type === "CATEGORY") return "카테고리";
-  return "추천 검색어";
 };
 
 function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
@@ -24,52 +15,12 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
   const [query, setQuery] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("general");
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
-  const [results, setResults] = useState<CatalogSearchItem[]>([]);
-  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
-  const [isResultsLoading, setIsResultsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isAgentSubmitting, setIsAgentSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const normalized = query.trim();
-    let isMounted = true;
-
-    if (searchMode !== "general" || !normalized) {
-      queueMicrotask(() => {
-        if (!isMounted) return;
-        setSuggestions([]);
-        setIsSuggestionsLoading(false);
-      });
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    const timer = window.setTimeout(() => {
-      setIsSuggestionsLoading(true);
-      api.getCatalogSuggestions(normalized)
-        .then((response) => {
-          if (isMounted) setSuggestions(response.items);
-        })
-        .catch(() => {
-          if (isMounted) setSuggestions([]);
-        })
-        .finally(() => {
-          if (isMounted) setIsSuggestionsLoading(false);
-        });
-    }, 250);
-
-    return () => {
-      isMounted = false;
-      window.clearTimeout(timer);
-    };
-  }, [query, searchMode]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -91,35 +42,16 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
   const selectMode = (nextMode: SearchMode) => {
     setSearchMode(nextMode);
     setIsModeMenuOpen(false);
-    setSuggestions([]);
-    setResults([]);
     setErrorMessage("");
-    setHasSubmitted(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const runGeneralSearch = async (nextQuery = query) => {
-    const normalized = nextQuery.trim();
-    if (!normalized || isResultsLoading) return;
+  const runGeneralSearch = () => {
+    const normalized = query.trim();
+    if (!normalized) return;
 
-    setIsResultsLoading(true);
-    setErrorMessage("");
-    setSuggestions([]);
-    setHasSubmitted(true);
-    try {
-      const response = await api.searchCatalog({
-        query: normalized,
-        page: 1,
-        pageSize: 8,
-        sort: "relevance"
-      });
-      setResults(response.items);
-    } catch {
-      setResults([]);
-      setErrorMessage("검색 결과를 불러오지 못했습니다.");
-    } finally {
-      setIsResultsLoading(false);
-    }
+    onClose();
+    navigate(`/catalog-search?q=${encodeURIComponent(normalized)}`);
   };
 
   const runAiSearch = async () => {
@@ -140,29 +72,11 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (searchMode === "general") {
-      void runGeneralSearch();
+      runGeneralSearch();
       return;
     }
     void runAiSearch();
   };
-
-  const selectSuggestion = (suggestion: CatalogSuggestionItem) => {
-    if (suggestion.type === "PRODUCT" && suggestion.product_id) {
-      onClose();
-      navigate(`/product-detail?id=${encodeURIComponent(suggestion.product_id)}`);
-      return;
-    }
-    setQuery(suggestion.text);
-    void runGeneralSearch(suggestion.text);
-  };
-
-  const openProductDetail = (productId: string) => {
-    onClose();
-    navigate(`/product-detail?id=${encodeURIComponent(productId)}`);
-  };
-
-  const shouldShowSuggestions = searchMode === "general" && query.trim() && !results.length && !hasSubmitted;
-  const shouldShowPanel = shouldShowSuggestions || results.length > 0 || isResultsLoading || Boolean(errorMessage);
 
   return (
     <div className="header-search-panel" id="header-search-panel" ref={panelRef}>
@@ -192,9 +106,7 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
           autoComplete="off"
           onChange={(event) => {
             setQuery(event.target.value);
-            setResults([]);
             setErrorMessage("");
-            setHasSubmitted(false);
           }}
           placeholder={searchMode === "general" ? "상품명, 브랜드, 성분을 검색하세요" : "민감하고 붉은기가 자주 올라와요"}
           ref={inputRef}
@@ -203,25 +115,9 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
         />
       </form>
 
-      {shouldShowPanel ? (
+      {errorMessage ? (
         <div className="header-search-panel__results">
-          {isSuggestionsLoading && shouldShowSuggestions ? <div className="header-search-panel__state">검색어를 찾고 있어요…</div> : null}
-          {!isSuggestionsLoading && shouldShowSuggestions && suggestions.map((suggestion) => (
-            <button className="header-search-panel__suggestion" key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`} onClick={() => selectSuggestion(suggestion)} type="button">
-              <span>{suggestion.text}</span>
-              <small>{getSuggestionLabel(suggestion)}</small>
-            </button>
-          ))}
-          {!isSuggestionsLoading && shouldShowSuggestions && suggestions.length === 0 ? <div className="header-search-panel__state">일치하는 검색어가 없습니다.</div> : null}
-          {isResultsLoading ? <div className="header-search-panel__state">상품을 찾고 있어요…</div> : null}
-          {!isResultsLoading && results.map((item) => (
-            <button className="header-search-panel__product" key={item.product_id} onClick={() => openProductDetail(item.product_id)} type="button">
-              <span className="header-search-panel__product-copy"><small>{item.brand}</small><strong>{item.name}</strong></span>
-              <b>{item.lowest_price === null ? "가격 정보 없음" : `${item.lowest_price.toLocaleString("ko-KR")}원`}</b>
-            </button>
-          ))}
-          {!isResultsLoading && results.length === 0 && errorMessage ? <div className="header-search-panel__state is-error">{errorMessage}</div> : null}
-          {!isResultsLoading && results.length === 0 && !errorMessage && !shouldShowSuggestions && searchMode === "general" && query.trim() ? <div className="header-search-panel__state">검색 결과가 없습니다.</div> : null}
+          <div className="header-search-panel__state is-error">{errorMessage}</div>
         </div>
       ) : null}
     </div>
