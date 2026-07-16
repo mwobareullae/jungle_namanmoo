@@ -184,7 +184,6 @@ const getHeaderBottom = () => {
 };
 
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
-const CATEGORY_PANEL_DEFAULT_HEIGHT = 380;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
 let categoryMenuScrollY = 0;
 
@@ -199,9 +198,7 @@ const unlockCategoryMenuScroll = () => {
 
 const updateCategoryPanelLayout = (panel: HTMLElement) => {
   const headerBottom = getHeaderBottom();
-  const contentHeight = panel.scrollHeight;
   const availableHeight = Math.min(
-    Math.max(CATEGORY_PANEL_DEFAULT_HEIGHT, contentHeight),
     window.innerHeight - headerBottom - 24,
     CATEGORY_PANEL_MAX_HEIGHT
   );
@@ -209,10 +206,7 @@ const updateCategoryPanelLayout = (panel: HTMLElement) => {
   document.documentElement.style.setProperty("--category-panel-top", `${headerBottom}px`);
   document.documentElement.style.setProperty("--category-panel-left", "0px");
   panel.style.setProperty("--category-panel-width", "100vw");
-  panel.style.setProperty(
-    "--category-panel-height",
-    `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`
-  );
+  panel.style.removeProperty("--category-panel-height");
   panel.style.setProperty(
     "--category-panel-max-height",
     `${Math.max(CATEGORY_PANEL_MIN_HEIGHT, availableHeight)}px`

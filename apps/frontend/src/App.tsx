@@ -9,6 +9,7 @@ import PopularProductsHeader from "./components/PopularProductsHeader";
 import Skeleton from "./components/ui/Skeleton";
 import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
+import { getListHistoryRestoration } from "./hooks/useListHistoryRestoration";
 import { getSavedSkinProfile } from "./lib/profileApi";
 import type { OriginalPageKey } from "./originalPages";
 
@@ -233,11 +234,11 @@ function LegacyApp() {
         z-index: 910 !important;
         display: block !important;
         width: 100vw !important;
-        height: var(--category-panel-height, 380px) !important;
+        height: auto !important;
         box-sizing: border-box !important;
         max-height: var(--category-panel-max-height, 520px) !important;
         overflow-y: auto !important;
-        padding: 34px clamp(28px, 5vw, 72px) 38px !important;
+        padding: 34px clamp(28px, 5vw, 72px) 50px !important;
         border: 1px solid rgba(11, 42, 58, 0.08) !important;
         border-right: 0 !important;
         border-left: 0 !important;
@@ -268,13 +269,14 @@ function LegacyApp() {
 
       body .category-panel__inner {
         display: grid !important;
-        grid-template-columns: repeat(5, minmax(180px, 1fr)) !important;
-        gap: 26px clamp(32px, 4vw, 72px) !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        grid-auto-rows: max-content !important;
+        gap: 30px clamp(24px, 2vw, 40px) !important;
         align-items: start !important;
         align-content: start !important;
         justify-items: stretch !important;
         width: min(1680px, calc(100vw - clamp(72px, 10vw, 168px))) !important;
-        min-height: 100% !important;
+        min-height: 0 !important;
         margin: 0 auto !important;
       }
 
@@ -363,7 +365,7 @@ function LegacyApp() {
 
       @media (max-width: 960px) {
         body .category-panel {
-          padding: 32px 32px 36px !important;
+          padding: 32px 32px 50px !important;
         }
 
         body .category-panel__inner {
@@ -405,7 +407,7 @@ function LegacyApp() {
           width: 100vw !important;
           height: auto !important;
           max-height: calc(100vh - var(--category-panel-top, 64px)) !important;
-          padding: 28px 24px 32px !important;
+          padding: 28px 24px 50px !important;
         }
 
         body .category-panel__inner {
@@ -429,7 +431,7 @@ function LegacyApp() {
         body .category-panel {
           left: 0 !important;
           width: 100vw !important;
-          padding: 26px 20px 30px !important;
+          padding: 26px 20px 50px !important;
         }
 
         body .category-panel__inner {
@@ -964,6 +966,7 @@ function ScrollToTop() {
   const location = useLocation();
 
   useLayoutEffect(() => {
+    if (getListHistoryRestoration()) return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname, location.search]);
 
@@ -1150,7 +1153,7 @@ function App() {
           <Route path="/privacy" element={<LegalDocumentPage documentType="privacy" />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
           {appMode !== "community" && (
-            <Route path="/category/:categoryTitle" element={<CategoryPage />} />
+            <Route path="/category/:groupCode" element={<CategoryPage />} />
           )}
           {appMode !== "community" && <Route path="/cart" element={<CartPage />} />}
           {appMode !== "community" && <Route path="/catalog-search" element={<CatalogSearchPage />} />}
