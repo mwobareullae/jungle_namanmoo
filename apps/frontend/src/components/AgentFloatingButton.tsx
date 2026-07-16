@@ -800,8 +800,14 @@ function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: 
     });
   }
 
-  if (status === 408) {
+  if (status === 408 || status === 504 || code === "AGENT_OPENAI_TIMEOUT") {
     return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
+      retryMessage,
+    });
+  }
+
+  if (status === 429 || code === "AGENT_OPENAI_RATE_LIMITED") {
+    return createAgentErrorMessage(id, "AI 요청이 잠시 많아요", message, {
       retryMessage,
     });
   }

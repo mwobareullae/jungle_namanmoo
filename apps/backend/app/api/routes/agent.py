@@ -32,7 +32,9 @@ router = APIRouter(tags=["agent"])
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
         503: {"model": ErrorResponse},
+        504: {"model": ErrorResponse},
     },
 )
 async def post_agent_chat(
