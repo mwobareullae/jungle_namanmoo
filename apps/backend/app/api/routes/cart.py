@@ -135,7 +135,7 @@ def patch_cart_item(
     return cart
 
 
-@router.delete("/cart/items", response_model=DeleteCartItemsResponse)
+@router.delete("/cart/items/bulk", response_model=DeleteCartItemsResponse)
 def delete_cart_items(
     request: DeleteCartItemsRequest,
     http_request: Request,
@@ -145,7 +145,7 @@ def delete_cart_items(
 ) -> DeleteCartItemsResponse:
     event_contexts = [
         context
-        for item_id in dict.fromkeys(request.item_ids)
+        for item_id in dict.fromkeys(request.cart_item_ids)
         if (context := _load_cart_item_event_context(
             session,
             current_user=current_user,
@@ -157,7 +157,7 @@ def delete_cart_items(
         session,
         current_user,
         anonymous_cart_id,
-        item_ids=request.item_ids,
+        item_ids=request.cart_item_ids,
     )
     session.commit()
     for context in event_contexts:
