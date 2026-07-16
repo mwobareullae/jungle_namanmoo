@@ -9875,7 +9875,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .category-page {
   min-height: 100vh;
-  background: var(--color-brand-surface);
+  background: #ffffff;
   color: var(--color-brand-ink);
 }
 
