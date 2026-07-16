@@ -401,29 +401,31 @@ function HomeHero({
             </div>
           </div>
 
-          <div className="search-examples search-examples--with-guide">
-            <span
-              className="example-chip"
-              onClick={() => void handleExampleClick("모공이 넓고 피지가 많아요")}
-            >
-              모공이 넓고 피지가 많아요
-            </span>
-            <span
-              className="example-chip"
-              onClick={() => void handleExampleClick("건조하고 주름이 걱정돼요")}
-            >
-              건조하고 주름이 걱정돼요
-            </span>
-            <span
-              className="example-chip"
-              onClick={() => void handleExampleClick("색소침착과 잡티가 있어요")}
-            >
-              색소침착과 잡티가 있어요
-            </span>
-            <a className="recommendation-guide-link" href="/recommendation-guide">
-              추천 기준 알아보기 ›
-            </a>
-          </div>
+          {searchMode === "ai" ? (
+            <div className="search-examples search-examples--with-guide">
+              <span
+                className="example-chip"
+                onClick={() => void handleExampleClick("모공이 넓고 피지가 많아요")}
+              >
+                모공이 넓고 피지가 많아요
+              </span>
+              <span
+                className="example-chip"
+                onClick={() => void handleExampleClick("건조하고 주름이 걱정돼요")}
+              >
+                건조하고 주름이 걱정돼요
+              </span>
+              <span
+                className="example-chip"
+                onClick={() => void handleExampleClick("색소침착과 잡티가 있어요")}
+              >
+                색소침착과 잡티가 있어요
+              </span>
+              <a className="recommendation-guide-link" href="/recommendation-guide">
+                추천 기준 알아보기 ›
+              </a>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>
