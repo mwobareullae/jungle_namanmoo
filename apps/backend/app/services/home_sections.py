@@ -85,6 +85,8 @@ class _ProductBase:
 class _ProductSignals:
     key_ingredients: tuple[str, ...]
     effects: tuple[str, ...]
+    tag_effect: str
+    tag_ingredient: str
     ingredient_codes: tuple[str, ...]
     effect_codes: tuple[str, ...]
     max_effect_score: float
@@ -645,6 +647,7 @@ def _load_product_signals(
 
     ingredients_by_product_id: dict[int, list[str]] = {}
     effects_by_product_id: dict[int, list[str]] = {}
+    tag_candidates_by_product_id: dict[int, list[tuple[float, float, int, str, str]]] = {}
     ingredient_codes_by_product_id: dict[int, list[str]] = {}
     effect_codes_by_product_id: dict[int, list[str]] = {}
     max_effect_score_by_product_id: dict[int, float] = {}
@@ -654,6 +657,7 @@ def _load_product_signals(
         rows = session.execute(
             select(
                 ProductIngredient.product_id,
+                ProductIngredient.display_order,
                 Ingredient.name_ko,
                 Ingredient.ingredient_code,
                 Effect.name,
@@ -675,7 +679,16 @@ def _load_product_signals(
             .order_by(ProductIngredient.display_order.asc(), ProductIngredient.id.asc())
         ).all()
 
-        for product_id, ingredient_name, ingredient_code, effect_name, effect_code, effect_score, evidence_score in rows:
+        for (
+            product_id,
+            display_order,
+            ingredient_name,
+            ingredient_code,
+            effect_name,
+            effect_code,
+            effect_score,
+            evidence_score,
+        ) in rows:
             db_product_id = int(product_id)
             if ingredient_name:
                 ingredients_by_product_id.setdefault(db_product_id, []).append(str(ingredient_name))
@@ -685,6 +698,16 @@ def _load_product_signals(
                 effects_by_product_id.setdefault(db_product_id, []).append(str(effect_name))
             if effect_code:
                 effect_codes_by_product_id.setdefault(db_product_id, []).append(str(effect_code))
+            if ingredient_name and effect_name:
+                tag_candidates_by_product_id.setdefault(db_product_id, []).append(
+                    (
+                        _decimal_score_to_unit(evidence_score),
+                        _decimal_score_to_unit(effect_score),
+                        int(display_order),
+                        str(effect_name),
+                        str(ingredient_name),
+                    )
+                )
             max_effect_score_by_product_id[db_product_id] = max(
                 max_effect_score_by_product_id.get(db_product_id, 0.0),
                 _decimal_score_to_unit(effect_score),
@@ -694,17 +717,24 @@ def _load_product_signals(
                 _decimal_score_to_unit(evidence_score),
             )
 
-    return {
-        product_id: _ProductSignals(
+    signals_by_product_id: dict[int, _ProductSignals] = {}
+    for product_id in product_ids:
+        tag_candidates = sorted(
+            tag_candidates_by_product_id.get(product_id, []),
+            key=lambda candidate: (-candidate[0], -candidate[1], candidate[2], candidate[3], candidate[4]),
+        )
+        tag_effect, tag_ingredient = (tag_candidates[0][3], tag_candidates[0][4]) if tag_candidates else ("", "")
+        signals_by_product_id[product_id] = _ProductSignals(
             key_ingredients=tuple(_dedupe(ingredients_by_product_id.get(product_id, []))[:3]),
             effects=tuple(_dedupe(effects_by_product_id.get(product_id, []))[:3]),
+            tag_effect=tag_effect,
+            tag_ingredient=tag_ingredient,
             ingredient_codes=tuple(_dedupe(ingredient_codes_by_product_id.get(product_id, []))[:8]),
             effect_codes=tuple(_dedupe(effect_codes_by_product_id.get(product_id, []))[:8]),
             max_effect_score=max_effect_score_by_product_id.get(product_id, 0.0),
             max_evidence_score=max_evidence_score_by_product_id.get(product_id, 0.0),
         )
-        for product_id in product_ids
-    }
+    return signals_by_product_id
 
 
 def _load_skin_profiles(
@@ -884,13 +914,12 @@ def _build_badges(section_id: str, score: float, signals: _ProductSignals) -> li
 
 
 def _build_tags(signals: _ProductSignals) -> list[str]:
-    tags = [*signals.effects[:2], *signals.key_ingredients[:3]]
-    return _dedupe(tags)[:4]
+    return _dedupe([signals.tag_effect, signals.tag_ingredient])
 
 
 def _build_reason_summary(section_id: str, signals: _ProductSignals, product: _ProductBase) -> str:
-    primary_effect = signals.effects[0] if signals.effects else ""
-    primary_ingredient = signals.key_ingredients[0] if signals.key_ingredients else ""
+    primary_effect = signals.tag_effect
+    primary_ingredient = signals.tag_ingredient
 
     if section_id == "recommended_for_you":
         if primary_effect:
@@ -1148,6 +1177,8 @@ def _empty_signals() -> _ProductSignals:
     return _ProductSignals(
         key_ingredients=(),
         effects=(),
+        tag_effect="",
+        tag_ingredient="",
         ingredient_codes=(),
         effect_codes=(),
         max_effect_score=0.0,
