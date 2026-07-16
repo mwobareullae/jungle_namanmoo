@@ -99,8 +99,8 @@ die() {
 }
 
 case "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" in
-  legacy_bulk|compact_v2) ;;
-  *) die "BENCHMARK_RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk or compact_v2" ;;
+  legacy_bulk|compact_v2|coarse_top50_v1) ;;
+  *) die "BENCHMARK_RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, or coarse_top50_v1" ;;
 esac
 
 safe_label() {
