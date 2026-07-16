@@ -71,7 +71,7 @@ class DeleteCartItemResponse(BaseModel):
 
 
 class DeleteCartItemsRequest(BaseModel):
-    item_ids: list[int] = Field(..., min_length=1, max_length=100)
+    cart_item_ids: list[int] = Field(..., min_length=1, max_length=100)
 
 
 class DeleteCartItemsResponse(BaseModel):

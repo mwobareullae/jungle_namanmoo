@@ -146,7 +146,7 @@ Response:
 }
 ```
 
-## `DELETE /api/cart/items`
+## `DELETE /api/cart/items/bulk`
 
 Deletes multiple selected items from the current user's or anonymous cart.
 
@@ -154,7 +154,7 @@ Request:
 
 ```json
 {
-  "item_ids": [101, 102]
+  "cart_item_ids": [101, 102]
 }
 ```
 

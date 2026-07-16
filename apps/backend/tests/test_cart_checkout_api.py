@@ -168,8 +168,8 @@ def test_cart_bulk_delete_removes_selected_items_and_records_events(
 
     response = client.request(
         "DELETE",
-        "/api/cart/items",
-        json={"item_ids": [first_id, second_id, first_id]},
+        "/api/cart/items/bulk",
+        json={"cart_item_ids": [first_id, second_id, first_id]},
     )
 
     assert response.status_code == 200
