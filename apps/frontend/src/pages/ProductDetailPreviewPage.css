@@ -146,6 +146,19 @@
 .naver-preview-qna details p { margin: 0; padding: 0 0 24px; color: #555; line-height: 1.6; }
 .naver-preview-sticky-buy { top: 82px; margin-top: -64px; }
 .naver-preview-quantity button { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.naver-preview-quantity button:first-child {
+  color: #111;
+  cursor: pointer;
+}
+.naver-preview-quantity button:first-child:disabled {
+  color: #c9d0d8;
+  cursor: not-allowed;
+}
+.naver-preview-quantity button.is-limit-reached {
+  background: #fff1ef;
+  color: #e03131;
+  cursor: pointer;
+}
 .naver-preview-buy-grid button.is-wished { color: #222; }
 .naver-preview-buy-grid button.is-wished svg { color: #ff3521; }
 .naver-preview-buy-grid button:disabled {
