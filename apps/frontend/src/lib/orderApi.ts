@@ -19,6 +19,15 @@ const createIdempotencyKey = () => {
   return `mwb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
+const ORDER_SUMMARY_CACHE_TTL_MS = 10_000;
+const orderSummaryCache = new Map<number, { value: OrderSummaryResponse; expiresAt: number }>();
+const orderSummaryRequests = new Map<number, Promise<OrderSummaryResponse>>();
+
+export const invalidateOrderSummary = (userId?: number | null) => {
+  if (typeof userId === "number") orderSummaryCache.delete(userId);
+  else orderSummaryCache.clear();
+};
+
 export const createOrder = (request: CreateOrderRequest): Promise<CreateOrderResponse> => {
   return fetchWithTimeout(`${API_BASE_URL}/orders`, {
     method: "POST",
@@ -49,10 +58,25 @@ export const getOrders = (params: GetOrdersParams = {}): Promise<OrderListRespon
   );
 };
 
-export const getOrderSummary = (): Promise<OrderSummaryResponse> => {
-  return fetchWithTimeout(`${API_BASE_URL}/orders/summary`).then(
-    (response) => parseJson<OrderSummaryResponse>(response)
-  );
+export const getOrderSummary = (userId?: number | null): Promise<OrderSummaryResponse> => {
+  if (typeof userId !== "number") {
+    return fetchWithTimeout(`${API_BASE_URL}/orders/summary`).then((response) => parseJson<OrderSummaryResponse>(response));
+  }
+  const cached = orderSummaryCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value);
+  const pending = orderSummaryRequests.get(userId);
+  if (pending) return pending;
+  const request = fetchWithTimeout(`${API_BASE_URL}/orders/summary`)
+    .then((response) => parseJson<OrderSummaryResponse>(response))
+    .then((value) => {
+      orderSummaryCache.set(userId, { value, expiresAt: Date.now() + ORDER_SUMMARY_CACHE_TTL_MS });
+      return value;
+    })
+    .finally(() => {
+      orderSummaryRequests.delete(userId);
+    });
+  orderSummaryRequests.set(userId, request);
+  return request;
 };
 
 export const confirmTossPayment = (
