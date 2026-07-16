@@ -2119,6 +2119,25 @@ def _load_recommendation_scoring_snapshots(
         ):
             miss_ids.add(product_id)
             continue
+        if (
+            payload.review_metric is not None
+            and source_versions["review_metric"] != REVIEW_SCORE_VERSION
+        ):
+            miss_ids.add(product_id)
+            continue
+        if (
+            payload.review_segments
+            and REVIEW_SCORE_VERSION not in source_versions["review_segments"]
+        ):
+            miss_ids.add(product_id)
+            continue
+        if (
+            payload.market_signal is not None
+            and source_versions["market_signal"]["window_days"]
+            != MARKET_SIGNAL_WINDOW_DAYS
+        ):
+            miss_ids.add(product_id)
+            continue
 
         bundles[product_id] = _snapshot_bundle(payload)
         effect_features[product_id] = {
@@ -2233,6 +2252,39 @@ def _validate_snapshot_source_versions(
         raise RecommendationScoringSnapshotPayloadError(
             "source_versions.effect_features must be an object"
         )
+    review_metric = value.get("review_metric")
+    review_segments = value.get("review_segments")
+    market_signal = value.get("market_signal")
+    if review_metric is not None and not isinstance(review_metric, str):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.review_metric must be a string or null"
+        )
+    if not isinstance(review_segments, list) or any(
+        not isinstance(version, str) for version in review_segments
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.review_segments must be a string array"
+        )
+    if not isinstance(market_signal, dict):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal must be an object"
+        )
+    market_window_days = market_signal.get("window_days")
+    market_score_version = market_signal.get("score_version")
+    if not isinstance(market_window_days, int) or isinstance(
+        market_window_days,
+        bool,
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal.window_days must be an integer"
+        )
+    if market_score_version is not None and not isinstance(
+        market_score_version,
+        str,
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal.score_version must be a string or null"
+        )
     feature_version = product_feature.get("feature_version")
     source_current = product_feature.get("source_current")
     if feature_version is not None and not isinstance(feature_version, str):
@@ -2269,6 +2321,12 @@ def _validate_snapshot_source_versions(
             "source_current": source_current,
         },
         "effect_features": normalized_effect_versions,
+        "review_metric": review_metric,
+        "review_segments": tuple(review_segments),
+        "market_signal": {
+            "window_days": market_window_days,
+            "score_version": market_score_version,
+        },
     }
 
 
