@@ -707,10 +707,13 @@ async def add_to_cart(
 @function_tool(name_override=PREPARE_PRODUCT_CHECKOUT_TOOL)
 async def prepare_product_checkout(
     ctx: RunContextWrapper[CommerceAgentContext],
-    product_id: str,
+    product_id: str | None = None,
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
+    reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
 ) -> str:
     """Put one referenced product in the real cart and open checkout for final review."""
     return _execute_tool(
@@ -721,6 +724,9 @@ async def prepare_product_checkout(
             "quantity": quantity,
             "recommendation_id": recommendation_id,
             "recommendation_rank": recommendation_rank,
+            "reference_source": reference_source,
+            "reference_rank": reference_rank,
+            "reference_position": reference_position,
         },
     )
 
