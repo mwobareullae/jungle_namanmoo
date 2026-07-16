@@ -339,6 +339,56 @@ if stale_review_metric_count:
 PY
 }
 
+verify_recommendation_coarse_features() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, or_, select
+
+from app.db.models.recommendation import ProductRecommendationCoarseFeature
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+)
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    coarse_feature_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id))
+        ).scalar_one()
+    )
+    invalid_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id)).where(
+                or_(
+                    ProductRecommendationCoarseFeature.feature_version
+                    != PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+                    ProductRecommendationCoarseFeature.source_current.is_(False),
+                )
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_coarse_features={coarse_feature_count}")
+print(
+    "recommendation_coarse_feature_version="
+    f"{PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION}"
+)
+print(f"recommendation_coarse_feature_invalid={invalid_count}")
+if coarse_feature_count != expected:
+    raise SystemExit(
+        f"expected recommendation coarse features={expected}, got {coarse_feature_count}"
+    )
+if invalid_count:
+    raise SystemExit(
+        f"recommendation coarse feature is stale or invalid: {invalid_count} row(s)"
+    )
+PY
+}
+
 verify_elasticsearch() {
   local count expected
   expected="$(expected_product_count)"
@@ -398,6 +448,12 @@ prepare() {
   backend_exec python -m app.cli.rollup_product_recommendation_scoring_read_models \
     --full \
     --batch-size 500
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    echo "Rolling up recommendation coarse features..."
+    backend_exec python -m app.cli.rollup_product_recommendation_coarse_features \
+      --full \
+      --batch-size 500
+  fi
   echo "Indexing benchmark dataset..."
   backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
     --full \
@@ -407,6 +463,9 @@ prepare() {
     --retain-previous-indices 4
   verify_database_counts
   verify_recommendation_scoring_read_models
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    verify_recommendation_coarse_features
+  fi
   verify_elasticsearch
   if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
     activate
