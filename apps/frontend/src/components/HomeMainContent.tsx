@@ -576,6 +576,10 @@ type HomeSearchEvent = CustomEvent<{
   refinementFilters?: RecommendationRefinementFilters;
 }>;
 
+type HomeSearchPendingEvent = CustomEvent<{
+  query: string;
+}>;
+
 type AgentRefinedProductsEvent = CustomEvent<{
   products?: Array<Record<string, unknown>>;
   filters?: Record<string, unknown>;
@@ -636,6 +640,7 @@ function HomeMainContent({
   );
   const [errorMessage, setErrorMessage] = useState("");
   const activeSearchRequestRef = useRef(0);
+  const pendingSearchQueryRef = useRef<string | null>(null);
   const isGeneralSearch = initialSearchMode === "general";
 
   const updateSearchUrl = useCallback(
@@ -683,6 +688,7 @@ function HomeMainContent({
       if (!trimmedQuery) return;
       const requestId = activeSearchRequestRef.current + 1;
       activeSearchRequestRef.current = requestId;
+      pendingSearchQueryRef.current = null;
 
       setQuery(trimmedQuery);
       setIsLoading(true);
@@ -774,6 +780,53 @@ function HomeMainContent({
     },
     [isGeneralSearch, mode, pageSize, updateSearchUrl]
   );
+
+  useEffect(() => {
+    const handlePendingSearch = (event: Event) => {
+      const nextQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      if (!nextQuery) return;
+
+      activeSearchRequestRef.current += 1;
+      pendingSearchQueryRef.current = nextQuery;
+      setQuery(nextQuery);
+      setIsLoading(true);
+      setErrorMessage("");
+      setAgentRefinementFilters(null);
+      setRecommendation(null);
+      window.dispatchEvent(
+        new CustomEvent("home-recommendation-state", {
+          detail: { status: "loading", query: nextQuery, recommendation: null }
+        })
+      );
+      window.requestAnimationFrame(() => {
+        document.getElementById("searchResultsSection")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    };
+
+    const handleFailedSearch = (event: Event) => {
+      const failedQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      if (!failedQuery || pendingSearchQueryRef.current !== failedQuery) return;
+
+      pendingSearchQueryRef.current = null;
+      setIsLoading(false);
+      setErrorMessage("추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      window.dispatchEvent(
+        new CustomEvent("home-recommendation-state", {
+          detail: { status: "error", query: failedQuery, recommendation: null }
+        })
+      );
+    };
+
+    window.addEventListener("home-search-pending", handlePendingSearch);
+    window.addEventListener("home-search-failed", handleFailedSearch);
+    return () => {
+      window.removeEventListener("home-search-pending", handlePendingSearch);
+      window.removeEventListener("home-search-failed", handleFailedSearch);
+    };
+  }, []);
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
