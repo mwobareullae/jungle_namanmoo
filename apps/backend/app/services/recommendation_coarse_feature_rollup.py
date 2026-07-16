@@ -72,7 +72,7 @@ def rollup_product_recommendation_coarse_features(
     for start in range(0, len(normalized_product_ids), normalized_batch_size):
         batch_count += 1
         batch_product_ids = normalized_product_ids[start : start + normalized_batch_size]
-        rows = _load_coarse_feature_rows(
+        rows = load_product_recommendation_coarse_feature_source_rows(
             session,
             batch_product_ids,
             computed_at=now,
@@ -117,7 +117,7 @@ def _load_target_product_ids(
     return [int(product_id) for product_id in session.execute(statement).scalars()]
 
 
-def _load_coarse_feature_rows(
+def load_product_recommendation_coarse_feature_source_rows(
     session: Session,
     product_ids: list[int],
     *,
