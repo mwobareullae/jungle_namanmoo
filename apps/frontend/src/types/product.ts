@@ -78,6 +78,7 @@ export type BrandListItem = {
 
 export type BrandListResponse = {
   items: BrandListItem[];
+  pagination: ProductListingPagination;
 };
 
 export type CategoryListItem = {
