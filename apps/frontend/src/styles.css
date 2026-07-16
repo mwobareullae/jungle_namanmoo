@@ -6182,8 +6182,7 @@ body {
   text-decoration: none;
 }
 
-.home-see-all span,
-.home-section-more span {
+.home-see-all span {
   display: inline-grid;
   place-items: center;
   width: 22px;
@@ -6642,7 +6641,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
   min-width: min(360px, 100%);
   min-height: 52px;
   padding: 0 26px;
@@ -6653,6 +6652,17 @@ body {
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+}
+
+.home-section-more__arrow {
+  flex: 0 0 auto;
+  color: #2aa6d1;
+  transition: transform 160ms ease;
+}
+
+.home-section-more:hover .home-section-more__arrow,
+.home-section-more:focus-visible .home-section-more__arrow {
+  transform: translateX(3px);
 }
 
 .search-product-card .product-info,
