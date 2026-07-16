@@ -6025,15 +6025,16 @@ body {
 .home-section-kicker {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
+  height: 24px;
   margin-bottom: 10px;
   padding: 0 10px;
   border: 1px solid rgba(148, 224, 248, 0.7);
   border-radius: 999px;
-  background: rgba(148, 224, 248, 0.14);
+  background : #ffffff;
   color: #0d6077;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1;
 }
 
 .home-section-head .section-title {
@@ -6364,7 +6365,7 @@ body {
 
 .home-ranking-brand {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 500;
   text-align: center;
 }
@@ -6375,7 +6376,7 @@ body {
   margin-top: 8px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 14.5px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.55;
   text-align: center;
@@ -6588,7 +6589,7 @@ body {
   min-height: 44px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
   -webkit-box-orient: vertical;

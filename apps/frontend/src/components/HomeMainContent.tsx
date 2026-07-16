@@ -61,6 +61,15 @@ const getHomeSectionHref = (sectionId: string) => {
 const getHomeSectionKicker = (sectionId: string) =>
   sectionId === "for_you" ? "맞춤 추천 섹션" : "성분 근거 기준 큐레이션";
 
+function HomeSectionMoreLink({ href, title }: { href: string; title: string }) {
+  return (
+    <a className="home-section-more" href={href}>
+      {title} 전체보기
+      <span aria-hidden="true">→</span>
+    </a>
+  );
+}
+
 type HomeProductEventContext = {
   sectionId: string;
   source: string;
@@ -196,7 +205,6 @@ function HomeLoadingSectionHead() {
         <Skeleton className="section-title" />
         <Skeleton className="section-subtitle" />
       </div>
-      <Skeleton className="home-see-all" />
     </div>
   );
 }
@@ -255,10 +263,6 @@ function HomeRankingSection({
               : section.subtitle}
           </div>
         </div>
-        <a className="home-see-all" href="/products/popular">
-          전체보기
-          <span aria-hidden="true">→</span>
-        </a>
       </div>
 
       <div className="home-ranking-wrap">
@@ -340,6 +344,7 @@ function HomeRankingSection({
           </button>
         ) : null}
       </div>
+      <HomeSectionMoreLink href="/products/popular" title={section.title} />
     </section>
   );
 }
@@ -447,10 +452,6 @@ function HomeDealSection({
           </div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
-          전체보기
-          <span aria-hidden="true">→</span>
-        </a>
       </div>
       {section.section_id === "for_you" && forYouFilters && onForYouFilterChange ? (
         <div className="home-for-you-filters" aria-label="맞춤 추천 조건">
@@ -512,10 +513,7 @@ function HomeDealSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
-      <a className="home-section-more" href={getHomeSectionHref(section.section_id)}>
-        {section.title} 전체보기
-        <span aria-hidden="true">→</span>
-      </a>
+      <HomeSectionMoreLink href={getHomeSectionHref(section.section_id)} title={section.title} />
     </section>
   );
 }
@@ -537,10 +535,6 @@ function HomeOriginalGridSection({
           <div className="section-title">{section.title}</div>
           <div className="section-subtitle">{section.subtitle}</div>
         </div>
-        <a className="home-see-all" href={getHomeSectionHref(section.section_id)}>
-          전체보기
-          <span aria-hidden="true">→</span>
-        </a>
       </div>
       <div className="product-grid">
         {visibleProducts.length ? (
@@ -561,6 +555,7 @@ function HomeOriginalGridSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
+      <HomeSectionMoreLink href={getHomeSectionHref(section.section_id)} title={section.title} />
     </section>
   );
 }
