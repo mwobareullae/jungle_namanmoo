@@ -43,6 +43,7 @@ class OrderCreateResponse(BaseModel):
     total: int
     currency: str
     payment_expires_at: datetime | None
+    order_snapshot: "OrderDetailResponse | None" = None
 
 
 class OrderCancelResponse(BaseModel):
@@ -68,6 +69,12 @@ class OrderListItem(BaseModel):
 class OrderListResponse(BaseModel):
     items: list[OrderListItem]
     next_cursor: str | None
+
+
+class OrderSummaryResponse(BaseModel):
+    """Current user's order counts grouped by the persisted order status."""
+
+    status_counts: dict[str, int]
 
 
 class OrderDetailPayment(BaseModel):

@@ -370,7 +370,7 @@ function SkinTestRecommendationsPage() {
 
     let isActive = true;
 
-    getMyWishlist()
+    getMyWishlist(50, user?.id)
       .then((items) => {
         if (!isActive) return;
         setWishedProductIds(new Set(items.map((item) => item.productId)));
@@ -418,10 +418,10 @@ function SkinTestRecommendationsPage() {
 
     try {
       if (wasWished) {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       } else {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       }
     } catch {

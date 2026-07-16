@@ -4,7 +4,10 @@ import { avoidIngredientCategories } from "../../constants/avoidIngredientCatego
 import ActivityToast from "../../components/ui/ActivityToast";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { useActivityToast } from "../../hooks/useActivityToast";
-import { getMySkinProfile, updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
+import { useSkinProfileQuery, skinProfileQueryKey } from "../../hooks/useSkinProfileQuery";
+import { setMySkinProfileCache, updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
+import { useAuth } from "../../contexts/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Sensitivity, SkinType } from "../../types/recommendation";
 import { MyPageLayout, PageTitle, type MypageEventContext } from "./MyPageShell";
 
@@ -149,10 +152,13 @@ const draftFromSkinProfile = (profile: SkinProfileData, fallback: SkinProfileDra
 };
 
 export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDraft }: SkinProfileProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null);
   const [profile, setProfile] = useState<SkinProfileDraft>(initialProfile);
   const [savedProfile, setSavedProfile] = useState<SkinProfileDraft>(initialProfile);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const isLoadingProfile = skinProfileQuery.isPending;
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const { message: toastMessage, showToast } = useActivityToast();
@@ -161,40 +167,22 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
     !isSameProfileDraft(profile, savedProfile);
 
   useEffect(() => {
-    let isActive = true;
-
-    getMySkinProfile()
-      .then((savedProfile) => {
-        if (!isActive) {
-          return;
-        }
-
-        if (savedProfile) {
-          const nextProfile = draftFromSkinProfile(savedProfile, emptyProfile);
-          setProfile(nextProfile);
-          setSavedProfile(nextProfile);
-          setHasSavedProfile(true);
-          setStatusMessage(null);
-        } else {
-          setHasSavedProfile(false);
-          setStatusMessage("아직 저장된 피부 프로필이 없습니다. 피부 타입과 민감도를 선택해 주세요.");
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setStatusMessage("저장된 피부 프로필을 불러오지 못했습니다.");
-        }
-      })
-      .finally(() => {
-        if (isActive) {
-          setIsLoadingProfile(false);
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+    const timerId = window.setTimeout(() => {
+      if (skinProfileQuery.data) {
+        const nextProfile = draftFromSkinProfile(skinProfileQuery.data, emptyProfile);
+        setProfile(nextProfile);
+        setSavedProfile(nextProfile);
+        setHasSavedProfile(true);
+        setStatusMessage(null);
+      } else if (!skinProfileQuery.isPending && !skinProfileQuery.isError) {
+        setHasSavedProfile(false);
+        setStatusMessage("아직 저장된 피부 프로필이 없습니다. 피부 타입과 민감도를 선택해 주세요.");
+      } else if (skinProfileQuery.isError) {
+        setStatusMessage("저장된 피부 프로필을 불러오지 못했습니다.");
+      }
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [skinProfileQuery.data, skinProfileQuery.isError, skinProfileQuery.isPending]);
 
   const saveProfile = async () => {
     if (!canSave || isSaving) {
@@ -218,6 +206,8 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
         setProfile(nextProfile);
         setSavedProfile(nextProfile);
         setHasSavedProfile(true);
+        setMySkinProfileCache(user?.id, savedProfile);
+        queryClient.setQueryData(skinProfileQueryKey(user?.id ?? null), savedProfile);
       }
 
       onSubmitDraft?.(profile);

@@ -109,6 +109,7 @@ function ProductDetailPreviewPage() {
     }
 
     let isMounted = true;
+    const controller = new AbortController();
 
     const loadProduct = async () => {
       await Promise.resolve();
@@ -120,7 +121,7 @@ function ProductDetailPreviewPage() {
 
       let response: ProductDetail;
       try {
-        response = await api.getProduct(productId, recommendationId ?? undefined);
+        response = await api.getProduct(productId, recommendationId ?? undefined, controller.signal);
       } catch {
         if (!isMounted) return;
         setLoadErrorMessage("상품 상세 정보를 불러오지 못했습니다.");
@@ -153,6 +154,7 @@ function ProductDetailPreviewPage() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [productId, recommendationId]);
 
@@ -248,7 +250,7 @@ function ProductDetailPreviewPage() {
         isMounted = false;
       };
     }
-    getMyWishlist()
+    getMyWishlist(50, user?.id)
       .then((items) => {
         if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
       })
@@ -275,10 +277,10 @@ function ProductDetailPreviewPage() {
     setPendingWishlistProductIds((previous) => new Set(previous).add(productId));
     try {
       if (wasWished) {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       } else {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       }
     } catch {
