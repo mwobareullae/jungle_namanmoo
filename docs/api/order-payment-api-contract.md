@@ -513,6 +513,39 @@ Response:
 }
 ```
 
+## `GET /api/orders/summary`
+
+Returns the current authenticated user's order count grouped by every supported
+order status. Statuses with no orders are returned with a count of `0`, so the
+client can render a stable order-status summary without inferring missing keys.
+
+Response:
+
+```json
+{
+  "status_counts": {
+    "PENDING_PAYMENT": 0,
+    "PAID": 3,
+    "PAYMENT_FAILED": 0,
+    "EXPIRED": 0,
+    "CANCELED": 0,
+    "PREPARING_SHIPMENT": 1,
+    "SHIPPED": 2,
+    "DELIVERED": 5,
+    "CANCEL_REQUESTED": 0,
+    "REFUND_REQUESTED": 0,
+    "REFUNDED": 0,
+    "RETURN_REQUESTED": 0,
+    "RETURNED": 0,
+    "EXCHANGE_REQUESTED": 0,
+    "EXCHANGED": 0
+  }
+}
+```
+
+The response is scoped to the authenticated user and does not expose counts
+from other users' orders.
+
 ## `GET /api/orders/{order_code}`
 
 Returns one order detail owned by the current user.

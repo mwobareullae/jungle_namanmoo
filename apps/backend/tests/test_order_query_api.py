@@ -92,6 +92,60 @@ def test_get_orders_can_filter_by_status(
     assert pending["order_code"] not in [item["order_code"] for item in data["items"]]
 
 
+def test_get_order_summary_returns_all_status_counts_for_current_user(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="order-summary@example.com", nickname="order-summary")
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_001",
+        quantity=1,
+        key="summary-pending",
+    )
+    paid = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_002",
+        quantity=1,
+        key="summary-paid",
+    )
+    assert _confirm_toss_payment(client, paid).status_code == 200
+
+    response = client.get("/api/orders/summary")
+
+    assert response.status_code == 200
+    status_counts = response.json()["status_counts"]
+    assert status_counts["PENDING_PAYMENT"] == 1
+    assert status_counts["PAID"] == 1
+    assert status_counts["DELIVERED"] == 0
+    assert set(status_counts) == {
+        "PENDING_PAYMENT",
+        "PAID",
+        "PAYMENT_FAILED",
+        "EXPIRED",
+        "CANCELED",
+        "PREPARING_SHIPMENT",
+        "SHIPPED",
+        "DELIVERED",
+        "CANCEL_REQUESTED",
+        "REFUND_REQUESTED",
+        "REFUNDED",
+        "RETURN_REQUESTED",
+        "RETURNED",
+        "EXCHANGE_REQUESTED",
+        "EXCHANGED",
+    }
+    assert pending["order_code"]
+
+
+def test_get_order_summary_requires_authentication(client: TestClient) -> None:
+    response = client.get("/api/orders/summary")
+
+    assert response.status_code == 401
+
+
 def test_get_order_detail_returns_order_snapshots(
     client: TestClient,
     db_engine: Engine,

@@ -70,6 +70,12 @@ class OrderListResponse(BaseModel):
     next_cursor: str | None
 
 
+class OrderSummaryResponse(BaseModel):
+    """Current user's order counts grouped by the persisted order status."""
+
+    status_counts: dict[str, int]
+
+
 class OrderDetailPayment(BaseModel):
     payment_code: str
     provider: PaymentProvider
