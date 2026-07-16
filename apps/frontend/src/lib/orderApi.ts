@@ -5,6 +5,7 @@ import type {
   OrderCancelResponse,
   OrderDetailResponse,
   OrderListResponse,
+  OrderSummaryResponse,
   TossPaymentConfirmRequest,
   TossPaymentConfirmResponse
 } from "../types/order";
@@ -45,6 +46,12 @@ export const getOrders = (params: GetOrdersParams = {}): Promise<OrderListRespon
   const queryString = searchParams.toString();
   return fetchWithTimeout(`${API_BASE_URL}/orders${queryString ? `?${queryString}` : ""}`).then(
     (response) => parseJson<OrderListResponse>(response)
+  );
+};
+
+export const getOrderSummary = (): Promise<OrderSummaryResponse> => {
+  return fetchWithTimeout(`${API_BASE_URL}/orders/summary`).then(
+    (response) => parseJson<OrderSummaryResponse>(response)
   );
 };
 
