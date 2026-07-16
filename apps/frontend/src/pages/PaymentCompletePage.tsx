@@ -3,12 +3,10 @@ import { Link } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { useAuth } from "../contexts/useAuth";
-import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
 import { cancelOrder, confirmTossPayment, getOrderDetail } from "../lib/orderApi";
 import type { OrderDetailItem, OrderDetailResponse } from "../types/order";
-import type { ProductDetail } from "../types/recommendation";
 
 type CompleteProduct = {
   id: string;
@@ -80,13 +78,6 @@ const getCompleteParams = () => {
     paymentMethod: params.get("payment_method") ?? "간편결제",
   };
 };
-
-const mapDetailToCompleteProduct = (product: ProductDetail): CompleteProduct => ({
-  id: product.product_id,
-  brand: product.brand,
-  name: product.name,
-  image: product.thumbnail_url ?? product.image_urls[0] ?? "",
-});
 
 const mapOrderItemToCompleteProduct = (item: OrderDetailItem): CompleteProduct => ({
   id: item.product_id,
@@ -166,7 +157,6 @@ function PaymentCompletePage() {
     : storedSnapshot?.paymentMethod ?? paymentMethod;
   const hasPaymentInfo = Boolean(detailOrderCode) || Boolean(storedSnapshot) || Boolean(id && total > 0 && count > 0) || Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
   const shouldConfirmTossPayment = Boolean(tossPaymentKey && tossOrderId && tossAmount > 0);
-  const [apiProduct, setApiProduct] = useState<CompleteProduct | null>(null);
   const [isProductListOpen, setIsProductListOpen] = useState(false);
   const [generatedFallbackOrderNo] = useState(() => `MWB-${String(Date.now()).slice(-8)}`);
   const fallbackOrderNo = storedSnapshot?.orderCode || tossOrderId || orderCode || generatedFallbackOrderNo;
@@ -175,25 +165,6 @@ function PaymentCompletePage() {
   );
   const [tossConfirmErrorMessage, setTossConfirmErrorMessage] = useState("");
   const [failedPaymentCancelMessage, setFailedPaymentCancelMessage] = useState("");
-
-  useEffect(() => {
-    if (!productId) {
-      return;
-    }
-
-    let isMounted = true;
-    api.getProduct(productId, recommendationId)
-      .then((product) => {
-        if (isMounted) setApiProduct(mapDetailToCompleteProduct(product));
-      })
-      .catch(() => {
-        if (isMounted) setApiProduct(null);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [productId, recommendationId]);
 
   useEffect(() => {
     if (!detailOrderCode || paymentFailed) {
@@ -360,7 +331,7 @@ function PaymentCompletePage() {
   }
 
   const orderDetailProducts = orderDetail?.items.map(mapOrderItemToCompleteProduct) ?? [];
-  const product = apiProduct ?? storedSnapshot?.product ?? orderDetailProducts[0] ?? fallbackProducts[productId] ?? fallbackProducts["10"];
+  const product = storedSnapshot?.product ?? orderDetailProducts[0] ?? fallbackProducts[productId] ?? fallbackProducts["10"];
   const completeProducts = orderDetailProducts.length
     ? orderDetailProducts
     : storedSnapshot?.products?.length

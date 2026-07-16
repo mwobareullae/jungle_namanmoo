@@ -36,6 +36,7 @@ export type CreateOrderResponse = {
   total: number;
   currency: string;
   payment_expires_at: string | null;
+  order_snapshot?: OrderDetailResponse | null;
 };
 
 export type TossPaymentConfirmRequest = {
@@ -50,6 +51,7 @@ export type TossPaymentConfirmResponse = {
   order_status: string;
   payment_status: string;
   approved_at?: string | null;
+  order_snapshot?: OrderDetailResponse | null;
 };
 
 export type MockPaymentConfirmResponse = {
@@ -59,6 +61,7 @@ export type MockPaymentConfirmResponse = {
   payment_status: string;
   approved_at?: string | null;
   failed_at?: string | null;
+  order_snapshot?: OrderDetailResponse | null;
 };
 
 export type OrderCancelResponse = {
