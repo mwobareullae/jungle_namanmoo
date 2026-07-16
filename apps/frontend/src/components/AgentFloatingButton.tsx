@@ -8,6 +8,7 @@ import {
   type AgentEntryMessageDetail,
 } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { getSensitiveAgentInputMessage } from "../lib/agentInputSafety";
 import { getOrderDetail } from "../lib/orderApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
@@ -672,17 +673,23 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   if (refineSensitivity) filters.sensitivity = refineSensitivity;
   if (refineEffects.length) filters.effect_keywords = refineEffects;
 
-  return {
-    current_product_id: currentProductId,
-    filters,
-    order_code: readString(params.get("order_code")),
+  const context: AgentContext = {
     page: resolveAgentPage(pathname),
-    recommendation_id: readString(params.get("recommendation_id")),
     route: `${pathname}${search}${hash}`,
-    search_query: readString(params.get("keyword")),
-    selected_product_ids: [],
-    visible_product_ids: collectVisibleProductIds(currentProductId),
   };
+  const visibleProductIds = collectVisibleProductIds(currentProductId);
+  const orderCode = readString(params.get("order_code"));
+  const recommendationId = readString(params.get("recommendation_id"));
+  const searchQuery = readString(params.get("keyword"));
+
+  if (currentProductId) context.current_product_id = currentProductId;
+  if (Object.keys(filters).length > 0) context.filters = filters;
+  if (orderCode) context.order_code = orderCode;
+  if (recommendationId) context.recommendation_id = recommendationId;
+  if (searchQuery) context.search_query = searchQuery;
+  if (visibleProductIds.length > 0) context.visible_product_ids = visibleProductIds;
+
+  return context;
 }
 
 const getApprovalCopy = (toolName?: AgentToolName | null) => {
@@ -785,6 +792,14 @@ function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: 
     });
   }
 
+  if (code === "AGENT_SENSITIVE_INPUT") {
+    return createAgentErrorMessage(id, "민감정보는 입력할 수 없어요", message, {
+      action: "input",
+      actionLabel: "내용 수정",
+      tone: "info",
+    });
+  }
+
   if (status === 408) {
     return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
       retryMessage,
@@ -819,6 +834,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     return createAgentErrorMessage(id, "배송지가 필요해요", response.error.message, {
       action: "input",
       actionLabel: "배송지 입력하기",
+      tone: "info",
+    });
+  }
+
+  if (response.error.code === "AGENT_SENSITIVE_INPUT") {
+    return createAgentErrorMessage(id, "민감정보는 입력할 수 없어요", response.error.message, {
+      action: "input",
+      actionLabel: "내용 수정",
       tone: "info",
     });
   }
@@ -1751,6 +1774,26 @@ function AgentFloatingButton({
     const nextMessage = message.trim();
 
     if (!nextMessage || isSubmitting) {
+      return null;
+    }
+
+    const sensitiveInputMessage = getSensitiveAgentInputMessage(nextMessage);
+    if (sensitiveInputMessage) {
+      const errorMessage = createAgentErrorMessage(
+        `sensitive-${Date.now()}`,
+        "민감정보는 입력할 수 없어요",
+        sensitiveInputMessage,
+        { action: "input", actionLabel: "내용 수정" },
+      );
+      if (activeView === "home") {
+        setCurrentThreadId(`thread-${Date.now()}`);
+        setConversationId(null);
+        setLastToolResultContext(null);
+        setMessages([errorMessage]);
+        setActiveView("thread");
+      } else {
+        appendMessages([errorMessage]);
+      }
       return null;
     }
 
