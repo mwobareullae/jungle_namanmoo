@@ -12,7 +12,7 @@ const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
 function ProductCard({ product, onOpen }: ProductCardProps) {
-  const riskCount = product.risk_flags.length;
+  const riskCount = product.risk_flag_count ?? product.risk_flags.length;
   const isSoldOut = isProductSoldOut(product);
 
   return (

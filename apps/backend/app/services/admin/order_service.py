@@ -35,6 +35,8 @@ ORDER_STATUS_SHIPPED = "SHIPPED"
 ORDER_STATUS_DELIVERED = "DELIVERED"
 ORDER_STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED"
 
+ORDER_ITEM_STATUS_ORDERED = "ORDERED"
+
 PAYMENT_STATUS_APPROVED = "APPROVED"
 
 ACTION_START_PREPARATION = "START_PREPARATION"
@@ -322,6 +324,7 @@ def start_preparation(session: Session, *, order_code: str) -> ShipmentTransitio
         session,
         order_code=order_code,
         expected_status=ORDER_STATUS_PAID,
+        expected_item_status=ORDER_ITEM_STATUS_ORDERED,
         target_status=ORDER_STATUS_PREPARING_SHIPMENT,
         action=ACTION_START_PREPARATION,
     )
@@ -337,6 +340,7 @@ def start_shipment(session: Session, *, order_code: str) -> ShipmentTransitionRe
         session,
         order_code=order_code,
         expected_status=ORDER_STATUS_PREPARING_SHIPMENT,
+        expected_item_status=ORDER_STATUS_PREPARING_SHIPMENT,
         target_status=ORDER_STATUS_SHIPPED,
         action=ACTION_START_SHIPMENT,
     )
@@ -353,6 +357,7 @@ def complete_delivery(session: Session, *, order_code: str) -> ShipmentTransitio
         session,
         order_code=order_code,
         expected_status=ORDER_STATUS_SHIPPED,
+        expected_item_status=ORDER_STATUS_SHIPPED,
         target_status=ORDER_STATUS_DELIVERED,
         action=ACTION_COMPLETE_DELIVERY,
     )
@@ -363,6 +368,7 @@ def _transition_shipping_order(
     *,
     order_code: str,
     expected_status: str,
+    expected_item_status: str,
     target_status: str,
     action: str,
 ) -> ShipmentTransitionResult:
@@ -409,7 +415,10 @@ def _transition_shipping_order(
     order.updated_at = now
     result = session.execute(
         update(OrderItem)
-        .where(OrderItem.order_id == order.id)
+        .where(
+            OrderItem.order_id == order.id,
+            OrderItem.status == expected_item_status,
+        )
         .values(status=target_status, updated_at=now)
     )
     updated_count = result.rowcount
@@ -420,8 +429,9 @@ def _transition_shipping_order(
         raise ApiError(409, "ORDER_ITEMS_INCONSISTENT", "Order items are inconsistent.")
 
     # item_count 정합성 확인을 통과한 뒤에만 배송 시각·이력을 남긴다(실제 전이 1건당 1건).
-    # updated_at·배송 시각·이력 created_at 모두 같은 now 를 쓴다. 실패하면(예외로 라우터가
-    # rollback) Order·OrderItem·이 두 가지도 전부 함께 롤백된다(같은 세션·트랜잭션).
+    # 예상 상태가 아닌 아이템이 하나라도 있으면 rowcount 가 item_count 보다 작아져 위에서
+    # 거부된다. updated_at·배송 시각·이력 created_at 모두 같은 now 를 쓰며, 실패하면 router 의
+    # rollback 으로 Order·OrderItem·이 두 가지도 전부 함께 원복된다(같은 세션·트랜잭션).
     if target_status == ORDER_STATUS_SHIPPED:
         order.shipped_at = now
     elif target_status == ORDER_STATUS_DELIVERED:

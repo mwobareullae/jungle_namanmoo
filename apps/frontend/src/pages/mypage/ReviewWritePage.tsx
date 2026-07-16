@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Skeleton from "../../components/ui/Skeleton";
@@ -102,15 +103,35 @@ function ReviewWritePage() {
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      await createProductReview(selectedItem.product_id, {
+      const createdReview = await createProductReview(selectedItem.product_id, {
         order_item_id: selectedItem.order_item_id,
         rating,
         review_text: normalizedText,
         is_repurchase_review: isRepurchase
       });
+      const createdReviewItem = createdReview.review;
+      if (createdReviewItem) {
+        setMyReviews((current) => [
+          {
+            product_id: selectedItem.product_id,
+            product_name: selectedItem.product_name,
+            brand_name: selectedItem.brand_name,
+            thumbnail_storage_key: selectedItem.thumbnail_storage_key,
+            status: createdReview.status,
+            review: createdReviewItem
+          },
+          ...current.filter((item) => item.review.review_id !== createdReview.review_id)
+        ]);
+      }
       setItems((current) => current.filter((item) => item.order_item_id !== selectedItem.order_item_id));
       setSelectedItem(null);
       setReviewText("");
+      setActiveTab("mine");
+      void getMyProductReviews().then((response) => {
+        setMyReviews(response.items);
+      }).catch(() => {
+        // 등록 응답으로 화면을 먼저 갱신했으므로 재검증 실패 시에도 성공 상태를 유지한다.
+      });
       showToast("리뷰가 등록되었습니다.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "리뷰를 등록하지 못했습니다.");
@@ -237,14 +258,16 @@ function ReviewWritePage() {
             ) : myReviews.length > 0 ? (
               myReviews.map((item) => (
                 <article className="review-write-page__review" key={item.review.review_id}>
-                  <span className="review-write-page__thumbnail">
-                    {item.thumbnail_storage_key ? (
-                      <img alt="" src={getProductImageUrl(item.thumbnail_storage_key, "w400")} />
-                    ) : null}
-                  </span>
+                  <Link className="review-write-page__product-link" to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                    <span className="review-write-page__thumbnail">
+                      {item.thumbnail_storage_key ? <img alt="" src={getProductImageUrl(item.thumbnail_storage_key, "w400")} /> : null}
+                    </span>
+                  </Link>
                   <div className="review-write-page__review-copy">
                     <small>{item.brand_name}</small>
-                    <strong>{item.product_name}</strong>
+                    <Link className="review-write-page__product-name-link" to={`/product-detail?id=${encodeURIComponent(item.product_id)}`}>
+                      <strong>{item.product_name}</strong>
+                    </Link>
                     <span className="review-write-page__review-rating" aria-label={`${item.review.rating ?? 0}점`}>
                       {"★".repeat(item.review.rating ?? 0)}<i>{"★".repeat(5 - (item.review.rating ?? 0))}</i>
                     </span>

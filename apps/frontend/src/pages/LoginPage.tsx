@@ -15,8 +15,6 @@ type LoginLocationState = {
   from?: string;
 };
 
-type SocialProvider = "google" | "kakao" | "naver";
-
 type LoginResponse = {
   user?: AuthUser;
 };
@@ -31,14 +29,17 @@ type GoogleAccounts = {
       initialize: (options: {
         client_id: string;
         callback: (response: GoogleCredentialResponse) => void;
+        locale?: string;
       }) => void;
       renderButton: (
         parent: HTMLElement,
         options: {
           shape?: "circle" | "pill" | "rectangular" | "square";
           size?: "large" | "medium" | "small";
+          text?: "continue_with" | "signin_with" | "signup_with";
           theme?: "filled_black" | "filled_blue" | "outline";
           type?: "icon" | "standard";
+          width?: number;
         }
       ) => void;
     };
@@ -50,12 +51,6 @@ declare global {
     google?: GoogleAccounts;
   }
 }
-
-const socialProviderLabels: Record<SocialProvider, string> = {
-  google: "구글",
-  kakao: "카카오",
-  naver: "네이버"
-};
 
 const LOGIN_EMAIL_FORMAT_ERROR_MESSAGE = "아이디는 이메일 형식으로 입력해주세요.";
 
@@ -170,10 +165,6 @@ function LoginPage() {
     [navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
   );
 
-  const handleSocialLogin = (provider: SocialProvider) => {
-    setMessage(`${socialProviderLabels[provider]} 간편 로그인은 준비 중입니다.`);
-  };
-
   const handleGoogleCredential = useCallback(
     async (credentialResponse: GoogleCredentialResponse) => {
       if (!credentialResponse.credential) {
@@ -267,13 +258,16 @@ function LoginPage() {
         googleButtonRef.current.innerHTML = "";
         window.google.accounts.id.initialize({
           client_id: googleClientId,
-          callback: handleGoogleCredential
+          callback: handleGoogleCredential,
+          locale: "ko"
         });
         window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: "icon",
-          shape: "circle",
+          type: "standard",
+          shape: "rectangular",
           theme: "outline",
-          size: "large"
+          size: "large",
+          text: "signin_with",
+          width: 320
         });
         setIsGoogleReady(true);
       })
@@ -452,46 +446,17 @@ function LoginPage() {
             <span className="text-[13px] text-gray-500">간편 로그인</span>
             <div className="h-px flex-1 bg-black/[0.07]" />
           </div>
-          <div className="mt-4 flex justify-center gap-3">
-            <div className="relative flex h-11 w-11 items-center justify-center">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.07] bg-white"
-              >
-                <svg height="20" viewBox="0 0 48 48" width="20">
-                  <path
-                    d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
-                    c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
-                    c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
-                    fill="#FFC107"
-                  />
-                  <path
-                    d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039
-                    l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
-                    fill="#FF3D00"
-                  />
-                  <path
-                    d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36
-                    c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
-                    fill="#4CAF50"
-                  />
-                  <path
-                    d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571
-                    c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
-                    fill="#1976D2"
-                  />
-                </svg>
-              </div>
+          <div className="mt-4 flex justify-center">
+            <div className="relative h-11 w-full max-w-80">
               <div
                 ref={googleButtonRef}
-                className={`absolute inset-0 z-20 overflow-hidden rounded-full ${
-                  isGoogleSubmitting ? "pointer-events-none opacity-0" : "opacity-0"
+                className={`login-google-button h-11 w-full overflow-hidden rounded-sm ${
+                  isGoogleSubmitting ? "pointer-events-none opacity-60" : ""
                 }`}
               />
               {(!googleClientId || !isGoogleReady) && (
                 <Button
-                  aria-label="구글로 로그인"
-                  className="absolute inset-0 z-30"
+                  className="absolute inset-0 z-10 flex h-11 w-full items-center justify-center gap-3"
                   disabled={isGoogleSubmitting}
                   onClick={() => {
                     setMessage(
@@ -500,57 +465,30 @@ function LoginPage() {
                         : "Google Client ID가 설정되지 않았습니다."
                     );
                   }}
-                  variant="icon"
+                  variant="outline"
                 >
-                  <svg height="20" viewBox="0 0 48 48" width="20">
+                  <svg aria-hidden="true" height="20" viewBox="0 0 48 48" width="20">
                     <path
-                      d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
-                      c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
-                      c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
-                      fill="#FFC107"
+                      d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                      fill="#EA4335"
                     />
                     <path
-                      d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039
-                      l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
-                      fill="#FF3D00"
+                      d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                      fill="#4285F4"
                     />
                     <path
-                      d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36
-                      c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
-                      fill="#4CAF50"
+                      d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24s.92 7.54 2.56 10.78l7.97-6.19z"
+                      fill="#FBBC05"
                     />
                     <path
-                      d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571
-                      c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
-                      fill="#1976D2"
+                      d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                      fill="#34A853"
                     />
                   </svg>
+                  <span>Google 계정으로 로그인</span>
                 </Button>
               )}
             </div>
-            <Button
-              aria-label="카카오로 로그인"
-              onClick={() => handleSocialLogin("kakao")}
-              style={{ backgroundColor: "#fee500", borderColor: "#fee500" }}
-              variant="icon"
-            >
-              <svg height="20" viewBox="0 0 24 24" width="20">
-                <path
-                  d="M12 4C6.48 4 2 7.48 2 11.8c0 2.77 1.87 5.2 4.68 6.58-.2.75-.73 2.71-.83 3.13-.13.52.19.51.4.37.17-.11 2.66-1.8 3.74-2.53.65.09 1.32.14 2.01.14 5.52 0 10-3.48 10-7.79C22 7.48 17.52 4 12 4z"
-                  fill="#000000"
-                />
-              </svg>
-            </Button>
-            <Button
-              aria-label="네이버로 로그인"
-              onClick={() => handleSocialLogin("naver")}
-              style={{ backgroundColor: "#03c75a", borderColor: "#03c75a" }}
-              variant="icon"
-            >
-              <svg height="16" viewBox="0 0 20 20" width="16">
-                <path d="M11.4 10.6L6.6 4H3v12h4.6V9.4l4.8 6.6H16V4h-4.6v6.6z" fill="#FFFFFF" />
-              </svg>
-            </Button>
           </div>
         </div>
       </main>

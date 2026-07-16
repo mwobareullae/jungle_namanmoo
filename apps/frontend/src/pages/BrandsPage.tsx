@@ -18,6 +18,9 @@ function BrandsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
+  const hasUserScrolledRef = useRef(false);
+  const scrollGenerationRef = useRef(0);
+  const loadedGenerationRef = useRef(-1);
 
   const loadBrands = useCallback(async (page: number, append = false) => {
     if (loadingRef.current) return;
@@ -27,7 +30,7 @@ function BrandsPage() {
       const response = await api.getBrands("", page, PAGE_SIZE);
       setBrands((previous) => append ? [...previous, ...response.items.filter((item) => !previous.some((brand) => brand.code === item.code))] : response.items);
       setCurrentPage(page);
-      setHasNextPage(response.items.length === PAGE_SIZE);
+      setHasNextPage(response.pagination.has_next);
       setErrorMessage("");
     } catch {
       if (!append) {
@@ -41,6 +44,39 @@ function BrandsPage() {
       loadingRef.current = false;
     }
   }, []);
+
+  const maybeLoadMore = useCallback(() => {
+    if (
+      !hasUserScrolledRef.current ||
+      loadedGenerationRef.current === scrollGenerationRef.current ||
+      !hasNextPage ||
+      isLoading ||
+      isLoadingPage ||
+      errorMessage
+    ) {
+      return;
+    }
+
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || sentinel.getBoundingClientRect().top > window.innerHeight) {
+      return;
+    }
+
+    loadedGenerationRef.current = scrollGenerationRef.current;
+    void loadBrands(currentPage + 1, true);
+  }, [currentPage, errorMessage, hasNextPage, isLoading, isLoadingPage, loadBrands]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 0) {
+        hasUserScrolledRef.current = true;
+        scrollGenerationRef.current += 1;
+        maybeLoadMore();
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [maybeLoadMore]);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,13 +93,13 @@ function BrandsPage() {
     if (!sentinel || !hasNextPage || isLoading || errorMessage) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) void loadBrands(currentPage + 1, true);
+        if (entry.isIntersecting) maybeLoadMore();
       },
-      { rootMargin: "320px 0px" },
+      { rootMargin: "0px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [currentPage, errorMessage, hasNextPage, isLoading, loadBrands]);
+  }, [errorMessage, hasNextPage, isLoading, maybeLoadMore]);
 
   const visibleBrands = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");

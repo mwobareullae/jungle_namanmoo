@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import { useAuth } from "../contexts/useAuth";
-import { deleteCartItem, getCart, previewCheckout, updateCartItem } from "../lib/cartApi";
+import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
+import { deleteCartItem, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import { navigateWithinApp } from "../lib/navigation";
@@ -39,6 +41,17 @@ const formatStockStatus = (stockStatus: string) => {
     default:
       return "재고 확인 필요";
   }
+};
+
+const getCartProductDetailPath = (item: CartItem) => {
+  const params = new URLSearchParams({ id: item.product_id });
+  if (item.source === "ai_recommendation" && item.recommendation_id) {
+    params.set("recommendation_id", item.recommendation_id);
+    if (item.recommendation_rank != null) {
+      params.set("recommendation_rank", String(item.recommendation_rank));
+    }
+  }
+  return `/product-detail?${params.toString()}`;
 };
 
 const isPurchasableCartItem = (item: CartItem) =>
@@ -130,9 +143,17 @@ function CartPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
+  const queryClient = useQueryClient();
+  const cartQuery = useCartQuery(user?.id ?? null);
   const [cart, setCart] = useState<CartResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = cartQuery.isPending;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const queryErrorMessage = cartQuery.error
+    ? cartQuery.error instanceof Error
+      ? cartQuery.error.message
+      : "장바구니를 불러오지 못했습니다."
+    : null;
+  const visibleErrorMessage = queryErrorMessage ?? errorMessage;
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
@@ -154,46 +175,37 @@ function CartPage() {
 
   useEffect(() => {
     let isMounted = true;
-
-    const loadCart = async () => {
-      try {
-        setIsLoading(true);
+    if (cartQuery.error) {
+      return () => {
+        isMounted = false;
+      };
+    }
+    if (cartQuery.data) {
+      queueMicrotask(() => {
+        if (!isMounted) return;
         setErrorMessage(null);
-
-        const cartResponse = await getCart();
-
-        if (isMounted) {
-          setCart(cartResponse);
-          const purchasableIds = cartResponse.items.filter(isPurchasableCartItem).map((item) => item.id);
-          const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
-          setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : "장바구니를 불러오지 못했습니다.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
+        setCart(cartQuery.data);
+        const purchasableIds = cartQuery.data.items.filter(isPurchasableCartItem).map((item) => item.id);
+        const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
+        setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
+      });
+    }
+    return () => {
+      isMounted = false;
     };
+  }, [cartQuery.data, cartQuery.error, cartQuery.isPending, isAgentCheckout, requestedAgentCartItemIds]);
 
+  useEffect(() => {
     const handleCartUpdated = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail?.source === "cart-page") {
-        return;
-      }
-      void loadCart();
+      if (event instanceof CustomEvent && event.detail?.source === "cart-page") return;
+      void queryClient.invalidateQueries({ queryKey: cartQueryKey(user?.id ?? null) });
     };
-
-    void loadCart();
     window.addEventListener("cart:updated", handleCartUpdated);
 
     return () => {
-      isMounted = false;
       window.removeEventListener("cart:updated", handleCartUpdated);
     };
-  }, [isAgentCheckout, requestedAgentCartItemIds]);
+  }, [queryClient, user?.id]);
 
   const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
     if (nextQuantity < 1 || cartMutationPendingRef.current) {
@@ -206,6 +218,7 @@ function CartPage() {
 
     try {
       const updatedCart = await updateCartItem(itemId, { quantity: nextQuantity });
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), updatedCart);
       setCart(updatedCart);
       setSelectedItemIds((currentIds) =>
         currentIds.filter((id) => updatedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -230,12 +243,17 @@ function CartPage() {
 
     try {
       const response = await deleteCartItem(itemId);
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), response.cart);
       setCart(response.cart);
       setSelectedItemIds((currentIds) => currentIds.filter((id) => id !== itemId));
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         setCart(refreshedCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -452,6 +470,7 @@ function CartPage() {
       }
 
       if (latestCart) {
+        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
         setCart(latestCart);
       }
 
@@ -459,7 +478,11 @@ function CartPage() {
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         const remainingIds = selectedItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -497,6 +520,7 @@ function CartPage() {
       }
 
       if (latestCart) {
+        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
         setCart(latestCart);
         setSelectedItemIds((currentIds) =>
           currentIds.filter((id) => latestCart?.items.some((item) => item.id === id && isPurchasableCartItem(item))),
@@ -506,7 +530,11 @@ function CartPage() {
       notifyCartUpdated();
     } catch (error) {
       try {
-        const refreshedCart = await getCart();
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
         const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
           refreshedCart.items.some((item) => item.id === itemId),
         );
@@ -586,17 +614,17 @@ function CartPage() {
             </div>
           )}
 
-          {!isLoading && (errorMessage || !cart) && (
+          {!isLoading && (visibleErrorMessage || !cart) && (
             <div className="cart-page-status-card">
-              {errorMessage ? (
-                <p>{errorMessage}</p>
+              {visibleErrorMessage ? (
+                <p>{visibleErrorMessage}</p>
               ) : (
                 <p>장바구니 정보가 없습니다.</p>
               )}
             </div>
           )}
 
-          {!isLoading && !errorMessage && cart && !isAuthLoading && !user && (
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && !user && (
             <section className="cart-page-login-banner" aria-label="비로그인 장바구니 안내">
               <div className="cart-page-login-banner-copy">
                 <span className="cart-page-login-banner-icon" aria-hidden="true">
@@ -613,11 +641,11 @@ function CartPage() {
             </section>
           )}
 
-          {!isLoading && !errorMessage && cart && !isAuthLoading && user && (
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && user && (
             <div className="cart-page-login-banner-spacer" aria-hidden="true" />
           )}
 
-          {!isLoading && !errorMessage && cart && cart.total_quantity === 0 && (
+          {!isLoading && !visibleErrorMessage && cart && cart.total_quantity === 0 && (
             <div className="cart-page-empty-state">
               <span className="cart-page-empty-icon" aria-hidden="true">
                 EMPTY
@@ -698,6 +726,7 @@ function CartPage() {
                     const isUnavailableItem = !isPurchasableCartItem(item);
                     const isSoldOut = isProductSoldOut(item.product);
                     const stockStatusClassName = getStockStatusClassName(item.product.stock_status);
+                    const productDetailPath = getCartProductDetailPath(item);
 
                     return (
                       <article className={`cart-page-item${isUnavailableItem ? " unavailable" : ""}`} key={item.id}>
@@ -713,7 +742,9 @@ function CartPage() {
 
                         <div className="cart-page-item-thumb">
                           {imageUrl ? (
-                            <img alt={item.product.name} src={imageUrl} />
+                            <Link aria-label={`${item.product.name} 상품 상세 보기`} to={productDetailPath}>
+                              <img alt={item.product.name} src={imageUrl} />
+                            </Link>
                           ) : (
                             <span>이미지 준비중</span>
                           )}
@@ -722,7 +753,9 @@ function CartPage() {
 
                         <div className="cart-page-item-main">
                           <p className="cart-page-item-brand">{item.product.brand}</p>
-                          <h2 className="cart-page-item-name">{item.product.name}</h2>
+                          <h2 className="cart-page-item-name">
+                            <Link to={productDetailPath}>{item.product.name}</Link>
+                          </h2>
                           {optionLabel && <p className="cart-page-item-option">{optionLabel}</p>}
                           <p className={`cart-page-stock-text${stockStatusClassName}`}>
                             {formatStockStatus(item.product.stock_status)}

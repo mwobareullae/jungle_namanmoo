@@ -27,9 +27,40 @@ export type CreateProductReviewRequest = {
 };
 
 export type ProductReviewMutationResponse = {
+  review: MyProductReview | null;
   review_id: string;
   product_id: string;
   status: string;
+  review_summary: ProductReviewSummaryResponse;
+};
+
+export type ProductReviewSummaryResponse = {
+  review_count: number;
+  average_rating: number | null;
+  rating_distribution: Record<string, number>;
+  general_review_count: number;
+  month_use_review_count: number;
+  repurchase_known_count: number;
+  repurchase_review_count: number;
+  repurchase_rate: number | null;
+  profile_labeled_review_count: number;
+  last_reviewed_at: string | null;
+};
+
+export type ProductReviewAuthor = {
+  display_name: string;
+  profile_image_url: string | null;
+};
+
+export type ProductReviewProfileLabel = {
+  dimension: string;
+  value_code: string;
+  display_label: string;
+};
+
+export type ProductReviewMedia = {
+  media_type: string;
+  url: string;
 };
 
 export type MyProductReview = {
@@ -41,6 +72,13 @@ export type MyProductReview = {
   helpful_count: number;
   can_edit: boolean;
   can_delete: boolean;
+  verified_purchase?: boolean | null;
+  updated_at?: string | null;
+  is_mine?: boolean;
+  badges?: string[];
+  author?: ProductReviewAuthor | null;
+  profile_labels?: ProductReviewProfileLabel[];
+  media?: ProductReviewMedia[];
 };
 
 export type MyProductReviewItem = {

@@ -108,6 +108,7 @@ POST /api/products/{product_id}/reviews
 - 서버 설정값: `source=mubarelle`, `review_type=GENERAL`, `status=PUBLISHED`, `verified_purchase=true`
 - 작성 당시 저장된 피부 타입·민감도·피부 고민을 프로필 라벨로 snapshot합니다.
 - 삭제된 동일 주문 상품 리뷰가 있으면 새 행을 만들지 않고 tombstone을 재활성화합니다.
+- 자사몰 리뷰는 공개 목록·평점·리뷰 수와 정보 추출에는 사용하지만 추천 품질·프로필 affinity 점수에는 반영하지 않습니다.
 
 성공 응답은 `201`이며 작성된 리뷰와 최신 `review_summary`를 반환합니다. 로그인 실패는 `401`, 주문 상품을 찾을 수 없으면 `404`, 배송완료 전이거나 이미 활성 리뷰가 있으면 `409`입니다.
 

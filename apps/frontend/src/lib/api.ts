@@ -108,6 +108,7 @@ type BackendErrorResponse = {
 type BackendScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  functional_claim_score?: number;
   concentration_fit_score?: number;
   concentration_bucket?: string | null;
   concentration_warning?: string | null;
@@ -125,10 +126,38 @@ type BackendScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  review_profile_affinity_dimensions?: Record<string, number>;
+  review_profile_matched_segments?: Array<{
+    dimension: string;
+    value_code: string;
+    strength: number;
+    segment_score: number;
+    applied_score: number;
+    effective_sample_size: number;
+    review_count: number;
+    eligible: boolean;
+    sources: string[];
+  }>;
+  skin_test_context_score?: number;
+  skin_test_context_applied?: boolean;
+  skin_test_context_axes?: Record<string, number>;
+  skin_test_context_matched_axes?: string[];
+  skin_test_context_query_conflict_axes?: string[];
+  skin_test_context_manual_conflict_axes?: string[];
+  behavior_personalization_score?: number;
+  behavior_personalization_applied?: boolean;
+  behavior_personalization_sources?: string[];
+  behavior_personalization_source_scores?: Record<string, number>;
+  behavior_personalization_affinity_components?: Record<string, number>;
+  behavior_personalization_negative_guard_score?: number;
+  behavior_personalization_event_counts?: Record<string, number>;
+  market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
+  applied_multipliers?: Record<string, number>;
   risk_flag_count?: number;
   risk_warnings?: string[];
+  risk_policy?: string | null;
 };
 
 type BackendRecommendedProduct = {
@@ -247,6 +276,7 @@ type BackendProductDetailResponse = {
       effect: string;
       description: string;
       source_title: string;
+      evidence_level?: "high" | "medium" | "low" | null;
     }[];
     recommendation_reason?: string | null;
   };
@@ -300,6 +330,7 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
   return {
     ingredient_effect_score: score.ingredient_effect_score,
     ingredient_evidence_score: score.ingredient_evidence_score,
+    functional_claim_score: score.functional_claim_score,
     concentration_fit_score: score.concentration_fit_score ?? 50,
     concentration_bucket: score.concentration_bucket ?? null,
     concentration_warning: score.concentration_warning ?? null,
@@ -307,9 +338,9 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     skin_profile_score: score.skin_profile_score,
     sensitivity_score: score.sensitivity_score,
     price_value_score: score.price_score,
-    keyword_score: score.keyword_score ?? 0,
-    vector_score: score.vector_score ?? 0,
-    search_match_score: score.search_match_score ?? 0,
+    keyword_score: score.keyword_score,
+    vector_score: score.vector_score,
+    search_match_score: score.search_match_score,
     risk_penalty: score.risk_penalty ?? 0,
     base_weights: score.base_weights,
     adjusted_weights: score.adjusted_weights,
@@ -320,7 +351,25 @@ const mapScoreBreakdown = (score?: BackendScoreBreakdown | null): ScoreBreakdown
     review_quality_confidence: score.review_quality_confidence,
     review_count: score.review_count,
     review_profile_affinity_score: score.review_profile_affinity_score,
-    review_profile_affinity_applied: score.review_profile_affinity_applied
+    review_profile_affinity_applied: score.review_profile_affinity_applied,
+    review_profile_affinity_dimensions: score.review_profile_affinity_dimensions,
+    review_profile_matched_segments: score.review_profile_matched_segments,
+    skin_test_context_score: score.skin_test_context_score,
+    skin_test_context_applied: score.skin_test_context_applied,
+    skin_test_context_axes: score.skin_test_context_axes,
+    skin_test_context_matched_axes: score.skin_test_context_matched_axes,
+    skin_test_context_query_conflict_axes: score.skin_test_context_query_conflict_axes,
+    skin_test_context_manual_conflict_axes: score.skin_test_context_manual_conflict_axes,
+    behavior_personalization_score: score.behavior_personalization_score,
+    behavior_personalization_applied: score.behavior_personalization_applied,
+    behavior_personalization_sources: score.behavior_personalization_sources,
+    behavior_personalization_source_scores: score.behavior_personalization_source_scores,
+    behavior_personalization_affinity_components: score.behavior_personalization_affinity_components,
+    behavior_personalization_negative_guard_score: score.behavior_personalization_negative_guard_score,
+    behavior_personalization_event_counts: score.behavior_personalization_event_counts,
+    market_signal_score: score.market_signal_score,
+    applied_multipliers: score.applied_multipliers,
+    risk_policy: score.risk_policy
   };
 };
 
@@ -335,7 +384,8 @@ const mapProductCard = (product: BackendRecommendedProduct): ProductCardItem => 
   lowest_price: product.lowest_price ?? null,
   evidence_tags: product.evidence_tags,
   key_ingredients: product.key_ingredients,
-  risk_flags: [],
+  risk_flags: product.score_breakdown?.risk_warnings ?? [],
+  risk_flag_count: product.score_breakdown?.risk_flag_count ?? product.score_breakdown?.risk_warnings?.length ?? 0,
   score_breakdown: mapScoreBreakdown(product.score_breakdown),
   sales_status: product.sales_status,
   stock_status: product.stock_status,
@@ -445,7 +495,7 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
     evidence: response.evidence.ingredient_evidence.map((item) => ({
       ingredient_name: item.ingredient,
       effect_name: item.effect,
-      evidence_level: "medium",
+      evidence_level: item.evidence_level ?? null,
       evidence_text: item.description,
       source_title: item.source_title || null
     })),

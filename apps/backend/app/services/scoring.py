@@ -32,6 +32,7 @@ from app.services.recommendation_feature_versions import (
     PRODUCT_RECOMMENDATION_FEATURE_VERSION,
     USER_PREFERENCE_PROFILE_VERSION,
 )
+from app.services.review_rollup import REVIEW_SCORE_VERSION
 from app.services.scoring_policy import (
     DEFAULT_INGREDIENT_EFFECT_WEIGHT,
     EFFECT_CAP,
@@ -40,7 +41,7 @@ from app.services.scoring_policy import (
 from app.services.search_matching import SearchMatch
 
 
-SCORING_VERSION = "v6_independent_evidence_top3"
+SCORING_VERSION = "v7_review_quality_v3"
 PRIORITY_EFFECT_MULTIPLIER = 1.25
 DEFAULT_PROFILE_SCORE = 0.5
 FUNCTIONAL_CONFIRMED_STATUS = "FUNCTIONAL_CONFIRMED"
@@ -372,6 +373,7 @@ class _MarketSignalInfo:
 class _ReviewMetricInfo:
     review_quality_score: float
     confidence: float
+    effective_sample_size: float
     review_count: int
 
 
@@ -1211,9 +1213,12 @@ def _score_candidate(
     _add_elapsed_timing(timing_accumulator, "search_price_market_axis_ms", stage_started_at)
 
     stage_started_at = current_time()
+    review_quality_applied = (
+        review_metric is not None and review_metric.effective_sample_size > 0.0
+    )
     review_quality_score = (
         _clamp(review_metric.review_quality_score)
-        if review_metric is not None and review_metric.review_count > 0
+        if review_quality_applied
         else 0.5
     )
     review_profile_affinity = _score_review_profile_affinity(
@@ -1305,7 +1310,7 @@ def _score_candidate(
         "price_score": _round_component(price_score),
         "market_signal_score": _round_component(market_signal_score),
         "review_quality_score": _round_component(review_quality_score),
-        "review_quality_applied": review_metric is not None and review_metric.review_count > 0,
+        "review_quality_applied": review_quality_applied,
         "review_quality_confidence": _round_component(
             review_metric.confidence if review_metric is not None else 0.0
         ),
@@ -1854,6 +1859,9 @@ def _load_candidate_scoring_bundles(
             ProductReviewMetric.product_id.label("review_metric_product_id"),
             ProductReviewMetric.review_quality_score,
             ProductReviewMetric.confidence.label("review_metric_confidence"),
+            ProductReviewMetric.effective_sample_size.label(
+                "review_metric_effective_sample_size"
+            ),
             ProductReviewMetric.review_count,
         )
         .outerjoin(
@@ -1873,7 +1881,10 @@ def _load_candidate_scoring_bundles(
         )
         .outerjoin(
             ProductReviewMetric,
-            ProductReviewMetric.product_id == Product.id,
+            and_(
+                ProductReviewMetric.product_id == Product.id,
+                ProductReviewMetric.score_version == REVIEW_SCORE_VERSION,
+            ),
         )
         .where(Product.id.in_(product_ids))
     ).all()
@@ -1928,6 +1939,9 @@ def _load_candidate_scoring_bundles(
                     row.review_quality_score
                 ),
                 confidence=_decimal_to_float(row.review_metric_confidence),
+                effective_sample_size=_decimal_to_float(
+                    row.review_metric_effective_sample_size
+                ),
                 review_count=int(row.review_count),
             )
 
@@ -2011,7 +2025,6 @@ def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tupl
         for product_id, flags in flags_by_product.items()
     }
 
-
 def _load_review_segments(
     session: Session,
     product_ids: list[int],
@@ -2021,6 +2034,7 @@ def _load_review_segments(
     rows = session.execute(
         select(ProductReviewSegmentMetric).where(
             ProductReviewSegmentMetric.product_id.in_(product_ids),
+            ProductReviewSegmentMetric.score_version == REVIEW_SCORE_VERSION,
             ProductReviewSegmentMetric.dimension.in_(
                 REVIEW_AFFINITY_DIMENSION_WEIGHTS
             ),
