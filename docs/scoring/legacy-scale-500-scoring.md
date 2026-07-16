@@ -2,7 +2,7 @@
 
 상태: 2026-07-14 전체순위 검증 PASS, 런타임 반영 후보
 정책 버전: `mwbl-legacy-scale-500-v1`
-런타임 scoring version: `v6_independent_evidence_top3`
+런타임 scoring version: `v7_review_quality_v3` (성분 점수 정책은 v6의 독립 top3 유지)
 
 ## 결과
 

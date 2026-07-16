@@ -95,6 +95,7 @@ export type CatalogSearchParams = {
 export type ScoreBreakdown = {
   ingredient_effect_score: number;
   ingredient_evidence_score: number;
+  functional_claim_score?: number;
   concentration_fit_score: number;
   concentration_bucket: string | null;
   concentration_warning: string | null;
@@ -102,9 +103,9 @@ export type ScoreBreakdown = {
   skin_profile_score?: number;
   sensitivity_score?: number;
   price_value_score: number;
-  keyword_score: number;
-  vector_score: number;
-  search_match_score: number;
+  keyword_score?: number;
+  vector_score?: number;
+  search_match_score?: number;
   risk_penalty: number;
   review_quality_score?: number;
   review_quality_applied?: boolean;
@@ -112,10 +113,40 @@ export type ScoreBreakdown = {
   review_count?: number;
   review_profile_affinity_score?: number;
   review_profile_affinity_applied?: boolean;
+  review_profile_affinity_dimensions?: Record<string, number>;
+  review_profile_matched_segments?: ReviewProfileMatchedSegment[];
+  skin_test_context_score?: number;
+  skin_test_context_applied?: boolean;
+  skin_test_context_axes?: Record<string, number>;
+  skin_test_context_matched_axes?: string[];
+  skin_test_context_query_conflict_axes?: string[];
+  skin_test_context_manual_conflict_axes?: string[];
+  behavior_personalization_score?: number;
+  behavior_personalization_applied?: boolean;
+  behavior_personalization_sources?: string[];
+  behavior_personalization_source_scores?: Record<string, number>;
+  behavior_personalization_affinity_components?: Record<string, number>;
+  behavior_personalization_negative_guard_score?: number;
+  behavior_personalization_event_counts?: Record<string, number>;
+  market_signal_score?: number;
   base_weights?: Record<string, number>;
   adjusted_weights?: Record<string, number>;
+  applied_multipliers?: Record<string, number>;
   risk_flag_count?: number;
   risk_warnings?: string[];
+  risk_policy?: string | null;
+};
+
+export type ReviewProfileMatchedSegment = {
+  dimension: string;
+  value_code: string;
+  strength: number;
+  segment_score: number;
+  applied_score: number;
+  effective_sample_size: number;
+  review_count: number;
+  eligible: boolean;
+  sources: string[];
 };
 
 export type ProductCardItem = {
@@ -130,6 +161,7 @@ export type ProductCardItem = {
   evidence_tags: string[];
   key_ingredients: string[];
   risk_flags: string[];
+  risk_flag_count?: number;
   sales_status?: string;
   stock_status?: string;
   available_quantity?: number | null;
@@ -271,7 +303,7 @@ export type RecommendationPagination = {
 export type IngredientEvidence = {
   ingredient_name: string;
   effect_name: string;
-  evidence_level: "high" | "medium" | "low";
+  evidence_level?: "high" | "medium" | "low" | null;
   evidence_text: string;
   source_title: string | null;
 };

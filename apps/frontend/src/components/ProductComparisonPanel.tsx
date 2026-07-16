@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import type { ProductDetail } from "../types/recommendation";
 
@@ -169,21 +170,6 @@ const getPurchaseComparisonValue = (product: ProductDetail) => {
   if (!product.purchase_info) return "구매 상태 정보 없음";
   if (!product.purchase_info.can_purchase) return "현재 구매 불가";
   return product.purchase_info.available_quantity === 0 ? "일시품절" : "구매 가능";
-};
-
-const getCautionComparisonValue = (product: ProductDetail) =>
-  product.risk_flags.length > 0 ? joinValues(product.risk_flags, "") : "확인된 주의 성분 없음";
-
-const getCautionIngredientNames = (product: ProductDetail) =>
-  uniqueValues(
-    product.risk_flags.map((riskFlag) => riskFlag.split(":", 1)[0]?.trim() ?? ""),
-  );
-
-const renderInlineCautionComparisonValue = (product: ProductDetail) => {
-  const ingredientNames = getCautionIngredientNames(product);
-  if (ingredientNames.length === 0) return "확인된 주의 성분 없음";
-
-  return <span className="product-comparison-caution-value">{joinValues(ingredientNames, "")}</span>;
 };
 
 const getProductUniqueValues = (
@@ -598,31 +584,50 @@ function ProductComparisonCard({
   const tags = getComparisonTags(product);
   const [hasImageError, setHasImageError] = useState(false);
   const shouldShowImage = Boolean(product.thumbnail_url) && !hasImageError;
+  const detailPath = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
 
   return (
     <article className={`product-comparison-card ${variant}`}>
       <div className="product-comparison-card__label">{label}</div>
-      <div className="product-comparison-card__image">
-        {shouldShowImage ? (
-          <img
-            src={product.thumbnail_url ?? ""}
-            alt={product.name}
-            onError={() => setHasImageError(true)}
-          />
-        ) : (
-          <span>이미지 준비 중이에요</span>
-        )}
-      </div>
-      <div className="product-comparison-card__body">
-        <div className="product-comparison-card__brand">{product.brand}</div>
-        <h3>{product.name}</h3>
-        <div className="product-comparison-card__price">{formatPrice(product.lowest_price)}</div>
-        <div className="product-comparison-card__tags">
-          {tags.map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
-        </div>
-      </div>
+      {variant === "candidate" ? (
+        <Link className="product-comparison-card__link" to={detailPath}>
+          <div className="product-comparison-card__image">
+            {shouldShowImage ? (
+              <img
+                src={product.thumbnail_url ?? ""}
+                alt={product.name}
+                onError={() => setHasImageError(true)}
+              />
+            ) : (
+              <span>이미지 준비 중이에요</span>
+            )}
+          </div>
+          <div className="product-comparison-card__body">
+            <div className="product-comparison-card__brand">{product.brand}</div>
+            <h3>{product.name}</h3>
+            <div className="product-comparison-card__price">{formatPrice(product.lowest_price)}</div>
+            <div className="product-comparison-card__tags">
+              {tags.map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+          </div>
+        </Link>
+      ) : (
+        <>
+          <div className="product-comparison-card__image">
+            {shouldShowImage ? <img src={product.thumbnail_url ?? ""} alt={product.name} onError={() => setHasImageError(true)} /> : <span>이미지 준비 중이에요</span>}
+          </div>
+          <div className="product-comparison-card__body">
+            <div className="product-comparison-card__brand">{product.brand}</div>
+            <h3>{product.name}</h3>
+            <div className="product-comparison-card__price">{formatPrice(product.lowest_price)}</div>
+            <div className="product-comparison-card__tags">
+              {tags.map((tag) => <span key={tag}>{tag}</span>)}
+            </div>
+          </div>
+        </>
+      )}
     </article>
   );
 }
@@ -751,20 +756,11 @@ function ProductComparisonPanel({
     values: visibleProducts.map((product) => getReviewComparisonValue(product)),
   },
   {
-    label: "주의 성분",
-    comparisonValues: visibleProducts.map(getCautionComparisonValue),
-    values: visibleProducts.map((product) => (
-      initiallyPriceOnly
-        ? renderInlineCautionComparisonValue(product)
-        : getCautionComparisonValue(product)
-    )),
-  },
-  {
     label: "구매 상태",
     comparisonValues: visibleProducts.map(getPurchaseComparisonValue),
     values: visibleProducts.map((product) => getPurchaseComparisonValue(product)),
   }];
-  const inlineComparisonRows = ["고민 적합도", "핵심 성분", "주의 성분", "별점", "구매 상태"]
+  const inlineComparisonRows = ["고민 적합도", "핵심 성분", "별점", "구매 상태"]
     .map((label) => comparisonRows.find((row) => row.label === label))
     .filter((row): row is ProductComparisonTableRow => Boolean(row));
   const visibleComparisonRows = initiallyPriceOnly
@@ -849,21 +845,16 @@ function ProductComparisonPanel({
           ) : null}
           {initiallyPriceOnly ? (
             <div className="product-comparison-row-list" aria-label="상품별 상세 비교 정보">
-              {visibleComparisonRows.map((row) => {
-                const hasCautionIngredients = row.label === "주의 성분"
-                  && visibleProducts.some((product) => getCautionIngredientNames(product).length > 0);
-
-                return (
-                  <div className={`product-comparison-row-list__row${hasCautionIngredients ? " is-caution" : ""}`} key={row.label}>
-                    <strong>{row.label}</strong>
-                    <div className="product-comparison-row-list__values">
-                      {row.values.map((value, productIndex) => (
-                        <span key={`${row.label}-${visibleProducts[productIndex]?.product_id ?? productIndex}`}>{value}</span>
-                      ))}
-                    </div>
+              {visibleComparisonRows.map((row) => (
+                <div className="product-comparison-row-list__row" key={row.label}>
+                  <strong>{row.label}</strong>
+                  <div className="product-comparison-row-list__values">
+                    {row.values.map((value, productIndex) => (
+                      <span key={`${row.label}-${visibleProducts[productIndex]?.product_id ?? productIndex}`}>{value}</span>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           ) : (
             <div className="product-comparison-table-wrap">
@@ -882,11 +873,19 @@ function ProductComparisonPanel({
                         <span className="product-comparison-table__column-label">
                           {getCardLabel(index)}
                         </span>
-                        {product.thumbnail_url ? <img className="product-comparison-table__thumbnail" src={product.thumbnail_url} alt="" /> : null}
-                        <span className="product-comparison-table__product-name" title={product.name}>
-                          {product.name}
-                        </span>
-                        <span className="product-comparison-table__product-meta">{product.brand} · {formatPrice(product.lowest_price)}</span>
+                        {index > 0 ? (
+                          <Link className="product-comparison-table__product-link" to={`/product-detail?id=${encodeURIComponent(product.product_id)}`}>
+                            {product.thumbnail_url ? <img className="product-comparison-table__thumbnail" src={product.thumbnail_url} alt="" /> : null}
+                            <span className="product-comparison-table__product-name" title={product.name}>{product.name}</span>
+                            <span className="product-comparison-table__product-meta">{product.brand} · {formatPrice(product.lowest_price)}</span>
+                          </Link>
+                        ) : (
+                          <>
+                            {product.thumbnail_url ? <img className="product-comparison-table__thumbnail" src={product.thumbnail_url} alt="" /> : null}
+                            <span className="product-comparison-table__product-name" title={product.name}>{product.name}</span>
+                            <span className="product-comparison-table__product-meta">{product.brand} · {formatPrice(product.lowest_price)}</span>
+                          </>
+                        )}
                       </th>
                     ))}
                   </tr>

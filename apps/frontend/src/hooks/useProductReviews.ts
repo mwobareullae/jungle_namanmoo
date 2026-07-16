@@ -16,6 +16,13 @@ export type ProductReview = {
   likeCount: number;
   isRepurchase: boolean;
   usedOverMonth: boolean;
+  verifiedPurchase?: boolean | null;
+  updatedAt?: string | null;
+  isMine?: boolean;
+  badges?: string[];
+  author?: { displayName: string; profileImageUrl: string | null } | null;
+  profileLabels?: { dimension: string; valueCode: string; displayLabel: string }[];
+  media?: { mediaType: string; url: string }[];
 };
 
 export type ProductReviewSummary = {

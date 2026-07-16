@@ -60,7 +60,7 @@ const buildPurchaseBadges = (constraints: PurchaseConstraints) => {
 };
 
 const getRiskSortScore = (product: ProductCardItem) =>
-  product.risk_flags.length + Math.abs(product.score_breakdown?.risk_penalty ?? 0);
+  (product.risk_flag_count ?? product.risk_flags.length) + Math.abs(product.score_breakdown?.risk_penalty ?? 0);
 
 function RecommendationResultsPage({
   recommendation,

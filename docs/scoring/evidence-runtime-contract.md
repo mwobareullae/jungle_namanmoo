@@ -30,7 +30,7 @@
 - 추천 점수는 논문 행을 모두 합산하지 않는다. 현재는 성분 × 효능축마다 `evidence_score × source_authority_score`가 가장 높은 한 행을 사용한다.
 - 추천 결과의 `score_evidence` 최대 3개는 대표 논문 3편이 아니라 점수 기여가 큰 성분 × 효능 설명 3개다.
 - `ingredient_effect_score`와 `ingredient_evidence_score`는 별도 항목으로 계산한다.
-- `v6_independent_evidence_top3`에서 성분효능 top3는 `effect_score`, 성분근거 top3는
+- 현재 `v7_review_quality_v3`는 v6에서 도입한 독립 선발을 유지해 성분효능 top3는 `effect_score`, 성분근거 top3는
   `evidence_score × source_authority_score` 기준으로 독립 선발한다.
 - `score_evidence`, 추천 사유, `key_ingredients`는 effect top3 설명을 유지하며 숫자상
   성분근거 top3와 같은 목록을 뜻하지 않는다.

@@ -5,9 +5,10 @@ import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { useAuth } from "../contexts/useAuth";
+import { useCartQuery } from "../hooks/useCartQuery";
 import { api } from "../lib/api";
 import { createAddress, deleteAddress, getAddresses, updateAddress } from "../lib/addressApi";
-import { getCart, previewCheckout } from "../lib/cartApi";
+import { previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
 import { cancelOrder, createOrder } from "../lib/orderApi";
@@ -304,6 +305,7 @@ function CheckoutPage() {
   const agentOrderCode = agentPaymentParams.get("agent_order_code") ?? "";
   const agentAmount = Number(agentPaymentParams.get("agent_amount") ?? 0);
   const { isAuthLoading, user } = useAuth();
+  const cartQuery = useCartQuery(user?.id ?? null);
   const [apiProduct, setApiProduct] = useState<OrderProduct | null>(null);
   const [productLoadState, setProductLoadState] = useState<ProductLoadState>(selectedId ? "loading" : "idle");
   const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreviewResponse | null>(null);
@@ -499,6 +501,9 @@ function CheckoutPage() {
     if (selectedId) {
       return;
     }
+    if (requestedCartItemIds.length === 0 && cartQuery.isLoading) {
+      return;
+    }
 
     let isMounted = true;
 
@@ -509,7 +514,7 @@ function CheckoutPage() {
       try {
         const cartItemIds = requestedCartItemIds.length > 0
           ? requestedCartItemIds
-          : (await getCart()).items.map((item) => item.id);
+          : (cartQuery.data?.items ?? []).map((item) => item.id);
 
         if (!isMounted) return;
 
@@ -551,7 +556,7 @@ function CheckoutPage() {
     return () => {
       isMounted = false;
     };
-  }, [agentOrderCode, requestedCartItemIds, selectedAddressId, selectedId]);
+  }, [agentOrderCode, cartQuery.data, cartQuery.isLoading, requestedCartItemIds, selectedAddressId, selectedId]);
 
   const isResolvingProduct = Boolean(selectedId) && productLoadState === "loading";
   const items = useMemo(() => {
