@@ -144,9 +144,9 @@ function CartPage() {
   const navigate = useNavigate();
   const { isAuthLoading, user } = useAuth();
   const queryClient = useQueryClient();
-  const cartQuery = useCartQuery(user?.id ?? null);
+  const cartQuery = useCartQuery(user?.id ?? null, !isAuthLoading);
   const [cart, setCart] = useState<CartResponse | null>(null);
-  const isLoading = cartQuery.isPending;
+  const isLoading = isAuthLoading || cartQuery.isPending;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const queryErrorMessage = cartQuery.error
     ? cartQuery.error instanceof Error
