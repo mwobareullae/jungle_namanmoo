@@ -5,8 +5,8 @@ import SkinTestProgress from "../components/SkinTestProgress";
 import SkinTestQuestionCard from "../components/SkinTestQuestionCard";
 import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
-import { getMySkinProfile } from "../lib/profileApi";
 import { getLatestSkinTestResult, saveLatestSkinTestResult } from "../lib/skinTest";
+import { useSkinProfileQuery } from "../hooks/useSkinProfileQuery";
 import type { ApiError } from "../types/recommendation";
 import type { SkinTestOption, SkinTestQuestionsResponse } from "../types/skinTest";
 
@@ -30,6 +30,7 @@ function SkinTestPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthLoading, user } = useAuth();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, !isAuthLoading && Boolean(user));
   const locationState = location.state as SkinTestLocationState | null;
   const shouldForceRetest = locationState?.forceRetest === true;
   const [questionSet, setQuestionSet] = useState<SkinTestQuestionsResponse | null>(null);
@@ -73,27 +74,17 @@ function SkinTestPage() {
       return;
     }
 
-    let isActive = true;
+    if (skinProfileQuery.isPending) {
+      return;
+    }
 
-    void getMySkinProfile()
-      .then((profile) => {
-        if (!isActive) return;
+    if (skinProfileQuery.data?.latestSkinTestResultId) {
+      navigate(`/skin-test/result?result_id=${skinProfileQuery.data.latestSkinTestResultId}`, { replace: true });
+      return;
+    }
 
-        if (profile?.latestSkinTestResultId) {
-          navigate(`/skin-test/result?result_id=${profile.latestSkinTestResultId}`, { replace: true });
-          return;
-        }
-
-        setIsExistingResultResolved(true);
-      })
-      .catch(() => {
-        if (isActive) setIsExistingResultResolved(true);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [isAuthLoading, navigate, shouldForceRetest, user]);
+    setIsExistingResultResolved(true);
+  }, [isAuthLoading, navigate, shouldForceRetest, skinProfileQuery.data, skinProfileQuery.isPending, user]);
 
   useEffect(() => {
     if (!isExistingResultResolved) {
