@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
-import Skeleton from "../components/ui/Skeleton";
+import HeartIcon from "../components/ui/HeartIcon";
+import ActivityToast from "../components/ui/ActivityToast";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import { useAuth } from "../contexts/useAuth";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
 import { observeProductImpressions } from "../lib/appSignals/impressions";
@@ -18,10 +22,12 @@ type HomeSectionProductsPageProps = {
 const pageConfig = {
   "evidence-picks": {
     fallbackTitle: "성분 근거가 좋은 제품",
+    kicker: "EVIDENCE PICKS",
     source: "evidence_picks"
   },
   "for-you": {
     fallbackTitle: "나를 위한 맞춤 추천",
+    kicker: "PERSONALIZED PICKS",
     source: "for_you"
   }
 } as const;
@@ -47,81 +53,42 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-function DealCard({ product, source }: { product: ProductCardItem; source: string }) {
-  const isSoldOut = isProductSoldOut(product);
-  const openDetail = () => {
-    trackEvent("search_result_click", {
-      productId: product.product_id,
-      rank: product.rank,
-      source,
-      page: "recommendation_result",
-      metadata: { section_id: source }
-    });
-    void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
-  };
-
-  return (
-    <article
-      aria-label={`${product.brand} ${product.name} 상세 보기`}
-      className={`home-deal-card${isSoldOut ? " is-sold-out" : ""}`}
-      data-event-page="recommendation_result"
-      data-event-source={source}
-      data-impression-event="search_result_impression"
-      data-product-id={product.product_id}
-      data-rank={product.rank}
-      data-section-id={source}
-      onClick={openDetail}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          openDetail();
-        }
-      }}
-      role="link"
-      tabIndex={0}
-    >
-      <div className="home-deal-media">
-        <ProductThumbnail src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
-        {isSoldOut ? <ProductSoldOutOverlay /> : null}
-      </div>
-      <div className="home-deal-body">
-        <div className="home-ranking-brand">{product.brand}</div>
-        <div className="home-deal-name">{product.name}</div>
-        <div className="home-deal-tags">
-          {product.key_ingredients.slice(0, 2).map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
-        </div>
-        <div className={`home-deal-price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</div>
-      </div>
-    </article>
-  );
-}
-
-function DealSkeletons() {
-  return Array.from({ length: 8 }, (_, index) => (
-    <article className="home-deal-card home-deal-loading-card" key={index} aria-hidden="true">
-      <Skeleton className="home-deal-media" />
-      <div className="home-deal-body">
-        <Skeleton className="home-ranking-brand" />
-        <Skeleton className="home-deal-name" />
-        <div className="home-deal-tags">
-          <Skeleton as="span" />
-          <Skeleton as="span" />
-        </div>
-        <Skeleton className="home-deal-price" />
-      </div>
-    </article>
-  ));
-}
-
 function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) {
   const config = pageConfig[sectionType];
+  const { user } = useAuth();
+  const { message: toastMessage, showToast } = useActivityToast();
   const [title, setTitle] = useState<string>(config.fallbackTitle);
   const [subtitle, setSubtitle] = useState("");
   const [products, setProducts] = useState<ProductCardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      queueMicrotask(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getMyWishlist()
+      .then((items) => {
+        if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -156,51 +123,141 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
 
   useEffect(() => observeProductImpressions(), [products]);
 
+  const toggleWishlist = async (productId: string) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+    if (pendingWishlistProductIds.has(productId)) return;
+
+    const wasWished = wishedProductIds.has(productId);
+    setWishedProductIds((current) => {
+      const next = new Set(current);
+      if (wasWished) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+
+    try {
+      if (wasWished) {
+        await deleteMyWishlistItem(productId);
+        showToast(wishlistToastMessage.removed);
+      } else {
+        await addMyWishlistItem(productId);
+        showToast(wishlistToastMessage.added);
+      }
+    } catch {
+      setWishedProductIds((current) => {
+        const next = new Set(current);
+        if (wasWished) next.add(productId);
+        else next.delete(productId);
+        return next;
+      });
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
+
+  const openDetail = (product: ProductCardItem) => {
+    trackEvent("search_result_click", {
+      productId: product.product_id,
+      rank: product.rank,
+      source: config.source,
+      page: "recommendation_result",
+      metadata: { section_id: config.source }
+    });
+    void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
+  };
+
   return (
-    <div className="category-page home-section-products-page">
+    <>
       <HomeHeader />
-      <main className="category-page__main">
-        <nav className="category-page__breadcrumb" aria-label={`${title} 경로`}>
-          <Link to="/">홈</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>{title}</span>
-        </nav>
-        <div className="home-section-kicker">{sectionType === "evidence-picks" ? "성분 근거 기준 큐레이션" : "피부 조건 기준 큐레이션"}</div>
-        <h1 className="category-page__title">{title}</h1>
-        {subtitle ? <p className="new-products-page__description" style={{ textAlign: "left" }}>{subtitle}</p> : null}
-        {sectionType === "for-you" ? (
-          <section className="home-api-section home-deal-section home-section-products-page__section">
-            <div className="home-deal-grid">
-              {isLoading ? (
-                <DealSkeletons />
-              ) : errorMessage ? (
-                <div className="search-empty">{errorMessage}</div>
-              ) : products.length > 0 ? (
-                products.map((product) => (
-                  <DealCard key={product.product_id} product={product} source={config.source} />
-                ))
-              ) : (
-                <div className="search-empty">표시할 상품이 없습니다.</div>
-              )}
-            </div>
+      <main className="popular-products-page home-section-products-page">
+        <div className="popular-products-shell">
+          <div className="popular-products-kicker">{config.kicker}</div>
+          <h1>{title}</h1>
+          {subtitle ? <p className="new-products-page__description">{subtitle}</p> : null}
+          {errorMessage ? <p className="popular-products-error">{errorMessage}</p> : null}
+          <section aria-label={`${title} 목록`} className="popular-products-grid">
+            {isLoading ? (
+              <div className="search-loading-state">상품을 불러오는 중...</div>
+            ) : !errorMessage ? (
+              products.map((product) => {
+                const isSoldOut = isProductSoldOut(product);
+                const isWished = wishedProductIds.has(product.product_id);
+                return (
+                  <article
+                    aria-label={`${product.brand} ${product.name} 상세 보기`}
+                    className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`}
+                    data-agent-product-id={product.product_id}
+                    data-event-page="recommendation_result"
+                    data-event-source={config.source}
+                    data-impression-event="search_result_impression"
+                    data-product-id={product.product_id}
+                    data-rank={product.rank}
+                    data-section-id={config.source}
+                    key={product.product_id}
+                    onClick={() => openDetail(product)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openDetail(product);
+                      }
+                    }}
+                    role="link"
+                    tabIndex={0}
+                  >
+                    <div className="popular-product-card__image-wrap">
+                      <ProductThumbnail
+                        alt={`${product.brand} ${product.name}`}
+                        className="popular-product-card__image"
+                        src={product.thumbnail_url}
+                      />
+                      {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                      <button
+                        aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                        className={`popular-product-card__heart${isWished ? " is-wished" : ""}`}
+                        disabled={pendingWishlistProductIds.has(product.product_id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void toggleWishlist(product.product_id);
+                        }}
+                        type="button"
+                      >
+                        <HeartIcon size={12} />
+                      </button>
+                    </div>
+                    <div className="popular-product-card__brand">{product.brand}</div>
+                    <div className="popular-product-card__name">{product.name}</div>
+                    <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>
+                      {formatPrice(product.lowest_price)}
+                    </div>
+                  </article>
+                );
+              })
+            ) : null}
           </section>
-        ) : (
-          <section className="home-api-section home-deal-section home-section-products-page__section">
-            <div className="home-deal-grid">
-              {isLoading ? (
-                <DealSkeletons />
-              ) : errorMessage ? (
-                <div className="search-empty">{errorMessage}</div>
-              ) : products.length > 0 ? (
-                products.map((product) => <DealCard key={product.product_id} product={product} source={config.source} />)
-              ) : (
-                <div className="search-empty">표시할 상품이 없습니다.</div>
-              )}
-            </div>
-          </section>
-        )}
+          {!isLoading && !errorMessage && products.length === 0 ? (
+            <section aria-label={`${title} 없음`} className="popular-products-empty">
+              <h2>상품이 없습니다</h2>
+              <p>조건에 맞는 상품을 준비하고 있어요.</p>
+            </section>
+          ) : null}
+        </div>
       </main>
-    </div>
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
+      <ActivityToast message={toastMessage} />
+    </>
   );
 }
 
