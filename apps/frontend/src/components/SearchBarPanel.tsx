@@ -41,6 +41,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
       setQuery(nextQuery);
       if (detail.profile) setProfile(detail.profile);
       setIsSuggestionsOpen(false);
+      callOriginal("closeSearchSuggestions");
     };
 
     window.addEventListener("home-search-request", handleSearchRequest);
@@ -93,9 +94,20 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
 
     setIsAgentSubmitting(true);
     setIsSuggestionsOpen(false);
+    setQuery(trimmedQuery);
+    callOriginal("closeSearchSuggestions");
+    window.dispatchEvent(new CustomEvent("home-search-pending", {
+      detail: { profile, query: trimmedQuery },
+    }));
     try {
-      await runAgentEntryMessage(trimmedQuery, profile);
+      const response = await runAgentEntryMessage(trimmedQuery, profile);
+      if (!response || response.ui_action.type !== "show_products") {
+        throw new Error("추천 결과가 준비되지 않았습니다.");
+      }
     } catch {
+      window.dispatchEvent(new CustomEvent("home-search-failed", {
+        detail: { query: trimmedQuery },
+      }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setIsAgentSubmitting(false);
@@ -103,7 +115,10 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") void goToSearch();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void goToSearch();
+    }
   };
 
   const handleQueryChange = (nextQuery: string) => {

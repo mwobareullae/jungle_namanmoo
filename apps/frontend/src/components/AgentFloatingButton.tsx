@@ -1165,6 +1165,7 @@ function createResultMessage(
   id: string,
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
+  queryOverride?: string,
 ): AgentChatResultMessage | null {
   const productPayload = Array.isArray(action.payload.products)
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
@@ -1185,12 +1186,19 @@ function createResultMessage(
 
   const title = getResultTitle(action);
   const emptyProducts = action.type === "show_products" && resultItems.length === 0;
+  const rawActionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action);
+  let actionUrl = rawActionUrl;
+  if (rawActionUrl && action.type === "show_products" && queryOverride?.trim()) {
+    const resultUrl = new URL(rawActionUrl, window.location.origin);
+    resultUrl.searchParams.set("keyword", queryOverride.trim());
+    actionUrl = `${resultUrl.pathname}${resultUrl.search}${resultUrl.hash}`;
+  }
 
   return {
     id,
     actionTarget: action.target ?? null,
     actionType: action.type,
-    actionUrl: action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action),
+    actionUrl,
     description: emptyProducts
       ? "조건에 맞는 상품을 찾지 못했어요."
       : resultItems.length > 0
@@ -1219,7 +1227,12 @@ const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[
 
 function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
   const nextMessages: AgentChatMessage[] = [];
-  const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
+  const resultMessage = createResultMessage(
+    `result-${timestamp}`,
+    response.ui_action,
+    response.items,
+    retryMessage,
+  );
 
   if (resultMessage) {
     nextMessages.push(resultMessage);
@@ -1867,6 +1880,21 @@ function AgentFloatingButton({
 
     try {
       const requestContext = buildAgentContext(contextProfile);
+      if (startNewThread && window.location.pathname === "/search") {
+        delete requestContext.recommendation_id;
+        delete requestContext.search_query;
+        delete requestContext.visible_product_ids;
+        requestContext.route = "/search";
+
+        const currentFilters = requestContext.filters ?? {};
+        const freshSearchFilters = Object.fromEntries(
+          ["avoid_ingredients", "page_size", "sensitivity", "skin_type"]
+            .flatMap((key) => currentFilters[key] === undefined ? [] : [[key, currentFilters[key]]]),
+        );
+        requestContext.filters = Object.keys(freshSearchFilters).length > 0
+          ? freshSearchFilters
+          : undefined;
+      }
       if (isAwaitingAddressInput && pendingCheckoutCartItemIdsRef.current.length > 0) {
         requestContext.cart_item_ids = [...pendingCheckoutCartItemIdsRef.current];
       }
@@ -1907,7 +1935,7 @@ function AgentFloatingButton({
           window.dispatchEvent(new CustomEvent("home-search-request", {
             detail: {
               profile: resolveAgentSearchProfile(contextProfile),
-              query: buildAgentContext(contextProfile).search_query ?? nextMessage,
+              query: nextMessage,
               recommendationId: refinementRecommendationId,
               refinementFilters,
             },
