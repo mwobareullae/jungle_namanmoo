@@ -21,7 +21,13 @@ from app.schemas.agent import (
     AgentChatResponse,
     AgentUiAction,
 )
-from app.services.agent_openai_runner import _build_agent_input, _to_agent_execution_error, run_openai_agent_chat
+from app.schemas.common import ApiError
+from app.services.agent_openai_runner import (
+    _build_agent_input,
+    _expected_tool_error_response,
+    _to_agent_execution_error,
+    run_openai_agent_chat,
+)
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -106,6 +112,30 @@ def test_agent_execution_errors_are_classified_without_leaking_details(
     assert mapped.status_code == status_code
     assert mapped.code == code
     assert "database details" not in mapped.message
+
+
+@pytest.mark.parametrize(
+    ("error", "code", "message", "retryable"),
+    [
+        (ApiError(400, "EMPTY_CART", "Cart is empty."), "AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요.", False),
+        (ApiError(409, "OUT_OF_STOCK", "Product is out of stock."), "AGENT_OUT_OF_STOCK", "해당 상품은 일시품절이에요.", False),
+        (ApiError(409, "INSUFFICIENT_STOCK", "Requested quantity exceeds stock."), "AGENT_INSUFFICIENT_STOCK", "요청한 수량만큼 재고가 없어요.", False),
+        (ApiError(500, "DATABASE_FAILURE", "relation internal_table does not exist"), "AGENT_TOOL_EXECUTION_FAILED", "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.", True),
+    ],
+)
+def test_expected_tool_errors_are_safe_and_localized(
+    error: ApiError,
+    code: str,
+    message: str,
+    retryable: bool,
+) -> None:
+    response = _expected_tool_error_response("conv_test", tool_name="get_cart", error=error)
+
+    assert response.error is not None
+    assert response.error.code == code
+    assert response.error.message == message
+    assert response.error.retryable is retryable
+    assert "internal_table" not in response.message
 
 
 @pytest.mark.anyio
