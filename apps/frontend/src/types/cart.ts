@@ -64,6 +64,12 @@ export type DeleteCartItemResponse = {
   cart: CartResponse;
 };
 
+export type DeleteCartItemsResponse = {
+  success: boolean;
+  deleted_item_ids: number[];
+  cart: CartResponse;
+};
+
 export type CartMergeResponse = {
   merged: boolean;
   cart: CartResponse;

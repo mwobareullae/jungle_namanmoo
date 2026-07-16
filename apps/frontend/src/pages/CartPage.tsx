@@ -6,7 +6,7 @@ import HomeHeader from "../components/HomeHeader";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import { useAuth } from "../contexts/useAuth";
 import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
-import { deleteCartItem, previewCheckout, updateCartItem } from "../lib/cartApi";
+import { deleteCartItem, deleteCartItems, previewCheckout, updateCartItem } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import { navigateWithinApp } from "../lib/navigation";
@@ -462,17 +462,9 @@ function CartPage() {
     setErrorMessage(null);
 
     try {
-      let latestCart: CartResponse | null = null;
-
-      for (const itemId of selectedItemIds) {
-        const response = await deleteCartItem(itemId);
-        latestCart = response.cart;
-      }
-
-      if (latestCart) {
-        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
-        setCart(latestCart);
-      }
+      const response = await deleteCartItems(selectedItemIds);
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), response.cart);
+      setCart(response.cart);
 
       setSelectedItemIds([]);
       notifyCartUpdated();
