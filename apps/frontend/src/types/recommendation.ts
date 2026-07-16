@@ -31,6 +31,7 @@ export type RecommendationRequest = {
   skin_type: SkinType;
   sensitivity: Sensitivity;
   avoid_ingredients: string[];
+  required_ingredient_names?: string[];
   concern_text: string;
 };
 
@@ -244,6 +245,7 @@ export type RecommendationRefinementFilters = {
   skin_type?: string;
   sensitivity?: string;
   effect_keywords?: string[];
+  required_ingredient_names?: string[];
 };
 
 export type RecommendationNarrativeRequest = {

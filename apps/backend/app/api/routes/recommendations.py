@@ -110,6 +110,7 @@ def get_recommendation_by_id(
     skin_type: str | None = Query(default=None, max_length=40),
     sensitivity: str | None = Query(default=None, max_length=40),
     effect_keyword: list[str] = Query(default=[]),
+    required_ingredient: list[str] = Query(default=[], max_length=20),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
@@ -117,7 +118,7 @@ def get_recommendation_by_id(
     has_refinement = any(
         value is not None
         for value in (min_price, max_price, category_code, skin_type, sensitivity)
-    ) or bool(effect_keyword)
+    ) or bool(effect_keyword) or bool(required_ingredient)
     response = (
         get_refined_recommendation_response(
             session,
@@ -130,6 +131,7 @@ def get_recommendation_by_id(
             skin_type=skin_type,
             sensitivity=sensitivity,
             effect_keywords=effect_keyword,
+            required_ingredient_names=required_ingredient,
         )
         if has_refinement
         else get_recommendation_response(

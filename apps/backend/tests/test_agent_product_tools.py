@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.catalog import Product
+from app.db.models.catalog import Product, ProductIngredient
 from app.db.models.commerce import Inventory
 from app.db.models.recommendation import RecommendationResult, RecommendationRun
 from app.schemas.common import ApiError
@@ -118,7 +118,7 @@ def test_refine_product_results_applies_price_and_skin_filters(db_engine: Engine
             session,
             base_product_ids=["prod_001", "prod_002"],
             max_price=20_000,
-            skin_type="dry",
+            skin_type="건성",
             conversation_id="conv_refine",
         )
 
@@ -130,6 +130,27 @@ def test_refine_product_results_applies_price_and_skin_filters(db_engine: Engine
     assert [item.id for item in response.items] == ["prod_001"]
     assert response.ui_action.payload["filters"]["max_price"] == 20_000
     assert response.ui_action.payload["products"][0]["product_id"] == "prod_001"
+
+
+def test_refine_product_results_applies_required_ingredient_filter(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+
+    with Session(db_engine) as session:
+        ingredient_name = session.execute(
+            select(ProductIngredient.ingredient_name)
+            .join(Product, Product.id == ProductIngredient.product_id)
+            .where(Product.product_code == "prod_001")
+            .limit(1)
+        ).scalar_one()
+        response = refine_product_results(
+            session,
+            base_product_ids=["prod_001", "prod_002"],
+            required_ingredient_names=[ingredient_name],
+        )
+
+    assert [item.id for item in response.items] == ["prod_001"]
+    assert response.ui_action.payload["filters"]["required_ingredient_names"] == [ingredient_name]
 
 
 def test_refine_product_results_filters_full_saved_recommendation_and_preserves_rank(

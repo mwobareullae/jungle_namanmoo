@@ -6,11 +6,17 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.schemas.common import ApiError
+from app.db.models.auth import User
 from app.services.popular_products_service import DEFAULT_POPULAR_WINDOW_DAYS, get_popular_product_items
 from app.services.recommendation_pipeline import MAX_PAGE_SIZE, get_recommendation_response
+from app.services.user_activity_service import (
+    MAX_ACTIVITY_LIMIT,
+    get_recent_views_response,
+    get_wishlist_response,
+)
 
 
-ProductReferenceSource = Literal["current_product", "popular", "recommendation"]
+ProductReferenceSource = Literal["current_product", "popular", "recommendation", "wishlist", "recent"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +43,8 @@ def resolve_product_reference(
     rank: int | None,
     current_product_id: str | None,
     recommendation_id: str | None,
+    user: User | None = None,
+    position: Literal["first", "last"] | None = None,
 ) -> ResolvedProductReference:
     if product_id and source:
         raise ApiError(400, "AGENT_PRODUCT_REFERENCE_INVALID", "상품을 지정하는 방식은 하나만 선택해 주세요.")
@@ -44,6 +52,8 @@ def resolve_product_reference(
         return ResolvedProductReference(product_id=product_id, source="explicit")
     if source is None:
         raise ApiError(400, "AGENT_PRODUCT_REFERENCE_REQUIRED", "담을 상품을 확인할 수 없어요.")
+    if position is not None and source not in {"wishlist", "recent"}:
+        raise ApiError(400, "AGENT_PRODUCT_REFERENCE_INVALID", "마지막 상품 위치는 찜·최근 본 목록에서만 사용할 수 있어요.")
 
     normalized_rank = rank or 1
     if normalized_rank < 1 or normalized_rank > MAX_PAGE_SIZE:
@@ -85,6 +95,23 @@ def resolve_product_reference(
             source=source,
             rank=normalized_rank,
             recommendation_id=recommendation.recommendation_id,
+        )
+
+    if source in {"wishlist", "recent"}:
+        if user is None:
+            raise ApiError(401, "AGENT_AUTH_REQUIRED", "로그인이 필요한 기능이에요.")
+        activity = (
+            get_wishlist_response(session, user, limit=MAX_ACTIVITY_LIMIT)
+            if source == "wishlist"
+            else get_recent_views_response(session, user, limit=MAX_ACTIVITY_LIMIT)
+        )
+        selected_index = len(activity.items) - 1 if position == "last" else normalized_rank - 1
+        if selected_index < 0 or selected_index >= len(activity.items):
+            raise ApiError(404, "AGENT_PRODUCT_REFERENCE_NOT_FOUND", "해당 목록의 상품을 찾지 못했어요.")
+        return ResolvedProductReference(
+            product_id=activity.items[selected_index].product_id,
+            source=source,
+            rank=selected_index + 1,
         )
 
     raise ApiError(400, "AGENT_PRODUCT_REFERENCE_INVALID", "지원하지 않는 상품 선택 방식이에요.")

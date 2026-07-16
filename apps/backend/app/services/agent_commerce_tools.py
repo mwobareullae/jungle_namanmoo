@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 import secrets
+from typing import Literal
 
 from sqlalchemy.orm import Session
 from fastapi.encoders import jsonable_encoder
@@ -65,6 +66,7 @@ def add_agent_cart_item(
     recommendation_rank: int | None,
     reference_source: ProductReferenceSource | None = None,
     reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
     current_product_id: str | None = None,
     anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
@@ -76,6 +78,8 @@ def add_agent_cart_item(
         rank=reference_rank,
         current_product_id=current_product_id,
         recommendation_id=recommendation_id,
+        user=user,
+        position=reference_position,
     )
     result = add_cart_item(
         session,
