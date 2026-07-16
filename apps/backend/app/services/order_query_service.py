@@ -26,6 +26,13 @@ from app.schemas.order import (
 ORDER_STATUS_ORDER = (
     "PENDING_PAYMENT",
     "PAID",
+    "PREPARING_SHIPMENT",
+    "SHIPPED",
+    "DELIVERED",
+)
+ORDER_STATUSES = {
+    "PENDING_PAYMENT",
+    "PAID",
     "PAYMENT_FAILED",
     "EXPIRED",
     "CANCELED",
@@ -39,8 +46,7 @@ ORDER_STATUS_ORDER = (
     "RETURNED",
     "EXCHANGE_REQUESTED",
     "EXCHANGED",
-)
-ORDER_STATUSES = set(ORDER_STATUS_ORDER)
+}
 
 
 def list_orders(

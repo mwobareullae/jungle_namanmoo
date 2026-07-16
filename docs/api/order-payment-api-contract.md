@@ -520,9 +520,11 @@ Response:
 
 ## `GET /api/orders/summary`
 
-Returns the current authenticated user's order count grouped by every supported
-order status. Statuses with no orders are returned with a count of `0`, so the
-client can render a stable order-status summary without inferring missing keys.
+Returns the current authenticated user's order count for the five customer-facing
+order progress statuses. Statuses with no orders are returned with a count of
+`0`, so the client can render a stable order-status summary without inferring
+missing keys. Other terminal or claim statuses remain available through the
+order list and order detail APIs, but are not included in this progress summary.
 
 Response:
 
@@ -531,19 +533,9 @@ Response:
   "status_counts": {
     "PENDING_PAYMENT": 0,
     "PAID": 3,
-    "PAYMENT_FAILED": 0,
-    "EXPIRED": 0,
-    "CANCELED": 0,
     "PREPARING_SHIPMENT": 1,
     "SHIPPED": 2,
-    "DELIVERED": 5,
-    "CANCEL_REQUESTED": 0,
-    "REFUND_REQUESTED": 0,
-    "REFUNDED": 0,
-    "RETURN_REQUESTED": 0,
-    "RETURNED": 0,
-    "EXCHANGE_REQUESTED": 0,
-    "EXCHANGED": 0
+    "DELIVERED": 5
   }
 }
 ```
