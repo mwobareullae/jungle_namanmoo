@@ -200,6 +200,92 @@ def test_coarse_partial_miss_loads_only_missing_source_id(
     assert diagnostics["scoring_fallback"] is False
 
 
+def test_coarse_partial_stale_loads_only_stale_source_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _empty_session()
+    candidates = _synthetic_candidates(21)
+    _add_coarse_rows(session, range(1, 22))
+    stale_row = session.get(ProductRecommendationCoarseFeature, 21)
+    assert stale_row is not None
+    stale_row.source_current = False
+    session.commit()
+    fallback_calls: list[list[int]] = []
+
+    def source_fallback(_session, product_ids, *, computed_at):
+        fallback_calls.append(list(product_ids))
+        return [_source_row(product_id) for product_id in product_ids]
+
+    def capture_exact(_session, _intent, exact_candidates, _matches, **kwargs):
+        _set_exact_diagnostics(kwargs.get("diagnostics"))
+        return [_scored(candidate) for candidate in exact_candidates]
+
+    monkeypatch.setattr(
+        recommendation_coarse_feature_rollup,
+        "load_product_recommendation_coarse_feature_source_rows",
+        source_fallback,
+    )
+    monkeypatch.setattr(scoring, "_score_candidates_exact", capture_exact)
+    diagnostics: dict[str, object] = {}
+
+    results = score_candidates(
+        session,
+        _empty_intent(),
+        candidates,
+        [],
+        scoring_read_path="coarse_top50_v1",
+        diagnostics=diagnostics,
+    )
+
+    assert len(results) == 21
+    assert fallback_calls == [[21]]
+    assert diagnostics["coarse_feature_hit_count"] == 20
+    assert diagnostics["coarse_feature_miss_count"] == 0
+    assert diagnostics["coarse_feature_stale_count"] == 1
+    assert diagnostics["scoring_fallback"] is False
+
+
+def test_coarse_incomplete_partial_source_uses_full_exact_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _empty_session()
+    candidates = _synthetic_candidates(21)
+    _add_coarse_rows(session, range(1, 21))
+    exact_calls: list[list[int]] = []
+
+    monkeypatch.setattr(
+        recommendation_coarse_feature_rollup,
+        "load_product_recommendation_coarse_feature_source_rows",
+        lambda *_args, **_kwargs: [],
+    )
+
+    def capture_exact(_session, _intent, exact_candidates, _matches, **kwargs):
+        exact_calls.append(
+            [candidate.db_product_id for candidate in exact_candidates]
+        )
+        _set_exact_diagnostics(kwargs.get("diagnostics"))
+        return [_scored(candidate) for candidate in exact_candidates]
+
+    monkeypatch.setattr(scoring, "_score_candidates_exact", capture_exact)
+    diagnostics: dict[str, object] = {}
+
+    results = score_candidates(
+        session,
+        _empty_intent(),
+        candidates,
+        [],
+        scoring_read_path="coarse_top50_v1",
+        diagnostics=diagnostics,
+    )
+
+    assert len(results) == 21
+    assert exact_calls == [list(range(1, 22))]
+    assert diagnostics["scoring_fallback"] is True
+    assert diagnostics["scoring_fallback_reason"] == (
+        "coarse_feature_source_fallback_incomplete"
+    )
+
+
 def test_coarse_miss_ratio_over_threshold_uses_full_exact_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
