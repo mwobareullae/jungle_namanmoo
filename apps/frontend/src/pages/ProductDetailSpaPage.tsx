@@ -594,12 +594,13 @@ function ProductDetailSpaPage() {
     }
 
     let isMounted = true;
+    const controller = new AbortController();
 
     const loadProduct = async () => {
       setIsLoading(true);
 
       try {
-        const response = await api.getProduct(productId, recommendationId);
+        const response = await api.getProduct(productId, recommendationId, controller.signal);
         if (isMounted) setProduct(response);
       } catch {
         if (!isMounted) return;
@@ -614,6 +615,7 @@ function ProductDetailSpaPage() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [productId, recommendationId]);
 
