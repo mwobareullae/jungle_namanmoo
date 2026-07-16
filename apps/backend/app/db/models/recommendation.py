@@ -208,6 +208,23 @@ class ProductEffectRecommendationFeature(Base):
     )
 
 
+class ProductRecommendationScoringSnapshot(Base):
+    __tablename__ = "product_recommendation_scoring_snapshots"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    scoring_payload: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
+    snapshot_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_versions: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class UserPreferenceProfile(Base):
     __tablename__ = "user_preference_profiles"
     __table_args__ = (

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Protocol
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
     ProductRecommendationFeature,
+    ProductRecommendationScoringSnapshot,
     UserPreferenceProfile,
 )
 from app.db.models.skin import SkinProfile, SkinTestResult
@@ -30,7 +32,12 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_feature_versions import (
     PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION,
     PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+    RECOMMENDATION_SCORING_SNAPSHOT_VERSION,
     USER_PREFERENCE_PROFILE_VERSION,
+)
+from app.services.recommendation_scoring_snapshot import (
+    RecommendationScoringSnapshotPayload,
+    RecommendationScoringSnapshotPayloadError,
 )
 from app.services.review_rollup import REVIEW_SCORE_VERSION
 from app.services.scoring_policy import (
@@ -490,6 +497,28 @@ class _CandidateScoringBundle:
     review_metric: _ReviewMetricInfo | None
 
 
+class _RiskFlagLike(Protocol):
+    risk_type: str
+    display_text: str
+    severity: str
+    severity_score: Decimal | float | None
+    applies_to: str | None
+
+
+@dataclass(frozen=True)
+class _SnapshotScoringInputs:
+    bundles: dict[int, _CandidateScoringBundle]
+    effect_features: dict[
+        int,
+        dict[str, "ProductEffectRecommendationFeatureValues"],
+    ]
+    risk_flags: dict[int, tuple[_RiskFlagLike, ...]]
+    review_segments: dict[int, dict[tuple[str, str], _ReviewSegmentInfo]]
+    hit_ids: set[int]
+    miss_ids: set[int]
+    parse_error_count: int
+
+
 @dataclass(frozen=True)
 class ProductEffectRecommendationFeatureValues:
     effect_code: str
@@ -759,6 +788,11 @@ def score_candidates(
                     "effect_feature_load_ms": 0.0,
                     "effect_feature_hit_count": 0,
                     "effect_feature_miss_count": 0,
+                    "scoring_snapshot_load_ms": 0.0,
+                    "scoring_snapshot_hit_count": 0,
+                    "scoring_snapshot_miss_count": 0,
+                    "scoring_snapshot_fallback_ms": 0.0,
+                    "scoring_snapshot_parse_error_count": 0,
                     "user_profile_load_ms": float(
                         diagnostics.get("user_profile_load_ms", 0.0)
                     ),
@@ -794,19 +828,41 @@ def score_candidates(
 
     desired_effects = _build_desired_effects(intent)
     priority_effect_codes = tuple(effect.effect_id for effect in intent.priority_effects)
-    product_ids = [candidate.db_product_id for candidate in candidates]
+    product_ids = list(
+        dict.fromkeys(candidate.db_product_id for candidate in candidates)
+    )
 
     prefetch_started_at = current_time()
     prefetch_breakdown: dict[str, float] = {}
 
     stage_started_at = current_time()
-    candidate_bundles, product_feature_miss_ids = _load_candidate_scoring_bundles(
+    snapshot_inputs = _load_recommendation_scoring_snapshots(
         session,
-        candidates,
+        product_ids,
+        desired_effects,
+    )
+    snapshot_load_ms = round(elapsed_ms(stage_started_at), 2)
+    prefetch_breakdown["snapshot_load_ms"] = snapshot_load_ms
+
+    snapshot_fallback_started_at = current_time()
+    fallback_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.db_product_id in snapshot_inputs.miss_ids
+    ]
+    stage_started_at = current_time()
+    fallback_bundles, product_feature_miss_ids = _load_candidate_scoring_bundles(
+        session,
+        fallback_candidates,
     )
     candidate_bundle_load_ms = round(elapsed_ms(stage_started_at), 2)
-    product_feature_load_ms = candidate_bundle_load_ms
+    product_feature_load_ms = round(
+        snapshot_load_ms + candidate_bundle_load_ms,
+        2,
+    )
     prefetch_breakdown["candidate_bundle_ms"] = candidate_bundle_load_ms
+    candidate_bundles = dict(snapshot_inputs.bundles)
+    candidate_bundles.update(fallback_bundles)
     product_features_by_product = {
         product_id: bundle.product_feature
         for product_id, bundle in candidate_bundles.items()
@@ -838,16 +894,21 @@ def score_candidates(
 
     stage_started_at = current_time()
     (
-        effect_features_by_product,
+        fallback_effect_features,
         effect_feature_miss_ids,
-        effect_feature_hit_count,
+        fallback_effect_feature_hit_count,
     ) = _load_product_effect_recommendation_features(
         session,
-        sorted(set(product_ids) - product_feature_miss_ids),
+        sorted(snapshot_inputs.miss_ids - product_feature_miss_ids),
         desired_effects,
     )
     effect_feature_load_ms = round(elapsed_ms(stage_started_at), 2)
     prefetch_breakdown["effect_features_ms"] = effect_feature_load_ms
+    effect_features_by_product = dict(snapshot_inputs.effect_features)
+    effect_features_by_product.update(fallback_effect_features)
+    effect_feature_hit_count = (
+        len(snapshot_inputs.hit_ids) + fallback_effect_feature_hit_count
+    )
 
     legacy_fallback_ids = product_feature_miss_ids | effect_feature_miss_ids
     legacy_started_at = current_time()
@@ -869,11 +930,21 @@ def score_candidates(
     prefetch_breakdown["ingredient_effects_ms"] = round(legacy_fallback_ms, 2)
 
     stage_started_at = current_time()
-    risk_flags_by_product = _load_risk_flags(session, product_ids)
+    risk_flags_by_product: dict[int, tuple[_RiskFlagLike, ...]] = dict(
+        snapshot_inputs.risk_flags
+    )
+    if snapshot_inputs.miss_ids:
+        risk_flags_by_product.update(
+            _load_risk_flags(session, sorted(snapshot_inputs.miss_ids))
+        )
     prefetch_breakdown["risk_flags_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
-    review_segments_by_product = _load_review_segments(session, product_ids)
+    review_segments_by_product = dict(snapshot_inputs.review_segments)
+    if snapshot_inputs.miss_ids:
+        review_segments_by_product.update(
+            _load_review_segments(session, sorted(snapshot_inputs.miss_ids))
+        )
     prefetch_breakdown["review_segments_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
@@ -898,6 +969,13 @@ def score_candidates(
     else:
         behavior_signals_by_product = {}
     prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
+
+    snapshot_fallback_ms = (
+        round(elapsed_ms(snapshot_fallback_started_at), 2)
+        if snapshot_inputs.miss_ids
+        else 0.0
+    )
+    prefetch_breakdown["snapshot_fallback_ms"] = snapshot_fallback_ms
 
     prefetch_ms = round(elapsed_ms(prefetch_started_at), 2)
 
@@ -1048,6 +1126,13 @@ def score_candidates(
                 "effect_feature_load_ms": effect_feature_load_ms,
                 "effect_feature_hit_count": effect_feature_hit_count,
                 "effect_feature_miss_count": len(effect_feature_miss_ids),
+                "scoring_snapshot_load_ms": snapshot_load_ms,
+                "scoring_snapshot_hit_count": len(snapshot_inputs.hit_ids),
+                "scoring_snapshot_miss_count": len(snapshot_inputs.miss_ids),
+                "scoring_snapshot_fallback_ms": snapshot_fallback_ms,
+                "scoring_snapshot_parse_error_count": (
+                    snapshot_inputs.parse_error_count
+                ),
                 "scoring_prefetch_breakdown": prefetch_breakdown,
                 "scoring_prefetch_detail": {
                     **{
@@ -1110,7 +1195,7 @@ def _score_candidate(
     functional_info: _FunctionalInfo | None,
     skin_tags: tuple[str, ...],
     skin_profile: _SkinProfileInfo | None,
-    risk_flags: tuple[RiskFlag, ...],
+    risk_flags: tuple[_RiskFlagLike, ...],
     market_signal: _MarketSignalInfo | None,
     review_metric: _ReviewMetricInfo | None,
     review_segments: dict[tuple[str, str], _ReviewSegmentInfo],
@@ -1962,6 +2047,289 @@ def _load_candidate_scoring_bundles(
     return bundles, set(product_ids) - feature_product_ids
 
 
+def _load_recommendation_scoring_snapshots(
+    session: Session,
+    product_ids: list[int],
+    desired_effects: tuple[_DesiredEffect, ...],
+) -> _SnapshotScoringInputs:
+    unique_product_ids = list(dict.fromkeys(int(product_id) for product_id in product_ids))
+    if not unique_product_ids:
+        return _SnapshotScoringInputs({}, {}, {}, {}, set(), set(), 0)
+
+    rows = session.execute(
+        select(ProductRecommendationScoringSnapshot).where(
+            ProductRecommendationScoringSnapshot.product_id.in_(unique_product_ids)
+        )
+    ).scalars()
+    snapshots_by_product = {int(row.product_id): row for row in rows}
+    desired_effect_codes = {
+        effect.effect_code for effect in desired_effects
+    }
+    bundles: dict[int, _CandidateScoringBundle] = {}
+    effect_features: dict[
+        int,
+        dict[str, ProductEffectRecommendationFeatureValues],
+    ] = {}
+    risk_flags: dict[int, tuple[_RiskFlagLike, ...]] = {}
+    review_segments: dict[
+        int,
+        dict[tuple[str, str], _ReviewSegmentInfo],
+    ] = {}
+    hit_ids: set[int] = set()
+    miss_ids: set[int] = set()
+    parse_error_count = 0
+
+    for product_id in unique_product_ids:
+        row = snapshots_by_product.get(product_id)
+        if (
+            row is None
+            or row.snapshot_version != RECOMMENDATION_SCORING_SNAPSHOT_VERSION
+        ):
+            miss_ids.add(product_id)
+            continue
+        try:
+            payload = RecommendationScoringSnapshotPayload.from_dict(
+                row.scoring_payload
+            )
+            source_versions = _validate_snapshot_source_versions(
+                row.source_versions,
+                payload,
+            )
+        except (RecommendationScoringSnapshotPayloadError, TypeError, ValueError):
+            parse_error_count += 1
+            miss_ids.add(product_id)
+            continue
+
+        product_feature_source = source_versions["product_feature"]
+        if (
+            payload.product_feature is None
+            or product_feature_source["feature_version"]
+            != PRODUCT_RECOMMENDATION_FEATURE_VERSION
+            or product_feature_source["source_current"] is not True
+        ):
+            miss_ids.add(product_id)
+            continue
+
+        effect_versions = source_versions["effect_features"]
+        if any(
+            effect_code in effect_versions
+            and effect_versions[effect_code]
+            != PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION
+            for effect_code in desired_effect_codes
+        ):
+            miss_ids.add(product_id)
+            continue
+        if (
+            payload.review_metric is not None
+            and source_versions["review_metric"] != REVIEW_SCORE_VERSION
+        ):
+            miss_ids.add(product_id)
+            continue
+        if (
+            payload.review_segments
+            and REVIEW_SCORE_VERSION not in source_versions["review_segments"]
+        ):
+            miss_ids.add(product_id)
+            continue
+        if (
+            payload.market_signal is not None
+            and source_versions["market_signal"]["window_days"]
+            != MARKET_SIGNAL_WINDOW_DAYS
+        ):
+            miss_ids.add(product_id)
+            continue
+
+        bundles[product_id] = _snapshot_bundle(payload)
+        effect_features[product_id] = {
+            effect_code: ProductEffectRecommendationFeatureValues(
+                effect_code=effect_code,
+                ingredient_effect_score=feature.ingredient_effect_score,
+                ingredient_evidence_score=feature.ingredient_evidence_score,
+                concentration_score=feature.concentration_score,
+                concentration_context=dict(feature.concentration_context),
+                top_ingredient_ids=feature.top_ingredient_ids,
+                best_evidence_ids=feature.best_evidence_ids,
+            )
+            for effect_code, feature in payload.effect_features.items()
+        }
+        if payload.risk_flags:
+            risk_flags[product_id] = tuple(payload.risk_flags)
+        if payload.review_segments:
+            review_segments[product_id] = {
+                (segment.dimension, segment.value_code): _ReviewSegmentInfo(
+                    dimension=segment.dimension,
+                    value_code=segment.value_code,
+                    total_affinity_score=segment.total_affinity_score,
+                    effective_sample_size=segment.effective_sample_size,
+                    review_count=segment.review_count,
+                )
+                for segment in payload.review_segments
+            }
+        hit_ids.add(product_id)
+
+    return _SnapshotScoringInputs(
+        bundles=bundles,
+        effect_features=effect_features,
+        risk_flags=risk_flags,
+        review_segments=review_segments,
+        hit_ids=hit_ids,
+        miss_ids=miss_ids,
+        parse_error_count=parse_error_count,
+    )
+
+
+def _snapshot_bundle(
+    payload: RecommendationScoringSnapshotPayload,
+) -> _CandidateScoringBundle:
+    product_feature = payload.product_feature
+    if product_feature is None:
+        raise RecommendationScoringSnapshotPayloadError(
+            "product_feature is required for a snapshot hit"
+        )
+    skin_profile = payload.skin_profile
+    market_signal = payload.market_signal
+    review_metric = payload.review_metric
+    return _CandidateScoringBundle(
+        product_feature=ProductRecommendationFeatureValues(
+            top_ingredient_codes=product_feature.top_ingredient_codes,
+            top_effect_codes=product_feature.top_effect_codes,
+        ),
+        functional_info=_FunctionalInfo(
+            status=payload.functional_info.status,
+            claims=payload.functional_info.claims,
+            claim_confidence=payload.functional_info.claim_confidence,
+            basis=payload.functional_info.basis,
+        ),
+        skin_tags=payload.skin_tags,
+        skin_profile=(
+            _SkinProfileInfo(
+                dry_fit=skin_profile.dry_fit,
+                oily_fit=skin_profile.oily_fit,
+                combination_fit=skin_profile.combination_fit,
+                normal_fit=skin_profile.normal_fit,
+                dehydrated_oily_fit=skin_profile.dehydrated_oily_fit,
+                sensitive_fit=skin_profile.sensitive_fit,
+                sensitivity_tag=skin_profile.sensitivity_tag,
+                confidence=skin_profile.confidence,
+                reason=skin_profile.reason,
+            )
+            if skin_profile is not None
+            else None
+        ),
+        market_signal=(
+            _MarketSignalInfo(popularity_score=market_signal.popularity_score)
+            if market_signal is not None
+            else None
+        ),
+        review_metric=(
+            _ReviewMetricInfo(
+                review_quality_score=review_metric.review_quality_score,
+                confidence=review_metric.confidence,
+                effective_sample_size=review_metric.effective_sample_size,
+                review_count=review_metric.review_count,
+            )
+            if review_metric is not None
+            else None
+        ),
+    )
+
+
+def _validate_snapshot_source_versions(
+    value: object,
+    payload: RecommendationScoringSnapshotPayload,
+) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions must be an object"
+        )
+    product_feature = value.get("product_feature")
+    effect_features = value.get("effect_features")
+    if not isinstance(product_feature, dict):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.product_feature must be an object"
+        )
+    if not isinstance(effect_features, dict):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.effect_features must be an object"
+        )
+    review_metric = value.get("review_metric")
+    review_segments = value.get("review_segments")
+    market_signal = value.get("market_signal")
+    if review_metric is not None and not isinstance(review_metric, str):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.review_metric must be a string or null"
+        )
+    if not isinstance(review_segments, list) or any(
+        not isinstance(version, str) for version in review_segments
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.review_segments must be a string array"
+        )
+    if not isinstance(market_signal, dict):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal must be an object"
+        )
+    market_window_days = market_signal.get("window_days")
+    market_score_version = market_signal.get("score_version")
+    if not isinstance(market_window_days, int) or isinstance(
+        market_window_days,
+        bool,
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal.window_days must be an integer"
+        )
+    if market_score_version is not None and not isinstance(
+        market_score_version,
+        str,
+    ):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.market_signal.score_version must be a string or null"
+        )
+    feature_version = product_feature.get("feature_version")
+    source_current = product_feature.get("source_current")
+    if feature_version is not None and not isinstance(feature_version, str):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.product_feature.feature_version must be a string or null"
+        )
+    if not isinstance(source_current, bool):
+        raise RecommendationScoringSnapshotPayloadError(
+            "source_versions.product_feature.source_current must be a boolean"
+        )
+    normalized_effect_versions: dict[str, str] = {}
+    for effect_code, version in effect_features.items():
+        if (
+            not isinstance(effect_code, str)
+            or not effect_code
+            or not isinstance(version, str)
+        ):
+            raise RecommendationScoringSnapshotPayloadError(
+                "source_versions.effect_features must map effect codes to versions"
+            )
+        normalized_effect_versions[effect_code] = version
+    for effect_code in payload.effect_features:
+        if (
+            normalized_effect_versions.get(effect_code)
+            != PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION
+        ):
+            raise RecommendationScoringSnapshotPayloadError(
+                "current effect payload must have a current source version"
+            )
+    return {
+        **value,
+        "product_feature": {
+            "feature_version": feature_version,
+            "source_current": source_current,
+        },
+        "effect_features": normalized_effect_versions,
+        "review_metric": review_metric,
+        "review_segments": tuple(review_segments),
+        "market_signal": {
+            "window_days": market_window_days,
+            "score_version": market_score_version,
+        },
+    }
+
+
 def _row_to_evidence(row) -> _EvidenceInfo | None:
     if row.evidence_id is None:
         return None
@@ -2008,7 +2376,12 @@ def _is_better_evidence(candidate: _EvidenceInfo | None, existing: _EvidenceInfo
     return _effective_evidence_score(candidate) > _effective_evidence_score(existing)
 
 
-def _load_risk_flags(session: Session, product_ids: list[int]) -> dict[int, tuple[RiskFlag, ...]]:
+def _load_risk_flags(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, tuple[_RiskFlagLike, ...]]:
+    if not product_ids:
+        return {}
     rows = (
         session.execute(
             select(ProductIngredient.product_id, RiskFlag)
@@ -3150,7 +3523,7 @@ def _compatible_skin_types(skin_type: str) -> set[str]:
 def _score_sensitivity(
     sensitivity: str | None,
     skin_tags: tuple[str, ...],
-    risk_flags: tuple[RiskFlag, ...],
+    risk_flags: tuple[_RiskFlagLike, ...],
     skin_profile: _SkinProfileInfo | None,
 ) -> float:
     normalized_sensitivity = _normalize_sensitivity_value(sensitivity) or "보통"
@@ -3185,7 +3558,10 @@ def _score_sensitivity(
     return 0.9
 
 
-def _score_risk_penalty(sensitivity: str | None, risk_flags: tuple[RiskFlag, ...]) -> float:
+def _score_risk_penalty(
+    sensitivity: str | None,
+    risk_flags: tuple[_RiskFlagLike, ...],
+) -> float:
     if not _is_sensitive_user(sensitivity):
         return 0.0
 
@@ -3201,7 +3577,11 @@ def _score_risk_penalty(sensitivity: str | None, risk_flags: tuple[RiskFlag, ...
     return round(min(SENSITIVE_RISK_PENALTY_CAP, sum(penalties_by_type.values())), 2)
 
 
-def _risk_warning_texts(risk_flags: tuple[RiskFlag, ...], *, limit: int = 3) -> list[str]:
+def _risk_warning_texts(
+    risk_flags: tuple[_RiskFlagLike, ...],
+    *,
+    limit: int = 3,
+) -> list[str]:
     warnings: list[str] = []
     seen: set[str] = set()
     for flag in risk_flags:
@@ -3220,12 +3600,12 @@ def _is_sensitive_user(sensitivity: str | None) -> bool:
     return normalized_sensitivity == "높음"
 
 
-def _risk_applies_to_sensitive(flag: RiskFlag) -> bool:
+def _risk_applies_to_sensitive(flag: _RiskFlagLike) -> bool:
     applies_to = {value.casefold() for value in _split_tags(flag.applies_to)}
     return "sensitive" in applies_to
 
 
-def _risk_penalty_value(flag: RiskFlag) -> float:
+def _risk_penalty_value(flag: _RiskFlagLike) -> float:
     severity_penalty = {
         "high": 6.0,
         "medium": 3.0,
@@ -3261,7 +3641,9 @@ def _sensitivity_profile_score(sensitivity: str, skin_profile: _SkinProfileInfo)
     return max(sensitive_score, 0.6)
 
 
-def _most_severe_risk(risk_flags: tuple[RiskFlag, ...]) -> str | None:
+def _most_severe_risk(
+    risk_flags: tuple[_RiskFlagLike, ...],
+) -> str | None:
     severity_rank = {"high": 3, "medium": 2, "low": 1}
     severities = [flag.severity for flag in risk_flags if flag.severity in severity_rank]
     if not severities:
@@ -3513,7 +3895,7 @@ def _score_skin_test_context(
     intent_purchase_conditions: ParsedPurchaseConditions,
     candidate: ProductCandidate,
     skin_profile: _SkinProfileInfo | None,
-    risk_flags: tuple[RiskFlag, ...],
+    risk_flags: tuple[_RiskFlagLike, ...],
     contributions_by_effect: dict[str, tuple[_EffectContribution, ...]],
     precomputed_effect_features: dict[
         str,
@@ -3643,7 +4025,7 @@ def _score_od_fit(
 def _score_sr_fit(
     skin_test_context: SkinTestScoringContext,
     skin_profile: _SkinProfileInfo | None,
-    risk_flags: tuple[RiskFlag, ...],
+    risk_flags: tuple[_RiskFlagLike, ...],
     *,
     manual_conflict: bool,
 ) -> float:
@@ -3723,7 +4105,7 @@ def _score_wt_effect_fit(
 
 def _score_sensitive_safety_fit(
     skin_test_context: SkinTestScoringContext,
-    risk_flags: tuple[RiskFlag, ...],
+    risk_flags: tuple[_RiskFlagLike, ...],
 ) -> float:
     if _axis_winner(skin_test_context, "SR") != "S":
         return DEFAULT_PROFILE_SCORE
@@ -3789,7 +4171,7 @@ def _adjust_skin_test_axis_score(
     return adjusted
 
 
-def _sensitive_safety_score(risk_flags: tuple[RiskFlag, ...]) -> float:
+def _sensitive_safety_score(risk_flags: tuple[_RiskFlagLike, ...]) -> float:
     most_severe = _most_severe_risk(risk_flags)
     if most_severe == "high":
         return 0.3
@@ -3800,7 +4182,7 @@ def _sensitive_safety_score(risk_flags: tuple[RiskFlag, ...]) -> float:
     return 0.85
 
 
-def _resistant_safety_score(risk_flags: tuple[RiskFlag, ...]) -> float:
+def _resistant_safety_score(risk_flags: tuple[_RiskFlagLike, ...]) -> float:
     most_severe = _most_severe_risk(risk_flags)
     if most_severe == "high":
         return 0.65
