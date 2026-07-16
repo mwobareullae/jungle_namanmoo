@@ -69,7 +69,7 @@ def test_coarse_path_sends_only_top50_to_exact_boundary(
     )
 
     assert len(results) == 50
-    assert exact_calls == [(list(range(1, 51)), 10, False)]
+    assert exact_calls == [(list(range(1, 51)), None, True)]
     assert diagnostics["coarse_shortlist_size"] == 50
     assert diagnostics["coarse_feature_hit_count"] == 75
     assert diagnostics["scoring_fallback"] is False
@@ -365,7 +365,7 @@ def test_coarse_shortlist_exact_scores_match_legacy_and_preserve_quality() -> No
     assert diagnostics["exact_functional_axis_ms"] >= 0.0
 
 
-def test_coarse_path_materializes_details_only_for_result_limit(
+def test_coarse_path_preserves_all_result_details_with_result_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = _seed_example_session()
@@ -383,7 +383,9 @@ def test_coarse_path_materializes_details_only_for_result_limit(
     session.commit()
 
     original_loader = scoring._load_ingredient_effects
-    ingredient_load_ids: list[list[int]] = []
+    ingredient_loads: list[
+        tuple[list[int], tuple[tuple[int, str, int], ...] | None]
+    ] = []
 
     def capture_ingredient_loads(
         loader_session,
@@ -391,7 +393,7 @@ def test_coarse_path_materializes_details_only_for_result_limit(
         desired_effects,
         **kwargs,
     ):
-        ingredient_load_ids.append(list(product_ids))
+        ingredient_loads.append((list(product_ids), kwargs.get("selection_keys")))
         return original_loader(
             loader_session,
             product_ids,
@@ -418,20 +420,25 @@ def test_coarse_path_materializes_details_only_for_result_limit(
         diagnostics=diagnostics,
     )
 
-    assert [
-        (product.db_product_id, product.total_score) for product in actual
-    ] == [
-        (product.db_product_id, product.total_score) for product in baseline
+    assert actual == baseline
+    selected_loads = [
+        (product_ids, selection_keys)
+        for product_ids, selection_keys in ingredient_loads
+        if product_ids and selection_keys is not None
     ]
-    assert actual[0].score_breakdown == baseline[0].score_breakdown
-    assert actual[0].score_evidence == baseline[0].score_evidence
-    assert actual[0].reason_summary == baseline[0].reason_summary
-    assert actual[1].score_breakdown == {}
-    assert actual[1].score_evidence == ()
-    assert [ids for ids in ingredient_load_ids if ids] == [
-        [actual[0].db_product_id]
-    ]
-    assert diagnostics["score_detail_count"] == 1
+    assert len(selected_loads) == 1
+    selected_product_ids, selection_keys = selected_loads[0]
+    assert selected_product_ids == [product.db_product_id for product in actual]
+    assert selection_keys
+    assert {
+        product_id for product_id, _effect_code, _ingredient_id in selection_keys
+    }.issubset(set(selected_product_ids))
+    assert diagnostics["score_detail_count"] == len(actual)
+    prefetch_detail = diagnostics["scoring_prefetch_detail"]
+    assert prefetch_detail["detail_ingredients_selection_applied"] == 1
+    assert prefetch_detail["detail_ingredients_selection_key_count"] == len(
+        selection_keys
+    )
 
 
 def _empty_session() -> Session:
