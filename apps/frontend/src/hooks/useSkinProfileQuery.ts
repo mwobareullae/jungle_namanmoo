@@ -7,6 +7,10 @@ export const useSkinProfileQuery = (userId: number | null, enabled = true) => us
   queryKey: skinProfileQueryKey(userId),
   queryFn: getMySkinProfile,
   enabled: enabled && userId !== null,
-  staleTime: 5 * 60_000,
+  staleTime: Infinity,
+  gcTime: 30 * 60_000,
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
   retry: false,
 });
