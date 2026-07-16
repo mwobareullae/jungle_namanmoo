@@ -1043,10 +1043,10 @@ def _score_candidates_coarse_top50(
         weights=weights,
         concentration_policy=concentration_policy,
         skin_profile_weights=skin_profile_weights,
-        result_limit=None,
+        result_limit=result_limit,
         scoring_read_path="legacy_bulk",
         diagnostics=exact_diagnostics,
-        single_pass_details=True,
+        single_pass_details=False,
     )
     _merge_coarse_diagnostics(
         diagnostics,
