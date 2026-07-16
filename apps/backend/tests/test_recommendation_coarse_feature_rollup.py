@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.cli import rollup_product_recommendation_coarse_features as coarse_cli
 from app.db.base import Base
+from app.db.models.catalog import Product
 from app.db.models.recommendation import ProductRecommendationCoarseFeature
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
@@ -82,6 +83,30 @@ def test_coarse_feature_rollup_uses_fixed_select_count_per_batch() -> None:
         event.remove(session.bind, "before_cursor_execute", count_selects)
 
     assert select_count == 2
+
+
+def test_coarse_feature_rollup_limits_rows_to_requested_product_ids() -> None:
+    session = _seed_example_session()
+    product_ids = list(
+        session.execute(select(Product.id).order_by(Product.id.asc())).scalars()
+    )
+
+    result = rollup_product_recommendation_coarse_features(
+        session,
+        product_ids=(product_ids[-1],),
+        batch_size=100,
+    )
+    session.commit()
+
+    stored_ids = list(
+        session.execute(
+            select(ProductRecommendationCoarseFeature.product_id)
+        ).scalars()
+    )
+    assert result.requested_product_count == 1
+    assert result.product_count == 1
+    assert result.batch_count == 1
+    assert stored_ids == [product_ids[-1]]
 
 
 def test_coarse_feature_cli_dry_run_rolls_back(tmp_path, monkeypatch, capsys) -> None:
