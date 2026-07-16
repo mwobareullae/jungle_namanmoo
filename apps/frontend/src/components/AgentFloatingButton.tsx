@@ -635,7 +635,10 @@ const resolveAgentPage = (pathname: string) => {
   return "home";
 };
 
-function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]): AgentContext {
+function buildAgentContext(
+  skinProfile?: AgentFloatingButtonProps["skinProfile"],
+  selectedProductIds: string[] = [],
+): AgentContext {
   if (typeof window === "undefined") {
     return {};
   }
@@ -658,6 +661,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   const refineSkinType = readString(params.get("refine_skin_type"));
   const refineSensitivity = readString(params.get("refine_sensitivity"));
   const refineEffects = params.getAll("refine_effect").filter(Boolean);
+  const refineIngredients = params.getAll("refine_ingredient").filter(Boolean);
 
   if (skinType || skinProfile?.skin) filters.skin_type = skinType ?? skinProfile?.skin;
   if (sensitivity || skinProfile?.sensitivity) filters.sensitivity = sensitivity ?? skinProfile?.sensitivity;
@@ -672,6 +676,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   if (refineSkinType) filters.skin_type = refineSkinType;
   if (refineSensitivity) filters.sensitivity = refineSensitivity;
   if (refineEffects.length) filters.effect_keywords = refineEffects;
+  if (refineIngredients.length) filters.required_ingredient_names = refineIngredients;
 
   const context: AgentContext = {
     page: resolveAgentPage(pathname),
@@ -688,6 +693,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   if (recommendationId) context.recommendation_id = recommendationId;
   if (searchQuery) context.search_query = searchQuery;
   if (visibleProductIds.length > 0) context.visible_product_ids = visibleProductIds;
+  if (selectedProductIds.length > 0) context.selected_product_ids = uniqueNonEmpty(selectedProductIds).slice(0, 20);
 
   return context;
 }
@@ -1504,7 +1510,7 @@ function AgentFloatingButton({
   skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
-  const { openComparison } = useProductComparison();
+  const { openComparison, comparisonIntent } = useProductComparison();
   const [activeView, setActiveView] = useState<AgentChatView>("home");
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
@@ -1879,7 +1885,7 @@ function AgentFloatingButton({
     if (isCartAddRequest) setAgentCartTargetBusy(true);
 
     try {
-      const requestContext = buildAgentContext(contextProfile);
+      const requestContext = buildAgentContext(contextProfile, comparisonIntent?.compareProductIds);
       if (startNewThread && window.location.pathname === "/search") {
         delete requestContext.recommendation_id;
         delete requestContext.search_query;
@@ -2005,7 +2011,7 @@ function AgentFloatingButton({
           response.ui_action,
           response.items,
           response.message,
-          buildAgentContext().current_product_id ?? null,
+            buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
           openComparison,
         );
       }
@@ -2097,7 +2103,7 @@ function AgentFloatingButton({
         response.ui_action,
         [],
         "",
-        buildAgentContext().current_product_id ?? null,
+        buildAgentContext(skinProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
         openComparison,
       );
       const orderCode = readString(response.ui_action.payload.order_code);

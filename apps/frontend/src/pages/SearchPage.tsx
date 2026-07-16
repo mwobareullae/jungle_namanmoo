@@ -49,6 +49,7 @@ const getSearchParams = () => {
     skin_type: params.get("refine_skin_type") ?? undefined,
     sensitivity: params.get("refine_sensitivity") ?? undefined,
     effect_keywords: params.getAll("refine_effect").filter(Boolean),
+    required_ingredient_names: params.getAll("refine_ingredient").filter(Boolean),
   };
   const hasRefinementFilters = Object.values(refinementFilters).some((value) =>
     Array.isArray(value) ? value.length > 0 : value !== undefined,

@@ -95,6 +95,36 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
     assert "한 번에 담는 기능" in response.message
 
 
+@pytest.mark.anyio
+async def test_agent_profile_popular_wishlist_request_returns_limitation_without_openai() -> None:
+    request = AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 찜해줘")
+
+    response = await run_openai_agent_chat(Session(), request)
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert "특정 성분 조건만 지원" in response.message
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("담아줘", "담을 상품을 알려주세요"),
+        ("추천해줘", "어떤 피부 고민이나 조건"),
+        ("상위 상품 담아줘", "몇 개 담을까요"),
+    ],
+)
+async def test_agent_ambiguous_requests_ask_for_missing_scope_without_openai(message: str, expected: str) -> None:
+    response = await run_openai_agent_chat(Session(), AgentChatRequest(message=message))
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert expected in response.message
+
+
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     runner_arguments: dict[str, object] = {}
 

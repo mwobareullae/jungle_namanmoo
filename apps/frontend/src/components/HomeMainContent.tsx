@@ -670,6 +670,7 @@ function HomeMainContent({
       if (refinementFilters?.skin_type) params.set("refine_skin_type", refinementFilters.skin_type);
       if (refinementFilters?.sensitivity) params.set("refine_sensitivity", refinementFilters.sensitivity);
       refinementFilters?.effect_keywords?.forEach((keyword) => params.append("refine_effect", keyword));
+      refinementFilters?.required_ingredient_names?.forEach((ingredient) => params.append("refine_ingredient", ingredient));
       window.history.replaceState(null, "", `/search?${params.toString()}`);
     },
     [initialSearchMode, isGeneralSearch, mode, pageSize]

@@ -74,6 +74,9 @@ Routing:
   window_days. Never infer product IDs or ingredient IDs. The backend rechecks the real
   popularity rollup, canonical ingredient relation, and current wishlist, then requires
   confirmation before writing.
+  Skin-profile-only bulk wishlist requests are not supported yet. Do not claim that you
+  can recommend or execute an alternative unless a matching tool is available; explain
+  the current limitation briefly instead.
 - Similar/alternative product -> find_similar_products(current_product_id, limit=2).
   Comparison -> selected_product_ids, otherwise at least two visible_product_ids.
 - Order-history open/filter -> filter_order_history. Preserve context.filters unless
@@ -85,7 +88,9 @@ Routing:
   use reference_source="popular" and reference_rank (default 1), never invent a product
   ID. For "current product", use reference_source="current_product". For a saved
   recommendation result, use reference_source="recommendation" with recommendation_id
-  and reference_rank. A request to order or buy one referenced product -> prepare_product_checkout.
+  and reference_rank. For wishlist or recent-view lists, use reference_source="wishlist"
+  or "recent" with reference_rank; for “마지막 상품” use reference_position="last"
+  instead of guessing a numeric rank. A request to order or buy one referenced product -> prepare_product_checkout.
   Resolve "second product" from
   the preserved item order and pass its recommendation metadata when available. This
   composite tool revalidates stock and price, updates the real cart, and opens checkout;
@@ -128,9 +133,15 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
+
+_POPULAR_WISHLIST_REQUEST_PATTERN = re.compile(r"(?:인기|베스트|순위).*(?:찜|위시)|(?:찜|위시).*(?:인기|베스트|순위)")
+_SKIN_PROFILE_REQUEST_PATTERN = re.compile(r"건성|지성|복합성|수부지|중성|민감")
 _BULK_CART_REQUEST_PATTERN = re.compile(
     r"(?:\d+\s*(?:~|-|부터)\s*\d+\s*위|상위\s*\d+\s*개|(?:상품|제품)\s*\d+\s*개).{0,40}?(?:장바구니|카트).{0,20}?(?:담|추가)"
 )
+_BARE_CART_REQUEST_PATTERN = re.compile(r"^\s*(?:담아줘|넣어줘|장바구니에\s*담아줘)\s*$")
+_BARE_RECOMMENDATION_REQUEST_PATTERN = re.compile(r"^\s*(?:추천해줘|제품\s*추천해줘|상품\s*추천해줘)\s*$")
+_AMBIGUOUS_BULK_REQUEST_PATTERN = re.compile(r"^\s*(?:상위\s*상품|인기\s*상품)\s*(?:담아줘|넣어줘)\s*$")
 
 
 @dataclass
@@ -157,9 +168,17 @@ async def run_openai_agent_chat(
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
+    generic_clarification = _get_generic_clarification(request.message)
+    if generic_clarification:
+        return _clarification_response(request.conversation_id, generic_clarification)
+
     clarification_message = _get_bulk_cart_clarification(request.message)
     if clarification_message:
         return _clarification_response(request.conversation_id, clarification_message)
+
+    unsupported_wishlist_message = _get_unsupported_popular_wishlist_clarification(request.message)
+    if unsupported_wishlist_message:
+        return _clarification_response(request.conversation_id, unsupported_wishlist_message)
 
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "에이전트 대화 설정을 확인해 주세요.")
@@ -334,6 +353,24 @@ def _get_bulk_cart_clarification(message: str) -> str | None:
     return "여러 상품을 한 번에 담는 기능은 아직 지원하지 않아요. 담을 상품 한 개의 순위나 상품명을 알려주세요."
 
 
+def _get_generic_clarification(message: str) -> str | None:
+    if _BARE_CART_REQUEST_PATTERN.search(message):
+        return "담을 상품을 알려주세요. 현재 상품, 상품명, 인기 순위 또는 추천 결과 순위로 말씀해 주세요."
+    if _BARE_RECOMMENDATION_REQUEST_PATTERN.search(message):
+        return "어떤 피부 고민이나 조건의 상품을 찾으세요? 예: 민감 피부용 진정 세럼을 추천해줘."
+    if _AMBIGUOUS_BULK_REQUEST_PATTERN.search(message):
+        return "어떤 목록의 상품을 몇 개 담을까요? 인기 순위 범위와 품절 상품 처리 기준을 알려주세요."
+    return None
+
+
+def _get_unsupported_popular_wishlist_clarification(message: str) -> str | None:
+    if not _POPULAR_WISHLIST_REQUEST_PATTERN.search(message):
+        return None
+    if not _SKIN_PROFILE_REQUEST_PATTERN.search(message):
+        return None
+    return "현재 인기 상품 일괄 찜은 특정 성분 조건만 지원해요. 피부 타입 기준 일괄 찜은 아직 지원하지 않아요."
+
+
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
     return AgentChatResponse(
         conversation_id=_resolve_conversation_id(conversation_id),
@@ -396,6 +433,18 @@ def _execute_tool(
                 tool_name=tool_name,
                 ui_action=AgentUiAction(),
                 error=AgentError(code=exc.code, message=exc.message, retryable=False),
+            )
+        elif exc.code in {"EMPTY_CART", "AGENT_CART_EMPTY"}:
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message="장바구니가 비어 있어요. 상품을 담은 뒤 주문서를 준비할 수 있어요.",
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(
+                    code=exc.code,
+                    message="장바구니가 비어 있어요.",
+                    retryable=False,
+                ),
             )
         elif clarification_message := _CLARIFICATION_MESSAGES.get(exc.code):
             response = _clarification_response(
@@ -493,6 +542,7 @@ async def create_recommendation(
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
     sensitivity: Literal["낮음", "보통", "높음"] | None = None,
     avoid_ingredients: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
     intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
@@ -512,6 +562,7 @@ async def create_recommendation(
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "avoid_ingredients": avoid_ingredients,
+            "required_ingredient_names": required_ingredient_names,
             "page_size": page_size,
             "intent_resolved": intent_resolved,
             "concern_ids": concern_ids,
@@ -551,6 +602,7 @@ async def refine_product_results(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
 ) -> str:
     """Filter a full saved recommendation, falling back to currently visible products."""
     return _execute_tool(
@@ -567,6 +619,7 @@ async def refine_product_results(
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "effect_keywords": effect_keywords,
+            "required_ingredient_names": required_ingredient_names,
         },
     )
 
@@ -631,8 +684,9 @@ async def add_to_cart(
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
-    reference_source: Literal["current_product", "popular", "recommendation"] | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
     reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
 ) -> str:
     """Add one explicit or server-resolved product to the user's cart."""
     return _execute_tool(
@@ -645,6 +699,7 @@ async def add_to_cart(
             "recommendation_rank": recommendation_rank,
             "reference_source": reference_source,
             "reference_rank": reference_rank,
+            "reference_position": reference_position,
         },
     )
 

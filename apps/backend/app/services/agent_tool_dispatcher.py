@@ -85,6 +85,7 @@ class CreateRecommendationArgs(BaseModel):
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
     sensitivity: Literal["낮음", "보통", "높음"] | None = None
     avoid_ingredients: list[str] | None = Field(default=None, max_length=50)
+    required_ingredient_names: list[str] | None = Field(default=None, max_length=20)
     page_size: int = Field(default=10, ge=1, le=20)
     intent_resolved: bool = False
     concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
@@ -140,6 +141,7 @@ class RefineProductResultsArgs(BaseModel):
     skin_type: str | None = Field(default=None, max_length=40)
     sensitivity: str | None = Field(default=None, max_length=40)
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
+    required_ingredient_names: list[str] | None = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def validate_result_source(self) -> "RefineProductResultsArgs":
@@ -161,11 +163,14 @@ class AddToCartArgs(BaseModel):
     recommendation_rank: int | None = Field(default=None, ge=1)
     reference_source: ProductReferenceSource | None = None
     reference_rank: int | None = Field(default=None, ge=1, le=50)
+    reference_position: Literal["first", "last"] | None = None
 
     @model_validator(mode="after")
     def validate_product_reference(self) -> "AddToCartArgs":
         if self.product_id and self.reference_source:
             raise ValueError("product_id and reference_source cannot be used together")
+        if self.reference_rank is not None and self.reference_position is not None:
+            raise ValueError("reference_rank and reference_position cannot be used together")
         if not self.product_id and not self.reference_source:
             raise ValueError("product_id or reference_source is required")
         return self
@@ -405,6 +410,7 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             avoid_ingredients=args.avoid_ingredients,
+            required_ingredient_names=args.required_ingredient_names,
             page_size=args.page_size,
             intent_resolved=args.intent_resolved,
             concern_ids=args.concern_ids,
@@ -486,6 +492,7 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             effect_keywords=args.effect_keywords,
+            required_ingredient_names=args.required_ingredient_names,
         )
 
     if tool_name == GET_CART_TOOL:
@@ -510,6 +517,7 @@ def _execute_parsed_tool(
             recommendation_rank=args.recommendation_rank,
             reference_source=args.reference_source,
             reference_rank=args.reference_rank,
+            reference_position=args.reference_position,
             current_product_id=current_product_id,
         )
 
