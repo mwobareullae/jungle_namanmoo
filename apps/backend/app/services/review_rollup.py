@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.catalog import Product
 from app.db.models.review import (
+    FIRST_PARTY_REVIEW_SOURCE,
     ProductReview,
     ProductReviewMetric,
     ProductReviewProfileLabel,
@@ -19,10 +20,11 @@ from app.db.models.review import (
 )
 
 
-REVIEW_SCORE_VERSION = "review_quality_v2"
+REVIEW_SCORE_VERSION = "review_quality_v3"
 REVIEW_PRIOR_STRENGTH = 20.0
 SEGMENT_MIN_EFFECTIVE_SAMPLE_SIZE = 5.0
 REVIEW_STREAM_BATCH_SIZE = 5000
+REVIEW_SCORING_EXCLUDED_SOURCES = frozenset({FIRST_PARTY_REVIEW_SOURCE})
 
 _SCORE_QUANTUM = Decimal("0.000001")
 _RATING_QUANTUM = Decimal("0.0001")
@@ -71,10 +73,6 @@ class _ReviewAccumulator:
     repurchase_weight_square_sum: float = 0.0
     profile_labeled_review_count: int = 0
     source_photo_marker_count: int = 0
-    photo_known_count: int = 0
-    photo_weighted_sum: float = 0.0
-    photo_weight_sum: float = 0.0
-    photo_weight_square_sum: float = 0.0
     helpful_count_sum: int = 0
     weight_sum: float = 0.0
     weight_square_sum: float = 0.0
@@ -139,13 +137,6 @@ class _ReviewAccumulator:
                 self.repurchase_review_count += 1
                 self.repurchase_weighted_sum += weight
 
-        if source_has_photo is not None:
-            self.photo_known_count += 1
-            self.photo_weight_sum += weight
-            self.photo_weight_square_sum += weight * weight
-            if source_has_photo:
-                self.photo_weighted_sum += weight
-
     @property
     def average_rating(self) -> float | None:
         return _safe_divide(self.rating_sum, self.rating_count)
@@ -180,17 +171,6 @@ class _ReviewAccumulator:
     @property
     def weighted_repurchase_rate(self) -> float | None:
         return _safe_divide(self.repurchase_weighted_sum, self.repurchase_weight_sum)
-
-    @property
-    def weighted_photo_rate(self) -> float | None:
-        return _safe_divide(self.photo_weighted_sum, self.photo_weight_sum)
-
-    @property
-    def photo_effective_sample_size(self) -> float:
-        return kish_effective_sample_size(
-            self.photo_weight_sum,
-            self.photo_weight_square_sum,
-        )
 
     @property
     def effective_sample_size(self) -> float:
@@ -244,7 +224,6 @@ def rollup_product_review_metrics(
         session,
         target_product_id=product_id,
         target_category_id=target_category_id,
-        computed_at=now,
     )
     _record_stage(stage_durations, "review_metric_read_ms", stage_started_at)
 
@@ -252,7 +231,6 @@ def rollup_product_review_metrics(
     segment_accumulators = _collect_segment_reviews(
         session,
         product_accumulators=product_accumulators,
-        computed_at=now,
     )
     _record_stage(stage_durations, "review_segment_read_ms", stage_started_at)
 
@@ -312,14 +290,14 @@ def calculate_review_weight(
     review_type: str | None,
     verified_purchase: bool | None,
     helpful_count: int | None,
-    reviewed_at: datetime | None,
-    computed_at: datetime,
 ) -> float:
-    # OliveYoung seed에서는 수집분 전량이 MONTH_USE이고 구매인증 원본값도 없어
-    # 두 필드가 리뷰 간 신뢰도를 구분하지 못한다. 자사몰 구매 리뷰의
-    # verified_purchase는 실제 주문 검증 신호이므로 기존 배율을 유지한다.
-    source_weight = 1.0
     normalized_source = (source or "").strip().casefold()
+    # 자사몰 리뷰는 목록·요약·정보 추출에는 남기되 추천 점수에는 사용하지 않는다.
+    if normalized_source in REVIEW_SCORING_EXCLUDED_SOURCES:
+        return 0.0
+
+    # OliveYoung seed에서는 수집분 전량이 MONTH_USE이고 구매인증 원본값도 없어
+    # 두 필드가 리뷰 간 신뢰도를 구분하지 못한다.
     uses_nondiscriminating_seed_signals = normalized_source == "oliveyoung"
     month_use_weight = (
         1.0
@@ -337,29 +315,7 @@ def calculate_review_weight(
         1.0,
     )
     helpful_weight = 1.0 + (0.10 * helpful_ratio)
-    recency_weight = calculate_review_recency_weight(reviewed_at, computed_at)
-    return (
-        source_weight
-        * month_use_weight
-        * verified_weight
-        * helpful_weight
-        * recency_weight
-    )
-
-
-def calculate_review_recency_weight(
-    reviewed_at: datetime | None,
-    computed_at: datetime,
-) -> float:
-    normalized_reviewed_at = _as_utc(reviewed_at)
-    if normalized_reviewed_at is None:
-        return 0.75
-    normalized_computed_at = _as_utc(computed_at) or datetime.now(UTC)
-    age_days = max(
-        0.0,
-        (normalized_computed_at - normalized_reviewed_at).total_seconds() / 86_400.0,
-    )
-    return 0.5 + (0.5 * math.pow(2.0, -age_days / 730.0))
+    return month_use_weight * verified_weight * helpful_weight
 
 
 def kish_effective_sample_size(weight_sum: float, weight_square_sum: float) -> float:
@@ -403,16 +359,13 @@ def calculate_review_quality_score(
     *,
     rating_score: float | None,
     repurchase_score: float | None,
-    photo_rate_score: float | None,
     effective_sample_size: float,
 ) -> tuple[float, float]:
-    # review-scoring-revision 4.1: 일반후기 0건으로 일관성 축은 상시 None(G1)이라 제거하고,
-    # 실존 신호인 사진리뷰율을 0.05로 신설. 일반후기 수집 재개 시 복원 재배분은 팀 논의 대상.
+    # 사진 여부와 작성일은 정보로 보존하되 품질 점수에는 사용하지 않는다.
     quality_signal = _available_weighted_average(
         (
-            (rating_score, 0.75),
+            (rating_score, 0.80),
             (repurchase_score, 0.20),
-            (photo_rate_score, 0.05),
         ),
         default=0.5,
     )
@@ -441,7 +394,6 @@ def _collect_product_reviews(
     *,
     target_product_id: int | None,
     target_category_id: int | None,
-    computed_at: datetime,
 ) -> tuple[dict[int, _ReviewAccumulator], dict[int, _ReviewAccumulator], int]:
     statement = (
         select(
@@ -490,8 +442,6 @@ def _collect_product_reviews(
             review_type=review_type,
             verified_purchase=verified_purchase,
             helpful_count=helpful_count,
-            reviewed_at=reviewed_at,
-            computed_at=computed_at,
         )
         category_accumulators.setdefault(
             normalized_category_id,
@@ -527,7 +477,6 @@ def _collect_segment_reviews(
     session: Session,
     *,
     product_accumulators: dict[int, _ReviewAccumulator],
-    computed_at: datetime,
 ) -> dict[tuple[int, str, str], _ReviewAccumulator]:
     product_ids = sorted(product_accumulators)
     if not product_ids:
@@ -590,9 +539,9 @@ def _collect_segment_reviews(
             review_type=review_type,
             verified_purchase=verified_purchase,
             helpful_count=helpful_count,
-            reviewed_at=reviewed_at,
-            computed_at=computed_at,
         )
+        if base_weight <= 0.0:
+            continue
         segment_weight = base_weight * float(mapping_confidence)
         segment_key = normalized_product_id, str(dimension), str(value_code)
         segment_accumulators.setdefault(segment_key, _ReviewAccumulator()).add(
@@ -675,24 +624,10 @@ def _apply_product_metric(
         accumulator.general_weighted_average_rating,
         accumulator.month_weighted_average_rating,
     )
-    category_prior_photo_rate = category_accumulator.weighted_photo_rate
-    bayesian_photo_rate = calculate_bayesian_mean(
-        accumulator.weighted_photo_rate,
-        accumulator.photo_effective_sample_size,
-        category_prior_photo_rate,
-    )
-    photo_rate_score = (
-        _clamp(bayesian_photo_rate)
-        if bayesian_photo_rate is not None
-        else None
-    )
     review_quality_score, confidence = calculate_review_quality_score(
-        rating_score=rating_score if accumulator.rating_count else None,
+        rating_score=rating_score if accumulator.rating_weight_sum > 0.0 else None,
         repurchase_score=(
-            repurchase_score if accumulator.repurchase_known_count else None
-        ),
-        photo_rate_score=(
-            photo_rate_score if accumulator.photo_known_count else None
+            repurchase_score if accumulator.repurchase_weight_sum > 0.0 else None
         ),
         effective_sample_size=accumulator.effective_sample_size,
     )
