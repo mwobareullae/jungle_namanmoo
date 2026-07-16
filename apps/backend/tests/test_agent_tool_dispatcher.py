@@ -750,7 +750,9 @@ def test_openai_tool_returns_structured_address_request(db_engine: Engine) -> No
     assert context.last_tool_response is not None
 
 
-def test_openai_tool_returns_structured_login_action_for_anonymous_user(db_engine: Engine) -> None:
+def test_openai_tool_adds_to_anonymous_cart(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    anonymous_cart_id = "agent-anonymous-cart"
     with Session(db_engine) as session:
         context = CommerceAgentContext(
             session=session,
@@ -759,19 +761,52 @@ def test_openai_tool_returns_structured_login_action_for_anonymous_user(db_engin
             request_id="req_login_required",
             session_id=None,
             anonymous_user_id=None,
+            anonymous_cart_id=anonymous_cart_id,
         )
         result = _execute_tool(
             type("RunContext", (), {"context": context})(),
             tool_name="add_to_cart",
             arguments={"product_id": "prod_001", "quantity": 1},
         )
+        cart = get_cart_response(session, None, anonymous_cart_id)
 
     payload = json.loads(result)
     assert payload["conversation_id"] == "conv_login_required"
     assert payload["tool_name"] == "add_to_cart"
-    assert payload["error"]["code"] == "AGENT_AUTH_REQUIRED"
-    assert payload["ui_action"]["type"] == "noop"
+    assert payload["error"] is None
+    assert payload["ui_action"]["type"] == "show_cart"
+    assert cart.total_quantity == 1
     assert context.last_tool_response is not None
+
+
+def test_openai_tool_hides_unexpected_internal_error(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_safe_error",
+            request_id="req_safe_error",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+
+        def raise_internal_error(*args, **kwargs):
+            raise RuntimeError('relation "private_table" does not exist')
+
+        monkeypatch.setattr("app.services.agent_openai_runner.execute_agent_tool", raise_internal_error)
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="find_similar_products",
+            arguments={"product_id": "prod_001", "limit": 2},
+        )
+
+    payload = json.loads(result)
+    assert payload["error"]["code"] == "AGENT_TOOL_EXECUTION_FAILED"
+    assert "private_table" not in payload["message"]
+    assert "잠시 후 다시 시도" in payload["message"]
 
 
 def _set_inventory(
