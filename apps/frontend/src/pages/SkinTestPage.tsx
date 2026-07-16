@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import SkinTestProgress from "../components/SkinTestProgress";
 import SkinTestQuestionCard from "../components/SkinTestQuestionCard";
+import { useAuth } from "../contexts/useAuth";
 import { api } from "../lib/api";
-import { saveLatestSkinTestResult } from "../lib/skinTest";
+import { getMySkinProfile } from "../lib/profileApi";
+import { getLatestSkinTestResult, saveLatestSkinTestResult } from "../lib/skinTest";
 import type { ApiError } from "../types/recommendation";
 import type { SkinTestOption, SkinTestQuestionsResponse } from "../types/skinTest";
 
 type AnswerMap = Record<string, SkinTestOption["id"]>;
+
+type SkinTestLocationState = {
+  forceRetest?: boolean;
+};
 
 const getErrorMessage = (error: unknown) => {
   const apiError = error as Partial<ApiError>;
@@ -22,12 +28,17 @@ const getErrorMessage = (error: unknown) => {
 
 function SkinTestPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthLoading, user } = useAuth();
+  const locationState = location.state as SkinTestLocationState | null;
+  const shouldForceRetest = locationState?.forceRetest === true;
   const [questionSet, setQuestionSet] = useState<SkinTestQuestionsResponse | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [errorMessage, setErrorMessage] = useState("");
   const [hasStarted, setHasStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExistingResultResolved, setIsExistingResultResolved] = useState(shouldForceRetest);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const advanceTimerRef = useRef<number | null>(null);
 
@@ -40,6 +51,55 @@ function SkinTestPage() {
   }, []);
 
   useEffect(() => {
+    if (shouldForceRetest) {
+      return;
+    }
+
+    const latestResult = getLatestSkinTestResult();
+    if (latestResult) {
+      navigate(`/skin-test/result?result_id=${latestResult.result_id}`, {
+        replace: true,
+        state: { result: latestResult },
+      });
+      return;
+    }
+
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!user) {
+      queueMicrotask(() => setIsExistingResultResolved(true));
+      return;
+    }
+
+    let isActive = true;
+
+    void getMySkinProfile()
+      .then((profile) => {
+        if (!isActive) return;
+
+        if (profile?.latestSkinTestResultId) {
+          navigate(`/skin-test/result?result_id=${profile.latestSkinTestResultId}`, { replace: true });
+          return;
+        }
+
+        setIsExistingResultResolved(true);
+      })
+      .catch(() => {
+        if (isActive) setIsExistingResultResolved(true);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isAuthLoading, navigate, shouldForceRetest, user]);
+
+  useEffect(() => {
+    if (!isExistingResultResolved) {
+      return;
+    }
+
     let isActive = true;
 
     const loadQuestions = async () => {
@@ -70,7 +130,7 @@ function SkinTestPage() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [isExistingResultResolved]);
 
   const questions = useMemo(() => questionSet?.questions ?? [], [questionSet?.questions]);
   const currentQuestion = questions[currentIndex];
@@ -210,6 +270,11 @@ function SkinTestPage() {
                   분석 중...
                 </p>
                 <small>약 8문항의 답변을 조합하고 있어요</small>
+              </div>
+            ) : !isExistingResultResolved ? (
+              <div className="skin-test-state">
+                <span className="skin-test-loader" aria-hidden="true" />
+                <p>저장된 피부 타입 결과를 확인하고 있어요.</p>
               </div>
             ) : isLoading ? (
               <div className="skin-test-state">
