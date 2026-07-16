@@ -11,6 +11,7 @@ import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToas
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
+import { navigateWithinApp } from "../lib/navigation";
 import { isProductSoldOut } from "../lib/productAvailability";
 import type { ProductListingItem } from "../types/product";
 import type { ProductCardItem } from "../types/recommendation";
@@ -182,11 +183,15 @@ function BrandPage() {
     };
   }, [decodedBrandName, loadProducts]);
 
+  const openDetail = (productId: string) => {
+    void navigateWithinApp(`/product-detail?id=${encodeURIComponent(productId)}`);
+  };
+
   return (
     <>
       <HomeHeader />
-      <main className="popular-products-page new-products-page brand-page">
-        <div className="popular-products-shell brand-page__shell">
+      <main className="popular-products-page new-products-page">
+        <div className="popular-products-shell">
         <div className="popular-products-kicker">BRAND</div>
         <h1>{decodedBrandName}</h1>
         <p className="new-products-page__description">{decodedBrandName}의 상품을 확인해 보세요.</p>
@@ -199,7 +204,7 @@ function BrandPage() {
             products.map((product) => {
               const isSoldOut = isProductSoldOut(product);
               const isWished = wishedProductIds.has(product.product_id);
-              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => { window.location.href = `/product-detail?id=${encodeURIComponent(product.product_id)}`; }} role="link" tabIndex={0}>
+              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => openDetail(product.product_id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDetail(product.product_id); } }} role="link" tabIndex={0}>
                 <div className="popular-product-card__image-wrap">
                   <ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
                   {isSoldOut ? <ProductSoldOutOverlay /> : null}
