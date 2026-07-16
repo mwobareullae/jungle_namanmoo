@@ -5,7 +5,7 @@ import ActivityToast from "../../components/ui/ActivityToast";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { useActivityToast } from "../../hooks/useActivityToast";
 import { useSkinProfileQuery, skinProfileQueryKey } from "../../hooks/useSkinProfileQuery";
-import { updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
+import { setMySkinProfileCache, updateMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
 import { useAuth } from "../../contexts/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Sensitivity, SkinType } from "../../types/recommendation";
@@ -203,6 +203,7 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
         setProfile(nextProfile);
         setSavedProfile(nextProfile);
         setHasSavedProfile(true);
+        setMySkinProfileCache(user?.id, savedProfile);
         queryClient.setQueryData(skinProfileQueryKey(user?.id ?? null), savedProfile);
       }
 

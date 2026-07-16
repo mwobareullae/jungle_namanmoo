@@ -19,7 +19,8 @@ import { addCartItem } from "../lib/cartApi";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
 import { installHomeRuntime } from "../lib/homeRuntime";
 import { navigateWithinApp } from "../lib/navigation";
-import { getSavedSkinProfile } from "../lib/profileApi";
+import { toRecommendationProfile } from "../lib/profileApi";
+import { useSkinProfileQuery } from "../hooks/useSkinProfileQuery";
 import { useProductReviewsApi } from "../hooks/useProductReviewsApi";
 import type {
   IngredientEvidence,
@@ -458,6 +459,7 @@ function ProductDetailSpaPage() {
   const [{ productId, recommendationId, recommendationRank, skinType, sensitivity }] = useState(getDetailParams);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, Boolean(user));
   const [avoidIngredientMatchState, setAvoidIngredientMatchState] = useState<{
     matchSet: Set<string>;
     userId: number | null;
@@ -654,32 +656,16 @@ function ProductDetailSpaPage() {
       return;
     }
 
-    let isMounted = true;
     const currentUserId = user.id;
+    if (skinProfileQuery.isPending) return;
 
-    getSavedSkinProfile()
-      .then((profile) => {
-        if (!isMounted) return;
-        setReviewProfileSkinType(profile?.skin ?? (skinType || null));
-        setAvoidIngredientMatchState({
-          matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
-          userId: currentUserId,
-        });
-      })
-      .catch(() => {
-        if (isMounted) {
-          setReviewProfileSkinType(skinType || null);
-          setAvoidIngredientMatchState({
-            matchSet: EMPTY_AVOID_INGREDIENT_MATCH_SET,
-            userId: currentUserId,
-          });
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [skinType, user]);
+    const profile = skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null;
+    setReviewProfileSkinType(profile?.skin ?? (skinType || null));
+    setAvoidIngredientMatchState({
+      matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
+      userId: currentUserId,
+    });
+  }, [skinProfileQuery.data, skinProfileQuery.isPending, skinType, user?.id]);
 
   useEffect(() => {
     if (!comparisonRequest) {
