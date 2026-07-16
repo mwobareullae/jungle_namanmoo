@@ -54,12 +54,21 @@ SCORING_STAGES = [
 ]
 
 SCORING_PREFETCH_FIELDS = [
+    ("snapshot_load_ms", "snapshot load"),
     ("candidate_bundle_ms", "candidate bundle"),
     ("effect_features_ms", "effect features"),
     ("ingredient_effects_ms", "ingredient effects"),
     ("risk_flags_ms", "risk flags"),
     ("review_segments_ms", "review segments"),
     ("behavior_signals_ms", "behavior signals"),
+]
+
+SNAPSHOT_READ_MODEL_FIELDS = [
+    "scoring_snapshot_load_ms",
+    "scoring_snapshot_hit_count",
+    "scoring_snapshot_miss_count",
+    "scoring_snapshot_fallback_ms",
+    "scoring_snapshot_parse_error_count",
 ]
 
 # Query timings include both database execution and row materialization because
@@ -1819,6 +1828,52 @@ def execution_flow_children(
     return [record for record in records if record["parent_id"] == parent_id]
 
 
+def build_snapshot_read_model_metrics(row) -> dict[str, Any] | None:
+    if not any(
+        numeric_or_none(row.get(f"{field}_avg")) is not None
+        for field in SNAPSHOT_READ_MODEL_FIELDS
+    ):
+        return None
+
+    hit_count = numeric_or_none(row.get("scoring_snapshot_hit_count_avg")) or 0.0
+    miss_count = numeric_or_none(row.get("scoring_snapshot_miss_count_avg")) or 0.0
+    candidate_count = hit_count + miss_count
+    hit_rate = (
+        round(hit_count / candidate_count, 6) if candidate_count > 0 else 0.0
+    )
+    miss_rate = (
+        round(miss_count / candidate_count, 6) if candidate_count > 0 else 0.0
+    )
+    return {
+        "source_run_id": str(row.get("run_id") or ""),
+        "snapshot_load_avg_ms": (
+            numeric_or_none(row.get("scoring_snapshot_load_ms_avg")) or 0.0
+        ),
+        "snapshot_load_p95_ms": (
+            numeric_or_none(row.get("scoring_snapshot_load_ms_p95")) or 0.0
+        ),
+        "snapshot_fallback_avg_ms": (
+            numeric_or_none(row.get("scoring_snapshot_fallback_ms_avg")) or 0.0
+        ),
+        "snapshot_fallback_p95_ms": (
+            numeric_or_none(row.get("scoring_snapshot_fallback_ms_p95")) or 0.0
+        ),
+        "snapshot_hit_count_avg": hit_count,
+        "snapshot_miss_count_avg": miss_count,
+        "snapshot_candidate_count_avg": candidate_count,
+        "snapshot_hit_rate": hit_rate,
+        "snapshot_miss_rate": miss_rate,
+        "snapshot_parse_error_count_avg": (
+            numeric_or_none(row.get("scoring_snapshot_parse_error_count_avg"))
+            or 0.0
+        ),
+        "snapshot_parse_error_count_p95": (
+            numeric_or_none(row.get("scoring_snapshot_parse_error_count_p95"))
+            or 0.0
+        ),
+    }
+
+
 def write_execution_flow_report(
     row,
     output_dir: Path,
@@ -1833,6 +1888,7 @@ def write_execution_flow_report(
     records = build_execution_flow_records(row)
     if not records:
         return
+    snapshot_metrics = build_snapshot_read_model_metrics(row)
 
     write_dict_csv(records, data_dir / "execution-flow-timings.csv")
     basis = {
@@ -1850,6 +1906,11 @@ def write_execution_flow_report(
         "llm_attempt_rate": numeric_or_none(row.get("intent_llm_attempted_true_rate")),
     }
     write_dict_csv([basis], data_dir / "execution-flow-basis.csv")
+    if snapshot_metrics is not None:
+        write_dict_csv(
+            [snapshot_metrics],
+            data_dir / "snapshot-read-model-metrics.csv",
+        )
 
     plot_execution_hierarchy_rings(
         row,
@@ -1879,20 +1940,32 @@ def write_execution_flow_report(
         plt,
         sns,
     )
+    if snapshot_metrics is not None:
+        plot_snapshot_read_model(
+            snapshot_metrics,
+            output_dir / "05-snapshot-read-model.png",
+            plt,
+        )
     plot_bottleneck_paths(
         row,
         records,
-        output_dir / "05-bottleneck-paths.png",
+        output_dir / "06-bottleneck-paths.png",
         plt,
         sns,
     )
     plot_execution_flow_table(
         row,
         records,
-        output_dir / "06-timing-table.png",
+        output_dir / "07-timing-table.png",
         plt,
     )
-    write_execution_flow_readme(output_dir / "README.md", row, records, basis)
+    write_execution_flow_readme(
+        output_dir / "README.md",
+        row,
+        records,
+        basis,
+        snapshot_metrics=snapshot_metrics,
+    )
 
 
 def write_execution_flow_readme(
@@ -1900,11 +1973,14 @@ def write_execution_flow_readme(
     row,
     records: list[dict[str, Any]],
     basis: dict[str, Any],
+    *,
+    snapshot_metrics: dict[str, Any] | None = None,
 ) -> None:
     e2e_ms = float(basis["latency_avg_ms"] or 0.0)
     p95_ms = float(basis["latency_p95_ms"] or 0.0)
     pipeline_ms = float(basis["pipeline_avg_ms"] or 0.0)
     attempt_rate = float(basis["llm_attempt_rate"] or 0.0)
+    snapshot_lines = snapshot_read_model_markdown(snapshot_metrics)
     lines = [
         "# 추천 API 실행 흐름 드릴다운",
         "",
@@ -1924,8 +2000,9 @@ def write_execution_flow_readme(
         "1. 전체 HTTP에서 파이프라인과 미계측 구간을 본다.",
         "2. 파이프라인의 실제 호출 순서와 각 구간 시간을 본다.",
         "3. 가장 큰 scoring을 prefetch와 score loop까지 내려간다.",
-        "4. intent를 LLM 호출과 HTTP 대기까지 내려간다.",
-        "5. 주요 병목 경로 세 개를 전체 HTTP 대비 비율로 비교한다.",
+        "4. snapshot 적중률과 조회·fallback 비용을 확인한다.",
+        "5. intent를 LLM 호출과 HTTP 대기까지 내려간다.",
+        "6. 주요 병목 경로 세 개를 전체 HTTP 대비 비율로 비교한다.",
         "",
         "![전체 계층](./01-execution-hierarchy-rings.png)",
         "",
@@ -1952,6 +2029,7 @@ def write_execution_flow_readme(
         "### Score loop 내부",
         "",
         *execution_flow_markdown_table(records, "score_loop_ms"),
+        *snapshot_lines,
         "",
         "![intent 드릴다운](./04-intent-drilldown.png)",
         "",
@@ -1963,9 +2041,9 @@ def write_execution_flow_readme(
         "",
         *execution_flow_markdown_table(records, "intent_llm_call_ms"),
         "",
-        "![주요 병목 경로](./05-bottleneck-paths.png)",
+        "![주요 병목 경로](./06-bottleneck-paths.png)",
         "",
-        "![핵심 수치 표](./06-timing-table.png)",
+        "![핵심 수치 표](./07-timing-table.png)",
         "",
         "## 해석 주의",
         "",
@@ -1977,6 +2055,36 @@ def write_execution_flow_readme(
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def snapshot_read_model_markdown(
+    metrics: dict[str, Any] | None,
+) -> list[str]:
+    if metrics is None:
+        return []
+    return [
+        "",
+        "## Snapshot Read Model",
+        "",
+        "| 지표 | 평균 | p95 |",
+        "|---|---:|---:|",
+        f"| snapshot 조회 | {metrics['snapshot_load_avg_ms']:,.2f}ms | "
+        f"{metrics['snapshot_load_p95_ms']:,.2f}ms |",
+        f"| fallback 경로 | {metrics['snapshot_fallback_avg_ms']:,.2f}ms | "
+        f"{metrics['snapshot_fallback_p95_ms']:,.2f}ms |",
+        f"| hit 후보/요청 | {metrics['snapshot_hit_count_avg']:,.2f}개 | - |",
+        f"| miss 후보/요청 | {metrics['snapshot_miss_count_avg']:,.2f}개 | - |",
+        f"| parse error/요청 | {metrics['snapshot_parse_error_count_avg']:,.2f}개 | "
+        f"{metrics['snapshot_parse_error_count_p95']:,.2f}개 |",
+        "",
+        f"- snapshot hit rate: **{metrics['snapshot_hit_rate'] * 100:.2f}%**",
+        f"- snapshot miss rate: **{metrics['snapshot_miss_rate'] * 100:.2f}%**",
+        "- `snapshot fallback`은 누락 후보의 기존 loader 전체 구간이며 하위 loader "
+        "시간과 겹치므로 prefetch 합계에 다시 더하지 않는다.",
+        "- 원본 수치는 `../../data/snapshot-read-model-metrics.csv`에 있다.",
+        "",
+        "![snapshot read model](./05-snapshot-read-model.png)",
+    ]
 
 
 def execution_flow_markdown_table(
@@ -2439,11 +2547,130 @@ def find_execution_flow_record(
     return None
 
 
+def plot_snapshot_read_model(metrics, path: Path, plt) -> None:
+    fig, axes = plt.subplots(1, 3, figsize=(20, 7.5))
+
+    timing_labels = ["snapshot load", "fallback path"]
+    averages = [
+        metrics["snapshot_load_avg_ms"],
+        metrics["snapshot_fallback_avg_ms"],
+    ]
+    p95_values = [
+        metrics["snapshot_load_p95_ms"],
+        metrics["snapshot_fallback_p95_ms"],
+    ]
+    positions = list(range(len(timing_labels)))
+    width = 0.34
+    average_bars = axes[0].bar(
+        [position - width / 2 for position in positions],
+        averages,
+        width,
+        label="average",
+        color="#2563EB",
+    )
+    p95_bars = axes[0].bar(
+        [position + width / 2 for position in positions],
+        p95_values,
+        width,
+        label="p95",
+        color="#EA580C",
+    )
+    axes[0].bar_label(average_bars, fmt="%.1f", padding=3, fontsize=10)
+    axes[0].bar_label(p95_bars, fmt="%.1f", padding=3, fontsize=10)
+    axes[0].set_xticks(positions, timing_labels)
+    axes[0].set_ylabel("milliseconds")
+    axes[0].set_title("Read and fallback cost", fontweight="bold")
+    axes[0].legend(frameon=False)
+    axes[0].spines[["right", "top"]].set_visible(False)
+
+    hit_count = metrics["snapshot_hit_count_avg"]
+    miss_count = metrics["snapshot_miss_count_avg"]
+    if hit_count + miss_count > 0:
+        axes[1].pie(
+            [hit_count, miss_count],
+            labels=["hit", "miss"],
+            colors=["#0F766E", "#DC2626"],
+            autopct=lambda percent: f"{percent:.2f}%" if percent > 0 else "",
+            startangle=90,
+            wedgeprops={"width": 0.42, "edgecolor": "white"},
+        )
+        axes[1].text(
+            0,
+            0,
+            f"{hit_count + miss_count:,.1f}\ncandidates/request",
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+        )
+    else:
+        axes[1].text(0.5, 0.5, "No snapshot candidate metrics", ha="center", va="center")
+        axes[1].axis("off")
+    axes[1].set_title("Snapshot coverage", fontweight="bold")
+
+    axes[2].axis("off")
+    cards = [
+        ("Hit rate", f"{metrics['snapshot_hit_rate'] * 100:.2f}%", "#DCFCE7", "#166534"),
+        ("Miss / request", f"{miss_count:,.2f}", "#FEE2E2", "#991B1B"),
+        (
+            "Parse errors / request",
+            f"{metrics['snapshot_parse_error_count_avg']:,.2f}",
+            "#FEF3C7",
+            "#92400E",
+        ),
+    ]
+    for index, (label, value, facecolor, textcolor) in enumerate(cards):
+        y = 0.82 - index * 0.3
+        axes[2].text(
+            0.5,
+            y,
+            f"{label}\n{value}",
+            ha="center",
+            va="center",
+            fontsize=16,
+            fontweight="bold",
+            color=textcolor,
+            bbox={
+                "boxstyle": "round,pad=0.8",
+                "facecolor": facecolor,
+                "edgecolor": "none",
+            },
+        )
+    axes[2].set_title("Read-model guardrails", fontweight="bold")
+
+    fig.suptitle(
+        "Opt4 snapshot read-model diagnostics",
+        fontsize=20,
+        fontweight="bold",
+        y=0.97,
+    )
+    fig.text(
+        0.5,
+        0.04,
+        "Fallback spans the legacy loader path and overlaps its child timings; "
+        "it is diagnostic, not an additive pipeline segment.",
+        ha="center",
+        fontsize=10,
+        color="#475569",
+    )
+    fig.subplots_adjust(left=0.05, right=0.98, top=0.86, bottom=0.16, wspace=0.3)
+    save_figure(fig, path, plt)
+
+
 def plot_bottleneck_paths(row, records, path: Path, plt, sns) -> None:
     e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
     pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
     if e2e_ms <= 0:
         return
+    snapshot_load_ms = flow_record_value(records, "prefetch_snapshot_load_ms")
+    data_loading_leaf = (
+        ("snapshot load", snapshot_load_ms)
+        if snapshot_load_ms > 0
+        else (
+            "candidate bundle",
+            flow_record_value(records, "prefetch_candidate_bundle_ms"),
+        )
+    )
     paths = [
         (
             "Data-loading path",
@@ -2452,7 +2679,7 @@ def plot_bottleneck_paths(row, records, path: Path, plt, sns) -> None:
                 ("pipeline", pipeline_ms),
                 ("scoring", flow_record_value(records, "scoring_ms")),
                 ("data prefetch", flow_record_value(records, "scoring_data_prefetch_ms")),
-                ("candidate bundle", flow_record_value(records, "prefetch_candidate_bundle_ms")),
+                data_loading_leaf,
             ],
             "#EA580C",
         ),
@@ -2518,6 +2745,7 @@ def plot_execution_flow_table(row, records, path: Path, plt) -> None:
         ("backend_pipeline", "end_to_end"),
         ("scoring_ms", "backend_pipeline"),
         ("scoring_data_prefetch_ms", "scoring_ms"),
+        ("prefetch_snapshot_load_ms", "scoring_data_prefetch_ms"),
         ("prefetch_candidate_bundle_ms", "scoring_data_prefetch_ms"),
         ("score_loop_ms", "scoring_ms"),
         ("score_loop_behavior_axis_ms", "score_loop_ms"),
