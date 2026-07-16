@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -1903,14 +1903,25 @@ def _score_candidates_exact(
         behavior_signals_by_product = {}
     prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
 
+    detail_ingredient_effect_detail: dict[str, float | int] = {}
     if single_pass_details:
         stage_started_at = current_time()
         detail_precomputed_ids = sorted(set(product_ids) - legacy_fallback_ids)
+        detail_selection_keys = _build_detail_ingredient_selection_keys(
+            detail_precomputed_ids,
+            effect_features_by_product,
+        )
         ingredients_by_product.update(
             _load_ingredient_effects(
                 session,
                 detail_precomputed_ids,
                 desired_effects,
+                selection_keys=detail_selection_keys,
+                diagnostics=(
+                    detail_ingredient_effect_detail
+                    if diagnostics is not None
+                    else None
+                ),
             )
         )
         prefetch_breakdown["detail_ingredients_ms"] = round(
@@ -2103,6 +2114,10 @@ def _score_candidates_exact(
                     **{
                         f"behavior_signals_{key}": value
                         for key, value in behavior_signal_detail.items()
+                    },
+                    **{
+                        f"detail_ingredients_{key}": value
+                        for key, value in detail_ingredient_effect_detail.items()
                     },
                 },
                 "score_loop_breakdown": {
@@ -2722,9 +2737,10 @@ def _load_ingredient_effects(
     product_ids: list[int],
     desired_effects: tuple[_DesiredEffect, ...],
     *,
+    selection_keys: tuple[tuple[int, str, int], ...] | None = None,
     diagnostics: dict[str, float | int] | None = None,
 ) -> dict[int, tuple[_IngredientEffectInfo, ...]]:
-    if not product_ids or not desired_effects:
+    if not product_ids or not desired_effects or selection_keys == ():
         if diagnostics is not None:
             diagnostics.update(
                 {
@@ -2733,13 +2749,14 @@ def _load_ingredient_effects(
                     "row_count": 0,
                     "grouped_count": 0,
                     "product_count": 0,
+                    "selection_applied": int(selection_keys is not None),
+                    "selection_key_count": len(selection_keys or ()),
                 }
             )
         return {}
 
     desired_effect_codes = [effect.effect_code for effect in desired_effects]
-    query_started_at = current_time()
-    rows = session.execute(
+    statement = (
         select(
             ProductIngredient.product_id.label("product_db_id"),
             ProductIngredient.display_order,
@@ -2793,10 +2810,23 @@ def _load_ingredient_effects(
             ProductIngredient.product_id.in_(product_ids),
             Effect.effect_code.in_(desired_effect_codes),
         )
-    ).all()
+    )
+    if selection_keys is not None:
+        statement = statement.where(
+            tuple_(
+                ProductIngredient.product_id,
+                Effect.effect_code,
+                Ingredient.id,
+            ).in_(selection_keys)
+        )
+
+    query_started_at = current_time()
+    rows = session.execute(statement).all()
     if diagnostics is not None:
         diagnostics["query_ms"] = round(elapsed_ms(query_started_at), 2)
         diagnostics["row_count"] = len(rows)
+        diagnostics["selection_applied"] = int(selection_keys is not None)
+        diagnostics["selection_key_count"] = len(selection_keys or ())
 
     build_started_at = current_time()
     grouped: dict[tuple[int, int, str], _IngredientEffectInfo] = {}
@@ -2848,6 +2878,28 @@ def _load_ingredient_effects(
         diagnostics["grouped_count"] = len(grouped)
         diagnostics["product_count"] = len(result)
     return result
+
+
+def _build_detail_ingredient_selection_keys(
+    product_ids: list[int],
+    effect_features_by_product: dict[
+        int,
+        dict[str, ProductEffectRecommendationFeatureValues],
+    ],
+) -> tuple[tuple[int, str, int], ...]:
+    # Evidence-axis scores are precomputed; rows are only needed for top-ingredient explanations.
+    selected_product_ids = set(product_ids)
+    return tuple(
+        sorted(
+            {
+                (product_id, effect_code, ingredient_id)
+                for product_id, features_by_effect in effect_features_by_product.items()
+                if product_id in selected_product_ids
+                for effect_code, feature in features_by_effect.items()
+                for ingredient_id in feature.top_ingredient_ids
+            }
+        )
+    )
 
 
 def load_all_product_ingredient_effects(
