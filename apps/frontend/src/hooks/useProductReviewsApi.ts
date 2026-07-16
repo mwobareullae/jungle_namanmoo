@@ -39,6 +39,18 @@ type ApiProductReviewsResponse = {
   has_next: boolean;
 };
 
+const PRODUCT_REVIEWS_CACHE_TTL_MS = 45_000;
+const productReviewsCache = new Map<string, { value: ApiProductReviewsResponse; expiresAt: number }>();
+const productReviewsRequests = new Map<string, Promise<ApiProductReviewsResponse>>();
+
+export const invalidateProductReviews = (productId: string | null | undefined) => {
+  if (!productId) return;
+  const prefix = `${productId}?`;
+  for (const key of productReviewsCache.keys()) {
+    if (key.startsWith(prefix)) productReviewsCache.delete(key);
+  }
+};
+
 export type ProductReviewsQuery = {
   cursor?: string | null;
   sort?: "latest" | "helpful" | "rating_high" | "rating_low";
@@ -167,11 +179,20 @@ export const useProductReviewsApi = (
       setErrorMessage("");
     });
 
-    fetchWithTimeout(
-      `${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params.toString()}`,
-    )
-      .then((response) => parseJson<ApiProductReviewsResponse>(response))
+    const cacheKey = `${productId}?${params.toString()}`;
+    const cached = productReviewsCache.get(cacheKey);
+    const pending = productReviewsRequests.get(cacheKey);
+    const isFresh = Boolean(cached && cached.expiresAt > Date.now());
+    const request = isFresh
+      ? Promise.resolve(cached!.value)
+      : pending ?? fetchWithTimeout(
+          `${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params.toString()}`,
+        ).then((response) => parseJson<ApiProductReviewsResponse>(response));
+    if (!isFresh && !pending) productReviewsRequests.set(cacheKey, request);
+
+    request
       .then((response) => {
+        if (!isFresh) productReviewsCache.set(cacheKey, { value: response, expiresAt: Date.now() + PRODUCT_REVIEWS_CACHE_TTL_MS });
         if (isMounted) {
           setReviews(response.items.map(mapReview));
           setHasNext(response.has_next);
@@ -187,6 +208,7 @@ export const useProductReviewsApi = (
         }
       })
       .finally(() => {
+        if (productReviewsRequests.get(cacheKey) === request) productReviewsRequests.delete(cacheKey);
         if (isMounted) setIsLoading(false);
       });
 
