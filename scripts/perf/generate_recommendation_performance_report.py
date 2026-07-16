@@ -55,6 +55,17 @@ SCORING_COMPONENTS = [
     ("score_sort_ms", "정렬"),
 ]
 
+COARSE_TOP50_SCORING_COMPONENTS = [
+    ("coarse_feature_query_ms", "Coarse 피처 조회"),
+    ("coarse_feature_build_ms", "Coarse 피처 조립"),
+    ("coarse_context_build_ms", "Coarse 컨텍스트"),
+    ("coarse_score_loop_ms", "Coarse 후보 계산"),
+    ("exact_prefetch_ms", "Exact Top50 조회"),
+    ("exact_score_loop_ms", "Exact Top50 계산"),
+    ("score_detail_materialization_ms", "상세 결과 구성"),
+    ("score_sort_ms", "정렬"),
+]
+
 PREFETCH_COMPONENTS = [
     ("prefetch_candidate_bundle_ms", "후보 bundle load"),
     ("prefetch_product_features_ms", "상품 특징"),
@@ -79,6 +90,10 @@ METRIC_LABELS = {
     "scoring_data_prefetch_ms_p95": "사전 조회 p95",
     "score_loop_ms_p95": "점수 반복 p95",
     "prefetch_candidate_bundle_ms_p95": "후보 bundle load p95",
+    "coarse_feature_query_ms_p95": "Coarse 피처 조회 p95",
+    "coarse_score_loop_ms_p95": "Coarse 후보 계산 p95",
+    "exact_prefetch_ms_p95": "Exact Top50 조회 p95",
+    "exact_score_loop_ms_p95": "Exact Top50 계산 p95",
 }
 
 PIPELINE_COLORS = {
@@ -723,12 +738,18 @@ def save_current_bottleneck(registry, rows, output_dir, plt) -> str:
         raise ValueError("Latest measured stage has no eligible target run")
 
     pipeline = [(label, sum(value_of(representative, f"{key}_avg") or 0 for key in keys)) for label, keys in PIPELINE_GROUPS]
-    scoring = component_values(representative, SCORING_COMPONENTS, "avg")
+    scoring_components = scoring_components_for_row(representative)
+    scoring = component_values(representative, scoring_components, "avg")
     prefetch = component_values(representative, PREFETCH_COMPONENTS, "avg")
+    prefetch_title = (
+        "Exact Top50 prefetch 내부"
+        if scoring_components is COARSE_TOP50_SCORING_COMPONENTS
+        else "Prefetch 내부"
+    )
     panels = [
         ("전체 파이프라인", pipeline, PIPELINE_COLORS),
         ("Scoring 내부", scoring, None),
-        ("Prefetch 내부", group_small_components(prefetch, 7), None),
+        (prefetch_title, group_small_components(prefetch, 7), None),
     ]
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 6.8))
@@ -1319,6 +1340,46 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
                     "```",
                 ]
             )
+        elif stage_id == "opt4b-compact-read-model":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "> Opt4b는 개선 단계가 아니라 회귀를 확인한 실패 실험이다. "
+                    "DB 왕복 감소보다 500개 넓은 행의 전송·역직렬화·객체 조립 비용이 컸다.",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[후보 약 500개] --> B[넓은 compact 행 일괄 조회]",
+                    "  B --> C[JSON 및 배열 역직렬화]",
+                    "  C --> D[후보별 Python 객체 조립]",
+                    "  D --> E[정확 스코어링 500개]",
+                    "```",
+                ]
+            )
+        elif stage_id == "opt4c-coarse-top50":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "> Opt4c의 generic prefetch/score-loop 계측은 exact Top50 단계의 "
+                    "별칭이다. Coarse와 exact 전용 값은 stage 로컬 "
+                    "`analysis/00-summary/execution-flow`에서 중복 없이 확인한다.",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[후보 약 500개] --> B[숫자형 coarse 피처 조회]",
+                    "  B --> C[근사 점수 계산]",
+                    "  C --> D[상위 50개 선별]",
+                    "  D --> E[기존 legacy_bulk 상세 조회]",
+                    "  E --> F[기존 정확 점수와 설명 계산]",
+                    "```",
+                ]
+            )
         else:
             lines.extend(
                 [
@@ -1373,6 +1434,12 @@ def latest_measured_stage_with_data(registry, rows) -> dict[str, Any]:
     if not candidates:
         raise ValueError("No measured stage has eligible target-condition runs")
     return candidates[-1]
+
+
+def scoring_components_for_row(row) -> list[tuple[str, str]]:
+    if value_of(row, "coarse_feature_query_ms_avg") is not None:
+        return COARSE_TOP50_SCORING_COMPONENTS
+    return SCORING_COMPONENTS
 
 
 def component_values(row, components, statistic) -> list[tuple[str, float]]:

@@ -163,6 +163,38 @@ class PerformanceReportDataTests(unittest.TestCase):
             report_data.infer_measurement_schema({"prefetch_candidate_bundle_ms_avg": 0.0}),
             "bulk-prefetch-v4",
         )
+        self.assertEqual(
+            report_data.infer_measurement_schema(
+                {
+                    "prefetch_candidate_bundle_ms_avg": 0.0,
+                    "scoring_compact_read_model_load_ms_avg": 0.0,
+                }
+            ),
+            "compact-read-model-v5",
+        )
+        self.assertEqual(
+            report_data.infer_measurement_schema(
+                {
+                    "prefetch_candidate_bundle_ms_avg": 0.0,
+                    "scoring_compact_read_model_load_ms_avg": 0.0,
+                    "coarse_feature_query_ms_avg": 0.0,
+                }
+            ),
+            "coarse-top50-v6",
+        )
+
+    def test_renderer_uses_two_pass_components_for_coarse_top50_runs(self) -> None:
+        components = renderer.scoring_components_for_row(
+            {
+                "coarse_feature_query_ms_avg": 120.0,
+                "scoring_data_prefetch_ms_avg": 500.0,
+            }
+        )
+        keys = [key for key, _ in components]
+
+        self.assertIn("coarse_score_loop_ms", keys)
+        self.assertIn("exact_prefetch_ms", keys)
+        self.assertNotIn("scoring_data_prefetch_ms", keys)
 
     def test_public_normalized_csv_drops_credentials_and_keeps_missing_blank(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
