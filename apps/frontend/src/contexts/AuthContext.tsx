@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { API_BASE_URL } from "../lib/api";
+import { API_BASE_URL, clearRecommendationCache } from "../lib/api";
+import { clearWishlistCache } from "../lib/activityApi";
+import { invalidateOrderSummary } from "../lib/orderApi";
 import { invalidateMySkinProfileCache } from "../lib/profileApi";
 import { skinProfileQueryKey } from "../hooks/useSkinProfileQuery";
 import { AuthContext, type AuthUser } from "./authContextValue";
@@ -133,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const previousUserId = user?.id ?? null;
+    clearWishlistCache(previousUserId);
+    clearRecommendationCache();
+    invalidateOrderSummary(previousUserId);
     invalidateMySkinProfileCache(previousUserId);
     queryClient.removeQueries({ queryKey: skinProfileQueryKey(previousUserId) });
     clearStoredAuthUser();
