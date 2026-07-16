@@ -15,8 +15,6 @@ type LoginLocationState = {
   from?: string;
 };
 
-type SocialProvider = "google" | "kakao" | "naver";
-
 type LoginResponse = {
   user?: AuthUser;
 };
@@ -50,12 +48,6 @@ declare global {
     google?: GoogleAccounts;
   }
 }
-
-const socialProviderLabels: Record<SocialProvider, string> = {
-  google: "구글",
-  kakao: "카카오",
-  naver: "네이버"
-};
 
 const LOGIN_EMAIL_FORMAT_ERROR_MESSAGE = "아이디는 이메일 형식으로 입력해주세요.";
 
@@ -169,10 +161,6 @@ function LoginPage() {
     },
     [navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
   );
-
-  const handleSocialLogin = (provider: SocialProvider) => {
-    setMessage(`${socialProviderLabels[provider]} 간편 로그인은 준비 중입니다.`);
-  };
 
   const handleGoogleCredential = useCallback(
     async (credentialResponse: GoogleCredentialResponse) => {
@@ -484,8 +472,8 @@ function LoginPage() {
               </div>
               <div
                 ref={googleButtonRef}
-                className={`login-google-hitbox absolute inset-0 z-20 overflow-hidden rounded-full ${
-                  isGoogleSubmitting ? "pointer-events-none opacity-0" : "opacity-0"
+                className={`login-google-button absolute inset-0 z-20 overflow-hidden rounded-full ${
+                  isGoogleSubmitting ? "pointer-events-none opacity-60" : ""
                 }`}
               />
               {(!googleClientId || !isGoogleReady) && (
@@ -528,29 +516,6 @@ function LoginPage() {
                 </Button>
               )}
             </div>
-            <Button
-              aria-label="카카오로 로그인"
-              onClick={() => handleSocialLogin("kakao")}
-              style={{ backgroundColor: "#fee500", borderColor: "#fee500" }}
-              variant="icon"
-            >
-              <svg height="20" viewBox="0 0 24 24" width="20">
-                <path
-                  d="M12 4C6.48 4 2 7.48 2 11.8c0 2.77 1.87 5.2 4.68 6.58-.2.75-.73 2.71-.83 3.13-.13.52.19.51.4.37.17-.11 2.66-1.8 3.74-2.53.65.09 1.32.14 2.01.14 5.52 0 10-3.48 10-7.79C22 7.48 17.52 4 12 4z"
-                  fill="#000000"
-                />
-              </svg>
-            </Button>
-            <Button
-              aria-label="네이버로 로그인"
-              onClick={() => handleSocialLogin("naver")}
-              style={{ backgroundColor: "#03c75a", borderColor: "#03c75a" }}
-              variant="icon"
-            >
-              <svg height="16" viewBox="0 0 20 20" width="16">
-                <path d="M11.4 10.6L6.6 4H3v12h4.6V9.4l4.8 6.6H16V4h-4.6v6.6z" fill="#FFFFFF" />
-              </svg>
-            </Button>
           </div>
         </div>
       </main>
