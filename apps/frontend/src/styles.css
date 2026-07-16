@@ -13008,14 +13008,30 @@ html[data-app-mode="community"] .search-results-shell {
   height: 40px;
   border: 0;
   border-radius: 50%;
-  background: #aeb7c0;
+  background: #1687f8;
   color: #ffffff;
   cursor: pointer;
+  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.agent-chat-input button:not(:disabled):hover,
+.agent-chat-input button:not(:disabled):focus-visible {
+  background: #0874df;
+  box-shadow: 0 8px 20px rgba(22, 135, 248, 0.38);
+  transform: translateY(-1px);
 }
 
 .agent-chat-input button:disabled {
+  background: #aeb7c0;
   cursor: not-allowed;
-  opacity: 0.45;
+  box-shadow: none;
+  opacity: 0.5;
+}
+
+.agent-chat-popup .agent-chat-input button:not(:disabled) {
+  background: #1687f8;
+  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
 }
 
 .agent-chat-input button svg {
