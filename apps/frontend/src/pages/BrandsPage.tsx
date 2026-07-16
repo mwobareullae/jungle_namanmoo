@@ -117,7 +117,7 @@ function BrandsPage() {
       <HomeHeader />
       <main className="popular-products-page new-products-page brand-index-page">
         <div className="popular-products-shell">
-        <div className="popular-products-kicker">BRAND DIRECTORY</div>
+        <div className="popular-products-kicker">BRAND DISCOVERY</div>
         <h1>브랜드</h1>
         <p className="new-products-page__description">원하는 브랜드를 선택해 상품을 찾아보세요.</p>
         <form className="brand-index-page__search" onSubmit={submitSearch}>
