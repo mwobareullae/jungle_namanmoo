@@ -10150,7 +10150,8 @@ html[data-app-mode="community"] .search-results-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  margin-bottom: 30px;
+  width: min(760px, 100%);
+  margin: 0 auto 46px;
 }
 
 .brand-index-page__search input {
@@ -10176,20 +10177,20 @@ html[data-app-mode="community"] .search-results-shell {
 
 .brand-index-page__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 46px 22px;
 }
 
 .brand-index-page__card {
   display: grid;
   gap: 8px;
-  min-height: 104px;
+  min-height: 112px;
   align-content: center;
   padding: 18px;
-  border: 1px solid #e1e6e9;
-  border-radius: 14px;
+  border: 1px solid #e7ecef;
+  border-radius: 12px;
   background: #ffffff;
-  color: #1a1a1a;
+  color: #222222;
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -10197,7 +10198,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 .brand-index-page__card:hover,
 .brand-index-page__card:focus-visible {
-  border-color: #94e0f8;
+  border-color: #111111;
   outline: none;
 }
 
@@ -10232,7 +10233,7 @@ html[data-app-mode="community"] .search-results-shell {
 
 @media (max-width: 900px) {
   .brand-index-page__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -10242,7 +10243,7 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .brand-index-page__grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .legal-document-page__content {
