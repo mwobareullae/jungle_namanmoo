@@ -1860,6 +1860,25 @@
   cursor: pointer;
 }
 
+.admin-ingredient-row-select {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.admin-ingredient-row-select:focus-visible {
+  outline: 2px solid var(--admin-accent-2);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .admin-ingredient-table tbody tr.selected {
   background: #f0fbfe;
 }
@@ -1877,6 +1896,64 @@
 .admin-ingredient-detail .admin-metric-list dd {
   max-width: 190px;
   overflow-wrap: anywhere;
+}
+
+/* 성분 매핑 검수 조회(M2-A Chunk 4): skeleton 로딩 + 상세 하위 리스트 */
+.admin-skeleton-row td {
+  padding: 10px 12px;
+}
+
+.admin-skeleton-bar {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(11, 42, 58, 0.06) 25%, rgba(11, 42, 58, 0.12) 37%, rgba(11, 42, 58, 0.06) 63%);
+  background-size: 400% 100%;
+  animation: admin-skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes admin-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton-bar { animation: none; }
+}
+
+.admin-ingredient-variants,
+.admin-ingredient-samples,
+.admin-ingredient-events {
+  padding: 0 18px 14px;
+}
+
+.admin-ingredient-variants ul,
+.admin-ingredient-samples ul,
+.admin-ingredient-events ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-ingredient-variants li,
+.admin-ingredient-samples li,
+.admin-ingredient-events li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.admin-ingredient-variants li > span,
+.admin-ingredient-samples li > span,
+.admin-ingredient-events li > span {
+  overflow-wrap: anywhere;
+}
+
+.admin-ingredient-events button {
+  width: 100%;
 }
 
 .admin-ingredient-actions {
