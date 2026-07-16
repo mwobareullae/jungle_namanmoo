@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/useAuth";
 import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
 import { navigateWithinApp } from "../lib/navigation";
 import { clearWishlistCache } from "../lib/activityApi";
+import { clearRecommendationCache } from "../lib/api";
 import { callOriginal } from "../lib/originalRuntime";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
 
@@ -84,6 +85,7 @@ function HomeHeader() {
     try {
       await logout();
       clearWishlistCache(user?.id);
+      clearRecommendationCache();
       queryClient.removeQueries({ queryKey: cartQueryKey(user?.id ?? null) });
       callOriginal("showToast", "로그아웃되었습니다.");
     } catch {

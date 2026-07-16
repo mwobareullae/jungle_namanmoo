@@ -98,6 +98,14 @@ type RecommendationApi = {
   ) => Promise<AgentToolConfirmResponse>;
 };
 
+const RECOMMENDATION_CACHE_TTL_MS = 30_000;
+const recommendationCache = new Map<string, { value: RecommendationResponse; expiresAt: number }>();
+const recommendationRequests = new Map<string, Promise<RecommendationResponse>>();
+
+export const clearRecommendationCache = () => {
+  recommendationCache.clear();
+};
+
 type BackendErrorResponse = {
   error?: {
     code?: string;
@@ -575,10 +583,25 @@ export const api: RecommendationApi = {
     filters?.effect_keywords?.forEach((keyword) => searchParams.append("effect_keyword", keyword));
 
     const query = searchParams.toString();
-    const response = await fetchWithTimeout(
+    const cacheKey = `${recommendationId}?${query}`;
+    const cached = recommendationCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const pending = recommendationRequests.get(cacheKey);
+    if (pending) return pending;
+
+    const request = fetchWithTimeout(
       `${API_BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}${query ? `?${query}` : ""}`
-    );
-    return mapRecommendation(await parseJson<BackendRecommendationResponse>(response));
+    )
+      .then((response) => parseJson<BackendRecommendationResponse>(response))
+      .then(mapRecommendation);
+    recommendationRequests.set(cacheKey, request);
+    try {
+      const value = await request;
+      recommendationCache.set(cacheKey, { value, expiresAt: Date.now() + RECOMMENDATION_CACHE_TTL_MS });
+      return value;
+    } finally {
+      recommendationRequests.delete(cacheKey);
+    }
   },
 
   async createRecommendationNarrative(recommendationId, request = {}) {
