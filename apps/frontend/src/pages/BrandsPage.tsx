@@ -18,6 +18,7 @@ function BrandsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
+  const hasUserScrolledRef = useRef(false);
 
   const loadBrands = useCallback(async (page: number, append = false) => {
     if (loadingRef.current) return;
@@ -27,7 +28,7 @@ function BrandsPage() {
       const response = await api.getBrands("", page, PAGE_SIZE);
       setBrands((previous) => append ? [...previous, ...response.items.filter((item) => !previous.some((brand) => brand.code === item.code))] : response.items);
       setCurrentPage(page);
-      setHasNextPage(response.items.length === PAGE_SIZE);
+      setHasNextPage(response.pagination.has_next);
       setErrorMessage("");
     } catch {
       if (!append) {
@@ -40,6 +41,16 @@ function BrandsPage() {
       setIsLoadingPage(false);
       loadingRef.current = false;
     }
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 0) {
+        hasUserScrolledRef.current = true;
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -57,9 +68,11 @@ function BrandsPage() {
     if (!sentinel || !hasNextPage || isLoading || errorMessage) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) void loadBrands(currentPage + 1, true);
+        if (entry.isIntersecting && hasUserScrolledRef.current) {
+          void loadBrands(currentPage + 1, true);
+        }
       },
-      { rootMargin: "320px 0px" },
+      { rootMargin: "0px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
