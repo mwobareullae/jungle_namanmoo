@@ -6302,12 +6302,13 @@ body {
   min-width: 52px;
   height: 52px;
   padding: 0 12px;
+  border: 2.5px solid #bdecf7;
   border-radius: 999px;
-  background: #bdecf7;
-  color: #063445;
+  background: #ffffff;
+  color: #2aa6d1;
   font-size: 18px;
   font-weight: 700;
-  box-shadow: 0 8px 18px rgba(34, 154, 194, 0.18);
+  box-shadow: none;
 }
 
 .home-rank-empty,
