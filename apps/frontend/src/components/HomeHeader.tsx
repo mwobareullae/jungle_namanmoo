@@ -10,6 +10,12 @@ import type { RecommendationProfile } from "../types/recommendation";
 import CategoryPanelOverlay from "./CategoryPanelOverlay";
 import HeaderSearchPanel from "./HeaderSearchPanel";
 
+const DEFAULT_SEARCH_PROFILE: RecommendationProfile = {
+  skin: "수부지",
+  sensitivity: "보통",
+  avoidIngredients: []
+};
+
 function HomeHeader() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -19,11 +25,8 @@ function HomeHeader() {
   const cartCount = cartQuery.data?.total_quantity ?? 0;
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
-  const [searchProfile, setSearchProfile] = useState<RecommendationProfile>({
-    skin: "수부지",
-    sensitivity: "보통",
-    avoidIngredients: []
-  });
+  const [searchProfile, setSearchProfile] = useState<RecommendationProfile>(DEFAULT_SEARCH_PROFILE);
+  const activeSearchProfile = user ? searchProfile : DEFAULT_SEARCH_PROFILE;
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isPopularPage = location.pathname === "/products/popular";
   const isNewProductsPage = location.pathname === "/products/new";
@@ -90,12 +93,9 @@ function HomeHeader() {
 
   useEffect(() => {
     let isMounted = true;
-    if (!user) {
-      setSearchProfile({ skin: "수부지", sensitivity: "보통", avoidIngredients: [] });
-      return () => {
-        isMounted = false;
-      };
-    }
+    if (!user) return () => {
+      isMounted = false;
+    };
 
     getSavedSkinProfile().then((profile) => {
       if (isMounted && profile) setSearchProfile(profile);
@@ -107,7 +107,7 @@ function HomeHeader() {
   }, [user]);
 
   useEffect(() => {
-    setIsHeaderSearchOpen(false);
+    queueMicrotask(() => setIsHeaderSearchOpen(false));
   }, [location.pathname, location.search]);
 
   const handleLogout = async () => {
@@ -168,7 +168,7 @@ function HomeHeader() {
             </a>
           </nav>
           <div className={`header-search-slot${isHeaderSearchOpen ? " is-open" : ""}`}>
-            {isHeaderSearchOpen ? <HeaderSearchPanel onClose={() => setIsHeaderSearchOpen(false)} profile={searchProfile} /> : null}
+            {isHeaderSearchOpen ? <HeaderSearchPanel onClose={() => setIsHeaderSearchOpen(false)} profile={activeSearchProfile} /> : null}
           </div>
           <div className="header-actions">
             <button
