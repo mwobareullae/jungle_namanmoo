@@ -866,18 +866,19 @@ DB 정규화 원칙:
 
 리뷰 집계 점수 원칙:
 
-- 원본 1건의 기본 가중치는 `source 1.0 × 한달사용 배율 × 구매확인 배율 × helpful 최대 1.10 × recency`입니다.
+- 점수 대상 외부 리뷰 1건의 기본 가중치는 `한달사용 배율 × 구매확인 배율 × helpful 최대 1.10`입니다.
 - `source=oliveyoung` seed는 현재 전량이 `MONTH_USE`이고 원본 구매확인 값도 없으므로 한달사용·구매확인 배율을 모두 `1.0`으로 둡니다. 이 두 필드로 같은 소스 안의 리뷰를 차등하지 않습니다.
-- 자사몰 `source=mubarelle`의 `verified_purchase=true`는 실제 배송완료 주문 검증 신호이므로 `1.10`을 유지합니다. OliveYoung 이외 소스의 한달사용·구매확인 값은 기존 배율 `1.15`·`1.10`을 유지하되, 신규 소스 도입 시 신호의 실재 여부를 별도 확인합니다.
+- 자사몰 `source=mubarelle` 리뷰는 원문·목록·공개 요약·정보 추출에는 보존하지만 상품 품질, 카테고리 prior, 프로필 affinity 점수에는 사용하지 않습니다. OliveYoung 이외 외부 소스의 한달사용·구매확인 값은 기존 배율 `1.15`·`1.10`을 유지하되, 신규 소스 도입 시 신호의 실재 여부를 별도 확인합니다.
 - helpful은 `1 + 0.10 × min(log(1 + helpful_count) / log(21), 1)`을 사용합니다.
-- recency는 `0.5 + 0.5 × 2^(-age_days / 730)`이며 작성일이 없으면 `0.75`입니다.
-- 카테고리 평균과 prior strength `20`으로 상품의 Bayesian 별점·재구매율·사진리뷰율을 계산합니다.
+- 리뷰 작성일은 점수에 사용하지 않습니다.
+- 카테고리 평균과 prior strength `20`으로 상품의 Bayesian 별점·재구매율을 계산합니다.
 - 유효 표본 수는 Kish 공식 `(sum(w)^2 / sum(w^2))`, confidence는 `n_eff / (n_eff + 20)`입니다.
 - 프로필 segment는 상품 전체 Bayesian 값을 prior로 사용합니다. 매핑 신뢰도는 segment weight에 곱합니다.
-- 상품 품질 신호는 별점 `0.75`, 재구매율 `0.20`, Bayesian 사진리뷰율 `0.05`입니다. 값이 없는 신호는 분모에서 제외해 나머지 가중치를 재정규화합니다.
+- 상품 품질 신호는 별점 `0.80`, 재구매율 `0.20`입니다. 값이 없는 신호는 분모에서 제외해 나머지 가중치를 재정규화합니다.
 - 일반/한달 후기 일관성은 진단 컬럼에 계속 저장하지만 품질점수 합성에는 사용하지 않습니다.
-- `has_photo`는 이미지 노출용 데이터가 아니라 상품 단위 사진리뷰율 집계에만 사용합니다. 프로필 affinity에는 사용하지 않습니다.
-- 집계 버전은 `review_quality_v2`입니다. DB 스키마는 바꾸지 않으며 전체 재집계를 완료한 행만 v2가 됩니다.
+- `has_photo`는 정보·데이터 QA용 표식으로만 보존하고 품질점수와 프로필 affinity에는 사용하지 않습니다.
+- 집계 버전은 `review_quality_v3`입니다. DB 스키마는 바꾸지 않으며 전체 재집계를 완료한 행만 v3가 됩니다.
+- 추천 로더는 `score_version=review_quality_v3`인 상품·segment 행만 사용하며 이전 버전 행은 중립 처리합니다.
 
 ### `data/product_review_summary.csv`
 
@@ -1058,7 +1059,7 @@ P2 자사몰 상품 상세 화면에서 사용할 대표 이미지와 상세 광
   `evidence_score × source_authority_score` 기준으로 각각 독립 선발합니다.
 - 상품 근거와 리뷰 품질·유사 프로필 affinity를 추천 점수에 반영합니다.
 - 위험성분은 항상 표시하며 민감도 `높음` 사용자에게만 penalty를 적용합니다.
-- `v6_independent_evidence_top3`는 성분효능, 독립 성분근거 top3, 피부프로필, 함량,
+- `v7_review_quality_v3`는 성분효능, 독립 성분근거 top3, 피부프로필, 함량,
   기능성, 검색, 가격, 인기, 스킨테스트, 행동, 리뷰 품질, 리뷰 affinity를 사용합니다.
 - 함량 점수는 `product_ingredients.csv`와 `ingredient_effect_ranges.csv`를 사용합니다.
 - 피부타입/민감도 개인화는 `product_skin_profiles.csv`가 채워지는 즉시 `skin_profile_score`에 반영할 수 있습니다.

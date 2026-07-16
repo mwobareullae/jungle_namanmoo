@@ -277,7 +277,11 @@ function SkinTestResultPage() {
                 <button className="skin-test-secondary-button" onClick={handleShare} type="button">
                   결과 공유하기
                 </button>
-                <button className="skin-test-secondary-button" onClick={() => navigate("/skin-test")} type="button">
+                <button
+                  className="skin-test-secondary-button"
+                  onClick={() => navigate("/skin-test", { state: { forceRetest: true } })}
+                  type="button"
+                >
                   테스트 다시 하기
                 </button>
               </div>
