@@ -66,7 +66,7 @@ function NewProductsPage() {
         isMounted = false;
       };
     }
-    getMyWishlist()
+    getMyWishlist(50, user?.id)
       .then((items) => {
         if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
       })
@@ -85,8 +85,8 @@ function NewProductsPage() {
     setWishedProductIds((current) => { const next = new Set(current); if (wasWished) next.delete(productId); else next.add(productId); return next; });
     setPendingWishlistProductIds((current) => new Set(current).add(productId));
     try {
-      if (wasWished) { await deleteMyWishlistItem(productId); showToast(wishlistToastMessage.removed); }
-      else { await addMyWishlistItem(productId); showToast(wishlistToastMessage.added); }
+      if (wasWished) { await deleteMyWishlistItem(productId, user.id); showToast(wishlistToastMessage.removed); }
+      else { await addMyWishlistItem(productId, user.id); showToast(wishlistToastMessage.added); }
     } catch {
       setWishedProductIds((current) => { const next = new Set(current); if (wasWished) next.add(productId); else next.delete(productId); return next; });
       showToast(wishlistToastMessage.failed);

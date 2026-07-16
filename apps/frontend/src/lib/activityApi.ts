@@ -62,6 +62,10 @@ export type ActivityProductItem = {
   inStock: boolean;
 };
 
+const WISHLIST_CACHE_TTL_MS = 30_000;
+const wishlistCache = new Map<number, { value: ActivityProductItem[]; expiresAt: number }>();
+const wishlistRequests = new Map<number, Promise<ActivityProductItem[]>>();
+
 const formatActivityDateLabel = (dateText: string) => {
   const date = new Date(dateText);
 
@@ -108,15 +112,35 @@ const mapActivityProduct = (
   inStock: item.product.in_stock
 });
 
-export const getMyWishlist = async (limit = 50): Promise<ActivityProductItem[]> => {
-  const query = new URLSearchParams({ limit: String(limit) });
-  const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist?${query}`);
-  const data = await parseJson<BackendWishlistResponse>(response);
+export const getMyWishlist = async (limit = 50, userId?: number | null): Promise<ActivityProductItem[]> => {
+  if (typeof userId === "number") {
+    const cached = wishlistCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const pending = wishlistRequests.get(userId);
+    if (pending) return pending;
+  }
 
-  return data.items.map((item) => mapActivityProduct(item, { dateText: item.added_at, isWished: true }));
+  const query = new URLSearchParams({ limit: String(limit) });
+  const request = fetchWithTimeout(`${API_BASE_URL}/me/wishlist?${query}`)
+    .then((response) => parseJson<BackendWishlistResponse>(response))
+    .then((data) => data.items.map((item) => mapActivityProduct(item, { dateText: item.added_at, isWished: true })));
+
+  if (typeof userId !== "number") return request;
+  wishlistRequests.set(userId, request);
+  try {
+    const value = await request;
+    wishlistCache.set(userId, { value, expiresAt: Date.now() + WISHLIST_CACHE_TTL_MS });
+    return value;
+  } finally {
+    wishlistRequests.delete(userId);
+  }
 };
 
-export const addMyWishlistItem = async (productId: string): Promise<ActivityProductItem> => {
+export const clearWishlistCache = (userId: number | null | undefined) => {
+  if (typeof userId === "number") wishlistCache.delete(userId);
+};
+
+export const addMyWishlistItem = async (productId: string, userId?: number | null): Promise<ActivityProductItem> => {
   const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -124,14 +148,24 @@ export const addMyWishlistItem = async (productId: string): Promise<ActivityProd
   });
   const data = await parseJson<BackendWishlistItem>(response);
 
-  return mapActivityProduct(data, { isWished: true });
+  const item = mapActivityProduct(data, { isWished: true });
+  if (typeof userId === "number") {
+    const cached = wishlistCache.get(userId);
+    if (cached) wishlistCache.set(userId, { value: [item, ...cached.value.filter((candidate) => candidate.productId !== productId)], expiresAt: Date.now() + WISHLIST_CACHE_TTL_MS });
+  }
+  return item;
 };
 
-export const deleteMyWishlistItem = async (productId: string) => {
+export const deleteMyWishlistItem = async (productId: string, userId?: number | null) => {
   const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist/${encodeURIComponent(productId)}`, {
     method: "DELETE"
   });
-  return parseJson<BackendDeleteResponse>(response);
+  const result = await parseJson<BackendDeleteResponse>(response);
+  if (typeof userId === "number") {
+    const cached = wishlistCache.get(userId);
+    if (cached) wishlistCache.set(userId, { value: cached.value.filter((item) => item.productId !== productId), expiresAt: Date.now() + WISHLIST_CACHE_TTL_MS });
+  }
+  return result;
 };
 
 export const getMyRecentProducts = async (limit = 50): Promise<ActivityProductItem[]> => {
