@@ -129,6 +129,23 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
+_EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
+    "EMPTY_CART": ("AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요."),
+    "EMPTY_CHECKOUT_SELECTION": ("AGENT_CART_EMPTY", "주문할 상품을 장바구니에서 선택해주세요."),
+    "CART_ITEM_NOT_FOUND": ("AGENT_CART_ITEM_NOT_FOUND", "장바구니에서 해당 상품을 찾지 못했어요."),
+    "PRODUCT_UNAVAILABLE": ("AGENT_PRODUCT_UNAVAILABLE", "현재 판매할 수 없는 상품이에요."),
+    "NOT_ON_SALE": ("AGENT_PRODUCT_UNAVAILABLE", "현재 판매 중이 아닌 상품이에요."),
+    "OUT_OF_STOCK": ("AGENT_OUT_OF_STOCK", "해당 상품은 일시품절이에요."),
+    "INSUFFICIENT_STOCK": ("AGENT_INSUFFICIENT_STOCK", "요청한 수량만큼 재고가 없어요."),
+    "STOCK_UNKNOWN": ("AGENT_STOCK_UNAVAILABLE", "상품 재고를 확인하지 못했어요. 잠시 후 다시 시도해주세요."),
+    "ORDER_NOT_CANCELABLE": ("AGENT_ORDER_NOT_CANCELABLE", "현재 주문 상태에서는 취소할 수 없어요."),
+    "AGENT_CANCELABLE_ORDER_NOT_FOUND": ("AGENT_ORDER_NOT_CANCELABLE", "취소할 수 있는 최근 주문을 찾지 못했어요."),
+    "AGENT_CART_COMPOSITION_NOT_FOUND": ("AGENT_CART_COMPOSITION_NOT_FOUND", "조건에 맞는 상품 조합을 찾지 못했어요."),
+    "AGENT_CART_BUDGET_NOT_FOUND": ("AGENT_CART_BUDGET_NOT_FOUND", "예산 안에서 요청한 상품 조합을 찾지 못했어요."),
+    "AGENT_REVIEW_NOT_AVAILABLE": ("AGENT_REVIEW_NOT_AVAILABLE", "작성할 수 있는 구매 리뷰 상품을 찾지 못했어요."),
+    "AGENT_CLAIM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
+    "AGENT_CLAIM_ITEM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
+}
 _BULK_CART_REQUEST_PATTERN = re.compile(
     r"(?:\d+\s*(?:~|-|부터)\s*\d+\s*위|상위\s*\d+\s*개|(?:상품|제품)\s*\d+\s*개).{0,40}?(?:장바구니|카트).{0,20}?(?:담|추가)"
 )
@@ -383,6 +400,29 @@ def _clarification_response(conversation_id: str | None, message: str, *, tool_n
     )
 
 
+def _expected_tool_error_response(
+    conversation_id: str | None,
+    *,
+    tool_name: str,
+    error: ApiError,
+) -> AgentChatResponse:
+    code, message = _EXPECTED_TOOL_ERRORS.get(
+        error.code,
+        (
+            "AGENT_TOOL_EXECUTION_FAILED",
+            "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.",
+        ),
+    )
+    retryable = error.status_code >= 500 or error.code == "STOCK_UNKNOWN"
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=tool_name,
+        ui_action=AgentUiAction(),
+        error=AgentError(code=code, message=message, retryable=retryable),
+    )
+
+
 def _execute_tool(
     ctx: Any,
     *,
@@ -439,16 +479,10 @@ def _execute_tool(
                 tool_name=tool_name,
             )
         else:
-            response = AgentChatResponse(
-                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
-                message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            response = _expected_tool_error_response(
+                runtime_context.conversation_id,
                 tool_name=tool_name,
-                ui_action=AgentUiAction(),
-                error=AgentError(
-                    code="AGENT_TOOL_EXECUTION_FAILED",
-                    message="요청을 처리하지 못했어요.",
-                    retryable=True,
-                ),
+                error=exc,
             )
     except Exception as exc:
         runtime_context.session.rollback()
