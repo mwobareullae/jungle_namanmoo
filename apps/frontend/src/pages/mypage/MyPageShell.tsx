@@ -4,11 +4,10 @@ import { Link, useLocation } from "react-router-dom";
 import HomeHeader from "../../components/HomeHeader";
 import { AuthContext, type AuthUser } from "../../contexts/authContextValue";
 import { api } from "../../lib/api";
-import { getOrders } from "../../lib/orderApi";
+import { getOrderSummary } from "../../lib/orderApi";
 import { getMySkinProfile, type SkinProfileData } from "../../lib/profileApi";
 import { getSkinTestImageUrl } from "../../lib/skinTest";
 import type { SkinTestResult } from "../../types/skinTest";
-import type { OrderListItem } from "../../types/order";
 
 export type MypageEventContext = {
   page: "mypage" | "mypage_skin_profile" | "mypage_wishlist" | "mypage_recent";
@@ -74,13 +73,13 @@ type OrderStatusSummaryItem = {
   count: number;
 };
 
-const buildOrderStatusSummary = (orders: OrderListItem[]): OrderStatusSummaryItem[] =>
+const buildOrderStatusSummary = (statusCounts: Record<string, number>): OrderStatusSummaryItem[] =>
   orderStatusItems.map((item) => ({
     label: item.label,
-    count: orders.filter((order) => (item.statuses as readonly string[]).includes(order.status)).length
+    count: item.statuses.reduce((total, status) => total + (statusCounts[status] ?? 0), 0)
   }));
 
-const emptyOrderStatusSummary = buildOrderStatusSummary([]);
+const emptyOrderStatusSummary = buildOrderStatusSummary({});
 
 const formatSensitivityLabel = (label: string) => (label === "미설정" ? "민감도 미설정" : `민감 ${label}`);
 
@@ -178,18 +177,10 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     const loadOrderStatusSummary = async () => {
       try {
-        const orders: OrderListItem[] = [];
-        let cursor: string | null | undefined = null;
-
-        for (let page = 0; page < 5; page += 1) {
-          const response = await getOrders({ limit: 50, cursor });
-          orders.push(...response.items);
-          cursor = response.next_cursor;
-          if (!cursor) break;
-        }
+        const response = await getOrderSummary();
 
         if (isMounted) {
-          setOrderStatusSummary(buildOrderStatusSummary(orders));
+          setOrderStatusSummary(buildOrderStatusSummary(response.status_counts));
         }
       } catch {
         if (isMounted) {

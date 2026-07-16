@@ -97,6 +97,10 @@ export type OrderListResponse = {
   next_cursor?: string | null;
 };
 
+export type OrderSummaryResponse = {
+  status_counts: Record<string, number>;
+};
+
 export type OrderDetailPayment = {
   payment_code: string;
   provider: OrderPaymentProvider;
