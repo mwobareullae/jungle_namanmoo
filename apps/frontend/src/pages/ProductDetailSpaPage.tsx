@@ -634,7 +634,7 @@ function ProductDetailSpaPage() {
 
     let isMounted = true;
 
-    getMyWishlist()
+    getMyWishlist(50, user.id)
       .then((items) => {
         if (!isMounted) return;
         setIsWished(items.some((item) => item.productId === productId));
@@ -1046,10 +1046,10 @@ function ProductDetailSpaPage() {
 
     try {
       if (nextIsWished) {
-        await addMyWishlistItem(productId);
+        await addMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.added);
       } else {
-        await deleteMyWishlistItem(productId);
+        await deleteMyWishlistItem(productId, user.id);
         showToast(wishlistToastMessage.removed);
       }
     } catch {
