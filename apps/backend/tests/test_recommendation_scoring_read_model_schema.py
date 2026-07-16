@@ -36,7 +36,17 @@ def test_read_model_migration_upgrades_and_downgrades(
             "product_recommendation_scoring_read_models"
         )
 
-        assert "scoring_payload" not in columns
+        assert {
+            "scoring_payload",
+            "effect_features",
+            "risk_flags",
+            "review_segments",
+            "user_context",
+            "dynamic_weights",
+            "final_score",
+            "rank_order",
+            "reason_summary",
+        }.isdisjoint(columns)
         assert {
             "product_id",
             "top_ingredient_codes",
