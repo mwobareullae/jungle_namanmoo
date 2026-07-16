@@ -37,7 +37,7 @@ const formatPrice = (price: number | null) =>
 function CategoryPage() {
   const { groupCode = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedCategoryCode = searchParams.get("category_code") ?? "";
+  const selectedCategoryCode = searchParams.get("subcategory") ?? "";
   const { restoration, restoreListPosition, saveListRestoration } = useListHistoryRestoration();
   const [categories, setCategories] = useState<CategoryListItem[]>([]);
   const [isCategoryMetadataLoading, setIsCategoryMetadataLoading] = useState(true);
@@ -188,8 +188,8 @@ function CategoryPage() {
 
   const handleCategoryFilterChange = (categoryCode: string) => {
     const nextSearchParams = new URLSearchParams(searchParams);
-    if (categoryCode) nextSearchParams.set("category_code", categoryCode);
-    else nextSearchParams.delete("category_code");
+    if (categoryCode) nextSearchParams.set("subcategory", categoryCode);
+    else nextSearchParams.delete("subcategory");
     setSearchParams(nextSearchParams);
   };
 

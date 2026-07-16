@@ -109,8 +109,8 @@ GET /api/categories
 카테고리 화면은 `/api/categories` 응답을 단일 기준으로 사용하며, 프론트에 표시명-코드 정적 매핑을 두지 않습니다.
 
 - 대분류 전체: `/category/{group}` — 예: `/category/skincare`
-- 하위 카테고리: `/category/{group}?category_code={code}` — 예: `/category/mask_pack?category_code=mask`
-- `category_code`는 반드시 해당 `group`에 속한 응답 항목이어야 합니다. 일치하지 않거나 존재하지 않는 값은 카테고리를 찾을 수 없는 상태로 처리합니다.
+- 하위 카테고리: `/category/{group}?subcategory={code}` — 예: `/category/mask_pack?subcategory=mask`
+- URL의 `subcategory` 값은 API 요청 시 `category_code` 필터로 변환한다. 값은 반드시 해당 `group`에 속한 응답 항목이어야 하며, 일치하지 않거나 존재하지 않는 값은 카테고리를 찾을 수 없는 상태로 처리한다.
 - `group`과 `code`는 URL·링크·분석 식별자로 사용되므로, 값 변경이나 삭제가 필요하면 프론트 링크와 관련 분석 설정의 교체·폐기 계획을 함께 수립합니다.
 
 ## Brand metadata

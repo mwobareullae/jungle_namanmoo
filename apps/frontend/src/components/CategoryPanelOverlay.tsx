@@ -149,7 +149,7 @@ function CategoryPanelOverlay({ onOpenChange }: CategoryPanelOverlayProps) {
                   <div className="category-panel__links">
                     {group.items.map((item) => (
                       <Link
-                        to={`/category/${encodeURIComponent(group.group)}?category_code=${encodeURIComponent(item.code)}`}
+                        to={`/category/${encodeURIComponent(group.group)}?subcategory=${encodeURIComponent(item.code)}`}
                         key={item.code}
                         onClick={handleClose}
                       >
