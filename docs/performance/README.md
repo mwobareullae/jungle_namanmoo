@@ -29,7 +29,7 @@ YYYY-MM-DD_<scenario>_<data-size>.md
 - [추천검색 ES Retrieval 전환 최적화 설계](recommendation-es-retrieval-optimization.md)
 - [추천 사전 계산 특징 배치](recommendation-feature-rollup.md)
 - [추천 후보 데이터 Bulk Prefetch](recommendation-bulk-prefetch.md)
-- [추천 스코어링 Snapshot Read Model](recommendation-scoring-snapshot.md)
+- [추천 스코어링 Compact Read Model (Opt4b)](recommendation-scoring-snapshot.md)
 
 ## 추천 성능 리포트 재생성
 

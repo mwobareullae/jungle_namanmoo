@@ -6,6 +6,7 @@ from typing import Protocol
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Cart, CartItem, Order, OrderItem, ProductPopularityMetric, RecentView, Wishlist
@@ -14,6 +15,7 @@ from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
     ProductRecommendationFeature,
+    ProductRecommendationScoringReadModel,
     ProductRecommendationScoringSnapshot,
     UserPreferenceProfile,
 )
@@ -32,6 +34,7 @@ from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_feature_versions import (
     PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION,
     PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+    PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION,
     RECOMMENDATION_SCORING_SNAPSHOT_VERSION,
     USER_PREFERENCE_PROFILE_VERSION,
 )
@@ -520,6 +523,16 @@ class _SnapshotScoringInputs:
 
 
 @dataclass(frozen=True)
+class _CompactScoringInputs:
+    bundles: dict[int, _CandidateScoringBundle]
+    hit_ids: set[int]
+    miss_ids: set[int]
+    stale_ids: set[int]
+    query_ms: float
+    build_ms: float
+
+
+@dataclass(frozen=True)
 class ProductEffectRecommendationFeatureValues:
     effect_code: str
     ingredient_effect_score: float
@@ -747,6 +760,19 @@ def _record_legacy_fallback(
     )
 
 
+def _resolve_scoring_read_path(value: str | None) -> str:
+    normalized = (
+        settings.recommendation_scoring_read_path
+        if value is None
+        else value.strip().lower()
+    )
+    if normalized not in {"legacy_bulk", "compact_v2"}:
+        raise ValueError(
+            "scoring_read_path must be legacy_bulk or compact_v2"
+        )
+    return normalized
+
+
 def score_candidates(
     session: Session,
     intent: RecommendationIntent,
@@ -764,8 +790,10 @@ def score_candidates(
     concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
     skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
     result_limit: int | None = None,
+    scoring_read_path: str | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> list[ScoredProduct]:
+    resolved_scoring_read_path = _resolve_scoring_read_path(scoring_read_path)
     if diagnostics is not None:
         diagnostics.setdefault("user_profile_load_ms", 0.0)
         diagnostics.setdefault("user_profile_hit", False)
@@ -793,6 +821,14 @@ def score_candidates(
                     "scoring_snapshot_miss_count": 0,
                     "scoring_snapshot_fallback_ms": 0.0,
                     "scoring_snapshot_parse_error_count": 0,
+                    "scoring_read_path": resolved_scoring_read_path,
+                    "scoring_compact_read_model_load_ms": 0.0,
+                    "scoring_compact_read_model_query_ms": 0.0,
+                    "scoring_compact_read_model_build_ms": 0.0,
+                    "scoring_compact_read_model_hit_count": 0,
+                    "scoring_compact_read_model_miss_count": 0,
+                    "scoring_compact_read_model_stale_count": 0,
+                    "scoring_compact_read_model_fallback_ms": 0.0,
                     "user_profile_load_ms": float(
                         diagnostics.get("user_profile_load_ms", 0.0)
                     ),
@@ -835,21 +871,27 @@ def score_candidates(
     prefetch_started_at = current_time()
     prefetch_breakdown: dict[str, float] = {}
 
-    stage_started_at = current_time()
-    snapshot_inputs = _load_recommendation_scoring_snapshots(
-        session,
-        product_ids,
-        desired_effects,
-    )
-    snapshot_load_ms = round(elapsed_ms(stage_started_at), 2)
-    prefetch_breakdown["snapshot_load_ms"] = snapshot_load_ms
+    compact_inputs = _CompactScoringInputs({}, set(), set(), set(), 0.0, 0.0)
+    compact_load_ms = 0.0
+    if resolved_scoring_read_path == "compact_v2":
+        stage_started_at = current_time()
+        compact_inputs = _load_recommendation_scoring_read_models(
+            session,
+            product_ids,
+        )
+        compact_load_ms = round(elapsed_ms(stage_started_at), 2)
+        prefetch_breakdown["compact_read_model_ms"] = compact_load_ms
 
-    snapshot_fallback_started_at = current_time()
-    fallback_candidates = [
-        candidate
-        for candidate in candidates
-        if candidate.db_product_id in snapshot_inputs.miss_ids
-    ]
+    compact_fallback_ids = compact_inputs.miss_ids | compact_inputs.stale_ids
+    fallback_candidates = (
+        candidates
+        if resolved_scoring_read_path == "legacy_bulk"
+        else [
+            candidate
+            for candidate in candidates
+            if candidate.db_product_id in compact_fallback_ids
+        ]
+    )
     stage_started_at = current_time()
     fallback_bundles, product_feature_miss_ids = _load_candidate_scoring_bundles(
         session,
@@ -857,11 +899,11 @@ def score_candidates(
     )
     candidate_bundle_load_ms = round(elapsed_ms(stage_started_at), 2)
     product_feature_load_ms = round(
-        snapshot_load_ms + candidate_bundle_load_ms,
+        compact_load_ms + candidate_bundle_load_ms,
         2,
     )
     prefetch_breakdown["candidate_bundle_ms"] = candidate_bundle_load_ms
-    candidate_bundles = dict(snapshot_inputs.bundles)
+    candidate_bundles = dict(compact_inputs.bundles)
     candidate_bundles.update(fallback_bundles)
     product_features_by_product = {
         product_id: bundle.product_feature
@@ -894,21 +936,16 @@ def score_candidates(
 
     stage_started_at = current_time()
     (
-        fallback_effect_features,
+        effect_features_by_product,
         effect_feature_miss_ids,
-        fallback_effect_feature_hit_count,
+        effect_feature_hit_count,
     ) = _load_product_effect_recommendation_features(
         session,
-        sorted(snapshot_inputs.miss_ids - product_feature_miss_ids),
+        sorted(set(product_ids) - product_feature_miss_ids),
         desired_effects,
     )
     effect_feature_load_ms = round(elapsed_ms(stage_started_at), 2)
     prefetch_breakdown["effect_features_ms"] = effect_feature_load_ms
-    effect_features_by_product = dict(snapshot_inputs.effect_features)
-    effect_features_by_product.update(fallback_effect_features)
-    effect_feature_hit_count = (
-        len(snapshot_inputs.hit_ids) + fallback_effect_feature_hit_count
-    )
 
     legacy_fallback_ids = product_feature_miss_ids | effect_feature_miss_ids
     legacy_started_at = current_time()
@@ -930,21 +967,11 @@ def score_candidates(
     prefetch_breakdown["ingredient_effects_ms"] = round(legacy_fallback_ms, 2)
 
     stage_started_at = current_time()
-    risk_flags_by_product: dict[int, tuple[_RiskFlagLike, ...]] = dict(
-        snapshot_inputs.risk_flags
-    )
-    if snapshot_inputs.miss_ids:
-        risk_flags_by_product.update(
-            _load_risk_flags(session, sorted(snapshot_inputs.miss_ids))
-        )
+    risk_flags_by_product = _load_risk_flags(session, product_ids)
     prefetch_breakdown["risk_flags_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
-    review_segments_by_product = dict(snapshot_inputs.review_segments)
-    if snapshot_inputs.miss_ids:
-        review_segments_by_product.update(
-            _load_review_segments(session, sorted(snapshot_inputs.miss_ids))
-        )
+    review_segments_by_product = _load_review_segments(session, product_ids)
     prefetch_breakdown["review_segments_ms"] = round(elapsed_ms(stage_started_at), 2)
 
     stage_started_at = current_time()
@@ -970,12 +997,12 @@ def score_candidates(
         behavior_signals_by_product = {}
     prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
 
-    snapshot_fallback_ms = (
-        round(elapsed_ms(snapshot_fallback_started_at), 2)
-        if snapshot_inputs.miss_ids
+    compact_fallback_ms = (
+        candidate_bundle_load_ms
+        if resolved_scoring_read_path == "compact_v2" and compact_fallback_ids
         else 0.0
     )
-    prefetch_breakdown["snapshot_fallback_ms"] = snapshot_fallback_ms
+    prefetch_breakdown["compact_read_model_fallback_ms"] = compact_fallback_ms
 
     prefetch_ms = round(elapsed_ms(prefetch_started_at), 2)
 
@@ -1126,13 +1153,19 @@ def score_candidates(
                 "effect_feature_load_ms": effect_feature_load_ms,
                 "effect_feature_hit_count": effect_feature_hit_count,
                 "effect_feature_miss_count": len(effect_feature_miss_ids),
-                "scoring_snapshot_load_ms": snapshot_load_ms,
-                "scoring_snapshot_hit_count": len(snapshot_inputs.hit_ids),
-                "scoring_snapshot_miss_count": len(snapshot_inputs.miss_ids),
-                "scoring_snapshot_fallback_ms": snapshot_fallback_ms,
-                "scoring_snapshot_parse_error_count": (
-                    snapshot_inputs.parse_error_count
-                ),
+                "scoring_snapshot_load_ms": 0.0,
+                "scoring_snapshot_hit_count": 0,
+                "scoring_snapshot_miss_count": 0,
+                "scoring_snapshot_fallback_ms": 0.0,
+                "scoring_snapshot_parse_error_count": 0,
+                "scoring_read_path": resolved_scoring_read_path,
+                "scoring_compact_read_model_load_ms": compact_load_ms,
+                "scoring_compact_read_model_query_ms": compact_inputs.query_ms,
+                "scoring_compact_read_model_build_ms": compact_inputs.build_ms,
+                "scoring_compact_read_model_hit_count": len(compact_inputs.hit_ids),
+                "scoring_compact_read_model_miss_count": len(compact_inputs.miss_ids),
+                "scoring_compact_read_model_stale_count": len(compact_inputs.stale_ids),
+                "scoring_compact_read_model_fallback_ms": compact_fallback_ms,
                 "scoring_prefetch_breakdown": prefetch_breakdown,
                 "scoring_prefetch_detail": {
                     **{
@@ -2045,6 +2078,181 @@ def _load_candidate_scoring_bundles(
         )
 
     return bundles, set(product_ids) - feature_product_ids
+
+
+def _load_recommendation_scoring_read_models(
+    session: Session,
+    product_ids: list[int],
+) -> _CompactScoringInputs:
+    unique_product_ids = list(
+        dict.fromkeys(int(product_id) for product_id in product_ids)
+    )
+    if not unique_product_ids:
+        return _CompactScoringInputs({}, set(), set(), set(), 0.0, 0.0)
+
+    query_started_at = current_time()
+    rows = session.execute(
+        select(ProductRecommendationScoringReadModel).where(
+            ProductRecommendationScoringReadModel.product_id.in_(
+                unique_product_ids
+            )
+        )
+    ).scalars().all()
+    query_ms = round(elapsed_ms(query_started_at), 2)
+    rows_by_product = {int(row.product_id): row for row in rows}
+
+    build_started_at = current_time()
+    bundles: dict[int, _CandidateScoringBundle] = {}
+    hit_ids: set[int] = set()
+    miss_ids: set[int] = set()
+    stale_ids: set[int] = set()
+    for product_id in unique_product_ids:
+        row = rows_by_product.get(product_id)
+        if row is None:
+            miss_ids.add(product_id)
+            continue
+        try:
+            bundles[product_id] = _compact_read_model_bundle(row)
+        except (TypeError, ValueError):
+            stale_ids.add(product_id)
+            continue
+        hit_ids.add(product_id)
+
+    return _CompactScoringInputs(
+        bundles=bundles,
+        hit_ids=hit_ids,
+        miss_ids=miss_ids,
+        stale_ids=stale_ids,
+        query_ms=query_ms,
+        build_ms=round(elapsed_ms(build_started_at), 2),
+    )
+
+
+def _compact_read_model_bundle(
+    row: ProductRecommendationScoringReadModel,
+) -> _CandidateScoringBundle:
+    if (
+        row.read_model_version
+        != PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION
+    ):
+        raise ValueError("stale compact read model version")
+    if (
+        row.product_feature_version
+        != PRODUCT_RECOMMENDATION_FEATURE_VERSION
+        or row.product_feature_source_current is not True
+    ):
+        raise ValueError("stale product recommendation feature")
+
+    top_ingredient_codes = _compact_string_tuple(
+        row.top_ingredient_codes,
+        "top_ingredient_codes",
+    )
+    top_effect_codes = _compact_string_tuple(
+        row.top_effect_codes,
+        "top_effect_codes",
+    )
+    functional_claims = _compact_string_tuple(
+        row.functional_claims,
+        "functional_claims",
+    )
+    skin_tags = _compact_string_tuple(row.skin_tags, "skin_tags")
+
+    skin_fit_values = (
+        row.dry_fit,
+        row.oily_fit,
+        row.combination_fit,
+        row.normal_fit,
+        row.dehydrated_oily_fit,
+        row.sensitive_fit,
+    )
+    skin_metadata_values = (
+        row.sensitivity_tag,
+        row.skin_profile_confidence,
+        row.skin_profile_reason,
+    )
+    skin_profile = None
+    if any(value is not None for value in skin_fit_values):
+        if any(value is None for value in skin_fit_values):
+            raise ValueError("partial compact skin profile")
+        skin_profile = _SkinProfileInfo(
+            dry_fit=_decimal_to_float(row.dry_fit),
+            oily_fit=_decimal_to_float(row.oily_fit),
+            combination_fit=_decimal_to_float(row.combination_fit),
+            normal_fit=_decimal_to_float(row.normal_fit),
+            dehydrated_oily_fit=_decimal_to_float(row.dehydrated_oily_fit),
+            sensitive_fit=_decimal_to_float(row.sensitive_fit),
+            sensitivity_tag=row.sensitivity_tag,
+            confidence=row.skin_profile_confidence,
+            reason=row.skin_profile_reason,
+        )
+    elif any(value is not None for value in skin_metadata_values):
+        raise ValueError("partial compact skin profile metadata")
+
+    popularity_values = (
+        row.popularity_score,
+        row.popularity_score_version,
+        row.popularity_window_days,
+    )
+    market_signal = None
+    if any(value is not None for value in popularity_values):
+        if (
+            row.popularity_score is None
+            or row.popularity_window_days != MARKET_SIGNAL_WINDOW_DAYS
+        ):
+            raise ValueError("stale compact market signal")
+        market_signal = _MarketSignalInfo(
+            popularity_score=_decimal_to_float(row.popularity_score)
+        )
+
+    review_values = (
+        row.review_quality_score,
+        row.review_confidence,
+        row.review_effective_sample_size,
+        row.review_count,
+        row.review_score_version,
+    )
+    review_metric = None
+    if any(value is not None for value in review_values):
+        if (
+            any(value is None for value in review_values)
+            or row.review_score_version != REVIEW_SCORE_VERSION
+        ):
+            raise ValueError("stale compact review metric")
+        review_metric = _ReviewMetricInfo(
+            review_quality_score=_decimal_to_float(
+                row.review_quality_score
+            ),
+            confidence=_decimal_to_float(row.review_confidence),
+            effective_sample_size=_decimal_to_float(
+                row.review_effective_sample_size
+            ),
+            review_count=int(row.review_count),
+        )
+
+    return _CandidateScoringBundle(
+        product_feature=ProductRecommendationFeatureValues(
+            top_ingredient_codes=top_ingredient_codes,
+            top_effect_codes=top_effect_codes,
+        ),
+        functional_info=_FunctionalInfo(
+            status=row.functional_status,
+            claims=functional_claims,
+            claim_confidence=row.functional_confidence,
+            basis=row.functional_basis,
+        ),
+        skin_tags=skin_tags,
+        skin_profile=skin_profile,
+        market_signal=market_signal,
+        review_metric=review_metric,
+    )
+
+
+def _compact_string_tuple(value: object, field_name: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(item, str) for item in value
+    ):
+        raise TypeError(f"{field_name} must be a string array")
+    return tuple(value)
 
 
 def _load_recommendation_scoring_snapshots(

@@ -111,6 +111,64 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(residual["value_ms"], 30.0)
         self.assertEqual(outside["e2e_share_percent"], 20.0)
 
+    def test_execution_flow_adds_snapshot_load_without_overlapping_fallback(self) -> None:
+        row = {
+            "run_id": "opt4-run",
+            "latency_avg_ms": 200.0,
+            "duration_ms_avg": 180.0,
+            "scoring_ms_avg": 120.0,
+            "scoring_data_prefetch_ms_avg": 100.0,
+            "prefetch_snapshot_load_ms_avg": 40.0,
+            "prefetch_candidate_bundle_ms_avg": 20.0,
+            "prefetch_effect_features_ms_avg": 10.0,
+            "scoring_snapshot_fallback_ms_avg": 60.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        prefetch_children = analysis.execution_flow_children(
+            records,
+            "scoring_data_prefetch_ms",
+        )
+        child_ids = {record["component_id"] for record in prefetch_children}
+
+        self.assertIn("prefetch_snapshot_load_ms", child_ids)
+        self.assertNotIn("scoring_snapshot_fallback_ms", child_ids)
+        self.assertAlmostEqual(
+            sum(record["value_ms"] for record in prefetch_children),
+            100.0,
+        )
+
+    def test_snapshot_read_model_metrics_calculate_coverage(self) -> None:
+        row = {
+            "run_id": "opt4-run",
+            "scoring_snapshot_load_ms_avg": 120.0,
+            "scoring_snapshot_load_ms_p95": 180.0,
+            "scoring_snapshot_fallback_ms_avg": 12.0,
+            "scoring_snapshot_fallback_ms_p95": 20.0,
+            "scoring_snapshot_hit_count_avg": 495.0,
+            "scoring_snapshot_miss_count_avg": 5.0,
+            "scoring_snapshot_parse_error_count_avg": 1.0,
+            "scoring_snapshot_parse_error_count_p95": 2.0,
+        }
+
+        metrics = analysis.build_snapshot_read_model_metrics(row)
+
+        self.assertIsNotNone(metrics)
+        self.assertEqual(metrics["snapshot_candidate_count_avg"], 500.0)
+        self.assertEqual(metrics["snapshot_hit_rate"], 0.99)
+        self.assertEqual(metrics["snapshot_miss_rate"], 0.01)
+        self.assertEqual(metrics["snapshot_parse_error_count_p95"], 2.0)
+        markdown = "\n".join(analysis.snapshot_read_model_markdown(metrics))
+        self.assertIn("snapshot hit rate: **99.00%**", markdown)
+        self.assertIn("다시 더하지 않는다", markdown)
+
+    def test_snapshot_read_model_metrics_require_snapshot_instrumentation(self) -> None:
+        self.assertIsNone(
+            analysis.build_snapshot_read_model_metrics(
+                {"scoring_data_prefetch_ms_avg": 100.0}
+            )
+        )
+
     def test_scoring_drilldown_lists_materialization_and_full_loop(self) -> None:
         scoring_keys = [key for key, _ in analysis.SCORING_STAGES]
         loop_keys = [key for key, _ in analysis.SCORE_LOOP_DETAIL_STAGES]

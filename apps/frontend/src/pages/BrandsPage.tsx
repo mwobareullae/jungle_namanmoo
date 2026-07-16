@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import Skeleton from "../components/ui/Skeleton";
 import { api } from "../lib/api";
@@ -113,15 +113,12 @@ function BrandsPage() {
   };
 
   return (
-    <div className="category-page brand-index-page">
+    <>
       <HomeHeader />
-      <main className="category-page__main">
-        <nav className="category-page__breadcrumb" aria-label="브랜드 경로">
-          <Link to="/">홈</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>브랜드</span>
-        </nav>
-        <h1 className="category-page__title">브랜드</h1>
+      <main className="popular-products-page new-products-page brand-index-page">
+        <div className="popular-products-shell">
+        <div className="popular-products-kicker">BRAND DISCOVERY</div>
+        <h1>브랜드</h1>
         <p className="new-products-page__description">원하는 브랜드를 선택해 상품을 찾아보세요.</p>
         <form className="brand-index-page__search" onSubmit={submitSearch}>
           <input
@@ -144,7 +141,7 @@ function BrandsPage() {
               <button
                 className="brand-index-page__card"
                 key={brand.code}
-                onClick={() => navigate(`/catalog-search?q=${encodeURIComponent(brand.name)}`)}
+                onClick={() => navigate(`/brand/${encodeURIComponent(brand.name)}`)}
                 type="button"
               >
                 <strong>{brand.name}</strong>
@@ -160,8 +157,9 @@ function BrandsPage() {
             {isLoadingPage ? "브랜드를 더 불러오는 중입니다." : ""}
           </div>
         ) : null}
+        </div>
       </main>
-    </div>
+    </>
   );
 }
 

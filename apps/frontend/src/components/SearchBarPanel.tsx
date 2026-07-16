@@ -152,7 +152,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
                 onFocus={handleSearchFocus}
                 onKeyDown={handleSearchKey}
                 onChange={(event) => handleQueryChange(event.target.value)}
-                placeholder={searchMode === "ai" ? "예: 민감하고 자주 붉어져요" : "상품명, 브랜드, 성분을 검색하세요"}
+                placeholder={searchMode === "ai" ? "민감하고 붉은기가 자주 올라와요" : "상품명, 브랜드, 성분을 검색하세요"}
                 type="text"
                 value={query}
               />

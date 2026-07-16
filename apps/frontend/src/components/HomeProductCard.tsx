@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ProductCardItem } from "../types/recommendation";
 import { trackEvent } from "../lib/appSignals/client";
 import { navigateWithinApp } from "../lib/navigation";
@@ -24,6 +25,90 @@ const formatPrice = (price: number | null) =>
 
 const hasUsableImageUrl = (url: string | null) =>
   Boolean(url && !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(url));
+
+type ProductIngredientTagsProps = {
+  className: string;
+  tags: string[];
+};
+
+export function ProductIngredientTags({ className, tags }: ProductIngredientTagsProps) {
+  const maxVisibleRows = 1;
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [visibleTagCount, setVisibleTagCount] = useState(tags.length);
+  const tagsKey = tags.join("\u0001");
+  const hiddenTagCount = tags.length - visibleTagCount;
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    const measure = measureRef.current;
+    if (!wrapper || !measure || tags.length < 2) {
+      setVisibleTagCount(tags.length);
+      return;
+    }
+
+    const updateVisibleTagCount = () => {
+      const availableWidth = wrapper.clientWidth;
+      const tagElements = Array.from(measure.querySelectorAll<HTMLElement>("[data-ingredient-tag]"));
+      const moreElement = measure.querySelector<HTMLElement>("[data-ingredient-more]");
+      if (!availableWidth || tagElements.length !== tags.length || !moreElement) return;
+
+      const gap = Number.parseFloat(window.getComputedStyle(measure).columnGap) || 6;
+      const tagWidths = tagElements.map((element) => element.offsetWidth);
+      const moreWidth = moreElement.offsetWidth;
+      const rowCount = (widths: number[]) => widths.reduce(
+        (state, width) => {
+          if (state.rowWidth === 0) return { rowCount: 1, rowWidth: width };
+          if (state.rowWidth + gap + width <= availableWidth) {
+            return { rowCount: state.rowCount, rowWidth: state.rowWidth + gap + width };
+          }
+          return { rowCount: state.rowCount + 1, rowWidth: width };
+        },
+        { rowCount: 0, rowWidth: 0 },
+      ).rowCount;
+
+      let nextVisibleTagCount = tags.length;
+      if (rowCount(tagWidths) > maxVisibleRows) {
+        for (let count = tags.length - 1; count >= 0; count -= 1) {
+          if (rowCount([...tagWidths.slice(0, count), moreWidth]) <= maxVisibleRows) {
+            nextVisibleTagCount = count;
+            break;
+          }
+        }
+      }
+      setVisibleTagCount((current) => current === nextVisibleTagCount ? current : nextVisibleTagCount);
+    };
+
+    const animationFrame = window.requestAnimationFrame(updateVisibleTagCount);
+    const resizeObserver = new ResizeObserver(updateVisibleTagCount);
+    resizeObserver.observe(wrapper);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+    };
+  }, [tags.length, tagsKey]);
+
+  if (tags.length === 0) {
+    return <div className={`${className} empty`}><span className="ingr-tag missing">대표 성분 정보 없음</span></div>;
+  }
+
+  return (
+    <div className="ingredient-tag-list-wrapper" ref={wrapperRef}>
+      <div className={className}>
+        {tags.slice(0, visibleTagCount).map((ingredient) => (
+          <span className="ingr-tag" key={ingredient}>{ingredient}</span>
+        ))}
+        {hiddenTagCount > 0 ? <span className="ingr-tag ingredient-tag-list-more" title={tags.slice(visibleTagCount).join(", ")}>+{hiddenTagCount}</span> : null}
+      </div>
+      <div aria-hidden="true" className={`${className} ingredient-tag-list-measure`} ref={measureRef}>
+        {tags.map((ingredient) => (
+          <span className="ingr-tag" data-ingredient-tag key={ingredient}>{ingredient}</span>
+        ))}
+        <span className="ingr-tag ingredient-tag-list-more" data-ingredient-more>+{tags.length}</span>
+      </div>
+    </div>
+  );
+}
 
 function HomeProductCard({ displayRank, product, recommendationId, showScore = false, eventContext }: HomeProductCardProps) {
   const searchParams = new URLSearchParams({ id: product.product_id });
@@ -106,17 +191,7 @@ function HomeProductCard({ displayRank, product, recommendationId, showScore = f
       <div className="product-info">
         <div className="product-brand">{product.brand}</div>
         <div className="product-name">{product.name}</div>
-        <div className={`key-ingredients${product.key_ingredients.length ? "" : " empty"}`}>
-          {product.key_ingredients.length ? (
-            product.key_ingredients.slice(0, 3).map((ingredient) => (
-              <span className="ingr-tag" key={ingredient}>
-                {ingredient}
-              </span>
-            ))
-          ) : (
-            <span className="ingr-tag missing">대표 성분 정보 없음</span>
-          )}
-        </div>
+        <ProductIngredientTags className="key-ingredients" tags={product.key_ingredients.slice(0, 3)} />
         {!showScore ? (
           <div className="product-price-row">
             <div>
