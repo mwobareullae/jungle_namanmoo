@@ -30,6 +30,19 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
   }, [searchMode]);
 
   useEffect(() => {
+    const handleSearchRequest = (event: Event) => {
+      const nextQuery = (event as CustomEvent<{ query?: unknown }>).detail?.query;
+      if (typeof nextQuery !== "string" || !nextQuery.trim()) return;
+
+      setQuery(nextQuery);
+      setIsSuggestionsOpen(false);
+    };
+
+    window.addEventListener("home-search-request", handleSearchRequest);
+    return () => window.removeEventListener("home-search-request", handleSearchRequest);
+  }, []);
+
+  useEffect(() => {
     const normalized = query.trim();
     let isMounted = true;
     if (searchMode !== "general" || !normalized) {

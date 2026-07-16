@@ -2259,14 +2259,44 @@ function AgentFloatingButton({
     }
   };
 
-  const openResultAction = (actionUrl?: string | null) => {
+  const openResultAction = async (actionUrl?: string | null) => {
     if (!actionUrl) {
       return;
     }
 
-    navigateWithinApp(actionUrl).catch(() => {
+    closeChat();
+    await waitForAgentInteraction(260);
+
+    try {
+      const targetUrl = new URL(actionUrl, window.location.origin);
+      if (targetUrl.pathname === "/search" && window.location.pathname === "/search") {
+        const query = targetUrl.searchParams.get("keyword")?.trim();
+        const recommendationId = targetUrl.searchParams.get("recommendation_id") ?? undefined;
+        if (query) {
+          window.history.replaceState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+          window.dispatchEvent(new CustomEvent("home-search-request", {
+            detail: {
+              profile: {
+                avoidIngredients: skinProfile?.avoidIngredients ?? [],
+                sensitivity: targetUrl.searchParams.get("sensitivity") ?? skinProfile?.sensitivity ?? "보통",
+                skin: targetUrl.searchParams.get("skin_type") ?? skinProfile?.skin ?? "수부지",
+              },
+              query,
+              recommendationId,
+            },
+          }));
+        }
+        document.getElementById("searchResultsSection")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        return;
+      }
+
+      await navigateWithinApp(actionUrl);
+    } catch {
       window.location.href = actionUrl;
-    });
+    }
   };
 
   const renderResultMessage = (message: AgentChatResultMessage) => {
@@ -2304,7 +2334,7 @@ function AgentFloatingButton({
         {message.actionType === "show_products" && message.actionUrl ? (
           <button
             className="agent-chat-result-more"
-            onClick={() => openResultAction(
+            onClick={() => void openResultAction(
               message.actionTarget === "popular_wishlist" ? "/mypage/wishlist" : message.actionUrl,
             )}
             type="button"
@@ -2315,7 +2345,7 @@ function AgentFloatingButton({
         {message.actionType === "show_cart" && message.actionUrl ? (
           <button
             className="agent-chat-result-more"
-            onClick={() => openResultAction(message.actionUrl)}
+            onClick={() => void openResultAction(message.actionUrl)}
             type="button"
           >
             장바구니 보기
