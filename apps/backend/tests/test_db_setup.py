@@ -75,6 +75,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_ingredients",
         "product_popularity_metrics",
         "product_prices",
+        "product_recommendation_coarse_features",
         "product_recommendation_features",
         "product_recommendation_scoring_read_models",
         "product_recommendation_scoring_snapshots",
