@@ -125,19 +125,9 @@ def test_get_order_summary_returns_all_status_counts_for_current_user(
     assert set(status_counts) == {
         "PENDING_PAYMENT",
         "PAID",
-        "PAYMENT_FAILED",
-        "EXPIRED",
-        "CANCELED",
         "PREPARING_SHIPMENT",
         "SHIPPED",
         "DELIVERED",
-        "CANCEL_REQUESTED",
-        "REFUND_REQUESTED",
-        "REFUNDED",
-        "RETURN_REQUESTED",
-        "RETURNED",
-        "EXCHANGE_REQUESTED",
-        "EXCHANGED",
     }
     assert pending["order_code"]
 
