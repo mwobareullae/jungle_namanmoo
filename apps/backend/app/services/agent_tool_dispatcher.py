@@ -179,10 +179,23 @@ class AddToCartArgs(BaseModel):
 class PrepareProductCheckoutArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product_id: str = Field(..., min_length=1, max_length=128)
+    product_id: str | None = Field(default=None, min_length=1, max_length=128)
     quantity: int = Field(default=1, ge=1, le=99)
     recommendation_id: str | None = Field(default=None, max_length=128)
     recommendation_rank: int | None = Field(default=None, ge=1)
+    reference_source: ProductReferenceSource | None = None
+    reference_rank: int | None = Field(default=None, ge=1, le=50)
+    reference_position: Literal["first", "last"] | None = None
+
+    @model_validator(mode="after")
+    def validate_product_reference(self) -> "PrepareProductCheckoutArgs":
+        if self.product_id and self.reference_source:
+            raise ValueError("product_id and reference_source cannot be used together")
+        if self.reference_rank is not None and self.reference_position is not None:
+            raise ValueError("reference_rank and reference_position cannot be used together")
+        if not self.product_id and not self.reference_source:
+            raise ValueError("product_id or reference_source is required")
+        return self
 
 
 class CheckoutArgs(BaseModel):
@@ -533,6 +546,10 @@ def _execute_parsed_tool(
             quantity=args.quantity,
             recommendation_id=args.recommendation_id,
             recommendation_rank=args.recommendation_rank,
+            reference_source=args.reference_source,
+            reference_rank=args.reference_rank,
+            reference_position=args.reference_position,
+            current_product_id=current_product_id,
         )
 
     if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
