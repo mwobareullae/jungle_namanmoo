@@ -95,18 +95,23 @@ function SearchPage() {
     }
 
     if (!user) {
-      setSavedProfile(null);
-      setIsProfileResolved(true);
-      return;
+      const timerId = window.setTimeout(() => {
+        setSavedProfile(null);
+        setIsProfileResolved(true);
+      }, 0);
+      return () => window.clearTimeout(timerId);
     }
 
     if (skinProfileQuery.isPending) {
       return;
     }
 
-    setSavedProfile(skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null);
-    setIsProfileResolved(true);
-  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user?.id]);
+    const timerId = window.setTimeout(() => {
+      setSavedProfile(skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null);
+      setIsProfileResolved(true);
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user]);
 
   return (
     <div className="search-page-shell">
