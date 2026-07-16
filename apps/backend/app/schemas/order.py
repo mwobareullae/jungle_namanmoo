@@ -43,6 +43,7 @@ class OrderCreateResponse(BaseModel):
     total: int
     currency: str
     payment_expires_at: datetime | None
+    order_snapshot: "OrderDetailResponse | None" = None
 
 
 class OrderCancelResponse(BaseModel):
