@@ -15,7 +15,6 @@ import { getProductImageUrl } from "../lib/imageUrls";
 import { isProductSoldOut } from "../lib/productAvailability";
 import { navigateWithinApp } from "../lib/navigation";
 import type { CatalogSearchItem, CatalogSearchSort, CatalogSuggestionItem } from "../types/product";
-import type { ProductCardItem } from "../types/recommendation";
 
 const PAGE_SIZE = 20;
 const catalogSorts: CatalogSearchSort[] = ["relevance", "popular", "newest", "price_asc", "price_desc", "rating"];
@@ -24,12 +23,16 @@ function CatalogSearchSkeletons() {
   return (
     <>
       {Array.from({ length: PAGE_SIZE }, (_, index) => (
-        <article className="product-card product-card-loading" key={index} aria-hidden="true">
-          <Skeleton className="product-img" />
-          <div className="product-info">
-            <Skeleton style={{ width: 72, height: 14, marginBottom: 10 }} />
-            <Skeleton style={{ width: "88%", height: 18, marginBottom: 18 }} />
-            <Skeleton style={{ width: 96, height: 20 }} />
+        <article className="catalog-search-result-card product-card search-product-card is-loading" key={index} aria-hidden="true">
+          <Skeleton className="catalog-search-result-card__image product-img" />
+          <div className="catalog-search-result-card__copy product-info">
+            <Skeleton style={{ width: 72, height: 14 }} />
+            <Skeleton style={{ width: "78%", height: 19 }} />
+            <Skeleton style={{ width: "56%", height: 14 }} />
+          </div>
+          <div className="catalog-search-result-card__meta search-result-side">
+            <Skeleton style={{ width: 70, height: 14 }} />
+            <Skeleton style={{ width: 96, height: 22 }} />
           </div>
         </article>
       ))}
@@ -48,24 +51,6 @@ const readParams = (search: string) => {
   };
 };
 
-const mapSearchItemToCard = (item: CatalogSearchItem, rank: number): ProductCardItem => ({
-  product_id: item.product_id,
-  rank,
-  total_score: item.rating ?? 0,
-  reason_summary: "",
-  brand: item.brand,
-  name: item.name,
-  thumbnail_url: getProductImageUrl(item.thumbnail_url, "w400") || null,
-  lowest_price: item.lowest_price,
-  evidence_tags: [],
-  key_ingredients: [],
-  risk_flags: [],
-  sales_status: item.sales_status,
-  stock_status: item.stock_status,
-  available_quantity: item.available_quantity,
-  in_stock: item.in_stock
-});
-
 function CatalogSearchPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -73,7 +58,7 @@ function CatalogSearchPage() {
   const { message: toastMessage, showToast } = useActivityToast();
   const params = useMemo(() => readParams(location.search), [location.search]);
   const [inputValue, setInputValue] = useState(params.query);
-  const [items, setItems] = useState<ProductCardItem[]>([]);
+  const [items, setItems] = useState<CatalogSearchItem[]>([]);
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const [totalItems, setTotalItems] = useState(0);
@@ -171,7 +156,7 @@ function CatalogSearchPage() {
     api.searchCatalog({ query: params.query, page: params.page, pageSize: PAGE_SIZE, sort: params.sort })
       .then((response) => {
         if (!isMounted) return;
-        setItems(response.items.map((item, index) => mapSearchItemToCard(item, (response.pagination.page - 1) * PAGE_SIZE + index + 1)));
+        setItems(response.items);
         setCorrectedQuery(response.corrected_query);
         setTotalItems(response.pagination.total_items);
         setTotalPages(response.pagination.total_pages);
@@ -240,99 +225,175 @@ function CatalogSearchPage() {
     goToSearch(suggestion.text);
   };
 
+  const openAiSearch = () => {
+    const next = new URLSearchParams({ search_mode: "ai" });
+    if (inputValue.trim()) next.set("keyword", inputValue.trim());
+    navigate(`/search?${next.toString()}`);
+  };
+
+  const formatRating = (item: CatalogSearchItem) => {
+    if (item.rating === null) return "평점 정보 없음";
+    return item.review_count > 0
+      ? `평점 ${item.rating.toFixed(1)} · 리뷰 ${item.review_count.toLocaleString("ko-KR")}개`
+      : `평점 ${item.rating.toFixed(1)}`;
+  };
+
   return (
-    <div className="catalog-search-page">
+    <div className="search-page-shell catalog-search-page">
       <HomeHeader />
-      <main className="category-page__main">
-        <div className="catalog-search-page__head">
-          <div>
-            <p>일반 상품 검색</p>
-            <h1 className="category-page__title">상품명, 브랜드, 카테고리로 찾아보세요</h1>
-          </div>
-          {params.query ? (
-            <select
-              aria-label="상품 검색 정렬"
-              className="sort-select"
-              onChange={(event) => goToSearch(params.query, 1, event.target.value as CatalogSearchSort)}
-              value={params.sort}
-            >
-              <option value="relevance">관련도순</option>
-              <option value="popular">인기순</option>
-              <option value="newest">신상품순</option>
-              <option value="price_asc">가격 낮은순</option>
-              <option value="price_desc">가격 높은순</option>
-              <option value="rating">평점순</option>
-            </select>
-          ) : null}
-        </div>
-
-        <form className="catalog-search-page__form" onSubmit={handleSubmit}>
-          <input
-            aria-label="일반 상품 검색어"
-            autoComplete="off"
-            onChange={(event) => setInputValue(event.target.value)}
-            placeholder="상품명이나 브랜드를 입력하세요"
-            value={inputValue}
-          />
-          <button type="submit">검색</button>
-          {suggestions.length > 0 ? (
-            <div className="catalog-search-page__suggestions" role="listbox">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`}
-                  onClick={() => selectSuggestion(suggestion)}
-                  role="option"
-                  type="button"
-                >
-                  <span>{suggestion.text}</span>
-                  <small>{suggestion.type === "PRODUCT" ? "상품" : suggestion.type === "BRAND" ? "브랜드" : suggestion.type === "CATEGORY" ? "카테고리" : "추천 검색어"}</small>
-                </button>
-              ))}
+      <section className="search-page-top catalog-search-page__top">
+        <div className="search-page-top-inner">
+          <div className="search-container catalog-search-page__search-container">
+            <div aria-label="검색 방식" className="search-mode-tabs" role="tablist">
+              <button aria-selected="true" className="active" role="tab" type="button">일반 검색</button>
+              <button aria-selected="false" onClick={openAiSearch} role="tab" type="button">AI 추천</button>
             </div>
-          ) : null}
-        </form>
-
-        {params.query ? (
-          <div className="catalog-search-page__summary">
-            <strong>‘{params.query}’</strong> 검색 결과 {totalItems.toLocaleString("ko-KR")}개
-            {correctedQuery ? <span>추천 검색어: {correctedQuery}</span> : null}
-          </div>
-        ) : null}
-
-        <div className="product-grid">
-          {isLoading ? (
-            <CatalogSearchSkeletons />
-          ) : errorMessage ? (
-            <div className="search-empty">{errorMessage}</div>
-          ) : items.length > 0 ? (
-            items.map((product) => {
-              const isSoldOut = isProductSoldOut(product);
-              const isWished = wishedProductIds.has(product.product_id);
-              return <article className={`popular-product-card${isSoldOut ? " is-sold-out" : ""}`} key={product.product_id} onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)} role="link" tabIndex={0}>
-                <div className="popular-product-card__image-wrap">
-                  <ProductThumbnail className="popular-product-card__image" src={product.thumbnail_url} alt={`${product.brand} ${product.name}`} />
-                  {isSoldOut ? <ProductSoldOutOverlay /> : null}
-                  <button aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${isWished ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button>
+            <form className="search-combo catalog-search-page__form" onSubmit={handleSubmit}>
+              <div className="search-box">
+                <div aria-hidden="true" className="search-icon">
+                  <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
                 </div>
-                <div className="popular-product-card__brand">{product.brand}</div>
-                <div className="popular-product-card__name">{product.name}</div>
-                <div className={`popular-product-card__price${isSoldOut ? " product-price--sold-out" : ""}`}>{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</div>
-              </article>;
-            })
-          ) : params.query ? (
-            <div className="search-empty">검색 결과가 없습니다.</div>
-          ) : (
-            <div className="search-empty">검색어를 입력하면 상품을 찾아드려요.</div>
-          )}
-        </div>
-
-        {!isLoading && !errorMessage && totalPages > 1 ? (
-          <div className="catalog-search-page__pagination">
-            <button className="page-btn nav" disabled={params.page <= 1} onClick={() => goToSearch(params.query, params.page - 1)} type="button">이전</button>
-            <span>{params.page} / {totalPages}</span>
-            <button className="page-btn nav" disabled={params.page >= totalPages} onClick={() => goToSearch(params.query, params.page + 1)} type="button">다음</button>
+                <input
+                  aria-label="일반 상품 검색어"
+                  autoComplete="off"
+                  className="catalog-search-page__input"
+                  onChange={(event) => setInputValue(event.target.value)}
+                  placeholder="상품명, 브랜드, 성분을 검색하세요"
+                  value={inputValue}
+                />
+                <button className="search-btn" type="submit">
+                  <svg aria-hidden="true" fill="none" height="16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24" width="16">
+                    <path d="m22 2-7 20-4-9-9-4z" />
+                  </svg>
+                  검색
+                </button>
+              </div>
+              {suggestions.length > 0 ? (
+                <div className="catalog-search-page__suggestions" role="listbox">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.type}-${suggestion.product_id ?? suggestion.text}`}
+                      onClick={() => selectSuggestion(suggestion)}
+                      role="option"
+                      type="button"
+                    >
+                      <span>{suggestion.text}</span>
+                      <small>{suggestion.type === "PRODUCT" ? "상품" : suggestion.type === "BRAND" ? "브랜드" : suggestion.type === "CATEGORY" ? "카테고리" : "추천 검색어"}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </form>
           </div>
-        ) : null}
+        </div>
+      </section>
+
+      <main className="main-content search-main-content catalog-search-page__main">
+        <div className="search-results-shell ai-search-results catalog-search-page__results">
+          <section className="search-results-panel" id="searchResultsSection" aria-live="polite">
+            <header className="results-header catalog-search-page__results-header">
+              <div>
+                <div className="results-query">
+                  {params.query ? <><strong>“{params.query}”</strong> 검색 결과</> : "상품을 검색해 보세요"}
+                </div>
+                <div className="section-subtitle">
+                  {isLoading
+                    ? "상품 검색 결과를 불러오는 중입니다"
+                    : params.query
+                      ? `${totalItems.toLocaleString("ko-KR")}개 제품을 찾았습니다`
+                      : "상품명, 브랜드, 성분으로 원하는 상품을 찾아보세요"}
+                  {correctedQuery ? ` · 추천 검색어: ${correctedQuery}` : ""}
+                </div>
+              </div>
+              {params.query ? (
+                <div aria-label="일반 검색 결과 정렬" className="catalog-search-page__sort-tabs" role="tablist">
+                  {[
+                    ["relevance", "관련도순"],
+                    ["popular", "인기순"],
+                    ["newest", "신상품순"],
+                    ["price_asc", "낮은 가격순"],
+                    ["price_desc", "높은 가격순"],
+                    ["rating", "평점순"]
+                  ].map(([value, label]) => (
+                    <button
+                      aria-selected={params.sort === value}
+                      className={params.sort === value ? "active" : ""}
+                      key={value}
+                      onClick={() => goToSearch(params.query, 1, value as CatalogSearchSort)}
+                      role="tab"
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </header>
+
+            <div className="catalog-search-page__result-list" id="searchResultsGrid">
+              {isLoading ? (
+                <CatalogSearchSkeletons />
+              ) : errorMessage ? (
+                <div className="search-empty">{errorMessage}</div>
+              ) : items.length > 0 ? (
+                items.map((product) => {
+                  const isSoldOut = isProductSoldOut(product);
+                  const isWished = wishedProductIds.has(product.product_id);
+                  return (
+                    <article
+                      className={`catalog-search-result-card product-card product-card-hit search-product-card${isSoldOut ? " is-sold-out" : ""}`}
+                      key={product.product_id}
+                      onClick={() => void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          void navigateWithinApp(`/product-detail?id=${encodeURIComponent(product.product_id)}`);
+                        }
+                      }}
+                      role="link"
+                      tabIndex={0}
+                    >
+                      <div className="catalog-search-result-card__image-wrap product-img">
+                        <ProductThumbnail className="catalog-search-result-card__image product-photo" src={getProductImageUrl(product.thumbnail_url, "w400")} alt={`${product.brand} ${product.name}`} />
+                        {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                        <button aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`} className={`popular-product-card__heart${isWished ? " is-wished" : ""}`} disabled={pendingWishlistProductIds.has(product.product_id)} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void toggleWishlist(product.product_id); }} type="button"><HeartIcon size={12} /></button>
+                      </div>
+                      <div className="catalog-search-result-card__copy product-info">
+                        <div className="catalog-search-result-card__brand product-brand">{product.brand}</div>
+                        <div className="product-name">{product.name}</div>
+                      </div>
+                      <div className="catalog-search-result-card__meta search-result-side">
+                        <span className={`search-result-note${isSoldOut ? " is-sold-out" : ""}`}>{isSoldOut ? "일시품절" : formatRating(product)}</span>
+                        <div className="product-price-row">
+                          <div>
+                            <div>
+                              <span className={`sale-price${isSoldOut ? " product-price--sold-out" : ""}`}>{product.lowest_price === null ? "가격 정보 없음" : `${product.lowest_price.toLocaleString("ko-KR")}원`}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              ) : params.query ? (
+                <div className="search-empty">검색 결과가 없습니다.</div>
+              ) : (
+                <div className="search-empty">검색어를 입력하면 상품을 찾아드려요.</div>
+              )}
+            </div>
+
+            {!isLoading && !errorMessage && totalPages > 1 ? (
+              <div className="search-pagination catalog-search-page__pagination">
+                <button className="page-btn nav" disabled={params.page <= 1} onClick={() => goToSearch(params.query, params.page - 1)} type="button">이전</button>
+                <span>{params.page} / {totalPages}</span>
+                <button className="page-btn nav" disabled={params.page >= totalPages} onClick={() => goToSearch(params.query, params.page + 1)} type="button">다음</button>
+              </div>
+            ) : null}
+          </section>
+        </div>
       </main>
       <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
       <ActivityToast message={toastMessage} />
