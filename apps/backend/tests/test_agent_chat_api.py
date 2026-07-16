@@ -19,7 +19,7 @@ from app.schemas.agent import (
     AgentChatResponse,
     AgentUiAction,
 )
-from app.services.agent_openai_runner import _build_agent_input
+from app.services.agent_openai_runner import _build_agent_input, run_openai_agent_chat
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -81,6 +81,18 @@ def test_agent_input_omits_empty_context_fields() -> None:
     payload = json.loads(_build_agent_input(AgentChatRequest(message="보습 세럼 추천해줘")))
 
     assert payload == {"message": "보습 세럼 추천해줘"}
+
+
+@pytest.mark.anyio
+async def test_agent_bulk_cart_request_returns_clarification_without_openai() -> None:
+    request = AgentChatRequest(message="1~5위 장바구니에 담아줘")
+
+    response = await run_openai_agent_chat(Session(), request)
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert "한 번에 담는 기능" in response.message
 
 
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
