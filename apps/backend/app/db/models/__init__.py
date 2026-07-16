@@ -84,6 +84,8 @@ from app.db.models.taxonomy import (
     IngredientEffect,
     IngredientEffectRange,
     IngredientEvidence,
+    IngredientMappingReview,
+    IngredientMappingReviewEvent,
     RiskFlag,
 )
 
@@ -109,6 +111,8 @@ __all__ = [
     "IngredientEffect",
     "IngredientEffectRange",
     "IngredientEvidence",
+    "IngredientMappingReview",
+    "IngredientMappingReviewEvent",
     "Inventory",
     "InventoryMovement",
     "Order",
