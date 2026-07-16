@@ -61,6 +61,7 @@ def test_snapshot_all_hits_preserve_complete_scoring_output() -> None:
     assert diagnostics["scoring_snapshot_hit_count"] == 2
     assert diagnostics["scoring_snapshot_miss_count"] == 0
     assert diagnostics["scoring_snapshot_parse_error_count"] == 0
+    assert diagnostics["scoring_snapshot_load_ms"] >= 0.0
     assert diagnostics["scoring_snapshot_fallback_ms"] == 0.0
 
 
