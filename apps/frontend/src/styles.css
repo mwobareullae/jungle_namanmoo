@@ -7079,6 +7079,13 @@ body.search-results-page #searchResultsGrid .product-info {
 
 body.search-results-page #searchResultsGrid .search-result-side {
   min-width: 148px;
+  justify-items: start;
+  text-align: left;
+}
+
+body.search-results-page #searchResultsGrid .search-result-side .product-price-row {
+  justify-content: flex-start;
+  text-align: left;
 }
 
 body.search-results-page #searchResultsGrid .product-card:last-child {
