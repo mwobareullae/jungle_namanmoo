@@ -86,7 +86,7 @@ type RecommendationApi = {
     sort?: CatalogSearchSort;
   }) => Promise<CatalogSearchResponse>;
   getCatalogSuggestions: (query: string, limit?: number) => Promise<CatalogSuggestionsResponse>;
-  getProduct: (productId: string, recommendationId?: string) => Promise<ProductDetail>;
+  getProduct: (productId: string, recommendationId?: string, signal?: AbortSignal) => Promise<ProductDetail>;
   getSkinTestQuestions: () => Promise<SkinTestQuestionsResponse>;
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
   getSkinTestResult: (resultId: number) => Promise<SkinTestResultResponse>;
@@ -514,6 +514,9 @@ const mapProductDetail = (response: BackendProductDetailResponse): ProductDetail
 
 export const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
   const controller = new AbortController();
+  const externalSignal = init?.signal;
+  const abortFromCaller = () => controller.abort();
+  externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
 
   try {
@@ -523,7 +526,7 @@ export const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestI
       signal: controller.signal
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof DOMException && error.name === "AbortError" && !externalSignal?.aborted) {
       const apiError: ApiError = {
         status: 408,
         message: "분석 요청이 지연되고 있어요. 잠시 후 다시 시도해주세요."
@@ -534,6 +537,7 @@ export const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestI
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", abortFromCaller);
   }
 };
 
@@ -768,7 +772,7 @@ export const api: RecommendationApi = {
     return parseJson<CatalogSuggestionsResponse>(response);
   },
 
-  async getProduct(productId, recommendationId) {
+  async getProduct(productId, recommendationId, signal) {
     const searchParams = new URLSearchParams();
     if (recommendationId) {
       searchParams.set("recommendation_id", recommendationId);
@@ -776,7 +780,8 @@ export const api: RecommendationApi = {
 
     const query = searchParams.toString();
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/products/${productId}${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/products/${productId}${query ? `?${query}` : ""}`,
+      { signal }
     );
     return mapProductDetail(await parseJson<BackendProductDetailResponse>(response));
   },
