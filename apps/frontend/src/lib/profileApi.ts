@@ -136,9 +136,26 @@ const toRecommendationProfile = (profile: SkinProfileData): RecommendationProfil
   avoidIngredients: profile.avoidIngredients
 });
 
+let inFlightSkinProfileRequest: Promise<SkinProfileData | null> | null = null;
+
 export const getMySkinProfile = async (): Promise<SkinProfileData | null> => {
-  const response = await fetchWithTimeout(`${API_BASE_URL}/me/skin-profile`);
-  return mapSkinProfileData(await parseJson<BackendSkinProfileResponse>(response));
+  if (inFlightSkinProfileRequest) {
+    return inFlightSkinProfileRequest;
+  }
+
+  const request = (async () => {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/me/skin-profile`);
+    return mapSkinProfileData(await parseJson<BackendSkinProfileResponse>(response));
+  })();
+  inFlightSkinProfileRequest = request;
+
+  try {
+    return await request;
+  } finally {
+    if (inFlightSkinProfileRequest === request) {
+      inFlightSkinProfileRequest = null;
+    }
+  }
 };
 
 export const getSavedSkinProfile = async (): Promise<RecommendationProfile | null> => {
