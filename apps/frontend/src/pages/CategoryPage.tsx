@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import LoginRequiredDialog from "../components/LoginRequiredDialog";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import ProductThumbnail from "../components/ProductThumbnail";
+import ActivityToast from "../components/ui/ActivityToast";
+import HeartIcon from "../components/ui/HeartIcon";
+import { useAuth } from "../contexts/useAuth";
+import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
+import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
 import { api } from "../lib/api";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
@@ -37,6 +43,8 @@ const formatPrice = (price: number | null) =>
 function CategoryPage() {
   const { groupCode = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { message: toastMessage, showToast } = useActivityToast();
   const selectedCategoryCode = searchParams.get("subcategory") ?? "";
   const { restoration, restoreListPosition, saveListRestoration } = useListHistoryRestoration();
   const [categories, setCategories] = useState<CategoryListItem[]>([]);
@@ -67,6 +75,73 @@ function CategoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const productCardRefs = useRef(new Map<string, HTMLElement>());
   const restoredLocationKeys = useRef(new Set<string>());
+  const [wishedProductIds, setWishedProductIds] = useState<Set<string>>(() => new Set());
+  const [pendingWishlistProductIds, setPendingWishlistProductIds] = useState<Set<string>>(() => new Set());
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!user) {
+      void Promise.resolve().then(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getMyWishlist()
+      .then((items) => {
+        if (isMounted) setWishedProductIds(new Set(items.map((item) => item.productId)));
+      })
+      .catch(() => {
+        if (isMounted) setWishedProductIds(new Set());
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const toggleWishlist = async (productId: string) => {
+    if (!user) {
+      setIsLoginDialogOpen(true);
+      return;
+    }
+    if (pendingWishlistProductIds.has(productId)) return;
+
+    const wasWished = wishedProductIds.has(productId);
+    setWishedProductIds((current) => {
+      const next = new Set(current);
+      if (wasWished) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    setPendingWishlistProductIds((current) => new Set(current).add(productId));
+
+    try {
+      if (wasWished) {
+        await deleteMyWishlistItem(productId);
+        showToast(wishlistToastMessage.removed);
+      } else {
+        await addMyWishlistItem(productId);
+        showToast(wishlistToastMessage.added);
+      }
+    } catch {
+      setWishedProductIds((current) => {
+        const next = new Set(current);
+        if (wasWished) next.add(productId); else next.delete(productId);
+        return next;
+      });
+      showToast(wishlistToastMessage.failed);
+    } finally {
+      setPendingWishlistProductIds((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -229,6 +304,7 @@ function CategoryPage() {
           ) : products.length ? (
             products.map((product) => {
               const isSoldOut = isProductSoldOut(product);
+              const isWished = wishedProductIds.has(product.product_id);
 
               return (
                 <article
@@ -256,6 +332,20 @@ function CategoryPage() {
                       src={product.thumbnail_url}
                     />
                     {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                    <button
+                      aria-label={isWished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                      aria-pressed={isWished}
+                      className={`popular-product-card__heart${isWished ? " is-wished" : ""}`}
+                      disabled={pendingWishlistProductIds.has(product.product_id)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void toggleWishlist(product.product_id);
+                      }}
+                      type="button"
+                    >
+                      <HeartIcon size={12} />
+                    </button>
                   </div>
                   <div className="popular-product-card__brand">{product.brand}</div>
                   <div className="popular-product-card__name">{product.name}</div>
@@ -283,6 +373,12 @@ function CategoryPage() {
         ) : null}
         </div>
       </main>
+      <LoginRequiredDialog
+        onOpenChange={setIsLoginDialogOpen}
+        open={isLoginDialogOpen}
+        redirectTo={`${window.location.pathname}${window.location.search}`}
+      />
+      <ActivityToast message={toastMessage} />
     </>
   );
 }
