@@ -1,4 +1,4 @@
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
@@ -19,9 +19,17 @@ from app.schemas.order import (
     OrderDetailShippingGroup,
     OrderListItem,
     OrderListResponse,
+    OrderSummaryResponse,
 )
 
 
+ORDER_STATUS_ORDER = (
+    "PENDING_PAYMENT",
+    "PAID",
+    "PREPARING_SHIPMENT",
+    "SHIPPED",
+    "DELIVERED",
+)
 ORDER_STATUSES = {
     "PENDING_PAYMENT",
     "PAID",
@@ -79,6 +87,20 @@ def list_orders(
         ],
         next_cursor=str(visible_orders[-1].id) if len(rows) > normalized_limit and visible_orders else None,
     )
+
+
+def get_order_summary(session: Session, user: User) -> OrderSummaryResponse:
+    """Return counts for every order status owned by the authenticated user."""
+    status_counts = {status: 0 for status in ORDER_STATUS_ORDER}
+    rows = session.execute(
+        select(Order.status, func.count(Order.id))
+        .where(Order.user_id == user.id)
+        .group_by(Order.status)
+    ).all()
+    for status, count in rows:
+        if status in status_counts:
+            status_counts[status] = int(count)
+    return OrderSummaryResponse(status_counts=status_counts)
 
 
 def get_order_detail(

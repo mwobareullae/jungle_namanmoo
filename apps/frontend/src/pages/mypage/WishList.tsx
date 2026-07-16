@@ -175,7 +175,7 @@ function MypageProductList({
       .then(async (section) => {
         let wishedProductIds = new Set<string>();
         try {
-          const wishlistItems = await getMyWishlist();
+          const wishlistItems = await getMyWishlist(50, user?.id);
           wishedProductIds = new Set(wishlistItems.map((item) => item.productId));
         } catch {
           // 추천 상품은 찜 상태 조회가 실패해도 계속 노출한다.
@@ -193,7 +193,7 @@ function MypageProductList({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.id]);
   const displayItems = useMemo(() => {
     return [...listItems].sort((a, b) => {
       const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
@@ -230,8 +230,8 @@ function MypageProductList({
     }, 0);
 
     const request = mode === "wishlist"
-      ? getMyWishlist().then((wishlistItems) => wishlistItems)
-      : Promise.all([getMyRecentProducts(), getMyWishlist()]).then(([recentItems, wishlistItems]) => {
+      ? getMyWishlist(50, user?.id).then((wishlistItems) => wishlistItems)
+      : Promise.all([getMyRecentProducts(), getMyWishlist(50, user?.id)]).then(([recentItems, wishlistItems]) => {
           const wishedProductIds = new Set(wishlistItems.map((item) => item.productId));
           return recentItems.map((item) => ({ ...item, isWished: wishedProductIds.has(item.productId) }));
         });
@@ -262,7 +262,7 @@ function MypageProductList({
       isMounted = false;
       window.clearTimeout(loadingTimerId);
     };
-  }, [isRecent, items, mode, title]);
+  }, [isRecent, items, mode, title, user?.id]);
 
   const updateSort = (nextSort: WishlistSort) => {
     setSort(nextSort);
@@ -282,7 +282,7 @@ function MypageProductList({
       if (isRecent) {
         await deleteMyRecentProduct(item.productId);
       } else {
-        await deleteMyWishlistItem(item.productId);
+        await deleteMyWishlistItem(item.productId, user?.id);
       }
       onRemoveItem?.(item);
     } catch {
@@ -311,10 +311,10 @@ function MypageProductList({
 
     try {
       if (item.isWished) {
-        await deleteMyWishlistItem(item.productId);
+        await deleteMyWishlistItem(item.productId, user.id);
         showToast(wishlistToastMessage.removed);
       } else {
-        const addedItem = await addMyWishlistItem(item.productId);
+        const addedItem = await addMyWishlistItem(item.productId, user.id);
         if (!isRecent) {
           setListItems((previous) => (
             previous.some((candidate) => candidate.productId === addedItem.productId)

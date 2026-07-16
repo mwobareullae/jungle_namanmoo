@@ -51,6 +51,15 @@ function HomeHeader() {
     });
   };
 
+  const handleInternalLinkClick = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    event.preventDefault();
+    navigate(path);
+  };
+
   useEffect(() => {
     if (isProductDetailPreviewPage && document.body.classList.contains("category-menu-open")) {
       callOriginal("closeCategoryMenu");
@@ -115,15 +124,15 @@ function HomeHeader() {
                 <path d="M4 7h16M4 12h16M4 17h16" />
               </svg>
             </button>
-            <a className="logo" data-agent-home-target href="/">
+            <a className="logo" data-agent-home-target href="/" onClick={(event) => handleInternalLinkClick(event, "/")}>
               뭐바를래
             </a>
           </div>
           <nav>
-            <a className={isNewProductsPage ? "nav-active" : ""} href="/products/new">신상품</a>
-            <a className={isPopularPage ? "nav-active" : ""} href="/products/popular">베스트</a>
-            <a className={isBrandsPage ? "nav-active" : ""} href="/brands">브랜드</a>
-            <a className={isSkinTestPage ? "nav-ai" : ""} href="/skin-test">
+            <a className={isNewProductsPage ? "nav-active" : ""} href="/products/new" onClick={(event) => handleInternalLinkClick(event, "/products/new")}>신상품</a>
+            <a className={isPopularPage ? "nav-active" : ""} href="/products/popular" onClick={(event) => handleInternalLinkClick(event, "/products/popular")}>베스트</a>
+            <a className={isBrandsPage ? "nav-active" : ""} href="/brands" onClick={(event) => handleInternalLinkClick(event, "/brands")}>브랜드</a>
+            <a className={isSkinTestPage ? "nav-ai" : ""} href="/skin-test" onClick={(event) => handleInternalLinkClick(event, "/skin-test")}>
               맞춤 추천
             </a>
           </nav>
@@ -196,7 +205,7 @@ function HomeHeader() {
             </button>
             {user ? (
               <>
-                <a className="btn-login header-user-link" data-commerce-only href="/mypage">
+                <a className="btn-login header-user-link" data-commerce-only href="/mypage" onClick={(event) => handleInternalLinkClick(event, "/mypage")}>
                   <span className="header-user-icon" aria-hidden="true">
                     <svg
                       fill="none"

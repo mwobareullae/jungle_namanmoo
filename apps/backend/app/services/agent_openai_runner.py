@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
+import re
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_logging import extract_agents_usage, log_ai_call
 from app.core.config import settings
-from app.core.performance_logging import current_time, elapsed_ms
+from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentError, AgentUiAction
+from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentContext, AgentError, AgentUiAction
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import (
     CANCEL_RECENT_ORDER_TOOL,
@@ -80,8 +81,12 @@ Routing:
   결제완료=PAID, 배송준비중=PREPARING_SHIPMENT, 배송중=SHIPPED, 배송완료=DELIVERED,
   filter removal=ALL. One order/delivery lookup -> order_status_lookup. Cancellation
   -> cancel_recent_order; it only prepares confirmation.
-- Cart view -> get_cart. Add current product only -> add_to_cart. A request to order or
-  buy one referenced product -> prepare_product_checkout. Resolve "second product" from
+- Cart view -> get_cart. Add to cart -> add_to_cart. For "popular/best/rank" requests,
+  use reference_source="popular" and reference_rank (default 1), never invent a product
+  ID. For "current product", use reference_source="current_product". For a saved
+  recommendation result, use reference_source="recommendation" with recommendation_id
+  and reference_rank. A request to order or buy one referenced product -> prepare_product_checkout.
+  Resolve "second product" from
   the preserved item order and pass its recommendation metadata when available. This
   composite tool revalidates stock and price, updates the real cart, and opens checkout;
   it never creates an order or pays. Multi-category routine
@@ -108,6 +113,26 @@ Context and safety:
 """.strip()
 
 
+_CLARIFICATION_MESSAGES = {
+    "AGENT_COMPARE_REQUIRES_TWO_PRODUCTS": (
+        "비교할 상품을 2개 이상 골라주세요. 상품명이나 ‘첫 번째와 두 번째’처럼 말씀해 주세요."
+    ),
+    "AGENT_REFINE_PRODUCTS_REQUIRED": (
+        "조건을 적용할 추천 결과가 없어요. 먼저 피부 고민을 검색하거나 기준이 될 상품을 알려주세요."
+    ),
+    "AGENT_TOOL_ARGUMENT_INVALID": (
+        "요청한 상품이나 조건을 확인하지 못했어요. 상품명·순위·조건을 조금 더 구체적으로 알려주세요."
+    ),
+    "AGENT_PRODUCT_REFERENCE_REQUIRED": "담을 상품을 확인할 수 없어요. 상품명이나 순위를 알려주세요.",
+    "AGENT_RECOMMENDATION_CONTEXT_REQUIRED": "추천 결과를 먼저 확인한 뒤 순위를 알려주세요.",
+    "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
+    "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
+}
+_BULK_CART_REQUEST_PATTERN = re.compile(
+    r"(?:\d+\s*(?:~|-|부터)\s*\d+\s*위|상위\s*\d+\s*개|(?:상품|제품)\s*\d+\s*개).{0,40}?(?:장바구니|카트).{0,20}?(?:담|추가)"
+)
+
+
 @dataclass
 class CommerceAgentContext:
     session: Session
@@ -116,7 +141,10 @@ class CommerceAgentContext:
     request_id: str | None
     session_id: str | None
     anonymous_user_id: str | None
+    anonymous_cart_id: str | None = None
+    agent_context: AgentContext = field(default_factory=AgentContext)
     last_tool_response: AgentChatResponse | None = None
+    tool_execution_ms: float = 0.0
 
 
 async def run_openai_agent_chat(
@@ -127,7 +155,12 @@ async def run_openai_agent_chat(
     request_id: str | None = None,
     session_id: str | None = None,
     anonymous_user_id: str | None = None,
+    anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
+    clarification_message = _get_bulk_cart_clarification(request.message)
+    if clarification_message:
+        return _clarification_response(request.conversation_id, clarification_message)
+
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "에이전트 대화 설정을 확인해 주세요.")
     if not settings.openai_agent_model:
@@ -145,6 +178,8 @@ async def run_openai_agent_chat(
         request_id=request_id,
         session_id=session_id,
         anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        agent_context=request.context,
     )
     agent = Agent[CommerceAgentContext](
         name="mwobareullae_action_agent",
@@ -195,7 +230,9 @@ async def run_openai_agent_chat(
                 "tool_called": False,
             },
         )
-        raise
+        if isinstance(exc, ApiError):
+            raise
+        raise ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
 
     if context.last_tool_response is not None:
         # Every commerce tool already returns a user-facing message and authoritative
@@ -214,6 +251,8 @@ async def run_openai_agent_chat(
                 "tool_name": response.tool_name,
                 "item_count": len(response.items),
                 "ui_action_type": response.ui_action.type,
+                "tool_execution_ms": round(context.tool_execution_ms, 2),
+                "agent_route_and_model_ms": round(max(elapsed_ms(started_at) - context.tool_execution_ms, 0.0), 2),
             },
         )
         return response
@@ -243,14 +282,25 @@ async def run_openai_agent_chat(
 
 def _build_agent_input(request: AgentChatRequest) -> str:
     return json.dumps(
-        {
-            "message": request.message,
-            "context": dump_model(request.context),
-            "recent_messages": [dump_model(message) for message in request.recent_messages],
-            "last_tool_result": dump_model(request.last_tool_result) if request.last_tool_result else None,
-        },
+        _compact_agent_payload(
+            {
+                "message": request.message,
+                "context": dump_model(request.context),
+                "recent_messages": [dump_model(message) for message in request.recent_messages],
+                "last_tool_result": dump_model(request.last_tool_result) if request.last_tool_result else None,
+            }
+        ),
         ensure_ascii=False,
     )
+
+
+def _compact_agent_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        compacted = {key: _compact_agent_payload(item) for key, item in value.items()}
+        return {key: item for key, item in compacted.items() if item not in (None, "", [], {})}
+    if isinstance(value, list):
+        return [_compact_agent_payload(item) for item in value]
+    return value
 
 
 def _with_agent_message(response: AgentChatResponse, final_output: Any) -> AgentChatResponse:
@@ -278,6 +328,26 @@ def _resolve_conversation_id(conversation_id: str | None) -> str:
     return "conv_agent_openai"
 
 
+def _get_bulk_cart_clarification(message: str) -> str | None:
+    if not _BULK_CART_REQUEST_PATTERN.search(message):
+        return None
+    return "여러 상품을 한 번에 담는 기능은 아직 지원하지 않아요. 담을 상품 한 개의 순위나 상품명을 알려주세요."
+
+
+def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=tool_name,
+        ui_action=AgentUiAction(),
+        error=AgentError(
+            code="AGENT_CLARIFICATION_REQUIRED",
+            message=message,
+            retryable=False,
+        ),
+    )
+
+
 def _execute_tool(
     ctx: Any,
     *,
@@ -285,6 +355,7 @@ def _execute_tool(
     arguments: dict[str, Any],
 ) -> str:
     runtime_context: CommerceAgentContext = ctx.context
+    started_at = current_time()
     try:
         response = execute_agent_tool(
             runtime_context.session,
@@ -295,6 +366,8 @@ def _execute_tool(
             request_id=runtime_context.request_id,
             session_id=runtime_context.session_id,
             anonymous_user_id=runtime_context.anonymous_user_id,
+            anonymous_cart_id=runtime_context.anonymous_cart_id,
+            current_product_id=runtime_context.agent_context.current_product_id,
         )
     except ApiError as exc:
         if exc.code == "AGENT_AUTH_REQUIRED":
@@ -324,8 +397,45 @@ def _execute_tool(
                 ui_action=AgentUiAction(),
                 error=AgentError(code=exc.code, message=exc.message, retryable=False),
             )
+        elif clarification_message := _CLARIFICATION_MESSAGES.get(exc.code):
+            response = _clarification_response(
+                runtime_context.conversation_id,
+                clarification_message,
+                tool_name=tool_name,
+            )
         else:
-            raise
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(
+                    code="AGENT_TOOL_EXECUTION_FAILED",
+                    message="요청을 처리하지 못했어요.",
+                    retryable=True,
+                ),
+            )
+    except Exception as exc:
+        runtime_context.session.rollback()
+        log_performance_event(
+            "agent_tool_unexpected_error",
+            request_id=runtime_context.request_id,
+            duration_ms=elapsed_ms(started_at),
+            metadata={"tool_name": tool_name, "exception_type": type(exc).__name__},
+        )
+        response = AgentChatResponse(
+            conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+            message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            tool_name=tool_name,
+            ui_action=AgentUiAction(),
+            error=AgentError(
+                code="AGENT_TOOL_EXECUTION_FAILED",
+                message="요청을 처리하지 못했어요.",
+                retryable=True,
+            ),
+        )
+    finally:
+        runtime_context.tool_execution_ms += elapsed_ms(started_at)
     runtime_context.last_tool_response = response
     if tool_name == CREATE_RECOMMENDATION_TOOL and response.error is None:
         return json.dumps(
@@ -517,12 +627,14 @@ async def get_cart(ctx: RunContextWrapper[CommerceAgentContext]) -> str:
 @function_tool(name_override=ADD_TO_CART_TOOL)
 async def add_to_cart(
     ctx: RunContextWrapper[CommerceAgentContext],
-    product_id: str,
+    product_id: str | None = None,
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation"] | None = None,
+    reference_rank: int | None = None,
 ) -> str:
-    """Add one purchasable product to the authenticated user's cart."""
+    """Add one explicit or server-resolved product to the user's cart."""
     return _execute_tool(
         ctx,
         tool_name=ADD_TO_CART_TOOL,
@@ -531,6 +643,8 @@ async def add_to_cart(
             "quantity": quantity,
             "recommendation_id": recommendation_id,
             "recommendation_rank": recommendation_rank,
+            "reference_source": reference_source,
+            "reference_rank": reference_rank,
         },
     )
 

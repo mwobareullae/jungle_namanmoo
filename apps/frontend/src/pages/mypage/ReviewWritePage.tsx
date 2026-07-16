@@ -15,6 +15,7 @@ import {
 } from "../../lib/reviewApi";
 import type { MyProductReviewItem, ReviewableOrderItem } from "../../types/review";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
+import { invalidateProductReviews } from "../../hooks/useProductReviewsApi";
 
 const readOrderCode = () => new URLSearchParams(window.location.search).get("order_code") ?? "";
 
@@ -110,6 +111,7 @@ function ReviewWritePage() {
         is_repurchase_review: isRepurchase
       });
       const createdReviewItem = createdReview.review;
+      invalidateProductReviews(selectedItem.product_id);
       if (createdReviewItem) {
         setMyReviews((current) => [
           {
@@ -157,6 +159,7 @@ function ReviewWritePage() {
         review_text: normalizedText,
         is_repurchase_review: isRepurchase
       });
+      invalidateProductReviews(editingReview.product_id);
       setMyReviews((current) => current.map((item) => item.review.review_id === editingReview.review.review_id
         ? {
             ...item,
@@ -183,6 +186,7 @@ function ReviewWritePage() {
     setErrorMessage("");
     try {
       await deleteProductReview(deleteTarget.review.review_id);
+      invalidateProductReviews(deleteTarget.product_id);
       setMyReviews((current) => current.filter((item) => item.review.review_id !== deleteTarget.review.review_id));
       setDeleteTarget(null);
       setEditingReview(null);

@@ -6,6 +6,7 @@ import type {
   CheckoutPreviewRequest,
   CheckoutPreviewResponse,
   DeleteCartItemResponse,
+  DeleteCartItemsResponse,
 } from "../types/cart";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "./api";
 
@@ -44,6 +45,16 @@ export const updateCartItem = (
 export const deleteCartItem = (itemId: number): Promise<DeleteCartItemResponse> => {
   return requestCartApi<DeleteCartItemResponse>(`/cart/items/${itemId}`, {
     method: "DELETE",
+  });
+};
+
+export const deleteCartItems = (cartItemIds: number[]): Promise<DeleteCartItemsResponse> => {
+  return requestCartApi<DeleteCartItemsResponse>("/cart/items/bulk", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ cart_item_ids: cartItemIds }),
   });
 };
 

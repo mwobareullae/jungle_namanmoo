@@ -389,7 +389,12 @@ Response:
   "discount_total": 0,
   "total": 41000,
   "currency": "KRW",
-  "payment_expires_at": "2026-07-05T12:15:00+09:00"
+  "payment_expires_at": "2026-07-05T12:15:00+09:00",
+  "order_snapshot": {
+    "order_code": "ord_20260705_k7x9q2m4",
+    "status": "PENDING_PAYMENT",
+    "items": []
+  }
 }
 ```
 
@@ -512,6 +517,31 @@ Response:
   "next_cursor": null
 }
 ```
+
+## `GET /api/orders/summary`
+
+Returns the current authenticated user's order count for the five customer-facing
+order progress statuses. Statuses with no orders are returned with a count of
+`0`, so the client can render a stable order-status summary without inferring
+missing keys. Other terminal or claim statuses remain available through the
+order list and order detail APIs, but are not included in this progress summary.
+
+Response:
+
+```json
+{
+  "status_counts": {
+    "PENDING_PAYMENT": 0,
+    "PAID": 3,
+    "PREPARING_SHIPMENT": 1,
+    "SHIPPED": 2,
+    "DELIVERED": 5
+  }
+}
+```
+
+The response is scoped to the authenticated user and does not expose counts
+from other users' orders.
 
 ## `GET /api/orders/{order_code}`
 
@@ -666,6 +696,10 @@ Behavior:
 - Stores `provider_payment_key`.
 - Stores a payment event with a deterministic SHA-256-based event id so provider key length cannot exceed the DB event-id limit.
 - Applies the same successful-payment DB transition as mock confirm.
+- Returns `order_snapshot` with the authenticated order's current detail after
+  the payment transition. This is optional for backward compatibility and
+  prevents the payment-complete screen from needing an immediate second order
+  detail request.
 
 Hardening deferred:
 
