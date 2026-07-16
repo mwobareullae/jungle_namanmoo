@@ -15,7 +15,7 @@ import type {
   RecommendationRefinementFilters,
   SearchMode
 } from "../types/recommendation";
-import HomeProductCard from "./HomeProductCard";
+import HomeProductCard, { ProductIngredientTags } from "./HomeProductCard";
 import ProductSoldOutOverlay from "./ProductSoldOutOverlay";
 import ProductThumbnail from "./ProductThumbnail";
 import { isProductSoldOut } from "../lib/productAvailability";
@@ -502,11 +502,7 @@ function HomeDealSection({
                 <div className="home-deal-body">
                   <div className="home-ranking-brand">{product.brand}</div>
                   <div className="home-deal-name">{product.name}</div>
-                  <div className="home-deal-tags">
-                    {product.key_ingredients.slice(0, 2).map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
+                  <ProductIngredientTags className="home-deal-tags" tags={product.key_ingredients.slice(0, 2)} />
                   <div className={`home-deal-price${isSoldOut ? " product-price--sold-out" : ""}`}>{formatPrice(product.lowest_price)}</div>
                 </div>
               </article>
