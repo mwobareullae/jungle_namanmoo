@@ -3777,7 +3777,7 @@ body {
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
@@ -3858,6 +3858,14 @@ body {
 .search-results-panel .results-query,
 .search-results-panel .section-subtitle {
   overflow-wrap: anywhere;
+}
+
+#searchResultsSection .ai-search-results .results-query {
+  font-size: 15px;
+}
+
+#searchResultsSection .ai-search-results .section-subtitle {
+  font-size: 15px;
 }
 
 .search-results-panel .sort-select {
@@ -10770,7 +10778,7 @@ html[data-app-mode="community"] .search-results-shell {
   background: transparent;
   color: #55585d;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
