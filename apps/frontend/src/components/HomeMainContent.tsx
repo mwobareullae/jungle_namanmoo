@@ -635,6 +635,7 @@ function HomeMainContent({
     initialRefinementFilters ?? null,
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const activeSearchRequestRef = useRef(0);
   const isGeneralSearch = initialSearchMode === "general";
 
   const updateSearchUrl = useCallback(
@@ -680,6 +681,8 @@ function HomeMainContent({
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
+      const requestId = activeSearchRequestRef.current + 1;
+      activeSearchRequestRef.current = requestId;
 
       setQuery(trimmedQuery);
       setIsLoading(true);
@@ -720,6 +723,7 @@ function HomeMainContent({
                 pageSize
               }
             );
+        if (requestId !== activeSearchRequestRef.current) return;
         if (response.products.length === 0) {
           trackEvent("search_no_result", {
             recommendationId: response.recommendation_id,
@@ -752,6 +756,7 @@ function HomeMainContent({
           })
         );
       } catch {
+        if (requestId !== activeSearchRequestRef.current) return;
         if (isGeneralSearch) {
           setErrorMessage("상품 검색을 일시적으로 사용할 수 없습니다.");
           return;
@@ -764,7 +769,7 @@ function HomeMainContent({
           })
         );
       } finally {
-        setIsLoading(false);
+        if (requestId === activeSearchRequestRef.current) setIsLoading(false);
       }
     },
     [isGeneralSearch, mode, pageSize, updateSearchUrl]
