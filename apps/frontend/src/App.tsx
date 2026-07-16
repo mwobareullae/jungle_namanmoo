@@ -65,10 +65,7 @@ const gatedStylePageKeys: OriginalPageKey[] = ["checkout", "paymentComplete"];
 
 const needsStyleGate = (pageKey: OriginalPageKey) => gatedStylePageKeys.includes(pageKey);
 
-const getCurrentPageKey = (): OriginalPageKey => {
-  // 주소 보고 이름표 붙이기
-  const { pathname } = window.location;
-
+const getPageKey = (pathname: string): OriginalPageKey => {
   if (pathname.startsWith("/search")) {
     return "search";
   }
@@ -93,14 +90,15 @@ const stripLegacyFooter = (bodyHtml: string) => bodyHtml.replace(/<footer\b[\s\S
 // /login이 아닌 모든 경로를 처리하는 기존 로직. 별도 컴포넌트로 분리해서
 // 아래 훅들이 /login에서는 아예 실행되지 않게 함(불필요한 스타일/스크립트 주입 방지).
 function LegacyApp() {
+  const location = useLocation();
   const [originalPagesMap, setOriginalPagesMap] = useState<
     typeof import("./originalPages").originalPages | null
   >(null);
-  const [pageKey, setPageKey] = useState<OriginalPageKey>(() => getCurrentPageKey());
+  const pageKey = getPageKey(location.pathname);
   const visiblePageKey =
     appMode === "community" && ["checkout", "paymentComplete"].includes(pageKey) ? "home" : pageKey;
   const [styleReadyKey, setStyleReadyKey] = useState<OriginalPageKey | null>(() => {
-    const initialPageKey = getCurrentPageKey();
+    const initialPageKey = getPageKey(location.pathname);
     const initialVisiblePageKey =
       appMode === "community" && ["checkout", "paymentComplete"].includes(initialPageKey)
         ? "home"
@@ -132,13 +130,6 @@ function LegacyApp() {
       window.history.replaceState(null, "", "/");
     }
   }, [pageKey, visiblePageKey]);
-
-  useEffect(() => {
-    const handleNavigation = () => setPageKey(getCurrentPageKey());
-
-    window.addEventListener("popstate", handleNavigation);
-    return () => window.removeEventListener("popstate", handleNavigation);
-  }, []);
 
   useLayoutEffect(() => {
     if (!page) {
