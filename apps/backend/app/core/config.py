@@ -32,10 +32,11 @@ def _normalize_search_backend_mode(value: str) -> str:
 
 def _normalize_recommendation_scoring_read_path(value: str) -> str:
     normalized = value.strip().lower() or "legacy_bulk"
-    if normalized in {"legacy_bulk", "compact_v2"}:
+    if normalized in {"legacy_bulk", "compact_v2", "coarse_top50_v1"}:
         return normalized
     raise ValueError(
-        "RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk or compact_v2"
+        "RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, "
+        "or coarse_top50_v1"
     )
 
 

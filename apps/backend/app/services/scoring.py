@@ -14,6 +14,7 @@ from app.db.models.events import EventLog
 from app.db.models.review import ProductReviewMetric, ProductReviewSegmentMetric
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
+    ProductRecommendationCoarseFeature,
     ProductRecommendationFeature,
     ProductRecommendationScoringReadModel,
     ProductRecommendationScoringSnapshot,
@@ -33,6 +34,7 @@ from app.services.purchase_conditions import ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
 from app.services.recommendation_feature_versions import (
     PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION,
+    PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
     PRODUCT_RECOMMENDATION_FEATURE_VERSION,
     PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION,
     RECOMMENDATION_SCORING_SNAPSHOT_VERSION,
@@ -169,6 +171,44 @@ VALUE_ORIENTED_BUYING_CRITERIA = {"value"}
 VALUE_ORIENTED_PRICE_INVESTMENTS = {"daily_repeat_value", "value_volume"}
 PIGMENT_EFFECT_CODES = ("effect_brightening",)
 WRINKLE_EFFECT_CODES = ("effect_wrinkle",)
+COARSE_SCORE_SCALE = 10_000
+COARSE_EFFECT_COLUMN_PREFIXES = {
+    "effect_acne_sebum": "acne_sebum",
+    "effect_brightening": "brightening",
+    "effect_calming": "calming",
+    "effect_exfoliation": "exfoliation",
+    "effect_moisture_barrier": "moisture_barrier",
+    "effect_wrinkle": "wrinkle",
+}
+COARSE_SHORTLIST_LIMIT = 50
+COARSE_FULL_FALLBACK_RATIO = 0.05
+COARSE_INCLUDED_WEIGHT_FIELDS = (
+    "ingredient_effect",
+    "ingredient_evidence",
+    "skin_profile",
+    "search_match",
+    "price",
+    "skin_test_context",
+    "behavior_personalization",
+)
+COARSE_BEHAVIOR_COMPONENT_WEIGHTS = {
+    component: BEHAVIOR_AFFINITY_COMPONENT_WEIGHTS[component]
+    for component in ("effect", "category", "price_band", "brand")
+}
+COARSE_CONFIDENCE_NAMES = {
+    0: "unknown",
+    1: "low",
+    2: "medium",
+    3: "high",
+}
+COARSE_SKIN_FIT_COLUMNS = {
+    "건성": "dry_fit",
+    "지성": "oily_fit",
+    "복합성": "combination_fit",
+    "중성": "normal_fit",
+    "보통": "normal_fit",
+    "수부지": "dehydrated_oily_fit",
+}
 
 
 @dataclass(frozen=True)
@@ -533,6 +573,24 @@ class _CompactScoringInputs:
 
 
 @dataclass(frozen=True)
+class _CoarseFeatureValues:
+    product_db_id: int
+    effect_scores: dict[str, float]
+    evidence_scores: dict[str, float]
+    skin_profile: _SkinProfileInfo | None
+
+
+@dataclass(frozen=True)
+class _CoarseScoringInputs:
+    features: dict[int, _CoarseFeatureValues]
+    hit_ids: set[int]
+    miss_ids: set[int]
+    stale_ids: set[int]
+    query_ms: float
+    build_ms: float
+
+
+@dataclass(frozen=True)
 class ProductEffectRecommendationFeatureValues:
     effect_code: str
     ingredient_effect_score: float
@@ -766,9 +824,10 @@ def _resolve_scoring_read_path(value: str | None) -> str:
         if value is None
         else value.strip().lower()
     )
-    if normalized not in {"legacy_bulk", "compact_v2"}:
+    if normalized not in {"legacy_bulk", "compact_v2", "coarse_top50_v1"}:
         raise ValueError(
-            "scoring_read_path must be legacy_bulk or compact_v2"
+            "scoring_read_path must be legacy_bulk, compact_v2, "
+            "or coarse_top50_v1"
         )
     return normalized
 
@@ -793,7 +852,854 @@ def score_candidates(
     scoring_read_path: str | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> list[ScoredProduct]:
+    resolved_path = _resolve_scoring_read_path(scoring_read_path)
+    common_kwargs = {
+        "skin_type": skin_type,
+        "sensitivity": sensitivity,
+        "skin_test_context": skin_test_context,
+        "behavior_personalization_context": behavior_personalization_context,
+        "saved_concerns": saved_concerns,
+        "manual_skin_type_explicit": manual_skin_type_explicit,
+        "manual_sensitivity_explicit": manual_sensitivity_explicit,
+        "weights": weights,
+        "concentration_policy": concentration_policy,
+        "skin_profile_weights": skin_profile_weights,
+        "result_limit": result_limit,
+        "diagnostics": diagnostics,
+    }
+    if resolved_path != "coarse_top50_v1":
+        return _score_candidates_exact(
+            session,
+            intent,
+            candidates,
+            matches,
+            scoring_read_path=resolved_path,
+            **common_kwargs,
+        )
+    return _score_candidates_coarse_top50(
+        session,
+        intent,
+        candidates,
+        matches,
+        **common_kwargs,
+    )
+
+
+def _score_candidates_coarse_top50(
+    session: Session,
+    intent: RecommendationIntent,
+    candidates: list[ProductCandidate],
+    matches: list[SearchMatch],
+    *,
+    skin_type: str | None,
+    sensitivity: str | None,
+    skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
+    saved_concerns: tuple[str, ...],
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+    weights: ScoreWeights,
+    concentration_policy: ConcentrationScorePolicy,
+    skin_profile_weights: SkinProfileWeights,
+    result_limit: int | None,
+    diagnostics: dict[str, object] | None,
+) -> list[ScoredProduct]:
+    desired_effects = _build_desired_effects(intent)
+    product_ids = list(
+        dict.fromkeys(candidate.db_product_id for candidate in candidates)
+    )
+    effect_requirements = _coarse_effect_requirements(
+        desired_effects,
+        skin_test_context=skin_test_context,
+        behavior_personalization_context=behavior_personalization_context,
+    )
+    skin_fit_columns = _coarse_skin_fit_columns(
+        skin_type,
+        skin_test_context=skin_test_context,
+    )
+    coarse_inputs = _load_recommendation_coarse_features(
+        session,
+        product_ids,
+        effect_requirements=effect_requirements,
+        skin_fit_columns=skin_fit_columns,
+    )
+    fallback_ids = coarse_inputs.miss_ids | coarse_inputs.stale_ids
+    fallback_ratio = len(fallback_ids) / len(product_ids) if product_ids else 0.0
+    coarse_features = dict(coarse_inputs.features)
+    source_fallback_ms = 0.0
+    fallback_reason: str | None = None
+
+    if fallback_ratio > COARSE_FULL_FALLBACK_RATIO:
+        fallback_reason = "coarse_feature_miss_ratio_exceeded"
+    elif fallback_ids:
+        from app.services.recommendation_coarse_feature_rollup import (
+            load_product_recommendation_coarse_feature_source_rows,
+        )
+
+        fallback_started_at = current_time()
+        source_rows = load_product_recommendation_coarse_feature_source_rows(
+            session,
+            sorted(fallback_ids),
+            computed_at=datetime.now(UTC),
+        )
+        source_fallback_ms = round(elapsed_ms(fallback_started_at), 2)
+        source_features = {
+            int(row["product_id"]): _coarse_feature_values_from_mapping(
+                row,
+                effect_requirements=effect_requirements,
+                skin_fit_columns=skin_fit_columns,
+            )
+            for row in source_rows
+        }
+        if set(source_features) != fallback_ids:
+            fallback_reason = "coarse_feature_source_fallback_incomplete"
+        else:
+            coarse_features.update(source_features)
+
+    if fallback_reason is not None or len(coarse_features) != len(product_ids):
+        reason = fallback_reason or "coarse_feature_unavailable"
+        return _score_candidates_coarse_full_fallback(
+            session,
+            intent,
+            candidates,
+            matches,
+            skin_type=skin_type,
+            sensitivity=sensitivity,
+            skin_test_context=skin_test_context,
+            behavior_personalization_context=behavior_personalization_context,
+            saved_concerns=saved_concerns,
+            manual_skin_type_explicit=manual_skin_type_explicit,
+            manual_sensitivity_explicit=manual_sensitivity_explicit,
+            weights=weights,
+            concentration_policy=concentration_policy,
+            skin_profile_weights=skin_profile_weights,
+            result_limit=result_limit,
+            diagnostics=diagnostics,
+            coarse_inputs=coarse_inputs,
+            fallback_ratio=fallback_ratio,
+            fallback_reason=reason,
+            source_fallback_ms=source_fallback_ms,
+        )
+
+    context_started_at = current_time()
+    price_context = _build_price_score_context(candidates)
+    matches_by_product_code = {match.product_id: match for match in matches}
+    weight_resolution = _resolve_score_weights(
+        intent,
+        weights,
+        skin_test_context=skin_test_context,
+        behavior_personalization_context=behavior_personalization_context,
+    )
+    coarse_context_build_ms = round(elapsed_ms(context_started_at), 2)
+
+    loop_started_at = current_time()
+    coarse_ranked = sorted(
+        (
+            (
+                _score_coarse_candidate(
+                    candidate,
+                    coarse_features[candidate.db_product_id],
+                    desired_effects,
+                    matches_by_product_code.get(candidate.product_id),
+                    intent.purchase_conditions,
+                    skin_type=skin_type,
+                    sensitivity=sensitivity,
+                    skin_test_context=skin_test_context,
+                    behavior_personalization_context=behavior_personalization_context,
+                    manual_skin_type_explicit=manual_skin_type_explicit,
+                    manual_sensitivity_explicit=manual_sensitivity_explicit,
+                    price_context=price_context,
+                    weight_resolution=weight_resolution,
+                    skin_profile_weights=skin_profile_weights,
+                ),
+                index,
+                candidate,
+            )
+            for index, candidate in enumerate(candidates)
+        ),
+        key=lambda item: (-item[0], item[1], item[2].db_product_id),
+    )
+    coarse_score_loop_ms = round(elapsed_ms(loop_started_at), 2)
+    shortlist_size = min(COARSE_SHORTLIST_LIMIT, len(coarse_ranked))
+    shortlist = [item[2] for item in coarse_ranked[:shortlist_size]]
+    shortlist_product_codes = {candidate.product_id for candidate in shortlist}
+    shortlist_matches = [
+        match for match in matches if match.product_id in shortlist_product_codes
+    ]
+
+    exact_diagnostics: dict[str, object] = {}
+    exact_results = _score_candidates_exact(
+        session,
+        intent,
+        shortlist,
+        shortlist_matches,
+        skin_type=skin_type,
+        sensitivity=sensitivity,
+        skin_test_context=skin_test_context,
+        behavior_personalization_context=behavior_personalization_context,
+        saved_concerns=saved_concerns,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+        weights=weights,
+        concentration_policy=concentration_policy,
+        skin_profile_weights=skin_profile_weights,
+        result_limit=None,
+        scoring_read_path="legacy_bulk",
+        diagnostics=exact_diagnostics,
+        single_pass_details=True,
+    )
+    _merge_coarse_diagnostics(
+        diagnostics,
+        exact_diagnostics,
+        coarse_inputs=coarse_inputs,
+        coarse_context_build_ms=coarse_context_build_ms,
+        coarse_score_loop_ms=coarse_score_loop_ms,
+        shortlist_size=shortlist_size,
+        fallback_ratio=fallback_ratio,
+        fallback_reason=None,
+        source_fallback_ms=source_fallback_ms,
+    )
+    return exact_results
+
+
+def _score_candidates_coarse_full_fallback(
+    session: Session,
+    intent: RecommendationIntent,
+    candidates: list[ProductCandidate],
+    matches: list[SearchMatch],
+    *,
+    skin_type: str | None,
+    sensitivity: str | None,
+    skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
+    saved_concerns: tuple[str, ...],
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+    weights: ScoreWeights,
+    concentration_policy: ConcentrationScorePolicy,
+    skin_profile_weights: SkinProfileWeights,
+    result_limit: int | None,
+    diagnostics: dict[str, object] | None,
+    coarse_inputs: _CoarseScoringInputs,
+    fallback_ratio: float,
+    fallback_reason: str,
+    source_fallback_ms: float,
+) -> list[ScoredProduct]:
+    exact_diagnostics: dict[str, object] = {}
+    exact_results = _score_candidates_exact(
+        session,
+        intent,
+        candidates,
+        matches,
+        skin_type=skin_type,
+        sensitivity=sensitivity,
+        skin_test_context=skin_test_context,
+        behavior_personalization_context=behavior_personalization_context,
+        saved_concerns=saved_concerns,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+        weights=weights,
+        concentration_policy=concentration_policy,
+        skin_profile_weights=skin_profile_weights,
+        result_limit=result_limit,
+        scoring_read_path="legacy_bulk",
+        diagnostics=exact_diagnostics,
+    )
+    _merge_coarse_diagnostics(
+        diagnostics,
+        exact_diagnostics,
+        coarse_inputs=coarse_inputs,
+        coarse_context_build_ms=0.0,
+        coarse_score_loop_ms=0.0,
+        shortlist_size=0,
+        fallback_ratio=fallback_ratio,
+        fallback_reason=fallback_reason,
+        source_fallback_ms=source_fallback_ms,
+    )
+    return exact_results
+
+
+def _merge_coarse_diagnostics(
+    diagnostics: dict[str, object] | None,
+    exact_diagnostics: dict[str, object],
+    *,
+    coarse_inputs: _CoarseScoringInputs,
+    coarse_context_build_ms: float,
+    coarse_score_loop_ms: float,
+    shortlist_size: int,
+    fallback_ratio: float,
+    fallback_reason: str | None,
+    source_fallback_ms: float,
+) -> None:
+    if diagnostics is None:
+        return
+    diagnostics.update(exact_diagnostics)
+    score_loop_breakdown = exact_diagnostics.get("score_loop_breakdown", {})
+    detail_breakdown = exact_diagnostics.get("score_detail_breakdown", {})
+    functional_axis_ms = 0.0
+    if isinstance(score_loop_breakdown, dict):
+        functional_axis_ms += float(score_loop_breakdown.get("functional_axis_ms", 0.0))
+    if fallback_reason is not None and isinstance(detail_breakdown, dict):
+        functional_axis_ms += float(detail_breakdown.get("functional_axis_ms", 0.0))
+    exact_score_loop_ms = float(exact_diagnostics.get("score_loop_ms", 0.0))
+    if fallback_reason is not None and isinstance(detail_breakdown, dict):
+        exact_score_loop_ms += sum(
+            float(value) for value in detail_breakdown.values()
+        )
+    diagnostics.update(
+        {
+            "scoring_read_path": "coarse_top50_v1",
+            "scoring_exact_read_path": "legacy_bulk",
+            "scoring_fallback": fallback_reason is not None,
+            "scoring_fallback_reason": fallback_reason,
+            "coarse_feature_query_ms": coarse_inputs.query_ms,
+            "coarse_feature_build_ms": coarse_inputs.build_ms,
+            "coarse_feature_row_count": len(coarse_inputs.hit_ids | coarse_inputs.stale_ids),
+            "coarse_feature_hit_count": len(coarse_inputs.hit_ids),
+            "coarse_feature_miss_count": len(coarse_inputs.miss_ids),
+            "coarse_feature_stale_count": len(coarse_inputs.stale_ids),
+            "coarse_feature_fallback_ratio": round(fallback_ratio, 6),
+            "coarse_feature_source_fallback_ms": source_fallback_ms,
+            "coarse_context_build_ms": coarse_context_build_ms,
+            "coarse_score_loop_ms": coarse_score_loop_ms,
+            "coarse_shortlist_size": shortlist_size,
+            "exact_prefetch_ms": float(
+                exact_diagnostics.get("scoring_data_prefetch_ms", 0.0)
+            ),
+            "exact_score_loop_ms": round(exact_score_loop_ms, 2),
+            "exact_functional_axis_ms": round(functional_axis_ms, 2),
+        }
+    )
+
+
+def _coarse_effect_requirements(
+    desired_effects: tuple[_DesiredEffect, ...],
+    *,
+    skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
+) -> dict[str, set[str]]:
+    requirements: dict[str, set[str]] = {}
+    for effect in desired_effects:
+        if effect.effect_code in COARSE_EFFECT_COLUMN_PREFIXES:
+            requirements.setdefault(effect.effect_code, set()).update(
+                {"effect", "evidence"}
+            )
+    if skin_test_context is not None:
+        if _axis_winner(skin_test_context, "PN") == "P":
+            requirements.setdefault("effect_brightening", set()).add("effect")
+        if _axis_winner(skin_test_context, "WT") == "W":
+            requirements.setdefault("effect_wrinkle", set()).add("effect")
+    if behavior_personalization_context is not None:
+        for effect_code in COARSE_EFFECT_COLUMN_PREFIXES:
+            requirements.setdefault(effect_code, set()).add("effect")
+    return requirements
+
+
+def _coarse_skin_fit_columns(
+    skin_type: str | None,
+    *,
+    skin_test_context: SkinTestScoringContext | None,
+) -> set[str]:
+    normalized_skin_type = _normalize_profile_value(skin_type) or "중성"
+    columns = {
+        COARSE_SKIN_FIT_COLUMNS.get(normalized_skin_type, "normal_fit"),
+        "sensitive_fit",
+    }
+    if skin_test_context is not None:
+        od_winner = _axis_winner(skin_test_context, "OD")
+        if od_winner == "O":
+            columns.add("oily_fit")
+        elif od_winner == "D":
+            columns.add("dry_fit")
+    return columns
+
+
+def _load_recommendation_coarse_features(
+    session: Session,
+    product_ids: list[int],
+    *,
+    effect_requirements: dict[str, set[str]],
+    skin_fit_columns: set[str],
+) -> _CoarseScoringInputs:
+    unique_product_ids = list(dict.fromkeys(int(product_id) for product_id in product_ids))
+    if not unique_product_ids:
+        return _CoarseScoringInputs({}, set(), set(), set(), 0.0, 0.0)
+
+    table = ProductRecommendationCoarseFeature.__table__
+    columns = [
+        table.c.product_id,
+        table.c.source_current,
+        table.c.feature_version,
+    ]
+    selected_column_names = {column.name for column in columns}
+    for effect_code in sorted(effect_requirements):
+        prefix = COARSE_EFFECT_COLUMN_PREFIXES[effect_code]
+        for component in sorted(effect_requirements[effect_code]):
+            column_name = f"{prefix}_{component}_score"
+            if column_name not in selected_column_names:
+                columns.append(table.c[column_name])
+                selected_column_names.add(column_name)
+    for column_name in sorted(skin_fit_columns):
+        if column_name not in selected_column_names:
+            columns.append(table.c[column_name])
+            selected_column_names.add(column_name)
+    columns.append(table.c.skin_profile_confidence_code)
+
+    query_started_at = current_time()
+    rows = session.execute(
+        select(*columns).where(table.c.product_id.in_(unique_product_ids))
+    ).mappings().all()
+    query_ms = round(elapsed_ms(query_started_at), 2)
+
+    build_started_at = current_time()
+    requested_ids = set(unique_product_ids)
+    row_ids = {int(row["product_id"]) for row in rows}
+    stale_ids = {
+        int(row["product_id"])
+        for row in rows
+        if not bool(row["source_current"])
+        or row["feature_version"] != PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION
+    }
+    hit_ids = row_ids - stale_ids
+    features = {
+        int(row["product_id"]): _coarse_feature_values_from_mapping(
+            row,
+            effect_requirements=effect_requirements,
+            skin_fit_columns=skin_fit_columns,
+        )
+        for row in rows
+        if int(row["product_id"]) in hit_ids
+    }
+    build_ms = round(elapsed_ms(build_started_at), 2)
+    return _CoarseScoringInputs(
+        features=features,
+        hit_ids=hit_ids,
+        miss_ids=requested_ids - row_ids,
+        stale_ids=stale_ids,
+        query_ms=query_ms,
+        build_ms=build_ms,
+    )
+
+
+def _coarse_feature_values_from_mapping(
+    row,
+    *,
+    effect_requirements: dict[str, set[str]],
+    skin_fit_columns: set[str],
+) -> _CoarseFeatureValues:
+    effect_scores: dict[str, float] = {}
+    evidence_scores: dict[str, float] = {}
+    for effect_code, components in effect_requirements.items():
+        prefix = COARSE_EFFECT_COLUMN_PREFIXES[effect_code]
+        if "effect" in components:
+            effect_scores[effect_code] = _coarse_scaled_value(
+                row.get(f"{prefix}_effect_score")
+            )
+        if "evidence" in components:
+            evidence_scores[effect_code] = _coarse_scaled_value(
+                row.get(f"{prefix}_evidence_score")
+            )
+
+    confidence_code = int(row.get("skin_profile_confidence_code") or 0)
+    profile_exists = confidence_code > 0 or any(
+        row.get(column_name) is not None for column_name in skin_fit_columns
+    )
+
+    def fit_value(column_name: str) -> float:
+        if column_name not in skin_fit_columns:
+            return DEFAULT_PROFILE_SCORE
+        value = row.get(column_name)
+        return (
+            DEFAULT_PROFILE_SCORE
+            if value is None
+            else _coarse_scaled_value(value)
+        )
+
+    skin_profile = None
+    if profile_exists:
+        skin_profile = _SkinProfileInfo(
+            dry_fit=fit_value("dry_fit"),
+            oily_fit=fit_value("oily_fit"),
+            combination_fit=fit_value("combination_fit"),
+            normal_fit=fit_value("normal_fit"),
+            dehydrated_oily_fit=fit_value("dehydrated_oily_fit"),
+            sensitive_fit=fit_value("sensitive_fit"),
+            sensitivity_tag=None,
+            confidence=COARSE_CONFIDENCE_NAMES.get(confidence_code, "unknown"),
+            reason=None,
+        )
+    return _CoarseFeatureValues(
+        product_db_id=int(row["product_id"]),
+        effect_scores=effect_scores,
+        evidence_scores=evidence_scores,
+        skin_profile=skin_profile,
+    )
+
+
+def _coarse_scaled_value(value: object) -> float:
+    return _clamp(float(value or 0) / COARSE_SCORE_SCALE)
+
+
+def _score_coarse_candidate(
+    candidate: ProductCandidate,
+    feature: _CoarseFeatureValues,
+    desired_effects: tuple[_DesiredEffect, ...],
+    match: SearchMatch | None,
+    purchase_conditions: ParsedPurchaseConditions,
+    *,
+    skin_type: str | None,
+    sensitivity: str | None,
+    skin_test_context: SkinTestScoringContext | None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None,
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+    price_context: _PriceScoreContext | None,
+    weight_resolution: ScoreWeightResolution,
+    skin_profile_weights: SkinProfileWeights,
+) -> float:
+    ingredient_effect_score = _score_coarse_effect_axis(
+        desired_effects,
+        feature.effect_scores,
+    )
+    ingredient_evidence_score = _score_coarse_effect_axis(
+        desired_effects,
+        feature.evidence_scores,
+    )
+    skin_type_score = _score_skin_type(skin_type, (), feature.skin_profile)
+    sensitivity_score = _score_sensitivity(
+        sensitivity,
+        (),
+        (),
+        feature.skin_profile,
+    )
+    skin_profile_score = _weighted_average(
+        (
+            (skin_type_score, skin_profile_weights.skin_type),
+            (sensitivity_score, skin_profile_weights.sensitivity),
+        )
+    )
+    search_match_score = match.search_match_score if match else 0.0
+    price_score = _score_price(
+        candidate.lowest_price,
+        purchase_conditions,
+        skin_test_context=skin_test_context,
+        price_context=price_context,
+    )
+    skin_test_score = _score_coarse_skin_test_context(
+        skin_test_context,
+        intent_purchase_conditions=purchase_conditions,
+        candidate=candidate,
+        skin_profile=feature.skin_profile,
+        effect_scores=feature.effect_scores,
+        manual_skin_type=skin_type,
+        manual_sensitivity=sensitivity,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
+    behavior_score = _score_coarse_behavior_personalization(
+        behavior_personalization_context,
+        _coarse_behavior_signals(candidate, feature),
+    )
+    component_scores = {
+        "ingredient_effect": ingredient_effect_score,
+        "ingredient_evidence": ingredient_evidence_score,
+        "skin_profile": skin_profile_score,
+        "search_match": search_match_score,
+        "price": price_score,
+        "skin_test_context": skin_test_score.score,
+        "behavior_personalization": behavior_score.score,
+    }
+    return _clamp(
+        _weighted_average(
+            tuple(
+                (component_scores[field], getattr(weight_resolution.weights, field))
+                for field in COARSE_INCLUDED_WEIGHT_FIELDS
+            )
+        )
+    )
+
+
+def _score_coarse_effect_axis(
+    desired_effects: tuple[_DesiredEffect, ...],
+    scores_by_effect: dict[str, float],
+) -> float:
+    return _clamp(
+        _weighted_average(
+            tuple(
+                (scores_by_effect.get(effect.effect_code, 0.0), effect.weight)
+                for effect in desired_effects
+            )
+        )
+    )
+
+
+def _score_coarse_skin_test_context(
+    skin_test_context: SkinTestScoringContext | None,
+    *,
+    intent_purchase_conditions: ParsedPurchaseConditions,
+    candidate: ProductCandidate,
+    skin_profile: _SkinProfileInfo | None,
+    effect_scores: dict[str, float],
+    manual_skin_type: str | None,
+    manual_sensitivity: str | None,
+    manual_skin_type_explicit: bool,
+    manual_sensitivity_explicit: bool,
+) -> _SkinTestContextScore:
+    if skin_test_context is None:
+        return _SkinTestContextScore(
+            score=DEFAULT_PROFILE_SCORE,
+            axis_scores={},
+            matched_axes=(),
+            query_conflict_axes=(),
+            manual_conflict_axes=(),
+        )
+
+    query_conflict_axes: list[str] = []
+    manual_conflict_axes: list[str] = []
+    components: list[tuple[float, float]] = []
+    axis_scores: dict[str, float] = {}
+
+    od_conflict = _has_manual_skin_type_conflict(
+        skin_test_context,
+        manual_skin_type,
+        manual_skin_type_explicit=manual_skin_type_explicit,
+    )
+    if od_conflict:
+        manual_conflict_axes.append("OD")
+    axis_scores["OD"] = _score_od_fit(
+        skin_test_context,
+        skin_profile,
+        manual_conflict=od_conflict,
+    )
+    components.append((axis_scores["OD"], SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["OD"]))
+
+    sr_conflict = _has_manual_sensitivity_conflict(
+        skin_test_context,
+        manual_sensitivity,
+        manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
+    if sr_conflict:
+        manual_conflict_axes.append("SR")
+    axis_scores["SR"] = _score_sr_fit(
+        skin_test_context,
+        skin_profile,
+        (),
+        manual_conflict=sr_conflict,
+    )
+    components.append((axis_scores["SR"], SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["SR"]))
+
+    category_query_conflict = bool(intent_purchase_conditions.categories)
+    if category_query_conflict:
+        query_conflict_axes.append("CATEGORY_PREF")
+    axis_scores["CATEGORY_PREF"] = _score_category_preference_fit(
+        skin_test_context,
+        candidate,
+        query_conflict=category_query_conflict,
+    )
+    components.append(
+        (
+            axis_scores["CATEGORY_PREF"],
+            SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["CATEGORY_PREF"],
+        )
+    )
+
+    precomputed_effect_features = {
+        effect_code: ProductEffectRecommendationFeatureValues(
+            effect_code=effect_code,
+            ingredient_effect_score=score,
+            ingredient_evidence_score=0.0,
+            concentration_score=DEFAULT_PROFILE_SCORE,
+            concentration_context={},
+            top_ingredient_ids=(),
+            best_evidence_ids=(),
+        )
+        for effect_code, score in effect_scores.items()
+    }
+    axis_scores["PN"] = _score_pn_effect_fit(
+        skin_test_context,
+        {},
+        precomputed_effect_features,
+        None,
+    )
+    components.append((axis_scores["PN"], SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["PN"]))
+    axis_scores["WT"] = _score_wt_effect_fit(
+        skin_test_context,
+        {},
+        precomputed_effect_features,
+        None,
+    )
+    components.append((axis_scores["WT"], SKIN_TEST_CONTEXT_COMPONENT_WEIGHTS["WT"]))
+
+    score = _clamp(_weighted_average(tuple(components)))
+    return _SkinTestContextScore(
+        score=score,
+        axis_scores=axis_scores,
+        matched_axes=tuple(
+            axis
+            for axis, axis_score in axis_scores.items()
+            if axis_score > DEFAULT_PROFILE_SCORE
+        ),
+        query_conflict_axes=tuple(query_conflict_axes),
+        manual_conflict_axes=tuple(manual_conflict_axes),
+    )
+
+
+def _coarse_behavior_signals(
+    candidate: ProductCandidate,
+    feature: _CoarseFeatureValues,
+) -> _BehaviorProductSignals:
+    ranked_effects = sorted(
+        (
+            (effect_code, feature.effect_scores.get(effect_code, 0.0))
+            for effect_code in COARSE_EFFECT_COLUMN_PREFIXES
+        ),
+        key=lambda item: (-item[1], item[0]),
+    )
+    return _BehaviorProductSignals(
+        product_db_id=candidate.db_product_id,
+        category_code=candidate.category_code,
+        brand_code=candidate.brand_code,
+        ingredient_codes=(),
+        effect_codes=tuple(
+            effect_code for effect_code, score in ranked_effects[:3] if score > 0.0
+        ),
+        price_band=_price_band(candidate.lowest_price),
+    )
+
+
+def _score_coarse_behavior_personalization(
+    context: BehaviorPersonalizationContext | None,
+    signals: _BehaviorProductSignals,
+) -> _BehaviorPersonalizationScore:
+    if context is None:
+        return _BehaviorPersonalizationScore(
+            score=0.0,
+            source_scores={},
+            affinity_components={},
+            matched_sources=(),
+            negative_guard_score=1.0,
+        )
+
+    source_scores: dict[str, float] = {}
+    component_values: dict[str, list[tuple[float, float]]] = {}
+    for source, source_weight in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS.items():
+        profile = context.source_profiles.get(source)
+        if profile is None or profile.total_weight <= 0:
+            continue
+        source_score, components = _score_coarse_behavior_affinity(signals, profile)
+        source_scores[source] = source_score
+        for component, component_score in components.items():
+            component_values.setdefault(component, []).append(
+                (component_score, source_weight)
+            )
+    positive_items = tuple(
+        (source_scores[source], BEHAVIOR_POSITIVE_SOURCE_WEIGHTS[source])
+        for source in BEHAVIOR_POSITIVE_SOURCE_WEIGHTS
+        if source in source_scores
+    )
+    if positive_items:
+        positive_score = _weighted_average(positive_items)
+    elif context.negative_profile is not None:
+        positive_score = DEFAULT_PROFILE_SCORE
+    else:
+        positive_score = 0.0
+    negative_guard_score = _score_coarse_behavior_negative_guard(
+        signals,
+        context.negative_profile,
+    )
+    return _BehaviorPersonalizationScore(
+        score=_clamp(
+            positive_score * (1.0 - BEHAVIOR_NEGATIVE_GUARD_WEIGHT)
+            + negative_guard_score * BEHAVIOR_NEGATIVE_GUARD_WEIGHT
+        ),
+        source_scores=source_scores,
+        affinity_components={
+            component: _weighted_average(tuple(scores))
+            for component, scores in component_values.items()
+        },
+        matched_sources=tuple(
+            source for source, score in source_scores.items() if score > 0
+        ),
+        negative_guard_score=negative_guard_score,
+    )
+
+
+def _score_coarse_behavior_affinity(
+    signals: _BehaviorProductSignals,
+    profile: _BehaviorPreferenceProfile,
+) -> tuple[float, dict[str, float]]:
+    components = {
+        "effect": _profile_set_score(
+            signals.effect_codes,
+            profile.effect_scores,
+            normalizer=profile.effect_top3_sum,
+        ),
+        "category": _profile_value_score(
+            signals.category_code,
+            profile.category_scores,
+            normalizer=profile.category_max,
+        ),
+        "price_band": _profile_value_score(
+            signals.price_band,
+            profile.price_band_scores,
+            normalizer=profile.price_band_max,
+        ),
+        "brand": _profile_value_score(
+            signals.brand_code,
+            profile.brand_scores,
+            normalizer=profile.brand_max,
+        ),
+    }
+    return (
+        _weighted_average(
+            tuple(
+                (components[component], weight)
+                for component, weight in COARSE_BEHAVIOR_COMPONENT_WEIGHTS.items()
+            )
+        ),
+        components,
+    )
+
+
+def _score_coarse_behavior_negative_guard(
+    signals: _BehaviorProductSignals,
+    negative_profile: _BehaviorPreferenceProfile | None,
+) -> float:
+    if negative_profile is None or negative_profile.total_weight <= 0:
+        return 1.0
+    if signals.product_db_id in set(negative_profile.product_ids):
+        return 0.0
+    negative_affinity, _components = _score_coarse_behavior_affinity(
+        signals,
+        negative_profile,
+    )
+    return _clamp(1.0 - negative_affinity * 0.70)
+
+
+def _score_candidates_exact(
+    session: Session,
+    intent: RecommendationIntent,
+    candidates: list[ProductCandidate],
+    matches: list[SearchMatch],
+    *,
+    skin_type: str | None = None,
+    sensitivity: str | None = None,
+    skin_test_context: SkinTestScoringContext | None = None,
+    behavior_personalization_context: BehaviorPersonalizationContext | None = None,
+    saved_concerns: tuple[str, ...] = (),
+    manual_skin_type_explicit: bool = False,
+    manual_sensitivity_explicit: bool = False,
+    weights: ScoreWeights = DEFAULT_SCORE_WEIGHTS,
+    concentration_policy: ConcentrationScorePolicy = ConcentrationScorePolicy(),
+    skin_profile_weights: SkinProfileWeights = SkinProfileWeights(),
+    result_limit: int | None = None,
+    scoring_read_path: str | None = None,
+    diagnostics: dict[str, object] | None = None,
+    single_pass_details: bool = False,
+) -> list[ScoredProduct]:
     resolved_scoring_read_path = _resolve_scoring_read_path(scoring_read_path)
+    if resolved_scoring_read_path == "coarse_top50_v1":
+        raise ValueError("coarse_top50_v1 must use score_candidates")
     if diagnostics is not None:
         diagnostics.setdefault("user_profile_load_ms", 0.0)
         diagnostics.setdefault("user_profile_hit", False)
@@ -997,6 +1903,21 @@ def score_candidates(
         behavior_signals_by_product = {}
     prefetch_breakdown["behavior_signals_ms"] = round(elapsed_ms(stage_started_at), 2)
 
+    if single_pass_details:
+        stage_started_at = current_time()
+        detail_precomputed_ids = sorted(set(product_ids) - legacy_fallback_ids)
+        ingredients_by_product.update(
+            _load_ingredient_effects(
+                session,
+                detail_precomputed_ids,
+                desired_effects,
+            )
+        )
+        prefetch_breakdown["detail_ingredients_ms"] = round(
+            elapsed_ms(stage_started_at),
+            2,
+        )
+
     compact_fallback_ms = (
         candidate_bundle_load_ms
         if resolved_scoring_read_path == "compact_v2" and compact_fallback_ids
@@ -1062,7 +1983,7 @@ def score_candidates(
                 weight_resolution=weight_resolution,
                 concentration_policy=concentration_policy,
                 skin_profile_weights=skin_profile_weights,
-                include_details=False,
+                include_details=single_pass_details,
                 timing_accumulator=score_loop_breakdown if diagnostics is not None else None,
             )
         )
@@ -1075,67 +1996,74 @@ def score_candidates(
     )
     score_sort_ms = round(elapsed_ms(sort_started_at), 2)
 
-    detail_started_at = current_time()
     detail_count = (
         len(ranked_products)
         if result_limit is None
         else min(len(ranked_products), max(0, int(result_limit)))
     )
-    detail_products = ranked_products[:detail_count]
-    detail_product_ids = [product.db_product_id for product in detail_products]
-    detail_precomputed_ids = sorted(
-        set(detail_product_ids) - legacy_fallback_ids
-    )
-    detail_ingredients_by_product = _load_ingredient_effects(
-        session,
-        detail_precomputed_ids,
-        desired_effects,
-    )
-    ingredients_by_product.update(detail_ingredients_by_product)
-    candidates_by_product_id = {
-        candidate.db_product_id: candidate for candidate in candidates
-    }
-    detail_loop_breakdown: dict[str, float] = {}
-    detailed_products_by_id: dict[int, ScoredProduct] = {}
-    for scored_product in detail_products:
-        candidate = candidates_by_product_id[scored_product.db_product_id]
-        detailed_products_by_id[scored_product.db_product_id] = _score_candidate(
-            candidate,
-            desired_effects,
-            priority_effect_codes,
-            ingredients_by_product.get(candidate.db_product_id, ()),
-            functional_info_by_product.get(candidate.db_product_id),
-            skin_tags_by_product.get(candidate.db_product_id, ()),
-            skin_profiles_by_product.get(candidate.db_product_id),
-            risk_flags_by_product.get(candidate.db_product_id, ()),
-            market_signals_by_product.get(candidate.db_product_id),
-            review_metrics_by_product.get(candidate.db_product_id),
-            review_segments_by_product.get(candidate.db_product_id, {}),
-            review_affinity_targets,
-            behavior_signals_by_product.get(candidate.db_product_id),
-            (
-                effect_features_by_product.get(candidate.db_product_id, {})
-                if candidate.db_product_id not in legacy_fallback_ids
-                else None
-            ),
-            matches_by_product_code.get(candidate.product_id),
-            intent.purchase_conditions,
-            skin_type=skin_type,
-            sensitivity=sensitivity,
-            skin_test_context=skin_test_context,
-            behavior_personalization_context=behavior_personalization_context,
-            manual_skin_type_explicit=manual_skin_type_explicit,
-            manual_sensitivity_explicit=manual_sensitivity_explicit,
-            price_context=price_context,
-            weight_resolution=weight_resolution,
-            concentration_policy=concentration_policy,
-            skin_profile_weights=skin_profile_weights,
-            include_details=True,
-            timing_accumulator=(
-                detail_loop_breakdown if diagnostics is not None else None
-            ),
+    if single_pass_details:
+        detailed_products_by_id = {
+            product.db_product_id: product for product in ranked_products
+        }
+        detail_loop_breakdown = dict(score_loop_breakdown)
+        detail_materialization_ms = 0.0
+    else:
+        detail_started_at = current_time()
+        detail_products = ranked_products[:detail_count]
+        detail_product_ids = [product.db_product_id for product in detail_products]
+        detail_precomputed_ids = sorted(
+            set(detail_product_ids) - legacy_fallback_ids
         )
-    detail_materialization_ms = round(elapsed_ms(detail_started_at), 2)
+        detail_ingredients_by_product = _load_ingredient_effects(
+            session,
+            detail_precomputed_ids,
+            desired_effects,
+        )
+        ingredients_by_product.update(detail_ingredients_by_product)
+        candidates_by_product_id = {
+            candidate.db_product_id: candidate for candidate in candidates
+        }
+        detail_loop_breakdown: dict[str, float] = {}
+        detailed_products_by_id: dict[int, ScoredProduct] = {}
+        for scored_product in detail_products:
+            candidate = candidates_by_product_id[scored_product.db_product_id]
+            detailed_products_by_id[scored_product.db_product_id] = _score_candidate(
+                candidate,
+                desired_effects,
+                priority_effect_codes,
+                ingredients_by_product.get(candidate.db_product_id, ()),
+                functional_info_by_product.get(candidate.db_product_id),
+                skin_tags_by_product.get(candidate.db_product_id, ()),
+                skin_profiles_by_product.get(candidate.db_product_id),
+                risk_flags_by_product.get(candidate.db_product_id, ()),
+                market_signals_by_product.get(candidate.db_product_id),
+                review_metrics_by_product.get(candidate.db_product_id),
+                review_segments_by_product.get(candidate.db_product_id, {}),
+                review_affinity_targets,
+                behavior_signals_by_product.get(candidate.db_product_id),
+                (
+                    effect_features_by_product.get(candidate.db_product_id, {})
+                    if candidate.db_product_id not in legacy_fallback_ids
+                    else None
+                ),
+                matches_by_product_code.get(candidate.product_id),
+                intent.purchase_conditions,
+                skin_type=skin_type,
+                sensitivity=sensitivity,
+                skin_test_context=skin_test_context,
+                behavior_personalization_context=behavior_personalization_context,
+                manual_skin_type_explicit=manual_skin_type_explicit,
+                manual_sensitivity_explicit=manual_sensitivity_explicit,
+                price_context=price_context,
+                weight_resolution=weight_resolution,
+                concentration_policy=concentration_policy,
+                skin_profile_weights=skin_profile_weights,
+                include_details=True,
+                timing_accumulator=(
+                    detail_loop_breakdown if diagnostics is not None else None
+                ),
+            )
+        detail_materialization_ms = round(elapsed_ms(detail_started_at), 2)
 
     if diagnostics is not None:
         diagnostics.update(
