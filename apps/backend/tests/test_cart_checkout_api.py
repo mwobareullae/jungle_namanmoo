@@ -155,6 +155,38 @@ def test_cart_patch_zero_deletes_item(
     assert removed_event.metadata_json["quantity"] == 0
 
 
+def test_cart_bulk_delete_removes_selected_items_and_records_events(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    first = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
+    second = client.post("/api/cart/items", json={"product_id": "prod_002", "quantity": 2})
+    first_id = next(item["id"] for item in first.json()["items"] if item["product_id"] == "prod_001")
+    second_id = next(item["id"] for item in second.json()["items"] if item["product_id"] == "prod_002")
+
+    response = client.request(
+        "DELETE",
+        "/api/cart/items",
+        json={"item_ids": [first_id, second_id, first_id]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert set(data["deleted_item_ids"]) == {first_id, second_id}
+    assert data["cart"]["items"] == []
+    with Session(db_engine) as session:
+        events = session.execute(select(EventLog).order_by(EventLog.id)).scalars().all()
+    assert [event.event_name for event in events] == [
+        "cart_added",
+        "cart_added",
+        "cart_removed",
+        "cart_removed",
+    ]
+
+
 def test_cart_rejects_product_without_stock_information(client: TestClient) -> None:
     response = client.post("/api/cart/items", json={"product_id": "prod_001", "quantity": 1})
 
