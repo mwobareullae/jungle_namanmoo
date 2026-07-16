@@ -49,6 +49,8 @@ def test_declarative_base_metadata_is_available() -> None:
         "ingredient_effects",
         "ingredient_effect_ranges",
         "ingredient_evidence",
+        "ingredient_mapping_review_events",
+        "ingredient_mapping_reviews",
         "ingredients",
         "inventories",
         "inventory_movements",
