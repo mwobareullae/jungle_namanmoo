@@ -70,6 +70,16 @@ class DeleteCartItemResponse(BaseModel):
     cart: CartResponse
 
 
+class DeleteCartItemsRequest(BaseModel):
+    item_ids: list[int] = Field(..., min_length=1, max_length=100)
+
+
+class DeleteCartItemsResponse(BaseModel):
+    success: bool
+    deleted_item_ids: list[int]
+    cart: CartResponse
+
+
 class CartMergeResponse(BaseModel):
     merged: bool
     cart: CartResponse

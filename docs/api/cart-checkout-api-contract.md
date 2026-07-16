@@ -146,6 +146,33 @@ Response:
 }
 ```
 
+## `DELETE /api/cart/items`
+
+Deletes multiple selected items from the current user's or anonymous cart.
+
+Request:
+
+```json
+{
+  "item_ids": [101, 102]
+}
+```
+
+The operation is idempotent for item IDs that are missing or do not belong to
+the current cart. Duplicate IDs are removed once. The response includes the
+actual deleted IDs and the refreshed cart snapshot. Each deleted item records
+the same `cart_removed` event as single-item deletion.
+
+Response:
+
+```json
+{
+  "success": true,
+  "deleted_item_ids": [101, 102],
+  "cart": {}
+}
+```
+
 ## `POST /api/cart/merge`
 
 Requires login.

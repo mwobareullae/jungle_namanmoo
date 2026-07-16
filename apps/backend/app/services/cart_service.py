@@ -37,6 +37,12 @@ class CartOperationResult:
 
 
 @dataclass(frozen=True)
+class CartBulkDeleteResult:
+    cart: CartResponse
+    deleted_item_ids: list[int]
+
+
+@dataclass(frozen=True)
 class _PurchaseState:
     product: Product
     brand: Brand
@@ -208,6 +214,37 @@ def remove_cart_item(
         _touch_cart(cart)
         session.flush()
     return _build_cart_response(session, cart, user)
+
+
+def remove_cart_items(
+    session: Session,
+    user: User | None,
+    anonymous_cart_id: str | None,
+    *,
+    item_ids: list[int],
+) -> CartBulkDeleteResult:
+    cart = _load_active_cart(session, user, anonymous_cart_id)
+    if cart is None:
+        return CartBulkDeleteResult(
+            cart=_empty_cart_response(user),
+            deleted_item_ids=[],
+        )
+
+    deleted_item_ids: list[int] = []
+    for item_id in dict.fromkeys(item_ids):
+        item = _load_cart_item(session, cart, item_id)
+        if item is None:
+            continue
+        session.delete(item)
+        deleted_item_ids.append(item_id)
+
+    if deleted_item_ids:
+        _touch_cart(cart)
+        session.flush()
+    return CartBulkDeleteResult(
+        cart=_build_cart_response(session, cart, user),
+        deleted_item_ids=deleted_item_ids,
+    )
 
 
 def merge_anonymous_cart(
