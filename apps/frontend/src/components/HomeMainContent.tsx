@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ArrowRight } from "@phosphor-icons/react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
 import { trackEvent } from "../lib/appSignals/client";
@@ -65,7 +66,7 @@ function HomeSectionMoreLink({ href, title }: { href: string; title: string }) {
   return (
     <a className="home-section-more" href={href}>
       {title} 전체보기
-      <span aria-hidden="true">→</span>
+      <ArrowRight aria-hidden="true" className="home-section-more__arrow" color="#2AA6D1" size={16} weight="bold" />
     </a>
   );
 }
