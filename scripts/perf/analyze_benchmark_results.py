@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import re
+import shutil
 import statistics
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +50,7 @@ SCORING_STAGES = [
     ("score_context_build_ms", "context build"),
     ("score_loop_ms", "score loop"),
     ("score_sort_ms", "sort"),
+    ("score_detail_materialization_ms", "top result details"),
 ]
 
 SCORING_PREFETCH_FIELDS = [
@@ -75,12 +78,15 @@ INGREDIENT_EFFECT_DETAIL_STAGES = [
 ]
 
 SCORE_LOOP_DETAIL_STAGES = [
+    ("score_loop_contribution_build_ms", "contribution build"),
     ("score_loop_ingredient_axis_ms", "ingredient axis"),
+    ("score_loop_functional_axis_ms", "functional axis"),
     ("score_loop_skin_profile_axis_ms", "skin profile axis"),
+    ("score_loop_search_price_market_axis_ms", "search / price / market"),
     ("score_loop_review_axis_ms", "review axis"),
     ("score_loop_behavior_axis_ms", "behavior axis"),
     ("score_loop_skin_test_axis_ms", "skin test axis"),
-    ("score_loop_breakdown_build_ms", "score breakdown build"),
+    ("score_loop_final_score_ms", "final weighted score"),
 ]
 
 CONTEXT_LOAD_STAGES = [
@@ -117,34 +123,77 @@ PURCHASE_PARSER_STAGES = [
     ("intent_purchase_brand_match_ms", "brand match"),
 ]
 
+ANALYSIS_SUBDIRS = {
+    "summary": "00-summary",
+    "execution_flow": "00-summary/execution-flow",
+    "pipeline": "10-pipeline",
+    "instrumentation": "20-instrumentation",
+    "intent": "30-root-cause/intent-parser",
+    "scoring": "30-root-cause/scoring",
+    "data_loading": "30-root-cause/data-loading",
+    "guardrails": "40-guardrails",
+    "data": "data",
+}
+
 
 def main() -> None:
     args = parse_args()
     input_dir = args.input.resolve()
     output_dir = args.output.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dirs = prepare_analysis_output(output_dir)
 
     rows = collect_rows(input_dir)
     if not rows:
         raise SystemExit(f"No benchmark runs found under: {input_dir}")
 
     rows = sorted(rows, key=row_sort_key)
-    write_summary_csv(rows, output_dir / "summary.csv")
+    write_summary_csv(rows, output_dirs["data"] / "summary.csv")
+    coverage_rows = build_instrumentation_coverage(rows)
+    write_dict_csv(
+        coverage_rows,
+        output_dirs["data"] / "instrumentation-coverage.csv",
+    )
+    stage_id = args.stage_id or infer_stage_id(input_dir)
+    stage_context = load_stage_context(args.registry.resolve(), stage_id)
+    write_analysis_manifest(
+        input_dir,
+        rows,
+        output_dirs["data"] / "analysis-manifest.json",
+        stage_id=stage_id,
+        purpose=args.purpose,
+    )
 
     pd, plt, sns = load_plot_dependencies()
     df = prepare_plot_dataframe(pd.DataFrame(rows), pd)
     sns.set_theme(style="whitegrid", context="talk")
-    plot_summary_graphs(df, output_dir, plt, sns)
+    plot_summary_graphs(df, output_dirs, plt, sns)
+    plot_instrumentation_coverage(
+        coverage_rows,
+        output_dirs["instrumentation"] / "metric-coverage.png",
+        plt,
+        sns,
+    )
     plot_stage_graphs(
         df,
-        output_dir,
+        output_dirs,
         plt,
         sns,
         stage_dataset=args.stage_dataset,
         stage_vus=args.stage_vus,
+        stage_context=stage_context,
+    )
+    write_analysis_readme(
+        output_dir / "README.md",
+        rows,
+        coverage_rows,
+        stage_id=stage_id,
+        purpose=args.purpose,
+        stage_context=stage_context,
+        stage_dataset=args.stage_dataset,
+        stage_vus=args.stage_vus,
     )
 
-    print(f"summary={output_dir / 'summary.csv'}")
+    print(f"summary={output_dirs['data'] / 'summary.csv'}")
     print(f"graphs={output_dir}")
 
 
@@ -176,7 +225,56 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="VUS value used for stage breakdown graphs.",
     )
+    parser.add_argument(
+        "--stage-id",
+        help="Implementation stage recorded in analysis-manifest.json.",
+    )
+    parser.add_argument(
+        "--purpose",
+        default="단계별 추천 성능과 병목 진단",
+        help="Reason for producing this analysis.",
+    )
+    parser.add_argument(
+        "--registry",
+        type=Path,
+        default=Path("scripts/perf/recommendation-performance-report.json"),
+        help="Stage registry used to describe the next optimization.",
+    )
     return parser.parse_args()
+
+
+def prepare_analysis_output(output_dir: Path) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+    for key, relative in ANALYSIS_SUBDIRS.items():
+        path = output_dir / relative
+        if path.exists():
+            shutil.rmtree(path)
+        path.mkdir(parents=True, exist_ok=True)
+        paths[key] = path
+    return paths
+
+
+def infer_stage_id(input_dir: Path) -> str:
+    parts = input_dir.parts
+    if "stages" in parts:
+        index = parts.index("stages")
+        if index + 1 < len(parts):
+            return parts[index + 1]
+    return "unassigned"
+
+
+def load_stage_context(registry_path: Path, stage_id: str) -> dict[str, Any]:
+    if not registry_path.exists():
+        return {}
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    stages = sorted(registry.get("stages", []), key=lambda stage: stage.get("order", 0))
+    for index, stage in enumerate(stages):
+        if stage.get("id") != stage_id:
+            continue
+        next_stage = stages[index + 1] if index + 1 < len(stages) else None
+        return {"stage": stage, "next_stage": next_stage}
+    return {}
 
 
 def load_plot_dependencies():
@@ -719,7 +817,324 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         writer.writerows(rows)
 
 
-def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
+def write_dict_csv(rows: list[dict[str, Any]], path: Path) -> None:
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def metric_family(metric: str) -> str:
+    if metric.startswith("intent_"):
+        return "intent-parser"
+    if metric.startswith("score_") or metric.startswith("scoring_"):
+        return "scoring"
+    if metric in {key for key, _ in CONTEXT_LOAD_STAGES}:
+        return "pipeline"
+    if metric.startswith("prefetch_") or metric.startswith("behavior_"):
+        return "data-loading"
+    if metric.startswith("resource_"):
+        return "guardrails"
+    return "pipeline"
+
+
+def build_instrumentation_coverage(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    metrics = sorted(
+        {
+            key.rsplit("_", 1)[0]
+            for row in rows
+            for key in row
+            if key.endswith(("_avg", "_p95"))
+        }
+    )
+    coverage: list[dict[str, Any]] = []
+    for metric in metrics:
+        populated = sum(
+            1
+            for row in rows
+            if row.get(f"{metric}_avg") is not None
+            or row.get(f"{metric}_p95") is not None
+        )
+        total = len(rows)
+        coverage.append(
+            {
+                "metric": metric,
+                "family": metric_family(metric),
+                "run_count": total,
+                "populated_run_count": populated,
+                "null_run_count": total - populated,
+                "null_rate": (total - populated) / total if total else 0.0,
+                "coverage_rate": populated / total if total else 0.0,
+            }
+        )
+    return coverage
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_analysis_manifest(
+    input_dir: Path,
+    rows: list[dict[str, Any]],
+    path: Path,
+    *,
+    stage_id: str,
+    purpose: str,
+) -> None:
+    sources = []
+    for row in sorted(rows, key=row_sort_key):
+        run_dir = Path(str(row["run_dir"]))
+        try:
+            relative_dir = run_dir.relative_to(input_dir).as_posix()
+        except ValueError:
+            relative_dir = run_dir.as_posix()
+        sources.append(
+            {
+                "run_id": row.get("run_id"),
+                "relative_dir": relative_dir,
+                "dataset": row.get("dataset"),
+                "vus": row.get("vus"),
+                "duration": row.get("duration"),
+                "user_type": row.get("user_type"),
+                "query_id": row.get("query_id"),
+                "cache_state": row.get("cache_state"),
+                "manifest_sha256": file_sha256(run_dir / "manifest.json"),
+                "k6_summary_sha256": file_sha256(find_k6_summary(run_dir)),
+                "backend_log_sha256": file_sha256(run_dir / "backend" / "backend.log"),
+                "resource_log_sha256": file_sha256(
+                    run_dir / "resources" / "docker-stats.csv"
+                ),
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "analysis_purpose": purpose,
+        "stage_id": stage_id,
+        "input_dir": input_dir.as_posix(),
+        "run_count": len(sources),
+        "run_ids": [source["run_id"] for source in sources],
+        "execution_conditions": [
+            {
+                "dataset": source["dataset"],
+                "vus": source["vus"],
+                "duration": source["duration"],
+                "user_type": source["user_type"],
+                "query_id": source["query_id"],
+                "cache_state": source["cache_state"],
+            }
+            for source in sources
+        ],
+        "output_layout": ANALYSIS_SUBDIRS,
+        "sources": sources,
+    }
+    path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def representative_analysis_row(
+    rows: list[dict[str, Any]],
+    *,
+    dataset: int,
+    vus: int,
+    preferred_run_ids: list[str] | None = None,
+) -> dict[str, Any] | None:
+    candidates = [
+        row
+        for row in rows
+        if row.get("dataset") == dataset and row.get("vus") == vus
+    ]
+    preferred = set(preferred_run_ids or [])
+    if preferred:
+        headline_candidates = [
+            row for row in candidates if str(row.get("run_id")) in preferred
+        ]
+        if headline_candidates:
+            candidates = headline_candidates
+    if not candidates:
+        return None
+
+    measured = [
+        row
+        for row in candidates
+        if numeric_or_none(row.get("latency_p95_ms")) is not None
+    ]
+    if measured:
+        median_p95 = statistics.median(
+            float(row["latency_p95_ms"]) for row in measured
+        )
+        return min(
+            measured,
+            key=lambda row: (
+                abs(float(row["latency_p95_ms"]) - median_p95),
+                str(row.get("run_id") or ""),
+            ),
+        )
+    return max(candidates, key=lambda row: str(row.get("run_id") or ""))
+
+
+def stage_headline_run_ids(stage_context: dict[str, Any]) -> list[str]:
+    stage = stage_context.get("stage") or {}
+    return [str(run_id) for run_id in stage.get("headline_run_ids", []) if run_id]
+
+
+def write_analysis_readme(
+    path: Path,
+    rows: list[dict[str, Any]],
+    coverage_rows: list[dict[str, Any]],
+    *,
+    stage_id: str,
+    purpose: str,
+    stage_context: dict[str, Any],
+    stage_dataset: int,
+    stage_vus: int,
+) -> None:
+    row = representative_analysis_row(
+        rows,
+        dataset=stage_dataset,
+        vus=stage_vus,
+        preferred_run_ids=stage_headline_run_ids(stage_context),
+    )
+    pipeline_records = build_stage_records(row or {}, PIPELINE_STAGES, statistic="avg")
+    bottleneck = max(pipeline_records, key=lambda item: item["value"], default=None)
+    detailed_stages = (
+        INTENT_STAGES
+        + INTENT_LLM_STAGES
+        + PURCHASE_PARSER_STAGES
+        + SCORING_STAGES
+        + SCORE_LOOP_DETAIL_STAGES
+        + BEHAVIOR_SIGNAL_DETAIL_STAGES
+        + INGREDIENT_EFFECT_DETAIL_STAGES
+    )
+    cause_records = build_stage_records(row or {}, detailed_stages, statistic="avg")
+    cause = max(cause_records, key=lambda item: item["value"], default=None)
+    missing = [
+        item["metric"]
+        for item in coverage_rows
+        if item["null_rate"] == 1.0
+    ][:8]
+    populated_families = sorted(
+        {
+            item["family"]
+            for item in coverage_rows
+            if item["populated_run_count"] > 0
+        }
+    )
+    stage = stage_context.get("stage") or {}
+    next_stage = stage_context.get("next_stage")
+    if next_stage:
+        next_optimization = next_stage.get("change", next_stage.get("label", "-"))
+        transition_link = f"../../../transitions/{next_stage['id']}/README.md"
+    else:
+        next_optimization = stage.get(
+            "next_bottleneck",
+            "후속 최적화는 다음 측정 결과를 확인한 뒤 선택한다.",
+        )
+        transition_link = "후속 transition 없음"
+    datasets = sorted({row.get("dataset") for row in rows if row.get("dataset")})
+    vus_values = sorted({row.get("vus") for row in rows if row.get("vus")})
+    lines = [
+        f"# {stage.get('label', stage_id)} 로컬 분석",
+        "",
+        f"> 목적: {purpose}",
+        "",
+        "## 1. 전체 성능",
+        "",
+        f"- 원본 run: {len(rows)}건",
+        f"- dataset: {', '.join(map(str, datasets)) or '-'}",
+        f"- VUS: {', '.join(map(str, vus_values)) or '-'}",
+    ]
+    if row:
+        lines.extend(
+            [
+                f"- 기준 조건: dataset {stage_dataset}, VUS {stage_vus}",
+                f"- p95: {float(row.get('latency_p95_ms') or 0) / 1000:.3f}초",
+                f"- RPS: {float(row.get('recommendation_rps') or row.get('rps') or 0):.3f}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## 2. 큰 파이프라인 병목",
+            "",
+            (
+                f"평균 기준 가장 큰 구간은 `{bottleneck['stage']}` "
+                f"({bottleneck['value']:.2f}ms)이다."
+                if bottleneck
+                else "해당 조건에 pipeline stage 표본이 없다."
+            ),
+            "",
+            "## 3. 기존 로그의 부족한 부분",
+            "",
+            (
+                "모든 run에서 비어 있는 대표 metric: " + ", ".join(f"`{item}`" for item in missing)
+                if missing
+                else "분석 대상 metric에서 전체 누락 필드는 확인되지 않았다."
+            ),
+            "",
+            "## 4. 추가한 세부 계측",
+            "",
+            "관측 가능한 metric 계열: "
+            + ", ".join(f"`{family}`" for family in populated_families),
+            "",
+            "## 5. 확인한 실제 원인",
+            "",
+            (
+                f"현재 세부 계측에서 가장 큰 구간은 `{cause['stage']}` "
+                f"({cause['value']:.2f}ms)이다."
+                if cause
+                else "세부 원인을 확정할 표본이 부족하다."
+            ),
+            "",
+            "## 6. 선택한 다음 최적화",
+            "",
+            next_optimization,
+            "",
+            "## 7. 대응하는 transition 결과",
+            "",
+            f"- {transition_link}" if transition_link.endswith(".md") else transition_link,
+            "",
+            "원본 목록과 해시는 [analysis-manifest.json](./data/analysis-manifest.json), "
+            "계측 커버리지는 [instrumentation-coverage.csv](./data/instrumentation-coverage.csv)에서 확인한다.",
+            "",
+        ]
+    )
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def plot_instrumentation_coverage(rows, path: Path, plt, sns) -> None:
+    if not rows:
+        return
+    family_values: dict[str, list[float]] = {}
+    for row in rows:
+        family_values.setdefault(row["family"], []).append(row["coverage_rate"] * 100)
+    labels = sorted(family_values)
+    values = [statistics.mean(family_values[label]) for label in labels]
+    fig, axis = plt.subplots(figsize=(10, 5.5))
+    sns.barplot(x=values, y=labels, orient="h", color="#2563EB", ax=axis)
+    axis.set_xlim(0, 100)
+    axis.set_xlabel("average run coverage (%)")
+    axis.set_ylabel("")
+    axis.set_title("instrumentation coverage by metric family")
+    for index, value in enumerate(values):
+        axis.text(value + 1, index, f"{value:.1f}%", va="center", fontsize=10)
+    save_figure(fig, path, plt)
+
+
+def plot_summary_graphs(df, output_dirs: dict[str, Path], plt, sns) -> None:
+    output_dir = output_dirs["summary"]
     plot_line(
         df,
         output_dir / "latency_p95_by_dataset.png",
@@ -806,7 +1221,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "backend_cpu_peak_by_dataset.png",
+        output_dirs["guardrails"] / "backend_cpu_peak_by_dataset.png",
         x="dataset_label",
         y="resource_backend_cpu_percent_max",
         hue="vus_label",
@@ -818,7 +1233,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "backend_memory_peak_by_dataset.png",
+        output_dirs["guardrails"] / "backend_memory_peak_by_dataset.png",
         x="dataset_label",
         y="resource_backend_mem_percent_max",
         hue="vus_label",
@@ -830,7 +1245,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "elasticsearch_cpu_peak_by_dataset.png",
+        output_dirs["guardrails"] / "elasticsearch_cpu_peak_by_dataset.png",
         x="dataset_label",
         y="resource_elasticsearch_cpu_percent_max",
         hue="vus_label",
@@ -842,7 +1257,7 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
     )
     plot_line(
         df,
-        output_dir / "elasticsearch_memory_peak_by_dataset.png",
+        output_dirs["guardrails"] / "elasticsearch_memory_peak_by_dataset.png",
         x="dataset_label",
         y="resource_elasticsearch_mem_percent_max",
         hue="vus_label",
@@ -878,23 +1293,46 @@ def plot_summary_graphs(df, output_dir: Path, plt, sns) -> None:
 
 def plot_stage_graphs(
     df,
-    output_dir: Path,
+    output_dirs: dict[str, Path],
     plt,
     sns,
     *,
     stage_dataset: int,
     stage_vus: int,
+    stage_context: dict[str, Any],
 ) -> None:
-    target = df[(df["dataset"] == stage_dataset) & (df["vus"] == stage_vus)]
-    if target.empty:
+    row = representative_analysis_row(
+        df.to_dict("records"),
+        dataset=stage_dataset,
+        vus=stage_vus,
+        preferred_run_ids=stage_headline_run_ids(stage_context),
+    )
+    if row is None:
         return
-    row = target.sort_values("run_id").iloc[-1]
     scope = f"{stage_dataset:,} products / VUS {stage_vus}"
+    summary_dir = output_dirs["summary"]
+    execution_flow_dir = output_dirs["execution_flow"]
+    pipeline_dir = output_dirs["pipeline"]
+    intent_dir = output_dirs["intent"]
+    scoring_dir = output_dirs["scoring"]
+    data_loading_dir = output_dirs["data_loading"]
+    guardrails_dir = output_dirs["guardrails"]
+
+    write_execution_flow_report(
+        row,
+        execution_flow_dir,
+        output_dirs["data"],
+        stage_context=stage_context,
+        stage_dataset=stage_dataset,
+        stage_vus=stage_vus,
+        plt=plt,
+        sns=sns,
+    )
 
     plot_stage_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage average ({scope})",
         plt,
         sns,
@@ -903,7 +1341,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage p95 ({scope})",
         plt,
         sns,
@@ -912,7 +1350,7 @@ def plot_stage_graphs(
     plot_stage_ratio_bar(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_ratio_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_ratio_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage share of average latency ({scope})",
         plt,
         sns,
@@ -921,7 +1359,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline stage share ({scope})",
         plt,
         sns,
@@ -930,7 +1368,7 @@ def plot_stage_graphs(
     plot_stage_pareto(
         row,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_pareto_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"pipeline_stage_pareto_{stage_dataset}_vus{stage_vus:02d}.png",
         f"pipeline bottleneck Pareto ({scope})",
         plt,
         sns,
@@ -939,7 +1377,7 @@ def plot_stage_graphs(
     plot_stage_composition_by_vus(
         df,
         PIPELINE_STAGES,
-        output_dir / f"pipeline_stage_share_by_vus_{stage_dataset}.png",
+        pipeline_dir / f"pipeline_stage_share_by_vus_{stage_dataset}.png",
         stage_dataset=stage_dataset,
         plt=plt,
         sns=sns,
@@ -947,7 +1385,7 @@ def plot_stage_graphs(
     plot_stage_share_comparison(
         df,
         PIPELINE_STAGES,
-        output_dir
+        pipeline_dir
         / (
             f"pipeline_stage_share_compare_1000_vs_{stage_dataset}"
             f"_vus{stage_vus:02d}.png"
@@ -960,7 +1398,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage average ({scope})",
         plt,
         sns,
@@ -969,7 +1407,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage p95 ({scope})",
         plt,
         sns,
@@ -978,7 +1416,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         SCORING_STAGES,
-        output_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage share ({scope})",
         plt,
         sns,
@@ -993,7 +1431,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         prefetch_columns,
-        output_dir / f"scoring_prefetch_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"scoring_prefetch_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring prefetch average ({scope})",
         plt,
         sns,
@@ -1002,7 +1440,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         prefetch_columns,
-        output_dir / f"scoring_prefetch_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"scoring_prefetch_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring prefetch p95 ({scope})",
         plt,
         sns,
@@ -1011,7 +1449,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         BEHAVIOR_SIGNAL_DETAIL_STAGES,
-        output_dir / f"behavior_signal_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"behavior_signal_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"behavior signal prefetch detail ({scope})",
         plt,
         sns,
@@ -1020,7 +1458,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         BEHAVIOR_SIGNAL_DETAIL_STAGES,
-        output_dir / f"behavior_signal_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"behavior_signal_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"behavior signal prefetch detail p95 ({scope})",
         plt,
         sns,
@@ -1029,7 +1467,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INGREDIENT_EFFECT_DETAIL_STAGES,
-        output_dir / f"ingredient_effect_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"ingredient_effect_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"ingredient effect prefetch detail ({scope})",
         plt,
         sns,
@@ -1038,7 +1476,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INGREDIENT_EFFECT_DETAIL_STAGES,
-        output_dir / f"ingredient_effect_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        data_loading_dir / f"ingredient_effect_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"ingredient effect prefetch detail p95 ({scope})",
         plt,
         sns,
@@ -1047,7 +1485,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop detail ({scope})",
         plt,
         sns,
@@ -1056,7 +1494,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop detail p95 ({scope})",
         plt,
         sns,
@@ -1065,7 +1503,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         SCORE_LOOP_DETAIL_STAGES,
-        output_dir / f"score_loop_detail_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        scoring_dir / f"score_loop_detail_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"candidate score loop measured share ({scope})",
         plt,
         sns,
@@ -1076,7 +1514,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         CONTEXT_LOAD_STAGES,
-        output_dir / f"context_load_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"context_load_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"personalization context average ({scope})",
         plt,
         sns,
@@ -1085,7 +1523,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         CONTEXT_LOAD_STAGES,
-        output_dir / f"context_load_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        pipeline_dir / f"context_load_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"personalization context p95 ({scope})",
         plt,
         sns,
@@ -1094,7 +1532,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_STAGES,
-        output_dir / f"intent_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"intent parser average ({scope})",
         plt,
         sns,
@@ -1103,7 +1541,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_STAGES,
-        output_dir / f"intent_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"intent parser p95 ({scope})",
         plt,
         sns,
@@ -1112,7 +1550,7 @@ def plot_stage_graphs(
     plot_stage_bar(
         row,
         INTENT_LLM_STAGES,
-        output_dir / f"intent_llm_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser detail average ({scope})",
         plt,
         sns,
@@ -1121,7 +1559,7 @@ def plot_stage_graphs(
     plot_stage_donut(
         row,
         INTENT_LLM_STAGES,
-        output_dir / f"intent_llm_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser measured share ({scope})",
         plt,
         sns,
@@ -1131,14 +1569,14 @@ def plot_stage_graphs(
     )
     plot_intent_outcomes(
         row,
-        output_dir / f"intent_llm_outcomes_{stage_dataset}_vus{stage_vus:02d}.png",
+        intent_dir / f"intent_llm_outcomes_{stage_dataset}_vus{stage_vus:02d}.png",
         f"LLM parser outcomes ({scope})",
         plt,
         sns,
     )
     plot_intent_detail_graphs(
         row,
-        output_dir,
+        intent_dir,
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
@@ -1146,25 +1584,1018 @@ def plot_stage_graphs(
     )
     plot_client_vs_backend_p95(
         df,
-        output_dir / f"client_vs_backend_p95_{stage_dataset}.png",
+        pipeline_dir / f"client_vs_backend_p95_{stage_dataset}.png",
         stage_dataset=stage_dataset,
         plt=plt,
     )
     plot_resource_timeseries(
         row,
-        output_dir,
+        guardrails_dir,
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
     )
     plot_optimization_timeline(
         df,
-        output_dir / f"optimization_timeline_p95_{stage_dataset}_vus{stage_vus:02d}.png",
+        summary_dir / f"optimization_timeline_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
         sns=sns,
     )
+
+
+def build_execution_flow_records(row) -> list[dict[str, Any]]:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
+    source_run_id = str(row.get("run_id") or "")
+    records = [
+        {
+            "level": 0,
+            "parent_id": "",
+            "parent": "",
+            "sequence": 0,
+            "component_id": "end_to_end",
+            "component": "end-to-end HTTP",
+            "source_metric": "latency_avg_ms",
+            "value_ms": e2e_ms,
+            "parent_ms": e2e_ms,
+            "parent_share_percent": 100.0,
+            "e2e_share_percent": 100.0,
+            "cumulative_start_ms": 0.0,
+            "cumulative_end_ms": e2e_ms,
+            "source_run_id": source_run_id,
+        }
+    ]
+
+    append_execution_children(
+        records,
+        parent_id="end_to_end",
+        parent_label="end-to-end HTTP",
+        parent_ms=e2e_ms,
+        level=1,
+        children=[
+            ("backend_pipeline", "backend pipeline", "duration_ms_avg", pipeline_ms),
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+        residual_id="outside_pipeline",
+        residual_label="outside pipeline / uninstrumented",
+    )
+    append_execution_children(
+        records,
+        parent_id="backend_pipeline",
+        parent_label="backend pipeline",
+        parent_ms=pipeline_ms,
+        level=2,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in PIPELINE_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+
+    scoring_ms = numeric_or_none(row.get("scoring_ms_avg")) or 0.0
+    append_execution_children(
+        records,
+        parent_id="scoring_ms",
+        parent_label="scoring",
+        parent_ms=scoring_ms,
+        level=3,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in SCORING_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+
+    prefetch_ms = numeric_or_none(row.get("scoring_data_prefetch_ms_avg")) or 0.0
+    append_execution_children(
+        records,
+        parent_id="scoring_data_prefetch_ms",
+        parent_label="data prefetch",
+        parent_ms=prefetch_ms,
+        level=4,
+        children=[
+            (
+                f"prefetch_{field}",
+                label,
+                f"prefetch_{field}_avg",
+                numeric_or_none(row.get(f"prefetch_{field}_avg")) or 0.0,
+            )
+            for field, label in SCORING_PREFETCH_FIELDS
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+
+    score_loop_ms = numeric_or_none(row.get("score_loop_ms_avg")) or 0.0
+    append_execution_children(
+        records,
+        parent_id="score_loop_ms",
+        parent_label="score loop",
+        parent_ms=score_loop_ms,
+        level=4,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in SCORE_LOOP_DETAIL_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+
+    intent_ms = numeric_or_none(row.get("intent_parse_ms_avg")) or 0.0
+    append_execution_children(
+        records,
+        parent_id="intent_parse_ms",
+        parent_label="intent",
+        parent_ms=intent_ms,
+        level=3,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in INTENT_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+
+    llm_ms = numeric_or_none(row.get("intent_llm_call_ms_avg")) or 0.0
+    append_execution_children(
+        records,
+        parent_id="intent_llm_call_ms",
+        parent_label="LLM parser",
+        parent_ms=llm_ms,
+        level=4,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in INTENT_LLM_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+    return records
+
+
+def append_execution_children(
+    records: list[dict[str, Any]],
+    *,
+    parent_id: str,
+    parent_label: str,
+    parent_ms: float,
+    level: int,
+    children: list[tuple[str, str, str, float]],
+    e2e_ms: float,
+    source_run_id: str,
+    residual_id: str = "unattributed",
+    residual_label: str = "other / unattributed",
+) -> None:
+    positive_children = [child for child in children if child[3] > 0]
+    child_total = sum(child[3] for child in positive_children)
+    residual = max(parent_ms - child_total, 0.0)
+    if residual > 0.005:
+        positive_children.append(
+            (residual_id, residual_label, "derived_parent_minus_children", residual)
+        )
+
+    cumulative = 0.0
+    for sequence, (component_id, label, metric, value_ms) in enumerate(
+        positive_children,
+        start=1,
+    ):
+        records.append(
+            {
+                "level": level,
+                "parent_id": parent_id,
+                "parent": parent_label,
+                "sequence": sequence,
+                "component_id": component_id,
+                "component": label,
+                "source_metric": metric,
+                "value_ms": value_ms,
+                "parent_ms": parent_ms,
+                "parent_share_percent": (
+                    value_ms / parent_ms * 100 if parent_ms > 0 else 0.0
+                ),
+                "e2e_share_percent": value_ms / e2e_ms * 100 if e2e_ms > 0 else 0.0,
+                "cumulative_start_ms": cumulative,
+                "cumulative_end_ms": cumulative + value_ms,
+                "source_run_id": source_run_id,
+            }
+        )
+        cumulative += value_ms
+
+
+def execution_flow_children(
+    records: list[dict[str, Any]],
+    parent_id: str,
+) -> list[dict[str, Any]]:
+    return [record for record in records if record["parent_id"] == parent_id]
+
+
+def write_execution_flow_report(
+    row,
+    output_dir: Path,
+    data_dir: Path,
+    *,
+    stage_context: dict[str, Any],
+    stage_dataset: int,
+    stage_vus: int,
+    plt,
+    sns,
+) -> None:
+    records = build_execution_flow_records(row)
+    if not records:
+        return
+
+    write_dict_csv(records, data_dir / "execution-flow-timings.csv")
+    basis = {
+        "source_run_id": str(row.get("run_id") or ""),
+        "headline_run_ids": ";".join(stage_headline_run_ids(stage_context)),
+        "selection_rule": "headline run nearest to median p95",
+        "dataset": stage_dataset,
+        "actual_product_count": int_value(row.get("product_count")),
+        "vus": stage_vus,
+        "duration": str(row.get("duration") or ""),
+        "user_type": str(row.get("user_type") or ""),
+        "latency_avg_ms": numeric_or_none(row.get("latency_avg_ms")),
+        "latency_p95_ms": numeric_or_none(row.get("latency_p95_ms")),
+        "pipeline_avg_ms": numeric_or_none(row.get("duration_ms_avg")),
+        "llm_attempt_rate": numeric_or_none(row.get("intent_llm_attempted_true_rate")),
+    }
+    write_dict_csv([basis], data_dir / "execution-flow-basis.csv")
+
+    plot_execution_hierarchy_rings(
+        row,
+        records,
+        output_dir / "01-execution-hierarchy-rings.png",
+        plt,
+        sns,
+    )
+    plot_pipeline_sequence(
+        row,
+        records,
+        output_dir / "02-pipeline-sequence.png",
+        plt,
+        sns,
+    )
+    plot_scoring_drilldown(
+        row,
+        records,
+        output_dir / "03-scoring-drilldown.png",
+        plt,
+        sns,
+    )
+    plot_intent_drilldown(
+        row,
+        records,
+        output_dir / "04-intent-drilldown.png",
+        plt,
+        sns,
+    )
+    plot_bottleneck_paths(
+        row,
+        records,
+        output_dir / "05-bottleneck-paths.png",
+        plt,
+        sns,
+    )
+    plot_execution_flow_table(
+        row,
+        records,
+        output_dir / "06-timing-table.png",
+        plt,
+    )
+    write_execution_flow_readme(output_dir / "README.md", row, records, basis)
+
+
+def write_execution_flow_readme(
+    path: Path,
+    row,
+    records: list[dict[str, Any]],
+    basis: dict[str, Any],
+) -> None:
+    e2e_ms = float(basis["latency_avg_ms"] or 0.0)
+    p95_ms = float(basis["latency_p95_ms"] or 0.0)
+    pipeline_ms = float(basis["pipeline_avg_ms"] or 0.0)
+    attempt_rate = float(basis["llm_attempt_rate"] or 0.0)
+    lines = [
+        "# 추천 API 실행 흐름 드릴다운",
+        "",
+        f"- 대표 run: `{basis['source_run_id']}`",
+        f"- 조건: 실제 상품 {int(basis['actual_product_count'] or 0):,}개, VUS {basis['vus']}, "
+        f"{basis['duration']}, `{basis['user_type']}`",
+        f"- HTTP 평균: **{e2e_ms:,.2f}ms**, p95: **{p95_ms:,.2f}ms**",
+        f"- 백엔드 파이프라인 평균: **{pipeline_ms:,.2f}ms** "
+        f"({pipeline_ms / e2e_ms * 100 if e2e_ms else 0:.1f}%)",
+        f"- LLM 의도 파서 시도율: **{attempt_rate * 100:.1f}%**",
+        "",
+        "> 평균 시간은 하위 구간을 더할 수 있어 계층 분석에 사용했다. "
+        "p95는 구간별 표본의 95백분위라 서로 더하면 안 된다.",
+        "",
+        "## 읽는 순서",
+        "",
+        "1. 전체 HTTP에서 파이프라인과 미계측 구간을 본다.",
+        "2. 파이프라인의 실제 호출 순서와 각 구간 시간을 본다.",
+        "3. 가장 큰 scoring을 prefetch와 score loop까지 내려간다.",
+        "4. intent를 LLM 호출과 HTTP 대기까지 내려간다.",
+        "5. 주요 병목 경로 세 개를 전체 HTTP 대비 비율로 비교한다.",
+        "",
+        "![전체 계층](./01-execution-hierarchy-rings.png)",
+        "",
+        "![파이프라인 순서](./02-pipeline-sequence.png)",
+        "",
+        "## 전체 HTTP",
+        "",
+        *execution_flow_markdown_table(records, "end_to_end"),
+        "",
+        "## 백엔드 파이프라인",
+        "",
+        *execution_flow_markdown_table(records, "backend_pipeline"),
+        "",
+        "![scoring 드릴다운](./03-scoring-drilldown.png)",
+        "",
+        "## Scoring 내부",
+        "",
+        *execution_flow_markdown_table(records, "scoring_ms"),
+        "",
+        "### Data prefetch 내부",
+        "",
+        *execution_flow_markdown_table(records, "scoring_data_prefetch_ms"),
+        "",
+        "### Score loop 내부",
+        "",
+        *execution_flow_markdown_table(records, "score_loop_ms"),
+        "",
+        "![intent 드릴다운](./04-intent-drilldown.png)",
+        "",
+        "## Intent 내부",
+        "",
+        *execution_flow_markdown_table(records, "intent_parse_ms"),
+        "",
+        "### LLM parser 내부",
+        "",
+        *execution_flow_markdown_table(records, "intent_llm_call_ms"),
+        "",
+        "![주요 병목 경로](./05-bottleneck-paths.png)",
+        "",
+        "![핵심 수치 표](./06-timing-table.png)",
+        "",
+        "## 해석 주의",
+        "",
+        "- `outside pipeline / uninstrumented`는 인증/의존성, 이벤트 로그 커밋, "
+        "응답 직렬화, Caddy/네트워크, 큐 대기 등이 합쳐진 값이다.",
+        "- `other / unattributed`는 상위 계측값에서 현재 하위 계측값 합계를 뺀 잔여다.",
+        "- 원본 수치는 `../../data/execution-flow-timings.csv`, 기준 run은 "
+        "`../../data/execution-flow-basis.csv`에 있다.",
+        "",
+    ]
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def execution_flow_markdown_table(
+    records: list[dict[str, Any]],
+    parent_id: str,
+) -> list[str]:
+    children = execution_flow_children(records, parent_id)
+    if not children:
+        return ["계측값 없음"]
+    lines = [
+        "| 순서 | 구간 | 평균(ms) | 상위 대비 | HTTP 전체 대비 |",
+        "|---:|---|---:|---:|---:|",
+    ]
+    for child in children:
+        lines.append(
+            f"| {child['sequence']} | {child['component']} | "
+            f"{child['value_ms']:,.2f} | {child['parent_share_percent']:.1f}% | "
+            f"{child['e2e_share_percent']:.1f}% |"
+        )
+    return lines
+
+
+def flow_record_value(
+    records: list[dict[str, Any]],
+    component_id: str,
+) -> float:
+    for record in records:
+        if record["component_id"] == component_id:
+            return float(record["value_ms"])
+    return 0.0
+
+
+def compact_ms(value: float) -> str:
+    return f"{value:,.2f}" if value < 10 else f"{value:,.0f}"
+
+
+def plot_execution_hierarchy_rings(row, records, path: Path, plt, sns) -> None:
+    from matplotlib.patches import Patch
+
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    p95_ms = numeric_or_none(row.get("latency_p95_ms")) or 0.0
+    pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
+    if e2e_ms <= 0 or pipeline_ms <= 0:
+        return
+
+    pipeline_children = {
+        record["component_id"]: record
+        for record in execution_flow_children(records, "backend_pipeline")
+    }
+    scoring_children = execution_flow_children(records, "scoring_ms")
+    outside_ms = max(e2e_ms - pipeline_ms, 0.0)
+    context_ms = sum(
+        pipeline_children[key]["value_ms"]
+        for key in (
+            "user_context_load_ms",
+            "skin_test_context_load_ms",
+            "behavior_context_load_ms",
+        )
+        if key in pipeline_children
+    )
+    persistence_ms = sum(
+        pipeline_children[key]["value_ms"]
+        for key in (
+            "run_save_ms",
+            "search_candidate_save_ms",
+            "result_save_ms",
+            "commit_ms",
+        )
+        if key in pipeline_children
+    )
+    retrieval_ms = sum(
+        pipeline_children[key]["value_ms"]
+        for key in ("candidate_pool_ms", "search_match_ms")
+        if key in pipeline_children
+    )
+    intent_ms = pipeline_children.get("intent_parse_ms", {}).get("value_ms", 0.0)
+    scoring_ms = pipeline_children.get("scoring_ms", {}).get("value_ms", 0.0)
+    response_ms = pipeline_children.get("response_load_ms", {}).get("value_ms", 0.0)
+    grouped_total = (
+        context_ms
+        + intent_ms
+        + persistence_ms
+        + retrieval_ms
+        + scoring_ms
+        + response_ms
+    )
+    pipeline_residual_ms = max(pipeline_ms - grouped_total, 0.0)
+
+    middle = [
+        ("personalization context", context_ms, "#0F766E"),
+        ("intent", intent_ms, "#EA580C"),
+        ("candidate retrieval", retrieval_ms, "#2563EB"),
+        ("persistence", persistence_ms, "#7C3AED"),
+        ("scoring", scoring_ms, "#DC2626"),
+        ("response load", response_ms, "#16A34A"),
+    ]
+    if pipeline_residual_ms > 0.005:
+        middle.append(("pipeline other", pipeline_residual_ms, "#CBD5E1"))
+    middle.append(("outside pipeline", outside_ms, "#475569"))
+
+    scoring_colors = ["#F97316", "#84CC16", "#E11D48", "#0891B2", "#7C3AED", "#CBD5E1"]
+    outer: list[tuple[str, float, str]] = []
+    for label, value, color in middle:
+        if label != "scoring":
+            outer.append((label, value, color))
+            continue
+        for index, child in enumerate(scoring_children):
+            outer.append(
+                (
+                    f"scoring: {child['component']}",
+                    child["value_ms"],
+                    scoring_colors[index % len(scoring_colors)],
+                )
+            )
+
+    fig, ax = plt.subplots(figsize=(15.5, 10.5))
+    fig.subplots_adjust(left=0.04, right=0.67, top=0.9, bottom=0.08)
+    ax.pie(
+        [pipeline_ms, outside_ms],
+        radius=0.55,
+        startangle=90,
+        counterclock=False,
+        colors=["#0F172A", "#94A3B8"],
+        wedgeprops={"width": 0.22, "edgecolor": "white", "linewidth": 2},
+    )
+    ax.pie(
+        [item[1] for item in middle],
+        radius=0.86,
+        startangle=90,
+        counterclock=False,
+        colors=[item[2] for item in middle],
+        wedgeprops={"width": 0.25, "edgecolor": "white", "linewidth": 1.5},
+    )
+    ax.pie(
+        [item[1] for item in outer],
+        radius=1.17,
+        startangle=90,
+        counterclock=False,
+        colors=[item[2] for item in outer],
+        wedgeprops={"width": 0.25, "edgecolor": "white", "linewidth": 1.2},
+    )
+    ax.text(
+        0,
+        0,
+        f"HTTP avg\n{e2e_ms:,.0f} ms\n\np95 {p95_ms:,.0f} ms",
+        ha="center",
+        va="center",
+        fontsize=15,
+        fontweight="bold",
+        color="#0F172A",
+    )
+    ax.set_title(
+        "Recommendation API timing hierarchy\ninner: HTTP  |  middle: pipeline groups  |  outer: scoring detail",
+        fontsize=18,
+        fontweight="bold",
+        pad=22,
+    )
+    legend_items = [
+        Patch(
+            facecolor=color,
+            label=(
+                f"{label}: {compact_ms(value)} ms "
+                f"({value / e2e_ms * 100:.1f}% HTTP)"
+            ),
+        )
+        for label, value, color in middle
+        if value > 0
+    ]
+    legend_items.extend(
+        Patch(
+            facecolor=color,
+            label=f"{label}: {compact_ms(value)} ms",
+        )
+        for label, value, color in outer
+        if label.startswith("scoring:") and value > 0
+    )
+    fig.legend(
+        handles=legend_items,
+        loc="center right",
+        bbox_to_anchor=(0.99, 0.5),
+        frameon=False,
+        fontsize=10,
+        title="Measured average",
+        title_fontsize=12,
+    )
+    fig.text(
+        0.04,
+        0.02,
+        "The outside-pipeline slice is aggregate overhead; its internal order is not instrumented.",
+        fontsize=10,
+        color="#475569",
+    )
+    save_figure(fig, path, plt)
+
+
+def plot_pipeline_sequence(row, records, path: Path, plt, sns) -> None:
+    stages = execution_flow_children(records, "backend_pipeline")
+    if not stages:
+        return
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
+    p95_ms = numeric_or_none(row.get("latency_p95_ms")) or 0.0
+    palette = sns.color_palette("colorblind", n_colors=max(len(stages), 3))
+
+    fig, (ax_stack, ax_order) = plt.subplots(
+        2,
+        1,
+        figsize=(15.5, 11.5),
+        gridspec_kw={"height_ratios": [1.1, 4.2]},
+        layout="constrained",
+    )
+    left = 0.0
+    for index, stage in enumerate(stages):
+        value = stage["value_ms"]
+        color = palette[index % len(palette)]
+        ax_stack.barh(0, value, left=left, height=0.52, color=color, edgecolor="white")
+        if value >= pipeline_ms * 0.055:
+            ax_stack.text(
+                left + value / 2,
+                0,
+                f"{stage['component']}\n{value:,.0f} ms",
+                ha="center",
+                va="center",
+                fontsize=8.5,
+                color=contrast_text_color(color),
+                fontweight="bold",
+            )
+        left += value
+    ax_stack.set_xlim(0, max(e2e_ms, pipeline_ms) * 1.01)
+    ax_stack.set_yticks([0], labels=["backend pipeline"])
+    ax_stack.set_xlabel("cumulative average time (ms)")
+    ax_stack.set_title(
+        f"Request execution order: {pipeline_ms:,.2f} ms pipeline of {e2e_ms:,.2f} ms HTTP average\n"
+        f"HTTP p95 {p95_ms:,.2f} ms",
+        fontweight="bold",
+    )
+    ax_stack.axvspan(pipeline_ms, e2e_ms, color="#E2E8F0", alpha=0.8)
+    ax_stack.text(
+        pipeline_ms + max(e2e_ms - pipeline_ms, 0) / 2,
+        0,
+        f"outside pipeline\n{max(e2e_ms - pipeline_ms, 0):,.0f} ms",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#334155",
+    )
+
+    labels = [f"{index:02d}  {stage['component']}" for index, stage in enumerate(stages, 1)]
+    values = [stage["value_ms"] for stage in stages]
+    positions = list(range(len(stages)))
+    bars = ax_order.barh(positions, values, color=palette[: len(stages)])
+    ax_order.set_yticks(positions, labels=labels)
+    ax_order.invert_yaxis()
+    ax_order.set_xlabel("average time (ms)")
+    ax_order.set_ylabel("")
+    ax_order.set_title("Pipeline stages in call order", loc="left", fontsize=14)
+    max_value = max(values)
+    for position, (bar, stage) in enumerate(zip(bars, stages)):
+        ax_order.text(
+            bar.get_width() + max_value * 0.015,
+            position,
+            f"{stage['value_ms']:,.2f} ms  |  cumulative {stage['cumulative_end_ms']:,.2f} ms",
+            va="center",
+            fontsize=9,
+        )
+    ax_order.set_xlim(0, max_value * 1.58)
+    save_figure(fig, path, plt)
+
+
+def plot_scoring_drilldown(row, records, path: Path, plt, sns) -> None:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    scoring_ms = numeric_or_none(row.get("scoring_ms_avg")) or 0.0
+    if scoring_ms <= 0:
+        return
+    rows = [
+        (
+            "1. scoring total",
+            scoring_ms,
+            [("scoring", scoring_ms)],
+        ),
+        (
+            "2. scoring composition",
+            scoring_ms,
+            [
+                (record["component"], record["value_ms"])
+                for record in execution_flow_children(records, "scoring_ms")
+            ],
+        ),
+        (
+            "3. inside data prefetch",
+            flow_record_value(records, "scoring_data_prefetch_ms"),
+            [
+                (record["component"], record["value_ms"])
+                for record in execution_flow_children(
+                    records,
+                    "scoring_data_prefetch_ms",
+                )
+            ],
+        ),
+        (
+            "4. inside score loop",
+            flow_record_value(records, "score_loop_ms"),
+            [
+                (record["component"], record["value_ms"])
+                for record in execution_flow_children(records, "score_loop_ms")
+            ],
+        ),
+    ]
+    plot_drilldown_rows(
+        rows,
+        path,
+        title=(
+            f"Scoring drill-down: {scoring_ms:,.2f} ms "
+            f"({scoring_ms / e2e_ms * 100 if e2e_ms else 0:.1f}% of HTTP average)"
+        ),
+        max_total=scoring_ms,
+        e2e_ms=e2e_ms,
+        plt=plt,
+        sns=sns,
+    )
+
+
+def plot_intent_drilldown(row, records, path: Path, plt, sns) -> None:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    intent_ms = numeric_or_none(row.get("intent_parse_ms_avg")) or 0.0
+    llm_ms = numeric_or_none(row.get("intent_llm_call_ms_avg")) or 0.0
+    attempt_rate = numeric_or_none(row.get("intent_llm_attempted_true_rate")) or 0.0
+    if intent_ms <= 0:
+        return
+    rows = [
+        ("1. intent total", intent_ms, [("intent", intent_ms)]),
+        (
+            "2. intent composition",
+            intent_ms,
+            [
+                (record["component"], record["value_ms"])
+                for record in execution_flow_children(records, "intent_parse_ms")
+            ],
+        ),
+        (
+            "3. LLM parser total",
+            llm_ms,
+            [("LLM parser", llm_ms)],
+        ),
+        (
+            "4. inside LLM parser",
+            llm_ms,
+            [
+                (record["component"], record["value_ms"])
+                for record in execution_flow_children(records, "intent_llm_call_ms")
+            ],
+        ),
+    ]
+    plot_drilldown_rows(
+        rows,
+        path,
+        title=(
+            f"Intent drill-down: {intent_ms:,.2f} ms "
+            f"({intent_ms / e2e_ms * 100 if e2e_ms else 0:.1f}% of HTTP average)"
+            f"  |  LLM attempted on {attempt_rate * 100:.1f}% of requests"
+        ),
+        max_total=intent_ms,
+        e2e_ms=e2e_ms,
+        plt=plt,
+        sns=sns,
+    )
+
+
+def plot_drilldown_rows(
+    rows: list[tuple[str, float, list[tuple[str, float]]]],
+    path: Path,
+    *,
+    title: str,
+    max_total: float,
+    e2e_ms: float,
+    plt,
+    sns,
+) -> None:
+    from matplotlib.colors import to_rgb
+
+    fig, axes = plt.subplots(
+        len(rows),
+        1,
+        figsize=(16, 3.1 * len(rows)),
+        sharex=True,
+        layout="constrained",
+    )
+    palette = sns.color_palette("colorblind", n_colors=10)
+    for row_index, (row_label, parent_ms, segments) in enumerate(rows):
+        ax = axes[row_index]
+        left = 0.0
+        for segment_index, (label, value) in enumerate(segments):
+            if value <= 0:
+                continue
+            color = palette[segment_index % len(palette)]
+            ax.barh(
+                0,
+                value,
+                left=left,
+                height=0.48,
+                color=color,
+                edgecolor="white",
+                linewidth=1.2,
+            )
+            share_of_parent = value / parent_ms if parent_ms > 0 else 0.0
+            share_of_canvas = value / max_total if max_total > 0 else 0.0
+            if share_of_parent >= 0.07 and share_of_canvas >= 0.035:
+                ax.text(
+                    left + value / 2,
+                    0,
+                    f"{label}\n{value:,.1f} ms\n{share_of_parent * 100:.1f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=8.5,
+                    color=contrast_text_color(to_rgb(color)),
+                    fontweight="bold",
+                )
+            left += value
+        ax.set_yticks([])
+        ax.set_xlim(0, max_total * 1.04)
+        ax.set_ylim(-0.65, 0.65)
+        ax.set_ylabel("")
+        ax.set_title(
+            f"{row_label}  |  {parent_ms:,.2f} ms  |  "
+            f"{parent_ms / e2e_ms * 100 if e2e_ms else 0:.1f}% of HTTP",
+            loc="left",
+            fontsize=13,
+            fontweight="bold",
+        )
+        ax.grid(axis="y", visible=False)
+        ax.spines[["left", "right", "top"]].set_visible(False)
+        if len(segments) > 1:
+            detail = "  |  ".join(f"{label} {value:,.1f}" for label, value in segments)
+            ax.text(
+                0,
+                -0.56,
+                detail,
+                fontsize=7.7,
+                color="#475569",
+                va="center",
+                clip_on=False,
+            )
+    axes[-1].set_xlabel("average time on the same absolute scale (ms)")
+    fig.suptitle(title, fontsize=18, fontweight="bold")
+    save_figure(fig, path, plt)
+
+
+def find_execution_flow_record(
+    records: list[dict[str, Any]],
+    component_id: str,
+    *,
+    parent_id: str | None = None,
+) -> dict[str, Any] | None:
+    for record in records:
+        if record["component_id"] != component_id:
+            continue
+        if parent_id is not None and record["parent_id"] != parent_id:
+            continue
+        return record
+    return None
+
+
+def plot_bottleneck_paths(row, records, path: Path, plt, sns) -> None:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
+    if e2e_ms <= 0:
+        return
+    paths = [
+        (
+            "Data-loading path",
+            [
+                ("HTTP", e2e_ms),
+                ("pipeline", pipeline_ms),
+                ("scoring", flow_record_value(records, "scoring_ms")),
+                ("data prefetch", flow_record_value(records, "scoring_data_prefetch_ms")),
+                ("candidate bundle", flow_record_value(records, "prefetch_candidate_bundle_ms")),
+            ],
+            "#EA580C",
+        ),
+        (
+            "Per-candidate compute path",
+            [
+                ("HTTP", e2e_ms),
+                ("pipeline", pipeline_ms),
+                ("scoring", flow_record_value(records, "scoring_ms")),
+                ("score loop", flow_record_value(records, "score_loop_ms")),
+                ("behavior axis", flow_record_value(records, "score_loop_behavior_axis_ms")),
+            ],
+            "#2563EB",
+        ),
+        (
+            "Intent / external-call path",
+            [
+                ("HTTP", e2e_ms),
+                ("pipeline", pipeline_ms),
+                ("intent", flow_record_value(records, "intent_parse_ms")),
+                ("LLM parser", flow_record_value(records, "intent_llm_call_ms")),
+                ("LLM HTTP wait", flow_record_value(records, "intent_llm_http_ms")),
+            ],
+            "#0F766E",
+        ),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(20, 8.5), sharex=True, layout="constrained")
+    for ax, (title, stages, accent) in zip(axes, paths):
+        labels = [stage[0] for stage in stages]
+        values = [stage[1] for stage in stages]
+        positions = list(range(len(stages)))
+        colors = ["#0F172A", "#475569", accent, accent, accent]
+        alphas = [1.0, 0.9, 0.82, 0.66, 0.5]
+        bars = ax.barh(positions, values, color=colors)
+        for bar, alpha in zip(bars, alphas):
+            bar.set_alpha(alpha)
+        ax.set_yticks(positions, labels=labels)
+        ax.invert_yaxis()
+        ax.set_xlim(0, e2e_ms * 1.24)
+        ax.set_xlabel("average ms")
+        ax.set_title(title, fontsize=14, fontweight="bold")
+        for position, value in enumerate(values):
+            ax.text(
+                value + e2e_ms * 0.015,
+                position,
+                f"{value:,.1f} ms\n{value / e2e_ms * 100:.1f}% HTTP",
+                va="center",
+                fontsize=9,
+            )
+        ax.spines[["right", "top"]].set_visible(False)
+    fig.suptitle(
+        "Three bottleneck paths, drilled down from the same HTTP average",
+        fontsize=19,
+        fontweight="bold",
+    )
+    save_figure(fig, path, plt)
+
+
+def plot_execution_flow_table(row, records, path: Path, plt) -> None:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    selections = [
+        ("end_to_end", None),
+        ("backend_pipeline", "end_to_end"),
+        ("scoring_ms", "backend_pipeline"),
+        ("scoring_data_prefetch_ms", "scoring_ms"),
+        ("prefetch_candidate_bundle_ms", "scoring_data_prefetch_ms"),
+        ("score_loop_ms", "scoring_ms"),
+        ("score_loop_behavior_axis_ms", "score_loop_ms"),
+        ("intent_parse_ms", "backend_pipeline"),
+        ("intent_llm_call_ms", "intent_parse_ms"),
+        ("intent_llm_http_ms", "intent_llm_call_ms"),
+        ("candidate_pool_ms", "backend_pipeline"),
+        ("search_match_ms", "backend_pipeline"),
+        ("search_candidate_save_ms", "backend_pipeline"),
+        ("response_load_ms", "backend_pipeline"),
+        ("outside_pipeline", "end_to_end"),
+    ]
+    selected = []
+    for component_id, parent_id in selections:
+        record = find_execution_flow_record(
+            records,
+            component_id,
+            parent_id=parent_id,
+        )
+        if record:
+            selected.append(record)
+    if not selected:
+        return
+
+    cell_text = []
+    for record in selected:
+        indent = "  " * int(record["level"])
+        cell_text.append(
+            [
+                str(record["level"]),
+                f"{indent}{record['component']}",
+                f"{record['value_ms']:,.2f}",
+                f"{record['parent_share_percent']:.1f}%",
+                f"{record['e2e_share_percent']:.1f}%",
+            ]
+        )
+
+    fig, ax = plt.subplots(figsize=(15.5, 9.2))
+    ax.axis("off")
+    table = ax.table(
+        cellText=cell_text,
+        colLabels=["Depth", "Measured component", "Average ms", "% of parent", "% of HTTP"],
+        colWidths=[0.08, 0.42, 0.17, 0.16, 0.16],
+        cellLoc="right",
+        colLoc="right",
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(10.5)
+    table.scale(1, 1.65)
+    header_color = "#0F172A"
+    depth_colors = ["#E2E8F0", "#DBEAFE", "#FFEDD5", "#DCFCE7", "#F3E8FF"]
+    for (row_index, column_index), cell in table.get_celld().items():
+        cell.set_edgecolor("white")
+        if row_index == 0:
+            cell.set_facecolor(header_color)
+            cell.get_text().set_color("white")
+            cell.get_text().set_fontweight("bold")
+        else:
+            depth = int(selected[row_index - 1]["level"])
+            cell.set_facecolor(depth_colors[min(depth, len(depth_colors) - 1)])
+        if column_index == 1:
+            cell.get_text().set_ha("left")
+    ax.set_title(
+        f"Recommendation API key timing table  |  HTTP average {e2e_ms:,.2f} ms",
+        fontsize=18,
+        fontweight="bold",
+        pad=20,
+    )
+    fig.text(
+        0.5,
+        0.035,
+        "Indented rows are measured inside the preceding parent component.",
+        ha="center",
+        fontsize=10,
+        color="#475569",
+    )
+    save_figure(fig, path, plt)
 
 
 def plot_intent_outcomes(row, path: Path, title: str, plt, sns) -> None:

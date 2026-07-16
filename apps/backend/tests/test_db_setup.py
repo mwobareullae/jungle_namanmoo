@@ -76,6 +76,7 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_popularity_metrics",
         "product_prices",
         "product_recommendation_features",
+        "product_recommendation_scoring_snapshots",
         "product_review_metrics",
         "product_review_profile_labels",
         "product_review_segment_metrics",
@@ -109,6 +110,20 @@ def test_declarative_base_metadata_is_available() -> None:
     }
 
     assert set(Base.metadata.tables) == expected_tables
+
+
+def test_recommendation_scoring_snapshot_schema_uses_product_primary_key() -> None:
+    snapshots = Base.metadata.tables["product_recommendation_scoring_snapshots"]
+
+    assert {
+        "product_id",
+        "scoring_payload",
+        "snapshot_version",
+        "source_versions",
+        "computed_at",
+    } == set(snapshots.columns.keys())
+    assert list(snapshots.primary_key.columns.keys()) == ["product_id"]
+    assert not snapshots.indexes
 
 
 def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:

@@ -79,7 +79,7 @@ Usage:
   scripts/perf/benchmarkctl build <source_dir> [output_root]
   scripts/perf/benchmarkctl collect <run_id> [dataset]
 
-prepare seeds and indexes the explicitly configured benchmark database.
+prepare seeds, rolls up scoring inputs, and indexes the configured benchmark database.
 activate restarts only the backend with that benchmark database and alias.
 build creates deterministic product-related subsets for all four datasets.
 Set BENCHMARK_ACTIVATE=true to activate automatically after prepare.
@@ -227,6 +227,54 @@ if documents != expected:
 PY
 }
 
+verify_recommendation_scoring_snapshots() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, select
+
+from app.db.models.recommendation import ProductRecommendationScoringSnapshot
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    RECOMMENDATION_SCORING_SNAPSHOT_VERSION,
+)
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    snapshot_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationScoringSnapshot.product_id))
+        ).scalar_one()
+    )
+    version_mismatch_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationScoringSnapshot.product_id)).where(
+                ProductRecommendationScoringSnapshot.snapshot_version
+                != RECOMMENDATION_SCORING_SNAPSHOT_VERSION
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_scoring_snapshots={snapshot_count}")
+print(
+    "recommendation_scoring_snapshot_version="
+    f"{RECOMMENDATION_SCORING_SNAPSHOT_VERSION}"
+)
+print(f"recommendation_scoring_snapshot_version_mismatches={version_mismatch_count}")
+if snapshot_count != expected:
+    raise SystemExit(
+        f"expected recommendation scoring snapshots={expected}, got {snapshot_count}"
+    )
+if version_mismatch_count:
+    raise SystemExit(
+        "recommendation scoring snapshot version mismatch: "
+        f"{version_mismatch_count} row(s)"
+    )
+PY
+}
+
 verify_elasticsearch() {
   local count expected
   expected="$(expected_product_count)"
@@ -278,6 +326,14 @@ prepare() {
   backend_exec python -m alembic upgrade head
   echo "Seeding benchmark dataset..."
   backend_exec python -m app.cli.seed_data --data-dir "$DATA_DIR"
+  echo "Rolling up recommendation product features..."
+  backend_exec python -m app.cli.rollup_product_recommendation_features \
+    --full \
+    --batch-size 500
+  echo "Rolling up recommendation scoring snapshots..."
+  backend_exec python -m app.cli.rollup_product_recommendation_scoring_snapshots \
+    --full \
+    --batch-size 500
   echo "Indexing benchmark dataset..."
   backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
     --full \
@@ -286,6 +342,7 @@ prepare() {
     --no-cleanup \
     --retain-previous-indices 4
   verify_database_counts
+  verify_recommendation_scoring_snapshots
   verify_elasticsearch
   if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
     activate
@@ -310,6 +367,7 @@ verify() {
   verify_data_dir
   print_context
   verify_database_counts
+  verify_recommendation_scoring_snapshots
   verify_elasticsearch
   [[ -f "$REPO_DIR/$QUERY_SET" ]] || die "query set is missing: $REPO_DIR/$QUERY_SET"
   python3 -m json.tool "$REPO_DIR/$QUERY_SET" >/dev/null
