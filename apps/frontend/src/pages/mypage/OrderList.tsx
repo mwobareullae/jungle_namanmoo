@@ -127,7 +127,10 @@ export default function OrderList() {
     });
   }, [orders, periodMonths]);
 
-  const loadOrders = useCallback(async (cursor?: string | null) => {
+  const loadOrders = useCallback(async (
+    cursor?: string | null,
+    options: { notifySummary?: boolean } = {},
+  ) => {
     const startedAt = Date.now();
     const isFirstPage = !cursor;
     if (isFirstPage) {
@@ -141,7 +144,7 @@ export default function OrderList() {
       const response = await getOrders({ limit: 10, cursor, status: statusFilter });
       setOrders((current) => (isFirstPage ? response.items : [...current, ...response.items]));
       setNextCursor(response.next_cursor ?? null);
-      if (isFirstPage) {
+      if (isFirstPage && options.notifySummary !== false) {
         window.dispatchEvent(new Event("orders:updated"));
       }
     } catch (error) {
@@ -184,7 +187,7 @@ export default function OrderList() {
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
-      void loadOrders();
+      void loadOrders(null, { notifySummary: false });
     }, 0);
 
     return () => window.clearTimeout(timerId);
