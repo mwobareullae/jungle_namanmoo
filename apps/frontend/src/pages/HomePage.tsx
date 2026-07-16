@@ -88,15 +88,18 @@ function HomePage({ bodyHtml }: HomePageProps) {
     }
 
     if (skinProfileQuery.isPending) {
-      setIsProfileLoading(true);
-      return;
+      const timerId = window.setTimeout(() => setIsProfileLoading(true), 0);
+      return () => window.clearTimeout(timerId);
     }
 
     const savedProfile = skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null;
-    setProfile(savedProfile ?? defaultRecommendationProfile);
-    setHasSavedProfile(Boolean(savedProfile));
-    setIsProfileLoading(false);
-  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user?.id]);
+    const timerId = window.setTimeout(() => {
+      setProfile(savedProfile ?? defaultRecommendationProfile);
+      setHasSavedProfile(Boolean(savedProfile));
+      setIsProfileLoading(false);
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user]);
 
   useEffect(() => {
     if (!user) {
