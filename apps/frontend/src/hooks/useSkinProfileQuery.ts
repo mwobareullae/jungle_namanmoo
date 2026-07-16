@@ -5,11 +5,11 @@ export const skinProfileQueryKey = (userId: number | null) => ["skin-profile", u
 
 export const useSkinProfileQuery = (userId: number | null, enabled = true) => useQuery({
   queryKey: skinProfileQueryKey(userId),
-  queryFn: getMySkinProfile,
+  queryFn: () => getMySkinProfile(userId),
   enabled: enabled && userId !== null,
-  staleTime: Infinity,
+  staleTime: 5 * 60_000,
   gcTime: 30 * 60_000,
-  refetchOnMount: false,
+  refetchOnMount: true,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
   retry: false,

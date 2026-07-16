@@ -130,37 +130,64 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
   };
 };
 
-const toRecommendationProfile = (profile: SkinProfileData): RecommendationProfile => ({
+export const toRecommendationProfile = (profile: SkinProfileData): RecommendationProfile => ({
   skin: profile.skinType,
   sensitivity: profile.sensitivity,
   avoidIngredients: profile.avoidIngredients
 });
 
-let inFlightSkinProfileRequest: Promise<SkinProfileData | null> | null = null;
+const SKIN_PROFILE_CACHE_TTL_MS = 5 * 60_000;
+const skinProfileCache = new Map<number, { value: SkinProfileData | null; expiresAt: number }>();
+let inFlightSkinProfileRequest: { userId: number; request: Promise<SkinProfileData | null> } | null = null;
 
-export const getMySkinProfile = async (): Promise<SkinProfileData | null> => {
-  if (inFlightSkinProfileRequest) {
-    return inFlightSkinProfileRequest;
+export const getMySkinProfile = async (userId?: number | null): Promise<SkinProfileData | null> => {
+  const numericUserId = typeof userId === "number" ? userId : null;
+  if (numericUserId !== null) {
+    const cached = skinProfileCache.get(numericUserId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+    if (inFlightSkinProfileRequest?.userId === numericUserId) {
+      return inFlightSkinProfileRequest.request;
+    }
   }
 
   const request = (async () => {
     const response = await fetchWithTimeout(`${API_BASE_URL}/me/skin-profile`);
     return mapSkinProfileData(await parseJson<BackendSkinProfileResponse>(response));
   })();
-  inFlightSkinProfileRequest = request;
+  if (numericUserId !== null) {
+    inFlightSkinProfileRequest = { userId: numericUserId, request };
+  }
 
   try {
-    return await request;
+    const value = await request;
+    if (numericUserId !== null) {
+      skinProfileCache.set(numericUserId, { value, expiresAt: Date.now() + SKIN_PROFILE_CACHE_TTL_MS });
+    }
+    return value;
   } finally {
-    if (inFlightSkinProfileRequest === request) {
+    if (inFlightSkinProfileRequest?.request === request) {
       inFlightSkinProfileRequest = null;
     }
   }
 };
 
-export const getSavedSkinProfile = async (): Promise<RecommendationProfile | null> => {
+export const setMySkinProfileCache = (userId: number | null | undefined, value: SkinProfileData | null) => {
+  if (typeof userId === "number") {
+    skinProfileCache.set(userId, { value, expiresAt: Date.now() + SKIN_PROFILE_CACHE_TTL_MS });
+  }
+};
+
+export const invalidateMySkinProfileCache = (userId: number | null | undefined) => {
+  if (typeof userId === "number") {
+    skinProfileCache.delete(userId);
+  }
+};
+
+export const getSavedSkinProfile = async (userId?: number | null): Promise<RecommendationProfile | null> => {
   try {
-    const profile = await getMySkinProfile();
+    const profile = await getMySkinProfile(userId);
     return profile ? toRecommendationProfile(profile) : null;
   } catch {
     return null;

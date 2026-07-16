@@ -3,9 +3,11 @@ import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
 import SearchBarPanel from "../components/SearchBarPanel";
+import { useAuth } from "../contexts/useAuth";
+import { useSkinProfileQuery } from "../hooks/useSkinProfileQuery";
 import { HomeMatchResult } from "../components/HomeStaticSections";
 import { installHomeRuntime } from "../lib/homeRuntime";
-import { getSavedSkinProfile } from "../lib/profileApi";
+import { toRecommendationProfile } from "../lib/profileApi";
 import type {
   RecommendationProfile,
   RecommendationRefinementFilters,
@@ -66,6 +68,8 @@ const getSearchParams = () => {
 };
 
 function SearchPage() {
+  const { isAuthLoading, user } = useAuth();
+  const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, !isAuthLoading && Boolean(user));
   const { keyword, skin, sensitivity, page, pageSize, recommendationId, refinementFilters, searchMode, agentPending } = useMemo(
     () => getSearchParams(),
     []
@@ -86,19 +90,23 @@ function SearchPage() {
   useEffect(() => installHomeRuntime(profile), [profile]);
 
   useEffect(() => {
-    let isMounted = true;
+    if (isAuthLoading) {
+      return;
+    }
 
-    getSavedSkinProfile().then((nextSavedProfile) => {
-      if (isMounted) {
-        setSavedProfile(nextSavedProfile);
-        setIsProfileResolved(true);
-      }
-    });
+    if (!user) {
+      setSavedProfile(null);
+      setIsProfileResolved(true);
+      return;
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    if (skinProfileQuery.isPending) {
+      return;
+    }
+
+    setSavedProfile(skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null);
+    setIsProfileResolved(true);
+  }, [isAuthLoading, skinProfileQuery.data, skinProfileQuery.isPending, user?.id]);
 
   return (
     <div className="search-page-shell">
