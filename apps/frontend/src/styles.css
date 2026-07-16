@@ -17671,15 +17671,15 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
     display: block !important;
   }
 }
-.login-google-hitbox {
+.login-google-button {
   cursor: pointer;
 }
 
-.login-google-hitbox:not(.pointer-events-none) {
+.login-google-button:not(.pointer-events-none) {
   pointer-events: auto;
 }
 
-.login-google-hitbox iframe {
+.login-google-button iframe {
   cursor: pointer !important;
   pointer-events: auto !important;
 }
