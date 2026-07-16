@@ -1019,7 +1019,7 @@ function HomeMainContent({
                 <div className="results-query">
                   &quot;<strong id="queryDisplay">{query}</strong>&quot; 검색 결과
                 </div>
-                <div className="section-subtitle" style={{ marginTop: 4 }}>
+                <div className="section-subtitle">
                   {isLoading
                     ? isGeneralSearch ? "상품 검색 결과를 불러오는 중입니다" : "추천 결과를 불러오는 중입니다"
                     : agentRefinementFilters?.max_price
