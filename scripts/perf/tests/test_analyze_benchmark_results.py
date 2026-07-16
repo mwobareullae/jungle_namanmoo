@@ -67,6 +67,60 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(average[0]["value"], 120.0)
         self.assertEqual(p95[0]["value"], 240.0)
 
+    def test_representative_row_uses_headline_median_p95(self) -> None:
+        rows = [
+            {"run_id": "headline-low", "dataset": 80000, "vus": 10, "latency_p95_ms": 7000.0},
+            {"run_id": "headline-mid", "dataset": 80000, "vus": 10, "latency_p95_ms": 7400.0},
+            {"run_id": "headline-high", "dataset": 80000, "vus": 10, "latency_p95_ms": 7900.0},
+            {"run_id": "later-outlier", "dataset": 80000, "vus": 10, "latency_p95_ms": 12000.0},
+        ]
+
+        selected = analysis.representative_analysis_row(
+            rows,
+            dataset=80000,
+            vus=10,
+            preferred_run_ids=["headline-low", "headline-mid", "headline-high"],
+        )
+
+        self.assertEqual(selected["run_id"], "headline-mid")
+
+    def test_execution_flow_records_preserve_parent_residuals(self) -> None:
+        row = {
+            "run_id": "run-1",
+            "latency_avg_ms": 100.0,
+            "duration_ms_avg": 80.0,
+            "intent_parse_ms_avg": 20.0,
+            "scoring_ms_avg": 30.0,
+            "scoring_data_prefetch_ms_avg": 10.0,
+            "score_loop_ms_avg": 10.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        http_children = analysis.execution_flow_children(records, "end_to_end")
+        pipeline_children = analysis.execution_flow_children(records, "backend_pipeline")
+
+        self.assertAlmostEqual(sum(item["value_ms"] for item in http_children), 100.0)
+        self.assertAlmostEqual(sum(item["value_ms"] for item in pipeline_children), 80.0)
+        outside = next(item for item in http_children if item["component_id"] == "outside_pipeline")
+        residual = next(
+            item
+            for item in pipeline_children
+            if item["source_metric"] == "derived_parent_minus_children"
+        )
+        self.assertEqual(outside["value_ms"], 20.0)
+        self.assertEqual(residual["value_ms"], 30.0)
+        self.assertEqual(outside["e2e_share_percent"], 20.0)
+
+    def test_scoring_drilldown_lists_materialization_and_full_loop(self) -> None:
+        scoring_keys = [key for key, _ in analysis.SCORING_STAGES]
+        loop_keys = [key for key, _ in analysis.SCORE_LOOP_DETAIL_STAGES]
+
+        self.assertIn("score_detail_materialization_ms", scoring_keys)
+        self.assertIn("score_loop_contribution_build_ms", loop_keys)
+        self.assertIn("score_loop_functional_axis_ms", loop_keys)
+        self.assertIn("score_loop_search_price_market_axis_ms", loop_keys)
+        self.assertIn("score_loop_final_score_ms", loop_keys)
+
     def test_grouped_stage_shares_keep_total_and_limit_segments(self) -> None:
         stages = [
             ("stage_a", "A"),
