@@ -141,7 +141,6 @@ function PaymentCompletePage() {
     paymentFailed,
     paymentFailCode,
     paymentFailMessage,
-    recommendationId,
     paymentMethod,
   }] = useState(getCompleteParams);
   const { user } = useAuth();

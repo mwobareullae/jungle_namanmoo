@@ -167,18 +167,21 @@ export default function SkinProfile({ initialProfile = emptyProfile, onSubmitDra
     !isSameProfileDraft(profile, savedProfile);
 
   useEffect(() => {
-    if (skinProfileQuery.data) {
-      const nextProfile = draftFromSkinProfile(skinProfileQuery.data, emptyProfile);
-      setProfile(nextProfile);
-      setSavedProfile(nextProfile);
-      setHasSavedProfile(true);
-      setStatusMessage(null);
-    } else if (!skinProfileQuery.isPending && !skinProfileQuery.isError) {
-      setHasSavedProfile(false);
-      setStatusMessage("아직 저장된 피부 프로필이 없습니다. 피부 타입과 민감도를 선택해 주세요.");
-    } else if (skinProfileQuery.isError) {
-      setStatusMessage("저장된 피부 프로필을 불러오지 못했습니다.");
-    }
+    const timerId = window.setTimeout(() => {
+      if (skinProfileQuery.data) {
+        const nextProfile = draftFromSkinProfile(skinProfileQuery.data, emptyProfile);
+        setProfile(nextProfile);
+        setSavedProfile(nextProfile);
+        setHasSavedProfile(true);
+        setStatusMessage(null);
+      } else if (!skinProfileQuery.isPending && !skinProfileQuery.isError) {
+        setHasSavedProfile(false);
+        setStatusMessage("아직 저장된 피부 프로필이 없습니다. 피부 타입과 민감도를 선택해 주세요.");
+      } else if (skinProfileQuery.isError) {
+        setStatusMessage("저장된 피부 프로필을 불러오지 못했습니다.");
+      }
+    }, 0);
+    return () => window.clearTimeout(timerId);
   }, [skinProfileQuery.data, skinProfileQuery.isError, skinProfileQuery.isPending]);
 
   const saveProfile = async () => {

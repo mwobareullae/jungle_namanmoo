@@ -83,7 +83,8 @@ function SkinTestPage() {
       return;
     }
 
-    setIsExistingResultResolved(true);
+    const timerId = window.setTimeout(() => setIsExistingResultResolved(true), 0);
+    return () => window.clearTimeout(timerId);
   }, [isAuthLoading, navigate, shouldForceRetest, skinProfileQuery.data, skinProfileQuery.isPending, user]);
 
   useEffect(() => {

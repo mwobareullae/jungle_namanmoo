@@ -846,6 +846,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     });
   }
 
+  if (response.error.code === "AGENT_CLARIFICATION_REQUIRED") {
+    return createAgentErrorMessage(id, "추가 선택이 필요해요", response.error.message, {
+      action: "input",
+      actionLabel: "다시 입력하기",
+      tone: "info",
+    });
+  }
+
   return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
     retryMessage,
     tone: response.error.retryable ? "amber" : "info",
@@ -1199,7 +1207,7 @@ function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp:
     nextMessages.push(errorMessage);
   }
 
-  if (response.message.trim()) {
+  if (response.message.trim() && response.error?.code !== "AGENT_CLARIFICATION_REQUIRED") {
     nextMessages.push(createAssistantMessage(`assistant-${timestamp}`, response.message));
   }
 
@@ -1911,12 +1919,18 @@ function AgentFloatingButton({
       const isRecommendationResponse = response.ui_action.type === "show_products"
         || response.ui_action.type === "show_product_comparison"
         || response.items.some((item) => item.item_type === "product");
+      const isCompletedCommerceAction = (
+        response.ui_action.type === "show_cart"
+        && (response.tool_name === "add_to_cart" || response.tool_name === "compose_cart")
+      ) || response.ui_action.type === "show_checkout_preview" || response.ui_action.type === "open_payment";
       setMessages((currentMessages) =>
         [
           ...currentMessages.flatMap((currentMessage) =>
             currentMessage.id === statusId
-              ? (isRecommendationResponse || (!addressError && getCommerceStatusSteps(nextMessage, false))
+              ? (isCompletedCommerceAction
                   ? [createStatusMessage(statusId, false, nextMessage)]
+                  : isRecommendationResponse
+                    ? [createStatusMessage(statusId, false)]
                   : [])
               : [currentMessage],
           ),

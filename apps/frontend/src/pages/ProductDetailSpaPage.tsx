@@ -662,12 +662,15 @@ function ProductDetailSpaPage() {
     if (skinProfileQuery.isPending) return;
 
     const profile = skinProfileQuery.data ? toRecommendationProfile(skinProfileQuery.data) : null;
-    setReviewProfileSkinType(profile?.skin ?? (skinType || null));
-    setAvoidIngredientMatchState({
-      matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
-      userId: currentUserId,
-    });
-  }, [skinProfileQuery.data, skinProfileQuery.isPending, skinType, user?.id]);
+    const timerId = window.setTimeout(() => {
+      setReviewProfileSkinType(profile?.skin ?? (skinType || null));
+      setAvoidIngredientMatchState({
+        matchSet: getAvoidIngredientMatchSet(profile?.avoidIngredients ?? []),
+        userId: currentUserId,
+      });
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [skinProfileQuery.data, skinProfileQuery.isPending, skinType, user]);
 
   useEffect(() => {
     if (!comparisonRequest) {

@@ -193,7 +193,7 @@ function MypageProductList({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.id]);
   const displayItems = useMemo(() => {
     return [...listItems].sort((a, b) => {
       const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
@@ -262,7 +262,7 @@ function MypageProductList({
       isMounted = false;
       window.clearTimeout(loadingTimerId);
     };
-  }, [isRecent, items, mode, title]);
+  }, [isRecent, items, mode, title, user?.id]);
 
   const updateSort = (nextSort: WishlistSort) => {
     setSort(nextSort);
