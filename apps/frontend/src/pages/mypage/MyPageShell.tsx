@@ -191,8 +191,14 @@ export function MyPageLayout({ children, activePath, user: userOverride }: MyPag
 
     void loadOrderStatusSummary();
 
+    const refreshOrderStatusSummary = () => {
+      void loadOrderStatusSummary();
+    };
+    window.addEventListener("orders:updated", refreshOrderStatusSummary);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("orders:updated", refreshOrderStatusSummary);
     };
   }, [authUser]);
 

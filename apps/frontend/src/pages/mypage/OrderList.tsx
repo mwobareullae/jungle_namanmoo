@@ -141,6 +141,9 @@ export default function OrderList() {
       const response = await getOrders({ limit: 10, cursor, status: statusFilter });
       setOrders((current) => (isFirstPage ? response.items : [...current, ...response.items]));
       setNextCursor(response.next_cursor ?? null);
+      if (isFirstPage) {
+        window.dispatchEvent(new Event("orders:updated"));
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "주문/배송내역을 불러오지 못했습니다.");
       if (isFirstPage) {
