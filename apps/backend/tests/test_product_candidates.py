@@ -1,11 +1,23 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models.catalog import Product
+from app.db.models.catalog import Brand, Product, ProductCategory
+from app.db.models.commerce import ProductPopularityMetric
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
-from app.services.product_candidates import list_product_candidates, list_product_candidates_by_db_ids
-from app.services.purchase_conditions import build_brand_aliases, parse_purchase_conditions
+from app.services.product_candidates import (
+    list_product_candidates,
+    list_product_candidates_by_db_ids,
+    list_recommendation_fallback_candidates,
+)
+from app.services.purchase_conditions import (
+    MatchedBrand,
+    MatchedCategory,
+    ParsedPurchaseConditions,
+    build_brand_aliases,
+    parse_purchase_conditions,
+)
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -108,6 +120,94 @@ def test_list_product_candidates_by_db_ids_applies_hard_filters() -> None:
     candidates = list_product_candidates_by_db_ids(session, conditions, [2, 1])
 
     assert [candidate.product_id for candidate in candidates] == ["prod_001"]
+
+
+def test_recommendation_fallback_orders_by_popularity_without_thumbnail(
+    monkeypatch,
+) -> None:
+    session = _seed_example_session()
+    products = session.scalars(select(Product).order_by(Product.id.asc())).all()
+    first, second = products
+    session.add_all(
+        [
+            ProductPopularityMetric(
+                product_id=first.id,
+                window_days=7,
+                popularity_score=10,
+            ),
+            ProductPopularityMetric(
+                product_id=second.id,
+                window_days=7,
+                popularity_score=100,
+            ),
+        ]
+    )
+    session.flush()
+    monkeypatch.setattr(
+        "app.services.product_candidates.load_thumbnail_storage_keys",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("fallback candidate stage must not load thumbnails")
+        ),
+    )
+
+    candidates = list_recommendation_fallback_candidates(
+        session,
+        parse_purchase_conditions(""),
+        avoid_ingredients=[],
+        limit=20,
+    )
+
+    assert [candidate.product_id for candidate in candidates] == [
+        "prod_002",
+        "prod_001",
+    ]
+    assert all(candidate.thumbnail_url is None for candidate in candidates)
+
+
+def test_recommendation_fallback_applies_hard_filters_and_avoid_ingredients() -> None:
+    session = _seed_example_session()
+    product, brand, category = session.execute(
+        select(Product, Brand, ProductCategory)
+        .join(Brand, Product.brand_id == Brand.id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .where(Product.product_code == "prod_001")
+    ).one()
+    conditions = ParsedPurchaseConditions(
+        categories=(
+            MatchedCategory(
+                category_code=category.category_code,
+                name=category.name,
+                matched_text=category.name,
+            ),
+        ),
+        brands=(
+            MatchedBrand(
+                brand_code=brand.brand_code,
+                name=brand.name,
+                matched_text=brand.name,
+            ),
+        ),
+        price_min=19_000,
+        price_max=20_000,
+        price_text="19000 to 20000",
+        price_max_text="20000",
+    )
+
+    candidates = list_recommendation_fallback_candidates(
+        session,
+        conditions,
+        avoid_ingredients=[],
+        limit=20,
+    )
+    avoided_candidates = list_recommendation_fallback_candidates(
+        session,
+        conditions,
+        avoid_ingredients=["Panthenol"],
+        limit=20,
+    )
+
+    assert [candidate.product_id for candidate in candidates] == [product.product_code]
+    assert avoided_candidates == []
 
 
 def _seed_example_session() -> Session:
