@@ -77,9 +77,8 @@ Routing:
   window_days. Never infer product IDs or ingredient IDs. The backend rechecks the real
   popularity rollup, canonical ingredient relation, and current wishlist, then requires
   confirmation before writing.
-  Skin-profile-only bulk wishlist requests are not supported yet. Do not claim that you
-  can recommend or execute an alternative unless a matching tool is available; explain
-  the current limitation briefly instead.
+  Skin-profile bulk wishlist requests may use skin_type and/or sensitivity instead of
+  ingredient_name. Use only profile values stated by the user or present in context.
 - Similar/alternative product -> find_similar_products(current_product_id, limit=2).
   Comparison -> selected_product_ids, otherwise at least two visible_product_ids.
 - Order-history open/filter -> filter_order_history. Preserve context.filters unless
@@ -137,8 +136,6 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
 
-_POPULAR_WISHLIST_REQUEST_PATTERN = re.compile(r"(?:인기|베스트|순위).*(?:찜|위시)|(?:찜|위시).*(?:인기|베스트|순위)")
-_SKIN_PROFILE_REQUEST_PATTERN = re.compile(r"건성|지성|복합성|수부지|중성|민감")
 _BULK_CART_REQUEST_PATTERN = re.compile(
     r"(?:\d+\s*(?:~|-|부터)\s*\d+\s*위|상위\s*\d+\s*개|(?:상품|제품)\s*\d+\s*개).{0,40}?(?:장바구니|카트).{0,20}?(?:담|추가)"
 )
@@ -217,10 +214,6 @@ async def run_openai_agent_chat(
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
         return _clarification_response(request.conversation_id, generic_clarification)
-
-    unsupported_wishlist_message = _get_unsupported_popular_wishlist_clarification(request.message)
-    if unsupported_wishlist_message:
-        return _clarification_response(request.conversation_id, unsupported_wishlist_message)
 
     multi_action_clarification = _get_multi_action_clarification(request.message)
     if multi_action_clarification:
@@ -490,14 +483,6 @@ def _get_multi_action_clarification(message: str) -> str | None:
         "여러 상품을 바로 반영하기 전에 먼저 조건에 맞는 추천 결과를 확인할게요. "
         "추천 결과에서 상품 순위를 알려주시면 선택한 상품만 장바구니에 담아드릴게요."
     )
-
-
-def _get_unsupported_popular_wishlist_clarification(message: str) -> str | None:
-    if not _POPULAR_WISHLIST_REQUEST_PATTERN.search(message):
-        return None
-    if not _SKIN_PROFILE_REQUEST_PATTERN.search(message):
-        return None
-    return "현재 인기 상품 일괄 찜은 특정 성분 조건만 지원해요. 피부 타입 기준 일괄 찜은 아직 지원하지 않아요."
 
 
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
@@ -929,16 +914,20 @@ async def compose_cart(
 @function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
 async def bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
-    ingredient_name: str,
+    ingredient_name: str | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
+    skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
+    sensitivity: Literal["낮음", "보통", "높음"] | None = None,
 ) -> str:
-    """Preview a confirmed bulk wishlist action from real popular ranks and canonical ingredients."""
+    """Preview a confirmed bulk wishlist action from real popular ranks and criteria."""
     return _execute_tool(
         ctx,
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "skin_type": skin_type,
+            "sensitivity": sensitivity,
             "rank_limit": rank_limit,
             "window_days": window_days,
         },

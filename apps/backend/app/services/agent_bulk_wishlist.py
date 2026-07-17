@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductSkinProfile
 from app.db.models.commerce import Inventory, Wishlist
 from app.db.models.taxonomy import Ingredient, IngredientAlias
 from app.schemas.agent import AgentChatResponse, AgentError, AgentResponseItem, AgentToolConfirmResponse, AgentUiAction
@@ -20,6 +20,7 @@ from app.schemas.event import EventLogCreateRequest
 from app.services.agent_policy import validate_result_item_count, validate_tool_ui_action
 from app.services.event_service import create_event_logs
 from app.services.popular_products_service import get_popular_product_items
+from app.services.skin_profile_service import load_skin_profile_for_user
 
 
 BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL = "bulk_wishlist_by_popular_ingredient"
@@ -32,14 +33,25 @@ def prepare_bulk_wishlist_by_popular_ingredient(
     user: User,
     *,
     conversation_id: str | None,
-    ingredient_name: str,
+    ingredient_name: str | None,
+    skin_type: str | None = None,
+    sensitivity: str | None = None,
     rank_limit: int,
     window_days: int,
     request_id: str | None,
     session_id: str | None,
     anonymous_user_id: str | None,
 ) -> AgentChatResponse:
-    ingredient = _resolve_canonical_ingredient(session, ingredient_name)
+    if ingredient_name and (skin_type or sensitivity):
+        raise ApiError(400, "AGENT_WISHLIST_CRITERIA_INVALID", "성분 조건과 피부 조건은 한 번에 하나만 선택할 수 있어요.")
+    if not ingredient_name and not skin_type and not sensitivity:
+        profile = load_skin_profile_for_user(session, user.id)
+        if profile is None:
+            raise ApiError(400, "AGENT_SKIN_PROFILE_REQUIRED", "피부 타입이나 민감도 조건을 알려주세요.")
+        skin_type = profile.explicit_skin_type or profile.skin_type
+        sensitivity = profile.explicit_sensitivity or profile.sensitivity
+    criterion_name = ingredient_name or _skin_criterion_name(skin_type, sensitivity)
+    ingredient = _resolve_canonical_ingredient(session, ingredient_name) if ingredient_name else None
     popular_items = get_popular_product_items(
         session,
         window_days=window_days,
@@ -54,14 +66,26 @@ def prepare_bulk_wishlist_by_popular_ingredient(
         select(Product.id, Product.product_code).where(Product.product_code.in_(product_codes))
     ).all()
     db_id_by_code = {str(code): int(db_id) for db_id, code in product_rows}
-    matching_db_ids = set(
-        session.execute(
-            select(ProductIngredient.product_id).where(
-                ProductIngredient.product_id.in_(list(db_id_by_code.values())),
-                ProductIngredient.ingredient_id == ingredient.id,
+    if ingredient is not None:
+        matching_db_ids = set(
+            session.execute(
+                select(ProductIngredient.product_id).where(
+                    ProductIngredient.product_id.in_(list(db_id_by_code.values())),
+                    ProductIngredient.ingredient_id == ingredient.id,
+                )
+            ).scalars()
+        )
+    else:
+        profiles = session.execute(
+            select(ProductSkinProfile).where(
+                ProductSkinProfile.product_id.in_(list(db_id_by_code.values()))
             )
         ).scalars()
-    )
+        matching_db_ids = {
+            int(profile.product_id)
+            for profile in profiles
+            if _matches_skin_profile(profile, skin_type=skin_type, sensitivity=sensitivity)
+        }
     wished_db_ids = set(
         session.execute(
             select(Wishlist.product_id).where(
@@ -94,8 +118,8 @@ def prepare_bulk_wishlist_by_popular_ingredient(
     if not matched:
         return _no_change_response(
             conversation_id,
-            ingredient_name=ingredient.name_ko,
-            message=f"인기 상품 {rank_limit}위 안에서 {ingredient.name_ko}가 확인된 상품을 찾지 못했어요.",
+            ingredient_name=criterion_name,
+            message=f"인기 상품 {rank_limit}위 안에서 {criterion_name} 기준 상품을 찾지 못했어요.",
             inspected_count=len(popular_items),
             matched=[],
             rank_limit=rank_limit,
@@ -106,8 +130,8 @@ def prepare_bulk_wishlist_by_popular_ingredient(
     if not new_items:
         return _no_change_response(
             conversation_id,
-            ingredient_name=ingredient.name_ko,
-            message=f"조건에 맞는 상품 {len(matched)}개를 이미 모두 찜했어요.",
+            ingredient_name=criterion_name,
+            message=f"조건에 맞는 {criterion_name} 상품 {len(matched)}개를 이미 모두 찜했어요.",
             inspected_count=len(popular_items),
             matched=matched,
             rank_limit=rank_limit,
@@ -118,7 +142,7 @@ def prepare_bulk_wishlist_by_popular_ingredient(
     expires_at = now + timedelta(minutes=BULK_WISHLIST_CONFIRMATION_TTL_MINUTES)
     tool_call_id = f"tool_{secrets.token_urlsafe(18)}"
     payload = _result_payload(
-        ingredient_name=ingredient.name_ko,
+        ingredient_name=criterion_name,
         inspected_count=len(popular_items),
         matched=matched,
         added_product_ids=[],
@@ -139,8 +163,10 @@ def prepare_bulk_wishlist_by_popular_ingredient(
             confirmation_required=True,
             expires_at=expires_at,
             input_json={
-                "ingredient_name": ingredient.name_ko,
-                "ingredient_id": int(ingredient.id),
+                "ingredient_name": ingredient.name_ko if ingredient is not None else None,
+                "ingredient_id": int(ingredient.id) if ingredient is not None else None,
+                "skin_type": skin_type,
+                "sensitivity": sensitivity,
                 "rank_limit": rank_limit,
                 "window_days": window_days,
             },
@@ -159,7 +185,7 @@ def prepare_bulk_wishlist_by_popular_ingredient(
     return AgentChatResponse(
         conversation_id=conversation_id or f"conv_{secrets.token_urlsafe(12)}",
         message=(
-            f"인기 상품 {rank_limit}위 안에서 {ingredient.name_ko}가 확인된 상품은 {len(matched)}개예요. "
+            f"인기 상품 {rank_limit}위 안에서 {criterion_name} 기준 상품은 {len(matched)}개예요. "
             f"이미 찜한 {already_count}개를 제외하고 {len(new_items)}개를 새로 찜할까요?"
         ),
         requires_confirmation=True,
@@ -345,6 +371,34 @@ def _resolve_canonical_ingredient(session: Session, raw_name: str) -> Ingredient
 def _normalize_ingredient_name(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold().strip()
     return "".join(character for character in normalized if character.isalnum())
+
+
+def _skin_criterion_name(skin_type: str | None, sensitivity: str | None) -> str:
+    if skin_type and sensitivity:
+        return f"{skin_type}·민감도 {sensitivity}"
+    if skin_type:
+        return f"{skin_type} 피부"
+    return f"민감도 {sensitivity}"
+
+
+def _matches_skin_profile(
+    profile: ProductSkinProfile,
+    *,
+    skin_type: str | None,
+    sensitivity: str | None,
+) -> bool:
+    fit_by_type = {
+        "건성": profile.dry_fit,
+        "지성": profile.oily_fit,
+        "복합성": profile.combination_fit,
+        "중성": profile.normal_fit,
+        "수부지": profile.dehydrated_oily_fit,
+    }
+    if skin_type and float(fit_by_type.get(skin_type, 0)) < 0.7:
+        return False
+    if sensitivity in {"높음", "민감", "민감성"} and float(profile.sensitive_fit) < 0.7:
+        return False
+    return True
 
 
 def _result_payload(

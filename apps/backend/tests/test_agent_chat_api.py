@@ -129,18 +129,6 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
 
 
 @pytest.mark.anyio
-async def test_agent_profile_popular_wishlist_request_returns_limitation_without_openai() -> None:
-    request = AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 찜해줘")
-
-    response = await run_openai_agent_chat(Session(), request)
-
-    assert response.error is not None
-    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
-    assert response.tool_name is None
-    assert "특정 성분 조건만 지원" in response.message
-
-
-@pytest.mark.anyio
 @pytest.mark.parametrize(
     ("message", "expected"),
     [
