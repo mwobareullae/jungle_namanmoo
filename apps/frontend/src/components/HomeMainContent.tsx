@@ -568,6 +568,10 @@ type HomeSearchEvent = CustomEvent<{
   refinementFilters?: RecommendationRefinementFilters;
 }>;
 
+type HomeSearchPendingEvent = CustomEvent<{
+  query: string;
+}>;
+
 type AgentRefinedProductsEvent = CustomEvent<{
   products?: Array<Record<string, unknown>>;
   filters?: Record<string, unknown>;
@@ -627,6 +631,8 @@ function HomeMainContent({
     initialRefinementFilters ?? null,
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const activeSearchRequestRef = useRef(0);
+  const pendingSearchQueryRef = useRef<string | null>(null);
   const isGeneralSearch = initialSearchMode === "general";
 
   const updateSearchUrl = useCallback(
@@ -656,6 +662,7 @@ function HomeMainContent({
       if (refinementFilters?.skin_type) params.set("refine_skin_type", refinementFilters.skin_type);
       if (refinementFilters?.sensitivity) params.set("refine_sensitivity", refinementFilters.sensitivity);
       refinementFilters?.effect_keywords?.forEach((keyword) => params.append("refine_effect", keyword));
+      refinementFilters?.required_ingredient_names?.forEach((ingredient) => params.append("refine_ingredient", ingredient));
       window.history.replaceState(null, "", `/search?${params.toString()}`);
     },
     [initialSearchMode, isGeneralSearch, mode, pageSize]
@@ -672,6 +679,9 @@ function HomeMainContent({
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
+      const requestId = activeSearchRequestRef.current + 1;
+      activeSearchRequestRef.current = requestId;
+      pendingSearchQueryRef.current = null;
 
       setQuery(trimmedQuery);
       setIsLoading(true);
@@ -712,6 +722,7 @@ function HomeMainContent({
                 pageSize
               }
             );
+        if (requestId !== activeSearchRequestRef.current) return;
         if (response.products.length === 0) {
           trackEvent("search_no_result", {
             recommendationId: response.recommendation_id,
@@ -744,6 +755,7 @@ function HomeMainContent({
           })
         );
       } catch {
+        if (requestId !== activeSearchRequestRef.current) return;
         if (isGeneralSearch) {
           setErrorMessage("상품 검색을 일시적으로 사용할 수 없습니다.");
           return;
@@ -756,11 +768,58 @@ function HomeMainContent({
           })
         );
       } finally {
-        setIsLoading(false);
+        if (requestId === activeSearchRequestRef.current) setIsLoading(false);
       }
     },
     [isGeneralSearch, mode, pageSize, updateSearchUrl]
   );
+
+  useEffect(() => {
+    const handlePendingSearch = (event: Event) => {
+      const nextQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      if (!nextQuery) return;
+
+      activeSearchRequestRef.current += 1;
+      pendingSearchQueryRef.current = nextQuery;
+      setQuery(nextQuery);
+      setIsLoading(true);
+      setErrorMessage("");
+      setAgentRefinementFilters(null);
+      setRecommendation(null);
+      window.dispatchEvent(
+        new CustomEvent("home-recommendation-state", {
+          detail: { status: "loading", query: nextQuery, recommendation: null }
+        })
+      );
+      window.requestAnimationFrame(() => {
+        document.getElementById("searchResultsSection")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    };
+
+    const handleFailedSearch = (event: Event) => {
+      const failedQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      if (!failedQuery || pendingSearchQueryRef.current !== failedQuery) return;
+
+      pendingSearchQueryRef.current = null;
+      setIsLoading(false);
+      setErrorMessage("추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      window.dispatchEvent(
+        new CustomEvent("home-recommendation-state", {
+          detail: { status: "error", query: failedQuery, recommendation: null }
+        })
+      );
+    };
+
+    window.addEventListener("home-search-pending", handlePendingSearch);
+    window.addEventListener("home-search-failed", handleFailedSearch);
+    return () => {
+      window.removeEventListener("home-search-pending", handlePendingSearch);
+      window.removeEventListener("home-search-failed", handleFailedSearch);
+    };
+  }, []);
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {

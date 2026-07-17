@@ -11,6 +11,15 @@ TOKEN_USAGE_KEYS = {
     "output_tokens": ("output_tokens", "completion_tokens"),
     "total_tokens": ("total_tokens",),
 }
+# Standard text-token rates in USD per one million tokens. Keep this table
+# intentionally small and return null for unknown/private model aliases rather
+# than logging a misleading estimate.
+MODEL_TOKEN_PRICES = {
+    "gpt-5.5": (5.0, 30.0),
+    "gpt-5.4-mini": (0.75, 4.5),
+    "gpt-4o-mini": (0.15, 0.60),
+    "text-embedding-3-small": (0.02, 0.0),
+}
 _BLOCKED_METADATA_KEYS = {
     "prompt",
     "raw_prompt",
@@ -39,6 +48,7 @@ def log_ai_call(
     metadata: Mapping[str, Any] | None = None,
 ) -> None:
     token_usage = normalize_token_usage(usage)
+    estimated_cost = estimate_ai_cost_usd(model, token_usage)
     log_performance_event(
         "ai_call_completed" if success else "ai_call_failed",
         request_id=request_id or get_current_request_id(),
@@ -52,11 +62,34 @@ def log_ai_call(
             "input_tokens": token_usage["input_tokens"],
             "output_tokens": token_usage["output_tokens"],
             "total_tokens": token_usage["total_tokens"],
-            "cost_usd": None,
+            "cost_usd": estimated_cost,
             **_safe_metadata(metadata),
         },
         level=logging.INFO if success else logging.WARNING,
     )
+
+
+def estimate_ai_cost_usd(
+    model: str | None,
+    usage: Mapping[str, Any] | None,
+) -> float | None:
+    """Estimate text-token cost without logging prompts or responses."""
+    if not model or usage is None:
+        return None
+    normalized_model = model.lower()
+    price = next(
+        (rates for model_prefix, rates in MODEL_TOKEN_PRICES.items() if normalized_model.startswith(model_prefix)),
+        None,
+    )
+    normalized_usage = normalize_token_usage(usage)
+    if price is None or normalized_usage["input_tokens"] is None or normalized_usage["output_tokens"] is None:
+        return None
+    input_price, output_price = price
+    estimated = (
+        normalized_usage["input_tokens"] * input_price
+        + normalized_usage["output_tokens"] * output_price
+    ) / 1_000_000
+    return round(estimated, 8)
 
 
 def normalize_token_usage(usage: Mapping[str, Any] | None) -> dict[str, int | None]:
