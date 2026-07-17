@@ -17,9 +17,20 @@ STAGE_GROUPS = {
         ("skin_test_context_load_ms_p95", "skin test"),
         ("behavior_context_load_ms_p95", "behavior context"),
         ("intent_parse_ms_p95", "intent parse"),
+        ("run_save_ms_p95", "run save"),
         ("candidate_pool_ms_p95", "candidate pool"),
+        ("search_match_ms_p95", "search match"),
+        ("search_candidate_save_ms_p95", "candidate trace save"),
         ("scoring_ms_p95", "scoring"),
         ("result_save_ms_p95", "result save"),
+        ("commit_ms_p95", "commit"),
+        ("response_load_ms_p95", "response load"),
+    ],
+    "persistence": [
+        ("run_save_ms_p95", "run save"),
+        ("search_candidate_save_ms_p95", "candidate trace save"),
+        ("result_save_ms_p95", "result save"),
+        ("commit_ms_p95", "commit"),
         ("response_load_ms_p95", "response load"),
     ],
     "scoring": [
@@ -37,6 +48,19 @@ STAGE_GROUPS = {
         ("prefetch_risk_flags_ms_p95", "risk flags"),
     ],
 }
+
+TARGET_METRICS = [
+    ("latency_avg_ms", "HTTP average"),
+    ("latency_p95_ms", "HTTP p95"),
+    ("duration_ms_avg", "backend pipeline average"),
+    ("duration_ms_p95", "backend pipeline p95"),
+    ("search_candidate_save_ms_avg", "candidate trace save average"),
+    ("search_candidate_save_ms_p95", "candidate trace save p95"),
+    ("candidate_pool_ms_avg", "candidate pool average"),
+    ("scoring_ms_avg", "scoring average"),
+    ("result_save_ms_avg", "result save average"),
+    ("response_load_ms_avg", "response load average"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -156,6 +180,167 @@ def mean_row(frame: pd.DataFrame, dataset: int, vus: int) -> pd.Series | None:
     return rows.select_dtypes(include=[np.number]).mean(numeric_only=True)
 
 
+def metric_mean(frame: pd.DataFrame, metric: str) -> float:
+    if metric not in frame.columns:
+        return 0.0 if metric.startswith("search_candidate_save_ms_") else float("nan")
+    values = pd.to_numeric(frame[metric], errors="coerce").dropna()
+    if values.empty:
+        return 0.0 if metric.startswith("search_candidate_save_ms_") else float("nan")
+    return float(values.mean())
+
+
+def build_target_metrics(
+    baseline: pd.DataFrame,
+    optimized: pd.DataFrame,
+    dataset: int,
+    vus: int,
+) -> pd.DataFrame:
+    baseline_rows = baseline[(baseline["dataset"] == dataset) & (baseline["vus"] == vus)]
+    optimized_rows = optimized[(optimized["dataset"] == dataset) & (optimized["vus"] == vus)]
+    records: list[dict[str, str | float]] = []
+    for metric, label in TARGET_METRICS:
+        baseline_value = metric_mean(baseline_rows, metric)
+        optimized_value = metric_mean(optimized_rows, metric)
+        delta = optimized_value - baseline_value
+        improvement = (
+            (baseline_value - optimized_value) / baseline_value * 100
+            if baseline_value > 0
+            else float("nan")
+        )
+        records.append(
+            {
+                "metric": metric,
+                "component": label,
+                "baseline_ms": baseline_value,
+                "optimized_ms": optimized_value,
+                "delta_ms": delta,
+                "improvement_pct": improvement,
+            }
+        )
+    return pd.DataFrame(records)
+
+
+def save_target_metric_graphs(
+    target: pd.DataFrame,
+    baseline: pd.DataFrame,
+    optimized: pd.DataFrame,
+    output: Path,
+    dataset: int,
+    vus: int,
+    baseline_label: str,
+    optimized_label: str,
+) -> None:
+    average_metric_names = {
+        "latency_avg_ms",
+        "duration_ms_avg",
+        "search_candidate_save_ms_avg",
+        "candidate_pool_ms_avg",
+        "scoring_ms_avg",
+        "result_save_ms_avg",
+        "response_load_ms_avg",
+    }
+    average_metrics = target[target["metric"].isin(average_metric_names)].copy()
+    records: list[dict[str, str | float]] = []
+    for row in average_metrics.itertuples():
+        records.extend(
+            [
+                {
+                    "component": row.component,
+                    "stage": baseline_label,
+                    "milliseconds": row.baseline_ms,
+                },
+                {
+                    "component": row.component,
+                    "stage": optimized_label,
+                    "milliseconds": row.optimized_ms,
+                },
+            ]
+        )
+    chart = pd.DataFrame(records)
+    order = (
+        chart.groupby("component")["milliseconds"]
+        .max()
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
+    plt.figure(figsize=(12, max(5.5, 0.55 * len(order))))
+    sns.barplot(
+        data=chart,
+        y="component",
+        x="milliseconds",
+        hue="stage",
+        order=order,
+        palette=["#8B95A1", "#3182F6"],
+    )
+    plt.title(f"{dataset} products / VUS{vus}: average timing before and after")
+    plt.xlabel("average milliseconds")
+    plt.ylabel("")
+    plt.tight_layout()
+    plt.savefig(
+        output / f"compare_{dataset}_vus{vus}_average_timing_before_after.png",
+        dpi=180,
+    )
+    plt.close()
+
+    delta = average_metrics.sort_values("delta_ms")
+    plt.figure(figsize=(11, max(5.5, 0.55 * len(delta))))
+    colors = ["#3182F6" if value < 0 else "#F04452" for value in delta["delta_ms"]]
+    plt.barh(delta["component"], delta["delta_ms"], color=colors)
+    plt.axvline(0, color="#222", linewidth=1)
+    for index, row in enumerate(delta.itertuples()):
+        plt.text(
+            row.delta_ms,
+            index,
+            f" {row.delta_ms:+,.0f} ms",
+            va="center",
+            ha="left" if row.delta_ms >= 0 else "right",
+        )
+    plt.title(f"{dataset} products / VUS{vus}: observed average timing delta")
+    plt.xlabel(f"{optimized_label} - {baseline_label} (negative is faster)")
+    plt.ylabel("")
+    plt.tight_layout()
+    plt.savefig(
+        output / f"compare_{dataset}_vus{vus}_average_timing_delta.png",
+        dpi=180,
+    )
+    plt.close()
+
+    run_records: list[dict[str, str | float]] = []
+    for frame, label in ((baseline, baseline_label), (optimized, optimized_label)):
+        rows = frame[(frame["dataset"] == dataset) & (frame["vus"] == vus)]
+        for value in pd.to_numeric(rows["latency_p95_ms"], errors="coerce").dropna():
+            run_records.append({"stage": label, "p95_ms": float(value)})
+    runs = pd.DataFrame(run_records)
+    if not runs.empty:
+        plt.figure(figsize=(8, 5))
+        sns.boxplot(
+            data=runs,
+            x="stage",
+            y="p95_ms",
+            hue="stage",
+            legend=False,
+            palette=["#8B95A1", "#3182F6"],
+            width=0.45,
+        )
+        sns.stripplot(
+            data=runs,
+            x="stage",
+            y="p95_ms",
+            color="#111827",
+            size=7,
+            jitter=0.08,
+        )
+        plt.title(f"{dataset} products / VUS{vus}: p95 across repeated runs")
+        plt.xlabel("")
+        plt.ylabel("p95 latency (ms)")
+        plt.tight_layout()
+        plt.savefig(
+            output / f"compare_{dataset}_vus{vus}_p95_repeat_distribution.png",
+            dpi=180,
+        )
+        plt.close()
+
+
 def save_stage_comparison(
     baseline: pd.DataFrame,
     optimized: pd.DataFrame,
@@ -230,8 +415,23 @@ def save_stage_comparison(
         plt.close()
 
 
-def write_readme(output: Path, wide: pd.DataFrame, dataset: int, vus: int) -> None:
-    lines = ["# Benchmark Comparison", ""]
+def write_readme(
+    output: Path,
+    wide: pd.DataFrame,
+    target_metrics: pd.DataFrame,
+    baseline: pd.DataFrame,
+    optimized: pd.DataFrame,
+    dataset: int,
+    vus: int,
+    baseline_label: str,
+    optimized_label: str,
+) -> None:
+    lines = [
+        "# Benchmark Comparison",
+        "",
+        f"- Baseline: `{baseline_label}`",
+        f"- Optimized: `{optimized_label}`",
+    ]
     target = wide[(wide["dataset"] == dataset) & (wide["vus"] == vus)]
     if not target.empty:
         row = target.iloc[0]
@@ -245,15 +445,92 @@ def write_readme(output: Path, wide: pd.DataFrame, dataset: int, vus: int) -> No
                 "",
             ]
         )
+    metric_lookup = target_metrics.set_index("metric")
+    if {
+        "latency_avg_ms",
+        "duration_ms_avg",
+        "search_candidate_save_ms_avg",
+    }.issubset(metric_lookup.index):
+        latency = metric_lookup.loc["latency_avg_ms"]
+        pipeline = metric_lookup.loc["duration_ms_avg"]
+        candidate_save = metric_lookup.loc["search_candidate_save_ms_avg"]
+        observed_http_drop = latency["baseline_ms"] - latency["optimized_ms"]
+        direct_share = (
+            candidate_save["baseline_ms"] / observed_http_drop * 100
+            if observed_http_drop > 0
+            else float("nan")
+        )
+        lines.extend(
+            [
+                "## Key Findings",
+                "",
+                (
+                    f"- HTTP average: {latency['baseline_ms']:,.2f} -> "
+                    f"{latency['optimized_ms']:,.2f} ms "
+                    f"({latency['improvement_pct']:.2f}% faster)"
+                ),
+                (
+                    f"- Backend pipeline average: {pipeline['baseline_ms']:,.2f} -> "
+                    f"{pipeline['optimized_ms']:,.2f} ms "
+                    f"({pipeline['improvement_pct']:.2f}% faster)"
+                ),
+                (
+                    f"- Candidate trace save average: {candidate_save['baseline_ms']:,.2f} -> "
+                    f"{candidate_save['optimized_ms']:,.2f} ms"
+                ),
+                (
+                    "- The removed candidate trace stage equals "
+                    f"{direct_share:.1f}% of the observed HTTP average reduction. "
+                    "The remainder is an observed cross-run difference, not attributed "
+                    "to the removal without further evidence."
+                ),
+                "",
+                "## Exact Target Metrics",
+                "",
+                "| Metric | Baseline (ms) | Optimized (ms) | Delta (ms) | Improvement |",
+                "|---|---:|---:|---:|---:|",
+            ]
+        )
+        for metric_row in target_metrics.itertuples():
+            lines.append(
+                f"| {metric_row.component} | {metric_row.baseline_ms:,.2f} | "
+                f"{metric_row.optimized_ms:,.2f} | {metric_row.delta_ms:+,.2f} | "
+                f"{metric_row.improvement_pct:.2f}% |"
+            )
+        lines.append("")
+
+    baseline_runs = baseline[
+        (baseline["dataset"] == dataset) & (baseline["vus"] == vus)
+    ]
+    optimized_runs = optimized[
+        (optimized["dataset"] == dataset) & (optimized["vus"] == vus)
+    ]
+    lines.extend(
+        [
+            "## Run Validity",
+            "",
+            f"- Baseline valid runs: {len(baseline_runs)}",
+            f"- Optimized valid runs: {len(optimized_runs)}",
+            "- Each point in the repeat distribution graph is one completed run.",
+            "- Component p95 values are not additive because each component has its own percentile sample.",
+            "",
+        ]
+    )
     lines.extend(
         [
             "## Main Graphs",
             "- `compare_latency_p95_by_dataset_vus.png`",
             "- `compare_latency_p95_improvement_heatmap.png`",
             f"- `compare_{dataset}_vus{vus}_p95_before_after.png`",
+            f"- `compare_{dataset}_vus{vus}_p95_repeat_distribution.png`",
+            f"- `compare_{dataset}_vus{vus}_average_timing_before_after.png`",
+            f"- `compare_{dataset}_vus{vus}_average_timing_delta.png`",
             f"- `compare_{dataset}_vus{vus}_pipeline_breakdown.png`",
+            f"- `compare_{dataset}_vus{vus}_persistence_breakdown.png`",
             f"- `compare_{dataset}_vus{vus}_scoring_breakdown.png`",
             f"- `compare_{dataset}_vus{vus}_prefetch_breakdown.png`",
+            "",
+            "Raw comparison values are in the CSV files next to these graphs.",
         ]
     )
     (output / "README.md").write_text("\n".join(lines), encoding="utf-8")
@@ -278,7 +555,11 @@ def main() -> None:
         "recommendation_rps",
         "intent_parse_ms_p95",
         "candidate_pool_ms_p95",
+        "search_candidate_save_ms_p95",
         "scoring_ms_p95",
+        "result_save_ms_p95",
+        "commit_ms_p95",
+        "response_load_ms_p95",
         "scoring_data_prefetch_ms_p95",
         "score_loop_ms_p95",
         "prefetch_behavior_signals_ms_p95",
@@ -296,9 +577,29 @@ def main() -> None:
         save_line_compare(agg, output)
         save_improvement_heatmap(wide, output, args.optimized_label)
         save_target_bar(agg, output, args.stage_dataset, args.stage_vus)
-        write_readme(output, wide, args.stage_dataset, args.stage_vus)
 
     save_rps_compare(agg, output)
+    target_metrics = build_target_metrics(
+        baseline,
+        optimized,
+        args.stage_dataset,
+        args.stage_vus,
+    )
+    target_metrics.to_csv(
+        output / f"compare_{args.stage_dataset}_vus{args.stage_vus}_key_metrics.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    save_target_metric_graphs(
+        target_metrics,
+        baseline,
+        optimized,
+        output,
+        args.stage_dataset,
+        args.stage_vus,
+        args.baseline_label,
+        args.optimized_label,
+    )
     save_stage_comparison(
         baseline,
         optimized,
@@ -308,6 +609,18 @@ def main() -> None:
         args.baseline_label,
         args.optimized_label,
     )
+    if {"baseline", "optimized"}.issubset(wide.columns):
+        write_readme(
+            output,
+            wide,
+            target_metrics,
+            baseline,
+            optimized,
+            args.stage_dataset,
+            args.stage_vus,
+            args.baseline_label,
+            args.optimized_label,
+        )
 
     print(f"comparison_output={output.resolve()}")
     for path in sorted(output.iterdir()):
