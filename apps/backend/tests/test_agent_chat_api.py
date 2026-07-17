@@ -28,6 +28,8 @@ from app.services.agent_openai_runner import (
     _OpenAIConcurrencyLimiter,
     _build_agent_input,
     _expected_tool_error_response,
+    _extract_retry_after_seconds,
+    _get_openai_retry_delay_seconds,
     _is_retryable_openai_exception,
     _to_agent_execution_error,
     run_openai_agent_chat,
@@ -152,6 +154,45 @@ def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
         status_code = 503
 
     assert _is_retryable_openai_exception(ServerFailure()) is True
+
+
+def test_agent_retry_prefers_provider_retry_after_header() -> None:
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"Retry-After": "0.75"}
+
+    error = RateLimited()
+
+    assert _extract_retry_after_seconds(error) == pytest.approx(0.75)
+    assert _get_openai_retry_delay_seconds(
+        error,
+        retry_count=0,
+        remaining_budget_seconds=2.0,
+    ) == pytest.approx(0.75)
+
+
+def test_agent_retry_uses_backoff_with_jitter_without_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.services.agent_openai_runner.random.uniform", lambda *_args: 0.05)
+
+    assert _get_openai_retry_delay_seconds(
+        TimeoutError(),
+        retry_count=0,
+        remaining_budget_seconds=2.0,
+    ) == pytest.approx(0.25)
+
+
+def test_agent_retry_skips_attempt_when_retry_after_exceeds_budget() -> None:
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"retry-after": "3"}
+
+    assert _get_openai_retry_delay_seconds(
+        RateLimited(),
+        retry_count=0,
+        remaining_budget_seconds=1.0,
+    ) is None
 
 
 def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
