@@ -168,10 +168,22 @@ def test_dispatcher_rejects_invalid_arguments(db_engine: Engine) -> None:
                 session,
                 tool_name="compare_products",
                 arguments={"product_ids": ["prod_001"]},
+                conversation_id="conv_invalid_args",
+                request_id="req_invalid_args",
+                session_id="sess_invalid_args",
             )
+
+        recorded = session.execute(
+            select(AgentToolCall).where(AgentToolCall.request_id == "req_invalid_args")
+        ).scalar_one()
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "AGENT_TOOL_ARGUMENT_INVALID"
+    assert recorded.status == "FAILED"
+    assert recorded.error_code == "AGENT_TOOL_ARGUMENT_INVALID"
+    assert recorded.conversation_id == "conv_invalid_args"
+    assert recorded.session_id == "sess_invalid_args"
+    assert recorded.input_json == {"product_ids": ["prod_001"]}
 
 
 def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -> None:
@@ -181,10 +193,21 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
                 session,
                 tool_name="order_status_lookup",
                 arguments={},
+                conversation_id="conv_auth_rejected",
+                request_id="req_auth_rejected",
+                session_id="sess_auth_rejected",
             )
+
+        recorded = session.execute(
+            select(AgentToolCall).where(AgentToolCall.request_id == "req_auth_rejected")
+        ).scalar_one()
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+    assert recorded.status == "REJECTED"
+    assert recorded.error_code == "AGENT_AUTH_REQUIRED"
+    assert recorded.conversation_id == "conv_auth_rejected"
+    assert recorded.session_id == "sess_auth_rejected"
 
 
 def test_dispatcher_builds_order_history_filter_navigation(db_engine: Engine) -> None:

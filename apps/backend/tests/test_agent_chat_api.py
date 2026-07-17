@@ -589,6 +589,7 @@ def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatc
 
     response = client.post(
         "/api/agent/chat",
+        headers={"X-MWBL-Session-Id": "sess_agent_route"},
         json={
             "message": "Show similar products for the current product.",
             "conversation_id": "conv_route",
@@ -604,6 +605,7 @@ def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatc
     assert data["ui_action"]["target"] == "similar_products"
     assert "mwbl_cart=" in response.headers["set-cookie"]
     assert isinstance(runner_arguments["anonymous_cart_id"], str)
+    assert runner_arguments["session_id"] == "sess_agent_route"
 
 
 def test_agent_chat_replays_completed_response_for_same_idempotency_key(
