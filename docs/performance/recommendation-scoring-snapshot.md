@@ -30,10 +30,14 @@ read model은 다음 상품 핵심 입력만 저장한다.
 
 ## 조회 경로
 
-`RECOMMENDATION_SCORING_READ_PATH`는 다음 두 값만 허용한다.
+`RECOMMENDATION_SCORING_READ_PATH`는 다음 세 값을 허용한다.
 
 - `legacy_bulk`: Opt3 벌크 조인을 사용한다. 기본값이며 즉시 rollback 경로다.
 - `compact_v2`: compact read model을 먼저 조회하고 상품 단위로 벌크 fallback한다.
+- `coarse_top50_v1`: 경량 피처로 후보를 선별한 뒤 상위 50개만 `legacy_bulk`로 정확 재랭킹한다.
+
+`coarse_top50_v1`의 저장 범위, fallback, 품질 비교와 운영 절차는
+`docs/performance/recommendation-coarse-top50.md`를 따른다.
 
 compact 행이 없거나 read model/product feature/review 버전이 맞지 않거나 필수 필드가
 불완전하면 해당 상품만 fallback 대상이 된다. 여러 상품이 fallback되어도 Opt3 loader는

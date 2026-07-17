@@ -121,6 +121,7 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
             "prefetch_snapshot_load_ms_avg": 40.0,
             "prefetch_candidate_bundle_ms_avg": 20.0,
             "prefetch_effect_features_ms_avg": 10.0,
+            "prefetch_detail_ingredients_ms_avg": 15.0,
             "scoring_snapshot_fallback_ms_avg": 60.0,
         }
 
@@ -132,6 +133,7 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         child_ids = {record["component_id"] for record in prefetch_children}
 
         self.assertIn("prefetch_snapshot_load_ms", child_ids)
+        self.assertIn("prefetch_detail_ingredients_ms", child_ids)
         self.assertNotIn("scoring_snapshot_fallback_ms", child_ids)
         self.assertAlmostEqual(
             sum(record["value_ms"] for record in prefetch_children),
@@ -168,6 +170,77 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
                 {"scoring_data_prefetch_ms_avg": 100.0}
             )
         )
+        self.assertIsNone(
+            analysis.build_snapshot_read_model_metrics(
+                {
+                    "scoring_snapshot_load_ms_avg": 0.0,
+                    "scoring_snapshot_hit_count_avg": 0.0,
+                    "scoring_snapshot_miss_count_avg": 0.0,
+                }
+            )
+        )
+
+    def test_coarse_top50_execution_flow_does_not_double_count_exact_aliases(self) -> None:
+        row = {
+            "run_id": "opt4c-run",
+            "latency_avg_ms": 2000.0,
+            "duration_ms_avg": 1800.0,
+            "scoring_ms_avg": 1260.0,
+            "coarse_feature_query_ms_avg": 150.0,
+            "coarse_feature_build_ms_avg": 70.0,
+            "coarse_context_build_ms_avg": 2.0,
+            "coarse_score_loop_ms_avg": 420.0,
+            "exact_prefetch_ms_avg": 480.0,
+            "exact_score_loop_ms_avg": 100.0,
+            "scoring_data_prefetch_ms_avg": 480.0,
+            "score_loop_ms_avg": 100.0,
+            "score_sort_ms_avg": 3.0,
+            "score_detail_materialization_ms_avg": 5.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        scoring_children = analysis.execution_flow_children(records, "scoring_ms")
+        child_ids = {record["component_id"] for record in scoring_children}
+
+        self.assertIn("coarse_score_loop_ms", child_ids)
+        self.assertIn("exact_prefetch_ms", child_ids)
+        self.assertIn("exact_score_loop_ms", child_ids)
+        self.assertNotIn("scoring_data_prefetch_ms", child_ids)
+        self.assertNotIn("score_loop_ms", child_ids)
+        self.assertAlmostEqual(
+            sum(record["value_ms"] for record in scoring_children),
+            row["scoring_ms_avg"],
+        )
+
+    def test_coarse_top50_metrics_capture_funnel_and_guardrails(self) -> None:
+        metrics = analysis.build_coarse_top50_metrics(
+            {
+                "run_id": "opt4c-run",
+                "coarse_feature_query_ms_avg": 150.0,
+                "coarse_feature_query_ms_p95": 350.0,
+                "coarse_score_loop_ms_avg": 420.0,
+                "coarse_score_loop_ms_p95": 800.0,
+                "exact_prefetch_ms_avg": 480.0,
+                "exact_prefetch_ms_p95": 1200.0,
+                "exact_score_loop_ms_avg": 100.0,
+                "exact_score_loop_ms_p95": 220.0,
+                "coarse_feature_row_count_avg": 500.0,
+                "coarse_feature_hit_count_avg": 495.0,
+                "coarse_feature_miss_count_avg": 5.0,
+                "coarse_feature_stale_count_avg": 0.0,
+                "coarse_feature_fallback_ratio_avg": 0.01,
+                "coarse_shortlist_size_avg": 50.0,
+            }
+        )
+
+        self.assertIsNotNone(metrics)
+        self.assertEqual(metrics["exact_candidate_ratio"], 0.1)
+        self.assertEqual(metrics["candidate_reduction_rate"], 0.9)
+        self.assertEqual(metrics["feature_hit_rate"], 0.99)
+        self.assertEqual(metrics["feature_miss_rate"], 0.01)
+        markdown = "\n".join(analysis.coarse_top50_markdown(metrics))
+        self.assertIn("상세 조회·정확 계산 대상 감소율: **90.0%**", markdown)
+        self.assertIn("중복 합산하지 않는다", markdown)
 
     def test_scoring_drilldown_lists_materialization_and_full_loop(self) -> None:
         scoring_keys = [key for key, _ in analysis.SCORING_STAGES]
