@@ -2,6 +2,7 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
+import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
 import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
@@ -46,18 +47,6 @@ type ProductRow = {
   ingredientsRaw: string;
   indexStatus: IndexStatus;
   updatedAt: string;
-};
-
-type IngredientReviewRow = {
-  id: string;
-  pendingCode: string;
-  rawName: string;
-  normalizedName: string;
-  productCount: number;
-  connectionCount: number;
-  suggestedCanonical: string;
-  confidence: string;
-  status: "검토 대기" | "exact 후보" | "수동 확인" | "보류" | "승인됨" | "반려";
 };
 
 type OperationLogRow = {
@@ -719,82 +708,6 @@ const imagePreviewRows = [
   }
 ];
 
-const ingredientReviewRows: IngredientReviewRow[] = [
-  {
-    id: "pending_ha",
-    pendingCode: "foreign_pending_sodium_hyaluronate",
-    rawName: "Sodium Hyaluronate",
-    normalizedName: "sodiumhyaluronate",
-    productCount: 632,
-    connectionCount: 1335,
-    suggestedCanonical: "소듐하이알루로네이트",
-    confidence: "영문 INCI exact",
-    status: "exact 후보"
-  },
-  {
-    id: "pending_ceramide",
-    pendingCode: "foreign_pending_ceramide_np",
-    rawName: "Ceramide NP",
-    normalizedName: "ceramidenp",
-    productCount: 411,
-    connectionCount: 737,
-    suggestedCanonical: "세라마이드엔피",
-    confidence: "영문 INCI exact",
-    status: "exact 후보"
-  },
-  {
-    id: "pending_niacin",
-    pendingCode: "ing_pending_niacinamide_2pct",
-    rawName: "나이아신아마이드 2%",
-    normalizedName: "나이아신아마이드",
-    productCount: 2,
-    connectionCount: 2,
-    suggestedCanonical: "나이아신아마이드",
-    confidence: "농도 표기 제거 후 exact",
-    status: "수동 확인"
-  },
-  {
-    id: "pending_water",
-    pendingCode: "foreign_pending_water",
-    rawName: "Water",
-    normalizedName: "water",
-    productCount: 11384,
-    connectionCount: 11384,
-    suggestedCanonical: "정제수",
-    confidence: "베이스 성분 · 점수 영향 낮음",
-    status: "보류"
-  },
-  {
-    id: "pending_bg",
-    pendingCode: "foreign_pending_butylene_glycol",
-    rawName: "Butylene Glycol",
-    normalizedName: "butyleneglycol",
-    productCount: 8440,
-    connectionCount: 8440,
-    suggestedCanonical: "부틸렌글라이콜",
-    confidence: "베이스 성분 · 점수 영향 낮음",
-    status: "보류"
-  }
-];
-
-const ingredientCandidateCards = [
-  {
-    label: "추천 품질 직결",
-    title: "HA·세라마이드·나이아신아마이드",
-    detail: "스코어링 축에 연결되는 활성 성분 먼저 검수"
-  },
-  {
-    label: "커버리지용",
-    title: "정제수·부틸렌글라이콜",
-    detail: "빈도는 높지만 추천 점수 영향은 낮아 후순위"
-  },
-  {
-    label: "검수 보류",
-    title: "복합 원료·상표명·추출물",
-    detail: "부분일치 후보는 pending 유지 후 세민 확인"
-  }
-];
-
 const stockHistoryRows = [
   {
     time: "15:24",
@@ -906,22 +819,6 @@ function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): Badg
   return "neutral";
 }
 
-function getIngredientTone(status: IngredientReviewRow["status"]): BadgeTone {
-  if (status === "승인됨" || status === "exact 후보") {
-    return "success";
-  }
-
-  if (status === "반려") {
-    return "danger";
-  }
-
-  if (status === "보류") {
-    return "neutral";
-  }
-
-  return "warning";
-}
-
 function AdminDashboardPage() {
   const access = useAdminAccess();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
@@ -937,8 +834,6 @@ function AdminDashboardPage() {
   const [excelFailureList, setExcelFailureList] = useState(excelFailureRows);
   const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
   const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
-  const [ingredientRows, setIngredientRows] = useState<IngredientReviewRow[]>(ingredientReviewRows);
-  const [selectedIngredientId, setSelectedIngredientId] = useState(ingredientReviewRows[0].id);
   const [selectedStockProductId, setSelectedStockProductId] = useState(initialProducts[1]?.id ?? initialProducts[0]?.id ?? "");
   const [stockFocusFilter, setStockFocusFilter] = useState<StockFocusFilter>("전체");
   const [stockChangeReason, setStockChangeReason] = useState("운영자 확인 후 간단 수정");
@@ -949,7 +844,6 @@ function AdminDashboardPage() {
   const [excelQueueState, setExcelQueueState] = useState<QueueState>("idle");
   const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
   const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
-  const [ingredientSaveState, setIngredientSaveState] = useState<LocalSaveState>("idle");
   const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
 
   const selectedStockProduct =
@@ -998,8 +892,6 @@ function AdminDashboardPage() {
     ],
     [orders, products, stockSaveState],
   );
-  const selectedIngredient =
-    ingredientRows.find((ingredient) => ingredient.id === selectedIngredientId) ?? ingredientRows[0] ?? ingredientReviewRows[0];
   const liveDashboardOrderSummary = useMemo(
     () => [
       { label: "신규 주문", value: orders.length.toLocaleString("ko-KR") },
@@ -1020,18 +912,6 @@ function AdminDashboardPage() {
     ],
     [orders],
   );
-  const ingredientReviewStats = useMemo(() => {
-    const approvedCount = ingredientRows.filter((ingredient) => ingredient.status === "승인됨").length;
-    const rejectedCount = ingredientRows.filter((ingredient) => ingredient.status === "반려").length;
-    const holdingCount = ingredientRows.filter((ingredient) => ingredient.status === "보류").length;
-
-    return [
-      { label: "pending 성분", value: "27,243", tone: "warning" },
-      { label: "표시 후보", value: ingredientRows.length.toLocaleString("ko-KR"), tone: "neutral" },
-      { label: "승인됨", value: approvedCount.toLocaleString("ko-KR"), tone: "success" },
-      { label: "보류/반려", value: (holdingCount + rejectedCount).toLocaleString("ko-KR"), tone: "review" }
-    ];
-  }, [ingredientRows]);
   const pushOperationLog = (area: string, title: string, detail: string, tone: BadgeTone = "success") => {
     const time = formatCurrentTime();
 
@@ -1256,53 +1136,6 @@ function AdminDashboardPage() {
 
     setImageOcrState("dirty");
     pushOperationLog("이미지", "OCR 후보 추출", "상품명·브랜드·전성분 후보를 검수 목록에 표시", "warning");
-  };
-
-  const handleIngredientAction = (action: "승인" | "pending 유지" | "반려") => {
-    const tone: BadgeTone = action === "승인" ? "success" : action === "반려" ? "danger" : "warning";
-    const nextStatus: IngredientReviewRow["status"] =
-      action === "승인" ? "승인됨" : action === "반려" ? "반려" : "보류";
-
-    setIngredientRows((currentRows) =>
-      currentRows.map((row) => (row.id === selectedIngredient.id ? { ...row, status: nextStatus } : row)),
-    );
-
-    pushOperationLog(
-      "성분",
-      `${selectedIngredient.rawName} ${action}`,
-      `${selectedIngredient.suggestedCanonical} 후보 · ${selectedIngredient.connectionCount.toLocaleString("ko-KR")}건`,
-      tone,
-    );
-    setIngredientSaveState("dirty");
-  };
-
-  const handleIngredientSave = () => {
-    setIngredientSaveState("saved");
-    pushOperationLog("성분", "성분 검수 저장", "선택 후보 판정 결과를 저장 대기열에 반영", "success");
-  };
-
-  const handleIngredientCandidateDownload = () => {
-    downloadTextFile(
-      "mwbl_pending_ingredient_candidates.csv",
-      buildCsv([
-        ["pending_code", "raw_name", "normalized_name", "connection_count", "suggested_canonical", "confidence", "status"],
-        ...ingredientRows.map((row) => [
-          row.pendingCode,
-          row.rawName,
-          row.normalizedName,
-          row.connectionCount,
-          row.suggestedCanonical,
-          row.confidence,
-          row.status
-        ])
-      ]),
-    );
-    pushOperationLog("성분", "후보 CSV 다운로드", "pending 성분 검수 후보 파일 생성", "neutral");
-  };
-
-  const handleSelectIngredient = (ingredientId: string) => {
-    setSelectedIngredientId(ingredientId);
-    setIngredientSaveState("idle");
   };
 
   const handleStockSave = () => {
@@ -2211,162 +2044,6 @@ function AdminDashboardPage() {
     </section>
   );
 
-  const renderIngredientReview = () => (
-    <section className="admin-ingredient-layout">
-      <section className="admin-panel admin-ingredient-hero">
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>성분 매핑 검수</p>
-            <h2>pending 성분을 내부 canonical 성분에 연결</h2>
-          </div>
-          <div className="admin-filter-row">
-            <button
-              className="admin-secondary-button"
-              onClick={handleIngredientCandidateDownload}
-              type="button"
-            >
-              후보 CSV
-            </button>
-            <button className="admin-primary-button" onClick={handleIngredientSave} type="button">
-              검수 저장
-            </button>
-          </div>
-        </div>
-
-        <div className="admin-excel-summary-grid admin-ingredient-summary-grid">
-          {ingredientReviewStats.map((item) => (
-            <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-ingredient-queue">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>검수 대기열</p>
-            <h2>우선 처리 후보</h2>
-          </div>
-          <span className="admin-badge warning">수동 검수</span>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-ingredient-table">
-            <thead>
-              <tr>
-                <th scope="col">pending 성분</th>
-                <th scope="col">후보 canonical</th>
-                <th scope="col">연결</th>
-                <th scope="col">근거</th>
-                <th scope="col">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ingredientRows.map((row) => (
-                <tr
-                  className={row.id === selectedIngredientId ? "selected" : undefined}
-                  key={row.id}
-                  onClick={() => handleSelectIngredient(row.id)}
-                >
-                  <td>
-                    <strong className="admin-product-name">{row.rawName}</strong>
-                    <small className="admin-product-code">{row.pendingCode}</small>
-                  </td>
-                  <td>{row.suggestedCanonical}</td>
-                  <td>
-                    <strong>{row.connectionCount.toLocaleString("ko-KR")}</strong>
-                    <small className="admin-product-code">상품 {row.productCount.toLocaleString("ko-KR")}</small>
-                  </td>
-                  <td>{row.confidence}</td>
-                  <td>
-                    <span className={`admin-badge ${getIngredientTone(row.status)}`}>
-                      {row.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <aside className="admin-panel admin-ingredient-detail">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>선택 성분</p>
-            <h2>{selectedIngredient.rawName}</h2>
-          </div>
-          <span className="admin-badge review">검토</span>
-        </div>
-        <dl className="admin-metric-list">
-          <div>
-            <dt>pending code</dt>
-            <dd>{selectedIngredient.pendingCode}</dd>
-          </div>
-          <div>
-            <dt>정규화명</dt>
-            <dd>{selectedIngredient.normalizedName}</dd>
-          </div>
-          <div>
-            <dt>후보 canonical</dt>
-            <dd>{selectedIngredient.suggestedCanonical}</dd>
-          </div>
-          <div>
-            <dt>판정 근거</dt>
-            <dd>{selectedIngredient.confidence}</dd>
-          </div>
-        </dl>
-        <div className={`admin-state-banner ${ingredientSaveState === "saved" ? "success" : ingredientSaveState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>
-            {ingredientSaveState === "saved"
-              ? "검수 저장 완료"
-              : ingredientSaveState === "dirty"
-                ? "판정 저장 대기"
-                : "판정 전"}
-          </strong>
-          <span>
-            {ingredientSaveState === "saved"
-              ? "승인/보류/반려 결과가 검수 저장 대기열에 반영됐습니다."
-              : ingredientSaveState === "dirty"
-                ? "선택한 판정은 아직 저장되지 않았습니다. 검수 저장을 눌러 확정 흐름을 확인하세요."
-                : "승인, pending 유지, 반려 중 하나를 선택하면 판정 대기 상태가 됩니다."}
-          </span>
-        </div>
-        <div className="admin-ingredient-actions">
-          <button className="admin-primary-button" onClick={() => handleIngredientAction("승인")} type="button">
-            승인
-          </button>
-          <button className="admin-secondary-button" onClick={() => handleIngredientAction("pending 유지")} type="button">
-            pending 유지
-          </button>
-          <button className="admin-secondary-button" onClick={() => handleIngredientAction("반려")} type="button">
-            반려
-          </button>
-        </div>
-      </aside>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>우선순위</p>
-            <h2>검수 전략</h2>
-          </div>
-        </div>
-        <div className="admin-ingredient-card-list">
-          {ingredientCandidateCards.map((card) => (
-            <article key={card.label}>
-              <span>{card.label}</span>
-              <strong>{card.title}</strong>
-              <small>{card.detail}</small>
-            </article>
-          ))}
-        </div>
-      </section>
-
-    </section>
-  );
-
   const renderStockPrice = () => (
     <section className="admin-stock-layout">
       <section className="admin-panel admin-stock-hero">
@@ -2729,13 +2406,17 @@ function AdminDashboardPage() {
         {activeView === "dashboard" && renderDashboard()}
         {activeView === "excelUpload" && renderExcelUpload()}
         {activeView === "imageUpload" && renderImageUpload()}
-        {activeView === "ingredientReview" && renderIngredientReview()}
         {activeView === "evidenceReview" && (
           <EvidenceCandidateReviewPanel
             onNotify={(message, tone) => setToast({ message, tone })}
           />
         )}
         {activeView === "stockPrice" && renderStockPrice()}
+        <AdminIngredientMappingSection
+          key="admin-ingredient-mapping"
+          active={activeView === "ingredientReview"}
+          onOperationLog={pushOperationLog}
+        />
         <AdminProductSection
           key="admin-product"
           active={activeView === "products"}

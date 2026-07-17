@@ -1860,6 +1860,25 @@
   cursor: pointer;
 }
 
+.admin-ingredient-row-select {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.admin-ingredient-row-select:focus-visible {
+  outline: 2px solid var(--admin-accent-2);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .admin-ingredient-table tbody tr.selected {
   background: #f0fbfe;
 }
@@ -1879,11 +1898,522 @@
   overflow-wrap: anywhere;
 }
 
-.admin-ingredient-actions {
+/* 성분 매핑 검수 조회(M2-A Chunk 4): skeleton 로딩 + 상세 하위 리스트 */
+.admin-skeleton-row td {
+  padding: 10px 12px;
+}
+
+.admin-skeleton-bar {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(11, 42, 58, 0.06) 25%, rgba(11, 42, 58, 0.12) 37%, rgba(11, 42, 58, 0.06) 63%);
+  background-size: 400% 100%;
+  animation: admin-skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes admin-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton-bar { animation: none; }
+}
+
+.admin-ingredient-variants,
+.admin-ingredient-samples,
+.admin-ingredient-events {
+  padding: 0 18px 14px;
+}
+
+.admin-ingredient-variants ul,
+.admin-ingredient-samples ul,
+.admin-ingredient-events ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
   display: grid;
-  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.admin-ingredient-variants li,
+.admin-ingredient-samples li,
+.admin-ingredient-events li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.admin-ingredient-variants li > span,
+.admin-ingredient-samples li > span,
+.admin-ingredient-events li > span {
+  overflow-wrap: anywhere;
+}
+
+.admin-ingredient-events button {
+  width: 100%;
+}
+
+.admin-ingredient-action-panel {
+  margin-top: 4px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--admin-line);
+  background: #fbfdfe;
+}
+
+.admin-ingredient-action-title,
+.admin-ingredient-action-description {
+  margin: 0;
+}
+
+.admin-ingredient-action-title {
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-ingredient-action-description {
+  margin-top: 4px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* 판정 버튼: 토스 느낌의 컴팩트한 pill 행. 도움말은 확인 모달에 표시(버튼엔 title 툴팁). */
+.admin-ingredient-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 0 18px 18px;
+  margin-top: 12px;
+}
+
+.admin-ingredient-action-button {
+  flex: 1 1 0;
+  min-width: 84px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #f2f4f6;
+  color: #33363d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.admin-ingredient-action-button:hover:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(12, 17, 23, 0.07);
+}
+
+.admin-ingredient-action-button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.admin-ingredient-action-button:focus-visible,
+.admin-ingredient-modal-close:focus-visible,
+.admin-ingredient-canonical-option:focus-visible,
+.admin-ingredient-confirm-button:focus-visible {
+  outline: 2px solid var(--admin-accent-2);
+  outline-offset: 2px;
+}
+
+/* 승인: 솔리드 프라이머리(아쿠아). 반려: 옅은 레드 틴트. 보류: 기본 뉴트럴. 재검토: 솔리드 다크. */
+.admin-ingredient-action-button.approve {
+  background: var(--admin-accent-2);
+  color: #06323f;
+}
+
+.admin-ingredient-action-button.approve:hover:not(:disabled) {
+  background: #4fbde0;
+}
+
+.admin-ingredient-action-button.hold {
+  background: #f2f4f6;
+  color: #33363d;
+}
+
+.admin-ingredient-action-button.hold:hover:not(:disabled) {
+  background: #e8ebee;
+}
+
+.admin-ingredient-action-button.reject {
+  background: rgba(255, 107, 82, 0.1);
+  color: #d64426;
+}
+
+.admin-ingredient-action-button.reject:hover:not(:disabled) {
+  background: rgba(255, 107, 82, 0.16);
+}
+
+.admin-ingredient-action-button.reopen {
+  background: #2c3238;
+  color: #fff;
+}
+
+.admin-ingredient-action-button.reopen:hover:not(:disabled) {
+  background: #3a424a;
+}
+
+/* 판정 모달(승인 target 선택 + 사유) */
+.admin-ingredient-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(12, 17, 23, 0.64);
+  backdrop-filter: blur(3px);
+}
+
+.admin-ingredient-modal {
+  width: min(100%, 560px);
+  max-height: min(760px, calc(100vh - 32px));
+  overflow-y: auto;
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 22px 56px rgba(12, 17, 23, 0.3);
+  animation: admin-ingredient-modal-enter 180ms ease-out;
+}
+
+@keyframes admin-ingredient-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.admin-ingredient-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-ingredient-modal-heading h2 {
+  margin: 3px 0 0;
+  color: var(--admin-text);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.admin-ingredient-action-kicker {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-ingredient-action-kicker.approve {
+  color: #2aa6d1;
+}
+
+.admin-ingredient-action-kicker.hold {
+  color: #b77905;
+}
+
+.admin-ingredient-action-kicker.reject {
+  color: #d64a34;
+}
+
+.admin-ingredient-modal-close {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-ingredient-modal-close:disabled,
+.admin-ingredient-action-button:disabled,
+.admin-ingredient-confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.admin-ingredient-action-context {
+  display: grid;
+  gap: 4px;
+  margin: 16px 18px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.admin-ingredient-action-context > span,
+.admin-ingredient-action-context code {
+  color: var(--admin-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-ingredient-action-context strong {
+  color: var(--admin-text);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.admin-ingredient-action-guide {
+  margin: 10px 18px 16px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.admin-ingredient-approve-target,
+.admin-ingredient-reason {
+  display: block;
+  padding: 0 18px 12px;
+}
+
+.admin-ingredient-field-label,
+.admin-ingredient-reason-label {
+  display: block;
+  margin: 0 0 7px;
+  color: var(--admin-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-ingredient-reason-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-ingredient-reason-label em {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #b77905;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.admin-ingredient-selected-target {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px dashed var(--admin-line);
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.admin-ingredient-selected-target.is-selected {
+  border-style: solid;
+  border-color: var(--admin-accent-2);
+  background: rgba(94, 198, 232, 0.1);
+}
+
+.admin-ingredient-selected-target strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.admin-ingredient-selected-target span {
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-ingredient-canonical-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.admin-ingredient-canonical-search input,
+.admin-ingredient-reason textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.admin-ingredient-canonical-search input {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.admin-ingredient-canonical-search input:focus,
+.admin-ingredient-reason textarea:focus {
+  border-color: var(--admin-accent-2);
+  outline: 2px solid rgba(94, 198, 232, 0.2);
+  outline-offset: 1px;
+}
+
+.admin-ingredient-search-state {
+  margin: 8px 0 0;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-ingredient-reason textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.admin-ingredient-reason-help {
+  display: flex !important;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--admin-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-ingredient-reason-help small:last-child {
+  flex: 0 0 auto;
+}
+
+.admin-ingredient-canonical-results {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.admin-ingredient-canonical-option {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  min-height: 48px;
+  padding: 9px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.admin-ingredient-canonical-option:hover,
+.admin-ingredient-canonical-option.is-selected {
+  border-color: var(--admin-accent-2);
+  background: rgba(94, 198, 232, 0.1);
+}
+
+.admin-ingredient-canonical-option small {
+  color: var(--admin-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-ingredient-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--admin-line);
+  background: var(--admin-white);
+}
+
+.admin-ingredient-confirm-button {
+  min-height: 40px;
+  border: 1px solid var(--admin-accent-2);
+  border-radius: 6px;
+  background: var(--admin-accent-2);
+  color: var(--admin-ink-navy);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-ingredient-confirm-button.hold {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #0c1117;
+}
+
+.admin-ingredient-confirm-button.reject {
+  border-color: #ff6b52;
+  background: #ff6b52;
+  color: #0c1117;
+}
+
+.admin-ingredient-confirm-button.reopen {
+  border-color: var(--admin-text);
+  background: var(--admin-text);
+  color: var(--admin-white);
+}
+
+@media (max-width: 640px) {
+  .admin-ingredient-modal-overlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .admin-ingredient-modal {
+    max-height: calc(100vh - 24px);
+  }
+
+  .admin-ingredient-modal-heading {
+    padding: 18px 16px 14px;
+  }
+
+  .admin-ingredient-action-context,
+  .admin-ingredient-action-guide {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .admin-ingredient-approve-target,
+  .admin-ingredient-reason {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .admin-ingredient-modal-actions {
+    padding: 12px 16px 16px;
+  }
 }
 
 .admin-ingredient-card-list {
