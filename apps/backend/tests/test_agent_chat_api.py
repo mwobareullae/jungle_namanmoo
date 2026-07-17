@@ -26,6 +26,7 @@ from app.schemas.agent import (
 )
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import (
+    AGENT_INSTRUCTIONS,
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     _build_agent_input,
@@ -535,6 +536,11 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
     assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
     assert response.tool_name is None
     assert "한 번에 담는 기능" in response.message
+
+
+def test_agent_instructions_require_one_clarification_before_ambiguous_tool_use() -> None:
+    assert "do not call a tool" in AGENT_INSTRUCTIONS
+    assert "exactly one brief clarification question in Korean" in AGENT_INSTRUCTIONS
 
 
 @pytest.mark.anyio
