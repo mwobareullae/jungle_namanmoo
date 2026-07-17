@@ -368,6 +368,11 @@ async def run_openai_agent_chat(
                         )
                 break
             except Exception as exc:
+                _log_openai_failure_counter(
+                    exc,
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                )
                 # Never retry after a commerce tool has run: retrying could duplicate
                 # a state-changing action such as add-to-cart or address registration.
                 if (
@@ -400,6 +405,12 @@ async def run_openai_agent_chat(
                 await asyncio.sleep(retry_delay_seconds)
         _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
+        if isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_CIRCUIT_OPEN":
+            _log_openai_failure_counter(
+                exc,
+                request_id=request_id,
+                duration_ms=elapsed_ms(started_at),
+            )
         failure_kind = _classify_openai_failure(exc)
         opened = _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
         if opened:
@@ -517,6 +528,40 @@ def _classify_openai_failure(
     if any(token in name for token in ("timeout", "connection", "internalserver")):
         return "provider"
     return "non_retryable"
+
+
+def _log_openai_failure_counter(
+    exc: Exception,
+    *,
+    request_id: str | None,
+    duration_ms: float,
+) -> None:
+    error_code: str | None = exc.code if isinstance(exc, ApiError) else None
+    failure_kind = _classify_openai_failure(exc)
+    event: str | None = None
+    if error_code in {"AGENT_OPENAI_BUSY", "AGENT_OPENAI_RATE_LIMITED"} or failure_kind == "rate_limit":
+        event = "AGENT_OPENAI_RATE_LIMITED"
+    elif error_code == "AGENT_OPENAI_CIRCUIT_OPEN":
+        event = "AGENT_OPENAI_CIRCUIT_OPEN"
+    elif error_code == "AGENT_OPENAI_TIMEOUT" or isinstance(
+        exc,
+        (asyncio.TimeoutError, TimeoutError),
+    ):
+        event = "AGENT_OPENAI_TIMEOUT"
+
+    if event is None:
+        return
+    log_performance_event(
+        event,
+        request_id=request_id,
+        duration_ms=duration_ms,
+        metadata={
+            "model": settings.openai_agent_model,
+            "failure_kind": failure_kind,
+            "exception_type": type(exc).__name__,
+        },
+        level=30,
+    )
 
 
 def _get_openai_retry_delay_seconds(

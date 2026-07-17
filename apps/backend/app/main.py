@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.api.routes import (
     addresses,
@@ -26,6 +27,7 @@ from app.api.routes import (
 from app.api.routes.admin import admin_router
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.core.performance_logging import log_performance_event
 from app.middleware.request_logging import request_logging_middleware
 from app.schemas.common import ApiError, build_error_response, dump_model
 from app.services.auth_service import AuthServiceError
@@ -91,6 +93,24 @@ async def auth_service_error_handler(_, exc: AuthServiceError) -> JSONResponse:
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(_, __: RequestValidationError) -> JSONResponse:
     error = ApiError(400, "INVALID_INPUT", "요청 형식이 올바르지 않습니다.")
+    return JSONResponse(
+        status_code=error.status_code,
+        content=dump_model(build_error_response(error)),
+    )
+
+
+@app.exception_handler(SQLAlchemyTimeoutError)
+async def db_pool_timeout_handler(_, exc: SQLAlchemyTimeoutError) -> JSONResponse:
+    log_performance_event(
+        "DB_POOL_TIMEOUT",
+        metadata={"exception_type": type(exc).__name__},
+        level=40,
+    )
+    error = ApiError(
+        503,
+        "DB_POOL_TIMEOUT",
+        "요청이 잠시 몰리고 있어요. 잠시 후 다시 시도해주세요.",
+    )
     return JSONResponse(
         status_code=error.status_code,
         content=dump_model(build_error_response(error)),
