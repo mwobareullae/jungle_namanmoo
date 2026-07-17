@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,10 +10,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.db.base import Base
 from app.db.session import get_db
-from app.main import app
+from app.main import app, db_pool_timeout_handler
 from app.core.config import settings
 from app.schemas.agent import (
     AgentChatRequest,
@@ -31,6 +33,7 @@ from app.services.agent_openai_runner import (
     _expected_tool_error_response,
     _extract_retry_after_seconds,
     _get_openai_retry_delay_seconds,
+    _log_openai_failure_counter,
     _is_retryable_openai_exception,
     _to_agent_execution_error,
     run_openai_agent_chat,
@@ -204,6 +207,56 @@ def test_agent_retry_skips_attempt_when_retry_after_exceeds_budget() -> None:
         retry_count=0,
         remaining_budget_seconds=1.0,
     ) is None
+
+
+def test_agent_openai_failure_counters_use_existing_performance_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.log_performance_event",
+        lambda event, **_kwargs: events.append(event),
+    )
+
+    rate_limited = SimpleNamespace(status_code=429)
+    _log_openai_failure_counter(
+        rate_limited,
+        request_id="req-rate",
+        duration_ms=10.0,
+    )
+    _log_openai_failure_counter(
+        TimeoutError(),
+        request_id="req-timeout",
+        duration_ms=20.0,
+    )
+    _log_openai_failure_counter(
+        ApiError(503, "AGENT_OPENAI_CIRCUIT_OPEN", "open"),
+        request_id="req-circuit",
+        duration_ms=30.0,
+    )
+
+    assert events == [
+        "AGENT_OPENAI_RATE_LIMITED",
+        "AGENT_OPENAI_TIMEOUT",
+        "AGENT_OPENAI_CIRCUIT_OPEN",
+    ]
+
+
+@pytest.mark.anyio
+async def test_db_pool_timeout_is_logged_and_returns_safe_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        "app.main.log_performance_event",
+        lambda event, **_kwargs: events.append(event),
+    )
+
+    response = await db_pool_timeout_handler(None, SQLAlchemyTimeoutError("pool exhausted"))
+
+    assert response.status_code == 503
+    assert json.loads(response.body)["error"]["code"] == "DB_POOL_TIMEOUT"
+    assert events == ["DB_POOL_TIMEOUT"]
 
 
 def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
