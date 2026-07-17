@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 import json
+import random
 import re
 import threading
 import time
@@ -338,22 +341,27 @@ async def run_openai_agent_chat(
     )
 
     started_at = current_time()
+    timeout_budget_seconds = max(float(settings.openai_agent_timeout_seconds), 0.1)
+    deadline = time.monotonic() + timeout_budget_seconds
     retry_count = 0
     try:
         _OPENAI_CIRCUIT_BREAKER.before_call()
         max_retries = max(0, min(settings.openai_agent_max_retries, 1))
         while True:
             try:
-                async with _OPENAI_CONCURRENCY_LIMITER.limit():
-                    result = await asyncio.wait_for(
-                        Runner.run(
+                remaining_seconds = deadline - time.monotonic()
+                if remaining_seconds <= 0:
+                    raise TimeoutError("OpenAI request timeout budget exhausted")
+                # Queueing, provider execution, and retries share one request budget.
+                # This prevents a retry from silently doubling the configured timeout.
+                async with asyncio.timeout(remaining_seconds):
+                    async with _OPENAI_CONCURRENCY_LIMITER.limit():
+                        result = await Runner.run(
                             agent,
                             input=_build_agent_input(request),
                             context=context,
                             max_turns=4,
-                        ),
-                        timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
-                    )
+                        )
                 break
             except Exception as exc:
                 # Never retry after a commerce tool has run: retrying could duplicate
@@ -364,6 +372,14 @@ async def run_openai_agent_chat(
                     or not _is_retryable_openai_exception(exc)
                 ):
                     raise
+                remaining_seconds = deadline - time.monotonic()
+                retry_delay_seconds = _get_openai_retry_delay_seconds(
+                    exc,
+                    retry_count=retry_count,
+                    remaining_budget_seconds=remaining_seconds,
+                )
+                if retry_delay_seconds is None:
+                    raise
                 retry_count += 1
                 log_performance_event(
                     "agent_openai_retry",
@@ -373,10 +389,11 @@ async def run_openai_agent_chat(
                         "model": settings.openai_agent_model,
                         "attempt": retry_count + 1,
                         "exception_type": type(exc).__name__,
+                        "delay_ms": round(retry_delay_seconds * 1000, 2),
                     },
                     level=30,
                 )
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(retry_delay_seconds)
         _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
         if _is_retryable_openai_exception(exc):
@@ -477,6 +494,63 @@ def _is_retryable_openai_exception(exc: Exception) -> bool:
     if not module.startswith("openai"):
         return False
     return any(token in name for token in ("timeout", "connection", "ratelimit", "internalserver"))
+
+
+def _get_openai_retry_delay_seconds(
+    exc: Exception,
+    *,
+    retry_count: int,
+    remaining_budget_seconds: float,
+) -> float | None:
+    """Return a bounded retry delay, or None when the request budget is exhausted."""
+    retry_after_seconds = _extract_retry_after_seconds(exc)
+    if retry_after_seconds is None:
+        base_delay = min(0.2 * (2 ** max(retry_count, 0)), 1.0)
+        retry_after_seconds = base_delay + random.uniform(0.0, min(base_delay * 0.25, 0.1))
+
+    # Keep a small execution margin. Sleeping until the exact deadline would only
+    # start a provider call that cannot complete inside the configured budget.
+    execution_margin_seconds = 0.1
+    if (
+        remaining_budget_seconds <= execution_margin_seconds
+        or retry_after_seconds > remaining_budget_seconds - execution_margin_seconds
+    ):
+        return None
+    return max(retry_after_seconds, 0.0)
+
+
+def _extract_retry_after_seconds(exc: Exception) -> float | None:
+    direct_value = getattr(exc, "retry_after", None)
+    parsed_direct = _parse_retry_after_value(direct_value)
+    if parsed_direct is not None:
+        return parsed_direct
+
+    for owner in (exc, getattr(exc, "response", None)):
+        headers = getattr(owner, "headers", None)
+        if headers is None or not hasattr(headers, "get"):
+            continue
+        value = headers.get("retry-after") or headers.get("Retry-After")
+        parsed_header = _parse_retry_after_value(value)
+        if parsed_header is not None:
+            return parsed_header
+    return None
+
+
+def _parse_retry_after_value(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(str(value))
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        return max((retry_at - datetime.now(UTC)).total_seconds(), 0.0)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _build_agent_input(request: AgentChatRequest) -> str:
