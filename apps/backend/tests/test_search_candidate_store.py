@@ -37,7 +37,8 @@ def test_save_search_candidates_persists_scores_and_rank_order() -> None:
         ),
     ]
 
-    rows = save_search_candidates(session, run.id, candidates, matches)
+    timings: dict[str, float] = {}
+    rows = save_search_candidates(session, run.id, candidates, matches, timings=timings)
 
     assert [row.rank_order for row in rows] == [1, 2]
     assert [row.product_id for row in rows] == [
@@ -47,6 +48,14 @@ def test_save_search_candidates_persists_scores_and_rank_order() -> None:
     assert rows[0].keyword_score == Decimal("0.7500")
     assert rows[0].vector_score == Decimal("0.0000")
     assert rows[0].search_match_score == Decimal("0.7500")
+    assert set(timings) == {
+        "candidate_trace_match_validation_ms",
+        "candidate_trace_delete_ms",
+        "candidate_trace_row_build_ms",
+        "candidate_trace_add_ms",
+        "candidate_trace_flush_ms",
+    }
+    assert all(value >= 0 for value in timings.values())
 
 
 def test_save_search_candidates_replaces_existing_run_candidates() -> None:

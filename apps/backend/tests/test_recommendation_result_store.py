@@ -27,7 +27,13 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
         sensitivity="보통",
     )
 
-    saved = save_recommendation_results(session, run_id, scored_products)
+    timings: dict[str, float] = {}
+    saved = save_recommendation_results(
+        session,
+        run_id,
+        scored_products,
+        timings=timings,
+    )
 
     assert [row.rank_order for row in saved.results] == [1, 2]
     assert [row.product_id for row in saved.results] == [
@@ -49,6 +55,16 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
     assert saved.evidence[0].ingredient_id is not None
     assert saved.evidence[0].effect_id is not None
     assert saved.evidence[0].contribution_score is not None
+    assert set(timings) == {
+        "result_existing_lookup_ms",
+        "result_row_build_ms",
+        "result_add_ms",
+        "result_flush_ms",
+        "evidence_row_build_ms",
+        "evidence_add_ms",
+        "evidence_flush_ms",
+    }
+    assert all(value >= 0 for value in timings.values())
 
 
 def test_save_recommendation_results_replaces_existing_run_results() -> None:

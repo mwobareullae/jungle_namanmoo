@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import app.services.recommendation_intent as recommendation_intent_service
 from app.services.concern_llm_parser import (
     ConcernLlmParserError,
     ConcernLlmParserOutput,
@@ -15,6 +16,7 @@ from app.services.parser import ConcernRepository, ParsedConcernResult, parse_co
 from app.services.recommendation_intent import (
     StructuredRecommendationIntent,
     build_recommendation_intent,
+    materialize_structured_recommendation_intent,
 )
 from tests.repository_cache import cached_repository
 
@@ -102,27 +104,35 @@ def test_build_recommendation_intent_merges_llm_parser_output() -> None:
     assert float(diagnostics["intent_purchase_brand_match_ms"]) >= 0
 
 
-def test_build_recommendation_intent_uses_structured_agent_intent_without_llm() -> None:
+def test_materialize_structured_intent_skips_raw_and_llm_parsers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repository = cached_repository(DATA_DIR)
     diagnostics: dict[str, object] = {}
-    llm_parser = _FailingConcernLlmParser()
+    monkeypatch.setattr(
+        recommendation_intent_service,
+        "parse_concern_text",
+        lambda *_args, **_kwargs: pytest.fail("raw concern parser must not run"),
+    )
+    monkeypatch.setattr(
+        recommendation_intent_service,
+        "parse_purchase_conditions",
+        lambda *_args, **_kwargs: pytest.fail("raw purchase parser must not run"),
+    )
 
-    intent = build_recommendation_intent(
+    intent = materialize_structured_recommendation_intent(
         "화장이 들뜨지 않는 3만원 이하 세럼 추천",
-        repository=repository,
-        llm_parser=llm_parser,
-        structured_intent=StructuredRecommendationIntent(
-            resolved=True,
+        StructuredRecommendationIntent(
             concern_ids=("concern_dry_barrier",),
             effect_ids=("effect_moisture_barrier",),
             priority_effect_ids=("effect_moisture_barrier",),
             category_codes=("serum",),
             price_max=30_000,
         ),
+        repository=repository,
         diagnostics=diagnostics,
     )
 
-    assert llm_parser.calls == 0
     assert [concern.tag_id for concern in intent.concerns] == ["concern_dry_barrier"]
     assert "effect_moisture_barrier" in [effect.effect_id for effect in intent.effects]
     assert [effect.effect_id for effect in intent.priority_effects] == [
@@ -135,9 +145,24 @@ def test_build_recommendation_intent_uses_structured_agent_intent_without_llm() 
     assert intent.purchase_conditions.price_text == "30000원 이하"
     assert intent.unmatched_terms == ()
     assert intent.llm_used is False
+    assert diagnostics["intent_source"] == "agent_structured"
     assert diagnostics["intent_structured_applied"] is True
     assert diagnostics["intent_llm_attempted"] is False
     assert diagnostics["intent_llm_outcome"] == "structured_agent"
+    assert diagnostics["intent_rule_parse_ms"] == 0.0
+    assert diagnostics["intent_purchase_parse_ms"] == 0.0
+    assert float(diagnostics["intent_materialize_ms"]) >= 0
+
+
+def test_materialize_structured_intent_rejects_unknown_ids() -> None:
+    repository = cached_repository(DATA_DIR)
+
+    with pytest.raises(ValueError, match="unknown structured concern ids"):
+        materialize_structured_recommendation_intent(
+            "알 수 없는 고민 추천",
+            StructuredRecommendationIntent(concern_ids=("concern_unknown",)),
+            repository=repository,
+        )
 
 
 def test_build_recommendation_intent_falls_back_when_llm_parser_fails() -> None:
