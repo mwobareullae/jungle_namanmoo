@@ -72,6 +72,7 @@ async def api_error_handler(_, exc: ApiError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content=dump_model(build_error_response(exc)),
+        headers=exc.headers,
     )
 
 
