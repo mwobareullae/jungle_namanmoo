@@ -1,35 +1,27 @@
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
+from time import perf_counter
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models.catalog import ProductIngredient
-from app.db.models.taxonomy import Ingredient
-from app.services.elasticsearch_product_search import (
-    ES_KEYWORD_SEARCH_SOURCE,
-    ElasticsearchProductSearchResult,
-    search_elasticsearch_product_candidates,
-)
-from app.services.pgvector_product_search import (
-    PGVECTOR_SEARCH_SOURCE,
-    PgvectorProductSearchResult,
-    search_pgvector_product_candidates,
+from app.services.elasticsearch_recommendation_candidates import (
+    RECOMMENDATION_CANDIDATE_SOURCE,
+    RECOMMENDATION_CANDIDATE_STRATEGY_VERSION,
+    ElasticsearchRecommendationCandidateResult,
+    search_elasticsearch_recommendation_candidates,
 )
 from app.services.product_candidates import (
     ProductCandidate,
-    list_product_candidates,
-    list_product_candidates_by_db_ids,
+    list_recommendation_fallback_candidates,
 )
 from app.services.recommendation_intent import RecommendationIntent
 
 
-CANDIDATE_GENERATION_VERSION = "candidate_pool_pgvector_v1"
-LEGACY_ID_ORDER_SOURCE = "legacy_id_order"
-ElasticsearchSearchFunc = Callable[..., ElasticsearchProductSearchResult]
-PgvectorSearchFunc = Callable[..., PgvectorProductSearchResult]
+CANDIDATE_GENERATION_VERSION = RECOMMENDATION_CANDIDATE_STRATEGY_VERSION
+DB_POPULARITY_FALLBACK_SOURCE = "db_popularity_fallback"
+ElasticsearchSearchFunc = Callable[..., ElasticsearchRecommendationCandidateResult]
 
 
 @dataclass(frozen=True)
@@ -69,6 +61,16 @@ class CandidatePool:
     avoid_filtered_count: int
     source_diagnostics: tuple[CandidateSourceDiagnostic, ...]
     fallback_used: bool = False
+    fallback_reason: str | None = None
+    fallback_duration_ms: int = 0
+    fallback_count: int = 0
+    es_search_ms: int = 0
+    es_direct_match_count: int = 0
+    es_popularity_fill_count: int = 0
+    es_raw_hit_count: int = 0
+    pre_dedupe_count: int = 0
+    post_dedupe_count: int = 0
+    cap_applied_count: int = 0
     hard_filter_total_count: int | None = None
     notes: tuple[str, ...] = ()
 
@@ -82,19 +84,29 @@ class CandidatePool:
     def to_diagnostics(self) -> dict[str, Any]:
         return {
             "candidate_generation_version": CANDIDATE_GENERATION_VERSION,
-            "strategy": "candidate_pool",
+            "strategy": "catalog_es_candidate_pool",
             "requested_candidate_pool_limit": self.requested_candidate_pool_limit,
-            "loaded_candidate_count": self.deduped_count,
+            "loaded_candidate_count": len(self.candidates),
             "avoid_filtered_count": self.avoid_filtered_count,
             "after_avoid_filter_count": len(self.candidates),
             "merged_count": self.merged_count,
             "deduped_count": self.deduped_count,
+            "pre_dedupe_count": self.pre_dedupe_count,
+            "post_dedupe_count": self.post_dedupe_count,
+            "final_candidate_count": len(self.candidates),
+            "cap_applied_count": self.cap_applied_count,
+            "es_search_ms": self.es_search_ms,
+            "es_direct_match_count": self.es_direct_match_count,
+            "es_popularity_fill_count": self.es_popularity_fill_count,
+            "es_raw_hit_count": self.es_raw_hit_count,
             "source_counts": self.source_counts,
             "source_diagnostics": [
-                diagnostic.to_dict()
-                for diagnostic in self.source_diagnostics
+                diagnostic.to_dict() for diagnostic in self.source_diagnostics
             ],
             "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
+            "fallback_duration_ms": self.fallback_duration_ms,
+            "fallback_count": self.fallback_count,
             "hard_filter_total_count": self.hard_filter_total_count,
             "notes": list(self.notes),
         }
@@ -109,125 +121,121 @@ def generate_candidate_pool(
     avoid_ingredients: list[str],
     target_pool_size: int,
     enable_elasticsearch: bool | None = None,
-    enable_pgvector: bool | None = None,
-    elasticsearch_search: ElasticsearchSearchFunc = search_elasticsearch_product_candidates,
-    pgvector_search: PgvectorSearchFunc = search_pgvector_product_candidates,
+    elasticsearch_search: ElasticsearchSearchFunc = search_elasticsearch_recommendation_candidates,
 ) -> CandidatePool:
     requested_limit = max(1, target_pool_size)
     source_diagnostics: list[CandidateSourceDiagnostic] = []
     notes: list[str] = [
         f"skin_type={skin_type}",
         f"sensitivity={sensitivity}",
+        "pgvector candidate source disabled in v2",
     ]
-    es_candidates: list[ProductCandidate] = []
-    pgvector_candidates: list[ProductCandidate] = []
-    es_result: ElasticsearchProductSearchResult | None = None
-    pgvector_result: PgvectorProductSearchResult | None = None
-    should_attempt_elasticsearch = _should_attempt_elasticsearch(
+    es_result: ElasticsearchRecommendationCandidateResult | None = None
+    fallback_reason: str | None = None
+
+    if _should_attempt_elasticsearch(
         session,
         enable_elasticsearch=enable_elasticsearch,
-    )
-    if should_attempt_elasticsearch:
-        es_result = elasticsearch_search(intent, limit=requested_limit)
-        es_candidates = list_product_candidates_by_db_ids(
-            session,
-            intent.purchase_conditions,
-            list(es_result.product_db_ids),
+    ):
+        es_result = elasticsearch_search(
+            intent,
+            avoid_ingredients=avoid_ingredients,
             limit=requested_limit,
         )
         source_diagnostics.append(
             _build_elasticsearch_diagnostic(
                 es_result,
-                hydrated_count=len(es_candidates),
                 requested_limit=requested_limit,
             )
         )
-        if es_result.failure_reason:
-            notes.append("elasticsearch keyword source failed")
-        elif es_result.skipped_reason:
-            notes.append(f"elasticsearch keyword source skipped: {es_result.skipped_reason}")
-        else:
-            notes.append("elasticsearch keyword source connected")
+        if es_result.successful:
+            candidates = _dedupe_candidates(list(es_result.candidates))
+            capped_candidates = candidates[:requested_limit]
+            return CandidatePool(
+                candidates=capped_candidates,
+                requested_candidate_pool_limit=requested_limit,
+                merged_count=es_result.pre_dedupe_count,
+                deduped_count=len(candidates),
+                avoid_filtered_count=0,
+                source_diagnostics=tuple(source_diagnostics),
+                es_search_ms=es_result.duration_ms,
+                es_direct_match_count=es_result.direct_match_count,
+                es_popularity_fill_count=es_result.popularity_fill_count,
+                es_raw_hit_count=es_result.raw_hit_count,
+                pre_dedupe_count=es_result.pre_dedupe_count,
+                post_dedupe_count=len(candidates),
+                cap_applied_count=max(0, len(candidates) - len(capped_candidates)),
+                hard_filter_total_count=es_result.total_hit_count,
+                notes=tuple((*notes, "catalog Elasticsearch source connected")),
+            )
+        fallback_reason = es_result.failure_reason or es_result.skipped_reason or "unknown ES failure"
+        notes.append("catalog Elasticsearch source unavailable")
     else:
-        notes.append(_elasticsearch_skip_note(session, enable_elasticsearch=enable_elasticsearch))
-
-    should_attempt_pgvector = _should_attempt_pgvector(
-        session,
-        enable_pgvector=enable_pgvector,
-    )
-    if should_attempt_pgvector:
-        pgvector_result = pgvector_search(session, intent, limit=requested_limit)
-        pgvector_candidates = list_product_candidates_by_db_ids(
+        fallback_reason = _elasticsearch_skip_note(
             session,
-            intent.purchase_conditions,
-            list(pgvector_result.product_db_ids),
-            limit=requested_limit,
+            enable_elasticsearch=enable_elasticsearch,
         )
         source_diagnostics.append(
-            _build_pgvector_diagnostic(
-                pgvector_result,
-                hydrated_count=len(pgvector_candidates),
+            CandidateSourceDiagnostic(
+                source=RECOMMENDATION_CANDIDATE_SOURCE,
                 requested_limit=requested_limit,
+                returned_count=0,
+                after_dedupe_count=0,
+                failure_reason=fallback_reason,
+                duration_ms=0,
+                metadata={
+                    "raw_hit_count": 0,
+                    "direct_match_count": 0,
+                    "popularity_fill_count": 0,
+                },
             )
         )
-        if pgvector_result.failure_reason:
-            notes.append("pgvector source failed")
-        elif pgvector_result.skipped_reason:
-            notes.append(f"pgvector source skipped: {pgvector_result.skipped_reason}")
-        else:
-            notes.append("pgvector source connected")
-    else:
-        notes.append(_pgvector_skip_note(session, enable_pgvector=enable_pgvector))
+        notes.append("catalog Elasticsearch source not attempted")
 
-    legacy_candidates = list_product_candidates(
+    fallback_started_at = perf_counter()
+    fallback_candidates = list_recommendation_fallback_candidates(
         session,
         intent.purchase_conditions,
+        avoid_ingredients=avoid_ingredients,
         limit=requested_limit,
     )
-    legacy_deduped_candidates = _dedupe_candidates(legacy_candidates)
+    fallback_duration_ms = _elapsed_ms(fallback_started_at)
+    fallback_deduped_candidates = _dedupe_candidates(fallback_candidates)
+    capped_candidates = fallback_deduped_candidates[:requested_limit]
     source_diagnostics.append(
         CandidateSourceDiagnostic(
-            source=LEGACY_ID_ORDER_SOURCE,
+            source=DB_POPULARITY_FALLBACK_SOURCE,
             requested_limit=requested_limit,
-            returned_count=len(legacy_candidates),
-            after_dedupe_count=len(legacy_deduped_candidates),
+            returned_count=len(fallback_candidates),
+            after_dedupe_count=len(fallback_deduped_candidates),
+            duration_ms=fallback_duration_ms,
+            metadata={"fallback_reason": fallback_reason},
         )
     )
-
-    merged_candidates = [*es_candidates, *pgvector_candidates, *legacy_candidates]
-    deduped_candidates = _dedupe_candidates(merged_candidates)
-    candidates = _filter_avoided_ingredients(
-        session,
-        deduped_candidates,
-        avoid_ingredients,
-    )
-    retrieval_candidate_count = len(es_candidates) + len(pgvector_candidates)
-    retrieval_unavailable = (
-        (
-            should_attempt_elasticsearch
-            and es_result is not None
-            and bool(es_result.failure_reason or es_result.skipped_reason)
-        )
-        or (
-            should_attempt_pgvector
-            and pgvector_result is not None
-            and bool(pgvector_result.failure_reason or pgvector_result.skipped_reason)
-        )
-    )
-    fallback_used = (
-        len(legacy_candidates) > 0
-        and retrieval_candidate_count == 0
-        and retrieval_unavailable
-    )
-
+    notes.append("popularity-ranked DB fallback used because Elasticsearch was unavailable")
     return CandidatePool(
-        candidates=candidates,
+        candidates=capped_candidates,
         requested_candidate_pool_limit=requested_limit,
-        merged_count=len(merged_candidates),
-        deduped_count=len(deduped_candidates),
-        avoid_filtered_count=len(deduped_candidates) - len(candidates),
+        merged_count=len(fallback_candidates),
+        deduped_count=len(fallback_deduped_candidates),
+        avoid_filtered_count=0,
         source_diagnostics=tuple(source_diagnostics),
-        fallback_used=fallback_used,
+        fallback_used=True,
+        fallback_reason=fallback_reason,
+        fallback_duration_ms=fallback_duration_ms,
+        fallback_count=len(capped_candidates),
+        es_search_ms=es_result.duration_ms if es_result is not None else 0,
+        es_direct_match_count=es_result.direct_match_count if es_result is not None else 0,
+        es_popularity_fill_count=(
+            es_result.popularity_fill_count if es_result is not None else 0
+        ),
+        es_raw_hit_count=es_result.raw_hit_count if es_result is not None else 0,
+        pre_dedupe_count=len(fallback_candidates),
+        post_dedupe_count=len(fallback_deduped_candidates),
+        cap_applied_count=max(0, len(fallback_deduped_candidates) - len(capped_candidates)),
+        hard_filter_total_count=(
+            es_result.total_hit_count if es_result is not None else None
+        ),
         notes=tuple(notes),
     )
 
@@ -244,79 +252,38 @@ def _should_attempt_elasticsearch(
     return session.get_bind().dialect.name == "postgresql"
 
 
-def _should_attempt_pgvector(
-    session: Session,
-    *,
-    enable_pgvector: bool | None,
-) -> bool:
-    if enable_pgvector is not None:
-        return enable_pgvector
-    return session.get_bind().dialect.name == "postgresql"
-
-
 def _elasticsearch_skip_note(
     session: Session,
     *,
     enable_elasticsearch: bool | None,
 ) -> str:
     if enable_elasticsearch is False:
-        return "elasticsearch keyword source disabled by caller"
+        return "catalog Elasticsearch disabled by caller"
     if settings.search_backend_mode == "postgres":
-        return "elasticsearch keyword source disabled by search_backend_mode=postgres"
-    return f"elasticsearch keyword source skipped for {session.get_bind().dialect.name}"
-
-
-def _pgvector_skip_note(
-    session: Session,
-    *,
-    enable_pgvector: bool | None,
-) -> str:
-    if enable_pgvector is False:
-        return "pgvector source disabled by caller"
-    return f"pgvector source skipped for {session.get_bind().dialect.name}"
+        return "catalog Elasticsearch disabled by search_backend_mode=postgres"
+    return f"catalog Elasticsearch skipped for {session.get_bind().dialect.name}"
 
 
 def _build_elasticsearch_diagnostic(
-    result: ElasticsearchProductSearchResult,
+    result: ElasticsearchRecommendationCandidateResult,
     *,
-    hydrated_count: int,
     requested_limit: int,
 ) -> CandidateSourceDiagnostic:
-    skipped_count = max(0, result.raw_hit_count - hydrated_count)
+    metadata: dict[str, Any] = {
+        "raw_hit_count": result.raw_hit_count,
+        "direct_match_count": result.direct_match_count,
+        "popularity_fill_count": result.popularity_fill_count,
+        "pre_dedupe_count": result.pre_dedupe_count,
+        "post_dedupe_count": result.deduped_count,
+        "total_hit_count": result.total_hit_count,
+        "index_alias": result.index_alias,
+    }
     return CandidateSourceDiagnostic(
-        source=ES_KEYWORD_SEARCH_SOURCE,
+        source=RECOMMENDATION_CANDIDATE_SOURCE,
         requested_limit=requested_limit,
-        returned_count=result.raw_hit_count,
-        after_dedupe_count=hydrated_count,
-        skipped_count=skipped_count,
-        failure_reason=result.failure_reason or result.skipped_reason,
-        duration_ms=result.duration_ms,
-    )
-
-
-def _build_pgvector_diagnostic(
-    result: PgvectorProductSearchResult,
-    *,
-    hydrated_count: int,
-    requested_limit: int,
-) -> CandidateSourceDiagnostic:
-    skipped_count = max(0, result.raw_hit_count - hydrated_count)
-    metadata: dict[str, Any] = {}
-    if result.provider_model is not None:
-        metadata["provider_model"] = result.provider_model
-    if result.dimensions is not None:
-        metadata["embedding_dimensions"] = result.dimensions
-    if result.embedding_coverage is not None:
-        metadata["embedding_coverage"] = result.embedding_coverage
-    if result.total_hit_count is not None:
-        metadata["total_hit_count"] = result.total_hit_count
-
-    return CandidateSourceDiagnostic(
-        source=PGVECTOR_SEARCH_SOURCE,
-        requested_limit=requested_limit,
-        returned_count=result.raw_hit_count,
-        after_dedupe_count=hydrated_count,
-        skipped_count=skipped_count,
+        returned_count=len(result.candidates),
+        after_dedupe_count=result.deduped_count,
+        skipped_count=max(0, result.raw_hit_count - result.pre_dedupe_count),
         failure_reason=result.failure_reason or result.skipped_reason,
         duration_ms=result.duration_ms,
         metadata=metadata,
@@ -334,54 +301,5 @@ def _dedupe_candidates(candidates: list[ProductCandidate]) -> list[ProductCandid
     return deduped
 
 
-def _filter_avoided_ingredients(
-    session: Session,
-    candidates: list[ProductCandidate],
-    avoid_ingredients: list[str],
-) -> list[ProductCandidate]:
-    avoid_terms = {_normalize_match_text(ingredient) for ingredient in avoid_ingredients}
-    avoid_terms.discard("")
-    if not candidates or not avoid_terms:
-        return candidates
-
-    candidate_ids = [candidate.db_product_id for candidate in candidates]
-    rows = session.execute(
-        select(
-            ProductIngredient.product_id,
-            ProductIngredient.ingredient_name,
-            Ingredient.ingredient_code,
-            Ingredient.name_ko,
-            Ingredient.name_en,
-        )
-        .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
-        .where(ProductIngredient.product_id.in_(candidate_ids))
-    ).all()
-
-    blocked_product_ids: set[int] = set()
-    for product_id, ingredient_name, ingredient_code, name_ko, name_en in rows:
-        searchable_values = {
-            _normalize_match_text(value)
-            for value in (ingredient_name, ingredient_code, name_ko, name_en)
-            if value
-        }
-        if _has_avoided_match(avoid_terms, searchable_values):
-            blocked_product_ids.add(int(product_id))
-
-    return [
-        candidate
-        for candidate in candidates
-        if candidate.db_product_id not in blocked_product_ids
-    ]
-
-
-def _has_avoided_match(avoid_terms: set[str], values: set[str]) -> bool:
-    return any(
-        avoid_term in value or value in avoid_term
-        for avoid_term in avoid_terms
-        for value in values
-        if avoid_term and value
-    )
-
-
-def _normalize_match_text(value: str) -> str:
-    return "".join(value.casefold().split())
+def _elapsed_ms(started_at: float) -> int:
+    return int((perf_counter() - started_at) * 1000)

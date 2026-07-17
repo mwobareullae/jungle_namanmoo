@@ -163,8 +163,21 @@ CATALOG_PRODUCT_INDEX_MAPPING: dict[str, Any] = {
                     }
                 },
             },
-            "ingredient_names": {"type": "text", "analyzer": "catalog_nori"},
-            "ingredient_aliases": {"type": "text", "analyzer": "catalog_nori"},
+            "ingredient_codes": {"type": "keyword"},
+            "ingredient_names": {
+                "type": "text",
+                "analyzer": "catalog_nori",
+                "fields": {
+                    "exact": {"type": "keyword", "normalizer": "catalog_keyword"}
+                },
+            },
+            "ingredient_aliases": {
+                "type": "text",
+                "analyzer": "catalog_nori",
+                "fields": {
+                    "exact": {"type": "keyword", "normalizer": "catalog_keyword"}
+                },
+            },
             "effect_names": {"type": "text", "analyzer": "catalog_nori"},
             "effect_aliases": {"type": "text", "analyzer": "catalog_nori"},
             "feature_codes": {"type": "keyword"},
@@ -547,6 +560,7 @@ class _BatchContext:
     reviews: dict[int, tuple[float | None, int]]
     brand_aliases: dict[int, tuple[str, ...]]
     category_aliases: dict[int, tuple[str, ...]]
+    ingredient_codes: dict[int, tuple[str, ...]]
     ingredient_names: dict[int, tuple[str, ...]]
     ingredient_aliases: dict[int, tuple[str, ...]]
     effect_names: dict[int, tuple[str, ...]]
@@ -605,6 +619,7 @@ def _load_batch_context(
         select(
             ProductIngredient.product_id,
             Ingredient.id.label("ingredient_db_id"),
+            Ingredient.ingredient_code,
             Ingredient.name_ko,
             Ingredient.name_en,
         )
@@ -624,11 +639,13 @@ def _load_batch_context(
         if ingredient_db_ids
         else []
     )
+    ingredient_codes_by_product: dict[int, set[str]] = defaultdict(set)
     ingredient_names_by_product: dict[int, set[str]] = defaultdict(set)
     ingredient_aliases_by_product: dict[int, set[str]] = defaultdict(set)
     for row in ingredient_rows:
         product_id = int(row.product_id)
         ingredient_id = int(row.ingredient_db_id)
+        ingredient_codes_by_product[product_id].add(row.ingredient_code)
         ingredient_names_by_product[product_id].add(row.name_ko)
         if row.name_en:
             ingredient_names_by_product[product_id].add(row.name_en)
@@ -672,6 +689,7 @@ def _load_batch_context(
         reviews=reviews,
         brand_aliases=brand_aliases,
         category_aliases=category_aliases,
+        ingredient_codes=_freeze_values(ingredient_codes_by_product),
         ingredient_names=_freeze_values(ingredient_names_by_product),
         ingredient_aliases=_freeze_values(ingredient_aliases_by_product),
         effect_names=_freeze_values(effect_names_by_product),
@@ -694,6 +712,7 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         )
     )
     category_aliases = context.category_aliases.get(int(row.category_db_id), ())
+    ingredient_codes = context.ingredient_codes.get(product_db_id, ())
     ingredient_names = context.ingredient_names.get(product_db_id, ())
     ingredient_aliases = context.ingredient_aliases.get(product_db_id, ())
     effect_names = context.effect_names.get(product_db_id, ())
@@ -719,6 +738,7 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         row.category_name,
         *brand_aliases,
         *category_aliases,
+        *ingredient_codes,
         *ingredient_names,
         *ingredient_aliases,
         *effect_names,
@@ -740,6 +760,7 @@ def _build_catalog_document(row: Any, context: _BatchContext) -> dict[str, Any]:
         "category_group": category_group_for_code(row.category_code),
         "category_name": row.category_name,
         "category_aliases": list(category_aliases),
+        "ingredient_codes": list(ingredient_codes),
         "ingredient_names": list(ingredient_names),
         "ingredient_aliases": list(ingredient_aliases),
         "effect_names": list(effect_names),

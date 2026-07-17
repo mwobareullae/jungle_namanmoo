@@ -26,6 +26,15 @@ def test_catalog_mapping_uses_nori_and_strict_fields() -> None:
     assert "product_name_chosung" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
     assert "aliases_compact" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
     assert "aliases_chosung" in CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]
+    assert CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]["ingredient_codes"] == {
+        "type": "keyword"
+    }
+    assert (
+        CATALOG_PRODUCT_INDEX_MAPPING["mappings"]["properties"]["ingredient_names"][
+            "fields"
+        ]["exact"]["type"]
+        == "keyword"
+    )
 
 
 def test_build_catalog_products_index_name_uses_separate_prefix() -> None:
@@ -47,9 +56,11 @@ def test_catalog_document_batches_use_keyset_and_include_search_fields() -> None
     assert all(document["category_group"] for document in documents)
     assert all("aliases_compact" in document for document in documents)
     assert all("aliases_chosung" in document for document in documents)
+    assert all("ingredient_codes" in document for document in documents)
     assert all("feature_codes" in document for document in documents)
     assert all("skin_type_codes" in document for document in documents)
     first_document = next(document for document in documents if document["product_id"] == "prod_001")
+    assert first_document["ingredient_codes"]
     assert "moisturizing_calming" in first_document["feature_codes"]
     assert "dehydrated_oily" in first_document["skin_type_codes"]
     assert "normal" in first_document["skin_type_codes"]
