@@ -4,7 +4,7 @@ import json
 import logging
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.db.models.catalog import Product, ProductIngredient
+from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
 from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, ProductPopularityMetric, UserAddress, Wishlist
 from app.db.models.events import EventLog
 from app.db.models.taxonomy import Ingredient, IngredientAlias
@@ -22,6 +22,7 @@ from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
 from app.services.agent_commerce_tools import add_agent_cart_item
 from app.services.cart_service import get_cart_response
+from app.services.user_activity_service import add_wishlist_item, upsert_recent_view
 from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
 from app.services.db_seed import seed_database
@@ -394,6 +395,63 @@ def test_bulk_popular_ingredient_wishlist_confirms_real_db_write_and_is_idempote
         assert "이미 모두 찜" in repeated.message
         assert len(session.scalars(select(Wishlist).where(Wishlist.user_id == user.id)).all()) == len(wished_codes)
 
+
+def test_bulk_popular_wishlist_filters_by_skin_profile(db_engine: Engine) -> None:
+    now = datetime.now(UTC)
+    with Session(db_engine) as session:
+        user = User(email="bulk-skin-wishlist@example.com", display_name="bulk-skin-wishlist-user")
+        products = session.scalars(select(Product).order_by(Product.product_code.asc()).limit(2)).all()
+        assert len(products) == 2
+        session.add(user)
+        session.execute(delete(ProductSkinProfile).where(ProductSkinProfile.product_id.in_([product.id for product in products])))
+        session.add_all(
+            [
+                ProductSkinProfile(
+                    product_id=products[0].id,
+                    dry_fit=0.2,
+                    oily_fit=0.2,
+                    combination_fit=0.3,
+                    normal_fit=0.2,
+                    dehydrated_oily_fit=0.9,
+                    sensitive_fit=0.8,
+                ),
+                ProductSkinProfile(
+                    product_id=products[1].id,
+                    dry_fit=0.2,
+                    oily_fit=0.2,
+                    combination_fit=0.2,
+                    normal_fit=0.2,
+                    dehydrated_oily_fit=0.4,
+                    sensitive_fit=0.4,
+                ),
+            ]
+        )
+        for rank, product in enumerate(products, start=1):
+            session.add(
+                ProductPopularityMetric(
+                    product_id=product.id,
+                    window_days=7,
+                    popularity_score=100 - rank,
+                    order_count=20 - rank,
+                    units_sold=20 - rank,
+                    score_version="behavior_rollup_v1",
+                    computed_at=now,
+                )
+            )
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"skin_type": "수부지", "rank_limit": 20, "window_days": 7},
+            user=user,
+            conversation_id="conv_bulk_skin_wishlist",
+        )
+
+        assert response.requires_confirmation is True
+        assert response.ui_action.payload["matched_product_ids"] == [products[0].product_code]
+        assert response.ui_action.payload["ingredient_name"] == "수부지 피부"
 
 def test_bulk_popular_ingredient_wishlist_rejection_does_not_write(db_engine: Engine) -> None:
     with Session(db_engine) as session:
@@ -839,6 +897,38 @@ def test_dispatcher_resolves_current_product_reference_before_adding_to_cart(db_
     assert [item.product_id for item in cart.items] == ["prod_002"]
 
 
+def test_dispatcher_resolves_wishlist_and_recent_references(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    with Session(db_engine) as session:
+        user = User(email="agent-activity-reference@example.com", display_name="activity-reference")
+        session.add(user)
+        session.flush()
+        add_wishlist_item(session, user, "prod_001")
+        upsert_recent_view(session, user, "prod_002")
+        session.commit()
+
+        wishlist_response = execute_agent_tool(
+            session,
+            tool_name="add_to_cart",
+            arguments={"reference_source": "wishlist", "reference_rank": 1},
+            user=user,
+            conversation_id="conv_wishlist_reference",
+        )
+        recent_response = execute_agent_tool(
+            session,
+            tool_name="add_to_cart",
+            arguments={"reference_source": "recent", "reference_position": "last"},
+            user=user,
+            conversation_id="conv_recent_reference",
+        )
+        cart = get_cart_response(session, user, None)
+
+    assert wishlist_response.message == "상품을 장바구니에 담았어요."
+    assert recent_response.message == "상품을 장바구니에 담았어요."
+    assert {item.product_id for item in cart.items} == {"prod_001", "prod_002"}
+
+
 def test_dispatcher_resolves_recommendation_rank_before_adding_to_cart(db_engine: Engine) -> None:
     _set_inventory(db_engine, "prod_001", stock_quantity=10)
     _set_inventory(db_engine, "prod_002", stock_quantity=10)
@@ -906,6 +996,36 @@ def test_openai_tool_hides_unexpected_internal_error(
     assert payload["error"]["code"] == "AGENT_TOOL_EXECUTION_FAILED"
     assert "private_table" not in payload["message"]
     assert "잠시 후 다시 시도" in payload["message"]
+
+
+def test_openai_tool_turns_empty_cart_into_non_retryable_guidance(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_empty_cart",
+            request_id="req_empty_cart",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+
+        def raise_empty_cart(*args, **kwargs):
+            raise ApiError(400, "AGENT_CART_EMPTY", "장바구니가 비어 있어요.")
+
+        monkeypatch.setattr("app.services.agent_openai_runner.execute_agent_tool", raise_empty_cart)
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="prepare_checkout",
+            arguments={"cart_item_ids": None, "address_id": None},
+        )
+
+    payload = json.loads(result)
+    assert payload["error"]["code"] == "AGENT_CART_EMPTY"
+    assert payload["error"]["retryable"] is False
+    assert "장바구니가 비어" in payload["message"]
 
 
 def test_openai_tool_turns_missing_comparison_selection_into_clarification(

@@ -92,6 +92,7 @@ type AgentChatErrorMessage = AgentChatBaseMessage & {
   action: "input" | "login" | "profile" | "retry";
   actionLabel: string;
   kind: "error";
+  idempotencyKey?: string;
   message: string;
   retryMessage?: string;
   title: string;
@@ -394,6 +395,7 @@ function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
           actionLabel: candidate.actionLabel,
           createdAt,
           kind: "error",
+          idempotencyKey: typeof candidate.idempotencyKey === "string" ? candidate.idempotencyKey : undefined,
           message: candidate.message,
           retryMessage: typeof candidate.retryMessage === "string" ? candidate.retryMessage : undefined,
           title: candidate.title,
@@ -635,7 +637,10 @@ const resolveAgentPage = (pathname: string) => {
   return "home";
 };
 
-function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]): AgentContext {
+function buildAgentContext(
+  skinProfile?: AgentFloatingButtonProps["skinProfile"],
+  selectedProductIds: string[] = [],
+): AgentContext {
   if (typeof window === "undefined") {
     return {};
   }
@@ -658,6 +663,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   const refineSkinType = readString(params.get("refine_skin_type"));
   const refineSensitivity = readString(params.get("refine_sensitivity"));
   const refineEffects = params.getAll("refine_effect").filter(Boolean);
+  const refineIngredients = params.getAll("refine_ingredient").filter(Boolean);
 
   if (skinType || skinProfile?.skin) filters.skin_type = skinType ?? skinProfile?.skin;
   if (sensitivity || skinProfile?.sensitivity) filters.sensitivity = sensitivity ?? skinProfile?.sensitivity;
@@ -672,6 +678,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   if (refineSkinType) filters.skin_type = refineSkinType;
   if (refineSensitivity) filters.sensitivity = refineSensitivity;
   if (refineEffects.length) filters.effect_keywords = refineEffects;
+  if (refineIngredients.length) filters.required_ingredient_names = refineIngredients;
 
   const context: AgentContext = {
     page: resolveAgentPage(pathname),
@@ -688,6 +695,7 @@ function buildAgentContext(skinProfile?: AgentFloatingButtonProps["skinProfile"]
   if (recommendationId) context.recommendation_id = recommendationId;
   if (searchQuery) context.search_query = searchQuery;
   if (visibleProductIds.length > 0) context.visible_product_ids = visibleProductIds;
+  if (selectedProductIds.length > 0) context.selected_product_ids = uniqueNonEmpty(selectedProductIds).slice(0, 20);
 
   return context;
 }
@@ -756,13 +764,14 @@ function createAgentErrorMessage(
   id: string,
   title: string,
   message: string,
-  options: Partial<Pick<AgentChatErrorMessage, "action" | "actionLabel" | "retryMessage" | "tone">> = {},
+  options: Partial<Pick<AgentChatErrorMessage, "action" | "actionLabel" | "idempotencyKey" | "retryMessage" | "tone">> = {},
 ): AgentChatErrorMessage {
   return {
     id,
     action: options.action ?? "retry",
     actionLabel: options.actionLabel ?? "다시 시도",
     kind: "error",
+    idempotencyKey: options.idempotencyKey,
     message,
     retryMessage: options.retryMessage,
     title,
@@ -770,7 +779,12 @@ function createAgentErrorMessage(
   };
 }
 
-function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: string): AgentChatErrorMessage {
+function createAgentErrorFromUnknown(
+  error: unknown,
+  id: string,
+  retryMessage?: string,
+  idempotencyKey?: string,
+): AgentChatErrorMessage {
   const apiError = error as Partial<ApiError>;
   const status = typeof apiError.status === "number" ? apiError.status : 0;
   const code = typeof apiError.code === "string" ? apiError.code : "";
@@ -800,22 +814,46 @@ function createAgentErrorFromUnknown(error: unknown, id: string, retryMessage?: 
     });
   }
 
-  if (status === 408) {
+  if (status === 408 || status === 504 || code === "AGENT_OPENAI_TIMEOUT") {
     return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
       retryMessage,
+      idempotencyKey,
+    });
+  }
+
+  if (status === 429 || code === "AGENT_OPENAI_RATE_LIMITED") {
+    return createAgentErrorMessage(id, "AI 요청이 잠시 많아요", message, {
+      retryMessage,
+      idempotencyKey,
+    });
+  }
+
+  if (code === "AGENT_REQUEST_IN_PROGRESS") {
+    return createAgentErrorMessage(id, "같은 요청을 처리 중이에요", message, {
+      retryMessage,
+      idempotencyKey,
     });
   }
 
   if (status === 503 || code.startsWith("AGENT_OPENAI_") || code === "AGENT_SDK_NOT_INSTALLED") {
     return createAgentErrorMessage(id, "AI 연결을 확인해야 해요", message, {
       retryMessage,
+      idempotencyKey,
     });
   }
 
   return createAgentErrorMessage(id, "답변을 만들지 못했어요", message, {
     retryMessage,
+    idempotencyKey,
   });
 }
+
+const createAgentIdempotencyKey = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `agent-${crypto.randomUUID()}`;
+  }
+  return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+};
 
 function createAgentErrorFromResponse(response: AgentChatResponse, id: string, retryMessage?: string) {
   if (!response.error) {
@@ -1009,6 +1047,29 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
   return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
 };
 
+const resolveAgentSearchProfile = (
+  profile?: AgentFloatingButtonProps["skinProfile"],
+  resultParams?: URLSearchParams | null,
+) => {
+  const currentParams = typeof window === "undefined"
+    ? new URLSearchParams()
+    : new URLSearchParams(window.location.search);
+
+  return {
+    avoidIngredients: profile?.avoidIngredients ?? [],
+    sensitivity:
+      resultParams?.get("sensitivity")
+      ?? currentParams.get("sensitivity")
+      ?? profile?.sensitivity
+      ?? "보통",
+    skin:
+      resultParams?.get("skin_type")
+      ?? currentParams.get("skin_type")
+      ?? profile?.skin
+      ?? "수부지",
+  };
+};
+
 const isSimilarProductsAction = (action: AgentUiAction) =>
   action.type === "show_products" && action.target === "similar_products";
 
@@ -1142,6 +1203,7 @@ function createResultMessage(
   id: string,
   action: AgentUiAction,
   items: AgentResponseItem[] = [],
+  queryOverride?: string,
 ): AgentChatResultMessage | null {
   const productPayload = Array.isArray(action.payload.products)
     ? action.payload.products.map(mapPayloadProduct).filter((item): item is AgentChatResultItem => item !== null)
@@ -1162,12 +1224,19 @@ function createResultMessage(
 
   const title = getResultTitle(action);
   const emptyProducts = action.type === "show_products" && resultItems.length === 0;
+  const rawActionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action);
+  let actionUrl = rawActionUrl;
+  if (rawActionUrl && action.type === "show_products" && queryOverride?.trim()) {
+    const resultUrl = new URL(rawActionUrl, window.location.origin);
+    resultUrl.searchParams.set("keyword", queryOverride.trim());
+    actionUrl = `${resultUrl.pathname}${resultUrl.search}${resultUrl.hash}`;
+  }
 
   return {
     id,
     actionTarget: action.target ?? null,
     actionType: action.type,
-    actionUrl: action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action),
+    actionUrl,
     description: emptyProducts
       ? "조건에 맞는 상품을 찾지 못했어요."
       : resultItems.length > 0
@@ -1196,7 +1265,12 @@ const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[
 
 function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
   const nextMessages: AgentChatMessage[] = [];
-  const resultMessage = createResultMessage(`result-${timestamp}`, response.ui_action, response.items);
+  const resultMessage = createResultMessage(
+    `result-${timestamp}`,
+    response.ui_action,
+    response.items,
+    retryMessage,
+  );
 
   if (resultMessage) {
     nextMessages.push(resultMessage);
@@ -1468,7 +1542,7 @@ function AgentFloatingButton({
   skinProfileStatus = "empty",
   surface = "home",
 }: AgentFloatingButtonProps) {
-  const { openComparison } = useProductComparison();
+  const { openComparison, comparisonIntent } = useProductComparison();
   const [activeView, setActiveView] = useState<AgentChatView>("home");
   const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
   const [isOpen, setIsOpen] = useState(false);
@@ -1498,6 +1572,8 @@ function AgentFloatingButton({
   const sendMessageRef = useRef<(
     message: string,
     contextProfile?: AgentFloatingButtonProps["skinProfile"],
+    startNewThread?: boolean,
+    retryIdempotencyKey?: string,
   ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
@@ -1778,6 +1854,8 @@ function AgentFloatingButton({
   const sendMessage = async (
     message: string,
     contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
+    startNewThread = false,
+    retryIdempotencyKey?: string,
   ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
@@ -1806,9 +1884,10 @@ function AgentFloatingButton({
     }
 
     const timestamp = Date.now();
+    const idempotencyKey = retryIdempotencyKey ?? createAgentIdempotencyKey();
     const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
-    const shouldStartNewThread = activeView === "home";
+    const shouldStartNewThread = startNewThread || activeView === "home";
     const requestConversationId = shouldStartNewThread ? null : conversationId;
     const recentMessages = shouldStartNewThread ? [] : buildRecentMessages(messages);
     const lastToolResult = shouldStartNewThread ? null : lastToolResultContext ?? buildLastToolResult(messages);
@@ -1841,17 +1920,35 @@ function AgentFloatingButton({
     if (isCartAddRequest) setAgentCartTargetBusy(true);
 
     try {
-      const requestContext = buildAgentContext(contextProfile);
+      const requestContext = buildAgentContext(contextProfile, comparisonIntent?.compareProductIds);
+      if (startNewThread && window.location.pathname === "/search") {
+        delete requestContext.recommendation_id;
+        delete requestContext.search_query;
+        delete requestContext.visible_product_ids;
+        requestContext.route = "/search";
+
+        const currentFilters = requestContext.filters ?? {};
+        const freshSearchFilters = Object.fromEntries(
+          ["avoid_ingredients", "page_size", "sensitivity", "skin_type"]
+            .flatMap((key) => currentFilters[key] === undefined ? [] : [[key, currentFilters[key]]]),
+        );
+        requestContext.filters = Object.keys(freshSearchFilters).length > 0
+          ? freshSearchFilters
+          : undefined;
+      }
       if (isAwaitingAddressInput && pendingCheckoutCartItemIdsRef.current.length > 0) {
         requestContext.cart_item_ids = [...pendingCheckoutCartItemIdsRef.current];
       }
-      const response = await api.sendAgentMessage({
-        context: requestContext,
-        conversation_id: requestConversationId,
-        last_tool_result: lastToolResult,
-        message: nextMessage,
-        recent_messages: recentMessages,
-      });
+      const response = await api.sendAgentMessage(
+        {
+          context: requestContext,
+          conversation_id: requestConversationId,
+          last_tool_result: lastToolResult,
+          message: nextMessage,
+          recent_messages: recentMessages,
+        },
+        { idempotencyKey },
+      );
       const responseTimestamp = Date.now();
       const addressError = response.error?.code === "AGENT_ADDRESS_REQUIRED"
         || response.error?.code === "AGENT_ADDRESS_DETAILS_REQUIRED";
@@ -1881,8 +1978,8 @@ function AgentFloatingButton({
         if (refinementRecommendationId && window.location.pathname === "/search") {
           window.dispatchEvent(new CustomEvent("home-search-request", {
             detail: {
-              profile: contextProfile,
-              query: buildAgentContext(contextProfile).search_query ?? nextMessage,
+              profile: resolveAgentSearchProfile(contextProfile),
+              query: nextMessage,
               recommendationId: refinementRecommendationId,
               refinementFilters,
             },
@@ -1910,7 +2007,7 @@ function AgentFloatingButton({
 
         window.dispatchEvent(new CustomEvent("home-search-request", {
           detail: {
-            profile: contextProfile,
+            profile: resolveAgentSearchProfile(contextProfile, resultParams),
             query: resultQuery,
             recommendationId,
           },
@@ -1952,7 +2049,7 @@ function AgentFloatingButton({
           response.ui_action,
           response.items,
           response.message,
-          buildAgentContext().current_product_id ?? null,
+            buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
           openComparison,
         );
       }
@@ -1965,6 +2062,7 @@ function AgentFloatingButton({
             error,
             `error-${Date.now()}`,
             isSensitiveAddressMessage ? undefined : nextMessage,
+            idempotencyKey,
           ),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
@@ -1986,7 +2084,7 @@ function AgentFloatingButton({
       }
 
       openChatRef.current();
-      void sendMessageRef.current(detail.message, detail.profile)
+      void sendMessageRef.current(detail.message, detail.profile, detail.startNewThread)
         .then((response) => {
           detail.resolve(response);
         })
@@ -2044,7 +2142,7 @@ function AgentFloatingButton({
         response.ui_action,
         [],
         "",
-        buildAgentContext().current_product_id ?? null,
+        buildAgentContext(skinProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
         openComparison,
       );
       const orderCode = readString(response.ui_action.payload.order_code);
@@ -2100,10 +2198,10 @@ function AgentFloatingButton({
     }
   };
 
-  const handleRetry = (retryMessage?: string) => {
+  const handleRetry = (retryMessage?: string, idempotencyKey?: string) => {
     const nextRetryMessage = retryMessage || lastSentMessage;
     if (nextRetryMessage) {
-      void sendMessage(nextRetryMessage);
+      void sendMessage(nextRetryMessage, skinProfile, false, idempotencyKey);
     }
   };
 
@@ -2239,7 +2337,7 @@ function AgentFloatingButton({
       return;
     }
 
-    handleRetry(message.retryMessage);
+    handleRetry(message.retryMessage, message.idempotencyKey);
   };
 
   const renderErrorMessage = (message: AgentChatErrorMessage) => (
@@ -2259,14 +2357,40 @@ function AgentFloatingButton({
     }
   };
 
-  const openResultAction = (actionUrl?: string | null) => {
+  const openResultAction = async (actionUrl?: string | null) => {
     if (!actionUrl) {
       return;
     }
 
-    navigateWithinApp(actionUrl).catch(() => {
+    closeChat();
+    await waitForAgentInteraction(260);
+
+    try {
+      const targetUrl = new URL(actionUrl, window.location.origin);
+      if (targetUrl.pathname === "/search" && window.location.pathname === "/search") {
+        const query = targetUrl.searchParams.get("keyword")?.trim();
+        const recommendationId = targetUrl.searchParams.get("recommendation_id") ?? undefined;
+        if (query) {
+          window.history.replaceState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+          window.dispatchEvent(new CustomEvent("home-search-request", {
+            detail: {
+              profile: resolveAgentSearchProfile(skinProfile, targetUrl.searchParams),
+              query,
+              recommendationId,
+            },
+          }));
+        }
+        document.getElementById("searchResultsSection")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        return;
+      }
+
+      await navigateWithinApp(actionUrl);
+    } catch {
       window.location.href = actionUrl;
-    });
+    }
   };
 
   const renderResultMessage = (message: AgentChatResultMessage) => {
@@ -2304,7 +2428,7 @@ function AgentFloatingButton({
         {message.actionType === "show_products" && message.actionUrl ? (
           <button
             className="agent-chat-result-more"
-            onClick={() => openResultAction(
+            onClick={() => void openResultAction(
               message.actionTarget === "popular_wishlist" ? "/mypage/wishlist" : message.actionUrl,
             )}
             type="button"
@@ -2315,7 +2439,7 @@ function AgentFloatingButton({
         {message.actionType === "show_cart" && message.actionUrl ? (
           <button
             className="agent-chat-result-more"
-            onClick={() => openResultAction(message.actionUrl)}
+            onClick={() => void openResultAction(message.actionUrl)}
             type="button"
           >
             장바구니 보기

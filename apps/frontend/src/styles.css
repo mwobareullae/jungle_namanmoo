@@ -4164,7 +4164,7 @@ body {
 
 .search-page-top {
   position: relative;
-  z-index: 1;
+  z-index: 30;
   isolation: isolate;
   padding: 34px 20px 18px;
   background: #ffffff;
@@ -8577,7 +8577,7 @@ header .btn-login:hover {
   opacity: 1;
 }
 
-footer {
+footer.app-footer {
   margin-top: auto;
   padding: 0 40px;
   border-top: 1px solid var(--color-edge);
@@ -8749,7 +8749,7 @@ footer {
   }
 }
 
-footer {
+footer.app-footer {
   padding: 0 72px;
   border-top: 0;
   background: #f8fafb;
@@ -8765,15 +8765,15 @@ footer.app-footer--home {
   backdrop-filter: none;
 }
 
-footer .footer-inner {
+footer.app-footer .footer-inner {
   grid-template-columns: minmax(420px, 1fr) 160px 160px;
   gap: 44px;
   width: min(1180px, 100%);
   padding: 72px 0 64px;
 }
 
-footer .footer-support h5,
-footer .footer-col h5 {
+footer.app-footer .footer-support h5,
+footer.app-footer .footer-col h5 {
   margin-bottom: 28px;
   color: #3d463f;
   font-size: 18px;
@@ -8781,7 +8781,7 @@ footer .footer-col h5 {
   letter-spacing: -0.02em;
 }
 
-footer .footer-support strong {
+footer.app-footer .footer-support strong {
   display: block;
   margin-bottom: 18px;
   color: #3d463f;
@@ -8789,47 +8789,47 @@ footer .footer-support strong {
   letter-spacing: -0.03em;
 }
 
-footer .footer-support p,
-footer .footer-company {
+footer.app-footer .footer-support p,
+footer.app-footer .footer-company {
   margin: 0 0 10px;
   color: #68716a;
   font-size: 13px;
   line-height: 1.5;
 }
 
-footer .footer-brand .logo {
+footer.app-footer .footer-brand .logo {
   margin-bottom: 28px;
   color: #3d463f;
   font-size: 26px;
   font-weight: 500;
 }
 
-footer .footer-desc,
-footer .footer-bottom {
+footer.app-footer .footer-desc,
+footer.app-footer .footer-bottom {
   display: none;
 }
 
-footer .footer-col ul {
+footer.app-footer .footer-col ul {
   gap: 14px;
 }
 
-footer .footer-col a {
+footer.app-footer .footer-col a {
   color: #68716a;
   font-size: 13px;
   font-weight: 500;
 }
 
-footer .footer-service,
-footer .footer-policy {
+footer.app-footer .footer-service,
+footer.app-footer .footer-policy {
   text-align: right;
 }
 
 @media (max-width: 900px) {
-  footer { padding: 0 24px; }
+  footer.app-footer { padding: 0 24px; }
   footer.app-footer--home { padding: 0 24px; }
-  footer .footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
-  footer .footer-service,
-  footer .footer-policy { text-align: left; }
+  footer.app-footer .footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
+  footer.app-footer .footer-service,
+  footer.app-footer .footer-policy { text-align: left; }
 }
 
 .footer-inner {
@@ -14238,14 +14238,30 @@ html[data-app-mode="community"] .search-results-shell {
   height: 40px;
   border: 0;
   border-radius: 50%;
-  background: #aeb7c0;
+  background: #1687f8;
   color: #ffffff;
   cursor: pointer;
+  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.agent-chat-input button:not(:disabled):hover,
+.agent-chat-input button:not(:disabled):focus-visible {
+  background: #0874df;
+  box-shadow: 0 8px 20px rgba(22, 135, 248, 0.38);
+  transform: translateY(-1px);
 }
 
 .agent-chat-input button:disabled {
+  background: #aeb7c0;
   cursor: not-allowed;
-  opacity: 0.45;
+  box-shadow: none;
+  opacity: 0.5;
+}
+
+.agent-chat-popup .agent-chat-input button:not(:disabled) {
+  background: #1687f8;
+  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
 }
 
 .agent-chat-input button svg {
@@ -17303,7 +17319,7 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 @media (max-width: 760px) {
-  footer {
+  footer.app-footer {
     padding: 0 24px;
   }
 
@@ -17920,7 +17936,7 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 @media (max-width: 420px) {
-  footer {
+  footer.app-footer {
     padding: 0 20px;
   }
 

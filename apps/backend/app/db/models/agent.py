@@ -23,6 +23,8 @@ AGENT_TOOL_CALL_STATUS_VALUES = (
     "'REJECTED', 'EXPIRED', 'FAILED'"
 )
 
+AGENT_REQUEST_EXECUTION_STATUS_VALUES = "'PENDING', 'COMPLETED', 'FAILED'"
+
 
 class AgentToolCall(Base):
     __tablename__ = "agent_tool_calls"
@@ -60,3 +62,43 @@ class AgentToolCall(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AgentRequestExecution(Base):
+    """Stores an agent request result so a browser retry cannot repeat a write tool."""
+
+    __tablename__ = "agent_request_executions"
+    __table_args__ = (
+        CheckConstraint(
+            f"status in ({AGENT_REQUEST_EXECUTION_STATUS_VALUES})",
+            name="ck_agent_request_executions_status",
+        ),
+        CheckConstraint(
+            "length(trim(principal_key)) > 0",
+            name="ck_agent_request_executions_principal_key_not_blank",
+        ),
+        CheckConstraint(
+            "length(trim(idempotency_key)) > 0",
+            name="ck_agent_request_executions_idempotency_key_not_blank",
+        ),
+        UniqueConstraint(
+            "principal_key",
+            "idempotency_key",
+            name="uq_agent_request_executions_principal_idempotency_key",
+        ),
+        Index("ix_agent_request_executions_status_updated_at", "status", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
+    principal_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING", server_default="PENDING")
+    response_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
