@@ -25,6 +25,8 @@ from app.schemas.admin.ingredient_mapping import (
     IngredientMappingDetail,
     IngredientMappingEvent,
     IngredientMappingListItem,
+    CanonicalIngredientSearchItem,
+    CanonicalIngredientSearchResponse,
     IngredientMappingListResponse,
     IngredientMappingRawNameVariant,
     IngredientMappingSampleProduct,
@@ -36,6 +38,9 @@ from app.schemas.common import ApiError
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 100
+
+CANONICAL_SEARCH_DEFAULT_LIMIT = 20
+CANONICAL_SEARCH_MAX_LIMIT = 50
 
 VALID_STATUS_FILTERS = frozenset({"PENDING", "HELD", "APPROVED", "REJECTED"})
 STORED_STATUSES = frozenset({"HELD", "APPROVED", "REJECTED"})
@@ -557,3 +562,85 @@ def get_ingredient_mapping_detail(
         sample_products=samples,
         events=events,
     )
+
+
+# --- canonical 검색 (승인 target 선택용, §6) --------------------------------
+
+_CANONICAL_SEARCH_SQL = text(
+    """
+    select ingredient_code, name_ko, name_en, normalized_name, source_url,
+           case when normalized_name = :nq then 0 else 1 end as exact_rank
+    from ingredients
+    where is_active = true
+      and ingredient_code not like 'ing_pending_%'
+      and ingredient_code not like 'foreign_pending_%'
+      and (
+        ingredient_code ilike :q_like
+        or name_ko ilike :q_like
+        or coalesce(name_en, '') ilike :q_like
+        or coalesce(normalized_name, '') ilike :q_like
+      )
+    order by exact_rank asc, name_ko asc, ingredient_code asc
+    offset :offset
+    limit :limit_plus_one
+    """
+)
+
+
+def search_canonical_ingredients(
+    session: Session, *, q: str | None, limit: int, cursor: str | None
+) -> CanonicalIngredientSearchResponse:
+    normalized_q = (q or "").strip()
+    if not (1 <= len(normalized_q) <= 100):
+        raise ApiError(400, "INVALID_INPUT", "q must be 1~100 characters.")
+    if limit < 1 or limit > CANONICAL_SEARCH_MAX_LIMIT:
+        raise ApiError(400, "INVALID_LIMIT", "Invalid limit.")
+
+    offset = _decode_offset_cursor(cursor)
+    q_like = f"%{_escape_like(normalized_q)}%"
+    rows = list(
+        session.execute(
+            _CANONICAL_SEARCH_SQL,
+            {
+                "nq": normalize_source_name(normalized_q),
+                "q_like": q_like,
+                "offset": offset,
+                "limit_plus_one": limit + 1,
+            },
+        )
+    )
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    items = [
+        CanonicalIngredientSearchItem(
+            ingredient_code=r.ingredient_code,
+            name_ko=r.name_ko,
+            name_en=r.name_en,
+            normalized_name=r.normalized_name,
+            source_url=r.source_url,
+        )
+        for r in page
+    ]
+    next_cursor = _encode_offset_cursor(offset + limit) if has_more else None
+    return CanonicalIngredientSearchResponse(items=items, next_cursor=next_cursor)
+
+
+def _encode_offset_cursor(offset: int) -> str:
+    raw = json.dumps({"v": CURSOR_VERSION, "o": offset}, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _decode_offset_cursor(cursor: str | None) -> int:
+    if cursor is None or not cursor.strip():
+        return 0
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(f"{cursor}{padding}".encode("ascii")))
+    except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.") from exc
+    if not isinstance(payload, dict) or payload.get("v") != CURSOR_VERSION:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
+    offset = payload.get("o")
+    if not isinstance(offset, int) or offset < 0:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
+    return offset
