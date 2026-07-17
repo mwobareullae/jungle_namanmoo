@@ -77,12 +77,11 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 
 ### 에이전트 추천 의도 계약
 
-`create_recommendation`은 원문 `concern_text`와 함께 에이전트가 구조화한 고민·효능·제외 고민·우선 효능·카테고리·가격 조건을 내부 tool 인자로 받는다. `intent_resolved=true`이고 허용된 코드와 범위 검증을 통과하면 추천 파이프라인은 별도의 의도분석 LLM을 다시 호출하지 않는다. 구조화가 불완전하거나 `intent_resolved=false`이면 기존 규칙·LLM 의도분석으로 fallback한다.
+`create_recommendation`은 원문 `concern_text`와 함께 에이전트가 구조화한 고민·효능·제외 고민·우선 효능·카테고리·가격 조건을 내부 tool 인자로 받는다. 이 tool 호출은 구조화 intent를 권위 있는 입력으로 취급하며, 추천 파이프라인은 원문을 규칙이나 별도 LLM으로 다시 해석하지 않는다. 구조화되지 않은 표현은 원문에 보존되어 상품 후보 검색에 사용된다.
 
 ```json
 {
   "concern_text": "속건조로 화장이 들떠요. 보습 세럼을 3만원 이하로 추천해줘",
-  "intent_resolved": true,
   "concern_ids": ["concern_dry_barrier"],
   "effect_ids": ["effect_moisture_barrier"],
   "excluded_concern_ids": [],
@@ -93,7 +92,7 @@ POST /api/agent/tool-calls/{tool_call_id}/confirm
 }
 ```
 
-허용 카테고리는 `serum`, `cream`, `toner`, `lotion`이다. 가격은 0 이상 100,000,000 이하이고 `price_min <= price_max`여야 한다. LLM은 의도와 구매 조건을 구조화할 뿐이며 후보 추출, 성분 근거 점수와 최종 순위는 기존 결정론적 추천 엔진이 계산한다. 일반 `POST /api/recommendations` 요청 계약은 변경하지 않는다.
+허용 카테고리는 `serum`, `cream`, `toner`, `lotion`이다. 가격은 0 이상 100,000,000 이하이고 `price_min <= price_max`여야 한다. 에이전트는 의도와 구매 조건을 한 번만 구조화하며 후보 추출, 성분 근거 점수와 최종 순위는 기존 결정론적 추천 엔진이 계산한다. 일반 `POST /api/recommendations`는 에이전트를 거치지 않는 호환 경로이므로 기존 규칙·LLM parser와 요청 계약을 유지한다.
 
 ### 추천 결과 재필터링 계약
 

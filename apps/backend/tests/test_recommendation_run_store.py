@@ -36,6 +36,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     )
     now = datetime(2026, 6, 28, 12, 0, 0, tzinfo=UTC)
 
+    timings: dict[str, float] = {}
     saved = save_recommendation_run(
         session,
         intent,
@@ -44,6 +45,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
         avoid_ingredients=["향료"],
         recommendation_code="rec_store_test",
         now=now,
+        timings=timings,
     )
 
     assert saved.run.recommendation_code == "rec_store_test"
@@ -57,6 +59,14 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     assert saved.run.parser_result["effects"][0]["effect_id"] == "effect_moisturizing"
     assert saved.run.request_context["purchase_conditions"]["categories"][0]["category_code"] == "serum"
     assert saved.run.request_context["purchase_conditions"]["price_max"] == 20000
+    assert set(timings) == {
+        "run_row_build_ms",
+        "run_insert_flush_ms",
+        "run_relation_build_ms",
+        "run_relation_add_ms",
+        "run_relation_flush_ms",
+    }
+    assert all(value >= 0 for value in timings.values())
 
     constraints = _load_constraints(session, saved.run.id)
     assert [constraint.constraint_type for constraint in constraints] == ["category", "price_max"]
@@ -147,8 +157,8 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     diagnostics = run.request_context["candidate_pool_diagnostics"]
     search_diagnostics = run.request_context["search_no_result_diagnostics"]
 
-    assert diagnostics["candidate_generation_version"] == "candidate_pool_pgvector_v1"
-    assert diagnostics["strategy"] == "candidate_pool"
+    assert diagnostics["candidate_generation_version"] == "candidate_pool_catalog_es_v2"
+    assert diagnostics["strategy"] == "catalog_es_candidate_pool"
     assert diagnostics["requested_candidate_pool_limit"] == 20
     assert diagnostics["result_limit"] == 10
     assert diagnostics["loaded_candidate_count"] == 2
@@ -160,17 +170,20 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     assert diagnostics["search_match_count"] == 2
     assert diagnostics["scored_candidate_count"] == 2
     assert diagnostics["final_result_count"] == 2
-    assert diagnostics["source_counts"] == {"legacy_id_order": 2}
-    assert diagnostics["source_diagnostics"] == [
-        {
-            "source": "legacy_id_order",
-            "requested_limit": 20,
-            "returned_count": 2,
-            "after_dedupe_count": 2,
-            "skipped_count": 0,
-        }
-    ]
-    assert diagnostics["fallback_used"] is False
+    assert diagnostics["source_counts"] == {
+        "catalog_es_recommendation": 0,
+        "db_popularity_fallback": 2,
+    }
+    es_diagnostic, fallback_diagnostic = diagnostics["source_diagnostics"]
+    assert es_diagnostic["source"] == "catalog_es_recommendation"
+    assert es_diagnostic["returned_count"] == 0
+    assert es_diagnostic["failure_reason"] == "catalog Elasticsearch skipped for sqlite"
+    assert fallback_diagnostic["source"] == "db_popularity_fallback"
+    assert fallback_diagnostic["returned_count"] == 2
+    assert fallback_diagnostic["after_dedupe_count"] == 2
+    assert diagnostics["fallback_used"] is True
+    assert diagnostics["fallback_reason"] == "catalog Elasticsearch skipped for sqlite"
+    assert diagnostics["fallback_count"] == 2
     assert diagnostics["hard_filter_total_count"] is None
     assert search_diagnostics["version"] == "search_no_result_v0"
     assert search_diagnostics["no_result_reason"] is None

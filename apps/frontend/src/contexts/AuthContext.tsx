@@ -6,6 +6,12 @@ import { clearWishlistCache } from "../lib/activityApi";
 import { invalidateOrderSummary } from "../lib/orderApi";
 import { invalidateMySkinProfileCache } from "../lib/profileApi";
 import { skinProfileQueryKey } from "../hooks/useSkinProfileQuery";
+import {
+  clearAgentChatStorageScope,
+  clearLegacyAgentChatStorage,
+  getGuestAgentChatStorageScope,
+  getUserAgentChatStorageScope,
+} from "../lib/agentChatStorage";
 import { AuthContext, type AuthUser } from "./authContextValue";
 
 const AUTH_USER_STORAGE_KEY = "mwobareullae.auth.user";
@@ -86,6 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    clearLegacyAgentChatStorage();
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     requestAuthenticatedUser()
@@ -135,6 +145,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const previousUserId = user?.id ?? null;
+    if (previousUserId !== null) {
+      clearAgentChatStorageScope(getUserAgentChatStorageScope(previousUserId));
+    }
+    clearAgentChatStorageScope(getGuestAgentChatStorageScope());
+    clearLegacyAgentChatStorage();
     clearWishlistCache(previousUserId);
     clearRecommendationCache();
     invalidateOrderSummary(previousUserId);
