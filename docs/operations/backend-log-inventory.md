@@ -229,6 +229,15 @@ event:
 | `commit_ms` | DB commit/flush |
 | `response_load_ms` | 응답용 결과 재조회 |
 
+저장 병목을 세분화할 때는 아래 하위 필드를 함께 확인한다.
+
+| 구간 | 하위 필드 |
+|---|---|
+| 추천 실행 저장 | `run_row_build_ms`, `run_insert_flush_ms`, `run_relation_build_ms`, `run_relation_add_ms`, `run_relation_flush_ms` |
+| 후보 trace 저장 | `candidate_trace_match_validation_ms`, `candidate_trace_delete_ms`, `candidate_trace_row_build_ms`, `candidate_trace_add_ms`, `candidate_trace_flush_ms` |
+| 최종 결과 저장 | `result_existing_lookup_ms`, `result_existing_evidence_delete_ms`, `result_existing_result_delete_ms`, `result_existing_delete_flush_ms`, `result_row_build_ms`, `result_add_ms`, `result_flush_ms` |
+| 추천 근거 저장 | `evidence_row_build_ms`, `evidence_add_ms`, `evidence_flush_ms` |
+
 추가 필드:
 
 | 필드 | 의미 |
