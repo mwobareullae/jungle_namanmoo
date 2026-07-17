@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -218,6 +219,70 @@ class ProductRecommendationScoringSnapshot(Base):
     scoring_payload: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
     snapshot_version: Mapped[str] = mapped_column(String(64), nullable=False)
     source_versions: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class ProductRecommendationCoarseFeature(Base):
+    __tablename__ = "product_recommendation_coarse_features"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    acne_sebum_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    acne_sebum_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    brightening_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    brightening_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    calming_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    calming_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    exfoliation_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    exfoliation_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    moisture_barrier_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    moisture_barrier_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    wrinkle_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    wrinkle_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    dry_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    oily_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    combination_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    normal_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    dehydrated_oily_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    sensitive_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    skin_profile_confidence_code: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    source_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

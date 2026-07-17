@@ -268,7 +268,7 @@ def test_invalid_scoring_read_path_is_rejected() -> None:
     session = _seed_example_session()
     intent, candidates, matches = _recommendation_inputs(session)
 
-    with pytest.raises(ValueError, match="legacy_bulk or compact_v2"):
+    with pytest.raises(ValueError, match="coarse_top50_v1"):
         score_candidates(
             session,
             intent,
@@ -278,16 +278,20 @@ def test_invalid_scoring_read_path_is_rejected() -> None:
         )
 
 
-@pytest.mark.parametrize("value", ["legacy_bulk", "compact_v2", " COMPACT_V2 "])
+@pytest.mark.parametrize(
+    "value",
+    ["legacy_bulk", "compact_v2", " COMPACT_V2 ", "coarse_top50_v1"],
+)
 def test_scoring_read_path_setting_accepts_only_supported_values(value: str) -> None:
     assert _normalize_recommendation_scoring_read_path(value) in {
         "legacy_bulk",
         "compact_v2",
+        "coarse_top50_v1",
     }
 
 
 def test_scoring_read_path_setting_rejects_unknown_value() -> None:
-    with pytest.raises(ValueError, match="legacy_bulk or compact_v2"):
+    with pytest.raises(ValueError, match="coarse_top50_v1"):
         _normalize_recommendation_scoring_read_path("snapshot_v1")
 
 

@@ -53,6 +53,21 @@ SCORING_STAGES = [
     ("score_detail_materialization_ms", "top result details"),
 ]
 
+# Opt4c first ranks the full candidate set with compact features, then runs the
+# legacy exact scorer only for the top 50. The generic prefetch/loop metrics are
+# aliases of the exact phase in this path, so including both would double count.
+COARSE_TOP50_SCORING_STAGES = [
+    ("coarse_feature_query_ms", "coarse feature query"),
+    ("coarse_feature_build_ms", "coarse feature build"),
+    ("coarse_feature_source_fallback_ms", "coarse source fallback"),
+    ("coarse_context_build_ms", "coarse context build"),
+    ("coarse_score_loop_ms", "coarse candidate loop"),
+    ("exact_prefetch_ms", "exact top-50 prefetch"),
+    ("exact_score_loop_ms", "exact top-50 score loop"),
+    ("score_sort_ms", "sort"),
+    ("score_detail_materialization_ms", "top result details"),
+]
+
 SCORING_PREFETCH_FIELDS = [
     ("snapshot_load_ms", "snapshot load"),
     ("candidate_bundle_ms", "candidate bundle"),
@@ -61,6 +76,7 @@ SCORING_PREFETCH_FIELDS = [
     ("risk_flags_ms", "risk flags"),
     ("review_segments_ms", "review segments"),
     ("behavior_signals_ms", "behavior signals"),
+    ("detail_ingredients_ms", "detail ingredients"),
 ]
 
 SNAPSHOT_READ_MODEL_FIELDS = [
@@ -839,7 +855,7 @@ def write_dict_csv(rows: list[dict[str, Any]], path: Path) -> None:
 def metric_family(metric: str) -> str:
     if metric.startswith("intent_"):
         return "intent-parser"
-    if metric.startswith("score_") or metric.startswith("scoring_"):
+    if metric.startswith(("score_", "scoring_", "coarse_", "exact_")):
         return "scoring"
     if metric in {key for key, _ in CONTEXT_LOAD_STAGES}:
         return "pipeline"
@@ -1022,13 +1038,24 @@ def write_analysis_readme(
         INTENT_STAGES
         + INTENT_LLM_STAGES
         + PURCHASE_PARSER_STAGES
-        + SCORING_STAGES
+        + scoring_stages_for_row(row or {})
         + SCORE_LOOP_DETAIL_STAGES
         + BEHAVIOR_SIGNAL_DETAIL_STAGES
         + INGREDIENT_EFFECT_DETAIL_STAGES
     )
     cause_records = build_stage_records(row or {}, detailed_stages, statistic="avg")
     cause = max(cause_records, key=lambda item: item["value"], default=None)
+    scoring_records = build_stage_records(
+        row or {},
+        scoring_stages_for_row(row or {}),
+        statistic="avg",
+    )
+    scoring_bottleneck = max(
+        scoring_records,
+        key=lambda item: item["value"],
+        default=None,
+    )
+    coarse_metrics = build_coarse_top50_metrics(row or {})
     missing = [
         item["metric"]
         for item in coverage_rows
@@ -1105,6 +1132,20 @@ def write_analysis_readme(
                 f"({cause['value']:.2f}ms)이다."
                 if cause
                 else "세부 원인을 확정할 표본이 부족하다."
+            ),
+            (
+                f"Scoring 내부의 가장 큰 구간은 `{scoring_bottleneck['stage']}` "
+                f"({scoring_bottleneck['value']:.2f}ms)이다."
+                if scoring_bottleneck
+                else "Scoring 내부 표본이 없다."
+            ),
+            (
+                "Opt4c는 coarse 후보 "
+                f"{coarse_metrics['coarse_candidate_count_avg']:.1f}개 중 "
+                f"{coarse_metrics['exact_shortlist_size_avg']:.1f}개만 exact 경로로 보내 "
+                f"상세 계산 대상을 {coarse_metrics['candidate_reduction_rate'] * 100:.1f}% 줄였다."
+                if coarse_metrics
+                else ""
             ),
             "",
             "## 6. 선택한 다음 최적화",
@@ -1326,6 +1367,7 @@ def plot_stage_graphs(
     scoring_dir = output_dirs["scoring"]
     data_loading_dir = output_dirs["data_loading"]
     guardrails_dir = output_dirs["guardrails"]
+    scoring_stages = scoring_stages_for_row(row)
 
     write_execution_flow_report(
         row,
@@ -1406,7 +1448,7 @@ def plot_stage_graphs(
     )
     plot_stage_bar(
         row,
-        SCORING_STAGES,
+        scoring_stages,
         scoring_dir / f"scoring_stage_breakdown_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage average ({scope})",
         plt,
@@ -1415,7 +1457,7 @@ def plot_stage_graphs(
     )
     plot_stage_bar(
         row,
-        SCORING_STAGES,
+        scoring_stages,
         scoring_dir / f"scoring_stage_p95_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage p95 ({scope})",
         plt,
@@ -1424,13 +1466,13 @@ def plot_stage_graphs(
     )
     plot_stage_donut(
         row,
-        SCORING_STAGES,
+        scoring_stages,
         scoring_dir / f"scoring_stage_share_donut_{stage_dataset}_vus{stage_vus:02d}.png",
         f"scoring stage share ({scope})",
         plt,
         sns,
         statistic="avg",
-        max_segments=len(SCORING_STAGES),
+        max_segments=len(scoring_stages),
         min_share_percent=0,
     )
     prefetch_columns = [
@@ -1614,6 +1656,26 @@ def plot_stage_graphs(
     )
 
 
+def uses_coarse_top50_scoring(row: dict[str, Any]) -> bool:
+    return any(
+        numeric_or_none(row.get(f"{metric}_{statistic}")) is not None
+        for metric in ("coarse_feature_query_ms", "coarse_score_loop_ms")
+        for statistic in ("avg", "p95")
+    )
+
+
+def scoring_stages_for_row(row: dict[str, Any]) -> list[tuple[str, str]]:
+    if uses_coarse_top50_scoring(row):
+        return COARSE_TOP50_SCORING_STAGES
+    return SCORING_STAGES
+
+
+def scoring_detail_parent_ids(row: dict[str, Any]) -> tuple[str, str]:
+    if uses_coarse_top50_scoring(row):
+        return "exact_prefetch_ms", "exact_score_loop_ms"
+    return "scoring_data_prefetch_ms", "score_loop_ms"
+
+
 def build_execution_flow_records(row) -> list[dict[str, Any]]:
     e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
     pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
@@ -1671,6 +1733,7 @@ def build_execution_flow_records(row) -> list[dict[str, Any]]:
     )
 
     scoring_ms = numeric_or_none(row.get("scoring_ms_avg")) or 0.0
+    scoring_stages = scoring_stages_for_row(row)
     append_execution_children(
         records,
         parent_id="scoring_ms",
@@ -1684,17 +1747,22 @@ def build_execution_flow_records(row) -> list[dict[str, Any]]:
                 f"{key}_avg",
                 numeric_or_none(row.get(f"{key}_avg")) or 0.0,
             )
-            for key, label in SCORING_STAGES
+            for key, label in scoring_stages
         ],
         e2e_ms=e2e_ms,
         source_run_id=source_run_id,
     )
 
-    prefetch_ms = numeric_or_none(row.get("scoring_data_prefetch_ms_avg")) or 0.0
+    prefetch_parent_id, score_loop_parent_id = scoring_detail_parent_ids(row)
+    prefetch_ms = numeric_or_none(row.get(f"{prefetch_parent_id}_avg")) or 0.0
     append_execution_children(
         records,
-        parent_id="scoring_data_prefetch_ms",
-        parent_label="data prefetch",
+        parent_id=prefetch_parent_id,
+        parent_label=(
+            "exact top-50 prefetch"
+            if prefetch_parent_id == "exact_prefetch_ms"
+            else "data prefetch"
+        ),
         parent_ms=prefetch_ms,
         level=4,
         children=[
@@ -1710,11 +1778,15 @@ def build_execution_flow_records(row) -> list[dict[str, Any]]:
         source_run_id=source_run_id,
     )
 
-    score_loop_ms = numeric_or_none(row.get("score_loop_ms_avg")) or 0.0
+    score_loop_ms = numeric_or_none(row.get(f"{score_loop_parent_id}_avg")) or 0.0
     append_execution_children(
         records,
-        parent_id="score_loop_ms",
-        parent_label="score loop",
+        parent_id=score_loop_parent_id,
+        parent_label=(
+            "exact top-50 score loop"
+            if score_loop_parent_id == "exact_score_loop_ms"
+            else "score loop"
+        ),
         parent_ms=score_loop_ms,
         level=4,
         children=[
@@ -1829,10 +1901,11 @@ def execution_flow_children(
 
 
 def build_snapshot_read_model_metrics(row) -> dict[str, Any] | None:
-    if not any(
-        numeric_or_none(row.get(f"{field}_avg")) is not None
+    instrumentation_values = [
+        numeric_or_none(row.get(f"{field}_avg"))
         for field in SNAPSHOT_READ_MODEL_FIELDS
-    ):
+    ]
+    if not any(value is not None and value > 0 for value in instrumentation_values):
         return None
 
     hit_count = numeric_or_none(row.get("scoring_snapshot_hit_count_avg")) or 0.0
@@ -1874,6 +1947,70 @@ def build_snapshot_read_model_metrics(row) -> dict[str, Any] | None:
     }
 
 
+def build_coarse_top50_metrics(row) -> dict[str, Any] | None:
+    if not uses_coarse_top50_scoring(row):
+        return None
+
+    row_count = numeric_or_none(row.get("coarse_feature_row_count_avg")) or 0.0
+    hit_count = numeric_or_none(row.get("coarse_feature_hit_count_avg")) or 0.0
+    miss_count = numeric_or_none(row.get("coarse_feature_miss_count_avg")) or 0.0
+    stale_count = numeric_or_none(row.get("coarse_feature_stale_count_avg")) or 0.0
+    shortlist_size = numeric_or_none(row.get("coarse_shortlist_size_avg")) or 0.0
+    feature_count = hit_count + miss_count
+    denominator = feature_count or row_count
+
+    return {
+        "source_run_id": str(row.get("run_id") or ""),
+        "coarse_candidate_count_avg": row_count,
+        "exact_shortlist_size_avg": shortlist_size,
+        "exact_candidate_ratio": (
+            round(shortlist_size / row_count, 6) if row_count > 0 else 0.0
+        ),
+        "candidate_reduction_rate": (
+            round(1.0 - shortlist_size / row_count, 6) if row_count > 0 else 0.0
+        ),
+        "feature_hit_rate": (
+            round(hit_count / denominator, 6) if denominator > 0 else 0.0
+        ),
+        "feature_miss_rate": (
+            round(miss_count / denominator, 6) if denominator > 0 else 0.0
+        ),
+        "feature_stale_rate": (
+            round(stale_count / denominator, 6) if denominator > 0 else 0.0
+        ),
+        "feature_fallback_ratio": (
+            numeric_or_none(row.get("coarse_feature_fallback_ratio_avg")) or 0.0
+        ),
+        "legacy_fallback_count_avg": (
+            numeric_or_none(row.get("legacy_fallback_count_avg")) or 0.0
+        ),
+        "coarse_feature_query_avg_ms": (
+            numeric_or_none(row.get("coarse_feature_query_ms_avg")) or 0.0
+        ),
+        "coarse_feature_query_p95_ms": (
+            numeric_or_none(row.get("coarse_feature_query_ms_p95")) or 0.0
+        ),
+        "coarse_score_loop_avg_ms": (
+            numeric_or_none(row.get("coarse_score_loop_ms_avg")) or 0.0
+        ),
+        "coarse_score_loop_p95_ms": (
+            numeric_or_none(row.get("coarse_score_loop_ms_p95")) or 0.0
+        ),
+        "exact_prefetch_avg_ms": (
+            numeric_or_none(row.get("exact_prefetch_ms_avg")) or 0.0
+        ),
+        "exact_prefetch_p95_ms": (
+            numeric_or_none(row.get("exact_prefetch_ms_p95")) or 0.0
+        ),
+        "exact_score_loop_avg_ms": (
+            numeric_or_none(row.get("exact_score_loop_ms_avg")) or 0.0
+        ),
+        "exact_score_loop_p95_ms": (
+            numeric_or_none(row.get("exact_score_loop_ms_p95")) or 0.0
+        ),
+    }
+
+
 def write_execution_flow_report(
     row,
     output_dir: Path,
@@ -1889,6 +2026,7 @@ def write_execution_flow_report(
     if not records:
         return
     snapshot_metrics = build_snapshot_read_model_metrics(row)
+    coarse_metrics = build_coarse_top50_metrics(row)
 
     write_dict_csv(records, data_dir / "execution-flow-timings.csv")
     basis = {
@@ -1910,6 +2048,11 @@ def write_execution_flow_report(
         write_dict_csv(
             [snapshot_metrics],
             data_dir / "snapshot-read-model-metrics.csv",
+        )
+    if coarse_metrics is not None:
+        write_dict_csv(
+            [coarse_metrics],
+            data_dir / "coarse-top50-metrics.csv",
         )
 
     plot_execution_hierarchy_rings(
@@ -1946,6 +2089,12 @@ def write_execution_flow_report(
             output_dir / "05-snapshot-read-model.png",
             plt,
         )
+    if coarse_metrics is not None:
+        plot_coarse_top50_guardrails(
+            coarse_metrics,
+            output_dir / "05-coarse-top50-guardrails.png",
+            plt,
+        )
     plot_bottleneck_paths(
         row,
         records,
@@ -1965,6 +2114,7 @@ def write_execution_flow_report(
         records,
         basis,
         snapshot_metrics=snapshot_metrics,
+        coarse_metrics=coarse_metrics,
     )
 
 
@@ -1975,12 +2125,30 @@ def write_execution_flow_readme(
     basis: dict[str, Any],
     *,
     snapshot_metrics: dict[str, Any] | None = None,
+    coarse_metrics: dict[str, Any] | None = None,
 ) -> None:
     e2e_ms = float(basis["latency_avg_ms"] or 0.0)
     p95_ms = float(basis["latency_p95_ms"] or 0.0)
     pipeline_ms = float(basis["pipeline_avg_ms"] or 0.0)
     attempt_rate = float(basis["llm_attempt_rate"] or 0.0)
     snapshot_lines = snapshot_read_model_markdown(snapshot_metrics)
+    coarse_lines = coarse_top50_markdown(coarse_metrics)
+    prefetch_parent_id, score_loop_parent_id = scoring_detail_parent_ids(row)
+    guardrail_instruction = (
+        "4. coarse 후보 축소율과 feature hit·miss·stale·fallback을 확인한다."
+        if coarse_metrics is not None
+        else "4. snapshot 적중률과 조회·fallback 비용을 확인한다."
+    )
+    prefetch_heading = (
+        "Exact top-50 prefetch 내부"
+        if prefetch_parent_id == "exact_prefetch_ms"
+        else "Data prefetch 내부"
+    )
+    score_loop_heading = (
+        "Exact top-50 score loop 내부"
+        if score_loop_parent_id == "exact_score_loop_ms"
+        else "Score loop 내부"
+    )
     lines = [
         "# 추천 API 실행 흐름 드릴다운",
         "",
@@ -1999,8 +2167,8 @@ def write_execution_flow_readme(
         "",
         "1. 전체 HTTP에서 파이프라인과 미계측 구간을 본다.",
         "2. 파이프라인의 실제 호출 순서와 각 구간 시간을 본다.",
-        "3. 가장 큰 scoring을 prefetch와 score loop까지 내려간다.",
-        "4. snapshot 적중률과 조회·fallback 비용을 확인한다.",
+        "3. 가장 큰 scoring을 coarse 선별과 exact 계산까지 내려간다.",
+        guardrail_instruction,
         "5. intent를 LLM 호출과 HTTP 대기까지 내려간다.",
         "6. 주요 병목 경로 세 개를 전체 HTTP 대비 비율로 비교한다.",
         "",
@@ -2022,13 +2190,14 @@ def write_execution_flow_readme(
         "",
         *execution_flow_markdown_table(records, "scoring_ms"),
         "",
-        "### Data prefetch 내부",
+        f"### {prefetch_heading}",
         "",
-        *execution_flow_markdown_table(records, "scoring_data_prefetch_ms"),
+        *execution_flow_markdown_table(records, prefetch_parent_id),
         "",
-        "### Score loop 내부",
+        f"### {score_loop_heading}",
         "",
-        *execution_flow_markdown_table(records, "score_loop_ms"),
+        *execution_flow_markdown_table(records, score_loop_parent_id),
+        *coarse_lines,
         *snapshot_lines,
         "",
         "![intent 드릴다운](./04-intent-drilldown.png)",
@@ -2084,6 +2253,44 @@ def snapshot_read_model_markdown(
         "- 원본 수치는 `../../data/snapshot-read-model-metrics.csv`에 있다.",
         "",
         "![snapshot read model](./05-snapshot-read-model.png)",
+    ]
+
+
+def coarse_top50_markdown(
+    metrics: dict[str, Any] | None,
+) -> list[str]:
+    if metrics is None:
+        return []
+    return [
+        "",
+        "## Coarse Top-50 선별",
+        "",
+        "| 구간 | 평균 | p95 |",
+        "|---|---:|---:|",
+        f"| coarse feature 조회 | {metrics['coarse_feature_query_avg_ms']:,.2f}ms | "
+        f"{metrics['coarse_feature_query_p95_ms']:,.2f}ms |",
+        f"| coarse 후보 점수 계산 | {metrics['coarse_score_loop_avg_ms']:,.2f}ms | "
+        f"{metrics['coarse_score_loop_p95_ms']:,.2f}ms |",
+        f"| exact 상위 50개 조회 | {metrics['exact_prefetch_avg_ms']:,.2f}ms | "
+        f"{metrics['exact_prefetch_p95_ms']:,.2f}ms |",
+        f"| exact 상위 50개 점수 계산 | {metrics['exact_score_loop_avg_ms']:,.2f}ms | "
+        f"{metrics['exact_score_loop_p95_ms']:,.2f}ms |",
+        "",
+        f"- coarse 대상: **{metrics['coarse_candidate_count_avg']:,.1f}개/요청**",
+        f"- exact 대상: **{metrics['exact_shortlist_size_avg']:,.1f}개/요청** "
+        f"({metrics['exact_candidate_ratio'] * 100:.1f}%)",
+        f"- 상세 조회·정확 계산 대상 감소율: "
+        f"**{metrics['candidate_reduction_rate'] * 100:.1f}%**",
+        f"- feature hit/miss/stale: **{metrics['feature_hit_rate'] * 100:.2f}% / "
+        f"{metrics['feature_miss_rate'] * 100:.2f}% / "
+        f"{metrics['feature_stale_rate'] * 100:.2f}%**",
+        f"- coarse source fallback 비율: "
+        f"**{metrics['feature_fallback_ratio'] * 100:.2f}%**",
+        "- generic `scoring_data_prefetch_ms`와 `score_loop_ms`는 이 경로에서 "
+        "exact 단계의 별칭이므로 scoring 구성에 중복 합산하지 않는다.",
+        "- 원본 수치는 `../../data/coarse-top50-metrics.csv`에 있다.",
+        "",
+        "![coarse top-50 guardrails](./05-coarse-top50-guardrails.png)",
     ]
 
 
@@ -2359,6 +2566,17 @@ def plot_scoring_drilldown(row, records, path: Path, plt, sns) -> None:
     scoring_ms = numeric_or_none(row.get("scoring_ms_avg")) or 0.0
     if scoring_ms <= 0:
         return
+    prefetch_parent_id, score_loop_parent_id = scoring_detail_parent_ids(row)
+    prefetch_label = (
+        "3. inside exact top-50 prefetch"
+        if prefetch_parent_id == "exact_prefetch_ms"
+        else "3. inside data prefetch"
+    )
+    score_loop_label = (
+        "4. inside exact top-50 score loop"
+        if score_loop_parent_id == "exact_score_loop_ms"
+        else "4. inside score loop"
+    )
     rows = [
         (
             "1. scoring total",
@@ -2374,22 +2592,22 @@ def plot_scoring_drilldown(row, records, path: Path, plt, sns) -> None:
             ],
         ),
         (
-            "3. inside data prefetch",
-            flow_record_value(records, "scoring_data_prefetch_ms"),
+            prefetch_label,
+            flow_record_value(records, prefetch_parent_id),
             [
                 (record["component"], record["value_ms"])
                 for record in execution_flow_children(
                     records,
-                    "scoring_data_prefetch_ms",
+                    prefetch_parent_id,
                 )
             ],
         ),
         (
-            "4. inside score loop",
-            flow_record_value(records, "score_loop_ms"),
+            score_loop_label,
+            flow_record_value(records, score_loop_parent_id),
             [
                 (record["component"], record["value_ms"])
-                for record in execution_flow_children(records, "score_loop_ms")
+                for record in execution_flow_children(records, score_loop_parent_id)
             ],
         ),
     ]
@@ -2657,55 +2875,176 @@ def plot_snapshot_read_model(metrics, path: Path, plt) -> None:
     save_figure(fig, path, plt)
 
 
+def plot_coarse_top50_guardrails(metrics, path: Path, plt) -> None:
+    fig, axes = plt.subplots(1, 3, figsize=(20, 7.5))
+
+    coarse_count = metrics["coarse_candidate_count_avg"]
+    exact_count = metrics["exact_shortlist_size_avg"]
+    funnel_labels = ["coarse candidates", "exact shortlist"]
+    funnel_values = [coarse_count, exact_count]
+    funnel_bars = axes[0].bar(
+        funnel_labels,
+        funnel_values,
+        color=["#2563EB", "#0F766E"],
+        width=0.62,
+    )
+    axes[0].bar_label(funnel_bars, fmt="%.1f", padding=4, fontsize=11)
+    axes[0].set_ylabel("candidates / request")
+    axes[0].set_title("Candidate funnel", fontweight="bold")
+    axes[0].spines[["right", "top"]].set_visible(False)
+    axes[0].text(
+        0.5,
+        max(funnel_values or [1]) * 0.58,
+        f"-{metrics['candidate_reduction_rate'] * 100:.1f}%\nexact work",
+        ha="center",
+        va="center",
+        fontsize=15,
+        fontweight="bold",
+        color="#0F172A",
+    )
+
+    timing_labels = ["coarse query", "coarse loop", "exact prefetch", "exact loop"]
+    timing_values = [
+        metrics["coarse_feature_query_avg_ms"],
+        metrics["coarse_score_loop_avg_ms"],
+        metrics["exact_prefetch_avg_ms"],
+        metrics["exact_score_loop_avg_ms"],
+    ]
+    timing_colors = ["#60A5FA", "#2563EB", "#2DD4BF", "#0F766E"]
+    timing_bars = axes[1].barh(timing_labels, timing_values, color=timing_colors)
+    axes[1].bar_label(timing_bars, fmt="%.1f ms", padding=4, fontsize=10)
+    axes[1].invert_yaxis()
+    axes[1].set_xlabel("average milliseconds")
+    axes[1].set_title("Two-pass scoring cost", fontweight="bold")
+    axes[1].spines[["right", "top"]].set_visible(False)
+    axes[1].set_xlim(0, max(timing_values or [1]) * 1.28)
+
+    rate_labels = ["hit", "miss", "stale", "fallback"]
+    rate_values = [
+        metrics["feature_hit_rate"] * 100,
+        metrics["feature_miss_rate"] * 100,
+        metrics["feature_stale_rate"] * 100,
+        metrics["feature_fallback_ratio"] * 100,
+    ]
+    rate_colors = ["#16A34A", "#DC2626", "#D97706", "#7C3AED"]
+    rate_bars = axes[2].bar(rate_labels, rate_values, color=rate_colors, width=0.62)
+    axes[2].bar_label(rate_bars, fmt="%.2f%%", padding=4, fontsize=10)
+    axes[2].set_ylabel("percent")
+    axes[2].set_ylim(0, max(105.0, max(rate_values or [0]) * 1.12))
+    axes[2].set_title("Feature read guardrails", fontweight="bold")
+    axes[2].spines[["right", "top"]].set_visible(False)
+
+    fig.suptitle(
+        "Opt4c coarse-to-exact scoring diagnostics",
+        fontsize=20,
+        fontweight="bold",
+        y=0.97,
+    )
+    fig.text(
+        0.5,
+        0.04,
+        "Coarse features rank the full candidate set; only the shortlist enters "
+        "the detailed exact scoring path.",
+        ha="center",
+        fontsize=10,
+        color="#475569",
+    )
+    fig.subplots_adjust(left=0.05, right=0.98, top=0.86, bottom=0.16, wspace=0.3)
+    save_figure(fig, path, plt)
+
+
 def plot_bottleneck_paths(row, records, path: Path, plt, sns) -> None:
     e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
     pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
     if e2e_ms <= 0:
         return
-    snapshot_load_ms = flow_record_value(records, "prefetch_snapshot_load_ms")
-    data_loading_leaf = (
-        ("snapshot load", snapshot_load_ms)
-        if snapshot_load_ms > 0
-        else (
-            "candidate bundle",
-            flow_record_value(records, "prefetch_candidate_bundle_ms"),
+    if uses_coarse_top50_scoring(row):
+        paths = [
+            (
+                "Coarse ranking path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("scoring", flow_record_value(records, "scoring_ms")),
+                    ("coarse loop", flow_record_value(records, "coarse_score_loop_ms")),
+                    ("feature query", flow_record_value(records, "coarse_feature_query_ms")),
+                ],
+                "#2563EB",
+            ),
+            (
+                "Exact top-50 path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("scoring", flow_record_value(records, "scoring_ms")),
+                    ("exact prefetch", flow_record_value(records, "exact_prefetch_ms")),
+                    ("exact loop", flow_record_value(records, "exact_score_loop_ms")),
+                ],
+                "#EA580C",
+            ),
+            (
+                "Intent / external-call path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("intent", flow_record_value(records, "intent_parse_ms")),
+                    ("LLM parser", flow_record_value(records, "intent_llm_call_ms")),
+                    ("LLM HTTP wait", flow_record_value(records, "intent_llm_http_ms")),
+                ],
+                "#0F766E",
+            ),
+        ]
+    else:
+        snapshot_load_ms = flow_record_value(records, "prefetch_snapshot_load_ms")
+        data_loading_leaf = (
+            ("snapshot load", snapshot_load_ms)
+            if snapshot_load_ms > 0
+            else (
+                "candidate bundle",
+                flow_record_value(records, "prefetch_candidate_bundle_ms"),
+            )
         )
-    )
-    paths = [
-        (
-            "Data-loading path",
-            [
-                ("HTTP", e2e_ms),
-                ("pipeline", pipeline_ms),
-                ("scoring", flow_record_value(records, "scoring_ms")),
-                ("data prefetch", flow_record_value(records, "scoring_data_prefetch_ms")),
-                data_loading_leaf,
-            ],
-            "#EA580C",
-        ),
-        (
-            "Per-candidate compute path",
-            [
-                ("HTTP", e2e_ms),
-                ("pipeline", pipeline_ms),
-                ("scoring", flow_record_value(records, "scoring_ms")),
-                ("score loop", flow_record_value(records, "score_loop_ms")),
-                ("behavior axis", flow_record_value(records, "score_loop_behavior_axis_ms")),
-            ],
-            "#2563EB",
-        ),
-        (
-            "Intent / external-call path",
-            [
-                ("HTTP", e2e_ms),
-                ("pipeline", pipeline_ms),
-                ("intent", flow_record_value(records, "intent_parse_ms")),
-                ("LLM parser", flow_record_value(records, "intent_llm_call_ms")),
-                ("LLM HTTP wait", flow_record_value(records, "intent_llm_http_ms")),
-            ],
-            "#0F766E",
-        ),
-    ]
+        paths = [
+            (
+                "Data-loading path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("scoring", flow_record_value(records, "scoring_ms")),
+                    (
+                        "data prefetch",
+                        flow_record_value(records, "scoring_data_prefetch_ms"),
+                    ),
+                    data_loading_leaf,
+                ],
+                "#EA580C",
+            ),
+            (
+                "Per-candidate compute path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("scoring", flow_record_value(records, "scoring_ms")),
+                    ("score loop", flow_record_value(records, "score_loop_ms")),
+                    (
+                        "behavior axis",
+                        flow_record_value(records, "score_loop_behavior_axis_ms"),
+                    ),
+                ],
+                "#2563EB",
+            ),
+            (
+                "Intent / external-call path",
+                [
+                    ("HTTP", e2e_ms),
+                    ("pipeline", pipeline_ms),
+                    ("intent", flow_record_value(records, "intent_parse_ms")),
+                    ("LLM parser", flow_record_value(records, "intent_llm_call_ms")),
+                    ("LLM HTTP wait", flow_record_value(records, "intent_llm_http_ms")),
+                ],
+                "#0F766E",
+            ),
+        ]
     fig, axes = plt.subplots(1, 3, figsize=(20, 8.5), sharex=True, layout="constrained")
     for ax, (title, stages, accent) in zip(axes, paths):
         labels = [stage[0] for stage in stages]
@@ -2744,11 +3083,6 @@ def plot_execution_flow_table(row, records, path: Path, plt) -> None:
         ("end_to_end", None),
         ("backend_pipeline", "end_to_end"),
         ("scoring_ms", "backend_pipeline"),
-        ("scoring_data_prefetch_ms", "scoring_ms"),
-        ("prefetch_snapshot_load_ms", "scoring_data_prefetch_ms"),
-        ("prefetch_candidate_bundle_ms", "scoring_data_prefetch_ms"),
-        ("score_loop_ms", "scoring_ms"),
-        ("score_loop_behavior_axis_ms", "score_loop_ms"),
         ("intent_parse_ms", "backend_pipeline"),
         ("intent_llm_call_ms", "intent_parse_ms"),
         ("intent_llm_http_ms", "intent_llm_call_ms"),
@@ -2758,6 +3092,24 @@ def plot_execution_flow_table(row, records, path: Path, plt) -> None:
         ("response_load_ms", "backend_pipeline"),
         ("outside_pipeline", "end_to_end"),
     ]
+    if uses_coarse_top50_scoring(row):
+        selections[3:3] = [
+            ("coarse_feature_query_ms", "scoring_ms"),
+            ("coarse_feature_build_ms", "scoring_ms"),
+            ("coarse_score_loop_ms", "scoring_ms"),
+            ("exact_prefetch_ms", "scoring_ms"),
+            ("prefetch_candidate_bundle_ms", "exact_prefetch_ms"),
+            ("exact_score_loop_ms", "scoring_ms"),
+            ("score_loop_behavior_axis_ms", "exact_score_loop_ms"),
+        ]
+    else:
+        selections[3:3] = [
+            ("scoring_data_prefetch_ms", "scoring_ms"),
+            ("prefetch_snapshot_load_ms", "scoring_data_prefetch_ms"),
+            ("prefetch_candidate_bundle_ms", "scoring_data_prefetch_ms"),
+            ("score_loop_ms", "scoring_ms"),
+            ("score_loop_behavior_axis_ms", "score_loop_ms"),
+        ]
     selected = []
     for component_id, parent_id in selections:
         record = find_execution_flow_record(

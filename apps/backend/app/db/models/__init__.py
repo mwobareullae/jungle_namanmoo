@@ -46,6 +46,7 @@ from app.db.models.commerce import (
 from app.db.models.events import EventLog
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
+    ProductRecommendationCoarseFeature,
     ProductRecommendationFeature,
     ProductRecommendationScoringReadModel,
     ProductRecommendationScoringSnapshot,
@@ -137,6 +138,7 @@ __all__ = [
     "ProductPopularityMetric",
     "ProductPrice",
     "ProductEffectRecommendationFeature",
+    "ProductRecommendationCoarseFeature",
     "ProductRecommendationFeature",
     "ProductRecommendationScoringReadModel",
     "ProductRecommendationScoringSnapshot",

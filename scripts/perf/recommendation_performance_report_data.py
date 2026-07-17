@@ -216,6 +216,10 @@ def build_report_row(
 
 
 def infer_measurement_schema(row: dict[str, Any]) -> str:
+    if numeric_or_none(row.get("coarse_feature_query_ms_avg")) is not None:
+        return "coarse-top50-v6"
+    if numeric_or_none(row.get("scoring_compact_read_model_load_ms_avg")) is not None:
+        return "compact-read-model-v5"
     if numeric_or_none(row.get("prefetch_candidate_bundle_ms_avg")) is not None:
         return "bulk-prefetch-v4"
     if (
