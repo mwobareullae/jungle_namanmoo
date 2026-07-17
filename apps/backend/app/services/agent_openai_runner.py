@@ -18,7 +18,14 @@ from app.core.ai_logging import extract_agents_usage, log_ai_call
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentContext, AgentError, AgentUiAction
+from app.schemas.agent import (
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentContext,
+    AgentError,
+    AgentLastToolResult,
+    AgentUiAction,
+)
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import (
     CANCEL_RECENT_ORDER_TOOL,
@@ -45,6 +52,7 @@ from app.services.agent_product_tools import (
     FIND_SIMILAR_PRODUCTS_TOOL,
     REFINE_PRODUCT_RESULTS_TOOL,
 )
+from app.services.agent_product_reference import apply_last_tool_result_reference
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
@@ -96,7 +104,10 @@ Routing:
   recommendation result, use reference_source="recommendation" with recommendation_id
   and reference_rank. For wishlist or recent-view lists, use reference_source="wishlist"
   or "recent" with reference_rank; for “마지막 상품” use reference_position="last"
-  instead of guessing a numeric rank. A request to order or buy one referenced product -> prepare_product_checkout.
+  instead of guessing a numeric rank. For an ordinal reference to last_tool_result, use
+  reference_source="last_tool_result" with reference_rank or reference_position. The
+  backend deterministically re-resolves this item order. A request to order or buy one
+  referenced product -> prepare_product_checkout.
   Resolve "second product" from
   the preserved item order and pass its recommendation metadata when available. This
   composite tool revalidates stock and price, updates the real cart, and opens checkout;
@@ -177,6 +188,8 @@ class CommerceAgentContext:
     anonymous_user_id: str | None
     anonymous_cart_id: str | None = None
     agent_context: AgentContext = field(default_factory=AgentContext)
+    user_message: str = ""
+    last_tool_result: AgentLastToolResult | None = None
     last_tool_response: AgentChatResponse | None = None
     tool_execution_ms: float = 0.0
 
@@ -316,6 +329,8 @@ async def run_openai_agent_chat(
         anonymous_user_id=anonymous_user_id,
         anonymous_cart_id=anonymous_cart_id,
         agent_context=request.context,
+        user_message=request.message,
+        last_tool_result=request.last_tool_result,
     )
     agent = Agent[CommerceAgentContext](
         name="mwobareullae_action_agent",
@@ -762,11 +777,17 @@ def _execute_tool(
 ) -> str:
     runtime_context: CommerceAgentContext = ctx.context
     started_at = current_time()
+    resolved_arguments = apply_last_tool_result_reference(
+        tool_name=tool_name,
+        arguments=arguments,
+        user_message=runtime_context.user_message,
+        last_tool_result=runtime_context.last_tool_result,
+    )
     try:
         response = execute_agent_tool(
             runtime_context.session,
             tool_name=tool_name,
-            arguments=arguments,
+            arguments=resolved_arguments,
             user=runtime_context.user,
             conversation_id=runtime_context.conversation_id,
             request_id=runtime_context.request_id,
@@ -774,6 +795,7 @@ def _execute_tool(
             anonymous_user_id=runtime_context.anonymous_user_id,
             anonymous_cart_id=runtime_context.anonymous_cart_id,
             current_product_id=runtime_context.agent_context.current_product_id,
+            last_tool_result=runtime_context.last_tool_result,
         )
     except ApiError as exc:
         if exc.code == "AGENT_AUTH_REQUIRED":
@@ -1047,7 +1069,7 @@ async def add_to_cart(
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
-    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent", "last_tool_result"] | None = None,
     reference_rank: int | None = None,
     reference_position: Literal["first", "last"] | None = None,
 ) -> str:
@@ -1074,7 +1096,7 @@ async def prepare_product_checkout(
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
-    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent", "last_tool_result"] | None = None,
     reference_rank: int | None = None,
     reference_position: Literal["first", "last"] | None = None,
 ) -> str:

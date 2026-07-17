@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.performance_logging import log_performance_event
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatResponse, AgentToolName
+from app.schemas.agent import AgentChatResponse, AgentLastToolResult, AgentToolName
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import (
     CANCEL_RECENT_ORDER_TOOL,
@@ -317,6 +317,7 @@ def execute_agent_tool(
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
     current_product_id: str | None = None,
+    last_tool_result: AgentLastToolResult | None = None,
 ) -> AgentChatResponse:
     started_at = time.perf_counter()
     policy = get_tool_policy(tool_name)
@@ -391,6 +392,7 @@ def execute_agent_tool(
             anonymous_user_id=anonymous_user_id,
             anonymous_cart_id=anonymous_cart_id,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
     except ApiError as exc:
         latency_ms = _elapsed_ms(started_at)
@@ -478,6 +480,7 @@ def _execute_parsed_tool(
     anonymous_user_id: str | None,
     anonymous_cart_id: str | None,
     current_product_id: str | None,
+    last_tool_result: AgentLastToolResult | None,
 ) -> AgentChatResponse:
     if tool_name == CREATE_RECOMMENDATION_TOOL:
         args = _require_args(arguments, CreateRecommendationArgs)
@@ -598,6 +601,7 @@ def _execute_parsed_tool(
             reference_rank=args.reference_rank,
             reference_position=args.reference_position,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
 
     if tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:
@@ -616,6 +620,7 @@ def _execute_parsed_tool(
             reference_rank=args.reference_rank,
             reference_position=args.reference_position,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
 
     if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
