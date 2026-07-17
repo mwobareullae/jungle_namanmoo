@@ -449,8 +449,20 @@ async def test_agent_resilience_integration_retries_429_without_opening_circuit(
 
 
 @pytest.mark.anyio
-async def test_agent_resilience_integration_opens_circuit_only_for_provider_failure(
+@pytest.mark.parametrize(
+    ("provider_error", "expected_error_code"),
+    [
+        (TimeoutError("provider timeout"), "AGENT_OPENAI_TIMEOUT"),
+        (
+            type("ProviderServerFailure", (Exception,), {"status_code": 503})(),
+            "AGENT_OPENAI_UNAVAILABLE",
+        ),
+    ],
+)
+async def test_agent_resilience_integration_opens_circuit_only_for_provider_failures(
     monkeypatch: pytest.MonkeyPatch,
+    provider_error: Exception,
+    expected_error_code: str,
 ) -> None:
     from agents import Runner
 
@@ -460,7 +472,7 @@ async def test_agent_resilience_integration_opens_circuit_only_for_provider_fail
     async def fake_run(*_args, **_kwargs):
         nonlocal provider_calls
         provider_calls += 1
-        raise TimeoutError("provider timeout")
+        raise provider_error
 
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
@@ -482,7 +494,7 @@ async def test_agent_resilience_integration_opens_circuit_only_for_provider_fail
                 Session(),
                 AgentChatRequest(message="민감 피부 세럼 추천"),
             )
-        assert captured.value.code == "AGENT_OPENAI_TIMEOUT"
+        assert captured.value.code == expected_error_code
 
     with pytest.raises(ApiError) as blocked:
         await run_openai_agent_chat(
