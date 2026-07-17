@@ -27,6 +27,7 @@ from app.services.agent_openai_runner import (
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     _build_agent_input,
+    _classify_openai_failure,
     _expected_tool_error_response,
     _extract_retry_after_seconds,
     _get_openai_retry_delay_seconds,
@@ -154,6 +155,16 @@ def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
         status_code = 503
 
     assert _is_retryable_openai_exception(ServerFailure()) is True
+    assert _classify_openai_failure(ServerFailure()) == "provider"
+
+    class RateLimited(Exception):
+        status_code = 429
+
+    assert _is_retryable_openai_exception(RateLimited()) is True
+    assert _classify_openai_failure(RateLimited()) == "rate_limit"
+    assert _is_retryable_openai_exception(
+        ApiError(429, "AGENT_OPENAI_BUSY", "busy")
+    ) is False
 
 
 def test_agent_retry_prefers_provider_retry_after_header() -> None:
@@ -205,11 +216,28 @@ def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
     breaker = _OpenAICircuitBreaker()
 
     breaker.before_call()
-    assert breaker.record_transient_failure() is False
-    assert breaker.record_transient_failure() is True
+    assert breaker.record_failure("provider") is False
+    assert breaker.record_failure("provider") is True
 
     with pytest.raises(Exception, match="AI 연결이 불안정해요"):
         breaker.before_call()
+
+
+def test_agent_circuit_breaker_ignores_rate_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    breaker = _OpenAICircuitBreaker()
+
+    assert breaker.record_failure("rate_limit") is False
+    assert breaker.record_failure("rate_limit") is False
+    breaker.before_call()
+
+    assert breaker.record_failure("provider") is False
+    assert breaker.record_failure("provider") is True
+    with pytest.raises(ApiError) as captured:
+        breaker.before_call()
+    assert captured.value.code == "AGENT_OPENAI_CIRCUIT_OPEN"
 
 
 @pytest.mark.anyio

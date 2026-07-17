@@ -205,7 +205,11 @@ class _OpenAICircuitBreaker:
             self._failure_count = 0
             self._opened_until = 0.0
 
-    def record_transient_failure(self) -> bool:
+    def record_failure(self, failure_kind: Literal["rate_limit", "provider", "non_retryable"]) -> bool:
+        # Provider rate limits are capacity signals, not service outages. Opening
+        # the process-wide circuit for 429 would block unrelated users as well.
+        if failure_kind != "provider":
+            return False
         with self._lock:
             self._failure_count += 1
             threshold = max(settings.openai_agent_circuit_failure_threshold, 1)
@@ -396,19 +400,20 @@ async def run_openai_agent_chat(
                 await asyncio.sleep(retry_delay_seconds)
         _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
-        if _is_retryable_openai_exception(exc):
-            opened = _OPENAI_CIRCUIT_BREAKER.record_transient_failure()
-            if opened:
-                log_performance_event(
-                    "agent_openai_circuit_opened",
-                    request_id=request_id,
-                    duration_ms=elapsed_ms(started_at),
-                    metadata={
-                        "model": settings.openai_agent_model,
-                        "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
-                    },
-                    level=30,
-                )
+        failure_kind = _classify_openai_failure(exc)
+        opened = _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
+        if opened:
+            log_performance_event(
+                "agent_openai_circuit_opened",
+                request_id=request_id,
+                duration_ms=elapsed_ms(started_at),
+                metadata={
+                    "model": settings.openai_agent_model,
+                    "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
+                    "failure_kind": failure_kind,
+                },
+                level=30,
+            )
         log_ai_call(
             "agent_chat",
             model=settings.openai_agent_model,
@@ -480,20 +485,38 @@ def _is_retryable_openai_exception(exc: Exception) -> bool:
     Tool/API validation failures are intentionally not retried because they are
     deterministic and a retry would only add latency and cost.
     """
+    return _classify_openai_failure(exc) != "non_retryable"
+
+
+def _classify_openai_failure(
+    exc: Exception,
+) -> Literal["rate_limit", "provider", "non_retryable"]:
+    # Local admission control must be returned immediately instead of retried or
+    # counted as an OpenAI outage.
+    if isinstance(exc, ApiError) and exc.code in {
+        "AGENT_OPENAI_BUSY",
+        "AGENT_OPENAI_CIRCUIT_OPEN",
+    }:
+        return "non_retryable"
+
     if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
-        return True
+        return "provider"
 
     status_code = getattr(exc, "status_code", None)
-    if isinstance(status_code, int) and (
-        status_code in {408, 409, 429} or status_code >= 500
-    ):
-        return True
+    if status_code == 429:
+        return "rate_limit"
+    if isinstance(status_code, int) and (status_code in {408, 409} or status_code >= 500):
+        return "provider"
 
     module = type(exc).__module__.lower()
     name = type(exc).__name__.lower()
     if not module.startswith("openai"):
-        return False
-    return any(token in name for token in ("timeout", "connection", "ratelimit", "internalserver"))
+        return "non_retryable"
+    if "ratelimit" in name:
+        return "rate_limit"
+    if any(token in name for token in ("timeout", "connection", "internalserver")):
+        return "provider"
+    return "non_retryable"
 
 
 def _get_openai_retry_delay_seconds(
