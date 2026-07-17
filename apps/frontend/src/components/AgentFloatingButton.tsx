@@ -9,6 +9,7 @@ import {
 } from "../lib/agentUiEvents";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { getSensitiveAgentInputMessage } from "../lib/agentInputSafety";
+import { getAgentChatStorageKeys, type AgentChatStorageScope } from "../lib/agentChatStorage";
 import { getOrderDetail } from "../lib/orderApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
@@ -36,6 +37,7 @@ type AgentFloatingButtonProps = {
     skin: string;
   };
   skinProfileStatus?: "empty" | "saved" | "temporary";
+  storageScope: AgentChatStorageScope;
   surface?: "home" | "productDetail" | "context" | "minimal";
 };
 
@@ -136,9 +138,6 @@ type AgentChatThreadSummary = {
   updatedAt: number;
 };
 
-const AGENT_CHAT_HISTORY_KEY = "mwobareullae-agent-chat-history-v2";
-const AGENT_CONVERSATION_ID_KEY = "mwobareullae-agent-conversation-id";
-const AGENT_CHAT_THREADS_KEY = "mwobareullae-agent-chat-threads-v1";
 const MAX_AGENT_CHAT_THREADS = 5;
 const MAX_AGENT_PRODUCT_PREVIEW_ITEMS = 3;
 const MAX_AGENT_CONTEXT_MESSAGES = 8;
@@ -436,13 +435,13 @@ function normalizeStoredMessage(message: unknown): AgentChatMessage | null {
   return null;
 }
 
-function readStoredMessages() {
+function readStoredMessages(storageScope: AgentChatStorageScope) {
   if (typeof window === "undefined") {
     return [];
   }
 
   try {
-    const storedMessages = window.localStorage.getItem(AGENT_CHAT_HISTORY_KEY);
+    const storedMessages = window.localStorage.getItem(getAgentChatStorageKeys(storageScope).history);
 
     if (!storedMessages) {
       return [];
@@ -463,12 +462,12 @@ function readStoredMessages() {
   }
 }
 
-function readStoredConversationId() {
+function readStoredConversationId(storageScope: AgentChatStorageScope) {
   if (typeof window === "undefined") {
     return null;
   }
 
-  return readString(window.localStorage.getItem(AGENT_CONVERSATION_ID_KEY));
+  return readString(window.localStorage.getItem(getAgentChatStorageKeys(storageScope).conversationId));
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -555,13 +554,13 @@ const normalizeStoredThread = (thread: unknown): AgentChatThreadSummary | null =
   };
 };
 
-function readStoredThreads() {
+function readStoredThreads(storageScope: AgentChatStorageScope) {
   if (typeof window === "undefined") {
     return [];
   }
 
   try {
-    const storedThreads = window.localStorage.getItem(AGENT_CHAT_THREADS_KEY);
+    const storedThreads = window.localStorage.getItem(getAgentChatStorageKeys(storageScope).threads);
     const parsedThreads: unknown = storedThreads ? JSON.parse(storedThreads) : null;
 
     if (Array.isArray(parsedThreads)) {
@@ -575,8 +574,8 @@ function readStoredThreads() {
     // Legacy history is still useful if the new thread list cannot be parsed.
   }
 
-  const legacyMessages = readStoredMessages();
-  const legacyConversationId = readStoredConversationId();
+  const legacyMessages = readStoredMessages(storageScope);
+  const legacyConversationId = readStoredConversationId(storageScope);
   if (legacyMessages.length === 0) {
     return [];
   }
@@ -1540,11 +1539,14 @@ function AgentFloatingButton({
   quickQuestionContext = "home",
   skinProfile,
   skinProfileStatus = "empty",
+  storageScope,
   surface = "home",
 }: AgentFloatingButtonProps) {
   const { openComparison, comparisonIntent } = useProductComparison();
   const [activeView, setActiveView] = useState<AgentChatView>("home");
-  const [conversationId, setConversationId] = useState<string | null>(readStoredConversationId);
+  const storageKeys = useMemo(() => getAgentChatStorageKeys(storageScope), [storageScope]);
+  const initialStoredMessages = useMemo(() => readStoredMessages(storageScope), [storageScope]);
+  const [conversationId, setConversationId] = useState<string | null>(() => readStoredConversationId(storageScope));
   const [isOpen, setIsOpen] = useState(false);
   const [isChatMounted, setIsChatMounted] = useState(false);
   const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home");
@@ -1554,10 +1556,10 @@ function AgentFloatingButton({
   const [isAwaitingAddressInput, setIsAwaitingAddressInput] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
-  const [messages, setMessages] = useState<AgentChatMessage[]>(readStoredMessages);
-  const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(readStoredMessages()));
+  const [messages, setMessages] = useState<AgentChatMessage[]>(initialStoredMessages);
+  const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(initialStoredMessages));
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
-  const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(readStoredThreads);
+  const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(() => readStoredThreads(storageScope));
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatPopupRef = useRef<HTMLElement | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
@@ -1758,10 +1760,10 @@ function AgentFloatingButton({
     }
 
     window.localStorage.setItem(
-      AGENT_CHAT_HISTORY_KEY,
+      storageKeys.history,
       JSON.stringify(sanitizeMessagesForStorage(messages).slice(-MAX_STORED_AGENT_MESSAGES)),
     );
-  }, [messages]);
+  }, [messages, storageKeys.history]);
 
   useEffect(() => {
     if (!currentThreadId || messages.length === 0) {
@@ -1784,8 +1786,8 @@ function AgentFloatingButton({
       return;
     }
 
-    window.localStorage.setItem(AGENT_CHAT_THREADS_KEY, JSON.stringify(chatThreads.slice(0, MAX_AGENT_CHAT_THREADS)));
-  }, [chatThreads]);
+    window.localStorage.setItem(storageKeys.threads, JSON.stringify(chatThreads.slice(0, MAX_AGENT_CHAT_THREADS)));
+  }, [chatThreads, storageKeys.threads]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1793,11 +1795,11 @@ function AgentFloatingButton({
     }
 
     if (conversationId) {
-      window.localStorage.setItem(AGENT_CONVERSATION_ID_KEY, conversationId);
+      window.localStorage.setItem(storageKeys.conversationId, conversationId);
     } else {
-      window.localStorage.removeItem(AGENT_CONVERSATION_ID_KEY);
+      window.localStorage.removeItem(storageKeys.conversationId);
     }
-  }, [conversationId]);
+  }, [conversationId, storageKeys.conversationId]);
 
   useEffect(() => {
     if (!isOpen || !isThreadView || typeof window === "undefined") {
