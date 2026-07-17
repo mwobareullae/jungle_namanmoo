@@ -1162,7 +1162,12 @@ function ProductDetailSpaPage() {
   ];
 
   if (isLoading) {
-    return <ProductDetailStatus errorMessage="" isLoading />;
+    return (
+      <>
+        <HomeHeader />
+        <ProductDetailStatus errorMessage="" isLoading />
+      </>
+    );
   }
 
   return (
