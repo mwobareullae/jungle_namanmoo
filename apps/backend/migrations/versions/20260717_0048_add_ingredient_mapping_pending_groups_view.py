@@ -1,7 +1,7 @@
 """add ingredient mapping pending groups materialized view
 
-Revision ID: 20260717_0047
-Revises: 20260717_0046
+Revision ID: 20260717_0048
+Revises: 20260717_0047
 """
 
 from collections.abc import Sequence
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from alembic import op
 
 
-revision: str = "20260717_0047"
-down_revision: str | None = "20260717_0046"
+revision: str = "20260717_0048"
+down_revision: str | None = "20260717_0047"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

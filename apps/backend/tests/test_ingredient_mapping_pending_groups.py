@@ -112,9 +112,9 @@ def _load_migration_module() -> ModuleType:
         Path(__file__).parents[1]
         / "migrations"
         / "versions"
-        / "20260717_0047_add_ingredient_mapping_pending_groups_view.py"
+        / "20260717_0048_add_ingredient_mapping_pending_groups_view.py"
     )
-    spec = importlib.util.spec_from_file_location("migration_20260717_0047", path)
+    spec = importlib.util.spec_from_file_location("migration_20260717_0048", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load the ingredient mapping pending groups migration.")
     module = importlib.util.module_from_spec(spec)
