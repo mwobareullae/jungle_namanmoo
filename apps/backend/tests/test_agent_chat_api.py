@@ -18,6 +18,7 @@ from app.main import app, db_pool_timeout_handler
 from app.core.config import settings
 from app.schemas.agent import (
     AgentChatRequest,
+    AgentContext,
     AgentContextResultItem,
     AgentConversationMessage,
     AgentLastToolResult,
@@ -36,10 +37,12 @@ from app.services.agent_openai_runner import (
     _get_openai_retry_delay_seconds,
     _log_openai_failure_counter,
     _is_retryable_openai_exception,
+    _select_agent_tool_names,
     _to_agent_execution_error,
     run_openai_agent_chat,
 )
 from app.services.agent_idempotency import claim_agent_request_execution
+from app.services.agent_policy import AGENT_TOOL_POLICIES
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -541,6 +544,191 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
 def test_agent_instructions_require_one_clarification_before_ambiguous_tool_use() -> None:
     assert "do not call a tool" in AGENT_INSTRUCTIONS
     assert "exactly one brief clarification question in Korean" in AGENT_INSTRUCTIONS
+
+
+def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
+    tool_names = _select_agent_tool_names(
+        user=None,
+        context=AgentContext(
+            page="product_detail",
+            current_product_id="prod_001",
+            visible_product_ids=["prod_001", "prod_002"],
+            recommendation_id="rec_001",
+        ),
+        last_tool_result=None,
+    )
+
+    assert set(tool_names) == {
+        "create_recommendation",
+        "find_similar_products",
+        "compare_products",
+        "refine_product_results",
+        "get_cart",
+        "add_to_cart",
+    }
+    assert all(not AGENT_TOOL_POLICIES[name].requires_auth for name in tool_names)
+
+
+@pytest.mark.parametrize(
+    ("page", "expected_count"),
+    [
+        ("product_detail", 12),
+        ("search_results", 11),
+        ("order_history", 9),
+        ("order_detail", 9),
+        ("checkout", 10),
+        ("payment_complete", 9),
+        ("skin_test", 6),
+        ("login", 6),
+        ("home", 17),
+    ],
+)
+def test_authenticated_tool_exposure_is_conservative_by_page(
+    page: str,
+    expected_count: int,
+) -> None:
+    tool_names = _select_agent_tool_names(
+        user=SimpleNamespace(id=1),
+        context=AgentContext(
+            page=page,
+            current_product_id="prod_001",
+            visible_product_ids=["prod_001", "prod_002"],
+            recommendation_id="rec_001",
+            cart_item_ids=[1],
+        ),
+        last_tool_result=None,
+    )
+
+    assert len(tool_names) == expected_count
+
+
+def test_shipping_address_tool_stays_available_for_interrupted_checkout() -> None:
+    without_continuation = _select_agent_tool_names(
+        user=SimpleNamespace(id=1),
+        context=AgentContext(page="product_detail"),
+        last_tool_result=None,
+    )
+    with_continuation = _select_agent_tool_names(
+        user=SimpleNamespace(id=1),
+        context=AgentContext(page="product_detail", cart_item_ids=[10]),
+        last_tool_result=None,
+    )
+
+    assert "register_shipping_address" not in without_continuation
+    assert "register_shipping_address" in with_continuation
+
+
+def test_demo_flow_tools_remain_exposed_across_context_changes() -> None:
+    user = SimpleNamespace(id=1)
+    search_tools = set(
+        _select_agent_tool_names(
+            user=user,
+            context=AgentContext(
+                page="search_results",
+                recommendation_id="rec_001",
+                visible_product_ids=["prod_001", "prod_002"],
+            ),
+            last_tool_result=None,
+        )
+    )
+    product_tools = set(
+        _select_agent_tool_names(
+            user=user,
+            context=AgentContext(
+                page="product_detail",
+                current_product_id="prod_001",
+                visible_product_ids=["prod_001", "prod_002"],
+            ),
+            last_tool_result=None,
+        )
+    )
+    pending_address_tools = set(
+        _select_agent_tool_names(
+            user=user,
+            context=AgentContext(page="product_detail", cart_item_ids=[10]),
+            last_tool_result=None,
+        )
+    )
+    checkout_tools = set(
+        _select_agent_tool_names(
+            user=user,
+            context=AgentContext(page="checkout", cart_item_ids=[10]),
+            last_tool_result=None,
+        )
+    )
+
+    assert {"create_recommendation", "refine_product_results"} <= search_tools
+    assert {
+        "find_similar_products",
+        "compare_products",
+        "prepare_product_checkout",
+    } <= product_tools
+    assert "register_shipping_address" in pending_address_tools
+    assert {"prepare_order", "bulk_wishlist_by_popular_ingredient"} <= checkout_tools
+
+
+@pytest.mark.anyio
+async def test_runner_passes_only_selected_guest_tools_and_logs_the_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    captured_tool_names: list[str] = []
+    selected_events: list[dict[str, object]] = []
+
+    async def fake_run(agent, *_args, **_kwargs):
+        captured_tool_names.extend(tool.name for tool in agent.tools)
+        return SimpleNamespace(final_output="조건을 조금 더 알려주세요.")
+
+    def capture_event(event: str, **kwargs) -> None:
+        if event == "agent_tools_selected":
+            selected_events.append(kwargs["metadata"])
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.log_performance_event",
+        capture_event,
+    )
+
+    await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(
+            message="이 화면에서 도와줘",
+            context=AgentContext(
+                page="product_detail",
+                current_product_id="prod_001",
+                visible_product_ids=["prod_001", "prod_002"],
+                recommendation_id="rec_001",
+            ),
+        ),
+    )
+
+    assert captured_tool_names == [
+        "create_recommendation",
+        "find_similar_products",
+        "compare_products",
+        "refine_product_results",
+        "get_cart",
+        "add_to_cart",
+    ]
+    assert selected_events == [
+        {
+            "authenticated": False,
+            "page": "product_detail",
+            "tool_count": 6,
+            "tool_names": captured_tool_names,
+        }
+    ]
 
 
 @pytest.mark.anyio
