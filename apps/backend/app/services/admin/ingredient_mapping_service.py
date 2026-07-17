@@ -1,8 +1,9 @@
 """관리자 성분 매핑 검수 조회 서비스 (P1-M2-A, 조회 전용).
 
-DB에는 관리자 판정(`ingredient_mapping_reviews`)만 저장한다. 목록·상세는 대량
-`product_ingredients` 에서 pending 성분을 원문 그룹으로 집계하고, review 를
-LEFT JOIN 해 상태(없으면 파생 PENDING)를 붙인다. 추천(`suggestion`)은 조회
+DB에는 관리자 판정(`ingredient_mapping_reviews`)만 저장한다. 목록·summary는
+`ingredient_mapping_pending_groups` materialized view를 읽고, 상세만 원본
+`product_ingredients`에서 단일 pending 성분을 조회한다. review를 LEFT JOIN 해
+상태(없으면 파생 PENDING)를 붙인다. 추천(`suggestion`)은 조회
 시점의 읽기 전용 정보로 alias/canonical 이름 정확 일치만 소스로 쓴다.
 
 정규화 정합성(중요): 목록 그룹핑과 판정 저장(`normalized_source_name`)은 모두
@@ -240,39 +241,17 @@ def _load_page_suggestions(
 # --- 목록 -----------------------------------------------------------------
 
 _LIST_SQL = text(
-    f"""
-    with variant as (
-        select i.id as source_id, i.ingredient_code as pending_code,
-               {_NORMALIZE_SQL.format(col="pi.ingredient_name")} as nsn,
-               pi.ingredient_name as raw_name,
-               count(*) as variant_count
-        from product_ingredients pi
-        join ingredients i on i.id = pi.ingredient_id
-        where {_PENDING_PREDICATE}
-        group by i.id, i.ingredient_code,
-                 {_NORMALIZE_SQL.format(col="pi.ingredient_name")}, pi.ingredient_name
-    ),
-    grp as (
-        select source_id, pending_code, nsn, sum(variant_count) as connection_count
-        from variant
-        group by source_id, pending_code, nsn
-    ),
-    rep as (
-        select distinct on (source_id, nsn) source_id, nsn, raw_name
-        from variant
-        order by source_id, nsn, variant_count desc, raw_name asc
-    )
-    select g.pending_code, g.nsn, g.connection_count,
-           r.raw_name,
+    """
+    select g.pending_code, g.normalized_source_name as nsn, g.connection_count,
+           g.raw_name,
            rev.id as review_id, rev.status as review_status,
            rev.target_ingredient_id, rev.decision_reason,
            rev.reviewed_by_user_id, rev.reviewed_at,
            tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
-    from grp g
-    join rep r on r.source_id = g.source_id and r.nsn = g.nsn
+    from ingredient_mapping_pending_groups g
     left join ingredient_mapping_reviews rev
-           on rev.source_ingredient_id = g.source_id
-          and rev.normalized_source_name = g.nsn
+           on rev.source_ingredient_id = g.source_ingredient_id
+          and rev.normalized_source_name = g.normalized_source_name
     left join ingredients tgt on tgt.id = rev.target_ingredient_id
     where
         (cast(:status as text) is null
@@ -280,34 +259,28 @@ _LIST_SQL = text(
          or (cast(:status as text) <> 'PENDING' and rev.status = cast(:status as text)))
         and (cast(:q as text) = ''
              or g.pending_code ilike cast(:q_like as text)
-             or g.nsn ilike cast(:q_like as text)
-             or r.raw_name ilike cast(:q_like as text))
+             or g.normalized_source_name ilike cast(:q_like as text)
+             or g.raw_name ilike cast(:q_like as text))
         and (cast(:cursor_pc as text) is null
-             or (g.pending_code, g.nsn) > (cast(:cursor_pc as text), cast(:cursor_nsn as text)))
-    order by g.pending_code asc, g.nsn asc
+             or (g.pending_code, g.normalized_source_name) > (
+                 cast(:cursor_pc as text), cast(:cursor_nsn as text)
+             ))
+    order by g.pending_code asc, g.normalized_source_name asc
     limit :limit_plus_one
     """
 )
 
 _SUMMARY_SQL = text(
-    f"""
-    with grp as (
-        select i.id as source_id,
-               {_NORMALIZE_SQL.format(col="pi.ingredient_name")} as nsn
-        from product_ingredients pi
-        join ingredients i on i.id = pi.ingredient_id
-        where {_PENDING_PREDICATE}
-        group by i.id, {_NORMALIZE_SQL.format(col="pi.ingredient_name")}
-    )
+    """
     select
         count(*) filter (where rev.status is null) as pending_count,
         count(*) filter (where rev.status = 'HELD') as held_count,
         count(*) filter (where rev.status = 'APPROVED') as approved_count,
         count(*) filter (where rev.status = 'REJECTED') as rejected_count
-    from grp g
+    from ingredient_mapping_pending_groups g
     left join ingredient_mapping_reviews rev
-           on rev.source_ingredient_id = g.source_id
-          and rev.normalized_source_name = g.nsn
+           on rev.source_ingredient_id = g.source_ingredient_id
+          and rev.normalized_source_name = g.normalized_source_name
     """
 )
 
