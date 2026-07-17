@@ -24,6 +24,7 @@ from app.services.agent_idempotency import (
 )
 from app.services.agent_safety import reject_sensitive_agent_input
 from app.services.cart_service import ANONYMOUS_CART_COOKIE_NAME, ANONYMOUS_CART_TTL_DAYS
+from app.services.event_tracking import session_id_from_request
 
 
 router = APIRouter(tags=["agent"])
@@ -87,7 +88,7 @@ async def post_agent_chat(
             body,
             user=current_user,
             request_id=getattr(request.state, "request_id", None),
-            session_id=None,
+            session_id=session_id_from_request(request),
             anonymous_user_id=None,
             anonymous_cart_id=anonymous_cart_id,
         )

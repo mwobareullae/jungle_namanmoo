@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.performance_logging import log_performance_event
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.schemas.agent import AgentChatResponse, AgentToolName
+from app.schemas.agent import AgentChatResponse, AgentLastToolResult, AgentToolName
 from app.schemas.common import ApiError, dump_model
 from app.services.agent_order_tools import (
     CANCEL_RECENT_ORDER_TOOL,
@@ -33,7 +33,7 @@ from app.services.agent_commerce_tools import (
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL, prepare_composed_cart
 from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, register_shipping_address
-from app.services.agent_policy import get_tool_policy, validate_tool_access
+from app.services.agent_policy import AgentToolPolicy, get_tool_policy, validate_tool_access
 from app.services.agent_product_reference import ProductReferenceSource
 from app.services.agent_recommendation_tools import (
     AgentCategoryCode,
@@ -316,11 +316,68 @@ def execute_agent_tool(
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
     current_product_id: str | None = None,
+    last_tool_result: AgentLastToolResult | None = None,
 ) -> AgentChatResponse:
     started_at = time.perf_counter()
     policy = get_tool_policy(tool_name)
-    validate_tool_access(tool_name, user_id=user.id if user is not None else None)
-    parsed_arguments = _parse_tool_arguments(tool_name, arguments or {})
+    raw_arguments = arguments or {}
+    try:
+        validate_tool_access(tool_name, user_id=user.id if user is not None else None)
+    except ApiError as exc:
+        latency_ms = _elapsed_ms(started_at)
+        _record_pre_execution_tool_call(
+            session,
+            tool_name=tool_name,
+            arguments=raw_arguments,
+            user=user,
+            conversation_id=conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            error=exc,
+            status="REJECTED",
+            confirmation_required=policy.requires_confirmation,
+            latency_ms=latency_ms,
+        )
+        _log_pre_execution_failure(
+            tool_name=tool_name,
+            status="REJECTED",
+            error=exc,
+            policy=policy,
+            request_id=request_id,
+            user=user,
+            latency_ms=latency_ms,
+        )
+        raise
+
+    try:
+        parsed_arguments = _parse_tool_arguments(tool_name, raw_arguments)
+    except ApiError as exc:
+        latency_ms = _elapsed_ms(started_at)
+        _record_pre_execution_tool_call(
+            session,
+            tool_name=tool_name,
+            arguments=raw_arguments,
+            user=user,
+            conversation_id=conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            error=exc,
+            status="FAILED",
+            confirmation_required=policy.requires_confirmation,
+            latency_ms=latency_ms,
+        )
+        _log_pre_execution_failure(
+            tool_name=tool_name,
+            status="FAILED",
+            error=exc,
+            policy=policy,
+            request_id=request_id,
+            user=user,
+            latency_ms=latency_ms,
+        )
+        raise
 
     try:
         response = _execute_parsed_tool(
@@ -334,6 +391,7 @@ def execute_agent_tool(
             anonymous_user_id=anonymous_user_id,
             anonymous_cart_id=anonymous_cart_id,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
     except ApiError as exc:
         latency_ms = _elapsed_ms(started_at)
@@ -421,6 +479,7 @@ def _execute_parsed_tool(
     anonymous_user_id: str | None,
     anonymous_cart_id: str | None,
     current_product_id: str | None,
+    last_tool_result: AgentLastToolResult | None,
 ) -> AgentChatResponse:
     if tool_name == CREATE_RECOMMENDATION_TOOL:
         args = _require_args(arguments, CreateRecommendationArgs)
@@ -540,6 +599,7 @@ def _execute_parsed_tool(
             reference_rank=args.reference_rank,
             reference_position=args.reference_position,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
 
     if tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:
@@ -558,6 +618,7 @@ def _execute_parsed_tool(
             reference_rank=args.reference_rank,
             reference_position=args.reference_position,
             current_product_id=current_product_id,
+            last_tool_result=last_tool_result,
         )
 
     if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
@@ -745,6 +806,70 @@ def _record_failed_tool_call(
     session.flush()
 
 
+def _record_pre_execution_tool_call(
+    session: Session,
+    *,
+    tool_name: str,
+    arguments: dict[str, Any],
+    user: User | None,
+    conversation_id: str | None,
+    request_id: str | None,
+    session_id: str | None,
+    anonymous_user_id: str | None,
+    error: ApiError,
+    status: Literal["REJECTED", "FAILED"],
+    confirmation_required: bool,
+    latency_ms: int,
+) -> None:
+    now = datetime.now(UTC)
+    session.add(
+        AgentToolCall(
+            tool_call_id=_generate_tool_call_id(),
+            conversation_id=conversation_id,
+            user_id=user.id if user is not None else None,
+            anonymous_user_id=anonymous_user_id,
+            session_id=session_id,
+            request_id=request_id,
+            tool_name=tool_name,
+            status=status,
+            confirmation_required=confirmation_required,
+            input_json=_safe_unparsed_tool_input(tool_name, arguments),
+            output_json={},
+            error_code=error.code,
+            error_message=error.message,
+            latency_ms=latency_ms,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    session.flush()
+
+
+def _log_pre_execution_failure(
+    *,
+    tool_name: str,
+    status: Literal["REJECTED", "FAILED"],
+    error: ApiError,
+    policy: AgentToolPolicy,
+    request_id: str | None,
+    user: User | None,
+    latency_ms: int,
+) -> None:
+    log_performance_event(
+        "agent_tool_failed",
+        request_id=request_id,
+        duration_ms=latency_ms,
+        metadata={
+            "tool_name": tool_name,
+            "status": status,
+            "confirmation_required": policy.requires_confirmation,
+            "error_code": error.code,
+            "user_authenticated": user is not None,
+            "failure_stage": "access" if status == "REJECTED" else "arguments",
+        },
+    )
+
+
 def _generate_tool_call_id() -> str:
     return f"tool_{secrets.token_urlsafe(18).replace('-', '').replace('_', '')[:24]}"
 
@@ -764,6 +889,24 @@ def _safe_tool_input(tool_name: str, arguments: ToolArgs) -> dict[str, Any]:
         "is_default": args.is_default,
         "continue_checkout": args.continue_checkout,
         "cart_item_ids": args.cart_item_ids,
+        "pii_redacted": True,
+    }
+
+
+def _safe_unparsed_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if tool_name != REGISTER_SHIPPING_ADDRESS_TOOL:
+        return dict(arguments)
+
+    return {
+        "recipient_name_provided": bool(arguments.get("recipient_name")),
+        "phone_provided": bool(arguments.get("phone")),
+        "postal_code_provided": bool(arguments.get("postal_code")),
+        "address1_provided": bool(arguments.get("address1")),
+        "address2_provided": bool(arguments.get("address2")),
+        "delivery_memo_provided": bool(arguments.get("delivery_memo")),
+        "is_default": arguments.get("is_default"),
+        "continue_checkout": arguments.get("continue_checkout"),
+        "cart_item_ids": arguments.get("cart_item_ids"),
         "pii_redacted": True,
     }
 
