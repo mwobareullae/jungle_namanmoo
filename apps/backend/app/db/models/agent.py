@@ -96,4 +96,9 @@ class AgentRequestExecution(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING", server_default="PENDING")
     response_json: Mapped[dict] = mapped_column(jsonb_type(), nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

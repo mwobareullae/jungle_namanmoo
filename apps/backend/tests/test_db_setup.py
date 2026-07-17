@@ -29,6 +29,7 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
+        "agent_request_executions",
         "agent_tool_calls",
         "auth_accounts",
         "auth_sessions",
@@ -75,7 +76,10 @@ def test_declarative_base_metadata_is_available() -> None:
         "product_ingredients",
         "product_popularity_metrics",
         "product_prices",
+        "product_recommendation_coarse_features",
         "product_recommendation_features",
+        "product_recommendation_scoring_read_models",
+        "product_recommendation_scoring_snapshots",
         "product_review_metrics",
         "product_review_profile_labels",
         "product_review_segment_metrics",
@@ -109,6 +113,60 @@ def test_declarative_base_metadata_is_available() -> None:
     }
 
     assert set(Base.metadata.tables) == expected_tables
+
+
+def test_recommendation_scoring_snapshot_schema_uses_product_primary_key() -> None:
+    snapshots = Base.metadata.tables["product_recommendation_scoring_snapshots"]
+
+    assert {
+        "product_id",
+        "scoring_payload",
+        "snapshot_version",
+        "source_versions",
+        "computed_at",
+    } == set(snapshots.columns.keys())
+    assert list(snapshots.primary_key.columns.keys()) == ["product_id"]
+    assert not snapshots.indexes
+
+
+def test_recommendation_scoring_read_model_schema_is_compact() -> None:
+    read_models = Base.metadata.tables["product_recommendation_scoring_read_models"]
+
+    assert {
+        "product_id",
+        "top_ingredient_codes",
+        "top_effect_codes",
+        "product_feature_version",
+        "product_feature_source_current",
+        "functional_status",
+        "functional_claims",
+        "functional_confidence",
+        "functional_basis",
+        "skin_tags",
+        "dry_fit",
+        "oily_fit",
+        "combination_fit",
+        "normal_fit",
+        "dehydrated_oily_fit",
+        "sensitive_fit",
+        "sensitivity_tag",
+        "skin_profile_confidence",
+        "skin_profile_reason",
+        "popularity_score",
+        "popularity_score_version",
+        "popularity_window_days",
+        "review_quality_score",
+        "review_confidence",
+        "review_effective_sample_size",
+        "review_count",
+        "review_score_version",
+        "read_model_version",
+        "source_updated_at",
+        "computed_at",
+    } == set(read_models.columns.keys())
+    assert "scoring_payload" not in read_models.columns
+    assert list(read_models.primary_key.columns.keys()) == ["product_id"]
+    assert not read_models.indexes
 
 
 def test_mvp_schema_contains_hard_filter_and_search_columns() -> None:

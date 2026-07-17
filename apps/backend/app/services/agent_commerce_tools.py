@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 import secrets
+from typing import Literal
 
 from sqlalchemy.orm import Session
 from fastapi.encoders import jsonable_encoder
@@ -65,6 +66,7 @@ def add_agent_cart_item(
     recommendation_rank: int | None,
     reference_source: ProductReferenceSource | None = None,
     reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
     current_product_id: str | None = None,
     anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
@@ -76,6 +78,8 @@ def add_agent_cart_item(
         rank=reference_rank,
         current_product_id=current_product_id,
         recommendation_id=recommendation_id,
+        user=user,
+        position=reference_position,
     )
     result = add_cart_item(
         session,
@@ -102,12 +106,29 @@ def prepare_agent_product_checkout(
     user: User,
     *,
     conversation_id: str | None,
-    product_id: str,
+    product_id: str | None,
     quantity: int,
     recommendation_id: str | None,
     recommendation_rank: int | None,
+    reference_source: ProductReferenceSource | None = None,
+    reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
+    current_product_id: str | None = None,
 ) -> AgentChatResponse:
     validate_tool_access(PREPARE_PRODUCT_CHECKOUT_TOOL, user_id=user.id)
+    reference = resolve_product_reference(
+        session,
+        product_id=product_id,
+        source=reference_source,
+        rank=reference_rank,
+        current_product_id=current_product_id,
+        recommendation_id=recommendation_id,
+        user=user,
+        position=reference_position,
+    )
+    product_id = reference.product_id
+    recommendation_id = reference.recommendation_id or recommendation_id
+    recommendation_rank = reference.rank or recommendation_rank
     cart = get_cart_response(session, user, None)
     existing = next((item for item in cart.items if item.product_id == product_id), None)
     if existing is None:

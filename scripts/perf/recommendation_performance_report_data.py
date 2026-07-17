@@ -40,6 +40,7 @@ COMPARABILITY_COLUMNS = [
     "measurement_schema",
     "complete",
     "condition_matches",
+    "headline_selected",
     "error_rate",
     "error_gate_passed",
     "headline_eligible",
@@ -103,9 +104,14 @@ def collect_report_rows(repo_root: Path, registry: dict[str, Any]) -> list[dict[
         for path in loose_root.glob("recommendation-*")
         if path.is_dir()
     }
+    supplemental_runs: set[Path] = set()
+    for root_name in registry.get("supplemental_run_roots", []):
+        root = (repo_root / root_name).resolve()
+        if root.exists():
+            supplemental_runs.update(path.resolve() for path in legacy_analysis.find_run_dirs(root))
 
     rows: list[dict[str, Any]] = []
-    for run_dir in sorted(set(assignments) | loose_runs):
+    for run_dir in sorted(set(assignments) | loose_runs | supplemental_runs):
         rows.append(
             build_report_row(
                 repo_root,
@@ -169,13 +175,21 @@ def build_report_row(
     error_gate_passed = error_rate is not None and error_rate <= float(comparison["max_error_rate"])
     condition_matches = matches_condition(row, comparison)
     assigned = stage is not None and stage.get("status") == "measured"
-    headline_eligible = bool(assigned and complete and condition_matches and error_gate_passed)
+    headline_run_ids = set(stage.get("headline_run_ids", [])) if stage else set()
+    headline_selected = bool(
+        assigned and (not headline_run_ids or run_id in headline_run_ids)
+    )
+    headline_eligible = bool(
+        headline_selected and complete and condition_matches and error_gate_passed
+    )
     problem_evidence_eligible = bool(assigned and complete and condition_matches)
     pipeline_eligible = bool(problem_evidence_eligible and numeric(row.get("pipeline_event_count"), 0) > 0)
 
     exclusion_reasons: list[str] = []
     if not assigned:
         exclusion_reasons.append("unassigned_stage")
+    if assigned and not headline_selected:
+        exclusion_reasons.append("not_selected_for_headline")
     if not complete:
         exclusion_reasons.append("incomplete_run")
     if complete and not condition_matches:
@@ -188,6 +202,7 @@ def build_report_row(
         {
             "complete": complete,
             "condition_matches": condition_matches,
+            "headline_selected": headline_selected,
             "error_rate": error_rate,
             "error_gate_passed": error_gate_passed,
             "headline_eligible": headline_eligible,
@@ -201,6 +216,10 @@ def build_report_row(
 
 
 def infer_measurement_schema(row: dict[str, Any]) -> str:
+    if numeric_or_none(row.get("coarse_feature_query_ms_avg")) is not None:
+        return "coarse-top50-v6"
+    if numeric_or_none(row.get("scoring_compact_read_model_load_ms_avg")) is not None:
+        return "compact-read-model-v5"
     if numeric_or_none(row.get("prefetch_candidate_bundle_ms_avg")) is not None:
         return "bulk-prefetch-v4"
     if (

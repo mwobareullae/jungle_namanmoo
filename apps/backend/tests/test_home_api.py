@@ -193,6 +193,15 @@ def test_home_evidence_picks_returns_sorted_section(client: TestClient) -> None:
     _assert_home_product_contract(data["products"][0])
 
 
+def test_home_product_tags_use_the_highest_ranked_effect_ingredient_pair(client: TestClient) -> None:
+    response = client.get("/api/home/evidence-picks", params={"limit": 4})
+
+    assert response.status_code == 200
+    products_by_id = {product["product_id"]: product for product in response.json()["products"]}
+    assert products_by_id["prod_001"]["tags"] == ["진정", "판테놀"]
+    assert products_by_id["prod_002"]["tags"] == ["피지 조절", "나이아신아마이드"]
+
+
 def test_home_for_you_returns_anonymous_fallback(client: TestClient) -> None:
     response = client.get("/api/home/for-you", params={"limit": 3})
 

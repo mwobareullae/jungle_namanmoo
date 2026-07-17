@@ -32,6 +32,8 @@ CONFIG_RUN_FINISHED_AT="${BENCHMARK_RUN_FINISHED_AT-}"
 CONFIG_RUN_FINISHED_AT_SET="${BENCHMARK_RUN_FINISHED_AT+x}"
 CONFIG_K6_EXIT_CODE="${BENCHMARK_K6_EXIT_CODE-}"
 CONFIG_K6_EXIT_CODE_SET="${BENCHMARK_K6_EXIT_CODE+x}"
+CONFIG_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH-}"
+CONFIG_SCORING_READ_PATH_SET="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH+x}"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -58,10 +60,15 @@ restore_env_override BENCHMARK_SERVER_HOST "$CONFIG_SERVER_HOST_SET" "$CONFIG_SE
 restore_env_override BENCHMARK_RUN_STARTED_AT "$CONFIG_RUN_STARTED_AT_SET" "$CONFIG_RUN_STARTED_AT"
 restore_env_override BENCHMARK_RUN_FINISHED_AT "$CONFIG_RUN_FINISHED_AT_SET" "$CONFIG_RUN_FINISHED_AT"
 restore_env_override BENCHMARK_K6_EXIT_CODE "$CONFIG_K6_EXIT_CODE_SET" "$CONFIG_K6_EXIT_CODE"
+restore_env_override BENCHMARK_RECOMMENDATION_SCORING_READ_PATH \
+  "$CONFIG_SCORING_READ_PATH_SET" \
+  "$CONFIG_SCORING_READ_PATH"
 
 BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
 BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
 RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$BENCHMARK_RUNTIME_ROOT/runs}"
+BENCHMARK_RECOMMENDATION_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH:-legacy_bulk}"
+export BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
 COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
@@ -79,7 +86,7 @@ Usage:
   scripts/perf/benchmarkctl build <source_dir> [output_root]
   scripts/perf/benchmarkctl collect <run_id> [dataset]
 
-prepare seeds and indexes the explicitly configured benchmark database.
+prepare seeds, rolls up scoring inputs, and indexes the configured benchmark database.
 activate restarts only the backend with that benchmark database and alias.
 build creates deterministic product-related subsets for all four datasets.
 Set BENCHMARK_ACTIVATE=true to activate automatically after prepare.
@@ -90,6 +97,11 @@ die() {
   echo "benchmarkctl: $*" >&2
   exit 1
 }
+
+case "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" in
+  legacy_bulk|compact_v2|coarse_top50_v1) ;;
+  *) die "BENCHMARK_RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, or coarse_top50_v1" ;;
+esac
 
 safe_label() {
   printf '%s' "$1" | tr -cs '[:alnum:]_.-' '-'
@@ -132,6 +144,7 @@ backend_exec() {
     -e "DATABASE_URL=$BENCHMARK_DATABASE_URL" \
     -e "DATA_DIR=$DATA_DIR" \
     -e "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=$ELASTICSEARCH_ALIAS" \
+    -e "RECOMMENDATION_SCORING_READ_PATH=$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" \
     -e "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD=${BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD:-}" \
     -e "BENCHMARK_FULL_PERSONALIZED_USER_COUNT=${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
     -e "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX=${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
@@ -151,6 +164,7 @@ query_set=$QUERY_SET
 bench_mode=$BENCH_MODE
 cache_state=$CACHE_STATE
 candidate_pool_limit=$CANDIDATE_POOL_LIMIT
+recommendation_scoring_read_path=$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
 EOF
 }
 
@@ -227,6 +241,154 @@ if documents != expected:
 PY
 }
 
+verify_recommendation_scoring_read_models() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, or_, select
+
+from app.db.models.recommendation import (
+    ProductRecommendationScoringReadModel,
+)
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+    PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION,
+)
+from app.services.review_rollup import REVIEW_SCORE_VERSION
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    read_model_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            )
+        ).scalar_one()
+    )
+    version_mismatch_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                ProductRecommendationScoringReadModel.read_model_version
+                != PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION
+            )
+        ).scalar_one()
+    )
+    stale_product_feature_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                or_(
+                    ProductRecommendationScoringReadModel.product_feature_version
+                    != PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+                    ProductRecommendationScoringReadModel.product_feature_source_current
+                    .is_(False),
+                )
+            )
+        ).scalar_one()
+    )
+    stale_review_metric_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                ProductRecommendationScoringReadModel.review_quality_score
+                .is_not(None),
+                or_(
+                    ProductRecommendationScoringReadModel.review_score_version
+                    .is_(None),
+                    ProductRecommendationScoringReadModel.review_score_version
+                    != REVIEW_SCORE_VERSION,
+                ),
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_scoring_read_models={read_model_count}")
+print(
+    "recommendation_scoring_read_model_version="
+    f"{PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION}"
+)
+print(f"recommendation_scoring_read_model_version_mismatches={version_mismatch_count}")
+print(f"recommendation_product_feature_stale={stale_product_feature_count}")
+print(f"recommendation_review_metric_stale={stale_review_metric_count}")
+if read_model_count != expected:
+    raise SystemExit(
+        f"expected recommendation scoring read models={expected}, got {read_model_count}"
+    )
+if version_mismatch_count:
+    raise SystemExit(
+        "recommendation scoring read model version mismatch: "
+        f"{version_mismatch_count} row(s)"
+    )
+if stale_product_feature_count:
+    raise SystemExit(
+        "recommendation product feature is stale: "
+        f"{stale_product_feature_count} row(s)"
+    )
+if stale_review_metric_count:
+    raise SystemExit(
+        "recommendation review metric is stale: "
+        f"{stale_review_metric_count} row(s)"
+    )
+PY
+}
+
+verify_recommendation_coarse_features() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, or_, select
+
+from app.db.models.recommendation import ProductRecommendationCoarseFeature
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+)
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    coarse_feature_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id))
+        ).scalar_one()
+    )
+    invalid_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id)).where(
+                or_(
+                    ProductRecommendationCoarseFeature.feature_version
+                    != PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+                    ProductRecommendationCoarseFeature.source_current.is_(False),
+                )
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_coarse_features={coarse_feature_count}")
+print(
+    "recommendation_coarse_feature_version="
+    f"{PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION}"
+)
+print(f"recommendation_coarse_feature_invalid={invalid_count}")
+if coarse_feature_count != expected:
+    raise SystemExit(
+        f"expected recommendation coarse features={expected}, got {coarse_feature_count}"
+    )
+if invalid_count:
+    raise SystemExit(
+        f"recommendation coarse feature is stale or invalid: {invalid_count} row(s)"
+    )
+PY
+}
+
 verify_elasticsearch() {
   local count expected
   expected="$(expected_product_count)"
@@ -278,6 +440,20 @@ prepare() {
   backend_exec python -m alembic upgrade head
   echo "Seeding benchmark dataset..."
   backend_exec python -m app.cli.seed_data --data-dir "$DATA_DIR"
+  echo "Rolling up recommendation product features..."
+  backend_exec python -m app.cli.rollup_product_recommendation_features \
+    --full \
+    --batch-size 500
+  echo "Rolling up recommendation scoring read models..."
+  backend_exec python -m app.cli.rollup_product_recommendation_scoring_read_models \
+    --full \
+    --batch-size 500
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    echo "Rolling up recommendation coarse features..."
+    backend_exec python -m app.cli.rollup_product_recommendation_coarse_features \
+      --full \
+      --batch-size 500
+  fi
   echo "Indexing benchmark dataset..."
   backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
     --full \
@@ -286,6 +462,10 @@ prepare() {
     --no-cleanup \
     --retain-previous-indices 4
   verify_database_counts
+  verify_recommendation_scoring_read_models
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    verify_recommendation_coarse_features
+  fi
   verify_elasticsearch
   if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
     activate
@@ -310,6 +490,7 @@ verify() {
   verify_data_dir
   print_context
   verify_database_counts
+  verify_recommendation_scoring_read_models
   verify_elasticsearch
   [[ -f "$REPO_DIR/$QUERY_SET" ]] || die "query set is missing: $REPO_DIR/$QUERY_SET"
   python3 -m json.tool "$REPO_DIR/$QUERY_SET" >/dev/null
@@ -679,6 +860,7 @@ PY
   "query_id": "$(safe_label "${BENCHMARK_QUERY_ID:-all}")",
   "query_set": "$QUERY_SET",
   "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
+  "recommendation_scoring_read_path": "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH",
   "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
   "k6_result_present": $k6_result_present,
   "k6_output_present": $k6_output_present,

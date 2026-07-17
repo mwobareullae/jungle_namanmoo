@@ -3,6 +3,7 @@ import logging
 from types import SimpleNamespace
 
 from app.core.ai_logging import (
+    estimate_ai_cost_usd,
     extract_agents_usage,
     extract_chat_completion_usage_from_body,
     log_ai_call,
@@ -75,6 +76,17 @@ def test_log_ai_call_emits_no_prompt_or_response_body() -> None:
     assert "prompt" not in payload
     assert "response" not in payload
     assert "message" not in payload
+
+
+def test_estimate_ai_cost_uses_model_prefix_and_token_usage() -> None:
+    assert estimate_ai_cost_usd(
+        "gpt-5.5",
+        {"input_tokens": 10, "output_tokens": 5},
+    ) == 0.0002
+    assert estimate_ai_cost_usd(
+        "private-model-alias",
+        {"input_tokens": 10, "output_tokens": 5},
+    ) is None
 
 
 class _PerformanceLogCaptureHandler(logging.Handler):

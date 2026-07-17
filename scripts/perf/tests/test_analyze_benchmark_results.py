@@ -67,6 +67,191 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(average[0]["value"], 120.0)
         self.assertEqual(p95[0]["value"], 240.0)
 
+    def test_representative_row_uses_headline_median_p95(self) -> None:
+        rows = [
+            {"run_id": "headline-low", "dataset": 80000, "vus": 10, "latency_p95_ms": 7000.0},
+            {"run_id": "headline-mid", "dataset": 80000, "vus": 10, "latency_p95_ms": 7400.0},
+            {"run_id": "headline-high", "dataset": 80000, "vus": 10, "latency_p95_ms": 7900.0},
+            {"run_id": "later-outlier", "dataset": 80000, "vus": 10, "latency_p95_ms": 12000.0},
+        ]
+
+        selected = analysis.representative_analysis_row(
+            rows,
+            dataset=80000,
+            vus=10,
+            preferred_run_ids=["headline-low", "headline-mid", "headline-high"],
+        )
+
+        self.assertEqual(selected["run_id"], "headline-mid")
+
+    def test_execution_flow_records_preserve_parent_residuals(self) -> None:
+        row = {
+            "run_id": "run-1",
+            "latency_avg_ms": 100.0,
+            "duration_ms_avg": 80.0,
+            "intent_parse_ms_avg": 20.0,
+            "scoring_ms_avg": 30.0,
+            "scoring_data_prefetch_ms_avg": 10.0,
+            "score_loop_ms_avg": 10.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        http_children = analysis.execution_flow_children(records, "end_to_end")
+        pipeline_children = analysis.execution_flow_children(records, "backend_pipeline")
+
+        self.assertAlmostEqual(sum(item["value_ms"] for item in http_children), 100.0)
+        self.assertAlmostEqual(sum(item["value_ms"] for item in pipeline_children), 80.0)
+        outside = next(item for item in http_children if item["component_id"] == "outside_pipeline")
+        residual = next(
+            item
+            for item in pipeline_children
+            if item["source_metric"] == "derived_parent_minus_children"
+        )
+        self.assertEqual(outside["value_ms"], 20.0)
+        self.assertEqual(residual["value_ms"], 30.0)
+        self.assertEqual(outside["e2e_share_percent"], 20.0)
+
+    def test_execution_flow_adds_snapshot_load_without_overlapping_fallback(self) -> None:
+        row = {
+            "run_id": "opt4-run",
+            "latency_avg_ms": 200.0,
+            "duration_ms_avg": 180.0,
+            "scoring_ms_avg": 120.0,
+            "scoring_data_prefetch_ms_avg": 100.0,
+            "prefetch_snapshot_load_ms_avg": 40.0,
+            "prefetch_candidate_bundle_ms_avg": 20.0,
+            "prefetch_effect_features_ms_avg": 10.0,
+            "prefetch_detail_ingredients_ms_avg": 15.0,
+            "scoring_snapshot_fallback_ms_avg": 60.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        prefetch_children = analysis.execution_flow_children(
+            records,
+            "scoring_data_prefetch_ms",
+        )
+        child_ids = {record["component_id"] for record in prefetch_children}
+
+        self.assertIn("prefetch_snapshot_load_ms", child_ids)
+        self.assertIn("prefetch_detail_ingredients_ms", child_ids)
+        self.assertNotIn("scoring_snapshot_fallback_ms", child_ids)
+        self.assertAlmostEqual(
+            sum(record["value_ms"] for record in prefetch_children),
+            100.0,
+        )
+
+    def test_snapshot_read_model_metrics_calculate_coverage(self) -> None:
+        row = {
+            "run_id": "opt4-run",
+            "scoring_snapshot_load_ms_avg": 120.0,
+            "scoring_snapshot_load_ms_p95": 180.0,
+            "scoring_snapshot_fallback_ms_avg": 12.0,
+            "scoring_snapshot_fallback_ms_p95": 20.0,
+            "scoring_snapshot_hit_count_avg": 495.0,
+            "scoring_snapshot_miss_count_avg": 5.0,
+            "scoring_snapshot_parse_error_count_avg": 1.0,
+            "scoring_snapshot_parse_error_count_p95": 2.0,
+        }
+
+        metrics = analysis.build_snapshot_read_model_metrics(row)
+
+        self.assertIsNotNone(metrics)
+        self.assertEqual(metrics["snapshot_candidate_count_avg"], 500.0)
+        self.assertEqual(metrics["snapshot_hit_rate"], 0.99)
+        self.assertEqual(metrics["snapshot_miss_rate"], 0.01)
+        self.assertEqual(metrics["snapshot_parse_error_count_p95"], 2.0)
+        markdown = "\n".join(analysis.snapshot_read_model_markdown(metrics))
+        self.assertIn("snapshot hit rate: **99.00%**", markdown)
+        self.assertIn("다시 더하지 않는다", markdown)
+
+    def test_snapshot_read_model_metrics_require_snapshot_instrumentation(self) -> None:
+        self.assertIsNone(
+            analysis.build_snapshot_read_model_metrics(
+                {"scoring_data_prefetch_ms_avg": 100.0}
+            )
+        )
+        self.assertIsNone(
+            analysis.build_snapshot_read_model_metrics(
+                {
+                    "scoring_snapshot_load_ms_avg": 0.0,
+                    "scoring_snapshot_hit_count_avg": 0.0,
+                    "scoring_snapshot_miss_count_avg": 0.0,
+                }
+            )
+        )
+
+    def test_coarse_top50_execution_flow_does_not_double_count_exact_aliases(self) -> None:
+        row = {
+            "run_id": "opt4c-run",
+            "latency_avg_ms": 2000.0,
+            "duration_ms_avg": 1800.0,
+            "scoring_ms_avg": 1260.0,
+            "coarse_feature_query_ms_avg": 150.0,
+            "coarse_feature_build_ms_avg": 70.0,
+            "coarse_context_build_ms_avg": 2.0,
+            "coarse_score_loop_ms_avg": 420.0,
+            "exact_prefetch_ms_avg": 480.0,
+            "exact_score_loop_ms_avg": 100.0,
+            "scoring_data_prefetch_ms_avg": 480.0,
+            "score_loop_ms_avg": 100.0,
+            "score_sort_ms_avg": 3.0,
+            "score_detail_materialization_ms_avg": 5.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+        scoring_children = analysis.execution_flow_children(records, "scoring_ms")
+        child_ids = {record["component_id"] for record in scoring_children}
+
+        self.assertIn("coarse_score_loop_ms", child_ids)
+        self.assertIn("exact_prefetch_ms", child_ids)
+        self.assertIn("exact_score_loop_ms", child_ids)
+        self.assertNotIn("scoring_data_prefetch_ms", child_ids)
+        self.assertNotIn("score_loop_ms", child_ids)
+        self.assertAlmostEqual(
+            sum(record["value_ms"] for record in scoring_children),
+            row["scoring_ms_avg"],
+        )
+
+    def test_coarse_top50_metrics_capture_funnel_and_guardrails(self) -> None:
+        metrics = analysis.build_coarse_top50_metrics(
+            {
+                "run_id": "opt4c-run",
+                "coarse_feature_query_ms_avg": 150.0,
+                "coarse_feature_query_ms_p95": 350.0,
+                "coarse_score_loop_ms_avg": 420.0,
+                "coarse_score_loop_ms_p95": 800.0,
+                "exact_prefetch_ms_avg": 480.0,
+                "exact_prefetch_ms_p95": 1200.0,
+                "exact_score_loop_ms_avg": 100.0,
+                "exact_score_loop_ms_p95": 220.0,
+                "coarse_feature_row_count_avg": 500.0,
+                "coarse_feature_hit_count_avg": 495.0,
+                "coarse_feature_miss_count_avg": 5.0,
+                "coarse_feature_stale_count_avg": 0.0,
+                "coarse_feature_fallback_ratio_avg": 0.01,
+                "coarse_shortlist_size_avg": 50.0,
+            }
+        )
+
+        self.assertIsNotNone(metrics)
+        self.assertEqual(metrics["exact_candidate_ratio"], 0.1)
+        self.assertEqual(metrics["candidate_reduction_rate"], 0.9)
+        self.assertEqual(metrics["feature_hit_rate"], 0.99)
+        self.assertEqual(metrics["feature_miss_rate"], 0.01)
+        markdown = "\n".join(analysis.coarse_top50_markdown(metrics))
+        self.assertIn("상세 조회·정확 계산 대상 감소율: **90.0%**", markdown)
+        self.assertIn("중복 합산하지 않는다", markdown)
+
+    def test_scoring_drilldown_lists_materialization_and_full_loop(self) -> None:
+        scoring_keys = [key for key, _ in analysis.SCORING_STAGES]
+        loop_keys = [key for key, _ in analysis.SCORE_LOOP_DETAIL_STAGES]
+
+        self.assertIn("score_detail_materialization_ms", scoring_keys)
+        self.assertIn("score_loop_contribution_build_ms", loop_keys)
+        self.assertIn("score_loop_functional_axis_ms", loop_keys)
+        self.assertIn("score_loop_search_price_market_axis_ms", loop_keys)
+        self.assertIn("score_loop_final_score_ms", loop_keys)
+
     def test_grouped_stage_shares_keep_total_and_limit_segments(self) -> None:
         stages = [
             ("stage_a", "A"),

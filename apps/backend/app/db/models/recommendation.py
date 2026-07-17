@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -201,6 +202,157 @@ class ProductEffectRecommendationFeature(Base):
         server_default="[]",
     )
     feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class ProductRecommendationScoringSnapshot(Base):
+    __tablename__ = "product_recommendation_scoring_snapshots"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    scoring_payload: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
+    snapshot_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_versions: Mapped[dict] = mapped_column(jsonb_type(), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class ProductRecommendationCoarseFeature(Base):
+    __tablename__ = "product_recommendation_coarse_features"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    acne_sebum_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    acne_sebum_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    brightening_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    brightening_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    calming_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    calming_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    exfoliation_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    exfoliation_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    moisture_barrier_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    moisture_barrier_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    wrinkle_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    wrinkle_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    dry_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    oily_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    combination_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    normal_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    dehydrated_oily_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    sensitive_fit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    skin_profile_confidence_code: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    source_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class ProductRecommendationScoringReadModel(Base):
+    __tablename__ = "product_recommendation_scoring_read_models"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    top_ingredient_codes: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    top_effect_codes: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    product_feature_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    product_feature_source_current: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    functional_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    functional_claims: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    functional_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    functional_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skin_tags: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    dry_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    oily_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    combination_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    normal_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    dehydrated_oily_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    sensitive_fit: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    sensitivity_tag: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    skin_profile_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    skin_profile_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    popularity_score: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    popularity_score_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    popularity_window_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_quality_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
+    review_confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
+    review_effective_sample_size: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 6),
+        nullable=True,
+    )
+    review_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_score_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    read_model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

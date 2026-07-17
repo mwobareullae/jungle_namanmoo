@@ -30,6 +30,16 @@ def _normalize_search_backend_mode(value: str) -> str:
     return "auto"
 
 
+def _normalize_recommendation_scoring_read_path(value: str) -> str:
+    normalized = value.strip().lower() or "legacy_bulk"
+    if normalized in {"legacy_bulk", "compact_v2", "coarse_top50_v1"}:
+        return normalized
+    raise ValueError(
+        "RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, "
+        "or coarse_top50_v1"
+    )
+
+
 def _default_elasticsearch_products_alias() -> str:
     index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
     return f"{index_prefix}_products_current"
@@ -71,15 +81,23 @@ class Settings(BaseModel):
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
-    openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "25"))
+    openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "15"))
     openai_agent_max_retries: int = int(os.getenv("OPENAI_AGENT_MAX_RETRIES", "1"))
-    agent_request_timeout_seconds: float = float(os.getenv("AGENT_REQUEST_TIMEOUT_SECONDS", "30"))
+    openai_agent_circuit_failure_threshold: int = int(
+        os.getenv("OPENAI_AGENT_CIRCUIT_FAILURE_THRESHOLD", "3")
+    )
+    openai_agent_circuit_cooldown_seconds: float = float(
+        os.getenv("OPENAI_AGENT_CIRCUIT_COOLDOWN_SECONDS", "30")
+    )
     openai_embedding_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     embedding_dimensions: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
     hybrid_keyword_weight: float = float(os.getenv("HYBRID_KEYWORD_WEIGHT", "0.5"))
     hybrid_vector_weight: float = float(os.getenv("HYBRID_VECTOR_WEIGHT", "0.5"))
     recommendation_candidate_pool_limit: int = int(
         os.getenv("RECOMMENDATION_CANDIDATE_POOL_LIMIT", "500")
+    )
+    recommendation_scoring_read_path: str = _normalize_recommendation_scoring_read_path(
+        os.getenv("RECOMMENDATION_SCORING_READ_PATH", "legacy_bulk")
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_key_prefix: str = os.getenv("REDIS_KEY_PREFIX", "mubarelle:dev:")

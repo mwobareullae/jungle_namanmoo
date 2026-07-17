@@ -43,6 +43,7 @@ export const runAgentEntryMessage = (
   callOriginal("saveRecentConcern", message);
   const detail: AgentEntryMessageDetail = {
     message,
+    startNewThread: true,
     profile: {
       avoidIngredients: profile.avoidIngredients,
       sensitivity: profile.sensitivity,

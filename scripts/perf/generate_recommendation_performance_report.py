@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import shutil
 import statistics
 import sys
 from pathlib import Path
@@ -54,6 +55,17 @@ SCORING_COMPONENTS = [
     ("score_sort_ms", "정렬"),
 ]
 
+COARSE_TOP50_SCORING_COMPONENTS = [
+    ("coarse_feature_query_ms", "Coarse 피처 조회"),
+    ("coarse_feature_build_ms", "Coarse 피처 조립"),
+    ("coarse_context_build_ms", "Coarse 컨텍스트"),
+    ("coarse_score_loop_ms", "Coarse 후보 계산"),
+    ("exact_prefetch_ms", "Exact Top50 조회"),
+    ("exact_score_loop_ms", "Exact Top50 계산"),
+    ("score_detail_materialization_ms", "상세 결과 구성"),
+    ("score_sort_ms", "정렬"),
+]
+
 PREFETCH_COMPONENTS = [
     ("prefetch_candidate_bundle_ms", "후보 bundle load"),
     ("prefetch_product_features_ms", "상품 특징"),
@@ -78,6 +90,10 @@ METRIC_LABELS = {
     "scoring_data_prefetch_ms_p95": "사전 조회 p95",
     "score_loop_ms_p95": "점수 반복 p95",
     "prefetch_candidate_bundle_ms_p95": "후보 bundle load p95",
+    "coarse_feature_query_ms_p95": "Coarse 피처 조회 p95",
+    "coarse_score_loop_ms_p95": "Coarse 후보 계산 p95",
+    "exact_prefetch_ms_p95": "Exact Top50 조회 p95",
+    "exact_score_loop_ms_p95": "Exact Top50 계산 p95",
 }
 
 PIPELINE_COLORS = {
@@ -95,7 +111,7 @@ GRAPH_CONTRACT = [
         "question": "상품 수와 동시 사용자가 늘 때 어디서 성능이 무너지는가?",
         "metrics": "k6 recommendation p95, error rate",
         "chart": "공유 색상 범위 heatmap small multiples",
-        "location": "main",
+        "location": "overview",
         "output": "01-scale-latency-heatmaps.png",
     },
     {
@@ -103,7 +119,7 @@ GRAPH_CONTRACT = [
         "question": "최적화 전 평균 요청에서 가장 큰 병목은 무엇인가?",
         "metrics": "동일 대표 run의 backend pipeline stage 평균",
         "chart": "Pareto",
-        "location": "main",
+        "location": "overview",
         "output": "02-baseline-pipeline-pareto.png",
     },
     {
@@ -111,7 +127,7 @@ GRAPH_CONTRACT = [
         "question": "구현 단계를 거치며 p95와 처리량이 어떻게 변했는가?",
         "metrics": "반복 run의 k6 p95/RPS 중앙값과 개별 값",
         "chart": "상하 2단 point/line panels",
-        "location": "main",
+        "location": "overview",
         "output": "03-optimization-timeline.png",
     },
     {
@@ -119,7 +135,7 @@ GRAPH_CONTRACT = [
         "question": "병목이 구현 단계마다 어디로 이동했는가?",
         "metrics": "각 단계 대표 run의 동일 요청계측 평균",
         "chart": "절대시간 horizontal stacked bars",
-        "location": "main",
+        "location": "overview",
         "output": "04-pipeline-evolution.png",
     },
     {
@@ -127,7 +143,7 @@ GRAPH_CONTRACT = [
         "question": "각 최적화가 목표 지표를 실제로 줄였는가?",
         "metrics": "공통 backend stage p95 중앙값",
         "chart": "stage-faceted dumbbell",
-        "location": "main",
+        "location": "overview",
         "output": "05-optimization-effects.png",
     },
     {
@@ -135,7 +151,7 @@ GRAPH_CONTRACT = [
         "question": "최신 측정에서 다음으로 줄일 병목은 어디인가?",
         "metrics": "최신 대표 run의 pipeline/scoring/prefetch 평균",
         "chart": "3단 nested horizontal bars",
-        "location": "main",
+        "location": "overview",
         "output": "06-current-bottleneck-drilldown.png",
     },
     {
@@ -143,7 +159,7 @@ GRAPH_CONTRACT = [
         "question": "개선 결과가 반복 실행에서도 유지되고 실패를 숨기지 않았는가?",
         "metrics": "개별 p95, 중앙값, min/max, error rate",
         "chart": "strip/range and error panels",
-        "location": "main",
+        "location": "overview",
         "output": "07-repeat-stability.png",
     },
     {
@@ -167,7 +183,7 @@ GRAPH_CONTRACT = [
         "question": "ES retrieval 전환으로 의도 분석과 후보 추출의 요청별 분포가 어떻게 바뀌었는가?",
         "metrics": "backend 원시 요청의 intent/candidate latency",
         "chart": "ECDF small multiples",
-        "location": "details/opt1-es-retrieval",
+        "location": "stages/opt1-es-retrieval",
         "output": "backend-latency-ecdf.png",
     },
     {
@@ -175,7 +191,7 @@ GRAPH_CONTRACT = [
         "question": "사전 계산 후 scoring 하위 단계의 요청별 분포가 어떻게 이동했는가?",
         "metrics": "backend 원시 요청의 scoring/prefetch/loop latency",
         "chart": "ECDF small multiples",
-        "location": "details/opt2-precomputed-features",
+        "location": "stages/opt2-precomputed-features",
         "output": "scoring-latency-ecdf.png",
     },
     {
@@ -183,7 +199,23 @@ GRAPH_CONTRACT = [
         "question": "사전 계산이 목표 scoring 단계 p95를 직접 줄였는가?",
         "metrics": "반복 run의 scoring 하위 stage p95 중앙값",
         "chart": "dumbbell",
-        "location": "details/opt2-precomputed-features",
+        "location": "stages/opt2-precomputed-features",
+        "output": "scoring-p95-breakdown.png",
+    },
+    {
+        "id": "opt3-request-distribution",
+        "question": "후보 점수 데이터 통합 조회로 scoring 하위 단계의 요청별 분포가 어떻게 바뀌었는가?",
+        "metrics": "backend 요청별 scoring/prefetch/loop latency",
+        "chart": "ECDF small multiples",
+        "location": "stages/opt3-bulk-prefetch",
+        "output": "scoring-latency-ecdf.png",
+    },
+    {
+        "id": "opt3-stage-effect",
+        "question": "bulk prefetch가 scoring 하위 단계 p95를 직접 줄였는가?",
+        "metrics": "반복 run의 scoring 하위 stage p95 중앙값",
+        "chart": "dumbbell",
+        "location": "stages/opt3-bulk-prefetch",
         "output": "scoring-p95-breakdown.png",
     },
 ]
@@ -232,6 +264,7 @@ def main() -> None:
     graph_outputs = generate_graphs(repo_root, registry, rows, paths, pd, plt, sns)
     write_case_study(main_doc, registry, rows, graph_outputs, output_root)
     write_stage_details(registry, rows, graph_outputs, output_root)
+    write_results_index(output_root, registry)
 
     print(f"run_catalog={paths['data'] / 'run_catalog.csv'}")
     print(f"comparability={paths['data'] / 'comparability.csv'}")
@@ -240,10 +273,22 @@ def main() -> None:
 
 
 def prepare_output_paths(output_root: Path) -> dict[str, Path]:
+    for managed_name in (
+        "main",
+        "details",
+        "stage-comparison",
+        "overview",
+        "stages",
+        "appendix",
+        "data",
+    ):
+        managed_path = output_root / managed_name
+        if managed_path.exists():
+            shutil.rmtree(managed_path)
     paths = {
         "root": output_root,
-        "main": output_root / "main",
-        "details": output_root / "details",
+        "overview": output_root / "overview",
+        "stages": output_root / "stages",
         "appendix": output_root / "appendix",
         "data": output_root / "data",
     }
@@ -377,16 +422,16 @@ def configure_theme(plt, sns) -> None:
 
 def generate_graphs(repo_root, registry, rows, paths, pd, plt, sns) -> dict[str, str]:
     outputs: dict[str, str] = {}
-    outputs["scale"] = save_scale_heatmaps(registry, rows, paths["main"], pd, plt, sns)
-    outputs["baseline"] = save_baseline_pareto(registry, rows, paths["main"], plt)
-    outputs["timeline"] = save_optimization_timeline(registry, rows, paths["main"], plt)
-    outputs["pipeline"] = save_pipeline_evolution(registry, rows, paths["main"], plt)
-    outputs["effects"] = save_optimization_effects(registry, rows, paths["main"], plt)
-    outputs["bottleneck"] = save_current_bottleneck(registry, rows, paths["main"], plt)
-    outputs["stability"] = save_repeat_stability(registry, rows, paths["main"], plt)
+    outputs["scale"] = save_scale_heatmaps(registry, rows, paths["overview"], pd, plt, sns)
+    outputs["baseline"] = save_baseline_pareto(registry, rows, paths["overview"], plt)
+    outputs["timeline"] = save_optimization_timeline(registry, rows, paths["overview"], plt)
+    outputs["pipeline"] = save_pipeline_evolution(registry, rows, paths["overview"], plt)
+    outputs["effects"] = save_optimization_effects(registry, rows, paths["overview"], plt)
+    outputs["bottleneck"] = save_current_bottleneck(registry, rows, paths["overview"], plt)
+    outputs["stability"] = save_repeat_stability(registry, rows, paths["overview"], plt)
     outputs["resources"] = save_resource_guardrails(registry, rows, paths["appendix"], plt)
     outputs["coverage"] = save_run_coverage(registry, rows, paths["appendix"], pd, plt, sns)
-    outputs.update(save_stage_detail_graphs(repo_root, registry, rows, paths["details"], plt))
+    outputs.update(save_stage_detail_graphs(repo_root, registry, rows, paths["stages"], plt))
     return outputs
 
 
@@ -693,12 +738,18 @@ def save_current_bottleneck(registry, rows, output_dir, plt) -> str:
         raise ValueError("Latest measured stage has no eligible target run")
 
     pipeline = [(label, sum(value_of(representative, f"{key}_avg") or 0 for key in keys)) for label, keys in PIPELINE_GROUPS]
-    scoring = component_values(representative, SCORING_COMPONENTS, "avg")
+    scoring_components = scoring_components_for_row(representative)
+    scoring = component_values(representative, scoring_components, "avg")
     prefetch = component_values(representative, PREFETCH_COMPONENTS, "avg")
+    prefetch_title = (
+        "Exact Top50 prefetch 내부"
+        if scoring_components is COARSE_TOP50_SCORING_COMPONENTS
+        else "Prefetch 내부"
+    )
     panels = [
         ("전체 파이프라인", pipeline, PIPELINE_COLORS),
         ("Scoring 내부", scoring, None),
-        ("Prefetch 내부", group_small_components(prefetch, 7), None),
+        (prefetch_title, group_small_components(prefetch, 7), None),
     ]
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 6.8))
@@ -848,14 +899,20 @@ def save_stage_detail_graphs(repo_root, registry, rows, details_root, plt) -> di
             plt,
         )
         outputs["opt1_ecdf"] = output.as_posix()
-    if "opt1-es-retrieval" in stage_map and "opt2-precomputed-features" in stage_map:
-        output = details_root / "opt2-precomputed-features" / "scoring-latency-ecdf.png"
+    for stage in measured_stages(registry):
+        stage_id = stage["id"]
+        if stage_id == "opt1-es-retrieval" or not stage.get("compared_to"):
+            continue
+        parent = stage_map.get(stage["compared_to"])
+        if parent is None:
+            continue
+        output = details_root / stage_id / "scoring-latency-ecdf.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         save_backend_ecdf(
             repo_root,
             rows,
-            stage_map["opt1-es-retrieval"],
-            stage_map["opt2-precomputed-features"],
+            parent,
+            stage,
             [
                 ("scoring_ms", "전체 scoring"),
                 ("scoring_data_prefetch_ms", "데이터 사전 조회"),
@@ -864,17 +921,17 @@ def save_stage_detail_graphs(repo_root, registry, rows, details_root, plt) -> di
             output,
             plt,
         )
-        outputs["opt2_ecdf"] = output.as_posix()
-        breakdown = details_root / "opt2-precomputed-features" / "scoring-p95-breakdown.png"
+        outputs[f"{stage_id}_scoring_ecdf"] = output.as_posix()
+        breakdown = details_root / stage_id / "scoring-p95-breakdown.png"
         save_component_before_after(
             rows,
-            stage_map["opt1-es-retrieval"],
-            stage_map["opt2-precomputed-features"],
+            parent,
+            stage,
             SCORING_COMPONENTS,
             breakdown,
             plt,
         )
-        outputs["opt2_breakdown"] = breakdown.as_posix()
+        outputs[f"{stage_id}_scoring_breakdown"] = breakdown.as_posix()
     return outputs
 
 
@@ -963,7 +1020,7 @@ def write_case_study(main_doc, registry, rows, outputs, output_root) -> None:
             [
                 f"### {stage['label']}",
                 "",
-                f"{stage['change']}. {stage.get('tradeoff', '')} 설계 근거는 [{stage['label']} 상세 설계](./{detail_doc}), 측정 근거는 [{stage['label']} 결과](./results/recommendation/details/{stage['id']}/README.md)에 정리했다.",
+                f"{stage['change']}. {stage.get('tradeoff', '')} 설계 근거는 [{stage['label']} 상세 설계](./{detail_doc}), 측정 근거는 [{stage['label']} 결과](./results/recommendation/stages/{stage['id']}/README.md)에 정리했다.",
                 "",
             ]
         )
@@ -998,38 +1055,38 @@ def write_case_study(main_doc, registry, rows, outputs, output_root) -> None:
             "- backend latency: `recommendation_pipeline_completed` 단계 계측",
             "- 상세 환경: [벤치마크 환경](./benchmark-environment.md), [실행 방법](./benchmark-run.md)",
             "",
-            "![상품 수와 VUS별 성능 지형](./results/recommendation/main/01-scale-latency-heatmaps.png)",
+            "![상품 수와 VUS별 성능 지형](./results/recommendation/overview/01-scale-latency-heatmaps.png)",
             "",
             "## Baseline에서 확인한 최초 병목",
             "",
             f"Baseline 8만/VUS10의 오류율은 `{baseline_error * 100:.2f}%`였다. 아래 Pareto는 성공 요청의 평균 단계 시간으로 병목 위치를 설명하며, 실패 요청을 숨긴 성공 지표로 사용하지 않는다.",
             "",
-            "![Baseline 파이프라인 Pareto](./results/recommendation/main/02-baseline-pipeline-pareto.png)",
+            "![Baseline 파이프라인 Pareto](./results/recommendation/overview/02-baseline-pipeline-pareto.png)",
             "",
             "## 최적화 타임라인",
             "",
             "구현 단계는 발견된 병목 이름이 아니라 해당 run에서 적용된 코드 변경을 뜻한다. 병목은 매 단계의 전체 계측값에서 다시 발견한다.",
             "",
-            "![최적화 타임라인](./results/recommendation/main/03-optimization-timeline.png)",
+            "![최적화 타임라인](./results/recommendation/overview/03-optimization-timeline.png)",
             "",
-            "![파이프라인 병목 이동](./results/recommendation/main/04-pipeline-evolution.png)",
+            "![파이프라인 병목 이동](./results/recommendation/overview/04-pipeline-evolution.png)",
             "",
             "## 단계별 기술 선택과 직접 효과",
             "",
             *stage_summary_lines,
-            "![최적화별 목표 지표 변화](./results/recommendation/main/05-optimization-effects.png)",
+            "![최적화별 목표 지표 변화](./results/recommendation/overview/05-optimization-effects.png)",
             "",
             "## 현재 병목과 다음 최적화",
             "",
             "최신 단계에서도 전체 시간이 사라진 것은 아니다. 아래 확대 그래프는 동일 대표 run의 평균값을 사용해 다음 조사 대상을 보여준다.",
             "",
-            "![현재 병목 확대](./results/recommendation/main/06-current-bottleneck-drilldown.png)",
+            "![현재 병목 확대](./results/recommendation/overview/06-current-bottleneck-drilldown.png)",
             "",
-            "다음 구현 단계인 bulk prefetch는 후보 점수 데이터의 순차 조회를 통합하는 작업이다. 아직 registry에 검증된 측정 run이 없으므로 결과를 0이나 예상치로 그리지 않는다. 설계는 [Opt3 bulk prefetch](./recommendation-bulk-prefetch.md)에 기록한다.",
+            f"최신 단계에서 새로 드러난 관찰 대상은 `{measured_stages(registry)[-1].get('next_bottleneck', '후속 측정에서 확인')}`이다. 측정하지 않은 후속 개선값은 예상치로 그리지 않는다.",
             "",
             "## 반복 안정성과 한계",
             "",
-            "![반복 실행 안정성](./results/recommendation/main/07-repeat-stability.png)",
+            "![반복 실행 안정성](./results/recommendation/overview/07-repeat-stability.png)",
             "",
             "자원 사용량과 run 수집 범위는 메인 결론과 분리해 [resource guardrail](./results/recommendation/appendix/resource-guardrails.png), [run coverage](./results/recommendation/appendix/run-coverage.png)에서 확인한다.",
             "",
@@ -1055,11 +1112,112 @@ def write_case_study(main_doc, registry, rows, outputs, output_root) -> None:
     main_doc.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_results_index(output_root: Path, registry: dict[str, Any]) -> None:
+    stage_lines = [
+        f"- [{stage['label']}](./stages/{stage['id']}/README.md)"
+        for stage in measured_stages(registry)
+    ]
+    lines = [
+        "<!-- Generated by scripts/perf/generate_recommendation_performance_report.py. -->",
+        "# 추천 성능 측정 결과",
+        "",
+        "8만 상품 개인화 추천 파이프라인의 Baseline 재현, 병목 계측, 단계별 최적화 결과를 한 구조에서 확인한다.",
+        "",
+        "## 결과 지도",
+        "",
+        "- [전체 성능과 최적화 흐름](./overview/03-optimization-timeline.png)",
+        "- [단계 전환별 정확한 수치](./transitions/README.md)",
+        "- [자원 guardrail](./appendix/resource-guardrails.png)",
+        "- [원본 run과 비교 가능성 데이터](./data/run_catalog.csv)",
+        "",
+        "## 단계별 진단",
+        "",
+        *stage_lines,
+        "",
+        "## 재생성",
+        "",
+        "```powershell",
+        "python scripts/perf/generate_recommendation_performance_report.py",
+        "python scripts/perf/generate_recommendation_stage_comparison.py",
+        "```",
+        "",
+    ]
+    (output_root / "README.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_baseline_stage_detail(
+    stage: dict[str, Any],
+    rows: list[dict[str, Any]],
+    next_stage: dict[str, Any] | None,
+    detail_dir: Path,
+) -> None:
+    p95 = report_data.median_metric(rows, "latency_p95_ms")
+    rps = report_data.median_metric(rows, "recommendation_rps")
+    error_rate = report_data.median_metric(rows, "error_rate")
+    next_change = (
+        next_stage.get("change", next_stage.get("label", "-"))
+        if next_stage
+        else "후속 최적화는 다음 측정 후 선택한다."
+    )
+    transition_link = (
+        f"../../transitions/{next_stage['id']}/README.md" if next_stage else "-"
+    )
+    lines = [
+        "<!-- Generated by scripts/perf/generate_recommendation_performance_report.py. -->",
+        f"# {stage['label']} 측정 결과",
+        "",
+        "## 1. 전체 성능",
+        "",
+        "- 조건: 79,952개 / full-personalized / VUS10 / 3분 / cold cache",
+        f"- p95: {format_value(p95, 'ms')}",
+        f"- RPS: {format_value(rps, 'rps')}",
+        f"- 오류율: {format_value(error_rate, 'rate')}",
+        "",
+        "## 2. 큰 파이프라인 병목",
+        "",
+        "[Baseline 파이프라인 Pareto](../../overview/02-baseline-pipeline-pareto.png)에서 전체 요청 중 가장 큰 구간을 확인한다.",
+        "",
+        "## 3. 기존 로그의 부족한 부분",
+        "",
+        "초기 pipeline 계측만으로는 의도 파서와 scoring 내부 원인을 분리할 수 없었다.",
+        "",
+        "## 4. 추가한 세부 계측",
+        "",
+        "후속 진단 run에서 intent, purchase parser, scoring prefetch와 score loop를 단계적으로 분해했다.",
+        "",
+        "## 5. 확인한 실제 원인",
+        "",
+        "의도 분석의 브랜드 alias 전수 매칭이 후보 추출 전에 반복되는 구조가 첫 병목으로 확인됐다.",
+        "",
+        "## 6. 선택한 다음 최적화",
+        "",
+        next_change,
+        "",
+        "## 7. 대응하는 transition 결과",
+        "",
+        f"- [전환 결과]({transition_link})" if next_stage else "- 후속 transition 없음",
+        "",
+        "> Baseline은 오류 gate를 초과한 문제 재현 단계이며 개선 후 성공 지표와 동일하게 해석하지 않는다.",
+        "",
+    ]
+    (detail_dir / "README.md").write_text("\n".join(lines), encoding="utf-8")
+
+
 def write_stage_details(registry, rows, outputs, output_root) -> None:
     stage_map = {stage["id"]: stage for stage in registry["stages"]}
-    for stage in measured_stages(registry):
+    stages = measured_stages(registry)
+    for stage_index, stage in enumerate(stages):
         stage_id = stage["id"]
+        detail_dir = output_root / "stages" / stage_id
+        detail_dir.mkdir(parents=True, exist_ok=True)
         if not stage.get("compared_to"):
+            baseline_rows = target_rows(rows, stage_id, eligible_only=False)
+            write_baseline_stage_detail(
+                stage,
+                baseline_rows,
+                stages[stage_index + 1] if stage_index + 1 < len(stages) else None,
+                detail_dir,
+            )
             continue
         parent = stage_map.get(stage.get("compared_to"))
         child_rows = target_rows(rows, stage_id, eligible_only=True)
@@ -1067,42 +1225,53 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
         parent_evidence = target_rows(rows, parent["id"], eligible_only=False) if parent else []
         if not child_rows:
             continue
-        detail_dir = output_root / "details" / stage_id
-        detail_dir.mkdir(parents=True, exist_ok=True)
         comparison = build_metric_comparison(parent_rows or parent_evidence, child_rows)
         parent_valid = bool(parent_rows)
+        next_stage = stages[stage_index + 1] if stage_index + 1 < len(stages) else None
         lines = [
             "<!-- Generated by scripts/perf/generate_recommendation_performance_report.py. -->",
             f"# {stage['label']} 측정 결과",
             "",
-            f"## 관측과 선택",
+            "## 1. 전체 성능",
             "",
             f"- 적용 변경: {stage['change']}",
             f"- 비교 대상: {parent['label'] if parent else '-'}",
             f"- 조건: 79,952개 / full-personalized / VUS10 / 3분 / cold cache",
             f"- 상세 설계: [문서 보기](../../../../{Path(stage['detail_doc']).name})",
             "",
-            "## 관측",
+            "## 2. 큰 파이프라인 병목",
             "",
             stage.get("observation", "측정 결과에서 병목을 관측했다."),
             "",
-            "## 원인",
+            "## 3. 기존 로그의 부족한 부분",
+            "",
+            "상위 pipeline 시간만으로는 내부 반복 계산과 데이터 조회 비용을 분리할 수 없어 세부 계측이 필요했다.",
+            "",
+            "## 4. 추가한 세부 계측",
+            "",
+            ", ".join(f"`{metric}`" for metric in stage.get("focus_metrics", [])),
+            "",
+            "## 5. 확인한 실제 원인",
             "",
             stage.get("cause", "상세 설계 문서에서 원인을 다룬다."),
             "",
-            "## 검토한 대안",
+            "## 6. 선택한 다음 최적화",
             "",
-            stage.get("alternatives", "상세 설계 문서에서 대안을 다룬다."),
+            (
+                next_stage.get("change", next_stage.get("label", "-"))
+                if next_stage
+                else stage.get("next_bottleneck", "후속 측정 후 선택한다.")
+            ),
             "",
-            "## 기술 선택과 트레이드오프",
+            "검토한 대안: " + stage.get("alternatives", "상세 설계 문서 참조"),
             "",
-            stage.get("tradeoff", "상세 설계 문서에서 트레이드오프를 다룬다."),
+            "트레이드오프: " + stage.get("tradeoff", "상세 설계 문서 참조"),
             "",
-            "## 구현 구조",
+            "현재 단계 구현: " + stage.get("implementation", stage["change"]),
             "",
-            stage.get("implementation", stage["change"]),
+            "## 7. 대응하는 transition 결과",
             "",
-            "## 동일 조건 결과",
+            f"- [이전 단계 대비 전환 수치](../../transitions/{stage_id}/README.md)",
             "",
             "| 지표 | 이전 | 이후 | 변화 |",
             "|---|---:|---:|---:|",
@@ -1111,7 +1280,7 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
             lines.append(f"| {label} | {format_value(before, unit)} | {format_value(after, unit)} | {change if parent_valid else '참고 비교'} |")
         if not parent_valid:
             lines.extend(["", "> 이전 단계가 오류 gate를 초과해 확정 개선율로 사용하지 않는다."])
-        lines.extend(["", "## 요청별 분포", ""])
+        lines.extend(["", "### 요청별 분포", ""])
         if stage_id == "opt1-es-retrieval":
             lines.extend(
                 [
@@ -1128,7 +1297,7 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
                     "```",
                 ]
             )
-        else:
+        elif stage_id == "opt2-precomputed-features":
             lines.extend(
                 [
                     "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
@@ -1150,14 +1319,83 @@ def write_stage_details(registry, rows, outputs, output_root) -> None:
                     "```",
                 ]
             )
+        elif stage_id == "opt3-bulk-prefetch":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[추천 후보 ID 묶음] --> B1[성분·효능 loader]",
+                    "  A --> B2[피부·리뷰 loader]",
+                    "  A --> B3[행동·가격 loader]",
+                    "  B1 --> C[Python 결과 조립]",
+                    "  B2 --> C",
+                    "  B3 --> C",
+                    "  A -. Opt3 .-> D[단일 bulk JOIN 조회]",
+                    "  D --> E[후보별 점수 입력 bundle]",
+                    "  E --> F[기존 점수식]",
+                    "```",
+                ]
+            )
+        elif stage_id == "opt4b-compact-read-model":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "> Opt4b는 개선 단계가 아니라 회귀를 확인한 실패 실험이다. "
+                    "DB 왕복 감소보다 500개 넓은 행의 전송·역직렬화·객체 조립 비용이 컸다.",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[후보 약 500개] --> B[넓은 compact 행 일괄 조회]",
+                    "  B --> C[JSON 및 배열 역직렬화]",
+                    "  C --> D[후보별 Python 객체 조립]",
+                    "  D --> E[정확 스코어링 500개]",
+                    "```",
+                ]
+            )
+        elif stage_id == "opt4c-coarse-top50":
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                    "",
+                    "> Opt4c의 generic prefetch/score-loop 계측은 exact Top50 단계의 "
+                    "별칭이다. Coarse와 exact 전용 값은 stage 로컬 "
+                    "`analysis/00-summary/execution-flow`에서 중복 없이 확인한다.",
+                    "",
+                    "```mermaid",
+                    "flowchart LR",
+                    "  A[후보 약 500개] --> B[숫자형 coarse 피처 조회]",
+                    "  B --> C[근사 점수 계산]",
+                    "  C --> D[상위 50개 선별]",
+                    "  D --> E[기존 legacy_bulk 상세 조회]",
+                    "  E --> F[기존 정확 점수와 설명 계산]",
+                    "```",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "![Scoring 하위 단계 ECDF](./scoring-latency-ecdf.png)",
+                    "",
+                    "![Scoring p95 전후 비교](./scoring-p95-breakdown.png)",
+                ]
+            )
         lines.extend(
             [
                 "",
-                "## 효과와 새로 드러난 병목",
+                "### 효과와 새로 드러난 병목",
                 "",
                 stage.get("next_bottleneck", "다음 병목은 후속 측정에서 확인한다."),
                 "",
-                "## 해석 범위",
+                "### 해석 범위",
                 "",
                 "- ECDF는 backend 완료 이벤트의 요청별 표본이며 client end-to-end 분포가 아니다.",
                 "- 단계 p95는 각각 독립적으로 계산하며 합산하지 않는다.",
@@ -1178,7 +1416,10 @@ def measured_stages(registry) -> list[dict[str, Any]]:
 def target_rows(rows, stage_id, *, eligible_only) -> list[dict[str, Any]]:
     result = [
         row for row in rows
-        if row["implementation_stage"] == stage_id and row["condition_matches"] and row["complete"]
+        if row["implementation_stage"] == stage_id
+        and row["condition_matches"]
+        and row["complete"]
+        and row.get("headline_selected", True)
     ]
     if eligible_only:
         result = [row for row in result if row["headline_eligible"]]
@@ -1193,6 +1434,12 @@ def latest_measured_stage_with_data(registry, rows) -> dict[str, Any]:
     if not candidates:
         raise ValueError("No measured stage has eligible target-condition runs")
     return candidates[-1]
+
+
+def scoring_components_for_row(row) -> list[tuple[str, str]]:
+    if value_of(row, "coarse_feature_query_ms_avg") is not None:
+        return COARSE_TOP50_SCORING_COMPONENTS
+    return SCORING_COMPONENTS
 
 
 def component_values(row, components, statistic) -> list[tuple[str, float]]:
