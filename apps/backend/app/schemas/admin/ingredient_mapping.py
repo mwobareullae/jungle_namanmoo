@@ -12,7 +12,7 @@ DB 판정 행이 아니라 조회 시점의 읽기 전용 정보이며, DB 정�
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # 저장 상태(HELD/APPROVED/REJECTED)는 review 행, PENDING 은 행 없이 파생.
@@ -102,3 +102,47 @@ class IngredientMappingDetail(IngredientMappingListItem):
     raw_name_variants: list[IngredientMappingRawNameVariant]
     sample_products: list[IngredientMappingSampleProduct]
     events: list[IngredientMappingEvent]
+
+
+# --- 판정 액션 (쓰기) -------------------------------------------------------
+
+
+class IngredientMappingApproveRequest(BaseModel):
+    normalized_source_name: str
+    target_ingredient_code: str
+    # 승인 사유는 선택. 전달 시 trim 후 1~1,000자(서비스에서 검증).
+    decision_reason: str | None = Field(default=None, max_length=1000)
+
+
+class IngredientMappingReasonRequest(BaseModel):
+    """보류·반려·재검토 공통 body. 사유 필수(서비스에서 공백 검증)."""
+
+    normalized_source_name: str
+    decision_reason: str = Field(min_length=1, max_length=1000)
+
+
+class IngredientMappingActionResponse(BaseModel):
+    pending_code: str
+    normalized_source_name: str
+    status: Literal["HELD", "APPROVED", "REJECTED"]
+    target_ingredient_code: str | None
+    target_ingredient_name: str | None
+    decision_reason: str | None
+    reviewed_at: datetime
+    available_actions: list[IngredientMappingAction]
+
+
+# --- canonical 검색 (승인 target 선택용, §6) --------------------------------
+
+
+class CanonicalIngredientSearchItem(BaseModel):
+    ingredient_code: str
+    name_ko: str
+    name_en: str | None
+    normalized_name: str | None
+    source_url: str | None
+
+
+class CanonicalIngredientSearchResponse(BaseModel):
+    items: list[CanonicalIngredientSearchItem]
+    next_cursor: str | None
