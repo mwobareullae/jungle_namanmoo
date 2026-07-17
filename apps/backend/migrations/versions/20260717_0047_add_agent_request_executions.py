@@ -1,7 +1,7 @@
 """add agent request idempotency records
 
-Revision ID: 20260716_0044
-Revises: 20260716_0043
+Revision ID: 20260717_0047
+Revises: 20260717_0046
 """
 
 from collections.abc import Sequence
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision: str = "20260716_0044"
-down_revision: str | None = "20260716_0043"
+revision: str = "20260717_0047"
+down_revision: str | None = "20260717_0046"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

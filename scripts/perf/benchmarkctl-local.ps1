@@ -8,7 +8,13 @@ param(
     [int]$Vus,
     [string]$Duration,
     [ValidatePattern("^[A-Za-z0-9][A-Za-z0-9_-]*$")]
-    [string]$QueryId
+    [string]$QueryId,
+    [ValidatePattern("^[a-z0-9][a-z0-9-]*$")]
+    [string]$StageId,
+    [ValidateSet("scale-sweep", "headline-repeats", "diagnostics")]
+    [string]$RunKind,
+    [ValidatePattern("^[a-z0-9][a-z0-9-]*$")]
+    [string]$Topic
 )
 
 $ErrorActionPreference = "Stop"
@@ -112,7 +118,21 @@ $SshHost = Require-Config $Config "SSH_HOST"
 $SshKey = Require-Config $Config "SSH_KEY"
 $Remote = "$SshUser@$SshHost"
 $RunId = "recommendation-$Dataset-$UserType-$(Get-Date -Format yyyyMMdd-HHmmss)"
-$LocalRunDir = Join-Path $LocalResultRoot $RunId
+if ($StageId -or $RunKind -or $Topic) {
+    if (-not $StageId -or -not $RunKind) {
+        throw "분류 저장에는 StageId와 RunKind가 모두 필요합니다."
+    }
+    if ($Topic -and $RunKind -ne "diagnostics") {
+        throw "Topic은 RunKind=diagnostics일 때만 사용할 수 있습니다."
+    }
+    $LocalRunParent = Join-Path $LocalResultRoot "stages/$StageId/runs/$RunKind"
+    if ($Topic) {
+        $LocalRunParent = Join-Path $LocalRunParent $Topic
+    }
+} else {
+    $LocalRunParent = Join-Path $LocalResultRoot "inbox"
+}
+$LocalRunDir = Join-Path $LocalRunParent $RunId
 $LocalK6Summary = Join-Path $LocalRunDir "k6-summary.json"
 $LocalK6Output = Join-Path $LocalRunDir "k6-output.txt"
 $RemoteK6Summary = "/tmp/$RunId-k6-summary.json"
@@ -249,10 +269,10 @@ Write-Host "[11/11] 수집 결과 다운로드"
 Invoke-Scp @(
     "-F", "NUL", "-i", $SshKey, "-r",
     "${Remote}:$RemoteRuntimeRoot/runs/$RunId",
-    $LocalResultRoot
+    $LocalRunParent
 )
 
-Write-Host "완료: $LocalResultRoot\$RunId"
+Write-Host "완료: $LocalRunDir"
 if ($k6ExitCode -ne 0) {
     throw "k6 실행 실패: exit_code=$k6ExitCode"
 }

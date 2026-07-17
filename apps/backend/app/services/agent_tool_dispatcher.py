@@ -85,6 +85,7 @@ class CreateRecommendationArgs(BaseModel):
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
     sensitivity: Literal["낮음", "보통", "높음"] | None = None
     avoid_ingredients: list[str] | None = Field(default=None, max_length=50)
+    required_ingredient_names: list[str] | None = Field(default=None, max_length=20)
     page_size: int = Field(default=10, ge=1, le=20)
     intent_resolved: bool = False
     concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
@@ -140,6 +141,7 @@ class RefineProductResultsArgs(BaseModel):
     skin_type: str | None = Field(default=None, max_length=40)
     sensitivity: str | None = Field(default=None, max_length=40)
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
+    required_ingredient_names: list[str] | None = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def validate_result_source(self) -> "RefineProductResultsArgs":
@@ -161,11 +163,14 @@ class AddToCartArgs(BaseModel):
     recommendation_rank: int | None = Field(default=None, ge=1)
     reference_source: ProductReferenceSource | None = None
     reference_rank: int | None = Field(default=None, ge=1, le=50)
+    reference_position: Literal["first", "last"] | None = None
 
     @model_validator(mode="after")
     def validate_product_reference(self) -> "AddToCartArgs":
         if self.product_id and self.reference_source:
             raise ValueError("product_id and reference_source cannot be used together")
+        if self.reference_rank is not None and self.reference_position is not None:
+            raise ValueError("reference_rank and reference_position cannot be used together")
         if not self.product_id and not self.reference_source:
             raise ValueError("product_id or reference_source is required")
         return self
@@ -174,10 +179,23 @@ class AddToCartArgs(BaseModel):
 class PrepareProductCheckoutArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product_id: str = Field(..., min_length=1, max_length=128)
+    product_id: str | None = Field(default=None, min_length=1, max_length=128)
     quantity: int = Field(default=1, ge=1, le=99)
     recommendation_id: str | None = Field(default=None, max_length=128)
     recommendation_rank: int | None = Field(default=None, ge=1)
+    reference_source: ProductReferenceSource | None = None
+    reference_rank: int | None = Field(default=None, ge=1, le=50)
+    reference_position: Literal["first", "last"] | None = None
+
+    @model_validator(mode="after")
+    def validate_product_reference(self) -> "PrepareProductCheckoutArgs":
+        if self.product_id and self.reference_source:
+            raise ValueError("product_id and reference_source cannot be used together")
+        if self.reference_rank is not None and self.reference_position is not None:
+            raise ValueError("reference_rank and reference_position cannot be used together")
+        if not self.product_id and not self.reference_source:
+            raise ValueError("product_id or reference_source is required")
+        return self
 
 
 class CheckoutArgs(BaseModel):
@@ -233,9 +251,19 @@ class PrepareClaimDraftArgs(BaseModel):
 class BulkWishlistByPopularIngredientArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    ingredient_name: str = Field(..., min_length=1, max_length=160)
+    ingredient_name: str | None = Field(default=None, min_length=1, max_length=160)
+    skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
+    sensitivity: Literal["낮음", "보통", "높음"] | None = None
     rank_limit: int = Field(default=20, ge=1, le=20)
     window_days: Literal[1, 7, 30] = 7
+
+    @model_validator(mode="after")
+    def validate_criteria(self) -> "BulkWishlistByPopularIngredientArgs":
+        if self.ingredient_name and (self.skin_type or self.sensitivity):
+            raise ValueError("ingredient and skin profile criteria cannot be combined")
+        if not self.ingredient_name and not self.skin_type and not self.sensitivity:
+            raise ValueError("one wishlist criterion is required")
+        return self
 
 
 ToolArgs = (
@@ -405,6 +433,7 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             avoid_ingredients=args.avoid_ingredients,
+            required_ingredient_names=args.required_ingredient_names,
             page_size=args.page_size,
             intent_resolved=args.intent_resolved,
             concern_ids=args.concern_ids,
@@ -486,6 +515,7 @@ def _execute_parsed_tool(
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             effect_keywords=args.effect_keywords,
+            required_ingredient_names=args.required_ingredient_names,
         )
 
     if tool_name == GET_CART_TOOL:
@@ -510,6 +540,7 @@ def _execute_parsed_tool(
             recommendation_rank=args.recommendation_rank,
             reference_source=args.reference_source,
             reference_rank=args.reference_rank,
+            reference_position=args.reference_position,
             current_product_id=current_product_id,
         )
 
@@ -525,6 +556,10 @@ def _execute_parsed_tool(
             quantity=args.quantity,
             recommendation_id=args.recommendation_id,
             recommendation_rank=args.recommendation_rank,
+            reference_source=args.reference_source,
+            reference_rank=args.reference_rank,
+            reference_position=args.reference_position,
+            current_product_id=current_product_id,
         )
 
     if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
@@ -625,6 +660,8 @@ def _execute_parsed_tool(
             user,
             conversation_id=conversation_id,
             ingredient_name=args.ingredient_name,
+            skin_type=args.skin_type,
+            sensitivity=args.sensitivity,
             rank_limit=args.rank_limit,
             window_days=args.window_days,
             request_id=request_id,

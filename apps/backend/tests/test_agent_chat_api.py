@@ -1,6 +1,6 @@
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
 import json
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,11 +23,14 @@ from app.schemas.agent import (
 )
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import (
+    _OpenAICircuitBreaker,
     _build_agent_input,
     _expected_tool_error_response,
+    _is_retryable_openai_exception,
     _to_agent_execution_error,
     run_openai_agent_chat,
 )
+from app.services.agent_idempotency import claim_agent_request_execution
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -138,28 +141,32 @@ def test_expected_tool_errors_are_safe_and_localized(
     assert "internal_table" not in response.message
 
 
-@pytest.mark.anyio
-async def test_agent_runner_uses_explicit_openai_timeout_and_retry_policy(
+def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
+    assert _is_retryable_openai_exception(TimeoutError()) is True
+    assert _is_retryable_openai_exception(ConnectionError()) is True
+    assert _is_retryable_openai_exception(ValueError("invalid tool arguments")) is False
+
+    class ServerFailure(Exception):
+        status_code = 503
+
+    assert _is_retryable_openai_exception(ServerFailure()) is True
+
+
+def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, object] = {}
+    from app.core.config import settings
 
-    async def fake_runner_run(*_args, **kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace(final_output="요청을 확인했어요.")
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(settings, "openai_agent_circuit_cooldown_seconds", 30.0)
+    breaker = _OpenAICircuitBreaker()
 
-    monkeypatch.setattr(settings, "openai_api_key", "test-key")
-    monkeypatch.setattr(settings, "openai_agent_timeout_seconds", 25)
-    monkeypatch.setattr(settings, "openai_agent_max_retries", 1)
-    monkeypatch.setattr("agents.Runner.run", fake_runner_run)
+    breaker.before_call()
+    assert breaker.record_transient_failure() is False
+    assert breaker.record_transient_failure() is True
 
-    response = await run_openai_agent_chat(Session(), AgentChatRequest(message="도움이 필요해요."))
-
-    run_config = captured["run_config"]
-    client = run_config.model_provider._client
-    assert client.timeout == 25
-    assert client.max_retries == 1
-    assert response.message == "요청을 확인했어요."
+    with pytest.raises(Exception, match="AI 연결이 불안정해요"):
+        breaker.before_call()
 
 
 @pytest.mark.anyio
@@ -172,6 +179,37 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
     assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
     assert response.tool_name is None
     assert "한 번에 담는 기능" in response.message
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("담아줘", "담을 상품을 알려주세요"),
+        ("추천해줘", "어떤 피부 고민이나 조건"),
+        ("상위 상품 담아줘", "몇 개 담을까요"),
+    ],
+)
+async def test_agent_ambiguous_requests_ask_for_missing_scope_without_openai(message: str, expected: str) -> None:
+    response = await run_openai_agent_chat(Session(), AgentChatRequest(message=message))
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert expected in response.message
+
+
+@pytest.mark.anyio
+async def test_agent_multi_action_request_requires_staged_selection_without_openai() -> None:
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 장바구니에 담아줘"),
+    )
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert "먼저 조건에 맞는 추천 결과" in response.message
 
 
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -256,6 +294,37 @@ def test_agent_chat_rejects_different_request_with_reused_idempotency_key(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "AGENT_IDEMPOTENCY_KEY_REUSED"
+
+
+def test_agent_request_allows_retry_after_stale_pending_execution(db_engine: Engine) -> None:
+    request = AgentChatRequest(message="현재 상품을 장바구니에 담아줘")
+    key = "agent-request-stale-0001"
+
+    with Session(db_engine) as session:
+        execution, replay = claim_agent_request_execution(
+            session,
+            idempotency_key=key,
+            request=request,
+            user_id=123,
+            anonymous_cart_id=None,
+        )
+        assert execution is not None
+        assert replay is None
+        execution.updated_at = datetime.now(UTC) - timedelta(minutes=3)
+        session.commit()
+
+    with Session(db_engine) as session:
+        retried_execution, replay = claim_agent_request_execution(
+            session,
+            idempotency_key=key,
+            request=request,
+            user_id=123,
+            anonymous_cart_id=None,
+        )
+
+        assert retried_execution is not None
+        assert retried_execution.status == "PENDING"
+        assert replay is None
 
 
 def test_agent_chat_rejects_sensitive_input_before_runner(

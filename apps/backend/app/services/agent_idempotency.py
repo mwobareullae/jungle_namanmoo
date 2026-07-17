@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -14,6 +15,7 @@ from app.schemas.common import ApiError, dump_model
 
 
 IDEMPOTENCY_KEY_MAX_LENGTH = 128
+AGENT_REQUEST_PENDING_TIMEOUT = timedelta(minutes=2)
 _IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{15,127}$")
 
 
@@ -74,6 +76,7 @@ def complete_agent_request_execution(
         return
     execution.status = "COMPLETED"
     execution.response_json = dump_model(response)
+    execution.updated_at = datetime.now(UTC)
 
 
 def fail_agent_request_execution(session: Session, execution_id: int | None) -> None:
@@ -84,6 +87,7 @@ def fail_agent_request_execution(session: Session, execution_id: int | None) -> 
         return
     execution.status = "FAILED"
     execution.response_json = {}
+    execution.updated_at = datetime.now(UTC)
 
 
 def _handle_existing_execution(
@@ -100,17 +104,33 @@ def _handle_existing_execution(
     if execution.status == "COMPLETED":
         return execution, AgentChatResponse.model_validate(execution.response_json)
     if execution.status == "PENDING":
-        raise ApiError(
-            409,
-            "AGENT_REQUEST_IN_PROGRESS",
-            "같은 요청을 처리하고 있어요. 잠시 후 다시 확인해주세요.",
-        )
+        if not _is_stale_pending_execution(execution):
+            raise ApiError(
+                409,
+                "AGENT_REQUEST_IN_PROGRESS",
+                "같은 요청을 처리하고 있어요. 잠시 후 다시 확인해주세요.",
+            )
+
+        # A process can terminate after committing PENDING but before recording
+        # completion. Recover only after the bounded runner window has elapsed.
+        execution.status = "PENDING"
+        execution.response_json = {}
+        execution.updated_at = datetime.now(UTC)
+        return execution, None
 
     # A failed request did not return a completed response, so the user may retry
     # with the same key without duplicating a completed write.
     execution.status = "PENDING"
     execution.response_json = {}
+    execution.updated_at = datetime.now(UTC)
     return execution, None
+
+
+def _is_stale_pending_execution(execution: AgentRequestExecution) -> bool:
+    updated_at = execution.updated_at
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=UTC)
+    return updated_at <= datetime.now(UTC) - AGENT_REQUEST_PENDING_TIMEOUT
 
 
 def _normalize_idempotency_key(value: str | None) -> str | None:
@@ -139,7 +159,13 @@ def _request_fingerprint(request: AgentChatRequest) -> str:
     payload = json.dumps(
         {
             "message": request.message,
+            "conversation_id": request.conversation_id,
             "context": dump_model(request.context),
+            "last_tool_result": (
+                dump_model(request.last_tool_result)
+                if request.last_tool_result is not None
+                else None
+            ),
         },
         ensure_ascii=False,
         sort_keys=True,

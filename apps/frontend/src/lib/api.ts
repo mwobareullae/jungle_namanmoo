@@ -588,6 +588,7 @@ export const api: RecommendationApi = {
     if (filters?.skin_type) searchParams.set("skin_type", filters.skin_type);
     if (filters?.sensitivity) searchParams.set("sensitivity", filters.sensitivity);
     filters?.effect_keywords?.forEach((keyword) => searchParams.append("effect_keyword", keyword));
+    filters?.required_ingredient_names?.forEach((ingredient) => searchParams.append("required_ingredient", ingredient));
 
     const query = searchParams.toString();
     const cacheKey = `${recommendationId}?${query}`;
