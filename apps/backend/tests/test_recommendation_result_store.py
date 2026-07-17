@@ -36,13 +36,18 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
         timings=timings,
     )
 
-    assert [row.rank_order for row in saved.results] == [1, 2]
-    assert [row.product_id for row in saved.results] == [
+    result_rows = _load_results(session, run_id)
+    evidence_rows = _load_evidence(session, run_id)
+
+    assert saved.result_count == 2
+    assert saved.evidence_count == len(evidence_rows)
+    assert [row.rank_order for row in result_rows] == [1, 2]
+    assert [row.product_id for row in result_rows] == [
         scored_products[0].db_product_id,
         scored_products[1].db_product_id,
     ]
-    assert saved.results[0].total_score == _score_to_decimal(scored_products[0].total_score)
-    breakdown = saved.results[0].score_breakdown
+    assert result_rows[0].total_score == _score_to_decimal(scored_products[0].total_score)
+    breakdown = result_rows[0].score_breakdown
     assert breakdown["scoring_version"] == SCORING_VERSION
     assert "skin_profile_score" in breakdown
     assert "market_signal_score" in breakdown
@@ -50,15 +55,15 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
     assert breakdown["skin_test_context_applied"] is False
     assert "base_weights" in breakdown
     assert "weights" in breakdown
-    assert len(saved.evidence) > 0
-    assert len(saved.evidence) <= len(saved.results) * 3
-    assert saved.evidence[0].recommendation_result_id == saved.results[0].id
-    assert saved.evidence[0].ingredient_id is not None
-    assert saved.evidence[0].effect_id is not None
-    assert saved.evidence[0].contribution_score is not None
+    assert len(evidence_rows) > 0
+    assert len(evidence_rows) <= len(result_rows) * 3
+    assert evidence_rows[0].recommendation_result_id == result_rows[0].id
+    assert evidence_rows[0].ingredient_id is not None
+    assert evidence_rows[0].effect_id is not None
+    assert evidence_rows[0].contribution_score is not None
     result_id_by_product_id = {
         result.product_id: result.id
-        for result in saved.results
+        for result in result_rows
     }
     expected_evidence = [
         (
@@ -81,19 +86,24 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
             evidence.contribution_score,
             evidence.reason,
         )
-        for evidence in saved.evidence
+        for evidence in evidence_rows
     ] == expected_evidence
     assert set(timings) == {
         "result_existing_lookup_ms",
         "result_payload_build_ms",
         "result_bulk_row_count",
-        "result_bulk_insert_ms",
         "evidence_payload_build_ms",
         "evidence_bulk_row_count",
-        "evidence_bulk_insert_ms",
+        "result_raw_sql_execute_ms",
+        "result_raw_sql_result_count",
+        "result_raw_sql_evidence_count",
+        "result_raw_sql_unmatched_evidence_count",
     }
-    assert timings["result_bulk_row_count"] == len(saved.results)
-    assert timings["evidence_bulk_row_count"] == len(saved.evidence)
+    assert timings["result_bulk_row_count"] == len(result_rows)
+    assert timings["evidence_bulk_row_count"] == len(evidence_rows)
+    assert timings["result_raw_sql_result_count"] == len(result_rows)
+    assert timings["result_raw_sql_evidence_count"] == len(evidence_rows)
+    assert timings["result_raw_sql_unmatched_evidence_count"] == 0
     assert all(value >= 0 for value in timings.values())
 
 
@@ -110,11 +120,7 @@ def test_save_recommendation_results_replaces_existing_run_results() -> None:
     save_recommendation_results(session, run_id, scored_products[:1], result_limit=1)
 
     result_rows = _load_results(session, run_id)
-    evidence_rows = session.execute(
-        select(RecommendationScoreEvidence)
-        .join(RecommendationResult, RecommendationScoreEvidence.recommendation_result_id == RecommendationResult.id)
-        .where(RecommendationResult.recommendation_run_id == run_id)
-    ).scalars().all()
+    evidence_rows = _load_evidence(session, run_id)
 
     assert len(result_rows) == 1
     assert result_rows[0].rank_order == 1
@@ -139,9 +145,13 @@ def test_save_recommendation_results_applies_result_and_evidence_limits() -> Non
         evidence_limit_per_result=1,
     )
 
-    assert len(saved.results) == 1
-    assert len(saved.evidence) <= 1
-    assert _load_results(session, run_id) == list(saved.results)
+    result_rows = _load_results(session, run_id)
+    evidence_rows = _load_evidence(session, run_id)
+
+    assert saved.result_count == 1
+    assert saved.evidence_count <= 1
+    assert len(result_rows) == saved.result_count
+    assert len(evidence_rows) == saved.evidence_count
 
 
 def test_save_recommendation_results_supports_empty_evidence_batch() -> None:
@@ -161,8 +171,8 @@ def test_save_recommendation_results_supports_empty_evidence_batch() -> None:
         timings=timings,
     )
 
-    assert len(saved.results) == 1
-    assert saved.evidence == ()
+    assert saved.result_count == 1
+    assert saved.evidence_count == 0
     assert timings["result_bulk_row_count"] == 1
     assert timings["evidence_bulk_row_count"] == 0
 
@@ -179,8 +189,8 @@ def test_save_recommendation_results_supports_empty_result_batch() -> None:
     timings: dict[str, float] = {}
     saved = save_recommendation_results(session, run_id, [], timings=timings)
 
-    assert saved.results == ()
-    assert saved.evidence == ()
+    assert saved.result_count == 0
+    assert saved.evidence_count == 0
     assert timings["result_bulk_row_count"] == 0
     assert timings["evidence_bulk_row_count"] == 0
 
@@ -228,6 +238,21 @@ def _load_results(session: Session, recommendation_run_id: int) -> list[Recommen
         select(RecommendationResult)
         .where(RecommendationResult.recommendation_run_id == recommendation_run_id)
         .order_by(RecommendationResult.rank_order.asc())
+    ).scalars().all()
+
+
+def _load_evidence(
+    session: Session,
+    recommendation_run_id: int,
+) -> list[RecommendationScoreEvidence]:
+    return session.execute(
+        select(RecommendationScoreEvidence)
+        .join(
+            RecommendationResult,
+            RecommendationScoreEvidence.recommendation_result_id == RecommendationResult.id,
+        )
+        .where(RecommendationResult.recommendation_run_id == recommendation_run_id)
+        .order_by(RecommendationScoreEvidence.id.asc())
     ).scalars().all()
 
 
