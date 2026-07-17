@@ -36,6 +36,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     )
     now = datetime(2026, 6, 28, 12, 0, 0, tzinfo=UTC)
 
+    timings: dict[str, float] = {}
     saved = save_recommendation_run(
         session,
         intent,
@@ -44,6 +45,7 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
         avoid_ingredients=["향료"],
         recommendation_code="rec_store_test",
         now=now,
+        timings=timings,
     )
 
     assert saved.run.recommendation_code == "rec_store_test"
@@ -57,6 +59,14 @@ def test_save_recommendation_run_persists_run_context_constraints_and_concerns()
     assert saved.run.parser_result["effects"][0]["effect_id"] == "effect_moisturizing"
     assert saved.run.request_context["purchase_conditions"]["categories"][0]["category_code"] == "serum"
     assert saved.run.request_context["purchase_conditions"]["price_max"] == 20000
+    assert set(timings) == {
+        "run_row_build_ms",
+        "run_insert_flush_ms",
+        "run_relation_build_ms",
+        "run_relation_add_ms",
+        "run_relation_flush_ms",
+    }
+    assert all(value >= 0 for value in timings.values())
 
     constraints = _load_constraints(session, saved.run.id)
     assert [constraint.constraint_type for constraint in constraints] == ["category", "price_max"]

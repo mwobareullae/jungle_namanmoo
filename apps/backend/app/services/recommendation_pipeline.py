@@ -256,6 +256,7 @@ def _create_recommendation_response(
             sensitivity=normalized_request.sensitivity,
             avoid_ingredients=normalized_request.avoid_ingredients,
             scoring_version=SCORING_VERSION,
+            timings=stage_durations,
         )
         _record_stage_duration(stage_durations, "run_save_ms", stage_started_at)
 
@@ -291,7 +292,13 @@ def _create_recommendation_response(
         _record_stage_duration(stage_durations, "search_match_ms", stage_started_at)
 
         stage_started_at = current_time()
-        save_search_candidates(session, saved_run.run.id, candidates, matches)
+        save_search_candidates(
+            session,
+            saved_run.run.id,
+            candidates,
+            matches,
+            timings=stage_durations,
+        )
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
@@ -329,6 +336,7 @@ def _create_recommendation_response(
             saved_run.run.id,
             scored_products,
             result_limit=result_limit,
+            timings=stage_durations,
         )
         _record_stage_duration(stage_durations, "result_save_ms", stage_started_at)
 
