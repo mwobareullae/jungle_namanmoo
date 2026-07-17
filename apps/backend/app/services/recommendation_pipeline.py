@@ -51,7 +51,6 @@ from app.services.scoring import (
     load_skin_test_scoring_context,
     score_candidates,
 )
-from app.services.search_candidate_store import save_search_candidates
 from app.services.search_matching import (
     SearchNoResultDiagnostics,
     build_search_no_result_diagnostics,
@@ -290,16 +289,6 @@ def _create_recommendation_response(
             join_document_count=search_join_document_count,
         )
         _record_stage_duration(stage_durations, "search_match_ms", stage_started_at)
-
-        stage_started_at = current_time()
-        save_search_candidates(
-            session,
-            saved_run.run.id,
-            candidates,
-            matches,
-            timings=stage_durations,
-        )
-        _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
         scored_candidates = score_candidates(
