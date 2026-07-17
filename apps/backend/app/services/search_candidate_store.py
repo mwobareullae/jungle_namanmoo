@@ -1,8 +1,10 @@
 from decimal import Decimal
+from typing import MutableMapping
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.recommendation import SearchCandidate
 from app.services.product_candidates import ProductCandidate
 from app.services.search_matching import SearchMatch
@@ -16,7 +18,10 @@ def save_search_candidates(
     recommendation_run_id: int,
     candidates: list[ProductCandidate],
     matches: list[SearchMatch],
+    *,
+    timings: MutableMapping[str, float] | None = None,
 ) -> list[SearchCandidate]:
+    stage_started_at = current_time()
     candidate_by_product_code = {
         candidate.product_id: candidate
         for candidate in candidates
@@ -33,13 +38,17 @@ def save_search_candidates(
     ]
     if unknown_product_codes:
         raise ValueError(f"Unknown search match product_id: {unknown_product_codes[0]}")
+    _record_timing(timings, "candidate_trace_match_validation_ms", stage_started_at)
 
+    stage_started_at = current_time()
     session.execute(
         delete(SearchCandidate).where(
             SearchCandidate.recommendation_run_id == recommendation_run_id,
         )
     )
+    _record_timing(timings, "candidate_trace_delete_ms", stage_started_at)
 
+    stage_started_at = current_time()
     sorted_matches = sorted(
         matches,
         key=lambda match: (
@@ -59,11 +68,26 @@ def save_search_candidates(
         )
         for rank_order, match in enumerate(sorted_matches, start=1)
     ]
+    _record_timing(timings, "candidate_trace_row_build_ms", stage_started_at)
 
+    stage_started_at = current_time()
     session.add_all(rows)
+    _record_timing(timings, "candidate_trace_add_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.flush()
+    _record_timing(timings, "candidate_trace_flush_ms", stage_started_at)
     return rows
 
 
 def _score_to_decimal(score: float) -> Decimal:
     return Decimal(str(score)).quantize(SCORE_QUANTIZE)
+
+
+def _record_timing(
+    timings: MutableMapping[str, float] | None,
+    key: str,
+    started_at: float,
+) -> None:
+    if timings is not None:
+        timings[key] = round(elapsed_ms(started_at), 2)

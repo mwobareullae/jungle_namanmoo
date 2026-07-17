@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import MutableMapping
 from uuid import uuid4
 
 from sqlalchemy import delete, select
@@ -17,6 +18,7 @@ from app.db.models.recommendation import (
 )
 from app.db.models.taxonomy import Concern
 from app.schemas.common import ApiError
+from app.core.performance_logging import current_time, elapsed_ms
 from app.services.parser import ParsedConcern, ParsedEffect, ParsedExcludedConcern
 from app.services.purchase_conditions import MatchedBrand, MatchedCategory, ParsedPurchaseConditions
 from app.services.recommendation_intent import RecommendationIntent
@@ -61,7 +63,9 @@ def save_recommendation_run(
     scoring_version: str = DEFAULT_SCORING_VERSION,
     now: datetime | None = None,
     ttl: timedelta = DEFAULT_RECOMMENDATION_TTL,
+    timings: MutableMapping[str, float] | None = None,
 ) -> SavedRecommendationRun:
+    stage_started_at = current_time()
     created_at = now or datetime.now(UTC)
     run = RecommendationRun(
         recommendation_code=recommendation_code or _generate_recommendation_code(),
@@ -74,20 +78,40 @@ def save_recommendation_run(
         scoring_version=scoring_version,
         expires_at=created_at + ttl,
     )
+    _record_timing(timings, "run_row_build_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.add(run)
     session.flush()
+    _record_timing(timings, "run_insert_flush_ms", stage_started_at)
 
+    stage_started_at = current_time()
     constraints = _build_constraints(session, run.id, intent.purchase_conditions)
     concerns = _build_concerns(session, run.id, intent.concerns)
+    _record_timing(timings, "run_relation_build_ms", stage_started_at)
 
+    stage_started_at = current_time()
     session.add_all([*constraints, *concerns])
+    _record_timing(timings, "run_relation_add_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.flush()
+    _record_timing(timings, "run_relation_flush_ms", stage_started_at)
 
     return SavedRecommendationRun(
         run=run,
         constraints=tuple(constraints),
         concerns=tuple(concerns),
     )
+
+
+def _record_timing(
+    timings: MutableMapping[str, float] | None,
+    key: str,
+    started_at: float,
+) -> None:
+    if timings is not None:
+        timings[key] = round(elapsed_ms(started_at), 2)
 
 
 def ensure_recommendation_run_active(

@@ -9,7 +9,9 @@ from app.schemas.agent import AgentChatResponse, AgentResponseItem, AgentUiActio
 from app.schemas.common import dump_model
 from app.schemas.recommendation import RecommendationRequest
 from app.services.agent_policy import validate_result_item_count, validate_tool_ui_action
-from app.services.recommendation_pipeline import create_recommendation_response
+from app.services.recommendation_pipeline import (
+    create_structured_recommendation_response,
+)
 from app.services.recommendation_intent import StructuredRecommendationIntent
 
 
@@ -51,7 +53,6 @@ def create_agent_recommendation(
     avoid_ingredients: list[str] | None = None,
     required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
-    intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
     effect_ids: list[AgentEffectId] | None = None,
     excluded_concern_ids: list[AgentConcernId] | None = None,
@@ -61,7 +62,6 @@ def create_agent_recommendation(
     price_max: int | None = None,
 ) -> AgentChatResponse:
     structured_intent = StructuredRecommendationIntent(
-        resolved=intent_resolved,
         concern_ids=tuple(concern_ids or ()),
         effect_ids=tuple(effect_ids or ()),
         excluded_concern_ids=tuple(excluded_concern_ids or ()),
@@ -70,7 +70,7 @@ def create_agent_recommendation(
         price_min=price_min,
         price_max=price_max,
     )
-    recommendation = create_recommendation_response(
+    recommendation = create_structured_recommendation_response(
         session,
         RecommendationRequest(
             concern_text=concern_text,

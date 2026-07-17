@@ -96,7 +96,22 @@ def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engin
     assert performance_payload["item_count"] == 1
 
 
-def test_dispatcher_creates_real_recommendation_result(db_engine: Engine) -> None:
+def test_dispatcher_creates_real_recommendation_result(
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.recommendation_intent.parse_concern_text",
+        lambda *_args, **_kwargs: pytest.fail("agent path must not run raw intent parser"),
+    )
+    monkeypatch.setattr(
+        "app.services.recommendation_pipeline.settings.openai_api_key",
+        "test-openai-key",
+    )
+    monkeypatch.setattr(
+        "app.services.recommendation_pipeline.get_default_concern_llm_parser",
+        lambda: pytest.fail("agent path must not construct backend LLM parser"),
+    )
     with Session(db_engine) as session:
         response = execute_agent_tool(
             session,
@@ -107,7 +122,6 @@ def test_dispatcher_creates_real_recommendation_result(db_engine: Engine) -> Non
                 "sensitivity": "높음",
                 "avoid_ingredients": [],
                 "page_size": 10,
-                "intent_resolved": True,
                 "concern_ids": ["concern_sensitive"],
                 "effect_ids": ["effect_calming", "effect_moisture_barrier"],
                 "priority_effect_ids": ["effect_calming"],
@@ -142,10 +156,27 @@ def test_dispatcher_rejects_invalid_structured_recommendation_price_range(
                 tool_name="create_recommendation",
                 arguments={
                     "concern_text": "세럼 추천",
-                    "intent_resolved": True,
                     "category_codes": ["serum"],
                     "price_min": 50_000,
                     "price_max": 30_000,
+                },
+            )
+
+    assert exc_info.value.code == "AGENT_TOOL_ARGUMENT_INVALID"
+
+
+def test_dispatcher_rejects_removed_intent_resolved_argument(
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as exc_info:
+            execute_agent_tool(
+                session,
+                tool_name="create_recommendation",
+                arguments={
+                    "concern_text": "세럼 추천",
+                    "intent_resolved": True,
+                    "category_codes": ["serum"],
                 },
             )
 
@@ -941,7 +972,6 @@ def test_dispatcher_resolves_recommendation_rank_before_adding_to_cart(db_engine
             arguments={
                 "concern_text": "민감 피부용 보습 세럼을 추천해줘",
                 "page_size": 10,
-                "intent_resolved": True,
                 "concern_ids": ["concern_sensitive"],
                 "effect_ids": ["effect_moisture_barrier"],
                 "category_codes": ["serum"],
@@ -949,6 +979,7 @@ def test_dispatcher_resolves_recommendation_rank_before_adding_to_cart(db_engine
             conversation_id="conv_recommendation_cart",
         )
         recommendation_id = str(recommendation.ui_action.payload["recommendation_id"])
+        assert recommendation.ui_action.payload["summary"]["sensitivity"] == "높음"
         expected_product_id = recommendation.items[0].id
 
         response = execute_agent_tool(

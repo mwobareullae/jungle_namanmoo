@@ -38,6 +38,7 @@ from app.services.concern_llm_parser import get_default_concern_llm_parser
 from app.services.recommendation_intent import (
     StructuredRecommendationIntent,
     build_recommendation_intent,
+    materialize_structured_recommendation_intent,
 )
 from app.services.recommendation_result_store import save_recommendation_results
 from app.services.recommendation_run_store import (
@@ -135,7 +136,56 @@ def create_recommendation_response(
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
     commit: bool = True,
-    structured_intent: StructuredRecommendationIntent | None = None,
+) -> RecommendationResponse:
+    return _create_recommendation_response(
+        session,
+        request,
+        current_user=current_user,
+        result_limit=result_limit,
+        candidate_pool_limit=candidate_pool_limit,
+        page=page,
+        page_size=page_size,
+        commit=commit,
+        structured_intent=None,
+    )
+
+
+def create_structured_recommendation_response(
+    session: Session,
+    request: RecommendationRequest,
+    *,
+    structured_intent: StructuredRecommendationIntent,
+    current_user: User | None = None,
+    result_limit: int = DEFAULT_RESULT_LIMIT,
+    candidate_pool_limit: int = DEFAULT_CANDIDATE_POOL_LIMIT,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    commit: bool = True,
+) -> RecommendationResponse:
+    return _create_recommendation_response(
+        session,
+        request,
+        current_user=current_user,
+        result_limit=result_limit,
+        candidate_pool_limit=candidate_pool_limit,
+        page=page,
+        page_size=page_size,
+        commit=commit,
+        structured_intent=structured_intent,
+    )
+
+
+def _create_recommendation_response(
+    session: Session,
+    request: RecommendationRequest,
+    *,
+    current_user: User | None,
+    result_limit: int,
+    candidate_pool_limit: int,
+    page: int,
+    page_size: int,
+    commit: bool,
+    structured_intent: StructuredRecommendationIntent | None,
 ) -> RecommendationResponse:
     total_started_at = current_time()
     stage_durations: dict[str, float] = {}
@@ -151,6 +201,10 @@ def create_recommendation_response(
     normalized_request = normalize_recommendation_request(
         request,
         saved_skin_profile=saved_skin_profile,
+        infer_sensitivity_from_text=structured_intent is None,
+        structured_sensitive_intent=_has_structured_sensitive_intent(
+            structured_intent
+        ),
     )
     stage_started_at = current_time()
     skin_test_context = load_skin_test_scoring_context(
@@ -167,16 +221,26 @@ def create_recommendation_response(
         diagnostics=scoring_diagnostics,
     )
     _record_stage_duration(stage_durations, "behavior_context_load_ms", stage_started_at)
-    llm_parser = get_default_concern_llm_parser() if settings.openai_api_key else None
+    llm_parser = (
+        get_default_concern_llm_parser()
+        if structured_intent is None and settings.openai_api_key
+        else None
+    )
 
     stage_started_at = current_time()
     intent_diagnostics: dict[str, object] = {}
-    intent = build_recommendation_intent(
-        normalized_request.concern_text,
-        llm_parser=llm_parser,
-        structured_intent=structured_intent,
-        diagnostics=intent_diagnostics,
-    )
+    if structured_intent is None:
+        intent = build_recommendation_intent(
+            normalized_request.concern_text,
+            llm_parser=llm_parser,
+            diagnostics=intent_diagnostics,
+        )
+    else:
+        intent = materialize_structured_recommendation_intent(
+            normalized_request.concern_text,
+            structured_intent,
+            diagnostics=intent_diagnostics,
+        )
     _record_stage_duration(stage_durations, "intent_parse_ms", stage_started_at)
     intent_diagnostics["intent_unattributed_ms"] = _intent_unattributed_ms(
         stage_durations["intent_parse_ms"],
@@ -192,6 +256,7 @@ def create_recommendation_response(
             sensitivity=normalized_request.sensitivity,
             avoid_ingredients=normalized_request.avoid_ingredients,
             scoring_version=SCORING_VERSION,
+            timings=stage_durations,
         )
         _record_stage_duration(stage_durations, "run_save_ms", stage_started_at)
 
@@ -227,7 +292,13 @@ def create_recommendation_response(
         _record_stage_duration(stage_durations, "search_match_ms", stage_started_at)
 
         stage_started_at = current_time()
-        save_search_candidates(session, saved_run.run.id, candidates, matches)
+        save_search_candidates(
+            session,
+            saved_run.run.id,
+            candidates,
+            matches,
+            timings=stage_durations,
+        )
         _record_stage_duration(stage_durations, "search_candidate_save_ms", stage_started_at)
 
         stage_started_at = current_time()
@@ -265,6 +336,7 @@ def create_recommendation_response(
             saved_run.run.id,
             scored_products,
             result_limit=result_limit,
+            timings=stage_durations,
         )
         _record_stage_duration(stage_durations, "result_save_ms", stage_started_at)
 
@@ -447,6 +519,7 @@ def _intent_unattributed_ms(
 ) -> float:
     measured_keys = (
         "intent_repository_load_ms",
+        "intent_materialize_ms",
         "intent_rule_parse_ms",
         "intent_llm_call_ms",
         "intent_llm_merge_ms",
@@ -464,6 +537,8 @@ def normalize_recommendation_request(
     request: RecommendationRequest,
     *,
     saved_skin_profile: Any | None = None,
+    infer_sensitivity_from_text: bool = True,
+    structured_sensitive_intent: bool = False,
 ) -> NormalizedRecommendationRequest:
     concern_text = (request.concern_text or "").strip()
     if not concern_text:
@@ -480,7 +555,9 @@ def normalize_recommendation_request(
     if request_sensitivity is not None:
         sensitivity = request_sensitivity
         manual_sensitivity_explicit = True
-    elif _has_sensitive_intent(concern_text):
+    elif structured_sensitive_intent or (
+        infer_sensitivity_from_text and _has_sensitive_intent(concern_text)
+    ):
         sensitivity = "높음"
         manual_sensitivity_explicit = False
     elif saved_sensitivity is not None:
@@ -505,6 +582,17 @@ def normalize_recommendation_request(
         ),
         manual_skin_type_explicit=request_skin_type is not None or saved_skin_type is not None,
         manual_sensitivity_explicit=manual_sensitivity_explicit,
+    )
+
+
+def _has_structured_sensitive_intent(
+    structured_intent: StructuredRecommendationIntent | None,
+) -> bool:
+    if structured_intent is None:
+        return False
+    return (
+        "concern_sensitive" in structured_intent.concern_ids
+        and "concern_sensitive" not in structured_intent.excluded_concern_ids
     )
 
 
