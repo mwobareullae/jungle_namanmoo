@@ -19,7 +19,12 @@ from app.schemas.agent import (
     AgentChatResponse,
     AgentUiAction,
 )
-from app.services.agent_openai_runner import _build_agent_input, run_openai_agent_chat
+from app.services.agent_openai_runner import (
+    _OpenAICircuitBreaker,
+    _build_agent_input,
+    _is_retryable_openai_exception,
+    run_openai_agent_chat,
+)
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -81,6 +86,34 @@ def test_agent_input_omits_empty_context_fields() -> None:
     payload = json.loads(_build_agent_input(AgentChatRequest(message="보습 세럼 추천해줘")))
 
     assert payload == {"message": "보습 세럼 추천해줘"}
+
+
+def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
+    assert _is_retryable_openai_exception(TimeoutError()) is True
+    assert _is_retryable_openai_exception(ConnectionError()) is True
+    assert _is_retryable_openai_exception(ValueError("invalid tool arguments")) is False
+
+    class ServerFailure(Exception):
+        status_code = 503
+
+    assert _is_retryable_openai_exception(ServerFailure()) is True
+
+
+def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(settings, "openai_agent_circuit_cooldown_seconds", 30.0)
+    breaker = _OpenAICircuitBreaker()
+
+    breaker.before_call()
+    assert breaker.record_transient_failure() is False
+    assert breaker.record_transient_failure() is True
+
+    with pytest.raises(Exception, match="AI 연결이 불안정해요"):
+        breaker.before_call()
 
 
 @pytest.mark.anyio

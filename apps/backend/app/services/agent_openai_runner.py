@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import json
 import re
+import threading
+import time
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -161,6 +164,46 @@ class CommerceAgentContext:
     tool_execution_ms: float = 0.0
 
 
+class _OpenAICircuitBreaker:
+    """Process-local breaker for transient OpenAI provider failures."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._failure_count = 0
+        self._opened_until = 0.0
+
+    def before_call(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            if now < self._opened_until:
+                remaining = max(int(self._opened_until - now + 0.999), 1)
+                raise ApiError(
+                    503,
+                    "AGENT_OPENAI_CIRCUIT_OPEN",
+                    f"AI 연결이 불안정해요. {remaining}초 후 다시 시도해 주세요.",
+                )
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._failure_count = 0
+            self._opened_until = 0.0
+
+    def record_transient_failure(self) -> bool:
+        with self._lock:
+            self._failure_count += 1
+            threshold = max(settings.openai_agent_circuit_failure_threshold, 1)
+            if self._failure_count < threshold:
+                return False
+            self._opened_until = time.monotonic() + max(
+                settings.openai_agent_circuit_cooldown_seconds,
+                0.1,
+            )
+            return True
+
+
+_OPENAI_CIRCUIT_BREAKER = _OpenAICircuitBreaker()
+
+
 async def run_openai_agent_chat(
     session: Session,
     request: AgentChatRequest,
@@ -235,14 +278,59 @@ async def run_openai_agent_chat(
     )
 
     started_at = current_time()
+    retry_count = 0
     try:
-        result = await Runner.run(
-            agent,
-            input=_build_agent_input(request),
-            context=context,
-            max_turns=4,
-        )
+        _OPENAI_CIRCUIT_BREAKER.before_call()
+        max_retries = max(0, min(settings.openai_agent_max_retries, 1))
+        while True:
+            try:
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        agent,
+                        input=_build_agent_input(request),
+                        context=context,
+                        max_turns=4,
+                    ),
+                    timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
+                )
+                break
+            except Exception as exc:
+                # Never retry after a commerce tool has run: retrying could duplicate
+                # a state-changing action such as add-to-cart or address registration.
+                if (
+                    retry_count >= max_retries
+                    or context.last_tool_response is not None
+                    or not _is_retryable_openai_exception(exc)
+                ):
+                    raise
+                retry_count += 1
+                log_performance_event(
+                    "agent_openai_retry",
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                    metadata={
+                        "model": settings.openai_agent_model,
+                        "attempt": retry_count + 1,
+                        "exception_type": type(exc).__name__,
+                    },
+                    level=30,
+                )
+                await asyncio.sleep(0.05)
+        _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
+        if _is_retryable_openai_exception(exc):
+            opened = _OPENAI_CIRCUIT_BREAKER.record_transient_failure()
+            if opened:
+                log_performance_event(
+                    "agent_openai_circuit_opened",
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                    metadata={
+                        "model": settings.openai_agent_model,
+                        "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
+                    },
+                    level=30,
+                )
         log_ai_call(
             "agent_chat",
             model=settings.openai_agent_model,
@@ -253,6 +341,7 @@ async def run_openai_agent_chat(
             metadata={
                 "conversation_id": _resolve_conversation_id(request.conversation_id),
                 "max_turns": 4,
+                "retry_count": retry_count,
                 "tool_called": False,
             },
         )
@@ -273,6 +362,7 @@ async def run_openai_agent_chat(
             metadata={
                 "conversation_id": response.conversation_id,
                 "max_turns": 4,
+                "retry_count": retry_count,
                 "tool_called": True,
                 "tool_name": response.tool_name,
                 "item_count": len(response.items),
@@ -298,12 +388,35 @@ async def run_openai_agent_chat(
         metadata={
             "conversation_id": response.conversation_id,
             "max_turns": 4,
+            "retry_count": retry_count,
             "tool_called": False,
             "item_count": 0,
             "ui_action_type": response.ui_action.type,
         },
     )
     return response
+
+
+def _is_retryable_openai_exception(exc: Exception) -> bool:
+    """Return true only for transient provider/network failures.
+
+    Tool/API validation failures are intentionally not retried because they are
+    deterministic and a retry would only add latency and cost.
+    """
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int) and (
+        status_code in {408, 409, 429} or status_code >= 500
+    ):
+        return True
+
+    module = type(exc).__module__.lower()
+    name = type(exc).__name__.lower()
+    if not module.startswith("openai"):
+        return False
+    return any(token in name for token in ("timeout", "connection", "ratelimit", "internalserver"))
 
 
 def _build_agent_input(request: AgentChatRequest) -> str:
