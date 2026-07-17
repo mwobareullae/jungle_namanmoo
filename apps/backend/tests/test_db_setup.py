@@ -29,6 +29,7 @@ def test_sqlalchemy_engine_can_execute_sqlite_smoke_query() -> None:
 
 def test_declarative_base_metadata_is_available() -> None:
     expected_tables = {
+        "agent_request_executions",
         "agent_tool_calls",
         "auth_accounts",
         "auth_sessions",
