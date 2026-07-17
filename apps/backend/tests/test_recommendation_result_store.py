@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -55,15 +56,44 @@ def test_save_recommendation_results_persists_scores_and_evidence() -> None:
     assert saved.evidence[0].ingredient_id is not None
     assert saved.evidence[0].effect_id is not None
     assert saved.evidence[0].contribution_score is not None
+    result_id_by_product_id = {
+        result.product_id: result.id
+        for result in saved.results
+    }
+    expected_evidence = [
+        (
+            result_id_by_product_id[scored_product.db_product_id],
+            evidence.ingredient_id,
+            evidence.effect_id,
+            evidence.evidence_id,
+            Decimal(str(evidence.contribution_score)).quantize(Decimal("0.0001")),
+            evidence.reason,
+        )
+        for scored_product in sorted(scored_products, key=lambda product: product.rank)
+        for evidence in scored_product.score_evidence[:3]
+    ]
+    assert [
+        (
+            evidence.recommendation_result_id,
+            evidence.ingredient_id,
+            evidence.effect_id,
+            evidence.evidence_id,
+            evidence.contribution_score,
+            evidence.reason,
+        )
+        for evidence in saved.evidence
+    ] == expected_evidence
     assert set(timings) == {
         "result_existing_lookup_ms",
-        "result_row_build_ms",
-        "result_add_ms",
-        "result_flush_ms",
-        "evidence_row_build_ms",
-        "evidence_add_ms",
-        "evidence_flush_ms",
+        "result_payload_build_ms",
+        "result_bulk_row_count",
+        "result_bulk_insert_ms",
+        "evidence_payload_build_ms",
+        "evidence_bulk_row_count",
+        "evidence_bulk_insert_ms",
     }
+    assert timings["result_bulk_row_count"] == len(saved.results)
+    assert timings["evidence_bulk_row_count"] == len(saved.evidence)
     assert all(value >= 0 for value in timings.values())
 
 
@@ -112,6 +142,47 @@ def test_save_recommendation_results_applies_result_and_evidence_limits() -> Non
     assert len(saved.results) == 1
     assert len(saved.evidence) <= 1
     assert _load_results(session, run_id) == list(saved.results)
+
+
+def test_save_recommendation_results_supports_empty_evidence_batch() -> None:
+    session = _seed_example_session()
+    run_id, scored_products = _build_scored_products(
+        session,
+        "hydration recommendation",
+        skin_type="normal",
+        sensitivity="normal",
+    )
+
+    timings: dict[str, float] = {}
+    saved = save_recommendation_results(
+        session,
+        run_id,
+        [replace(scored_products[0], score_evidence=())],
+        timings=timings,
+    )
+
+    assert len(saved.results) == 1
+    assert saved.evidence == ()
+    assert timings["result_bulk_row_count"] == 1
+    assert timings["evidence_bulk_row_count"] == 0
+
+
+def test_save_recommendation_results_supports_empty_result_batch() -> None:
+    session = _seed_example_session()
+    run_id, _ = _build_scored_products(
+        session,
+        "hydration recommendation",
+        skin_type="normal",
+        sensitivity="normal",
+    )
+
+    timings: dict[str, float] = {}
+    saved = save_recommendation_results(session, run_id, [], timings=timings)
+
+    assert saved.results == ()
+    assert saved.evidence == ()
+    assert timings["result_bulk_row_count"] == 0
+    assert timings["evidence_bulk_row_count"] == 0
 
 
 def _build_scored_products(
