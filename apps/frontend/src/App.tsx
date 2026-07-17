@@ -11,6 +11,7 @@ import { ProductComparisonProvider } from "./contexts/ProductComparisonContext";
 import { useAuth } from "./contexts/useAuth";
 import { getListHistoryRestoration } from "./hooks/useListHistoryRestoration";
 import { useSkinProfileQuery } from "./hooks/useSkinProfileQuery";
+import { getGuestAgentChatStorageScope, getUserAgentChatStorageScope } from "./lib/agentChatStorage";
 import { toRecommendationProfile } from "./lib/profileApi";
 import type { RecommendationProfile } from "./types/recommendation";
 import type { OriginalPageKey } from "./originalPages";
@@ -839,6 +840,12 @@ function GlobalAgentEntry() {
     ? toRecommendationProfile(skinProfileQuery.data)
     : null;
   const isSkinProfileResolved = !isAuthLoading && (!user || !skinProfileQuery.isPending);
+  const agentChatStorageScope = useMemo(() => {
+    if (isAuthLoading) return null;
+    return user
+      ? getUserAgentChatStorageScope(user.id)
+      : getGuestAgentChatStorageScope();
+  }, [isAuthLoading, user]);
 
   const hasTemporarySkinProfile = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -846,6 +853,10 @@ function GlobalAgentEntry() {
   }, [location.search]);
 
   if (appMode === "community" || location.pathname.startsWith("/admin")) {
+    return null;
+  }
+
+  if (!agentChatStorageScope) {
     return null;
   }
 
@@ -889,9 +900,11 @@ function GlobalAgentEntry() {
 
   return (
     <AgentFloatingButton
+      key={agentChatStorageScope}
       quickQuestionContext={quickQuestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
+      storageScope={agentChatStorageScope}
       surface={agentSurface}
     />
   );

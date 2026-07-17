@@ -442,11 +442,25 @@ function ProductDetailPreviewPage() {
   ) ?? [];
 
   if (!productId || loadErrorMessage) {
-    return <div className="product-detail-loading-overlay product-detail-loading-error" role="alert"><p>{loadErrorMessage || "상품 상세 정보를 불러오지 못했습니다."}</p></div>;
+    return (
+      <>
+        <HomeHeader />
+        <div className="product-detail-loading-overlay product-detail-loading-error" role="alert">
+          <p>{loadErrorMessage || "상품 상세 정보를 불러오지 못했습니다."}</p>
+        </div>
+      </>
+    );
   }
 
   if (isLoading || product?.product_id !== productId) {
-    return <div className="product-detail-loading-overlay" role="status" aria-label="상품 상세 불러오는 중"><span className="product-detail-loading-spinner" aria-hidden="true" /></div>;
+    return (
+      <>
+        <HomeHeader />
+        <div className="product-detail-loading-overlay" role="status" aria-label="상품 상세 불러오는 중">
+          <span className="product-detail-loading-spinner" aria-hidden="true" />
+        </div>
+      </>
+    );
   }
 
   return (

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 import json
+import random
 import re
 import threading
 import time
-from typing import Any, Literal
+from typing import Any, AsyncIterator, Literal
 
 from sqlalchemy.orm import Session
 
@@ -56,9 +60,11 @@ payment results. If no tool applies or required context is missing, reply briefl
 Routing:
 - New product discovery or recommendation -> create_recommendation. Pass the complete
   request as concern_text and copy context.filters skin_type, sensitivity, and
-  avoid_ingredients exactly. Extract category_codes and price bounds. Set
-  intent_resolved=true when the request is represented by the structured fields;
-  otherwise false for backend fallback. Concern mapping: 여드름/뾰루지=concern_acne,
+  avoid_ingredients exactly. Extract all representable concern, effect, exclusion,
+  priority, category, and price fields. The recommendation backend treats these fields
+  as authoritative and does not parse the natural language again. Preserve any nuance
+  that is not represented by the fields in concern_text for product retrieval.
+  Concern mapping: 여드름/뾰루지=concern_acne,
   잡티/기미=concern_brightening_spots, 모공/피지=concern_pore,
   속건조/당김/화장 들뜸=concern_dry_barrier, 주름/탄력=concern_wrinkle_elasticity,
   홍조/자극=concern_redness_irritation, 민감/예민=concern_sensitive,
@@ -201,7 +207,11 @@ class _OpenAICircuitBreaker:
             self._failure_count = 0
             self._opened_until = 0.0
 
-    def record_transient_failure(self) -> bool:
+    def record_failure(self, failure_kind: Literal["rate_limit", "provider", "non_retryable"]) -> bool:
+        # Provider rate limits are capacity signals, not service outages. Opening
+        # the process-wide circuit for 429 would block unrelated users as well.
+        if failure_kind != "provider":
+            return False
         with self._lock:
             self._failure_count += 1
             threshold = max(settings.openai_agent_circuit_failure_threshold, 1)
@@ -215,6 +225,56 @@ class _OpenAICircuitBreaker:
 
 
 _OPENAI_CIRCUIT_BREAKER = _OpenAICircuitBreaker()
+
+
+class _OpenAIConcurrencyLimiter:
+    """Bound process-local action-agent calls for one shared provider key."""
+
+    def __init__(
+        self,
+        *,
+        max_concurrency: int | None = None,
+        queue_timeout_seconds: float | None = None,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        self._semaphore = asyncio.Semaphore(
+            max(max_concurrency or settings.openai_agent_max_concurrency, 1)
+        )
+        self._queue_timeout_seconds = max(
+            queue_timeout_seconds
+            if queue_timeout_seconds is not None
+            else settings.openai_agent_queue_timeout_seconds,
+            0.01,
+        )
+        self._retry_after_seconds = max(
+            retry_after_seconds
+            if retry_after_seconds is not None
+            else settings.openai_agent_busy_retry_after_seconds,
+            1,
+        )
+
+    @asynccontextmanager
+    async def limit(self) -> AsyncIterator[None]:
+        try:
+            await asyncio.wait_for(
+                self._semaphore.acquire(),
+                timeout=self._queue_timeout_seconds,
+            )
+        except TimeoutError as exc:
+            raise ApiError(
+                429,
+                "AGENT_OPENAI_BUSY",
+                "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.",
+                headers={"Retry-After": str(self._retry_after_seconds)},
+            ) from exc
+
+        try:
+            yield
+        finally:
+            self._semaphore.release()
+
+
+_OPENAI_CONCURRENCY_LIMITER = _OpenAIConcurrencyLimiter()
 
 
 async def run_openai_agent_chat(
@@ -287,23 +347,34 @@ async def run_openai_agent_chat(
     )
 
     started_at = current_time()
+    timeout_budget_seconds = max(float(settings.openai_agent_timeout_seconds), 0.1)
+    deadline = time.monotonic() + timeout_budget_seconds
     retry_count = 0
     try:
         _OPENAI_CIRCUIT_BREAKER.before_call()
         max_retries = max(0, min(settings.openai_agent_max_retries, 1))
         while True:
             try:
-                result = await asyncio.wait_for(
-                    Runner.run(
-                        agent,
-                        input=_build_agent_input(request),
-                        context=context,
-                        max_turns=4,
-                    ),
-                    timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
-                )
+                remaining_seconds = deadline - time.monotonic()
+                if remaining_seconds <= 0:
+                    raise TimeoutError("OpenAI request timeout budget exhausted")
+                # Queueing, provider execution, and retries share one request budget.
+                # This prevents a retry from silently doubling the configured timeout.
+                async with asyncio.timeout(remaining_seconds):
+                    async with _OPENAI_CONCURRENCY_LIMITER.limit():
+                        result = await Runner.run(
+                            agent,
+                            input=_build_agent_input(request),
+                            context=context,
+                            max_turns=4,
+                        )
                 break
             except Exception as exc:
+                _log_openai_failure_counter(
+                    exc,
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                )
                 # Never retry after a commerce tool has run: retrying could duplicate
                 # a state-changing action such as add-to-cart or address registration.
                 if (
@@ -311,6 +382,14 @@ async def run_openai_agent_chat(
                     or context.last_tool_response is not None
                     or not _is_retryable_openai_exception(exc)
                 ):
+                    raise
+                remaining_seconds = deadline - time.monotonic()
+                retry_delay_seconds = _get_openai_retry_delay_seconds(
+                    exc,
+                    retry_count=retry_count,
+                    remaining_budget_seconds=remaining_seconds,
+                )
+                if retry_delay_seconds is None:
                     raise
                 retry_count += 1
                 log_performance_event(
@@ -321,25 +400,33 @@ async def run_openai_agent_chat(
                         "model": settings.openai_agent_model,
                         "attempt": retry_count + 1,
                         "exception_type": type(exc).__name__,
+                        "delay_ms": round(retry_delay_seconds * 1000, 2),
                     },
                     level=30,
                 )
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(retry_delay_seconds)
         _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
-        if _is_retryable_openai_exception(exc):
-            opened = _OPENAI_CIRCUIT_BREAKER.record_transient_failure()
-            if opened:
-                log_performance_event(
-                    "agent_openai_circuit_opened",
-                    request_id=request_id,
-                    duration_ms=elapsed_ms(started_at),
-                    metadata={
-                        "model": settings.openai_agent_model,
-                        "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
-                    },
-                    level=30,
-                )
+        if isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_CIRCUIT_OPEN":
+            _log_openai_failure_counter(
+                exc,
+                request_id=request_id,
+                duration_ms=elapsed_ms(started_at),
+            )
+        failure_kind = _classify_openai_failure(exc)
+        opened = _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
+        if opened:
+            log_performance_event(
+                "agent_openai_circuit_opened",
+                request_id=request_id,
+                duration_ms=elapsed_ms(started_at),
+                metadata={
+                    "model": settings.openai_agent_model,
+                    "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
+                    "failure_kind": failure_kind,
+                },
+                level=30,
+            )
         log_ai_call(
             "agent_chat",
             model=settings.openai_agent_model,
@@ -411,20 +498,129 @@ def _is_retryable_openai_exception(exc: Exception) -> bool:
     Tool/API validation failures are intentionally not retried because they are
     deterministic and a retry would only add latency and cost.
     """
+    return _classify_openai_failure(exc) != "non_retryable"
+
+
+def _classify_openai_failure(
+    exc: Exception,
+) -> Literal["rate_limit", "provider", "non_retryable"]:
+    # Local admission control must be returned immediately instead of retried or
+    # counted as an OpenAI outage.
+    if isinstance(exc, ApiError) and exc.code in {
+        "AGENT_OPENAI_BUSY",
+        "AGENT_OPENAI_CIRCUIT_OPEN",
+    }:
+        return "non_retryable"
+
     if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
-        return True
+        return "provider"
 
     status_code = getattr(exc, "status_code", None)
-    if isinstance(status_code, int) and (
-        status_code in {408, 409, 429} or status_code >= 500
-    ):
-        return True
+    if status_code == 429:
+        return "rate_limit"
+    if isinstance(status_code, int) and (status_code in {408, 409} or status_code >= 500):
+        return "provider"
 
     module = type(exc).__module__.lower()
     name = type(exc).__name__.lower()
     if not module.startswith("openai"):
-        return False
-    return any(token in name for token in ("timeout", "connection", "ratelimit", "internalserver"))
+        return "non_retryable"
+    if "ratelimit" in name:
+        return "rate_limit"
+    if any(token in name for token in ("timeout", "connection", "internalserver")):
+        return "provider"
+    return "non_retryable"
+
+
+def _log_openai_failure_counter(
+    exc: Exception,
+    *,
+    request_id: str | None,
+    duration_ms: float,
+) -> None:
+    error_code: str | None = exc.code if isinstance(exc, ApiError) else None
+    failure_kind = _classify_openai_failure(exc)
+    event: str | None = None
+    if error_code in {"AGENT_OPENAI_BUSY", "AGENT_OPENAI_RATE_LIMITED"} or failure_kind == "rate_limit":
+        event = "AGENT_OPENAI_RATE_LIMITED"
+    elif error_code == "AGENT_OPENAI_CIRCUIT_OPEN":
+        event = "AGENT_OPENAI_CIRCUIT_OPEN"
+    elif error_code == "AGENT_OPENAI_TIMEOUT" or isinstance(
+        exc,
+        (asyncio.TimeoutError, TimeoutError),
+    ):
+        event = "AGENT_OPENAI_TIMEOUT"
+
+    if event is None:
+        return
+    log_performance_event(
+        event,
+        request_id=request_id,
+        duration_ms=duration_ms,
+        metadata={
+            "model": settings.openai_agent_model,
+            "failure_kind": failure_kind,
+            "exception_type": type(exc).__name__,
+        },
+        level=30,
+    )
+
+
+def _get_openai_retry_delay_seconds(
+    exc: Exception,
+    *,
+    retry_count: int,
+    remaining_budget_seconds: float,
+) -> float | None:
+    """Return a bounded retry delay, or None when the request budget is exhausted."""
+    retry_after_seconds = _extract_retry_after_seconds(exc)
+    if retry_after_seconds is None:
+        base_delay = min(0.2 * (2 ** max(retry_count, 0)), 1.0)
+        retry_after_seconds = base_delay + random.uniform(0.0, min(base_delay * 0.25, 0.1))
+
+    # Keep a small execution margin. Sleeping until the exact deadline would only
+    # start a provider call that cannot complete inside the configured budget.
+    execution_margin_seconds = 0.1
+    if (
+        remaining_budget_seconds <= execution_margin_seconds
+        or retry_after_seconds > remaining_budget_seconds - execution_margin_seconds
+    ):
+        return None
+    return max(retry_after_seconds, 0.0)
+
+
+def _extract_retry_after_seconds(exc: Exception) -> float | None:
+    direct_value = getattr(exc, "retry_after", None)
+    parsed_direct = _parse_retry_after_value(direct_value)
+    if parsed_direct is not None:
+        return parsed_direct
+
+    for owner in (exc, getattr(exc, "response", None)):
+        headers = getattr(owner, "headers", None)
+        if headers is None or not hasattr(headers, "get"):
+            continue
+        value = headers.get("retry-after") or headers.get("Retry-After")
+        parsed_header = _parse_retry_after_value(value)
+        if parsed_header is not None:
+            return parsed_header
+    return None
+
+
+def _parse_retry_after_value(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(str(value))
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        return max((retry_at - datetime.now(UTC)).total_seconds(), 0.0)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _build_agent_input(request: AgentChatRequest) -> str:
@@ -713,7 +909,6 @@ async def create_recommendation(
     avoid_ingredients: list[str] | None = None,
     required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
-    intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
     effect_ids: list[AgentEffectId] | None = None,
     excluded_concern_ids: list[AgentConcernId] | None = None,
@@ -733,7 +928,6 @@ async def create_recommendation(
             "avoid_ingredients": avoid_ingredients,
             "required_ingredient_names": required_ingredient_names,
             "page_size": page_size,
-            "intent_resolved": intent_resolved,
             "concern_ids": concern_ids,
             "effect_ids": effect_ids,
             "excluded_concern_ids": excluded_concern_ids,
