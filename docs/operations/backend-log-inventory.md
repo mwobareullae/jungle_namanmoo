@@ -218,6 +218,7 @@ event:
 | 필드 | 의미 |
 |---|---|
 | `intent_parse_ms` | 사용자 입력/고민 파싱 |
+| `intent_materialize_ms` | 에이전트 구조화 intent를 추천 입력으로 변환 |
 | `run_save_ms` | recommendation_run 저장 |
 | `candidate_load_ms` | 후보 상품 로드 |
 | `avoid_filter_ms` | 회피 성분 필터 |
@@ -233,6 +234,7 @@ event:
 | 필드 | 의미 |
 |---|---|
 | `recommendation_id` | 추천 요청 ID |
+| `intent_source` | intent 입력 경로 (`raw_parser`, `agent_structured`) |
 | `llm_available` | LLM parser 준비 여부 |
 | `llm_used` | LLM 사용 여부 |
 | `candidate_pool_limit` | 후보 풀 제한 |
