@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 import json
@@ -24,6 +25,7 @@ from app.schemas.agent import (
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import (
     _OpenAICircuitBreaker,
+    _OpenAIConcurrencyLimiter,
     _build_agent_input,
     _expected_tool_error_response,
     _is_retryable_openai_exception,
@@ -167,6 +169,63 @@ def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
 
     with pytest.raises(Exception, match="AI 연결이 불안정해요"):
         breaker.before_call()
+
+
+@pytest.mark.anyio
+async def test_agent_openai_concurrency_limiter_rejects_requests_beyond_capacity() -> None:
+    limiter = _OpenAIConcurrencyLimiter(
+        max_concurrency=2,
+        queue_timeout_seconds=0.02,
+        retry_after_seconds=3,
+    )
+    release = asyncio.Event()
+    entered = 0
+    both_entered = asyncio.Event()
+
+    async def hold_slot() -> None:
+        nonlocal entered
+        async with limiter.limit():
+            entered += 1
+            if entered == 2:
+                both_entered.set()
+            await release.wait()
+
+    holders = [asyncio.create_task(hold_slot()) for _ in range(2)]
+    await asyncio.wait_for(both_entered.wait(), timeout=1)
+
+    async def overflow() -> ApiError:
+        with pytest.raises(ApiError) as captured:
+            async with limiter.limit():
+                raise AssertionError("overflow request must not enter the provider slot")
+        return captured.value
+
+    overflow_errors = await asyncio.gather(overflow(), overflow())
+    assert all(error.status_code == 429 for error in overflow_errors)
+    assert all(error.code == "AGENT_OPENAI_BUSY" for error in overflow_errors)
+    assert all(error.headers == {"Retry-After": "3"} for error in overflow_errors)
+
+    release.set()
+    await asyncio.gather(*holders)
+
+
+def test_api_error_response_includes_retry_after_header(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def reject_busy(*_args, **_kwargs) -> AgentChatResponse:
+        raise ApiError(
+            429,
+            "AGENT_OPENAI_BUSY",
+            "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.",
+            headers={"Retry-After": "2"},
+        )
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", reject_busy)
+    response = client.post("/api/agent/chat", json={"message": "보습 세럼 추천해줘"})
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "2"
+    assert response.json()["error"]["code"] == "AGENT_OPENAI_BUSY"
 
 
 @pytest.mark.anyio

@@ -83,6 +83,15 @@ class Settings(BaseModel):
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
     openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "15"))
     openai_agent_max_retries: int = int(os.getenv("OPENAI_AGENT_MAX_RETRIES", "1"))
+    # Three concurrent calls is the midpoint of the initial 2-4 safety range:
+    # enough for a small demo burst without flooding one shared provider key.
+    openai_agent_max_concurrency: int = int(os.getenv("OPENAI_AGENT_MAX_CONCURRENCY", "3"))
+    openai_agent_queue_timeout_seconds: float = float(
+        os.getenv("OPENAI_AGENT_QUEUE_TIMEOUT_SECONDS", "2")
+    )
+    openai_agent_busy_retry_after_seconds: int = int(
+        os.getenv("OPENAI_AGENT_BUSY_RETRY_AFTER_SECONDS", "2")
+    )
     openai_agent_circuit_failure_threshold: int = int(
         os.getenv("OPENAI_AGENT_CIRCUIT_FAILURE_THRESHOLD", "3")
     )

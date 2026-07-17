@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import json
 import re
 import threading
 import time
-from typing import Any, Literal
+from typing import Any, AsyncIterator, Literal
 
 from sqlalchemy.orm import Session
 
@@ -217,6 +218,56 @@ class _OpenAICircuitBreaker:
 _OPENAI_CIRCUIT_BREAKER = _OpenAICircuitBreaker()
 
 
+class _OpenAIConcurrencyLimiter:
+    """Bound process-local action-agent calls for one shared provider key."""
+
+    def __init__(
+        self,
+        *,
+        max_concurrency: int | None = None,
+        queue_timeout_seconds: float | None = None,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        self._semaphore = asyncio.Semaphore(
+            max(max_concurrency or settings.openai_agent_max_concurrency, 1)
+        )
+        self._queue_timeout_seconds = max(
+            queue_timeout_seconds
+            if queue_timeout_seconds is not None
+            else settings.openai_agent_queue_timeout_seconds,
+            0.01,
+        )
+        self._retry_after_seconds = max(
+            retry_after_seconds
+            if retry_after_seconds is not None
+            else settings.openai_agent_busy_retry_after_seconds,
+            1,
+        )
+
+    @asynccontextmanager
+    async def limit(self) -> AsyncIterator[None]:
+        try:
+            await asyncio.wait_for(
+                self._semaphore.acquire(),
+                timeout=self._queue_timeout_seconds,
+            )
+        except TimeoutError as exc:
+            raise ApiError(
+                429,
+                "AGENT_OPENAI_BUSY",
+                "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.",
+                headers={"Retry-After": str(self._retry_after_seconds)},
+            ) from exc
+
+        try:
+            yield
+        finally:
+            self._semaphore.release()
+
+
+_OPENAI_CONCURRENCY_LIMITER = _OpenAIConcurrencyLimiter()
+
+
 async def run_openai_agent_chat(
     session: Session,
     request: AgentChatRequest,
@@ -293,15 +344,16 @@ async def run_openai_agent_chat(
         max_retries = max(0, min(settings.openai_agent_max_retries, 1))
         while True:
             try:
-                result = await asyncio.wait_for(
-                    Runner.run(
-                        agent,
-                        input=_build_agent_input(request),
-                        context=context,
-                        max_turns=4,
-                    ),
-                    timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
-                )
+                async with _OPENAI_CONCURRENCY_LIMITER.limit():
+                    result = await asyncio.wait_for(
+                        Runner.run(
+                            agent,
+                            input=_build_agent_input(request),
+                            context=context,
+                            max_turns=4,
+                        ),
+                        timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
+                    )
                 break
             except Exception as exc:
                 # Never retry after a commerce tool has run: retrying could duplicate
