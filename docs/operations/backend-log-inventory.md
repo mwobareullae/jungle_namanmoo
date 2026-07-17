@@ -223,7 +223,6 @@ event:
 | `candidate_load_ms` | 후보 상품 로드 |
 | `avoid_filter_ms` | 회피 성분 필터 |
 | `search_match_ms` | 검색/매칭 |
-| `search_candidate_save_ms` | 검색 후보 저장 |
 | `scoring_ms` | 추천 점수 계산 |
 | `result_save_ms` | 추천 결과 저장 |
 | `commit_ms` | DB commit/flush |
@@ -234,9 +233,14 @@ event:
 | 구간 | 하위 필드 |
 |---|---|
 | 추천 실행 저장 | `run_row_build_ms`, `run_insert_flush_ms`, `run_relation_build_ms`, `run_relation_add_ms`, `run_relation_flush_ms` |
-| 후보 trace 저장 | `candidate_trace_match_validation_ms`, `candidate_trace_delete_ms`, `candidate_trace_row_build_ms`, `candidate_trace_add_ms`, `candidate_trace_flush_ms` |
 | 최종 결과 저장 | `result_existing_lookup_ms`, `result_existing_evidence_delete_ms`, `result_existing_result_delete_ms`, `result_existing_delete_flush_ms`, `result_row_build_ms`, `result_add_ms`, `result_flush_ms` |
 | 추천 근거 저장 | `evidence_row_build_ms`, `evidence_add_ms`, `evidence_flush_ms` |
+
+Opt7 이전 성능 로그에는 후보 trace 저장 시간인 `search_candidate_save_ms`와
+`candidate_trace_match_validation_ms`, `candidate_trace_delete_ms`,
+`candidate_trace_row_build_ms`, `candidate_trace_add_ms`,
+`candidate_trace_flush_ms`가 기록된다. Opt7부터 정상 추천 경로는 후보 trace를
+DB에 저장하지 않으므로 해당 필드를 기록하지 않는다.
 
 추가 필드:
 
