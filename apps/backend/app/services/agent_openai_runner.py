@@ -70,9 +70,11 @@ payment results. If no tool applies or required context is missing, reply briefl
 Routing:
 - New product discovery or recommendation -> create_recommendation. Pass the complete
   request as concern_text and copy context.filters skin_type, sensitivity, and
-  avoid_ingredients exactly. Extract category_codes and price bounds. Set
-  intent_resolved=true when the request is represented by the structured fields;
-  otherwise false for backend fallback. Concern mapping: 여드름/뾰루지=concern_acne,
+  avoid_ingredients exactly. Extract all representable concern, effect, exclusion,
+  priority, category, and price fields. The recommendation backend treats these fields
+  as authoritative and does not parse the natural language again. Preserve any nuance
+  that is not represented by the fields in concern_text for product retrieval.
+  Concern mapping: 여드름/뾰루지=concern_acne,
   잡티/기미=concern_brightening_spots, 모공/피지=concern_pore,
   속건조/당김/화장 들뜸=concern_dry_barrier, 주름/탄력=concern_wrinkle_elasticity,
   홍조/자극=concern_redness_irritation, 민감/예민=concern_sensitive,
@@ -1092,7 +1094,6 @@ async def create_recommendation(
     avoid_ingredients: list[str] | None = None,
     required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
-    intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
     effect_ids: list[AgentEffectId] | None = None,
     excluded_concern_ids: list[AgentConcernId] | None = None,
@@ -1112,7 +1113,6 @@ async def create_recommendation(
             "avoid_ingredients": avoid_ingredients,
             "required_ingredient_names": required_ingredient_names,
             "page_size": page_size,
-            "intent_resolved": intent_resolved,
             "concern_ids": concern_ids,
             "effect_ids": effect_ids,
             "excluded_concern_ids": excluded_concern_ids,

@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from app.core.performance_logging import current_time, elapsed_ms
@@ -32,7 +33,6 @@ STRUCTURED_CATEGORY_NAMES = {
 
 @dataclass(frozen=True)
 class StructuredRecommendationIntent:
-    resolved: bool = False
     concern_ids: tuple[str, ...] = ()
     effect_ids: tuple[str, ...] = ()
     excluded_concern_ids: tuple[str, ...] = ()
@@ -88,27 +88,13 @@ def build_recommendation_intent(
     *,
     repository: ConcernRepository | None = None,
     llm_parser: ConcernLlmParser | None = None,
-    structured_intent: StructuredRecommendationIntent | None = None,
     diagnostics: dict[str, object] | None = None,
 ) -> RecommendationIntent:
     intent_diagnostics = diagnostics if diagnostics is not None else {}
-    intent_diagnostics.update(
-        {
-            "intent_input_length": len(concern_text),
-            "intent_llm_attempted": False,
-            "intent_llm_http_attempted": False,
-            "intent_llm_call_ms": 0.0,
-            "intent_llm_prompt_load_ms": 0.0,
-            "intent_llm_schema_load_ms": 0.0,
-            "intent_llm_request_build_ms": 0.0,
-            "intent_llm_http_ms": 0.0,
-            "intent_llm_response_parse_ms": 0.0,
-            "intent_llm_schema_validate_ms": 0.0,
-            "intent_llm_merge_ms": 0.0,
-            "intent_llm_status_code": None,
-            "intent_llm_error_code": None,
-            "intent_structured_applied": False,
-        }
+    _initialize_intent_diagnostics(
+        intent_diagnostics,
+        concern_text=concern_text,
+        source="raw_parser",
     )
     repository_started_at = current_time()
     concern_repository = repository or get_default_concern_repository()
@@ -136,15 +122,7 @@ def build_recommendation_intent(
     parser_confidence: float | None = None
     llm_error: str | None = None
 
-    if structured_intent is not None and structured_intent.resolved:
-        parsed_concern = _merge_structured_result(
-            parsed_concern,
-            structured_intent,
-            concern_repository,
-        )
-        intent_diagnostics["intent_structured_applied"] = True
-        intent_diagnostics["intent_llm_outcome"] = "structured_agent"
-    elif parsed_concern.needs_llm and llm_parser is not None:
+    if parsed_concern.needs_llm and llm_parser is not None:
         intent_diagnostics["intent_llm_attempted"] = True
         llm_started_at = current_time()
         try:
@@ -194,11 +172,6 @@ def build_recommendation_intent(
         diagnostics=intent_diagnostics,
         include_brand_filters=False,
     )
-    if structured_intent is not None and structured_intent.resolved:
-        purchase_conditions = _merge_structured_purchase_conditions(
-            purchase_conditions,
-            structured_intent,
-        )
     _record_diagnostic_duration(
         intent_diagnostics,
         "intent_purchase_parse_ms",
@@ -224,21 +197,90 @@ def build_recommendation_intent(
     )
 
 
-def _merge_structured_result(
-    rule_result: ParsedConcernResult,
+def materialize_structured_recommendation_intent(
+    concern_text: str,
+    structured: StructuredRecommendationIntent,
+    *,
+    repository: ConcernRepository | None = None,
+    diagnostics: dict[str, object] | None = None,
+) -> RecommendationIntent:
+    intent_diagnostics = diagnostics if diagnostics is not None else {}
+    _initialize_intent_diagnostics(
+        intent_diagnostics,
+        concern_text=concern_text,
+        source="agent_structured",
+    )
+    repository_started_at = current_time()
+    concern_repository = repository or get_default_concern_repository()
+    _record_diagnostic_duration(
+        intent_diagnostics,
+        "intent_repository_load_ms",
+        repository_started_at,
+    )
+
+    materialize_started_at = current_time()
+    _validate_structured_intent(structured, concern_repository)
+    normalized_text = _normalize_text(concern_text)
+    parsed_concern = _materialize_structured_concern_result(
+        normalized_text,
+        structured,
+        concern_repository,
+    )
+    purchase_conditions = _materialize_structured_purchase_conditions(structured)
+    _record_diagnostic_duration(
+        intent_diagnostics,
+        "intent_materialize_ms",
+        materialize_started_at,
+    )
+    intent_diagnostics.update(
+        {
+            "intent_structured_applied": True,
+            "intent_llm_outcome": "structured_agent",
+            "intent_llm_used": False,
+            "intent_final_needs_llm": False,
+            "intent_rule_needs_llm": False,
+            "intent_rule_matched_concern_count": 0,
+            "intent_rule_unmatched_term_count": 0,
+            "intent_structured_concern_count": len(parsed_concern.concerns),
+            "intent_structured_effect_count": len(parsed_concern.effects),
+            "intent_structured_excluded_concern_count": len(
+                parsed_concern.excluded_concerns
+            ),
+            "intent_purchase_matched_category_count": len(
+                purchase_conditions.categories
+            ),
+            "intent_purchase_has_price_constraint": (
+                purchase_conditions.price_min is not None
+                or purchase_conditions.price_max is not None
+            ),
+        }
+    )
+
+    return RecommendationIntent(
+        concern_text=concern_text,
+        normalized_text=parsed_concern.normalized_text,
+        purchase_conditions=purchase_conditions,
+        concerns=parsed_concern.concerns,
+        effects=parsed_concern.effects,
+        excluded_concerns=parsed_concern.excluded_concerns,
+        priority_effects=parsed_concern.priority_effects,
+        unmatched_terms=(),
+        needs_llm=False,
+        llm_used=False,
+    )
+
+
+def _materialize_structured_concern_result(
+    normalized_text: str,
     structured: StructuredRecommendationIntent,
     repository: ConcernRepository,
 ) -> ParsedConcernResult:
     tags_by_id = {tag.tag_id: tag for tag in repository.list_concern_tags()}
     excluded_ids = set(structured.excluded_concern_ids)
-    concerns_by_id = {
-        concern.tag_id: concern
-        for concern in rule_result.concerns
-        if concern.tag_id not in excluded_ids
-    }
+    concerns_by_id: dict[str, ParsedConcern] = {}
     for tag_id in structured.concern_ids:
         tag = tags_by_id.get(tag_id)
-        if tag is None or tag_id in excluded_ids:
+        if tag_id in excluded_ids:
             continue
         concerns_by_id[tag_id] = ParsedConcern(
             tag_id=tag_id,
@@ -274,12 +316,13 @@ def _merge_structured_result(
         if effect_id in effect_names
     )
     excluded_concerns = _merge_excluded_concerns(
-        rule_result.excluded_concerns,
+        (),
         structured.excluded_concern_ids,
         tags_by_id,
+        reason="agent_excluded",
     )
     return ParsedConcernResult(
-        normalized_text=rule_result.normalized_text,
+        normalized_text=normalized_text,
         concerns=concerns,
         effects=effects,
         excluded_concerns=excluded_concerns,
@@ -289,38 +332,68 @@ def _merge_structured_result(
     )
 
 
-def _merge_structured_purchase_conditions(
-    parsed: ParsedPurchaseConditions,
+def _materialize_structured_purchase_conditions(
     structured: StructuredRecommendationIntent,
 ) -> ParsedPurchaseConditions:
-    categories_by_code = (
-        {}
-        if structured.category_codes
-        else {category.category_code: category for category in parsed.categories}
-    )
+    categories_by_code: dict[str, MatchedCategory] = {}
     for category_code in structured.category_codes:
-        name = STRUCTURED_CATEGORY_NAMES.get(category_code)
-        if name is None:
-            continue
+        name = STRUCTURED_CATEGORY_NAMES[category_code]
         categories_by_code[category_code] = MatchedCategory(
             category_code=category_code,
             name=name,
             matched_text=name,
         )
 
-    price_min = structured.price_min if structured.price_min is not None else parsed.price_min
-    price_max = structured.price_max if structured.price_max is not None else parsed.price_max
-    price_text = parsed.price_text
-    if structured.price_min is not None or structured.price_max is not None:
-        price_text = _structured_price_text(price_min, price_max)
+    price_text = _structured_price_text(structured.price_min, structured.price_max)
     return ParsedPurchaseConditions(
         categories=tuple(categories_by_code.values()),
-        brands=parsed.brands,
-        price_min=price_min,
-        price_max=price_max,
+        brands=(),
+        price_min=structured.price_min,
+        price_max=structured.price_max,
         price_text=price_text,
         price_max_text=price_text,
     )
+
+
+def _validate_structured_intent(
+    structured: StructuredRecommendationIntent,
+    repository: ConcernRepository,
+) -> None:
+    concern_ids = {tag.tag_id for tag in repository.list_concern_tags()}
+    effect_ids = set(_effects_by_id(repository))
+    unknown_concern_ids = (
+        set(structured.concern_ids) | set(structured.excluded_concern_ids)
+    ) - concern_ids
+    unknown_effect_ids = (
+        set(structured.effect_ids) | set(structured.priority_effect_ids)
+    ) - effect_ids
+    unknown_category_codes = set(structured.category_codes) - set(
+        STRUCTURED_CATEGORY_NAMES
+    )
+    if unknown_concern_ids:
+        raise ValueError(
+            f"unknown structured concern ids: {sorted(unknown_concern_ids)}"
+        )
+    if unknown_effect_ids:
+        raise ValueError(
+            f"unknown structured effect ids: {sorted(unknown_effect_ids)}"
+        )
+    if unknown_category_codes:
+        raise ValueError(
+            f"unknown structured category codes: {sorted(unknown_category_codes)}"
+        )
+    if structured.price_min is not None and structured.price_min < 0:
+        raise ValueError("structured price_min must be greater than or equal to 0")
+    if structured.price_max is not None and structured.price_max < 0:
+        raise ValueError("structured price_max must be greater than or equal to 0")
+    if (
+        structured.price_min is not None
+        and structured.price_max is not None
+        and structured.price_min > structured.price_max
+    ):
+        raise ValueError(
+            "structured price_min must be less than or equal to price_max"
+        )
 
 
 def _structured_price_text(price_min: int | None, price_max: int | None) -> str | None:
@@ -339,6 +412,51 @@ def _record_diagnostic_duration(
     started_at: float,
 ) -> None:
     diagnostics[key] = round(elapsed_ms(started_at), 2)
+
+
+def _initialize_intent_diagnostics(
+    diagnostics: dict[str, object],
+    *,
+    concern_text: str,
+    source: str,
+) -> None:
+    diagnostics.update(
+        {
+            "intent_source": source,
+            "intent_input_length": len(concern_text),
+            "intent_materialize_ms": 0.0,
+            "intent_rule_parse_ms": 0.0,
+            "intent_llm_attempted": False,
+            "intent_llm_http_attempted": False,
+            "intent_llm_call_ms": 0.0,
+            "intent_llm_prompt_load_ms": 0.0,
+            "intent_llm_schema_load_ms": 0.0,
+            "intent_llm_request_build_ms": 0.0,
+            "intent_llm_http_ms": 0.0,
+            "intent_llm_response_parse_ms": 0.0,
+            "intent_llm_schema_validate_ms": 0.0,
+            "intent_llm_merge_ms": 0.0,
+            "intent_llm_status_code": None,
+            "intent_llm_error_code": None,
+            "intent_structured_applied": False,
+            "intent_purchase_parse_ms": 0.0,
+            "intent_purchase_normalize_ms": 0.0,
+            "intent_purchase_price_ms": 0.0,
+            "intent_purchase_category_ms": 0.0,
+            "intent_purchase_brand_alias_load_ms": 0.0,
+            "intent_purchase_brand_match_ms": 0.0,
+            "intent_purchase_category_group_count": 0,
+            "intent_purchase_brand_group_count": 0,
+            "intent_purchase_brand_alias_count": 0,
+            "intent_purchase_matched_category_count": 0,
+            "intent_purchase_matched_brand_count": 0,
+            "intent_purchase_has_price_constraint": False,
+        }
+    )
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
 
 
 def _dedupe_terms(terms: list[str]) -> tuple[str, ...]:
@@ -433,6 +551,8 @@ def _merge_excluded_concerns(
     rule_excluded: tuple[ParsedExcludedConcern, ...],
     llm_excluded_ids: tuple[str, ...],
     tags_by_id: dict,
+    *,
+    reason: str = "llm_excluded",
 ) -> tuple[ParsedExcludedConcern, ...]:
     excluded_by_id = {concern.tag_id: concern for concern in rule_excluded}
     for tag_id in llm_excluded_ids:
@@ -445,7 +565,7 @@ def _merge_excluded_concerns(
             tag_id=tag_id,
             name=tag.name,
             matched_text=tag.name,
-            reason="llm_excluded",
+            reason=reason,
         )
     return tuple(excluded_by_id.values())
 

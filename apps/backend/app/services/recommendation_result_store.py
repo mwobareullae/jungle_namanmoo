@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import MutableMapping
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.performance_logging import current_time, elapsed_ms
 from app.db.models.recommendation import RecommendationResult, RecommendationScoreEvidence
 from app.services.scoring import ScoredProduct
 
@@ -27,9 +29,11 @@ def save_recommendation_results(
     *,
     result_limit: int = DEFAULT_RESULT_LIMIT,
     evidence_limit_per_result: int = DEFAULT_EVIDENCE_LIMIT_PER_RESULT,
+    timings: MutableMapping[str, float] | None = None,
 ) -> SavedRecommendationResults:
-    _delete_existing_results(session, recommendation_run_id)
+    _delete_existing_results(session, recommendation_run_id, timings=timings)
 
+    stage_started_at = current_time()
     ranked_products = _ranked_products(scored_products, result_limit)
     result_rows = [
         RecommendationResult(
@@ -42,9 +46,17 @@ def save_recommendation_results(
         )
         for rank_order, scored_product in enumerate(ranked_products, start=1)
     ]
-    session.add_all(result_rows)
-    session.flush()
+    _record_timing(timings, "result_row_build_ms", stage_started_at)
 
+    stage_started_at = current_time()
+    session.add_all(result_rows)
+    _record_timing(timings, "result_add_ms", stage_started_at)
+
+    stage_started_at = current_time()
+    session.flush()
+    _record_timing(timings, "result_flush_ms", stage_started_at)
+
+    stage_started_at = current_time()
     evidence_rows = [
         RecommendationScoreEvidence(
             recommendation_result_id=result.id,
@@ -60,8 +72,15 @@ def save_recommendation_results(
         for result, scored_product in zip(result_rows, ranked_products, strict=False)
         for evidence in scored_product.score_evidence[:evidence_limit_per_result]
     ]
+    _record_timing(timings, "evidence_row_build_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.add_all(evidence_rows)
+    _record_timing(timings, "evidence_add_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.flush()
+    _record_timing(timings, "evidence_flush_ms", stage_started_at)
 
     return SavedRecommendationResults(
         results=tuple(result_rows),
@@ -69,27 +88,42 @@ def save_recommendation_results(
     )
 
 
-def _delete_existing_results(session: Session, recommendation_run_id: int) -> None:
+def _delete_existing_results(
+    session: Session,
+    recommendation_run_id: int,
+    *,
+    timings: MutableMapping[str, float] | None,
+) -> None:
+    stage_started_at = current_time()
     result_ids = session.execute(
         select(RecommendationResult.id).where(
             RecommendationResult.recommendation_run_id == recommendation_run_id,
         )
     ).scalars().all()
+    _record_timing(timings, "result_existing_lookup_ms", stage_started_at)
 
     if not result_ids:
         return
 
+    stage_started_at = current_time()
     session.execute(
         delete(RecommendationScoreEvidence).where(
             RecommendationScoreEvidence.recommendation_result_id.in_(result_ids),
         )
     )
+    _record_timing(timings, "result_existing_evidence_delete_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.execute(
         delete(RecommendationResult).where(
             RecommendationResult.recommendation_run_id == recommendation_run_id,
         )
     )
+    _record_timing(timings, "result_existing_result_delete_ms", stage_started_at)
+
+    stage_started_at = current_time()
     session.flush()
+    _record_timing(timings, "result_existing_delete_flush_ms", stage_started_at)
 
 
 def _ranked_products(
@@ -113,3 +147,12 @@ def _ranked_products(
 
 def _to_decimal(score: float, quantize: Decimal) -> Decimal:
     return Decimal(str(score)).quantize(quantize)
+
+
+def _record_timing(
+    timings: MutableMapping[str, float] | None,
+    key: str,
+    started_at: float,
+) -> None:
+    if timings is not None:
+        timings[key] = round(elapsed_ms(started_at), 2)
