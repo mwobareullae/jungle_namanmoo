@@ -111,6 +111,62 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
         self.assertEqual(residual["value_ms"], 30.0)
         self.assertEqual(outside["e2e_share_percent"], 20.0)
 
+    def test_execution_flow_adds_persistence_substeps(self) -> None:
+        row = {
+            "run_id": "persistence-run",
+            "latency_avg_ms": 1000.0,
+            "duration_ms_avg": 900.0,
+            "run_save_ms_avg": 100.0,
+            "run_row_build_ms_avg": 10.0,
+            "run_insert_flush_ms_avg": 30.0,
+            "search_candidate_save_ms_avg": 300.0,
+            "candidate_trace_delete_ms_avg": 50.0,
+            "candidate_trace_flush_ms_avg": 200.0,
+            "result_save_ms_avg": 200.0,
+            "result_flush_ms_avg": 100.0,
+            "evidence_flush_ms_avg": 60.0,
+        }
+
+        records = analysis.build_execution_flow_records(row)
+
+        for parent_id, expected_child_ids in (
+            (
+                "run_save_ms",
+                {"run_row_build_ms", "run_insert_flush_ms"},
+            ),
+            (
+                "search_candidate_save_ms",
+                {"candidate_trace_delete_ms", "candidate_trace_flush_ms"},
+            ),
+            (
+                "result_save_ms",
+                {"result_flush_ms", "evidence_flush_ms"},
+            ),
+        ):
+            children = analysis.execution_flow_children(records, parent_id)
+            self.assertTrue(expected_child_ids.issubset(
+                {record["component_id"] for record in children}
+            ))
+            parent = next(
+                record for record in records if record["component_id"] == parent_id
+            )
+            self.assertAlmostEqual(
+                sum(record["value_ms"] for record in children),
+                parent["value_ms"],
+            )
+
+    def test_persistence_detail_requires_substep_metrics(self) -> None:
+        self.assertFalse(
+            analysis.has_persistence_detail(
+                {"search_candidate_save_ms_avg": 300.0}
+            )
+        )
+        self.assertTrue(
+            analysis.has_persistence_detail(
+                {"candidate_trace_flush_ms_avg": 200.0}
+            )
+        )
+
     def test_execution_flow_adds_snapshot_load_without_overlapping_fallback(self) -> None:
         row = {
             "run_id": "opt4-run",

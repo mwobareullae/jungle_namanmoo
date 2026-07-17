@@ -87,7 +87,6 @@ class CreateRecommendationArgs(BaseModel):
     avoid_ingredients: list[str] | None = Field(default=None, max_length=50)
     required_ingredient_names: list[str] | None = Field(default=None, max_length=20)
     page_size: int = Field(default=10, ge=1, le=20)
-    intent_resolved: bool = False
     concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
     effect_ids: list[AgentEffectId] | None = Field(default=None, max_length=6)
     excluded_concern_ids: list[AgentConcernId] | None = Field(default=None, max_length=12)
@@ -494,7 +493,6 @@ def _execute_parsed_tool(
             avoid_ingredients=args.avoid_ingredients,
             required_ingredient_names=args.required_ingredient_names,
             page_size=args.page_size,
-            intent_resolved=args.intent_resolved,
             concern_ids=args.concern_ids,
             effect_ids=args.effect_ids,
             excluded_concern_ids=args.excluded_concern_ids,
