@@ -4,7 +4,7 @@ import json
 import logging
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.db.models.catalog import Product, ProductIngredient
+from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
 from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, ProductPopularityMetric, UserAddress, Wishlist
 from app.db.models.events import EventLog
 from app.db.models.taxonomy import Ingredient, IngredientAlias
@@ -395,6 +395,63 @@ def test_bulk_popular_ingredient_wishlist_confirms_real_db_write_and_is_idempote
         assert "이미 모두 찜" in repeated.message
         assert len(session.scalars(select(Wishlist).where(Wishlist.user_id == user.id)).all()) == len(wished_codes)
 
+
+def test_bulk_popular_wishlist_filters_by_skin_profile(db_engine: Engine) -> None:
+    now = datetime.now(UTC)
+    with Session(db_engine) as session:
+        user = User(email="bulk-skin-wishlist@example.com", display_name="bulk-skin-wishlist-user")
+        products = session.scalars(select(Product).order_by(Product.product_code.asc()).limit(2)).all()
+        assert len(products) == 2
+        session.add(user)
+        session.execute(delete(ProductSkinProfile).where(ProductSkinProfile.product_id.in_([product.id for product in products])))
+        session.add_all(
+            [
+                ProductSkinProfile(
+                    product_id=products[0].id,
+                    dry_fit=0.2,
+                    oily_fit=0.2,
+                    combination_fit=0.3,
+                    normal_fit=0.2,
+                    dehydrated_oily_fit=0.9,
+                    sensitive_fit=0.8,
+                ),
+                ProductSkinProfile(
+                    product_id=products[1].id,
+                    dry_fit=0.2,
+                    oily_fit=0.2,
+                    combination_fit=0.2,
+                    normal_fit=0.2,
+                    dehydrated_oily_fit=0.4,
+                    sensitive_fit=0.4,
+                ),
+            ]
+        )
+        for rank, product in enumerate(products, start=1):
+            session.add(
+                ProductPopularityMetric(
+                    product_id=product.id,
+                    window_days=7,
+                    popularity_score=100 - rank,
+                    order_count=20 - rank,
+                    units_sold=20 - rank,
+                    score_version="behavior_rollup_v1",
+                    computed_at=now,
+                )
+            )
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={"skin_type": "수부지", "rank_limit": 20, "window_days": 7},
+            user=user,
+            conversation_id="conv_bulk_skin_wishlist",
+        )
+
+        assert response.requires_confirmation is True
+        assert response.ui_action.payload["matched_product_ids"] == [products[0].product_code]
+        assert response.ui_action.payload["ingredient_name"] == "수부지 피부"
 
 def test_bulk_popular_ingredient_wishlist_rejection_does_not_write(db_engine: Engine) -> None:
     with Session(db_engine) as session:

@@ -251,9 +251,19 @@ class PrepareClaimDraftArgs(BaseModel):
 class BulkWishlistByPopularIngredientArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    ingredient_name: str = Field(..., min_length=1, max_length=160)
+    ingredient_name: str | None = Field(default=None, min_length=1, max_length=160)
+    skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
+    sensitivity: Literal["낮음", "보통", "높음"] | None = None
     rank_limit: int = Field(default=20, ge=1, le=20)
     window_days: Literal[1, 7, 30] = 7
+
+    @model_validator(mode="after")
+    def validate_criteria(self) -> "BulkWishlistByPopularIngredientArgs":
+        if self.ingredient_name and (self.skin_type or self.sensitivity):
+            raise ValueError("ingredient and skin profile criteria cannot be combined")
+        if not self.ingredient_name and not self.skin_type and not self.sensitivity:
+            raise ValueError("one wishlist criterion is required")
+        return self
 
 
 ToolArgs = (
@@ -650,6 +660,8 @@ def _execute_parsed_tool(
             user,
             conversation_id=conversation_id,
             ingredient_name=args.ingredient_name,
+            skin_type=args.skin_type,
+            sensitivity=args.sensitivity,
             rank_limit=args.rank_limit,
             window_days=args.window_days,
             request_id=request_id,
