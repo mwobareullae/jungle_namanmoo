@@ -1,6 +1,8 @@
+import asyncio
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,10 +10,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.db.base import Base
 from app.db.session import get_db
-from app.main import app
+from app.main import app, db_pool_timeout_handler
 from app.core.config import settings
 from app.schemas.agent import (
     AgentChatRequest,
@@ -24,8 +27,13 @@ from app.schemas.agent import (
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import (
     _OpenAICircuitBreaker,
+    _OpenAIConcurrencyLimiter,
     _build_agent_input,
+    _classify_openai_failure,
     _expected_tool_error_response,
+    _extract_retry_after_seconds,
+    _get_openai_retry_delay_seconds,
+    _log_openai_failure_counter,
     _is_retryable_openai_exception,
     _to_agent_execution_error,
     run_openai_agent_chat,
@@ -150,6 +158,105 @@ def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
         status_code = 503
 
     assert _is_retryable_openai_exception(ServerFailure()) is True
+    assert _classify_openai_failure(ServerFailure()) == "provider"
+
+    class RateLimited(Exception):
+        status_code = 429
+
+    assert _is_retryable_openai_exception(RateLimited()) is True
+    assert _classify_openai_failure(RateLimited()) == "rate_limit"
+    assert _is_retryable_openai_exception(
+        ApiError(429, "AGENT_OPENAI_BUSY", "busy")
+    ) is False
+
+
+def test_agent_retry_prefers_provider_retry_after_header() -> None:
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"Retry-After": "0.75"}
+
+    error = RateLimited()
+
+    assert _extract_retry_after_seconds(error) == pytest.approx(0.75)
+    assert _get_openai_retry_delay_seconds(
+        error,
+        retry_count=0,
+        remaining_budget_seconds=2.0,
+    ) == pytest.approx(0.75)
+
+
+def test_agent_retry_uses_backoff_with_jitter_without_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.services.agent_openai_runner.random.uniform", lambda *_args: 0.05)
+
+    assert _get_openai_retry_delay_seconds(
+        TimeoutError(),
+        retry_count=0,
+        remaining_budget_seconds=2.0,
+    ) == pytest.approx(0.25)
+
+
+def test_agent_retry_skips_attempt_when_retry_after_exceeds_budget() -> None:
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"retry-after": "3"}
+
+    assert _get_openai_retry_delay_seconds(
+        RateLimited(),
+        retry_count=0,
+        remaining_budget_seconds=1.0,
+    ) is None
+
+
+def test_agent_openai_failure_counters_use_existing_performance_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.log_performance_event",
+        lambda event, **_kwargs: events.append(event),
+    )
+
+    rate_limited = SimpleNamespace(status_code=429)
+    _log_openai_failure_counter(
+        rate_limited,
+        request_id="req-rate",
+        duration_ms=10.0,
+    )
+    _log_openai_failure_counter(
+        TimeoutError(),
+        request_id="req-timeout",
+        duration_ms=20.0,
+    )
+    _log_openai_failure_counter(
+        ApiError(503, "AGENT_OPENAI_CIRCUIT_OPEN", "open"),
+        request_id="req-circuit",
+        duration_ms=30.0,
+    )
+
+    assert events == [
+        "AGENT_OPENAI_RATE_LIMITED",
+        "AGENT_OPENAI_TIMEOUT",
+        "AGENT_OPENAI_CIRCUIT_OPEN",
+    ]
+
+
+@pytest.mark.anyio
+async def test_db_pool_timeout_is_logged_and_returns_safe_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        "app.main.log_performance_event",
+        lambda event, **_kwargs: events.append(event),
+    )
+
+    response = await db_pool_timeout_handler(None, SQLAlchemyTimeoutError("pool exhausted"))
+
+    assert response.status_code == 503
+    assert json.loads(response.body)["error"]["code"] == "DB_POOL_TIMEOUT"
+    assert events == ["DB_POOL_TIMEOUT"]
 
 
 def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
@@ -162,11 +269,260 @@ def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
     breaker = _OpenAICircuitBreaker()
 
     breaker.before_call()
-    assert breaker.record_transient_failure() is False
-    assert breaker.record_transient_failure() is True
+    assert breaker.record_failure("provider") is False
+    assert breaker.record_failure("provider") is True
 
     with pytest.raises(Exception, match="AI 연결이 불안정해요"):
         breaker.before_call()
+
+
+def test_agent_circuit_breaker_ignores_rate_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    breaker = _OpenAICircuitBreaker()
+
+    assert breaker.record_failure("rate_limit") is False
+    assert breaker.record_failure("rate_limit") is False
+    breaker.before_call()
+
+    assert breaker.record_failure("provider") is False
+    assert breaker.record_failure("provider") is True
+    with pytest.raises(ApiError) as captured:
+        breaker.before_call()
+    assert captured.value.code == "AGENT_OPENAI_CIRCUIT_OPEN"
+
+
+@pytest.mark.anyio
+async def test_agent_openai_concurrency_limiter_rejects_requests_beyond_capacity() -> None:
+    limiter = _OpenAIConcurrencyLimiter(
+        max_concurrency=2,
+        queue_timeout_seconds=0.02,
+        retry_after_seconds=3,
+    )
+    release = asyncio.Event()
+    entered = 0
+    both_entered = asyncio.Event()
+
+    async def hold_slot() -> None:
+        nonlocal entered
+        async with limiter.limit():
+            entered += 1
+            if entered == 2:
+                both_entered.set()
+            await release.wait()
+
+    holders = [asyncio.create_task(hold_slot()) for _ in range(2)]
+    await asyncio.wait_for(both_entered.wait(), timeout=1)
+
+    async def overflow() -> ApiError:
+        with pytest.raises(ApiError) as captured:
+            async with limiter.limit():
+                raise AssertionError("overflow request must not enter the provider slot")
+        return captured.value
+
+    overflow_errors = await asyncio.gather(overflow(), overflow())
+    assert all(error.status_code == 429 for error in overflow_errors)
+    assert all(error.code == "AGENT_OPENAI_BUSY" for error in overflow_errors)
+    assert all(error.headers == {"Retry-After": "3"} for error in overflow_errors)
+
+    release.set()
+    await asyncio.gather(*holders)
+
+
+@pytest.mark.anyio
+async def test_agent_resilience_integration_limits_concurrency_without_opening_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    limiter = _OpenAIConcurrencyLimiter(
+        max_concurrency=2,
+        queue_timeout_seconds=0.02,
+        retry_after_seconds=4,
+    )
+    breaker = _OpenAICircuitBreaker()
+    release = asyncio.Event()
+    both_entered = asyncio.Event()
+    entered = 0
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal entered
+        entered += 1
+        if entered == 2:
+            both_entered.set()
+        await release.wait()
+        return SimpleNamespace(final_output="정상 응답")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        limiter,
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    async def invoke(index: int):
+        try:
+            return await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message=f"보습 세럼 추천 요청 {index}"),
+                request_id=f"req-load-{index}",
+            )
+        except ApiError as exc:
+            return exc
+
+    tasks = [asyncio.create_task(invoke(index)) for index in range(4)]
+    await asyncio.wait_for(both_entered.wait(), timeout=1)
+    await asyncio.sleep(0.04)
+    release.set()
+    results = await asyncio.gather(*tasks)
+
+    successes = [result for result in results if isinstance(result, AgentChatResponse)]
+    rejected = [result for result in results if isinstance(result, ApiError)]
+    assert len(successes) == 2
+    assert len(rejected) == 2
+    assert all(error.code == "AGENT_OPENAI_BUSY" for error in rejected)
+    assert all(error.headers == {"Retry-After": "4"} for error in rejected)
+
+    # Local capacity rejections must not poison the process-wide provider circuit.
+    breaker.before_call()
+    follow_up = await invoke(5)
+    assert isinstance(follow_up, AgentChatResponse)
+    assert follow_up.message == "정상 응답"
+
+
+@pytest.mark.anyio
+async def test_agent_resilience_integration_retries_429_without_opening_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"Retry-After": "0"}
+
+    breaker = _OpenAICircuitBreaker()
+    provider_calls = 0
+    should_succeed = False
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        if not should_succeed:
+            raise RateLimited()
+        return SimpleNamespace(final_output="회로 정상")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 1)
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    for index in range(3):
+        with pytest.raises(ApiError) as captured:
+            await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message=f"세럼 추천 {index}"),
+            )
+        assert captured.value.code == "AGENT_OPENAI_RATE_LIMITED"
+
+    assert provider_calls == 6
+    breaker.before_call()
+    should_succeed = True
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="세럼 추천 정상화"),
+    )
+    assert response.message == "회로 정상"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("provider_error", "expected_error_code"),
+    [
+        (TimeoutError("provider timeout"), "AGENT_OPENAI_TIMEOUT"),
+        (
+            type("ProviderServerFailure", (Exception,), {"status_code": 503})(),
+            "AGENT_OPENAI_UNAVAILABLE",
+        ),
+    ],
+)
+async def test_agent_resilience_integration_opens_circuit_only_for_provider_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    provider_error: Exception,
+    expected_error_code: str,
+) -> None:
+    from agents import Runner
+
+    breaker = _OpenAICircuitBreaker()
+    provider_calls = 0
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        raise provider_error
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(settings, "openai_agent_circuit_cooldown_seconds", 30.0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    for _ in range(2):
+        with pytest.raises(ApiError) as captured:
+            await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message="민감 피부 세럼 추천"),
+            )
+        assert captured.value.code == expected_error_code
+
+    with pytest.raises(ApiError) as blocked:
+        await run_openai_agent_chat(
+            Session(),
+            AgentChatRequest(message="회로 차단 확인"),
+        )
+    assert blocked.value.code == "AGENT_OPENAI_CIRCUIT_OPEN"
+    assert provider_calls == 2
+
+
+def test_api_error_response_includes_retry_after_header(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def reject_busy(*_args, **_kwargs) -> AgentChatResponse:
+        raise ApiError(
+            429,
+            "AGENT_OPENAI_BUSY",
+            "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.",
+            headers={"Retry-After": "2"},
+        )
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", reject_busy)
+    response = client.post("/api/agent/chat", json={"message": "보습 세럼 추천해줘"})
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "2"
+    assert response.json()["error"]["code"] == "AGENT_OPENAI_BUSY"
 
 
 @pytest.mark.anyio
