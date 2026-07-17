@@ -119,6 +119,22 @@ def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:
         commit=False,
     )
     run = _load_run(session, response.recommendation_id)
+    persisted_result = session.execute(
+        select(RecommendationResult)
+        .where(RecommendationResult.recommendation_run_id == run.id)
+        .order_by(RecommendationResult.rank_order.asc())
+        .limit(1)
+    ).scalar_one()
+    session.add(
+        SearchCandidate(
+            recommendation_run_id=run.id,
+            product_id=persisted_result.product_id,
+            keyword_score=Decimal("0.1000"),
+            vector_score=Decimal("0.2000"),
+            search_match_score=Decimal("0.3000"),
+            rank_order=1,
+        )
+    )
     run.expires_at = now - timedelta(seconds=1)
     session.flush()
 
@@ -126,7 +142,7 @@ def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:
 
     assert dry_run.dry_run is True
     assert dry_run.recommendation_runs == 1
-    assert dry_run.search_candidates > 0
+    assert dry_run.search_candidates == 1
     assert dry_run.recommendation_results > 0
     assert _count_rows(session, RecommendationRun) == 1
 
@@ -140,6 +156,22 @@ def test_cleanup_expired_recommendation_runs_deletes_run_and_children() -> None:
     assert _count_rows(session, RecommendationRunConstraint) == 0
     assert _count_rows(session, RecommendationRunConcern) == 0
     assert _count_rows(session, RecommendationRun) == 0
+
+
+def test_create_recommendation_response_skips_candidate_trace_persistence() -> None:
+    session = _seed_example_session()
+
+    response = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="속건조 보습 추천"),
+        result_limit=10,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+
+    assert response.products
+    assert _count_rows(session, SearchCandidate) == 0
+    assert _count_rows(session, RecommendationResult) == len(response.products)
 
 
 def test_create_recommendation_response_persists_candidate_pool_diagnostics() -> None:
