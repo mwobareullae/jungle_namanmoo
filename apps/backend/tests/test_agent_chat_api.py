@@ -330,6 +330,169 @@ async def test_agent_openai_concurrency_limiter_rejects_requests_beyond_capacity
     await asyncio.gather(*holders)
 
 
+@pytest.mark.anyio
+async def test_agent_resilience_integration_limits_concurrency_without_opening_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    limiter = _OpenAIConcurrencyLimiter(
+        max_concurrency=2,
+        queue_timeout_seconds=0.02,
+        retry_after_seconds=4,
+    )
+    breaker = _OpenAICircuitBreaker()
+    release = asyncio.Event()
+    both_entered = asyncio.Event()
+    entered = 0
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal entered
+        entered += 1
+        if entered == 2:
+            both_entered.set()
+        await release.wait()
+        return SimpleNamespace(final_output="정상 응답")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        limiter,
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    async def invoke(index: int):
+        try:
+            return await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message=f"보습 세럼 추천 요청 {index}"),
+                request_id=f"req-load-{index}",
+            )
+        except ApiError as exc:
+            return exc
+
+    tasks = [asyncio.create_task(invoke(index)) for index in range(4)]
+    await asyncio.wait_for(both_entered.wait(), timeout=1)
+    await asyncio.sleep(0.04)
+    release.set()
+    results = await asyncio.gather(*tasks)
+
+    successes = [result for result in results if isinstance(result, AgentChatResponse)]
+    rejected = [result for result in results if isinstance(result, ApiError)]
+    assert len(successes) == 2
+    assert len(rejected) == 2
+    assert all(error.code == "AGENT_OPENAI_BUSY" for error in rejected)
+    assert all(error.headers == {"Retry-After": "4"} for error in rejected)
+
+    # Local capacity rejections must not poison the process-wide provider circuit.
+    breaker.before_call()
+    follow_up = await invoke(5)
+    assert isinstance(follow_up, AgentChatResponse)
+    assert follow_up.message == "정상 응답"
+
+
+@pytest.mark.anyio
+async def test_agent_resilience_integration_retries_429_without_opening_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    class RateLimited(Exception):
+        status_code = 429
+        headers = {"Retry-After": "0"}
+
+    breaker = _OpenAICircuitBreaker()
+    provider_calls = 0
+    should_succeed = False
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        if not should_succeed:
+            raise RateLimited()
+        return SimpleNamespace(final_output="회로 정상")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 1)
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    for index in range(3):
+        with pytest.raises(ApiError) as captured:
+            await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message=f"세럼 추천 {index}"),
+            )
+        assert captured.value.code == "AGENT_OPENAI_RATE_LIMITED"
+
+    assert provider_calls == 6
+    breaker.before_call()
+    should_succeed = True
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="세럼 추천 정상화"),
+    )
+    assert response.message == "회로 정상"
+
+
+@pytest.mark.anyio
+async def test_agent_resilience_integration_opens_circuit_only_for_provider_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    breaker = _OpenAICircuitBreaker()
+    provider_calls = 0
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        raise TimeoutError("provider timeout")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(settings, "openai_agent_circuit_cooldown_seconds", 30.0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        breaker,
+    )
+
+    for _ in range(2):
+        with pytest.raises(ApiError) as captured:
+            await run_openai_agent_chat(
+                Session(),
+                AgentChatRequest(message="민감 피부 세럼 추천"),
+            )
+        assert captured.value.code == "AGENT_OPENAI_TIMEOUT"
+
+    with pytest.raises(ApiError) as blocked:
+        await run_openai_agent_chat(
+            Session(),
+            AgentChatRequest(message="회로 차단 확인"),
+        )
+    assert blocked.value.code == "AGENT_OPENAI_CIRCUIT_OPEN"
+    assert provider_calls == 2
+
+
 def test_api_error_response_includes_retry_after_header(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
