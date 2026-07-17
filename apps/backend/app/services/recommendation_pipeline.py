@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.db.models.catalog import Brand, Product, ProductPrice
+from app.db.models.catalog import Brand, Product, ProductIngredient, ProductPrice
 from app.db.models.commerce import Inventory
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -90,6 +90,7 @@ class NormalizedRecommendationRequest:
     skin_type: str
     sensitivity: str
     avoid_ingredients: list[str]
+    required_ingredient_names: list[str]
     manual_skin_type_explicit: bool
     manual_sensitivity_explicit: bool
 
@@ -206,6 +207,11 @@ def create_recommendation_response(
         )
         _record_stage_duration(stage_durations, "candidate_pool_ms", stage_started_at)
         candidates = candidate_pool.candidates
+        candidates = _filter_candidates_by_required_ingredients(
+            session,
+            candidates,
+            normalized_request.required_ingredient_names,
+        )
         stage_started_at = current_time()
         search_join_document_count = count_join_product_search_documents(
             session,
@@ -409,6 +415,32 @@ def _record_stage_duration(
     stage_durations[key] = round(elapsed_ms(started_at), 2)
 
 
+def _filter_candidates_by_required_ingredients(
+    session: Session,
+    candidates: list,
+    required_ingredient_names: list[str] | None,
+) -> list:
+    required = [name.strip().casefold() for name in required_ingredient_names or [] if name.strip()]
+    if not required or not candidates:
+        return candidates
+    rows = session.execute(
+        select(ProductIngredient.product_id, ProductIngredient.ingredient_name).where(
+            ProductIngredient.product_id.in_([candidate.db_product_id for candidate in candidates])
+        )
+    ).all()
+    names_by_product: dict[int, list[str]] = {}
+    for product_id, ingredient_name in rows:
+        names_by_product.setdefault(int(product_id), []).append(str(ingredient_name).casefold())
+    return [
+        candidate
+        for candidate in candidates
+        if all(
+            any(required_name in ingredient_name for ingredient_name in names_by_product.get(candidate.db_product_id, []))
+            for required_name in required
+        )
+    ]
+
+
 def _intent_unattributed_ms(
     total_ms: float,
     diagnostics: dict[str, object],
@@ -468,6 +500,9 @@ def normalize_recommendation_request(
         skin_type=skin_type,
         sensitivity=sensitivity,
         avoid_ingredients=_dedupe([*request_avoid_ingredients, *saved_avoid_ingredients]),
+        required_ingredient_names=_dedupe(
+            [str(name).strip() for name in request.required_ingredient_names or [] if str(name).strip()]
+        ),
         manual_skin_type_explicit=request_skin_type is not None or saved_skin_type is not None,
         manual_sensitivity_explicit=manual_sensitivity_explicit,
     )

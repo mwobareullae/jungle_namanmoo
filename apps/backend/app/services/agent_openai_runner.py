@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import json
 import re
+import threading
+import time
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -74,6 +77,8 @@ Routing:
   window_days. Never infer product IDs or ingredient IDs. The backend rechecks the real
   popularity rollup, canonical ingredient relation, and current wishlist, then requires
   confirmation before writing.
+  Skin-profile bulk wishlist requests may use skin_type and/or sensitivity instead of
+  ingredient_name. Use only profile values stated by the user or present in context.
 - Similar/alternative product -> find_similar_products(current_product_id, limit=2).
   Comparison -> selected_product_ids, otherwise at least two visible_product_ids.
 - Order-history open/filter -> filter_order_history. Preserve context.filters unless
@@ -85,7 +90,9 @@ Routing:
   use reference_source="popular" and reference_rank (default 1), never invent a product
   ID. For "current product", use reference_source="current_product". For a saved
   recommendation result, use reference_source="recommendation" with recommendation_id
-  and reference_rank. A request to order or buy one referenced product -> prepare_product_checkout.
+  and reference_rank. For wishlist or recent-view lists, use reference_source="wishlist"
+  or "recent" with reference_rank; for “마지막 상품” use reference_position="last"
+  instead of guessing a numeric rank. A request to order or buy one referenced product -> prepare_product_checkout.
   Resolve "second product" from
   the preserved item order and pass its recommendation metadata when available. This
   composite tool revalidates stock and price, updates the real cart, and opens checkout;
@@ -128,8 +135,31 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
+_EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
+    "EMPTY_CART": ("AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요."),
+    "EMPTY_CHECKOUT_SELECTION": ("AGENT_CART_EMPTY", "주문할 상품을 장바구니에서 선택해주세요."),
+    "CART_ITEM_NOT_FOUND": ("AGENT_CART_ITEM_NOT_FOUND", "장바구니에서 해당 상품을 찾지 못했어요."),
+    "PRODUCT_UNAVAILABLE": ("AGENT_PRODUCT_UNAVAILABLE", "현재 판매할 수 없는 상품이에요."),
+    "NOT_ON_SALE": ("AGENT_PRODUCT_UNAVAILABLE", "현재 판매 중이 아닌 상품이에요."),
+    "OUT_OF_STOCK": ("AGENT_OUT_OF_STOCK", "해당 상품은 일시품절이에요."),
+    "INSUFFICIENT_STOCK": ("AGENT_INSUFFICIENT_STOCK", "요청한 수량만큼 재고가 없어요."),
+    "STOCK_UNKNOWN": ("AGENT_STOCK_UNAVAILABLE", "상품 재고를 확인하지 못했어요. 잠시 후 다시 시도해주세요."),
+    "ORDER_NOT_CANCELABLE": ("AGENT_ORDER_NOT_CANCELABLE", "현재 주문 상태에서는 취소할 수 없어요."),
+    "AGENT_CANCELABLE_ORDER_NOT_FOUND": ("AGENT_ORDER_NOT_CANCELABLE", "취소할 수 있는 최근 주문을 찾지 못했어요."),
+    "AGENT_CART_COMPOSITION_NOT_FOUND": ("AGENT_CART_COMPOSITION_NOT_FOUND", "조건에 맞는 상품 조합을 찾지 못했어요."),
+    "AGENT_CART_BUDGET_NOT_FOUND": ("AGENT_CART_BUDGET_NOT_FOUND", "예산 안에서 요청한 상품 조합을 찾지 못했어요."),
+    "AGENT_REVIEW_NOT_AVAILABLE": ("AGENT_REVIEW_NOT_AVAILABLE", "작성할 수 있는 구매 리뷰 상품을 찾지 못했어요."),
+    "AGENT_CLAIM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
+    "AGENT_CLAIM_ITEM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
+}
 _BULK_CART_REQUEST_PATTERN = re.compile(
     r"(?:\d+\s*(?:~|-|부터)\s*\d+\s*위|상위\s*\d+\s*개|(?:상품|제품)\s*\d+\s*개).{0,40}?(?:장바구니|카트).{0,20}?(?:담|추가)"
+)
+_BARE_CART_REQUEST_PATTERN = re.compile(r"^\s*(?:담아줘|넣어줘|장바구니에\s*담아줘)\s*$")
+_BARE_RECOMMENDATION_REQUEST_PATTERN = re.compile(r"^\s*(?:추천해줘|제품\s*추천해줘|상품\s*추천해줘)\s*$")
+_AMBIGUOUS_BULK_REQUEST_PATTERN = re.compile(r"^\s*(?:상위\s*상품|인기\s*상품)\s*(?:담아줘|넣어줘)\s*$")
+_COMPLEX_MULTI_ACTION_PATTERN = re.compile(
+    r"(?:인기|베스트|수부지|건성|지성|복합성|민감).{0,80}(?:\d+\s*개|상위\s*\d+).{0,40}(?:장바구니|찜|담아|넣어)"
 )
 
 
@@ -147,6 +177,46 @@ class CommerceAgentContext:
     tool_execution_ms: float = 0.0
 
 
+class _OpenAICircuitBreaker:
+    """Process-local breaker for transient OpenAI provider failures."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._failure_count = 0
+        self._opened_until = 0.0
+
+    def before_call(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            if now < self._opened_until:
+                remaining = max(int(self._opened_until - now + 0.999), 1)
+                raise ApiError(
+                    503,
+                    "AGENT_OPENAI_CIRCUIT_OPEN",
+                    f"AI 연결이 불안정해요. {remaining}초 후 다시 시도해 주세요.",
+                )
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._failure_count = 0
+            self._opened_until = 0.0
+
+    def record_transient_failure(self) -> bool:
+        with self._lock:
+            self._failure_count += 1
+            threshold = max(settings.openai_agent_circuit_failure_threshold, 1)
+            if self._failure_count < threshold:
+                return False
+            self._opened_until = time.monotonic() + max(
+                settings.openai_agent_circuit_cooldown_seconds,
+                0.1,
+            )
+            return True
+
+
+_OPENAI_CIRCUIT_BREAKER = _OpenAICircuitBreaker()
+
+
 async def run_openai_agent_chat(
     session: Session,
     request: AgentChatRequest,
@@ -157,6 +227,14 @@ async def run_openai_agent_chat(
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
 ) -> AgentChatResponse:
+    generic_clarification = _get_generic_clarification(request.message)
+    if generic_clarification:
+        return _clarification_response(request.conversation_id, generic_clarification)
+
+    multi_action_clarification = _get_multi_action_clarification(request.message)
+    if multi_action_clarification:
+        return _clarification_response(request.conversation_id, multi_action_clarification)
+
     clarification_message = _get_bulk_cart_clarification(request.message)
     if clarification_message:
         return _clarification_response(request.conversation_id, clarification_message)
@@ -209,14 +287,59 @@ async def run_openai_agent_chat(
     )
 
     started_at = current_time()
+    retry_count = 0
     try:
-        result = await Runner.run(
-            agent,
-            input=_build_agent_input(request),
-            context=context,
-            max_turns=4,
-        )
+        _OPENAI_CIRCUIT_BREAKER.before_call()
+        max_retries = max(0, min(settings.openai_agent_max_retries, 1))
+        while True:
+            try:
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        agent,
+                        input=_build_agent_input(request),
+                        context=context,
+                        max_turns=4,
+                    ),
+                    timeout=max(float(settings.openai_agent_timeout_seconds), 0.1),
+                )
+                break
+            except Exception as exc:
+                # Never retry after a commerce tool has run: retrying could duplicate
+                # a state-changing action such as add-to-cart or address registration.
+                if (
+                    retry_count >= max_retries
+                    or context.last_tool_response is not None
+                    or not _is_retryable_openai_exception(exc)
+                ):
+                    raise
+                retry_count += 1
+                log_performance_event(
+                    "agent_openai_retry",
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                    metadata={
+                        "model": settings.openai_agent_model,
+                        "attempt": retry_count + 1,
+                        "exception_type": type(exc).__name__,
+                    },
+                    level=30,
+                )
+                await asyncio.sleep(0.05)
+        _OPENAI_CIRCUIT_BREAKER.record_success()
     except Exception as exc:
+        if _is_retryable_openai_exception(exc):
+            opened = _OPENAI_CIRCUIT_BREAKER.record_transient_failure()
+            if opened:
+                log_performance_event(
+                    "agent_openai_circuit_opened",
+                    request_id=request_id,
+                    duration_ms=elapsed_ms(started_at),
+                    metadata={
+                        "model": settings.openai_agent_model,
+                        "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
+                    },
+                    level=30,
+                )
         log_ai_call(
             "agent_chat",
             model=settings.openai_agent_model,
@@ -227,13 +350,13 @@ async def run_openai_agent_chat(
             metadata={
                 "conversation_id": _resolve_conversation_id(request.conversation_id),
                 "max_turns": 4,
+                "retry_count": retry_count,
                 "tool_called": False,
             },
         )
         if isinstance(exc, ApiError):
             raise
-        raise ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
-
+        raise _to_agent_execution_error(exc) from exc
     if context.last_tool_response is not None:
         # Every commerce tool already returns a user-facing message and authoritative
         # UI payload. Stopping at the first tool avoids a redundant second model call.
@@ -247,6 +370,7 @@ async def run_openai_agent_chat(
             metadata={
                 "conversation_id": response.conversation_id,
                 "max_turns": 4,
+                "retry_count": retry_count,
                 "tool_called": True,
                 "tool_name": response.tool_name,
                 "item_count": len(response.items),
@@ -272,12 +396,35 @@ async def run_openai_agent_chat(
         metadata={
             "conversation_id": response.conversation_id,
             "max_turns": 4,
+            "retry_count": retry_count,
             "tool_called": False,
             "item_count": 0,
             "ui_action_type": response.ui_action.type,
         },
     )
     return response
+
+
+def _is_retryable_openai_exception(exc: Exception) -> bool:
+    """Return true only for transient provider/network failures.
+
+    Tool/API validation failures are intentionally not retried because they are
+    deterministic and a retry would only add latency and cost.
+    """
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int) and (
+        status_code in {408, 409, 429} or status_code >= 500
+    ):
+        return True
+
+    module = type(exc).__module__.lower()
+    name = type(exc).__name__.lower()
+    if not module.startswith("openai"):
+        return False
+    return any(token in name for token in ("timeout", "connection", "ratelimit", "internalserver"))
 
 
 def _build_agent_input(request: AgentChatRequest) -> str:
@@ -328,10 +475,52 @@ def _resolve_conversation_id(conversation_id: str | None) -> str:
     return "conv_agent_openai"
 
 
+def _to_agent_execution_error(exc: Exception) -> ApiError:
+    """Map provider failures to safe, actionable public API errors.
+
+    Provider exception classes differ slightly between the OpenAI SDK and the
+    Agents SDK, so status code and class-name checks are both used here. The
+    original exception remains chained for server-side logs only.
+    """
+    error_name = type(exc).__name__
+    status_code = getattr(exc, "status_code", None)
+
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or error_name in {"APITimeoutError", "TimeoutException"}:
+        return ApiError(504, "AGENT_OPENAI_TIMEOUT", "AI 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.")
+    if error_name in {"APIConnectionError", "APIConnectionTimeoutError", "ConnectError", "NetworkError"}:
+        return ApiError(503, "AGENT_OPENAI_UNAVAILABLE", "AI 연결이 일시적으로 원활하지 않아요. 잠시 후 다시 시도해주세요.")
+    if status_code == 429 or error_name == "RateLimitError":
+        return ApiError(429, "AGENT_OPENAI_RATE_LIMITED", "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.")
+    if status_code in {401, 403} or error_name in {"AuthenticationError", "PermissionDeniedError"}:
+        return ApiError(503, "AGENT_OPENAI_CONFIGURATION_ERROR", "AI 연결 설정을 확인하고 있어요. 잠시 후 다시 시도해주세요.")
+    if isinstance(status_code, int) and status_code >= 500:
+        return ApiError(503, "AGENT_OPENAI_UNAVAILABLE", "AI 연결이 일시적으로 원활하지 않아요. 잠시 후 다시 시도해주세요.")
+    return ApiError(503, "AGENT_EXECUTION_FAILED", "AI 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.")
+
+
 def _get_bulk_cart_clarification(message: str) -> str | None:
     if not _BULK_CART_REQUEST_PATTERN.search(message):
         return None
     return "여러 상품을 한 번에 담는 기능은 아직 지원하지 않아요. 담을 상품 한 개의 순위나 상품명을 알려주세요."
+
+
+def _get_generic_clarification(message: str) -> str | None:
+    if _BARE_CART_REQUEST_PATTERN.search(message):
+        return "담을 상품을 알려주세요. 현재 상품, 상품명, 인기 순위 또는 추천 결과 순위로 말씀해 주세요."
+    if _BARE_RECOMMENDATION_REQUEST_PATTERN.search(message):
+        return "어떤 피부 고민이나 조건의 상품을 찾으세요? 예: 민감 피부용 진정 세럼을 추천해줘."
+    if _AMBIGUOUS_BULK_REQUEST_PATTERN.search(message):
+        return "어떤 목록의 상품을 몇 개 담을까요? 인기 순위 범위와 품절 상품 처리 기준을 알려주세요."
+    return None
+
+
+def _get_multi_action_clarification(message: str) -> str | None:
+    if not _COMPLEX_MULTI_ACTION_PATTERN.search(message):
+        return None
+    return (
+        "여러 상품을 바로 반영하기 전에 먼저 조건에 맞는 추천 결과를 확인할게요. "
+        "추천 결과에서 상품 순위를 알려주시면 선택한 상품만 장바구니에 담아드릴게요."
+    )
 
 
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
@@ -345,6 +534,29 @@ def _clarification_response(conversation_id: str | None, message: str, *, tool_n
             message=message,
             retryable=False,
         ),
+    )
+
+
+def _expected_tool_error_response(
+    conversation_id: str | None,
+    *,
+    tool_name: str,
+    error: ApiError,
+) -> AgentChatResponse:
+    code, message = _EXPECTED_TOOL_ERRORS.get(
+        error.code,
+        (
+            "AGENT_TOOL_EXECUTION_FAILED",
+            "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.",
+        ),
+    )
+    retryable = error.status_code >= 500 or error.code == "STOCK_UNKNOWN"
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=tool_name,
+        ui_action=AgentUiAction(),
+        error=AgentError(code=code, message=message, retryable=retryable),
     )
 
 
@@ -397,6 +609,18 @@ def _execute_tool(
                 ui_action=AgentUiAction(),
                 error=AgentError(code=exc.code, message=exc.message, retryable=False),
             )
+        elif exc.code in {"EMPTY_CART", "AGENT_CART_EMPTY"}:
+            response = AgentChatResponse(
+                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
+                message="장바구니가 비어 있어요. 상품을 담은 뒤 주문서를 준비할 수 있어요.",
+                tool_name=tool_name,
+                ui_action=AgentUiAction(),
+                error=AgentError(
+                    code=exc.code,
+                    message="장바구니가 비어 있어요.",
+                    retryable=False,
+                ),
+            )
         elif clarification_message := _CLARIFICATION_MESSAGES.get(exc.code):
             response = _clarification_response(
                 runtime_context.conversation_id,
@@ -404,16 +628,10 @@ def _execute_tool(
                 tool_name=tool_name,
             )
         else:
-            response = AgentChatResponse(
-                conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
-                message="요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            response = _expected_tool_error_response(
+                runtime_context.conversation_id,
                 tool_name=tool_name,
-                ui_action=AgentUiAction(),
-                error=AgentError(
-                    code="AGENT_TOOL_EXECUTION_FAILED",
-                    message="요청을 처리하지 못했어요.",
-                    retryable=True,
-                ),
+                error=exc,
             )
     except Exception as exc:
         runtime_context.session.rollback()
@@ -493,6 +711,7 @@ async def create_recommendation(
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
     sensitivity: Literal["낮음", "보통", "높음"] | None = None,
     avoid_ingredients: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
     intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
@@ -512,6 +731,7 @@ async def create_recommendation(
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "avoid_ingredients": avoid_ingredients,
+            "required_ingredient_names": required_ingredient_names,
             "page_size": page_size,
             "intent_resolved": intent_resolved,
             "concern_ids": concern_ids,
@@ -551,6 +771,7 @@ async def refine_product_results(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
 ) -> str:
     """Filter a full saved recommendation, falling back to currently visible products."""
     return _execute_tool(
@@ -567,6 +788,7 @@ async def refine_product_results(
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "effect_keywords": effect_keywords,
+            "required_ingredient_names": required_ingredient_names,
         },
     )
 
@@ -631,8 +853,9 @@ async def add_to_cart(
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
-    reference_source: Literal["current_product", "popular", "recommendation"] | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
     reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
 ) -> str:
     """Add one explicit or server-resolved product to the user's cart."""
     return _execute_tool(
@@ -645,6 +868,7 @@ async def add_to_cart(
             "recommendation_rank": recommendation_rank,
             "reference_source": reference_source,
             "reference_rank": reference_rank,
+            "reference_position": reference_position,
         },
     )
 
@@ -652,10 +876,13 @@ async def add_to_cart(
 @function_tool(name_override=PREPARE_PRODUCT_CHECKOUT_TOOL)
 async def prepare_product_checkout(
     ctx: RunContextWrapper[CommerceAgentContext],
-    product_id: str,
+    product_id: str | None = None,
     quantity: int = 1,
     recommendation_id: str | None = None,
     recommendation_rank: int | None = None,
+    reference_source: Literal["current_product", "popular", "recommendation", "wishlist", "recent"] | None = None,
+    reference_rank: int | None = None,
+    reference_position: Literal["first", "last"] | None = None,
 ) -> str:
     """Put one referenced product in the real cart and open checkout for final review."""
     return _execute_tool(
@@ -666,6 +893,9 @@ async def prepare_product_checkout(
             "quantity": quantity,
             "recommendation_id": recommendation_id,
             "recommendation_rank": recommendation_rank,
+            "reference_source": reference_source,
+            "reference_rank": reference_rank,
+            "reference_position": reference_position,
         },
     )
 
@@ -739,16 +969,20 @@ async def compose_cart(
 @function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
 async def bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
-    ingredient_name: str,
+    ingredient_name: str | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
+    skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
+    sensitivity: Literal["낮음", "보통", "높음"] | None = None,
 ) -> str:
-    """Preview a confirmed bulk wishlist action from real popular ranks and canonical ingredients."""
+    """Preview a confirmed bulk wishlist action from real popular ranks and criteria."""
     return _execute_tool(
         ctx,
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "skin_type": skin_type,
+            "sensitivity": sensitivity,
             "rank_limit": rank_limit,
             "window_days": window_days,
         },

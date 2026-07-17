@@ -91,7 +91,10 @@ type RecommendationApi = {
   submitSkinTest: (request: SkinTestSubmitRequest) => Promise<SkinTestSubmitResponse>;
   getSkinTestResult: (resultId: number) => Promise<SkinTestResultResponse>;
   applySkinTestResult: (resultId: number) => Promise<ApplySkinTestResultResponse>;
-  sendAgentMessage: (request: AgentChatRequest) => Promise<AgentChatResponse>;
+  sendAgentMessage: (
+    request: AgentChatRequest,
+    options?: { idempotencyKey?: string }
+  ) => Promise<AgentChatResponse>;
   confirmAgentToolCall: (
     toolCallId: string,
     request: AgentToolConfirmRequest
@@ -585,6 +588,7 @@ export const api: RecommendationApi = {
     if (filters?.skin_type) searchParams.set("skin_type", filters.skin_type);
     if (filters?.sensitivity) searchParams.set("sensitivity", filters.sensitivity);
     filters?.effect_keywords?.forEach((keyword) => searchParams.append("effect_keyword", keyword));
+    filters?.required_ingredient_names?.forEach((ingredient) => searchParams.append("required_ingredient", ingredient));
 
     const query = searchParams.toString();
     const cacheKey = `${recommendationId}?${query}`;
@@ -820,11 +824,12 @@ export const api: RecommendationApi = {
     return parseJson<ApplySkinTestResultResponse>(response);
   },
 
-  async sendAgentMessage(request) {
+  async sendAgentMessage(request, options) {
     const response = await fetchWithTimeout(`${API_BASE_URL}/agent/chat`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {})
       },
       body: JSON.stringify(request)
     });

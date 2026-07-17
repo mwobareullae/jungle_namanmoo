@@ -81,6 +81,14 @@ class Settings(BaseModel):
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
+    openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "15"))
+    openai_agent_max_retries: int = int(os.getenv("OPENAI_AGENT_MAX_RETRIES", "1"))
+    openai_agent_circuit_failure_threshold: int = int(
+        os.getenv("OPENAI_AGENT_CIRCUIT_FAILURE_THRESHOLD", "3")
+    )
+    openai_agent_circuit_cooldown_seconds: float = float(
+        os.getenv("OPENAI_AGENT_CIRCUIT_COOLDOWN_SECONDS", "30")
+    )
     openai_embedding_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     embedding_dimensions: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
     hybrid_keyword_weight: float = float(os.getenv("HYBRID_KEYWORD_WEIGHT", "0.5"))
