@@ -5,6 +5,7 @@ export const AGENT_ENTRY_MESSAGE_EVENT = "mwobareullae:agent-entry-message";
 
 export type AgentEntryMessageDetail = {
   message: string;
+  startNewThread?: boolean;
   profile?: {
     avoidIngredients?: string[];
     sensitivity: string;

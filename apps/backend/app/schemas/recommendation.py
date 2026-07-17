@@ -29,6 +29,7 @@ class RecommendationRequest(BaseModel):
     skin_type: str | None = None
     sensitivity: str | None = None
     avoid_ingredients: list[str] | None = None
+    required_ingredient_names: list[str] | None = None
 
 
 class RecommendationSummary(BaseModel):

@@ -19,7 +19,12 @@ from app.schemas.agent import (
     AgentChatResponse,
     AgentUiAction,
 )
-from app.services.agent_openai_runner import _build_agent_input, run_openai_agent_chat
+from app.services.agent_openai_runner import (
+    _OpenAICircuitBreaker,
+    _build_agent_input,
+    _is_retryable_openai_exception,
+    run_openai_agent_chat,
+)
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -83,6 +88,34 @@ def test_agent_input_omits_empty_context_fields() -> None:
     assert payload == {"message": "보습 세럼 추천해줘"}
 
 
+def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
+    assert _is_retryable_openai_exception(TimeoutError()) is True
+    assert _is_retryable_openai_exception(ConnectionError()) is True
+    assert _is_retryable_openai_exception(ValueError("invalid tool arguments")) is False
+
+    class ServerFailure(Exception):
+        status_code = 503
+
+    assert _is_retryable_openai_exception(ServerFailure()) is True
+
+
+def test_agent_circuit_breaker_opens_after_transient_failure_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "openai_agent_circuit_failure_threshold", 2)
+    monkeypatch.setattr(settings, "openai_agent_circuit_cooldown_seconds", 30.0)
+    breaker = _OpenAICircuitBreaker()
+
+    breaker.before_call()
+    assert breaker.record_transient_failure() is False
+    assert breaker.record_transient_failure() is True
+
+    with pytest.raises(Exception, match="AI 연결이 불안정해요"):
+        breaker.before_call()
+
+
 @pytest.mark.anyio
 async def test_agent_bulk_cart_request_returns_clarification_without_openai() -> None:
     request = AgentChatRequest(message="1~5위 장바구니에 담아줘")
@@ -93,6 +126,37 @@ async def test_agent_bulk_cart_request_returns_clarification_without_openai() ->
     assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
     assert response.tool_name is None
     assert "한 번에 담는 기능" in response.message
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("담아줘", "담을 상품을 알려주세요"),
+        ("추천해줘", "어떤 피부 고민이나 조건"),
+        ("상위 상품 담아줘", "몇 개 담을까요"),
+    ],
+)
+async def test_agent_ambiguous_requests_ask_for_missing_scope_without_openai(message: str, expected: str) -> None:
+    response = await run_openai_agent_chat(Session(), AgentChatRequest(message=message))
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert expected in response.message
+
+
+@pytest.mark.anyio
+async def test_agent_multi_action_request_requires_staged_selection_without_openai() -> None:
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 장바구니에 담아줘"),
+    )
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.tool_name is None
+    assert "먼저 조건에 맞는 추천 결과" in response.message
 
 
 def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

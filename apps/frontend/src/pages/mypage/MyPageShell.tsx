@@ -582,7 +582,7 @@ function ProfileAvatar({ size }: { size: "small" | "large" }) {
 
 export function PageTitle({ title, rightSlot }: { title: string; rightSlot?: ReactNode }) {
   return (
-    <header style={styles.titleRow}>
+    <header style={{ ...styles.titleRow, justifyContent: rightSlot ? "space-between" : "flex-start" }}>
       <h1 style={styles.title}>{title}</h1>
       {rightSlot}
     </header>
@@ -631,16 +631,20 @@ const styles: Record<string, CSSProperties> = {
   },
   titleRow: {
     display: "flex",
+    width: "100%",
+    boxSizing: "border-box",
     alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 16,
     flexWrap: "wrap",
     paddingBottom: 14,
-    marginBottom: 28,
+    marginBottom: 20,
     borderBottom: "2px solid #222222"
   },
   title: {
     margin: 0,
+    textAlign: "left",
+    flex: "0 1 auto",
     color: "#222222",
     fontFamily: "'GmarketSans', sans-serif",
     fontSize: 24,

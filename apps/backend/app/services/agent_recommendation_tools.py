@@ -49,6 +49,7 @@ def create_agent_recommendation(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     avoid_ingredients: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
     page_size: int = 10,
     intent_resolved: bool = False,
     concern_ids: list[AgentConcernId] | None = None,
@@ -76,6 +77,7 @@ def create_agent_recommendation(
             skin_type=skin_type,
             sensitivity=sensitivity,
             avoid_ingredients=avoid_ingredients,
+            required_ingredient_names=required_ingredient_names,
         ),
         current_user=current_user,
         page=1,
@@ -94,6 +96,10 @@ def create_agent_recommendation(
         "recommendation_id": recommendation.recommendation_id,
     }
     result_url = f"/search?{urlencode(result_params)}"
+    if required_ingredient_names:
+        result_url += "&" + urlencode(
+            [("refine_ingredient", ingredient) for ingredient in required_ingredient_names]
+        )
     action = AgentUiAction(
         type="show_products",
         target="product_results",
@@ -102,6 +108,7 @@ def create_agent_recommendation(
             "concern_text": summary.concern_text,
             "skin_type": summary.skin_type,
             "sensitivity": summary.sensitivity,
+            "required_ingredient_names": required_ingredient_names or [],
             "page_size": page_size,
             "result_url": result_url,
             "summary": dump_model(summary),

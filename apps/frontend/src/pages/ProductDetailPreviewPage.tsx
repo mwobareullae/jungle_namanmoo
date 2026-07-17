@@ -95,6 +95,11 @@ function ProductDetailPreviewPage() {
   const hasProductReviews = (product?.review_summary?.review_count ?? 0) > 0 || reviewApi.reviews.length > 0;
   const hasScoreAnalysis = Boolean(product?.score_breakdown);
   const isSoldOut = isProductSoldOut(product?.purchase_info);
+  const availableQuantity = product?.purchase_info?.available_quantity ?? null;
+  const maxSelectableQuantity = availableQuantity === null
+    ? 99
+    : Math.min(Math.max(availableQuantity, 1), 99);
+  const isQuantityAtMaximum = isSoldOut || quantity >= maxSelectableQuantity;
   const visibleTabs = useMemo(
     () => tabs
       .map((label, index) => ({ index, label }))
@@ -119,6 +124,7 @@ function ProductDetailPreviewPage() {
       setIsLoading(true);
       setLoadErrorMessage("");
       setProduct(null);
+      setQuantity(1);
       setBrandProducts([]);
 
       let response: ProductDetail;
@@ -350,6 +356,19 @@ function ProductDetailPreviewPage() {
     }
   };
 
+  const handleIncreaseQuantity = () => {
+    if (isSoldOut) return;
+    if (availableQuantity !== null && quantity >= availableQuantity) {
+      showToast("재고가 부족합니다.");
+      return;
+    }
+    if (quantity >= 99) {
+      showToast("한 상품은 최대 99개까지 선택할 수 있습니다.");
+      return;
+    }
+    setQuantity((value) => Math.min(maxSelectableQuantity, value + 1));
+  };
+
   useEffect(() => {
     const sections = visibleTabs
       .map((tab) => document.getElementById(`preview-${tab.index}`))
@@ -482,7 +501,7 @@ function ProductDetailPreviewPage() {
           {hasScoreAnalysis ? <section id="preview-3"><ScoreAnalysisPanel product={product} /></section> : null}
           <article id="preview-4" className="naver-preview-qna"><h2>Q&amp;A</h2><details><summary>주의사항</summary><p>상품별 사용법과 성분 정보를 확인한 뒤 피부 상태에 맞게 사용해 주세요.</p></details><details><summary>배송 안내</summary><p>배송 정보와 도착 예정일은 주문 시점과 배송지에 따라 달라질 수 있습니다.</p></details><details><summary>교환·반품 안내</summary><p>교환·반품 조건은 상품 상태와 신청 시점에 따라 달라질 수 있습니다.</p></details></article>
         </div>
-        <aside className="naver-preview-sticky-buy"><div className={`naver-preview-quantity${isSoldOut ? " is-sold-out" : ""}`}><b>수량 선택</b><div><button disabled={isSoldOut} type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button disabled={isSoldOut} type="button" aria-label="수량 늘리기" onClick={() => setQuantity((value) => value + 1)}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong className={isSoldOut ? "product-price--sold-out" : ""}>{((product?.lowest_price ?? 0) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending || isSoldOut} type="button" onClick={() => void handlePurchase()}>{isSoldOut ? "일시품절" : isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button data-agent-cart-target disabled={isSoldOut} type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
+        <aside className="naver-preview-sticky-buy"><div className={`naver-preview-quantity${isSoldOut ? " is-sold-out" : ""}`}><b>수량 선택</b><div><button disabled={isSoldOut || quantity <= 1} type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button className={isQuantityAtMaximum && !isSoldOut ? "is-limit-reached" : ""} disabled={isSoldOut} type="button" aria-label="수량 늘리기" onClick={handleIncreaseQuantity}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong className={isSoldOut ? "product-price--sold-out" : ""}>{((product?.lowest_price ?? 0) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending || isSoldOut} type="button" onClick={() => void handlePurchase()}>{isSoldOut ? "일시품절" : isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button data-agent-cart-target disabled={isSoldOut} type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
       </section>
       <div className="naver-preview-floating"><button type="button" aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><CaretUpIcon size={22} /></button></div>
       <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />

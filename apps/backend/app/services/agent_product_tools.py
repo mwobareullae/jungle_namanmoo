@@ -186,6 +186,7 @@ def refine_product_results(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
 ) -> AgentChatResponse:
     validate_tool_access(REFINE_PRODUCT_RESULTS_TOOL, user_id=None)
     normalized_limit = _normalize_limit(limit, DEFAULT_REFINE_LIMIT)
@@ -202,6 +203,7 @@ def refine_product_results(
             skin_type=skin_type,
             sensitivity=sensitivity,
             effect_keywords=effect_keywords,
+            required_ingredient_names=required_ingredient_names,
         )
         result_url = _build_refined_result_url(
             recommendation,
@@ -211,6 +213,7 @@ def refine_product_results(
             skin_type=skin_type,
             sensitivity=sensitivity,
             effect_keywords=effect_keywords,
+            required_ingredient_names=required_ingredient_names,
         )
         action = AgentUiAction(
             type="show_products",
@@ -225,6 +228,7 @@ def refine_product_results(
                     skin_type=skin_type,
                     sensitivity=sensitivity,
                     effect_keywords=effect_keywords,
+                    required_ingredient_names=required_ingredient_names,
                 ),
                 "summary": dump_model(recommendation.summary),
                 "unmatched_terms": recommendation.unmatched_terms,
@@ -258,6 +262,7 @@ def refine_product_results(
         and _matches_category_filter(snapshot, category_code)
         and _matches_skin_filter(snapshot, skin_type=skin_type, sensitivity=sensitivity)
         and _matches_effect_filter(snapshot, effect_keywords)
+        and _matches_required_ingredients(snapshot, required_ingredient_names)
     ][:normalized_limit]
 
     action = AgentUiAction(
@@ -273,6 +278,7 @@ def refine_product_results(
                 "skin_type": skin_type,
                 "sensitivity": sensitivity,
                 "effect_keywords": effect_keywords or [],
+                "required_ingredient_names": required_ingredient_names or [],
             },
             "products": [_to_product_payload(snapshot) for snapshot in filtered],
         },
@@ -299,6 +305,7 @@ def get_refined_recommendation_response(
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
+    required_ingredient_names: list[str] | None = None,
 ) -> RecommendationResponse:
     pagination = normalize_pagination(page, page_size)
     full_response = get_recommendation_response(
@@ -318,6 +325,7 @@ def get_refined_recommendation_response(
         and _matches_category_filter(snapshot, category_code)
         and _matches_skin_filter(snapshot, skin_type=skin_type, sensitivity=sensitivity)
         and _matches_effect_filter(snapshot, effect_keywords)
+        and _matches_required_ingredients(snapshot, required_ingredient_names)
     ]
     total_items = len(filtered_products)
     page_products = filtered_products[pagination.offset:pagination.offset + pagination.page_size]
@@ -346,6 +354,7 @@ def _refinement_filters_payload(
     skin_type: str | None,
     sensitivity: str | None,
     effect_keywords: list[str] | None,
+    required_ingredient_names: list[str] | None,
 ) -> dict[str, Any]:
     return {
         "min_price": min_price,
@@ -354,6 +363,7 @@ def _refinement_filters_payload(
         "skin_type": skin_type,
         "sensitivity": sensitivity,
         "effect_keywords": effect_keywords or [],
+        "required_ingredient_names": required_ingredient_names or [],
     }
 
 
@@ -366,6 +376,7 @@ def _build_refined_result_url(
     skin_type: str | None,
     sensitivity: str | None,
     effect_keywords: list[str] | None,
+    required_ingredient_names: list[str] | None,
 ) -> str:
     params: list[tuple[str, str]] = [
         ("keyword", recommendation.summary.concern_text),
@@ -391,6 +402,11 @@ def _build_refined_result_url(
         ("refine_effect", keyword.strip())
         for keyword in effect_keywords or []
         if keyword.strip()
+    )
+    params.extend(
+        ("refine_ingredient", ingredient.strip())
+        for ingredient in required_ingredient_names or []
+        if ingredient.strip()
     )
     return f"/search?{urlencode(params)}"
 
@@ -850,6 +866,17 @@ def _matches_effect_filter(
     return all(keyword in haystack for keyword in keywords)
 
 
+def _matches_required_ingredients(
+    snapshot: _ProductSnapshot,
+    required_ingredient_names: list[str] | None,
+) -> bool:
+    required = [name.strip().casefold() for name in required_ingredient_names or [] if name.strip()]
+    if not required:
+        return True
+    ingredients = [ingredient.casefold() for ingredient in snapshot.ingredients]
+    return all(any(name in ingredient for ingredient in ingredients) for name in required)
+
+
 def _skin_type_to_profile_key(skin_type: str) -> str | None:
     aliases = {
         "dry": "dry_fit",
@@ -857,6 +884,11 @@ def _skin_type_to_profile_key(skin_type: str) -> str | None:
         "combination": "combination_fit",
         "normal": "normal_fit",
         "dehydrated_oily": "dehydrated_oily_fit",
+        "건성": "dry_fit",
+        "지성": "oily_fit",
+        "복합성": "combination_fit",
+        "중성": "normal_fit",
+        "수부지": "dehydrated_oily_fit",
     }
     return aliases.get(skin_type.strip().casefold())
 
