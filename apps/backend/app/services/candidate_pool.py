@@ -3,24 +3,24 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models.catalog import ProductIngredient
-from app.db.models.taxonomy import Ingredient
 from app.services.elasticsearch_recommendation_candidates import (
     RECOMMENDATION_CANDIDATE_SOURCE,
     RECOMMENDATION_CANDIDATE_STRATEGY_VERSION,
     ElasticsearchRecommendationCandidateResult,
     search_elasticsearch_recommendation_candidates,
 )
-from app.services.product_candidates import ProductCandidate, list_product_candidates
+from app.services.product_candidates import (
+    ProductCandidate,
+    list_recommendation_fallback_candidates,
+)
 from app.services.recommendation_intent import RecommendationIntent
 
 
 CANDIDATE_GENERATION_VERSION = RECOMMENDATION_CANDIDATE_STRATEGY_VERSION
-LEGACY_ID_ORDER_SOURCE = "legacy_id_order"
+DB_POPULARITY_FALLBACK_SOURCE = "db_popularity_fallback"
 ElasticsearchSearchFunc = Callable[..., ElasticsearchRecommendationCandidateResult]
 
 
@@ -193,35 +193,32 @@ def generate_candidate_pool(
         notes.append("catalog Elasticsearch source not attempted")
 
     fallback_started_at = perf_counter()
-    legacy_candidates = list_product_candidates(
+    fallback_candidates = list_recommendation_fallback_candidates(
         session,
         intent.purchase_conditions,
+        avoid_ingredients=avoid_ingredients,
         limit=requested_limit,
     )
     fallback_duration_ms = _elapsed_ms(fallback_started_at)
-    legacy_deduped_candidates = _dedupe_candidates(legacy_candidates)
-    avoid_filtered_candidates = _filter_avoided_ingredients(
-        session,
-        legacy_deduped_candidates,
-        avoid_ingredients,
-    )
-    capped_candidates = avoid_filtered_candidates[:requested_limit]
+    fallback_deduped_candidates = _dedupe_candidates(fallback_candidates)
+    capped_candidates = fallback_deduped_candidates[:requested_limit]
     source_diagnostics.append(
         CandidateSourceDiagnostic(
-            source=LEGACY_ID_ORDER_SOURCE,
+            source=DB_POPULARITY_FALLBACK_SOURCE,
             requested_limit=requested_limit,
-            returned_count=len(legacy_candidates),
-            after_dedupe_count=len(legacy_deduped_candidates),
+            returned_count=len(fallback_candidates),
+            after_dedupe_count=len(fallback_deduped_candidates),
             duration_ms=fallback_duration_ms,
+            metadata={"fallback_reason": fallback_reason},
         )
     )
-    notes.append("legacy DB fallback used because Elasticsearch was unavailable")
+    notes.append("popularity-ranked DB fallback used because Elasticsearch was unavailable")
     return CandidatePool(
         candidates=capped_candidates,
         requested_candidate_pool_limit=requested_limit,
-        merged_count=len(legacy_candidates),
-        deduped_count=len(legacy_deduped_candidates),
-        avoid_filtered_count=len(legacy_deduped_candidates) - len(avoid_filtered_candidates),
+        merged_count=len(fallback_candidates),
+        deduped_count=len(fallback_deduped_candidates),
+        avoid_filtered_count=0,
         source_diagnostics=tuple(source_diagnostics),
         fallback_used=True,
         fallback_reason=fallback_reason,
@@ -233,9 +230,9 @@ def generate_candidate_pool(
             es_result.popularity_fill_count if es_result is not None else 0
         ),
         es_raw_hit_count=es_result.raw_hit_count if es_result is not None else 0,
-        pre_dedupe_count=len(legacy_candidates),
-        post_dedupe_count=len(legacy_deduped_candidates),
-        cap_applied_count=max(0, len(avoid_filtered_candidates) - len(capped_candidates)),
+        pre_dedupe_count=len(fallback_candidates),
+        post_dedupe_count=len(fallback_deduped_candidates),
+        cap_applied_count=max(0, len(fallback_deduped_candidates) - len(capped_candidates)),
         hard_filter_total_count=(
             es_result.total_hit_count if es_result is not None else None
         ),
@@ -302,59 +299,6 @@ def _dedupe_candidates(candidates: list[ProductCandidate]) -> list[ProductCandid
         seen_product_ids.add(candidate.db_product_id)
         deduped.append(candidate)
     return deduped
-
-
-def _filter_avoided_ingredients(
-    session: Session,
-    candidates: list[ProductCandidate],
-    avoid_ingredients: list[str],
-) -> list[ProductCandidate]:
-    avoid_terms = {_normalize_match_text(ingredient) for ingredient in avoid_ingredients}
-    avoid_terms.discard("")
-    if not candidates or not avoid_terms:
-        return candidates
-
-    candidate_ids = [candidate.db_product_id for candidate in candidates]
-    rows = session.execute(
-        select(
-            ProductIngredient.product_id,
-            ProductIngredient.ingredient_name,
-            Ingredient.ingredient_code,
-            Ingredient.name_ko,
-            Ingredient.name_en,
-        )
-        .join(Ingredient, ProductIngredient.ingredient_id == Ingredient.id)
-        .where(ProductIngredient.product_id.in_(candidate_ids))
-    ).all()
-
-    blocked_product_ids: set[int] = set()
-    for product_id, ingredient_name, ingredient_code, name_ko, name_en in rows:
-        searchable_values = {
-            _normalize_match_text(value)
-            for value in (ingredient_name, ingredient_code, name_ko, name_en)
-            if value
-        }
-        if _has_avoided_match(avoid_terms, searchable_values):
-            blocked_product_ids.add(int(product_id))
-
-    return [
-        candidate
-        for candidate in candidates
-        if candidate.db_product_id not in blocked_product_ids
-    ]
-
-
-def _has_avoided_match(avoid_terms: set[str], values: set[str]) -> bool:
-    return any(
-        avoid_term in value or value in avoid_term
-        for avoid_term in avoid_terms
-        for value in values
-        if avoid_term and value
-    )
-
-
-def _normalize_match_text(value: str) -> str:
-    return "".join(value.casefold().split())
 
 
 def _elapsed_ms(started_at: float) -> int:
