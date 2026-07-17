@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import MutableMapping
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session
 
 from app.core.performance_logging import current_time, elapsed_ms
@@ -35,56 +35,108 @@ def save_recommendation_results(
 
     stage_started_at = current_time()
     ranked_products = _ranked_products(scored_products, result_limit)
-    result_rows = [
-        RecommendationResult(
-            recommendation_run_id=recommendation_run_id,
-            product_id=scored_product.db_product_id,
-            rank_order=rank_order,
-            total_score=_to_decimal(scored_product.total_score, TOTAL_SCORE_QUANTIZE),
-            reason_summary=scored_product.reason_summary,
-            score_breakdown=scored_product.score_breakdown,
-        )
+    result_payloads = [
+        {
+            "recommendation_run_id": recommendation_run_id,
+            "product_id": scored_product.db_product_id,
+            "rank_order": rank_order,
+            "total_score": _to_decimal(scored_product.total_score, TOTAL_SCORE_QUANTIZE),
+            "reason_summary": scored_product.reason_summary,
+            "score_breakdown": scored_product.score_breakdown,
+        }
         for rank_order, scored_product in enumerate(ranked_products, start=1)
     ]
-    _record_timing(timings, "result_row_build_ms", stage_started_at)
+    _record_timing(timings, "result_payload_build_ms", stage_started_at)
+    _record_count(timings, "result_bulk_row_count", len(result_payloads))
 
     stage_started_at = current_time()
-    session.add_all(result_rows)
-    _record_timing(timings, "result_add_ms", stage_started_at)
+    result_rows = _insert_result_rows(session, result_payloads)
+    _record_timing(timings, "result_bulk_insert_ms", stage_started_at)
+
+    result_id_by_product_id = _result_id_by_product_id(
+        result_rows,
+        expected_product_ids={
+            payload["product_id"]
+            for payload in result_payloads
+        },
+    )
 
     stage_started_at = current_time()
-    session.flush()
-    _record_timing(timings, "result_flush_ms", stage_started_at)
-
-    stage_started_at = current_time()
-    evidence_rows = [
-        RecommendationScoreEvidence(
-            recommendation_result_id=result.id,
-            ingredient_id=evidence.ingredient_id,
-            effect_id=evidence.effect_id,
-            evidence_id=evidence.evidence_id,
-            contribution_score=_to_decimal(
+    evidence_payloads = [
+        {
+            "recommendation_result_id": result_id_by_product_id[
+                scored_product.db_product_id
+            ],
+            "ingredient_id": evidence.ingredient_id,
+            "effect_id": evidence.effect_id,
+            "evidence_id": evidence.evidence_id,
+            "contribution_score": _to_decimal(
                 evidence.contribution_score,
                 CONTRIBUTION_SCORE_QUANTIZE,
             ),
-            reason=evidence.reason,
-        )
-        for result, scored_product in zip(result_rows, ranked_products, strict=False)
+            "reason": evidence.reason,
+        }
+        for scored_product in ranked_products
         for evidence in scored_product.score_evidence[:evidence_limit_per_result]
     ]
-    _record_timing(timings, "evidence_row_build_ms", stage_started_at)
+    _record_timing(timings, "evidence_payload_build_ms", stage_started_at)
+    _record_count(timings, "evidence_bulk_row_count", len(evidence_payloads))
 
     stage_started_at = current_time()
-    session.add_all(evidence_rows)
-    _record_timing(timings, "evidence_add_ms", stage_started_at)
-
-    stage_started_at = current_time()
-    session.flush()
-    _record_timing(timings, "evidence_flush_ms", stage_started_at)
+    evidence_rows = _insert_evidence_rows(session, evidence_payloads)
+    _record_timing(timings, "evidence_bulk_insert_ms", stage_started_at)
 
     return SavedRecommendationResults(
-        results=tuple(result_rows),
-        evidence=tuple(evidence_rows),
+        results=tuple(sorted(result_rows, key=lambda result: result.rank_order)),
+        evidence=tuple(sorted(evidence_rows, key=lambda evidence: evidence.id)),
+    )
+
+
+def _insert_result_rows(
+    session: Session,
+    payloads: list[dict],
+) -> tuple[RecommendationResult, ...]:
+    if not payloads:
+        return ()
+
+    return tuple(
+        session.scalars(
+            insert(RecommendationResult).returning(RecommendationResult),
+            payloads,
+        ).all()
+    )
+
+
+def _result_id_by_product_id(
+    result_rows: tuple[RecommendationResult, ...],
+    *,
+    expected_product_ids: set[int],
+) -> dict[int, int]:
+    result_id_by_product_id = {
+        result.product_id: result.id
+        for result in result_rows
+    }
+    if (
+        len(result_rows) != len(expected_product_ids)
+        or len(result_id_by_product_id) != len(expected_product_ids)
+        or set(result_id_by_product_id) != expected_product_ids
+    ):
+        raise RuntimeError("추천 결과 bulk insert 반환값이 요청 상품과 일치하지 않습니다.")
+    return result_id_by_product_id
+
+
+def _insert_evidence_rows(
+    session: Session,
+    payloads: list[dict],
+) -> tuple[RecommendationScoreEvidence, ...]:
+    if not payloads:
+        return ()
+
+    return tuple(
+        session.scalars(
+            insert(RecommendationScoreEvidence).returning(RecommendationScoreEvidence),
+            payloads,
+        ).all()
     )
 
 
@@ -156,3 +208,12 @@ def _record_timing(
 ) -> None:
     if timings is not None:
         timings[key] = round(elapsed_ms(started_at), 2)
+
+
+def _record_count(
+    timings: MutableMapping[str, float] | None,
+    key: str,
+    value: int,
+) -> None:
+    if timings is not None:
+        timings[key] = float(value)
