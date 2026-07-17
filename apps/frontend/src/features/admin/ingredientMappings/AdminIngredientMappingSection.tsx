@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  IngredientMappingAction,
   IngredientMappingMatchSource,
   IngredientMappingStatus,
   IngredientMappingStatusFilter
@@ -35,6 +36,27 @@ const STATUS_TONES: Record<IngredientMappingStatus, BadgeTone> = {
 const MATCH_SOURCE_LABELS: Record<IngredientMappingMatchSource, string> = {
   ALIAS_EXACT: "별칭 정확 일치",
   CANONICAL_NAME_EXACT: "표준명 정확 일치"
+};
+
+const ACTION_LABELS: Record<IngredientMappingAction, string> = {
+  APPROVE: "승인",
+  HOLD: "보류",
+  REJECT: "반려",
+  REOPEN: "재검토"
+};
+
+const ACTION_VARIANTS: Record<IngredientMappingAction, string> = {
+  APPROVE: "approve",
+  HOLD: "hold",
+  REJECT: "reject",
+  REOPEN: "reopen"
+};
+
+const ACTION_HELPERS: Record<IngredientMappingAction, string> = {
+  APPROVE: "canonical 성분을 선택해 연결합니다.",
+  HOLD: "근거가 부족하면 사유와 함께 보류합니다.",
+  REJECT: "매핑하지 않는 사유를 이력에 남깁니다.",
+  REOPEN: "기존 판정을 다시 검토합니다."
 };
 
 const STATUS_FILTER_OPTIONS: Array<{ value: IngredientMappingStatusFilter; label: string }> = [
@@ -76,10 +98,91 @@ export function AdminIngredientMappingSection({
     detail,
     detailLoading,
     detailError,
-    selectMapping
+    selectMapping,
+    decisionSubmitting,
+    decisionError,
+    clearDecisionError,
+    approve,
+    hold,
+    reject,
+    reopen,
+    canonicalResults,
+    canonicalSearching,
+    canonicalError,
+    searchCanonicals,
+    resetCanonicalSearch
   } = useAdminIngredientMappings({ enabled: active });
 
   const [expandedEvents, setExpandedEvents] = useState(false);
+
+  // 판정 모달 로컬 상태
+  const [activeAction, setActiveAction] = useState<IngredientMappingAction | null>(null);
+  const [reasonInput, setReasonInput] = useState("");
+  const [canonicalQuery, setCanonicalQuery] = useState("");
+  const [selectedTargetCode, setSelectedTargetCode] = useState<string | null>(null);
+  const [selectedTargetName, setSelectedTargetName] = useState<string | null>(null);
+
+  const openAction = (action: IngredientMappingAction) => {
+    clearDecisionError();
+    setActiveAction(action);
+    setReasonInput("");
+    setCanonicalQuery("");
+    resetCanonicalSearch();
+    // 승인 모달은 추천이 있으면 기본 target 으로 채운다.
+    if (action === "APPROVE" && detail?.suggestion) {
+      setSelectedTargetCode(detail.suggestion.targetIngredientCode);
+      setSelectedTargetName(detail.suggestion.targetIngredientName);
+    } else {
+      setSelectedTargetCode(null);
+      setSelectedTargetName(null);
+    }
+  };
+
+  const closeAction = () => {
+    setActiveAction(null);
+    setReasonInput("");
+    setCanonicalQuery("");
+    setSelectedTargetCode(null);
+    setSelectedTargetName(null);
+    clearDecisionError();
+    resetCanonicalSearch();
+  };
+
+  const handleCanonicalSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    void searchCanonicals(canonicalQuery);
+  };
+
+  const pickTarget = (code: string, name: string) => {
+    setSelectedTargetCode(code);
+    setSelectedTargetName(name);
+  };
+
+  const reasonRequired = activeAction !== null && activeAction !== "APPROVE";
+  const reasonTrimmed = reasonInput.trim();
+  const canSubmitAction =
+    activeAction !== null &&
+    !decisionSubmitting &&
+    (activeAction === "APPROVE" ? selectedTargetCode !== null : reasonTrimmed.length > 0);
+
+  const submitAction = async () => {
+    if (!activeAction || !canSubmitAction) return;
+    const reasonValue = reasonTrimmed || null;
+    let succeeded = false;
+    if (activeAction === "APPROVE" && selectedTargetCode) {
+      succeeded = await approve(selectedTargetCode, reasonValue);
+    } else if (activeAction === "HOLD") {
+      succeeded = await hold(reasonTrimmed);
+    } else if (activeAction === "REJECT") {
+      succeeded = await reject(reasonTrimmed);
+    } else if (activeAction === "REOPEN") {
+      succeeded = await reopen(reasonTrimmed);
+    }
+    if (succeeded) {
+      onOperationLog("성분", `성분 매핑 ${ACTION_LABELS[activeAction]}`, detail?.rawName ?? "", "success");
+      closeAction();
+    }
+  };
 
   const handleSearchSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -420,9 +523,32 @@ export function AdminIngredientMappingSection({
               </div>
             )}
 
-            <div className="admin-state-banner neutral">
-              <strong>판정 액션은 다음 단계</strong>
-              <span>승인·보류·반려·재검토 버튼은 후속 Chunk에서 연결됩니다.</span>
+            {decisionError && (
+              <div className="admin-state-banner danger">
+                <strong>판정 오류</strong>
+                <span>{decisionError}</span>
+              </div>
+            )}
+
+            <div className="admin-ingredient-action-panel">
+              <p className="admin-ingredient-action-title">관리자 판정</p>
+              <p className="admin-ingredient-action-description">
+                판정 결과와 사유는 변경 이력에 남습니다.
+              </p>
+              <div className="admin-ingredient-actions">
+                {detail.availableActions.map((action) => (
+                  <button
+                    className={`admin-ingredient-action-button ${ACTION_VARIANTS[action]}`}
+                    disabled={decisionSubmitting}
+                    key={action}
+                    onClick={() => openAction(action)}
+                    title={ACTION_HELPERS[action]}
+                    type="button"
+                  >
+                    {ACTION_LABELS[action]}
+                  </button>
+                ))}
+              </div>
             </div>
           </>
         ) : (
@@ -432,6 +558,133 @@ export function AdminIngredientMappingSection({
           </div>
         )}
       </aside>
+
+      {activeAction && detail && (
+        <div className="admin-ingredient-modal-overlay">
+          <section
+            aria-describedby="ingredient-mapping-action-guide"
+            aria-labelledby="ingredient-mapping-action-title"
+            aria-modal="true"
+            className="admin-panel admin-ingredient-modal"
+            role="dialog"
+          >
+            <div className="admin-ingredient-modal-heading">
+              <div>
+                <p className={`admin-ingredient-action-kicker ${ACTION_VARIANTS[activeAction]}`}>
+                  성분 매핑 판정
+                </p>
+                <h2 id="ingredient-mapping-action-title">{ACTION_LABELS[activeAction]}</h2>
+              </div>
+              <button
+                aria-label="판정 모달 닫기"
+                className="admin-ingredient-modal-close"
+                disabled={decisionSubmitting}
+                onClick={closeAction}
+                type="button"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="admin-ingredient-action-context">
+              <span>검수 대상</span>
+              <strong>{detail.rawName}</strong>
+              <code>{detail.pendingCode}</code>
+            </div>
+            <p className="admin-ingredient-action-guide" id="ingredient-mapping-action-guide">
+              {ACTION_HELPERS[activeAction]}
+            </p>
+
+            {activeAction === "APPROVE" && (
+              <div className="admin-ingredient-approve-target">
+                <p className="admin-ingredient-field-label">연결할 canonical 성분</p>
+                <div
+                  className={`admin-ingredient-selected-target${selectedTargetCode ? " is-selected" : ""}`}
+                >
+                  <strong>{selectedTargetName ?? "대상 미선택"}</strong>
+                  <span>{selectedTargetCode ?? "추천이 없으면 아래에서 검색해 선택하세요."}</span>
+                </div>
+                <form className="admin-ingredient-canonical-search" onSubmit={handleCanonicalSearch}>
+                  <input
+                    aria-label="canonical 검색"
+                    onChange={(event) => setCanonicalQuery(event.target.value)}
+                    placeholder="canonical 성분 검색"
+                    type="search"
+                    value={canonicalQuery}
+                  />
+                  <button className="admin-secondary-button" disabled={canonicalSearching} type="submit">
+                    검색
+                  </button>
+                </form>
+                {canonicalError && (
+                  <div className="admin-state-banner danger">
+                    <span>{canonicalError}</span>
+                  </div>
+                )}
+                {canonicalSearching && <p className="admin-ingredient-search-state">후보를 찾고 있습니다…</p>}
+                {canonicalResults.length > 0 && (
+                  <ul className="admin-ingredient-canonical-results">
+                    {canonicalResults.map((candidate) => (
+                      <li key={candidate.ingredientCode}>
+                        <button
+                          aria-pressed={candidate.ingredientCode === selectedTargetCode}
+                          className={`admin-ingredient-canonical-option${
+                            candidate.ingredientCode === selectedTargetCode ? " is-selected" : ""
+                          }`}
+                          onClick={() => pickTarget(candidate.ingredientCode, candidate.nameKo)}
+                          type="button"
+                        >
+                          {candidate.nameKo}
+                          <small className="admin-product-code">{candidate.ingredientCode}</small>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <label className="admin-ingredient-reason">
+              <span className="admin-ingredient-reason-label">
+                판정 사유
+                <em>{reasonRequired ? "필수" : "선택"}</em>
+              </span>
+              <textarea
+                aria-describedby="ingredient-mapping-reason-help"
+                maxLength={1000}
+                onChange={(event) => setReasonInput(event.target.value)}
+                placeholder={reasonRequired ? "보류·반려·재검토는 사유가 필요합니다." : "선택 입력"}
+                rows={3}
+                value={reasonInput}
+              />
+              <span className="admin-ingredient-reason-help" id="ingredient-mapping-reason-help">
+                <small>{reasonRequired ? "사유는 판정 이력에 그대로 남습니다." : "필요한 경우에만 남겨 주세요."}</small>
+                <small>{reasonInput.length}/1000</small>
+              </span>
+            </label>
+
+            {decisionError && (
+              <div className="admin-state-banner danger">
+                <span>{decisionError}</span>
+              </div>
+            )}
+
+            <div className="admin-ingredient-modal-actions">
+              <button className="admin-secondary-button" disabled={decisionSubmitting} onClick={closeAction} type="button">
+                취소
+              </button>
+              <button
+                className={`admin-ingredient-confirm-button ${ACTION_VARIANTS[activeAction]}`}
+                disabled={!canSubmitAction}
+                onClick={() => void submitAction()}
+                type="button"
+              >
+                {decisionSubmitting ? "처리 중…" : `${ACTION_LABELS[activeAction]} 확정`}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }

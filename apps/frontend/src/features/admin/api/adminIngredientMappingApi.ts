@@ -282,3 +282,147 @@ export const getIngredientMappingDetail = async (
   );
   return adaptDetail(await parseJson<BackendDetail>(response));
 };
+
+// --- 판정 액션 (쓰기) ------------------------------------------------------
+
+export type IngredientMappingActionResult = {
+  pendingCode: string;
+  normalizedSourceName: string;
+  status: IngredientMappingDecisionStatus;
+  targetIngredientCode: string | null;
+  targetIngredientName: string | null;
+  decisionReason: string | null;
+  reviewedAt: string;
+  availableActions: IngredientMappingAction[];
+};
+
+type BackendActionResult = {
+  pending_code: string;
+  normalized_source_name: string;
+  status: IngredientMappingDecisionStatus;
+  target_ingredient_code: string | null;
+  target_ingredient_name: string | null;
+  decision_reason: string | null;
+  reviewed_at: string;
+  available_actions: IngredientMappingAction[];
+};
+
+const adaptActionResult = (result: BackendActionResult): IngredientMappingActionResult => ({
+  pendingCode: result.pending_code,
+  normalizedSourceName: result.normalized_source_name,
+  status: result.status,
+  targetIngredientCode: result.target_ingredient_code,
+  targetIngredientName: result.target_ingredient_name,
+  decisionReason: result.decision_reason,
+  reviewedAt: formatKstDateTime(result.reviewed_at) ?? result.reviewed_at,
+  availableActions: result.available_actions
+});
+
+const postDecision = async (
+  pendingCode: string,
+  action: "approve" | "hold" | "reject" | "reopen",
+  body: Record<string, unknown>
+): Promise<IngredientMappingActionResult> => {
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/ingredient-mappings/${encodeURIComponent(pendingCode)}/${action}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }
+  );
+  return adaptActionResult(await parseJson<BackendActionResult>(response));
+};
+
+export const approveIngredientMapping = (
+  pendingCode: string,
+  normalizedSourceName: string,
+  targetIngredientCode: string,
+  decisionReason: string | null
+): Promise<IngredientMappingActionResult> =>
+  postDecision(pendingCode, "approve", {
+    normalized_source_name: normalizedSourceName,
+    target_ingredient_code: targetIngredientCode,
+    ...(decisionReason ? { decision_reason: decisionReason } : {})
+  });
+
+export const holdIngredientMapping = (
+  pendingCode: string,
+  normalizedSourceName: string,
+  decisionReason: string
+): Promise<IngredientMappingActionResult> =>
+  postDecision(pendingCode, "hold", {
+    normalized_source_name: normalizedSourceName,
+    decision_reason: decisionReason
+  });
+
+export const rejectIngredientMapping = (
+  pendingCode: string,
+  normalizedSourceName: string,
+  decisionReason: string
+): Promise<IngredientMappingActionResult> =>
+  postDecision(pendingCode, "reject", {
+    normalized_source_name: normalizedSourceName,
+    decision_reason: decisionReason
+  });
+
+export const reopenIngredientMapping = (
+  pendingCode: string,
+  normalizedSourceName: string,
+  decisionReason: string
+): Promise<IngredientMappingActionResult> =>
+  postDecision(pendingCode, "reopen", {
+    normalized_source_name: normalizedSourceName,
+    decision_reason: decisionReason
+  });
+
+// --- canonical 검색 (승인 target 선택용, §6) -------------------------------
+
+export type CanonicalIngredientSearchItem = {
+  ingredientCode: string;
+  nameKo: string;
+  nameEn: string | null;
+  normalizedName: string | null;
+  sourceUrl: string | null;
+};
+
+export type CanonicalIngredientSearchResult = {
+  items: CanonicalIngredientSearchItem[];
+  nextCursor: string | null;
+};
+
+type BackendCanonicalSearchItem = {
+  ingredient_code: string;
+  name_ko: string;
+  name_en: string | null;
+  normalized_name: string | null;
+  source_url: string | null;
+};
+
+type BackendCanonicalSearchResponse = {
+  items: BackendCanonicalSearchItem[];
+  next_cursor: string | null;
+};
+
+export const searchCanonicalIngredients = async (
+  q: string,
+  limit = 20,
+  cursor: string | null = null
+): Promise<CanonicalIngredientSearchResult> => {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  const response = await fetchWithTimeout(
+    `${ADMIN_API_BASE}/ingredients/search?${params.toString()}`
+  );
+  const body = await parseJson<BackendCanonicalSearchResponse>(response);
+  return {
+    items: body.items.map((item) => ({
+      ingredientCode: item.ingredient_code,
+      nameKo: item.name_ko,
+      nameEn: item.name_en,
+      normalizedName: item.normalized_name,
+      sourceUrl: item.source_url
+    })),
+    nextCursor: body.next_cursor
+  };
+};

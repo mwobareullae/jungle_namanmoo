@@ -2,12 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ApiError } from "../../../types/recommendation";
 import {
+  CanonicalIngredientSearchItem,
   IngredientMappingDetail,
   IngredientMappingRow,
   IngredientMappingStatusFilter,
   IngredientMappingSummary,
+  approveIngredientMapping,
   getIngredientMappingDetail,
-  getIngredientMappings
+  getIngredientMappings,
+  holdIngredientMapping,
+  rejectIngredientMapping,
+  reopenIngredientMapping,
+  searchCanonicalIngredients
 } from "../api/adminIngredientMappingApi";
 
 // 관리자 성분 매핑 검수 조회 훅 (P1-M2-A Chunk 4, 조회 전용).
@@ -33,6 +39,7 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   const [statusFilter, setStatusFilter] = useState<IngredientMappingStatusFilter>("ALL");
   const [queryInput, setQueryInput] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const filterScopeKey = `${statusFilter}::${submittedQuery}`;
 
   const [items, setItems] = useState<IngredientMappingRow[]>([]);
   const [summary, setSummary] = useState<IngredientMappingSummary | null>(null);
@@ -91,20 +98,6 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, statusFilter, submittedQuery]);
 
-  const applySearch = useCallback(() => {
-    setSubmittedQuery(queryInput);
-  }, [queryInput]);
-
-  const changeStatusFilter = useCallback((value: IngredientMappingStatusFilter) => {
-    setStatusFilter(value);
-  }, []);
-
-  const resetFilters = useCallback(() => {
-    setStatusFilter("ALL");
-    setQueryInput("");
-    setSubmittedQuery("");
-  }, []);
-
   const refresh = useCallback((): Promise<boolean> => {
     if (!enabled) return Promise.resolve(false);
     return fetchList("reset", null);
@@ -128,11 +121,44 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailRequestIdRef = useRef(0);
 
-  const selectMapping = useCallback(async (pendingCode: string, normalizedSourceName: string) => {
-    setSelectedKey(`${pendingCode}::${normalizedSourceName}`);
-    const requestId = ++detailRequestIdRef.current;
-    // 새 행 선택 중에는 이전 성분의 상세를 보여주지 않는다.
+  // 판정 후 상세 재조회를 위해 현재 선택 그룹을 ref 로 보관(selectedKey 는 표시용).
+  const selectedRef = useRef<{ pendingCode: string; normalizedSourceName: string } | null>(null);
+  const [selectedFilterScopeKey, setSelectedFilterScopeKey] = useState<string | null>(null);
+
+  // 목록 조건이 바뀌면 이전 상세가 새 목록과 섞여 보이지 않도록 선택을 해제한다.
+  // 진행 중인 상세 요청도 순번을 올려 늦게 도착한 응답을 버린다.
+  const clearSelectedMapping = useCallback(() => {
+    detailRequestIdRef.current += 1;
+    selectedRef.current = null;
+    setSelectedFilterScopeKey(null);
+    setSelectedKey(null);
     setDetail(null);
+    setDetailLoading(false);
+    setDetailError(null);
+  }, []);
+
+  const applySearch = useCallback(() => {
+    clearSelectedMapping();
+    setSubmittedQuery(queryInput);
+  }, [clearSelectedMapping, queryInput]);
+
+  const changeStatusFilter = useCallback(
+    (value: IngredientMappingStatusFilter) => {
+      clearSelectedMapping();
+      setStatusFilter(value);
+    },
+    [clearSelectedMapping]
+  );
+
+  const resetFilters = useCallback(() => {
+    clearSelectedMapping();
+    setStatusFilter("ALL");
+    setQueryInput("");
+    setSubmittedQuery("");
+  }, [clearSelectedMapping]);
+
+  const fetchDetail = useCallback(async (pendingCode: string, normalizedSourceName: string) => {
+    const requestId = ++detailRequestIdRef.current;
     setDetailLoading(true);
     setDetailError(null);
     try {
@@ -147,6 +173,137 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
       if (requestId === detailRequestIdRef.current) setDetailLoading(false);
     }
   }, []);
+
+  const selectMapping = useCallback(
+    async (pendingCode: string, normalizedSourceName: string) => {
+      setSelectedFilterScopeKey(filterScopeKey);
+      setSelectedKey(`${pendingCode}::${normalizedSourceName}`);
+      selectedRef.current = { pendingCode, normalizedSourceName };
+      // 새 행 선택 중에는 이전 성분의 상세를 보여주지 않는다.
+      setDetail(null);
+      await fetchDetail(pendingCode, normalizedSourceName);
+    },
+    [fetchDetail, filterScopeKey]
+  );
+
+  // --- 판정 액션 (쓰기) ----------------------------------------------------
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const decisionInFlightRef = useRef(false);
+
+  const clearDecisionError = useCallback(() => setDecisionError(null), []);
+
+  // 확인 모달 이후 즉시 실행. 중복 클릭을 막고, 성공 시 상세·목록을 재조회한다(계약 §10).
+  const runDecision = useCallback(
+    async (call: () => Promise<unknown>): Promise<boolean> => {
+      const selected = selectedRef.current;
+      if (!selected || decisionInFlightRef.current) return false;
+      decisionInFlightRef.current = true;
+      setDecisionSubmitting(true);
+      setDecisionError(null);
+      try {
+        await call();
+        await fetchDetail(selected.pendingCode, selected.normalizedSourceName);
+        void fetchList("reset", null); // 상태·summary 갱신(기존 목록 유지)
+        return true;
+      } catch (caughtError: unknown) {
+        setDecisionError(describeApiError(caughtError, "판정을 저장하지 못했습니다."));
+        return false;
+      } finally {
+        decisionInFlightRef.current = false;
+        setDecisionSubmitting(false);
+      }
+    },
+    [fetchDetail, fetchList]
+  );
+
+  const approve = useCallback(
+    (targetIngredientCode: string, decisionReason: string | null): Promise<boolean> => {
+      const selected = selectedRef.current;
+      if (!selected) return Promise.resolve(false);
+      return runDecision(() =>
+        approveIngredientMapping(
+          selected.pendingCode,
+          selected.normalizedSourceName,
+          targetIngredientCode,
+          decisionReason
+        )
+      );
+    },
+    [runDecision]
+  );
+
+  const hold = useCallback(
+    (decisionReason: string): Promise<boolean> => {
+      const selected = selectedRef.current;
+      if (!selected) return Promise.resolve(false);
+      return runDecision(() =>
+        holdIngredientMapping(selected.pendingCode, selected.normalizedSourceName, decisionReason)
+      );
+    },
+    [runDecision]
+  );
+
+  const reject = useCallback(
+    (decisionReason: string): Promise<boolean> => {
+      const selected = selectedRef.current;
+      if (!selected) return Promise.resolve(false);
+      return runDecision(() =>
+        rejectIngredientMapping(selected.pendingCode, selected.normalizedSourceName, decisionReason)
+      );
+    },
+    [runDecision]
+  );
+
+  const reopen = useCallback(
+    (decisionReason: string): Promise<boolean> => {
+      const selected = selectedRef.current;
+      if (!selected) return Promise.resolve(false);
+      return runDecision(() =>
+        reopenIngredientMapping(selected.pendingCode, selected.normalizedSourceName, decisionReason)
+      );
+    },
+    [runDecision]
+  );
+
+  // --- canonical 검색 (승인 target 선택용) ---------------------------------
+  const [canonicalResults, setCanonicalResults] = useState<CanonicalIngredientSearchItem[]>([]);
+  const [canonicalSearching, setCanonicalSearching] = useState(false);
+  const [canonicalError, setCanonicalError] = useState<string | null>(null);
+  const canonicalRequestIdRef = useRef(0);
+
+  const searchCanonicals = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    const requestId = ++canonicalRequestIdRef.current;
+    if (!trimmed) {
+      setCanonicalResults([]);
+      setCanonicalError(null);
+      setCanonicalSearching(false);
+      return;
+    }
+    setCanonicalSearching(true);
+    setCanonicalError(null);
+    try {
+      const result = await searchCanonicalIngredients(trimmed, 20, null);
+      if (requestId !== canonicalRequestIdRef.current) return;
+      setCanonicalResults(result.items);
+    } catch (caughtError: unknown) {
+      if (requestId !== canonicalRequestIdRef.current) return;
+      setCanonicalResults([]);
+      setCanonicalError(describeApiError(caughtError, "canonical 성분 검색에 실패했습니다."));
+    } finally {
+      if (requestId === canonicalRequestIdRef.current) setCanonicalSearching(false);
+    }
+  }, []);
+
+  const resetCanonicalSearch = useCallback(() => {
+    canonicalRequestIdRef.current += 1;
+    setCanonicalResults([]);
+    setCanonicalError(null);
+    setCanonicalSearching(false);
+  }, []);
+
+  const isSelectedInCurrentFilterScope = selectedFilterScopeKey === filterScopeKey;
 
   return {
     statusFilter,
@@ -164,10 +321,22 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     resetFilters,
     refresh,
     loadMore,
-    selectedKey,
-    detail,
-    detailLoading,
-    detailError,
-    selectMapping
+    selectedKey: isSelectedInCurrentFilterScope ? selectedKey : null,
+    detail: isSelectedInCurrentFilterScope ? detail : null,
+    detailLoading: isSelectedInCurrentFilterScope && detailLoading,
+    detailError: isSelectedInCurrentFilterScope ? detailError : null,
+    selectMapping,
+    decisionSubmitting,
+    decisionError,
+    clearDecisionError,
+    approve,
+    hold,
+    reject,
+    reopen,
+    canonicalResults,
+    canonicalSearching,
+    canonicalError,
+    searchCanonicals,
+    resetCanonicalSearch
   };
 }
