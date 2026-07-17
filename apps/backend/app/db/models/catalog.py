@@ -7,12 +7,14 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,9 +72,23 @@ class ProductCategoryAlias(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        CheckConstraint(
+            "import_sku is null or import_sku ~ '^[A-Z0-9][A-Z0-9._-]{0,63}$'",
+            name="ck_products_import_sku_format",
+        ).ddl_if(dialect="postgresql"),
+        Index(
+            "uq_products_import_sku_not_null",
+            "import_sku",
+            unique=True,
+            postgresql_where=text("import_sku IS NOT NULL"),
+            sqlite_where=text("import_sku IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     product_code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    import_sku: Mapped[str | None] = mapped_column(String(64), nullable=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), nullable=False, index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("product_categories.id"), nullable=False, index=True)
