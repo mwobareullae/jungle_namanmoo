@@ -18942,9 +18942,12 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-hero,
-.admin-inventory-table-panel,
 .admin-inventory-history-panel {
   grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.admin-inventory-table-panel {
   min-width: 0;
 }
 
