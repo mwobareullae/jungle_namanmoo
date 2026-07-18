@@ -1956,6 +1956,10 @@ function AgentFloatingButton({
       return null;
     }
 
+    // Keep async search events tied to the route where the request started.
+    // A response that arrives after browser navigation must not wake a new page.
+    const requestScope = window.location.pathname === "/search" ? "search" : "home";
+
     const sensitiveInputMessage = getSensitiveAgentInputMessage(nextMessage);
     if (sensitiveInputMessage) {
       const errorMessage = createAgentErrorMessage(
@@ -2082,6 +2086,7 @@ function AgentFloatingButton({
               query: nextMessage,
               recommendationId: refinementRecommendationId,
               refinementFilters,
+              scope: requestScope,
             },
           }));
         } else {
@@ -2110,6 +2115,7 @@ function AgentFloatingButton({
             profile: resolveAgentSearchProfile(contextProfile, resultParams),
             query: resultQuery,
             recommendationId,
+            scope: requestScope,
           },
         }));
       }
@@ -2488,6 +2494,7 @@ function AgentFloatingButton({
               profile: resolveAgentSearchProfile(skinProfile, targetUrl.searchParams),
               query,
               recommendationId,
+              scope: window.location.pathname === "/search" ? "search" : "home",
             },
           }));
         }

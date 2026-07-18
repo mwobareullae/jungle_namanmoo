@@ -35,13 +35,15 @@ type RecommendationStateEvent = CustomEvent<{
   status: "idle" | "loading" | "success" | "error";
   query: string;
   recommendation: RecommendationResponse | null;
+  scope?: "home" | "search";
 }>;
 
 type HomeMatchResultProps = {
   compact?: boolean;
+  scope?: "home" | "search";
 };
 
-function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
+function HomeMatchResult({ compact = false, scope = "home" }: HomeMatchResultProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
@@ -49,6 +51,7 @@ function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
   useEffect(() => {
     const handleRecommendationState = (event: Event) => {
       const detail = (event as RecommendationStateEvent).detail;
+      if (detail.scope && detail.scope !== scope) return;
       setStatus(detail.status);
       setQuery(detail.query);
       setRecommendation(detail.recommendation);
@@ -56,7 +59,7 @@ function HomeMatchResult({ compact = false }: HomeMatchResultProps) {
 
     window.addEventListener("home-recommendation-state", handleRecommendationState);
     return () => window.removeEventListener("home-recommendation-state", handleRecommendationState);
-  }, []);
+  }, [scope]);
 
   const keyIngredients = useMemo(
     () => Array.from(new Set((recommendation?.products ?? []).flatMap((product) => product.key_ingredients))).slice(0, 6),
