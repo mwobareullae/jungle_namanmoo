@@ -4,12 +4,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
 from app.db.base import Base
 from app.db.models.auth import AuthAccount, AuthSession, PasswordResetToken, TermsVersion, User, UserConsent
+from app.db.models.commerce import Order, OrderShippingAddress, UserAddress
+from app.db.models.skin import SkinProfile
 from app.db.session import get_db
 from app.main import app
 from app.services.google_oauth import GoogleAccountInfo, GoogleTokenVerificationError
@@ -160,7 +163,200 @@ def test_login_refresh_me_and_logout_flow(client: TestClient) -> None:
     assert me_after_logout_response.json()["code"] == "INVALID_SESSION"
 
 
-def test_login_rejects_invalid_credentials(client: TestClient) -> None:
+def test_patch_me_requires_authentication(client: TestClient) -> None:
+    response = client.patch("/api/me", json={"nickname": "새 닉네임"})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "INVALID_SESSION"
+
+
+def test_patch_me_updates_trimmed_nickname_and_returns_auth_user(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    signup_data = _signup(client, email="nickname-update@example.com", nickname="기존닉네임")
+    user_id = signup_data["user"]["id"]
+
+    response = client.patch("/api/me", json={"nickname": "  새 닉네임  "})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        **signup_data["user"],
+        "nickname": "새 닉네임",
+    }
+    assert client.get("/api/me").json()["nickname"] == "새 닉네임"
+    with Session(db_engine) as session:
+        user = session.get(User, user_id)
+        assert user is not None
+        assert user.display_name == "새 닉네임"
+
+
+@pytest.mark.parametrize("nickname", ["   ", "닉" * 101])
+def test_patch_me_rejects_invalid_nickname(client: TestClient, nickname: str) -> None:
+    _signup(client, email="nickname-invalid@example.com", nickname="유효닉네임")
+
+    response = client.patch("/api/me", json={"nickname": nickname})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_NICKNAME"
+    assert client.get("/api/me").json()["nickname"] == "유효닉네임"
+
+
+def test_patch_me_rejects_duplicate_nickname(client: TestClient) -> None:
+    _signup(client, email="nickname-owner@example.com", nickname="사용중닉네임")
+    _signup(client, email="nickname-editor@example.com", nickname="변경전닉네임")
+
+    response = client.patch("/api/me", json={"nickname": "사용중닉네임"})
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "NICKNAME_ALREADY_EXISTS"
+    assert client.get("/api/me").json()["nickname"] == "변경전닉네임"
+
+
+def test_patch_me_maps_unique_constraint_race_to_duplicate_error(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signup(client, email="nickname-race@example.com", nickname="경합전닉네임")
+
+    def raise_unique_conflict(*_args, **_kwargs):
+        raise IntegrityError("unique conflict", {}, Exception("duplicate"))
+
+    monkeypatch.setattr("app.api.routes.auth.update_nickname", raise_unique_conflict)
+
+    response = client.patch("/api/me", json={"nickname": "경합닉네임"})
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "NICKNAME_ALREADY_EXISTS"
+
+
+def test_delete_me_soft_deletes_account_and_allows_rejoin(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    signup_data = _signup(client, email="delete-me@example.com", nickname="탈퇴사용자")
+    user_id = signup_data["user"]["id"]
+
+    with Session(db_engine) as session:
+        address = UserAddress(
+            user_id=user_id,
+            recipient_name="탈퇴사용자",
+            phone="010-1234-5678",
+            postal_code="12345",
+            address1="서울시 테스트구",
+            address2="101호",
+            is_default=True,
+        )
+        session.add(address)
+        session.flush()
+        order = Order(
+            order_code="ord_delete_me",
+            user_id=user_id,
+            idempotency_key="delete-me-order",
+            status="PENDING_PAYMENT",
+            subtotal_amount=10000,
+            shipping_fee=3000,
+            discount_amount=0,
+            total_amount=13000,
+            currency="KRW",
+            item_count=1,
+            total_quantity=1,
+        )
+        session.add(order)
+        session.flush()
+        session.add(
+            OrderShippingAddress(
+                order_id=order.id,
+                user_address_id=address.id,
+                recipient_name="탈퇴사용자",
+                phone="010-1234-5678",
+                postal_code="12345",
+                address1="서울시 테스트구",
+                address2="101호",
+            )
+        )
+        session.add(
+            SkinProfile(
+                user_id=user_id,
+                skin_type="건성",
+                sensitivity="높음",
+                avoid_ingredients=["향료"],
+                source="manual",
+            )
+        )
+        session.commit()
+
+    response = client.delete("/api/me")
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "회원탈퇴가 완료되었습니다."}
+    assert client.get("/api/me").status_code == 401
+
+    with Session(db_engine) as session:
+        deleted_user = session.get(User, user_id)
+        auth_accounts = session.execute(
+            select(AuthAccount).where(AuthAccount.user_id == user_id)
+        ).scalars().all()
+        auth_sessions = session.execute(
+            select(AuthSession).where(AuthSession.user_id == user_id)
+        ).scalars().all()
+        addresses = session.execute(
+            select(UserAddress).where(UserAddress.user_id == user_id)
+        ).scalars().all()
+        skin_profiles = session.execute(
+            select(SkinProfile).where(SkinProfile.user_id == user_id)
+        ).scalars().all()
+        consents = session.execute(
+            select(UserConsent).where(UserConsent.user_id == user_id)
+        ).scalars().all()
+        retained_order = session.execute(
+            select(Order).where(Order.order_code == "ord_delete_me")
+        ).scalar_one()
+        retained_shipping_address = session.execute(
+            select(OrderShippingAddress).where(OrderShippingAddress.order_id == retained_order.id)
+        ).scalar_one()
+
+    assert deleted_user is not None
+    assert deleted_user.status == "DELETED"
+    assert deleted_user.email == f"deleted-{user_id}@deleted.local"
+    assert deleted_user.display_name is None
+    assert deleted_user.phone is None
+    assert auth_accounts == []
+    assert auth_sessions == []
+    assert addresses == []
+    assert skin_profiles == []
+    assert len(consents) == 4
+    assert retained_order.user_id == user_id
+    assert retained_shipping_address.user_address_id is None
+    assert retained_shipping_address.address1 == "서울시 테스트구"
+
+    assert client.get(
+        "/api/auth/check-email", params={"email": "delete-me@example.com"}
+    ).status_code == 200
+    assert client.get(
+        "/api/auth/check-nickname", params={"nickname": "탈퇴사용자"}
+    ).status_code == 200
+    rejoin_data = _signup(client, email="delete-me@example.com", nickname="탈퇴사용자")
+    assert rejoin_data["user"]["email"] == "delete-me@example.com"
+
+
+def test_delete_me_rejects_admin_account(client: TestClient, db_engine: Engine) -> None:
+    signup_data = _signup(client, email="delete-admin@example.com", nickname="탈퇴관리자")
+    user_id = signup_data["user"]["id"]
+    with Session(db_engine) as session:
+        user = session.get(User, user_id)
+        assert user is not None
+        user.role = "ADMIN"
+        session.commit()
+
+    response = client.delete("/api/me")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "ADMIN_ACCOUNT_DELETION_NOT_ALLOWED"
+    assert client.get("/api/me").status_code == 200
+
+
+def test_login_distinguishes_invalid_password(client: TestClient) -> None:
     _signup(client, email="wrong@example.com", nickname="비번틀림")
 
     response = client.post(
@@ -169,7 +365,56 @@ def test_login_rejects_invalid_credentials(client: TestClient) -> None:
     )
 
     assert response.status_code == 401
-    assert response.json()["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["code"] == "INVALID_PASSWORD"
+    assert response.json()["message"] == "비밀번호가 일치하지 않습니다."
+
+
+def test_login_distinguishes_missing_account(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "missing@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
+    assert response.json()["message"] == "가입되지 않은 이메일입니다."
+
+
+def test_email_login_guides_google_only_account(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-only-login",
+            email="google-only-login@gmail.com",
+            email_verified=True,
+            name="Google Only",
+        ),
+    )
+    google_response = client.post(
+        "/api/auth/google",
+        json={
+            "credential": "valid-google-token",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert google_response.status_code == 200
+
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "google-only-login@gmail.com", "password": "password123"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "EMAIL_LOGIN_NOT_AVAILABLE"
+    assert response.json()["message"] == "소셜 로그인으로 가입한 계정입니다."
 
 
 def test_google_login_creates_user_auth_account_consents_and_tokens(

@@ -117,6 +117,37 @@ Also sets `mwbl_session` cookie.
 
 Response body is the same user wrapper as signup. Also sets `mwbl_session` cookie.
 
+Email login failures return `401` with a specific code so the login screen can guide the user:
+
+| Code | Meaning |
+|---|---|
+| `ACCOUNT_NOT_FOUND` | No user is registered with the email. |
+| `INVALID_PASSWORD` | The email account exists but the password does not match. |
+| `EMAIL_LOGIN_NOT_AVAILABLE` | The email belongs to a social-login-only account. |
+| `USER_NOT_ACTIVE` | The account exists but is not active. |
+
+This detailed contract intentionally favors login UX. Password-reset requests still return the same
+message regardless of account existence.
+
+### `DELETE /api/me`
+
+Requires an authenticated session. The endpoint soft-deletes the account and expires the session cookie.
+
+- The user row and order/payment/claim/consent history are retained.
+- Email, nickname, phone, login providers, sessions, saved addresses, wishlist, recent views, skin data,
+  and personalized preference profiles are removed or anonymized.
+- Reviews, event logs, and agent tool records are retained without the user association.
+- The original email and nickname can be used for a new signup after deletion.
+- Admin accounts return `403 ADMIN_ACCOUNT_DELETION_NOT_ALLOWED`.
+
+Response:
+
+```json
+{
+  "message": "회원탈퇴가 완료되었습니다."
+}
+```
+
 ### `POST /api/auth/google`
 
 Google token verification and account linking stay the same. Successful login sets the same `mwbl_session` cookie.
@@ -124,6 +155,24 @@ Google token verification and account linking stay the same. Successful login se
 ### `GET /api/me`
 
 Reads `mwbl_session` cookie. Returns current user or `401 INVALID_SESSION`.
+
+### `PATCH /api/me`
+
+Requires an authenticated session and changes the current user's nickname.
+
+Request:
+
+```json
+{
+  "nickname": "새 닉네임"
+}
+```
+
+- Leading and trailing whitespace is removed before saving.
+- Blank nicknames and nicknames longer than 100 characters return `400 INVALID_NICKNAME`.
+- Duplicate nicknames, including concurrent unique-key conflicts, return `409 NICKNAME_ALREADY_EXISTS`.
+- The existing session stays active and the response is the updated `AuthUser` object.
+- No database migration is required because the existing `users.display_name` column and unique constraint are used.
 
 ### `POST /api/auth/logout`
 
