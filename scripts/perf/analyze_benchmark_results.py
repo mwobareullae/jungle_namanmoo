@@ -121,8 +121,8 @@ CONTEXT_LOAD_STAGES = [
 ]
 
 # Persistence is measured in three write groups.  Keeping each group separate
-# lets the benchmark distinguish Python object construction from database work
-# such as flushes and deletes.
+# lets the benchmark distinguish Python payload construction from database work
+# such as bulk inserts, flushes, and deletes.
 PERSISTENCE_STAGES = [
     ("run_save_ms", "recommendation run save"),
     ("search_candidate_save_ms", "candidate trace save"),
@@ -152,6 +152,11 @@ RESULT_SAVE_DETAIL_STAGES = [
     ("result_existing_evidence_delete_ms", "existing evidence delete"),
     ("result_existing_result_delete_ms", "existing result delete"),
     ("result_existing_delete_flush_ms", "existing delete flush"),
+    ("result_payload_build_ms", "result payload build"),
+    ("evidence_payload_build_ms", "evidence payload build"),
+    ("result_raw_sql_execute_ms", "raw SQL CTE execute"),
+    ("result_bulk_insert_ms", "result bulk insert (legacy)"),
+    ("evidence_bulk_insert_ms", "evidence bulk insert (legacy)"),
     ("result_row_build_ms", "result row build"),
     ("result_add_ms", "result add"),
     ("result_flush_ms", "result flush"),
@@ -2641,7 +2646,7 @@ def persistence_execution_link(row: dict[str, Any]) -> list[str]:
         return []
     return [
         "",
-        "저장 단계의 세부 build/add/flush 분해는 "
+        "저장 단계의 세부 payload/bulk-insert/flush 분해는 "
         "[persistence 드릴다운](./persistence/README.md)에서 확인한다.",
     ]
 
