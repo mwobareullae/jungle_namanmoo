@@ -101,7 +101,11 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     }));
     try {
       const response = await runAgentEntryMessage(trimmedQuery, profile);
-      if (!response || response.ui_action.type !== "show_products") {
+      if (
+        !response
+        || response.ui_action.type !== "show_products"
+        || response.ui_action.target !== "product_results"
+      ) {
         throw new Error("추천 결과가 준비되지 않았습니다.");
       }
     } catch {
