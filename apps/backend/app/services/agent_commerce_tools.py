@@ -10,6 +10,7 @@ from app.db.models.auth import User
 from app.schemas.agent import (
     AgentChatResponse,
     AgentError,
+    AgentLastToolResult,
     AgentResponseItem,
     AgentToolConfirmResponse,
     AgentUiAction,
@@ -69,6 +70,7 @@ def add_agent_cart_item(
     reference_position: Literal["first", "last"] | None = None,
     current_product_id: str | None = None,
     anonymous_cart_id: str | None = None,
+    last_tool_result: AgentLastToolResult | None = None,
 ) -> AgentChatResponse:
     validate_tool_access(ADD_TO_CART_TOOL, user_id=user.id if user is not None else None)
     reference = resolve_product_reference(
@@ -80,6 +82,7 @@ def add_agent_cart_item(
         recommendation_id=recommendation_id,
         user=user,
         position=reference_position,
+        last_tool_result=last_tool_result,
     )
     result = add_cart_item(
         session,
@@ -114,6 +117,7 @@ def prepare_agent_product_checkout(
     reference_rank: int | None = None,
     reference_position: Literal["first", "last"] | None = None,
     current_product_id: str | None = None,
+    last_tool_result: AgentLastToolResult | None = None,
 ) -> AgentChatResponse:
     validate_tool_access(PREPARE_PRODUCT_CHECKOUT_TOOL, user_id=user.id)
     reference = resolve_product_reference(
@@ -125,6 +129,7 @@ def prepare_agent_product_checkout(
         recommendation_id=recommendation_id,
         user=user,
         position=reference_position,
+        last_tool_result=last_tool_result,
     )
     product_id = reference.product_id
     recommendation_id = reference.recommendation_id or recommendation_id
