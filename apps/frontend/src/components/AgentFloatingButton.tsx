@@ -193,9 +193,9 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "최근 본 상품을 내 피부 타입 기준으로 추려줘",
   ],
   skinProfile: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
-    "내 피부 타입에 맞는 세럼과 크림을 7만원 이내로 구성해줘",
-    "내 피부 타입에 맞는 토너와 세럼을 6만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 추천해줘",
+    "민감도에 맞는 진정 제품 3개 추천해줘",
+    "피부 고민에 맞는 성분 근거 제품을 보여줘",
   ],
   wishlist: [
     "찜한 첫 두 상품을 비교해줘",
@@ -214,7 +214,7 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
-  skinProfile: ["10만원 맞춤 루틴 구성해줘", "7만원 세럼·크림 구성해줘"],
+  skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
 
@@ -691,7 +691,17 @@ function buildAgentContext(
     route: `${pathname}${search}${hash}`,
   };
   const visibleProductIds = collectVisibleProductIds(currentProductId);
-  const orderCode = readString(params.get("order_code"));
+  const orderPathMatch = pathname.match(/^\/mypage\/orders\/([^/]+)/);
+  const orderCodeFromPath = orderPathMatch?.[1]
+    ? (() => {
+      try {
+        return decodeURIComponent(orderPathMatch[1]);
+      } catch {
+        return orderPathMatch[1];
+      }
+    })()
+    : null;
+  const orderCode = readString(params.get("order_code")) ?? readString(orderCodeFromPath);
   const recommendationId = readString(params.get("recommendation_id"));
   const searchQuery = readString(params.get("keyword"));
 
