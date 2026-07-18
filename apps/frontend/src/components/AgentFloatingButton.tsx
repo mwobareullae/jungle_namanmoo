@@ -146,6 +146,11 @@ const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 const REDACTED_ADDRESS_MESSAGE = "배송지 정보를 입력했어요.";
+const composeCategoryLabelMap: Record<string, string> = {
+  toner: "토너",
+  serum: "세럼",
+  cream: "크림",
+};
 
 const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   auth: [
@@ -792,11 +797,12 @@ function createApprovalMessage(response: AgentChatResponse, timestamp: number): 
   const composeCategories = composePayload && Array.isArray(composePayload.categories)
     ? composePayload.categories.filter((value): value is string => typeof value === "string")
     : [];
+  const composeCategoryLabels = composeCategories.map((category) => composeCategoryLabelMap[category] ?? category);
   const composeSkinType = composePayload ? readString(composePayload.skin_type) : null;
   const composeSensitivity = composePayload ? readString(composePayload.sensitivity) : null;
   const composeBudget = composePayload ? readNumber(composePayload.max_budget) : null;
   const composeReason = response.tool_name === "compose_cart"
-    ? `저장된 피부 프로필${composeSkinType ? `(${composeSkinType}` : ""}${composeSensitivity ? `·민감도 ${composeSensitivity}` : ""}${composeSkinType ? ")" : ""}과 피해야 할 성분을 반영하고, ${composeCategories.length > 0 ? composeCategories.join("·") : "토너·세럼·크림"} 카테고리에서 피부 적합도가 높은 상품을 골라${composeBudget ? ` ${composeBudget.toLocaleString("ko-KR")}원 이내로` : " 예산 안에서"} 구성했어요.`
+    ? `저장된 피부 프로필${composeSkinType ? `(${composeSkinType}` : ""}${composeSensitivity ? `·민감도 ${composeSensitivity}` : ""}${composeSkinType ? ")" : ""}과 피해야 할 성분을 반영하고, ${composeCategoryLabels.length > 0 ? composeCategoryLabels.join("·") : "토너·세럼·크림"} 카테고리별 1개씩 총 ${composeCategories.length || 3}개 상품을 골라${composeBudget ? ` ${composeBudget.toLocaleString("ko-KR")}원 이내로` : " 예산 안에서"} 구성했어요.`
     : null;
 
   return {
