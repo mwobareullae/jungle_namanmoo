@@ -926,6 +926,7 @@ function HomeMainContent({
       let isActive = true;
       queueMicrotask(() => {
         if (!isActive) return;
+        pendingSearchQueryRef.current = initialQuery.trim();
         setQuery(initialQuery);
         setIsLoading(true);
         window.dispatchEvent(
