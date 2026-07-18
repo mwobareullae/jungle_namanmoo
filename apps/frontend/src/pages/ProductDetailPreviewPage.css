@@ -200,7 +200,7 @@
 .naver-preview-evidence-card { display: grid; grid-template-columns: auto 1fr; align-content: center; align-items: center; column-gap: 12px; row-gap: 4px; min-height: 96px; padding: 14px 20px; border: 1px solid #e3e9e9; border-radius: 14px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .naver-preview-evidence-card:hover { border-color: #9fdde8; box-shadow: 0 3px 12px rgba(37, 168, 202, 0.08); }
 .naver-preview-evidence-card.is-selected { border-color: #25a8ca; background: #f4fcfe; box-shadow: 0 3px 12px rgba(37, 168, 202, 0.12); }
-.naver-preview-evidence-icon { display: grid; width: 38px; height: 38px; grid-row: span 2; place-items: center; border-radius: 50%; background: #e9f9fc; color: #25a8ca; font-size: 21px; }
+.naver-preview-evidence-icon { display: grid; width: 38px; height: 38px; grid-row: span 2; place-items: center; border: 1px solid #BDECF7; border-radius: 50%; background: #FFFFFF; color: #25a8ca; font-size: 21px; }
 .naver-preview-evidence-card strong { color: #222; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
 .naver-preview-evidence-card span { color: #737b7c; font-size: 12px; font-weight: 600; }
 .naver-preview-evidence-detail { margin-top: 18px; padding: 20px; border: 1px solid #e3e9e9; border-radius: 14px; background: #fff; }

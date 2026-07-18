@@ -43,15 +43,25 @@ type HomeMatchResultProps = {
   scope?: "home" | "search";
 };
 
+const loadingMessages = [
+  "피부 고민을 정리하고 있어요",
+  "성분 근거를 확인하고 있어요",
+  "피부에 맞는 상품을 고르고 있어요"
+];
+
 function HomeMatchResult({ compact = false, scope = "home" }: HomeMatchResultProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [query, setQuery] = useState("");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
 
   useEffect(() => {
     const handleRecommendationState = (event: Event) => {
       const detail = (event as RecommendationStateEvent).detail;
       if (detail.scope && detail.scope !== scope) return;
+      if (detail.status === "loading") {
+        setLoadingStep(0);
+      }
       setStatus(detail.status);
       setQuery(detail.query);
       setRecommendation(detail.recommendation);
@@ -75,6 +85,14 @@ function HomeMatchResult({ compact = false, scope = "home" }: HomeMatchResultPro
   const scoreItems = (recommendation?.products ?? []).slice(0, 4);
   const isActive = status !== "idle";
   const isLoading = status === "loading";
+  const loadingMessage = loadingStep >= 6 ? "조금만 더 기다려 주세요" : loadingMessages[loadingStep % loadingMessages.length];
+
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const intervalId = window.setInterval(() => setLoadingStep((step) => step + 1), 3000);
+    return () => window.clearInterval(intervalId);
+  }, [isLoading]);
 
   return (
     <div
@@ -87,7 +105,7 @@ function HomeMatchResult({ compact = false, scope = "home" }: HomeMatchResultPro
             <LoadingIcon />
           </div>
           <div className="thinking-text">
-            <strong>성분 근거를 확인 중...</strong>
+            <strong aria-atomic="true" aria-live="polite" className="ai-thinking-status" key={loadingMessage}>{loadingMessage}</strong>
             <span>
               피부 고민을 분석하고 최적의 성분과 제품을 찾고 있어요{" "}
               <span className="loading-dots">
