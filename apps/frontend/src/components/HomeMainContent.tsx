@@ -910,6 +910,8 @@ function HomeMainContent({
       const mergedRefinementFilters = refinementFilters
         ? mergeRefinementFilters(agentRefinementFilters, refinementFilters)
         : undefined;
+      const isRefinementRequest = Boolean(recommendationId && (refinementFilters || agentRefinementFilters));
+      const displayQuery = isRefinementRequest ? (query || initialQuery || nextQuery) : nextQuery;
       if (mergedRefinementFilters) {
         setRefinementChips((current) => {
           const next = refinementChipsFromFilters(mergedRefinementFilters);
@@ -917,12 +919,12 @@ function HomeMainContent({
           return [...current, ...next.filter((chip) => !existingIds.has(chip.id))];
         });
       }
-      await runSearch(nextQuery, profile, 1, recommendationId, mode !== "search", mergedRefinementFilters);
+      await runSearch(displayQuery, profile, 1, recommendationId, mode !== "search", mergedRefinementFilters);
     };
 
     window.addEventListener("home-search-request", handleSearchRequest);
     return () => window.removeEventListener("home-search-request", handleSearchRequest);
-  }, [agentRefinementFilters, mode, runSearch]);
+  }, [agentRefinementFilters, initialQuery, mode, query, runSearch]);
 
   useEffect(() => {
     if (mode !== "search") return;
