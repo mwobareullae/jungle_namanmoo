@@ -191,10 +191,12 @@ def _insert_product_with_code_retry(
     description: str | None,
     released_at: datetime | None,
     timestamp: datetime,
+    import_sku: str | None = None,
 ) -> Product:
     for _ in range(PRODUCT_CODE_RETRY_LIMIT):
         product = Product(
             product_code=_generate_product_code(),
+            import_sku=import_sku,
             seller_id=seller.id,
             brand_id=brand.id,
             category_id=category.id,
