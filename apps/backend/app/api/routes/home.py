@@ -7,6 +7,13 @@ from app.db.models.auth import User
 from app.db.session import get_db
 from app.schemas.home import HomeLayoutResponse, HomeProductSectionResponse
 from app.services.event_tracking import request_id_from_request
+from app.services.home_section_snapshot_service import (
+    HOME_EVIDENCE_SNAPSHOT_CONTEXT,
+    HOME_EVIDENCE_SNAPSHOT_SECTION_ID,
+    HOME_FOR_YOU_SNAPSHOT_SECTION_ID,
+    guest_skin_snapshot_context,
+    snapshot_metadata,
+)
 from app.services.home_sections import (
     DEFAULT_HOME_LIMIT_PER_SECTION,
     MAX_HOME_LIMIT_PER_SECTION,
@@ -83,6 +90,11 @@ def get_home_evidence_picks(
         category_code=category_code,
         limit=limit,
     )
+    home_snapshot_metadata = snapshot_metadata(
+        session,
+        section_id=HOME_EVIDENCE_SNAPSHOT_SECTION_ID,
+        context_key=HOME_EVIDENCE_SNAPSHOT_CONTEXT if category_code is None else None,
+    )
     log_performance_event(
         "home_evidence_picks_completed",
         request_id=request_id_from_request(request),
@@ -91,10 +103,10 @@ def get_home_evidence_picks(
             "product_count": len(response.products),
             "category_code": response.category_code,
             "limit": response.limit,
+            **home_snapshot_metadata,
         },
     )
     return response
-
 
 @router.get("/home/for-you", response_model=HomeProductSectionResponse)
 def get_home_for_you(
@@ -123,6 +135,17 @@ def get_home_for_you(
         limit=limit,
         current_user=current_user,
     )
+    snapshot_context = (
+        guest_skin_snapshot_context(response.skin_type)
+        if category_code is None and response.skin_type is not None
+        else None
+    )
+    home_snapshot_metadata = snapshot_metadata(
+        session,
+        section_id=HOME_FOR_YOU_SNAPSHOT_SECTION_ID,
+        context_key=snapshot_context,
+        user_context=True,
+    )
     log_performance_event(
         "home_for_you_completed",
         request_id=request_id_from_request(request),
@@ -135,6 +158,7 @@ def get_home_for_you(
             "has_user": current_user is not None,
             "limit": response.limit,
             "personalization_sources": response.personalization_sources,
+            **home_snapshot_metadata,
         },
     )
     return response

@@ -165,6 +165,27 @@ Personalization sources:
 | `behavior_affinity` | Wishlist, recent view, cart, purchase, or click-derived preference profile. |
 | `fallback` | No usable request/user context exists. |
 
+## Snapshot Fast Path
+
+`evidence-picks` and canonical `for-you` requests read precomputed home-section snapshots first.
+The API response contract is unchanged: current price, stock, and thumbnail are still read at request time.
+
+- `evidence-picks`: `evidence_picks / overall` snapshot, up to 50 products.
+- guest `for-you`: `for_you / guest:skin_type:<skin_type>` snapshot, up to 200 products for each supported skin type.
+- authenticated `for-you`: reads the same skin-type snapshot candidate set, then applies the existing saved profile, skin-test, and behavior affinity scoring only to that set.
+- category, concern, effect, or non-default sensitivity requests remain on the existing fallback path.
+- missing, incomplete, version-mismatched, or older-than-two-day snapshots also fall back safely.
+
+After product and recommendation feature rollups, refresh the home snapshots with:
+
+```bash
+docker compose exec -T backend \
+  python -m app.cli.rollup_home_section_snapshots --full
+```
+
+Home completion logs add `snapshot_hit`, `snapshot_context`, `snapshot_age_ms`,
+`snapshot_candidate_count`, `personalized_rerank_ms`, and `fallback_used`.
+
 ## Logging
 
 Each endpoint emits its own performance event:
