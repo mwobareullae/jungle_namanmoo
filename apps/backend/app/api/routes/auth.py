@@ -19,6 +19,7 @@ from app.schemas.auth import (
     PasswordResetRequest,
     SignupRequest,
 )
+from app.services.account_deletion_service import delete_user_account
 from app.services.auth_service import (
     AuthServiceError,
     IssuedAuthSession,
@@ -199,6 +200,18 @@ def get_me(
         status=current_user.status,
         created_at=current_user.created_at,
     )
+
+
+@router.delete("/me", response_model=MessageResponse)
+def delete_me(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> MessageResponse:
+    delete_user_account(session, current_user)
+    session.commit()
+    _delete_session_cookie(response)
+    return MessageResponse(message="회원탈퇴가 완료되었습니다.")
 
 
 def _set_session_cookie(response: Response, issued: IssuedAuthSession) -> None:
