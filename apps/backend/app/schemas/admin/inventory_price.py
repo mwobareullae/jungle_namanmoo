@@ -87,3 +87,12 @@ class AdminInventoryPriceUpdateResponse(BaseModel):
     is_lowest: bool
     collected_at: datetime
     updated_at: datetime = Field(description="실제 변경 시 갱신된 Product.updated_at")
+
+
+class AdminProductSaleStartResponse(BaseModel):
+    """HIDDEN 상품을 판매 가능한 상태로 전환한 결과."""
+
+    product_code: str
+    sales_status: str = Field(description="판매 시작 성공 시 ON_SALE")
+    is_active: bool = Field(description="판매 시작 성공 시 true")
+    started_at: datetime

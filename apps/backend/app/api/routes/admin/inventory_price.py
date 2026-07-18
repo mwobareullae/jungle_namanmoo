@@ -12,6 +12,7 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryPriceListResponse,
     AdminInventoryPriceUpdateRequest,
     AdminInventoryPriceUpdateResponse,
+    AdminProductSaleStartResponse,
 )
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.catalog_sync import sync_catalog_product_after_commit
@@ -20,6 +21,7 @@ from app.services.admin.inventory_price_service import (
     adjust_admin_inventory,
     get_admin_inventory_history,
     list_admin_inventory_prices,
+    start_admin_product_sale,
     update_admin_inventory_price,
 )
 
@@ -167,3 +169,45 @@ def update_inventory_price(
         },
     )
     return outcome.response
+
+
+@router.post(
+    "/inventory/{product_code}/sale-start",
+    response_model=AdminProductSaleStartResponse,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def start_product_sale(
+    product_code: str,
+    session: Session = Depends(get_db),
+) -> AdminProductSaleStartResponse:
+    """HIDDEN 상품의 가격·재고·분류 준비 상태를 확인한 뒤 판매를 시작한다."""
+
+    started_at = current_time()
+    try:
+        response = start_admin_product_sale(session, product_code=product_code)
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_product_sale_start_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"product_code": product_code, "error_code": exc.code},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_product_sale_start_failed",
+            started_at=started_at,
+            metadata={"product_code": product_code, "error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
+        )
+        raise
+
+    sync_catalog_product_after_commit(session, response.product_code, event_prefix="admin_inventory")
+    log_performance_event(
+        "admin_product_sale_start_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={"product_code": response.product_code, "sales_status": response.sales_status},
+    )
+    return response
