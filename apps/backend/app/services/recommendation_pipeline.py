@@ -3,13 +3,19 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
-from app.db.models.catalog import Brand, Product, ProductIngredient, ProductPrice
+from app.db.models.catalog import (
+    Brand,
+    Product,
+    ProductImage,
+    ProductIngredient,
+    ProductPrice,
+)
 from app.db.models.commerce import Inventory
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -47,6 +53,7 @@ from app.services.recommendation_run_store import (
 )
 from app.services.scoring import (
     SCORING_VERSION,
+    ScoredProduct,
     load_behavior_personalization_context,
     load_skin_test_scoring_context,
     score_candidates,
@@ -123,6 +130,20 @@ class _ResultEvidence:
     ingredient_name: str
     effect_name: str
     evidence_level: str | None
+
+
+@dataclass(frozen=True)
+class _CompactProductDisplayRow:
+    product_id: int
+    product_code: str
+    product_name: str
+    brand_name: str
+    lowest_price: int
+    thumbnail_storage_key: str
+    sales_status: str
+    stock_status: str
+    available_quantity: int | None
+    in_stock: bool
 
 
 def create_recommendation_response(
@@ -337,11 +358,11 @@ def _create_recommendation_response(
             session.flush()
         _record_stage_duration(stage_durations, "commit_ms", stage_started_at)
 
-        response = get_recommendation_response(
+        response = _build_fresh_recommendation_response(
             session,
-            recommendation_code,
-            page=pagination.page,
-            page_size=pagination.page_size,
+            run=saved_run.run,
+            scored_products=scored_products,
+            pagination=pagination,
             timings=stage_durations,
         )
         log_performance_event(
@@ -352,6 +373,7 @@ def _create_recommendation_response(
                 **intent_diagnostics,
                 **scoring_diagnostics,
                 "recommendation_id": recommendation_code,
+                "response_read_path": "fresh_compact",
                 "llm_available": llm_parser is not None,
                 "llm_used": intent.llm_used,
                 "candidate_pool_limit": requested_candidate_pool_limit,
@@ -427,6 +449,226 @@ def _create_recommendation_response(
             },
         )
         raise
+
+
+def _build_fresh_recommendation_response(
+    session: Session,
+    *,
+    run: RecommendationRun,
+    scored_products: list[ScoredProduct],
+    pagination: NormalizedPagination,
+    timings: dict[str, float] | None = None,
+) -> RecommendationResponse:
+    """Build the POST response without rereading the results just persisted."""
+    response_started_at = current_time()
+    _initialize_fresh_response_timings(timings)
+
+    ranked_products = _rank_scored_products_for_response(scored_products)
+    total_items = len(ranked_products)
+    page_entries = tuple(
+        enumerate(ranked_products, start=1)
+    )[pagination.offset : pagination.offset + pagination.page_size]
+
+    result_rows_started_at = current_time()
+    display_by_product_id = _load_compact_product_display_rows(
+        session,
+        [scored_product.db_product_id for _, scored_product in page_entries],
+        timings=timings,
+    )
+    _record_optional_stage_duration(timings, "response_result_rows_ms", result_rows_started_at)
+
+    stage_started_at = current_time()
+    products = [
+        _scored_product_to_recommended_product(
+            scored_product,
+            display_row,
+            rank=rank,
+            recommendation_id=run.recommendation_code,
+        )
+        for rank, scored_product in page_entries
+        if (
+            display_row := display_by_product_id.get(scored_product.db_product_id)
+        )
+        is not None
+    ]
+    response = RecommendationResponse(
+        recommendation_id=run.recommendation_code,
+        summary=_build_summary_from_run(run),
+        unmatched_terms=_run_unmatched_terms(run),
+        products=products,
+        pagination=_build_pagination(
+            page=pagination.page,
+            page_size=pagination.page_size,
+            total_items=total_items,
+        ),
+    )
+    _record_optional_stage_duration(timings, "response_serialize_ms", stage_started_at)
+
+    if timings is not None:
+        timings["response_page_size"] = float(pagination.page_size)
+        timings["response_total_item_count"] = float(total_items)
+        timings["response_result_row_count"] = float(len(products))
+        timings["response_thumbnail_count"] = float(
+            sum(1 for product in products if product.thumbnail_url)
+        )
+        timings["response_evidence_row_count"] = float(
+            sum(len(scored_product.score_evidence) for _, scored_product in page_entries)
+        )
+        _record_stage_duration(timings, "response_load_ms", response_started_at)
+        timings["response_unattributed_ms"] = round(
+            max(
+                0.0,
+                timings["response_load_ms"]
+                - timings["response_result_rows_ms"]
+                - timings["response_serialize_ms"],
+            ),
+            2,
+        )
+    return response
+
+
+def _initialize_fresh_response_timings(timings: dict[str, float] | None) -> None:
+    if timings is None:
+        return
+
+    for key in (
+        "response_run_load_ms",
+        "response_result_count_ms",
+        "response_thumbnail_load_ms",
+        "response_evidence_query_ms",
+        "response_evidence_group_ms",
+        "response_evidence_load_ms",
+    ):
+        timings[key] = 0.0
+
+
+def _rank_scored_products_for_response(
+    scored_products: list[ScoredProduct],
+) -> tuple[ScoredProduct, ...]:
+    return tuple(
+        scored_product
+        for _, scored_product in sorted(
+            enumerate(scored_products),
+            key=lambda item: (
+                item[1].rank if item[1].rank > 0 else item[0] + 1,
+                item[0],
+            ),
+        )
+    )
+
+
+def _load_compact_product_display_rows(
+    session: Session,
+    product_ids: list[int],
+    *,
+    timings: dict[str, float] | None = None,
+) -> dict[int, _CompactProductDisplayRow]:
+    unique_product_ids = list(dict.fromkeys(product_ids))
+    if not unique_product_ids:
+        if timings is not None:
+            timings["response_display_query_ms"] = 0.0
+            timings["response_product_query_ms"] = 0.0
+            timings["response_availability_build_ms"] = 0.0
+        return {}
+
+    lowest_price = (
+        select(func.min(ProductPrice.price))
+        .where(ProductPrice.product_id == Product.id)
+        .correlate(Product)
+        .scalar_subquery()
+    )
+    thumbnail_storage_key = (
+        select(ProductImage.storage_key)
+        .where(ProductImage.product_id == Product.id)
+        .order_by(
+            case((ProductImage.image_type == "thumbnail", 0), else_=1),
+            ProductImage.display_order.asc(),
+            ProductImage.id.asc(),
+        )
+        .limit(1)
+        .correlate(Product)
+        .scalar_subquery()
+    )
+
+    stage_started_at = current_time()
+    rows = session.execute(
+        select(
+            Product.id.label("product_id"),
+            Product.product_code,
+            Product.product_name,
+            Brand.name.label("brand_name"),
+            lowest_price.label("lowest_price"),
+            thumbnail_storage_key.label("thumbnail_storage_key"),
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
+        )
+        .join(Brand, Product.brand_id == Brand.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
+        .where(Product.id.in_(unique_product_ids))
+    ).mappings().all()
+    _record_optional_stage_duration(timings, "response_display_query_ms", stage_started_at)
+    if timings is not None:
+        timings["response_product_query_ms"] = timings["response_display_query_ms"]
+
+    stage_started_at = current_time()
+    display_by_product_id: dict[int, _CompactProductDisplayRow] = {}
+    for row in rows:
+        availability = build_product_availability(
+            inventory_exists=row["inventory_id"] is not None,
+            sales_status=row["sales_status"],
+            stock_quantity=row["stock_quantity"],
+            reserved_quantity=row["reserved_quantity"],
+            safety_stock=row["safety_stock"],
+        )
+        display_by_product_id[int(row["product_id"])] = _CompactProductDisplayRow(
+            product_id=int(row["product_id"]),
+            product_code=str(row["product_code"]),
+            product_name=str(row["product_name"]),
+            brand_name=str(row["brand_name"]),
+            lowest_price=int(row["lowest_price"] or 0),
+            thumbnail_storage_key=str(row["thumbnail_storage_key"] or ""),
+            sales_status=availability.sales_status,
+            stock_status=availability.stock_status,
+            available_quantity=availability.available_quantity,
+            in_stock=availability.in_stock,
+        )
+    _record_optional_stage_duration(timings, "response_availability_build_ms", stage_started_at)
+    return display_by_product_id
+
+
+def _scored_product_to_recommended_product(
+    scored_product: ScoredProduct,
+    display_row: _CompactProductDisplayRow,
+    *,
+    rank: int,
+    recommendation_id: str,
+) -> RecommendedProduct:
+    return RecommendedProduct(
+        product_id=display_row.product_code,
+        rank=rank,
+        total_score=_score_to_int(scored_product.total_score),
+        reason_summary=scored_product.reason_summary
+        or "조건에 맞는 상품을 추천 후보로 선정했습니다.",
+        brand=display_row.brand_name,
+        name=display_row.product_name,
+        thumbnail_url=display_row.thumbnail_storage_key,
+        lowest_price=display_row.lowest_price,
+        evidence_tags=list(scored_product.evidence_tags) or _evidence_tags(()),
+        key_ingredients=list(scored_product.key_ingredients),
+        score_breakdown=score_breakdown_to_api(scored_product.score_breakdown),
+        cart_handoff=CartHandoff(
+            product_id=display_row.product_code,
+            recommendation_id=recommendation_id,
+            recommendation_rank=rank,
+        ),
+        sales_status=display_row.sales_status,
+        stock_status=display_row.stock_status,
+        available_quantity=display_row.available_quantity,
+        in_stock=display_row.in_stock,
+    )
 
 
 def get_recommendation_response(
