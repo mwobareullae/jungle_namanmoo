@@ -1,9 +1,10 @@
 import logging
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
-from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.core.performance_logging import current_time, elapsed_ms, log_error_event, log_performance_event
 from app.db.session import get_db
 from app.schemas.admin.product import (
     AdminProductCreateRequest,
@@ -12,7 +13,14 @@ from app.schemas.admin.product import (
     AdminProductMasterOptionListResponse,
     AdminProductUpdateRequest,
 )
-from app.schemas.common import ErrorResponse
+from app.schemas.admin.bulk_import import AdminBulkImportRequest, AdminBulkImportResponse
+from app.schemas.common import ApiError, ErrorResponse
+from app.services.admin.bulk_import_service import run_bulk_import
+from app.services.admin.bulk_import_validation_service import validate_bulk_import
+from app.services.admin.ingredient_mapping_pending_groups import (
+    PendingIngredientGroupsRefreshError,
+    refresh_pending_ingredient_mapping_groups,
+)
 from app.services.admin.product_service import (
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE,
@@ -31,6 +39,8 @@ from app.services.elasticsearch_catalog_index import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+_REFRESH_RECOVERY_COMMAND = "python -m app.cli.refresh_ingredient_mapping_pending_groups"
 
 
 def _sync_catalog_product_after_commit(session: Session, product_code: str) -> None:
@@ -132,6 +142,67 @@ def create_product(
     return result
 
 
+@router.post(
+    "/products/bulk",
+    response_model=AdminBulkImportResponse,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def bulk_create_products(
+    body: AdminBulkImportRequest,
+    session: Session = Depends(get_db),
+) -> AdminBulkImportResponse:
+    """엑셀에서 파싱한 상품 행을 부분 성공 방식으로 등록한다.
+
+    HIDDEN 상품은 ES 색인 대상이 아니므로 이 경로에서 ES 동기화를 호출하지 않는다.
+    """
+    started_at = current_time()
+    try:
+        validation = validate_bulk_import(session, body)
+        outcome = run_bulk_import(session, validation)
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_bulk_product_import_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"error_code": exc.code},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_bulk_product_import_failed",
+            started_at=started_at,
+            metadata={"error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
+        )
+        raise
+
+    if outcome.requires_review_refresh:
+        try:
+            refresh_pending_ingredient_mapping_groups(_session_engine(session))
+            response = outcome.to_response(review_refresh="OK")
+        except PendingIngredientGroupsRefreshError:
+            response = outcome.to_response(
+                review_refresh="FAILED",
+                refresh_recovery_command=_REFRESH_RECOVERY_COMMAND,
+            )
+    else:
+        response = outcome.to_response(review_refresh="NOT_REQUIRED")
+
+    log_performance_event(
+        "admin_bulk_product_import_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "created": response.summary.created,
+            "skipped": response.summary.skipped,
+            "failed": response.summary.failed,
+            "review_refresh": response.review_refresh,
+        },
+    )
+    return response
+
+
 @router.get(
     "/products/{product_code}",
     response_model=AdminProductDetail,
@@ -143,6 +214,13 @@ def get_product(
 ) -> AdminProductDetail:
     """관리자 상품 상세 조회(조회 전용). 인증/인가는 admin_router 공통 가드가 적용."""
     return get_admin_product_detail(session, product_code)
+
+
+def _session_engine(session: Session) -> Engine:
+    bind = session.get_bind()
+    if isinstance(bind, Connection):
+        return bind.engine
+    return bind
 
 
 @router.patch(
