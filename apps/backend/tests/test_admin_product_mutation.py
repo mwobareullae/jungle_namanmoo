@@ -17,9 +17,9 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage,
 from app.db.models.commerce import Inventory, Seller
 from app.db.session import get_db
 from app.main import app
-from app.api.routes.admin import products as admin_products_route
 from app.schemas.admin.product import AdminProductCreateRequest, AdminProductUpdateRequest
 from app.schemas.common import ApiError
+from app.services import catalog_sync
 from app.services.admin import product_mutation_service
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
 from app.services.elasticsearch_catalog_index import ElasticsearchCatalogIndexError
@@ -386,6 +386,15 @@ def test_admin_patch_route_rejects_empty_body(client: TestClient, db_engine: Eng
     assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
 
 
+def test_admin_patch_route_rejects_price_above_shared_cap(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+
+    response = client.patch("/api/admin/products/prod_mwbl_editable", json={"price": 100_000_001})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
+
+
 def test_admin_patch_route_omitted_thumbnail_keeps_existing_image(
     client: TestClient, db_engine: Engine
 ) -> None:
@@ -483,8 +492,8 @@ def test_admin_product_mutation_reindexes_after_commit(
     def fake_log(event: str, **kwargs: object) -> None:
         performance_events.append((event, kwargs))
 
-    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fake_reindex)
-    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+    monkeypatch.setattr(catalog_sync, "reindex_catalog_product_to_elasticsearch", fake_reindex)
+    monkeypatch.setattr(catalog_sync, "log_performance_event", fake_log)
 
     response = getattr(client, method)(path, json=body)
 
@@ -513,8 +522,8 @@ def test_admin_product_es_failure_keeps_committed_update(
     def fake_log(event: str, **kwargs: object) -> None:
         performance_events.append((event, kwargs))
 
-    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fail_reindex)
-    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+    monkeypatch.setattr(catalog_sync, "reindex_catalog_product_to_elasticsearch", fail_reindex)
+    monkeypatch.setattr(catalog_sync, "log_performance_event", fake_log)
 
     response = client.patch(
         "/api/admin/products/prod_mwbl_editable",

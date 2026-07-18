@@ -21,7 +21,10 @@ from app.db.base import Base
 from app.db.types import big_integer_pk_type, jsonb_type
 
 
-INGREDIENT_MAPPING_REVIEW_STATUS_VALUES = "'HELD', 'APPROVED', 'REJECTED'"
+INGREDIENT_MAPPING_REVIEW_STATUS_VALUES = "'HELD', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED'"
+INGREDIENT_MAPPING_NON_MAPPING_DISPOSITION_VALUES = (
+    "'NON_INGREDIENT', 'COMPOUND_MATERIAL', 'SOURCE_ERROR', 'UNRESOLVABLE'"
+)
 
 
 class Concern(Base):
@@ -124,16 +127,24 @@ class IngredientMappingReview(Base):
         ),
         CheckConstraint(
             "(status = 'APPROVED' and target_ingredient_id is not null) or "
-            "(status in ('HELD', 'REJECTED') and target_ingredient_id is null)",
+            "(status in ('HELD', 'NEEDS_REVIEW', 'REJECTED') and target_ingredient_id is null)",
             name="ck_ingredient_mapping_reviews_status_target",
         ),
         CheckConstraint(
-            "status not in ('HELD', 'REJECTED') or decision_reason is not null",
+            "status not in ('HELD', 'NEEDS_REVIEW', 'REJECTED') or decision_reason is not null",
             name="ck_ingredient_mapping_reviews_status_reason",
         ),
         CheckConstraint(
             "decision_reason is null or length(trim(decision_reason)) > 0",
             name="ck_ingredient_mapping_reviews_decision_reason_not_blank",
+        ),
+        CheckConstraint(
+            "final_disposition is null or "
+            "(final_disposition = 'MAPPED' and status = 'APPROVED' and target_ingredient_id is not null) or "
+            "(final_disposition in "
+            f"({INGREDIENT_MAPPING_NON_MAPPING_DISPOSITION_VALUES}) "
+            "and status = 'REJECTED' and target_ingredient_id is null)",
+            name="ck_ingredient_mapping_reviews_final_disposition",
         ),
         Index("ix_ingredient_mapping_reviews_status", "status"),
     )
@@ -146,6 +157,7 @@ class IngredientMappingReview(Base):
     )
     target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    final_disposition: Mapped[str | None] = mapped_column(String(32), nullable=True)
     decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -166,19 +178,37 @@ class IngredientMappingReviewEvent(Base):
         ),
         CheckConstraint(
             "(to_status = 'APPROVED' and to_target_ingredient_id is not null) or "
-            "(to_status in ('HELD', 'REJECTED') and to_target_ingredient_id is null)",
+            "(to_status in ('HELD', 'NEEDS_REVIEW', 'REJECTED') and to_target_ingredient_id is null)",
             name="ck_ingredient_mapping_review_events_to_status_target",
         ),
         CheckConstraint(
             "(from_status is null and from_target_ingredient_id is null) or "
             "(from_status = 'APPROVED' and from_target_ingredient_id is not null) or "
-            "(from_status in ('HELD', 'REJECTED') and from_target_ingredient_id is null)",
+            "(from_status in ('HELD', 'NEEDS_REVIEW', 'REJECTED') and from_target_ingredient_id is null)",
             name="ck_ingredient_mapping_review_events_from_status_target",
         ),
         CheckConstraint(
-            "to_status not in ('HELD', 'REJECTED') or "
+            "to_status not in ('HELD', 'NEEDS_REVIEW', 'REJECTED') or "
             "(reason is not null and length(trim(reason)) > 0)",
             name="ck_ingredient_mapping_review_events_to_status_reason",
+        ),
+        CheckConstraint(
+            "to_final_disposition is null or "
+            "(to_final_disposition = 'MAPPED' and to_status = 'APPROVED' "
+            "and to_target_ingredient_id is not null) or "
+            "(to_final_disposition in "
+            f"({INGREDIENT_MAPPING_NON_MAPPING_DISPOSITION_VALUES}) "
+            "and to_status = 'REJECTED' and to_target_ingredient_id is null)",
+            name="ck_ingredient_mapping_review_events_to_final_disposition",
+        ),
+        CheckConstraint(
+            "from_final_disposition is null or "
+            "(from_final_disposition = 'MAPPED' and from_status = 'APPROVED' "
+            "and from_target_ingredient_id is not null) or "
+            "(from_final_disposition in "
+            f"({INGREDIENT_MAPPING_NON_MAPPING_DISPOSITION_VALUES}) "
+            "and from_status = 'REJECTED' and from_target_ingredient_id is null)",
+            name="ck_ingredient_mapping_review_events_from_final_disposition",
         ),
         Index("ix_ingredient_mapping_review_events_review_created_at", "review_id", "created_at"),
     )
@@ -187,6 +217,8 @@ class IngredientMappingReviewEvent(Base):
     review_id: Mapped[int] = mapped_column(ForeignKey("ingredient_mapping_reviews.id"), nullable=False)
     from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    from_final_disposition: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    to_final_disposition: Mapped[str | None] = mapped_column(String(32), nullable=True)
     from_target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
     to_target_ingredient_id: Mapped[int | None] = mapped_column(ForeignKey("ingredients.id"), nullable=True)
     actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)

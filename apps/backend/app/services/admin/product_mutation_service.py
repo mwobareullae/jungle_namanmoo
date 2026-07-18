@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from urllib.parse import quote
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -24,6 +23,11 @@ from app.schemas.admin.product import (
 )
 from app.schemas.common import ApiError
 from app.services.admin.product_service import get_admin_product_detail
+from app.services.product_pricing import (
+    MAX_PRODUCT_PRICE,
+    build_product_url,
+    get_or_create_first_party_price_for_update,
+)
 
 
 FIRST_PARTY_SELLER_CODE = "mwobareullae"
@@ -84,7 +88,7 @@ def create_admin_product(
             mall_name=seller.display_name,
             price=price,
             currency="KRW",
-            product_url=_build_product_url(product.product_code),
+            product_url=build_product_url(product.product_code),
             is_lowest=True,
             collected_at=timestamp,
         )
@@ -155,20 +159,17 @@ def update_admin_product(
 
     if "price" in fields:
         price = _normalize_price(request.price)
-        price_row = _load_first_party_price_for_update(session, product.id, seller.display_name)
-        if price_row is None:
-            price_row = ProductPrice(
-                product_id=product.id,
-                mall_name=seller.display_name,
-                currency="KRW",
-                is_lowest=True,
-                product_url=_build_product_url(product.product_code),
-            )
-            session.add(price_row)
+        price_row, _ = get_or_create_first_party_price_for_update(
+            session,
+            product=product,
+            mall_name=seller.display_name,
+            price=price,
+            timestamp=timestamp,
+        )
         price_row.price = price
         price_row.currency = "KRW"
         price_row.is_lowest = True
-        price_row.product_url = _build_product_url(product.product_code)
+        price_row.product_url = build_product_url(product.product_code)
         price_row.collected_at = timestamp
 
     if "thumbnail_storage_key" in fields:
@@ -254,21 +255,6 @@ def _load_active_category(session: Session, category_code: str | None) -> Produc
     return category
 
 
-def _load_first_party_price_for_update(
-    session: Session,
-    product_id: int,
-    mall_name: str,
-) -> ProductPrice | None:
-    rows = session.execute(
-        select(ProductPrice)
-        .where(ProductPrice.product_id == product_id, ProductPrice.mall_name == mall_name)
-        .with_for_update()
-    ).scalars().all()
-    if len(rows) > 1:
-        raise ApiError(409, "PRODUCT_PRICE_INCONSISTENT", "자사몰 가격 행이 중복되어 있습니다.")
-    return rows[0] if rows else None
-
-
 def _normalize_required_text(value: str | None, field_name: str, *, max_length: int) -> str:
     normalized = value.strip() if value is not None else ""
     if not normalized or len(normalized) > max_length:
@@ -286,8 +272,8 @@ def _normalize_description(value: str | None) -> str | None:
 
 
 def _normalize_price(value: int | None) -> int:
-    if value is None or value <= 0:
-        raise ApiError(400, "INVALID_PRODUCT_FIELD", "price must be greater than zero.")
+    if value is None or value <= 0 or value > MAX_PRODUCT_PRICE:
+        raise ApiError(400, "INVALID_PRODUCT_FIELD", "price must be between 1 and 100,000,000.")
     return value
 
 
@@ -359,8 +345,6 @@ def _generate_product_code() -> str:
     return f"{PRODUCT_CODE_PREFIX}{uuid4().hex[:16]}"
 
 
-def _build_product_url(product_code: str) -> str:
-    return f"/product-detail?id={quote(product_code, safe='')}"
 
 
 def _is_product_code_conflict(exc: IntegrityError) -> bool:

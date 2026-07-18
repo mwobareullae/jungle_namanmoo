@@ -3,6 +3,7 @@ import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateR
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
 import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
+import { AdminInventoryPriceSection } from "../features/admin/inventoryPrice/AdminInventoryPriceSection";
 import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import type { AdminBulkImportRowInput } from "../features/admin/api/adminBulkImportApi";
@@ -25,32 +26,11 @@ type AdminView =
   | "sellers"
   | "sellerInspection"
   | "sellerSettlement";
-type ProductStatus = "판매중" | "검수필요" | "품절임박" | "판매중지";
-type ReviewStatus = "정상" | "성분 pending" | "이미지 누락" | "중복 확인";
-type IndexStatus = "반영 완료" | "검색 문서 완료" | "임베딩 대기" | "미반영";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type ExcelImportState = "idle" | "preview" | "submitting" | "done";
 type ImageBatchState = "idle" | "matched";
 type LocalSaveState = "idle" | "dirty" | "saved";
 type QueueState = "idle" | "pending" | "queued";
-type StockFocusFilter = "전체" | "품절임박" | "검수필요" | "판매중지";
-
-type ProductRow = {
-  id: string;
-  productCode: string;
-  name: string;
-  brand: string;
-  price: number;
-  stock: number;
-  status: ProductStatus;
-  reviewStatus: ReviewStatus;
-  imageCount: number;
-  ingredientState: string;
-  ingredientsRaw: string;
-  indexStatus: IndexStatus;
-  updatedAt: string;
-};
-
 type OperationLogRow = {
   id: string;
   time: string;
@@ -251,100 +231,6 @@ const MOCK_PENDING_QUEUE = [
   { label: "임베딩 대기", value: 1, color: "#9575cd" }
 ];
 const MOCK_PENDING_MAX = Math.max(...MOCK_PENDING_QUEUE.map((bar) => bar.value));
-
-const initialProducts: ProductRow[] = [
-  {
-    id: "1",
-    productCode: "prod_000245",
-    name: "토리든 다이브인 저분자 히알루론산 세럼",
-    brand: "토리든",
-    price: 21800,
-    stock: 142,
-    status: "판매중",
-    reviewStatus: "정상",
-    imageCount: 5,
-    ingredientState: "exact 38 / pending 0",
-    ingredientsRaw: "정제수, 부틸렌글라이콜, 글리세린, 나이아신아마이드, 판테놀, 소듐하이알루로네이트",
-    indexStatus: "반영 완료",
-    updatedAt: "2026-07-06 14:12"
-  },
-  {
-    id: "2",
-    productCode: "prod_bm_1021",
-    name: "한율 달빛유자C 세럼",
-    brand: "한율",
-    price: 32000,
-    stock: 18,
-    status: "품절임박",
-    reviewStatus: "성분 pending",
-    imageCount: 4,
-    ingredientState: "exact 34 / pending 2",
-    ingredientsRaw: "정제수, 부틸렌글라이콜, 나이아신아마이드 2%, Citrus Junos Peel Extract, 판테놀",
-    indexStatus: "임베딩 대기",
-    updatedAt: "2026-07-06 13:48"
-  },
-  {
-    id: "3",
-    productCode: "prod_001984",
-    name: "차앤박 핑크토닝 딥인샷 앰플",
-    brand: "CNP",
-    price: 29800,
-    stock: 64,
-    status: "검수필요",
-    reviewStatus: "성분 pending",
-    imageCount: 3,
-    ingredientState: "exact 29 / pending 3",
-    ingredientsRaw: "정제수, 글리세린, 나이아신아마이드, Pink Vitamin Complex, 소듐하이알루로네이트",
-    indexStatus: "검색 문서 완료",
-    updatedAt: "2026-07-06 12:02"
-  },
-  {
-    id: "4",
-    productCode: "prod_010014",
-    name: "라운드랩 자작나무 수분 크림",
-    brand: "라운드랩",
-    price: 24000,
-    stock: 0,
-    status: "판매중지",
-    reviewStatus: "이미지 누락",
-    imageCount: 0,
-    ingredientState: "exact 41 / pending 1",
-    ingredientsRaw: "정제수, 자작나무수액, 부틸렌글라이콜, 판테놀, 세라마이드엔피",
-    indexStatus: "미반영",
-    updatedAt: "2026-07-05 19:22"
-  },
-  {
-    id: "5",
-    productCode: "prod_020771",
-    name: "닥터지 레드 블레미쉬 클리어 수딩 크림",
-    brand: "닥터지",
-    price: 18900,
-    stock: 203,
-    status: "판매중",
-    reviewStatus: "중복 확인",
-    imageCount: 6,
-    ingredientState: "exact 44 / pending 0",
-    ingredientsRaw: "정제수, 글리세린, 병풀추출물, 판테놀, 소듐하이알루로네이트, 세라마이드엔피",
-    indexStatus: "반영 완료",
-    updatedAt: "2026-07-05 18:41"
-  }
-];
-
-const emptyProduct: ProductRow = {
-  id: "draft",
-  productCode: "seller_sku_new",
-  name: "",
-  brand: "",
-  price: 0,
-  stock: 0,
-  status: "검수필요",
-  reviewStatus: "성분 pending",
-  imageCount: 0,
-  ingredientState: "exact 0 / pending 0",
-  ingredientsRaw: "",
-  indexStatus: "미반영",
-  updatedAt: "저장 전"
-};
 
 const pendingItems: PendingItem[] = [
   {
@@ -684,30 +570,6 @@ const imagePreviewRows = [
   }
 ];
 
-const stockHistoryRows = [
-  {
-    time: "15:24",
-    product: "한율 달빛유자C 세럼",
-    change: "재고 12 → 18",
-    actor: "관리자",
-    reason: "공식몰 재고 보정"
-  },
-  {
-    time: "14:51",
-    product: "라운드랩 자작나무 수분 크림",
-    change: "판매중 → 판매중지",
-    actor: "관리자",
-    reason: "대표 이미지 누락"
-  },
-  {
-    time: "13:17",
-    product: "닥터지 레드 블레미쉬 수딩 크림",
-    change: "18,900원 → 19,900원",
-    actor: "import job",
-    reason: "엑셀 대량 등록"
-  }
-];
-
 const initialOperationLogs: OperationLogRow[] = [
   {
     id: "log_initial_excel",
@@ -734,10 +596,6 @@ const initialOperationLogs: OperationLogRow[] = [
     tone: "success"
   }
 ];
-
-function formatCurrency(value: number) {
-  return `${value.toLocaleString("ko-KR")}원`;
-}
 
 function formatCurrentTime() {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -770,22 +628,6 @@ function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): BadgeTone {
-  if (status === "판매중" || status === "정상" || status === "반영 완료" || status === "검색 문서 완료") {
-    return "success";
-  }
-
-  if (status === "검수필요" || status === "성분 pending" || status === "품절임박" || status === "임베딩 대기") {
-    return "warning";
-  }
-
-  if (status === "판매중지" || status === "이미지 누락" || status === "미반영") {
-    return "danger";
-  }
-
-  return "neutral";
-}
-
 function AdminDashboardPage() {
   const access = useAdminAccess();
   const bulkImport = useAdminBulkImport();
@@ -793,7 +635,6 @@ function AdminDashboardPage() {
   const [selectedSellerId, setSelectedSellerId] = useState(MOCK_SELLERS[0].id);
   const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
   const [selectedSettlementId, setSelectedSettlementId] = useState(MOCK_SETTLEMENTS[0].id);
-  const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("파일을 선택해 주세요");
@@ -803,16 +644,11 @@ function AdminDashboardPage() {
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
   const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
   const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
-  const [selectedStockProductId, setSelectedStockProductId] = useState(initialProducts[1]?.id ?? initialProducts[0]?.id ?? "");
-  const [stockFocusFilter, setStockFocusFilter] = useState<StockFocusFilter>("전체");
-  const [stockChangeReason, setStockChangeReason] = useState("운영자 확인 후 간단 수정");
   const [orders] = useState<MockOrderRow[]>(mockOrderRows);
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
-  const [stockHistory, setStockHistory] = useState(stockHistoryRows);
   const [toast, setToast] = useState<AdminToast>(null);
   const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
   const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
-  const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
 
   const excelDisplayRows = useMemo<ExcelDisplayRow[]>(() => {
     if (bulkImport.result) {
@@ -897,52 +733,6 @@ function AdminDashboardPage() {
     ];
   }, [bulkImport.result, excelClientIssues.length, excelPreviewRows.length]);
 
-  const selectedStockProduct =
-    products.find((product) => product.id === selectedStockProductId) ?? products[0] ?? emptyProduct;
-  const filteredStockProducts = useMemo(
-    () =>
-      products.filter((product) => {
-        if (stockFocusFilter === "품절임박") {
-          return product.stock <= 20 || product.status === "품절임박";
-        }
-
-        if (stockFocusFilter === "검수필요") {
-          return product.status === "검수필요" || product.reviewStatus !== "정상";
-        }
-
-        if (stockFocusFilter === "판매중지") {
-          return product.status === "판매중지";
-        }
-
-        return true;
-      }),
-    [products, stockFocusFilter],
-  );
-  const liveStockPriceSummary = useMemo(
-    () => [
-      {
-        label: "수정 대기",
-        value: stockSaveState === "dirty" ? "1" : "0",
-        tone: stockSaveState === "dirty" ? ("warning" as const) : ("neutral" as const)
-      },
-      {
-        label: "품절/임박",
-        value: products.filter((product) => product.stock <= 20 || product.status === "품절임박").length.toLocaleString("ko-KR"),
-        tone: "danger" as const
-      },
-      {
-        label: "판매중지",
-        value: products.filter((product) => product.status === "판매중지").length.toLocaleString("ko-KR"),
-        tone: "neutral" as const
-      },
-      {
-        label: "주문 예약 재고",
-        value: orders.reduce((sum, order) => sum + order.stockReserved, 0).toLocaleString("ko-KR"),
-        tone: "success" as const
-      }
-    ],
-    [orders, products, stockSaveState],
-  );
   const liveDashboardOrderSummary = useMemo(
     () => [
       { label: "신규 주문", value: orders.length.toLocaleString("ko-KR") },
@@ -978,64 +768,6 @@ function AdminDashboardPage() {
       ...currentLogs
     ].slice(0, 6));
     setToast({ message: `${title} · ${detail}`, tone });
-  };
-
-  const handleStockPatch = (productId: string, patch: Partial<Pick<ProductRow, "price" | "stock" | "status">>) => {
-    setProducts((currentProducts) =>
-      currentProducts.map((product) => (product.id === productId ? { ...product, ...patch, updatedAt: "로컬 수정" } : product)),
-    );
-    setStockSaveState("dirty");
-  };
-
-  const handleSelectStockProduct = (productId: string) => {
-    setSelectedStockProductId(productId);
-    setStockSaveState("idle");
-  };
-
-  const handleStockFilterReset = () => {
-    setStockFocusFilter("전체");
-    pushOperationLog("재고", "재고 필터 초기화", "전체 상품 표시", "neutral");
-  };
-
-  const handleLowStockSuspend = () => {
-    const affectedProducts = products.filter((product) => product.stock <= 20 && product.status !== "판매중지");
-
-    if (affectedProducts.length === 0) {
-      pushOperationLog("재고", "일괄 판매중지 대상 없음", "재고 20개 이하 판매중 상품 없음", "neutral");
-      return;
-    }
-
-    setProducts((currentProducts) =>
-      currentProducts.map((product) =>
-        product.stock <= 20 && product.status !== "판매중지"
-          ? { ...product, status: "판매중지", updatedAt: "로컬 일괄 처리" }
-          : product,
-      ),
-    );
-    setStockHistory((currentRows) => [
-      {
-        time: formatCurrentTime(),
-        product: `${affectedProducts.length.toLocaleString("ko-KR")}개 상품`,
-        change: "재고 20개 이하 → 판매중지",
-        actor: "관리자",
-        reason: stockChangeReason || "저재고 운영 보호"
-      },
-      ...currentRows
-    ]);
-    setStockFocusFilter("판매중지");
-    setStockSaveState("saved");
-    pushOperationLog("재고", "저재고 상품 일괄 판매중지", `${affectedProducts.length.toLocaleString("ko-KR")}개 상품`, "warning");
-  };
-
-  const handleStockHistoryDownload = () => {
-    downloadTextFile(
-      "mwbl_stock_price_changes.csv",
-      buildCsv([
-        ["time", "product", "change", "actor", "reason"],
-        ...stockHistory.map((row) => [row.time, row.product, row.change, row.actor, row.reason])
-      ]),
-    );
-    pushOperationLog("재고", "변경 이력 CSV 다운로드", "가격·재고 변경 이력 파일 생성", "neutral");
   };
 
   const handleExcelPreview = async () => {
@@ -1224,21 +956,6 @@ function AdminDashboardPage() {
 
     setImageOcrState("dirty");
     pushOperationLog("이미지", "OCR 후보 추출", "상품명·브랜드·전성분 후보를 검수 목록에 표시", "warning");
-  };
-
-  const handleStockSave = () => {
-    setStockHistory((currentRows) => [
-      {
-        time: formatCurrentTime(),
-        product: selectedStockProduct.name,
-        change: `${formatCurrency(selectedStockProduct.price)} · 재고 ${selectedStockProduct.stock}`,
-        actor: "관리자",
-        reason: stockChangeReason || "로컬 수정 저장"
-      },
-      ...currentRows
-    ]);
-    setStockSaveState("saved");
-    pushOperationLog("재고", "가격·재고 수정 저장", `${selectedStockProduct.name} · ${stockChangeReason}`, "success");
   };
 
   const handlePendingItemClick = (item: PendingItem) => {
@@ -2191,228 +1908,7 @@ function AdminDashboardPage() {
     </section>
   );
 
-  const renderStockPrice = () => (
-    <section className="admin-stock-layout">
-      <section className="admin-panel admin-stock-hero">
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>재고·가격 상태 확인</p>
-            <h2>판매가, 재고, 판매 상태 간단 수정</h2>
-          </div>
-          <div className="admin-filter-row">
-            <button
-              className="admin-secondary-button"
-              onClick={handleStockHistoryDownload}
-              type="button"
-            >
-              이력 CSV
-            </button>
-            <button
-              className="admin-secondary-button"
-              onClick={handleLowStockSuspend}
-              type="button"
-            >
-              저재고 중지
-            </button>
-            <button className="admin-primary-button" onClick={handleStockSave} type="button">
-              수정 저장
-            </button>
-          </div>
-        </div>
-        <div className="admin-excel-summary-grid">
-          {liveStockPriceSummary.map((item) => (
-            <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-stock-table-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>상품별 수정</p>
-            <h2>가격·재고 입력</h2>
-          </div>
-          <div className="admin-filter-row">
-            <select
-              aria-label="재고 화면 필터"
-              onChange={(event) => setStockFocusFilter(event.target.value as StockFocusFilter)}
-              value={stockFocusFilter}
-            >
-              <option value="전체">전체 상품</option>
-              <option value="품절임박">품절/임박</option>
-              <option value="검수필요">검수 필요</option>
-              <option value="판매중지">판매중지</option>
-            </select>
-            <button className="admin-secondary-button" onClick={handleStockFilterReset} type="button">
-              초기화
-            </button>
-          </div>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-stock-table">
-            <thead>
-              <tr>
-                <th scope="col">상품</th>
-                <th scope="col">판매가</th>
-                <th scope="col">재고</th>
-                <th scope="col">판매상태</th>
-                <th scope="col">업데이트</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStockProducts.map((product) => (
-                <tr
-                  className={product.id === selectedStockProduct.id ? "selected" : undefined}
-                  key={product.id}
-                  onClick={() => handleSelectStockProduct(product.id)}
-                >
-                  <td>
-                    <strong className="admin-product-name">{product.name}</strong>
-                    <small className="admin-product-code">{product.brand} · {product.productCode}</small>
-                  </td>
-                  <td>
-                    <input
-                      aria-label={`${product.name} 판매가`}
-                      className="admin-stock-input"
-                      min="0"
-                      onChange={(event) => handleStockPatch(product.id, { price: Number(event.target.value) })}
-                      type="number"
-                      value={product.price}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      aria-label={`${product.name} 재고`}
-                      className="admin-stock-input"
-                      min="0"
-                      onChange={(event) => handleStockPatch(product.id, { stock: Number(event.target.value) })}
-                      type="number"
-                      value={product.stock}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      aria-label={`${product.name} 판매상태`}
-                      className="admin-stock-select"
-                      onChange={(event) => handleStockPatch(product.id, { status: event.target.value as ProductStatus })}
-                      value={product.status}
-                    >
-                      <option>판매중</option>
-                      <option>검수필요</option>
-                      <option>품절임박</option>
-                      <option>판매중지</option>
-                    </select>
-                  </td>
-                  <td>
-                    <span className={`admin-badge ${getStatusTone(product.status)}`}>{product.status}</span>
-                    <small className="admin-product-code">{product.updatedAt}</small>
-                  </td>
-                </tr>
-              ))}
-              {filteredStockProducts.length === 0 && (
-                <tr>
-                  <td className="admin-empty-row" colSpan={5}>
-                    조건에 맞는 상품이 없습니다. 필터를 초기화해 주세요.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <aside className="admin-panel admin-stock-detail">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>선택 상품</p>
-            <h2>{selectedStockProduct.brand}</h2>
-          </div>
-          <span className={`admin-badge ${getStatusTone(selectedStockProduct.status)}`}>
-            {selectedStockProduct.status}
-          </span>
-        </div>
-        <dl className="admin-metric-list">
-          <div>
-            <dt>상품명</dt>
-            <dd>{selectedStockProduct.name}</dd>
-          </div>
-          <div>
-            <dt>판매가</dt>
-            <dd>{formatCurrency(selectedStockProduct.price)}</dd>
-          </div>
-          <div>
-            <dt>재고</dt>
-            <dd>{selectedStockProduct.stock.toLocaleString("ko-KR")}</dd>
-          </div>
-          <div>
-            <dt>검색 반영</dt>
-            <dd>{selectedStockProduct.indexStatus}</dd>
-          </div>
-        </dl>
-        <label className="admin-stock-reason-field">
-          <span>변경 사유</span>
-          <textarea
-            onChange={(event) => {
-              setStockChangeReason(event.target.value);
-              setStockSaveState("dirty");
-            }}
-            rows={3}
-            value={stockChangeReason}
-          />
-        </label>
-        <div className={`admin-state-banner ${stockSaveState === "saved" ? "success" : stockSaveState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>{stockSaveState === "saved" ? "수정 저장 완료" : stockSaveState === "dirty" ? "수정 저장 대기" : "변경 없음"}</strong>
-          <span>
-            {stockSaveState === "saved"
-              ? "변경 이력에 로컬 저장 기록을 남겼습니다."
-              : stockSaveState === "dirty"
-                ? "가격·재고·판매상태 변경값이 아직 저장되지 않았습니다."
-                : "표의 값을 수정하면 저장 대기 상태로 바뀝니다."}
-          </span>
-        </div>
-        <div className="admin-stock-warning">
-          주문/결제 흐름에서는 checkout preview가 서버 기준 가격과 재고를 다시 검증합니다.
-        </div>
-      </aside>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>최근 변경</p>
-            <h2>가격·재고 이력</h2>
-          </div>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table compact admin-stock-history-table">
-            <thead>
-              <tr>
-                <th scope="col">시간</th>
-                <th scope="col">상품</th>
-                <th scope="col">변경</th>
-                <th scope="col">담당</th>
-                <th scope="col">사유</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stockHistory.map((row) => (
-                <tr key={`${row.time}-${row.product}`}>
-                  <td>{row.time}</td>
-                  <td>{row.product}</td>
-                  <td>{row.change}</td>
-                  <td>{row.actor}</td>
-                  <td>{row.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-    </section>
-  );
+  const renderStockPrice = () => <AdminInventoryPriceSection />;
 
   const viewTitle =
     activeView === "dashboard"
