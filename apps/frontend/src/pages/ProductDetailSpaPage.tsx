@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
+import {
+  Crosshair,
+  Infinity as InfinityIcon,
+  Leaf,
+  MagicWand,
+  ShieldCheck,
+  StackMinus,
+  Sun
+} from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
@@ -159,53 +168,31 @@ const getDetailParams = () => {
   };
 };
 
-type EffectIconKey = "brighten" | "wrinkle" | "acne" | "moisture" | "soothe";
+type EffectIconKey = "brighten" | "wrinkle" | "acne" | "moisture" | "soothe" | "exfoliation" | "other";
 
 const getEffectIcon = (effect: string): EffectIconKey => {
   if (effect.includes("미백") || effect.includes("톤")) return "brighten";
   if (effect.includes("주름") || effect.includes("탄력")) return "wrinkle";
   if (effect.includes("여드름") || effect.includes("피지") || effect.includes("모공")) return "acne";
-  if (effect.includes("보습") || effect.includes("장벽")) return "moisture";
-  return "soothe";
+  if (effect.includes("보습") || effect.includes("수분") || effect.includes("장벽")) return "moisture";
+  if (effect.includes("각질")) return "exfoliation";
+  if (effect.includes("진정")) return "soothe";
+  return "other";
 };
 
-const EFFECT_ICON_SVG: Record<EffectIconKey, JSX.Element> = {
-  moisture: (
-    <path d="M12 2.5c4 5 7 8.5 7 12a7 7 0 1 1-14 0c0-3.5 3-7 7-12z" />
-  ),
-  soothe: (
-    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />
-  ),
-  brighten: (
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
-    </>
-  ),
-  wrinkle: (
-    <>
-      <path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" />
-      <path d="M18 3v4h-4M6 21v-4h4" />
-    </>
-  ),
-  acne: <path d="M12 3l7 3.5v5c0 5-3 8.5-7 9.5-4-1-7-4.5-7-9.5v-5L12 3z" />,
-};
+const EffectIcon = ({ iconKey }: { iconKey: EffectIconKey }) => {
+  const Icon = {
+    brighten: Sun,
+    wrinkle: InfinityIcon,
+    acne: Crosshair,
+    moisture: ShieldCheck,
+    soothe: Leaf,
+    exfoliation: StackMinus,
+    other: MagicWand
+  }[iconKey];
 
-const EffectIcon = ({ iconKey }: { iconKey: EffectIconKey }) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {EFFECT_ICON_SVG[iconKey]}
-  </svg>
-);
+  return <Icon aria-hidden="true" size={14} weight="regular" />;
+};
 
 const getEffectLabel = (effect: string) => {
   if (effect.includes("미백") || effect.includes("톤")) return "피부 미백에 도움되는 기능성 성분";

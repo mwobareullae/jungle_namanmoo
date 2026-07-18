@@ -45,7 +45,7 @@ export default function ClaimListPage() {
       .then((response) => setClaims(response.items))
       .catch((error) =>
         setErrorMessage(
-          error instanceof Error ? error.message : "클레임 내역을 불러오지 못했습니다."
+          error instanceof Error ? error.message : "Q&A 내역을 불러오지 못했습니다."
         )
       )
       .finally(() => setIsLoading(false));
@@ -60,12 +60,12 @@ export default function ClaimListPage() {
 
   return (
     <MyPageLayout activePath="/mypage/claims">
-      <PageTitle title="클레임 내역" />
+      <PageTitle title="Q&A 내역" />
       {isLoading ? (
-        <section style={styles.stateCard}>클레임 내역을 불러오는 중입니다.</section>
+        <section style={styles.stateCard}>Q&A 내역을 불러오는 중입니다.</section>
       ) : errorMessage ? (
         <section aria-live="polite" style={styles.stateCard}>
-          <strong style={styles.stateTitle}>클레임 내역을 불러오지 못했어요</strong>
+          <strong style={styles.stateTitle}>Q&A 내역을 불러오지 못했어요</strong>
           <p style={styles.stateText}>{errorMessage}</p>
           <button
             className="bg-white hover:bg-[#FAFAFA]"
@@ -78,7 +78,7 @@ export default function ClaimListPage() {
         </section>
       ) : claims.length === 0 ? (
         <section style={styles.stateCard}>
-          <strong style={styles.stateTitle}>신청한 클레임이 없어요</strong>
+          <strong style={styles.stateTitle}>Q&A 내역이 없어요</strong>
           <p style={styles.stateText}>반품·교환·환불 신청 내역이 이곳에 표시됩니다.</p>
           <Link
             className="bg-[#0C1117] hover:bg-[#1A1A1A]"

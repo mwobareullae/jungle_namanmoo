@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import ProductListLoadingState from "../components/ProductListLoadingState";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import HeartIcon from "../components/ui/HeartIcon";
@@ -197,7 +198,7 @@ function BrandPage() {
         <p className="new-products-page__description">{decodedBrandName}의 상품을 확인해 보세요.</p>
         <div className="popular-products-grid new-products-page__grid">
           {isLoading ? (
-            <div className="search-loading-state">불러오는 중...</div>
+            <ProductListLoadingState />
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length > 0 ? (
