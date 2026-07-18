@@ -156,6 +156,24 @@ Google token verification and account linking stay the same. Successful login se
 
 Reads `mwbl_session` cookie. Returns current user or `401 INVALID_SESSION`.
 
+### `PATCH /api/me`
+
+Requires an authenticated session and changes the current user's nickname.
+
+Request:
+
+```json
+{
+  "nickname": "새 닉네임"
+}
+```
+
+- Leading and trailing whitespace is removed before saving.
+- Blank nicknames and nicknames longer than 100 characters return `400 INVALID_NICKNAME`.
+- Duplicate nicknames, including concurrent unique-key conflicts, return `409 NICKNAME_ALREADY_EXISTS`.
+- The existing session stays active and the response is the updated `AuthUser` object.
+- No database migration is required because the existing `users.display_name` column and unique constraint are used.
+
 ### `POST /api/auth/logout`
 
 Reads `mwbl_session` cookie, revokes that session, deletes the cookie, and returns a message.

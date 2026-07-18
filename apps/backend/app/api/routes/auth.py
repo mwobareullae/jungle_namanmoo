@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, Query, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -18,6 +19,7 @@ from app.schemas.auth import (
     PasswordResetConfirmRequest,
     PasswordResetRequest,
     SignupRequest,
+    UpdateMeRequest,
 )
 from app.services.account_deletion_service import delete_user_account
 from app.services.auth_service import (
@@ -33,6 +35,7 @@ from app.services.auth_service import (
     refresh,
     request_password_reset,
     signup,
+    update_nickname,
 )
 
 
@@ -200,6 +203,26 @@ def get_me(
         status=current_user.status,
         created_at=current_user.created_at,
     )
+
+
+@router.patch("/me", response_model=AuthUser)
+def patch_me(
+    request: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> AuthUser | JSONResponse:
+    try:
+        updated_user = update_nickname(session, current_user, request.nickname)
+        session.commit()
+        return updated_user
+    except AuthServiceError as exc:
+        session.rollback()
+        return _auth_error(exc)
+    except IntegrityError:
+        session.rollback()
+        return _auth_error(
+            AuthServiceError(409, "NICKNAME_ALREADY_EXISTS", "이미 사용 중인 닉네임입니다.")
+        )
 
 
 @router.delete("/me", response_model=MessageResponse)
