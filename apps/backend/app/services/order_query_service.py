@@ -5,6 +5,7 @@ from app.db.models.auth import User
 from app.db.models.catalog import Product
 from app.db.models.commerce import (
     Order,
+    OrderCancelRequest,
     OrderItem,
     OrderShippingAddress,
     OrderShippingGroup,
@@ -14,6 +15,7 @@ from app.schemas.common import ApiError
 from app.schemas.order import (
     OrderDetailItem,
     OrderDetailPayment,
+    OrderCancelRequestDetail,
     OrderDetailResponse,
     OrderDetailShippingAddress,
     OrderDetailShippingGroup,
@@ -124,6 +126,7 @@ def get_order_detail(
         .where(OrderShippingGroup.order_id == order.id)
         .order_by(OrderShippingGroup.id.asc())
     ).scalars().all()
+    cancel_request = _load_latest_cancel_request(session, order.id)
 
     return OrderDetailResponse(
         order_code=order.order_code,
@@ -158,7 +161,21 @@ def get_order_detail(
             )
             for group in shipping_groups
         ],
+        cancel_request=_to_cancel_request_detail(cancel_request, payment),
     )
+
+
+def get_order_cancel_request(
+    session: Session,
+    user: User,
+    order_code: str,
+) -> OrderCancelRequestDetail:
+    order = _load_user_order(session, user.id, order_code)
+    cancel_request = _load_latest_cancel_request(session, order.id)
+    if cancel_request is None:
+        raise ApiError(404, "CANCEL_REQUEST_NOT_FOUND", "Cancel request was not found.")
+    payment = _load_payment(session, order.id)
+    return _to_cancel_request_detail(cancel_request, payment)
 
 
 def _normalize_status(status: str | None) -> str | None:
@@ -218,6 +235,33 @@ def _load_payment(session: Session, order_id: int) -> Payment:
     if payment is None:
         raise ApiError(409, "PAYMENT_NOT_FOUND", "Payment was not found.")
     return payment
+
+
+def _load_latest_cancel_request(session: Session, order_id: int) -> OrderCancelRequest | None:
+    return session.execute(
+        select(OrderCancelRequest)
+        .where(OrderCancelRequest.order_id == order_id)
+        .order_by(OrderCancelRequest.requested_at.desc(), OrderCancelRequest.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _to_cancel_request_detail(
+    cancel_request: OrderCancelRequest | None,
+    payment: Payment,
+) -> OrderCancelRequestDetail | None:
+    if cancel_request is None:
+        return None
+    return OrderCancelRequestDetail(
+        request_code=cancel_request.request_code,
+        status=cancel_request.status,
+        reason_code=cancel_request.reason_code,
+        reason_detail=cancel_request.reason_detail,
+        decision_reason=cancel_request.decision_reason,
+        requested_at=cancel_request.requested_at,
+        processed_at=cancel_request.processed_at,
+        payment_canceled_at=payment.canceled_at,
+    )
 
 
 def _load_first_items_by_order_id(

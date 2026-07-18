@@ -12,6 +12,8 @@ from app.schemas.common import ErrorResponse
 from app.schemas.event import EventLogCreateRequest
 from app.schemas.order import (
     OrderCancelResponse,
+    OrderCancelRequestBody,
+    OrderCancelRequestDetail,
     OrderCreateRequest,
     OrderCreateResponse,
     OrderDetailResponse,
@@ -19,7 +21,12 @@ from app.schemas.order import (
     OrderSummaryResponse,
 )
 from app.services.order_cancel_service import cancel_order
-from app.services.order_query_service import get_order_detail, get_order_summary, list_orders
+from app.services.order_query_service import (
+    get_order_cancel_request,
+    get_order_detail,
+    get_order_summary,
+    list_orders,
+)
 from app.services.order_service import create_order
 from app.services.event_tracking import (
     anonymous_user_id_from_request,
@@ -125,10 +132,11 @@ def get_order(
 def post_order_cancel(
     order_code: str,
     http_request: Request,
+    request: OrderCancelRequestBody | None = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> OrderCancelResponse:
-    response = cancel_order(session, current_user, order_code)
+    response = cancel_order(session, current_user, order_code, request, require_reason=True)
     session.commit()
     _record_order_event(
         session,
@@ -139,6 +147,22 @@ def post_order_cancel(
         source="order_cancel",
     )
     return response
+
+
+@router.get(
+    "/orders/{order_code}/cancel-request",
+    response_model=OrderCancelRequestDetail,
+    responses={
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
+)
+def get_order_cancel_request_detail(
+    order_code: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> OrderCancelRequestDetail:
+    return get_order_cancel_request(session, current_user, order_code)
 
 
 def _record_order_event(
