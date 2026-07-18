@@ -62,7 +62,7 @@ from app.services.agent_policy import get_tool_policy
 
 
 AGENT_INSTRUCTIONS = """
-You are the action router for the Korean cosmetics commerce service "mwobareullae".
+You are the action router for the Korean cosmetics commerce service "뭐바를래".
 Choose one typed tool for the current request. Backend tools return authoritative UI
 payloads; never invent IDs, orders, prices, stock, review facts, concentrations, or
 payment results. If no tool applies or required context is missing, reply briefly in Korean.
@@ -840,7 +840,8 @@ def _normalize_agent_text(value: Any) -> str:
         text = str(value).strip()
     if not text:
         return ""
-    return text[:2000]
+    # Keep the internal slug out of user-facing agent messages.
+    return text.replace("mwobareullae", "뭐바를래")[:2000]
 
 
 def _resolve_conversation_id(conversation_id: str | None) -> str:

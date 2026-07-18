@@ -7,10 +7,13 @@ import type { RecommendationProfile, SearchMode } from "../types/recommendation"
 import type { CatalogSuggestionItem } from "../types/product";
 
 const placeholderExamples = [
-  "모공과 피지가 고민이에요",
-  "건조하고 속당김이 있어요",
-  "잡티와 색소침착이 걱정돼요",
-  "민감하고 붉은기가 자주 올라와요"
+  "여드름",
+  "피지",
+  "모공",
+  "속건조",
+  "홍조",
+  "잡티",
+  "피부결"
 ];
 
 type HomeHeroProps = {
