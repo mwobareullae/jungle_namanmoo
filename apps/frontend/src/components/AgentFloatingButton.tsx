@@ -218,6 +218,13 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
 
+const emptySearchQuickQuestions = [
+  "내 피부 고민에 맞는 제품 추천해줘",
+  "5만원 이하 제품 추천해줘",
+];
+
+const emptySearchMiniChatLabels = ["피부 고민 제품 추천해줘", "5만원 이하 추천해줘"];
+
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
   { label: "성분 근거 찾기", status: "done" },
@@ -1647,6 +1654,7 @@ function AgentFloatingButton({
   const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialStoredMessages);
   const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(initialStoredMessages));
+  const [hasSearchProducts, setHasSearchProducts] = useState(quickQuestionContext !== "productList");
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(() => readStoredThreads(storageScope));
   const chatInputRef = useRef<HTMLInputElement | null>(null);
@@ -1671,15 +1679,19 @@ function AgentFloatingButton({
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
-    () => quickQuestionsByContext[quickQuestionContext],
-    [quickQuestionContext],
+    () => quickQuestionContext === "productList" && !hasSearchProducts
+      ? emptySearchQuickQuestions
+      : quickQuestionsByContext[quickQuestionContext],
+    [hasSearchProducts, quickQuestionContext],
   );
   const miniChatQuestions = useMemo(
     () => quickQuestions.slice(0, 2).map((prompt, index) => ({
-      label: miniChatLabelsByContext[quickQuestionContext][index],
+      label: quickQuestionContext === "productList" && !hasSearchProducts
+        ? emptySearchMiniChatLabels[index]
+        : miniChatLabelsByContext[quickQuestionContext][index],
       prompt,
     })),
-    [quickQuestionContext, quickQuestions],
+    [hasSearchProducts, quickQuestionContext, quickQuestions],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
@@ -2180,6 +2192,42 @@ function AgentFloatingButton({
   };
 
   sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    const handleSearchPending = (event: Event) => {
+      const detail = (event as CustomEvent<{ scope?: string }>).detail;
+      if (detail?.scope !== "search") return;
+
+      // A new search starts a new agent context. Do not carry the rejected
+      // request's messages or tool result into the next request.
+      setConversationId(null);
+      setCurrentThreadId(null);
+      setMessages([]);
+      setLastToolResultContext(null);
+      setLastSentMessage("");
+      setIsAwaitingAddressInput(false);
+      pendingCheckoutCartItemIdsRef.current = [];
+      setAnswerReactions({});
+      setHasSearchProducts(false);
+    };
+
+    const handleRecommendationState = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        scope?: string;
+        status?: string;
+        recommendation?: { products?: unknown[] } | null;
+      }>).detail;
+      if (detail?.scope !== "search") return;
+      setHasSearchProducts(detail.status === "success" && Boolean(detail.recommendation?.products?.length));
+    };
+
+    window.addEventListener("home-search-pending", handleSearchPending);
+    window.addEventListener("home-recommendation-state", handleRecommendationState);
+    return () => {
+      window.removeEventListener("home-search-pending", handleSearchPending);
+      window.removeEventListener("home-recommendation-state", handleRecommendationState);
+    };
+  }, []);
 
   useEffect(() => {
     const handleEntryMessage = (event: Event) => {
