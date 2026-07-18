@@ -2,7 +2,9 @@ import { useState } from "react";
 
 import {
   IngredientMappingAction,
+  IngredientMappingFinalDisposition,
   IngredientMappingMatchSource,
+  IngredientMappingNonMappingFinalDisposition,
   IngredientMappingStatus,
   IngredientMappingStatusFilter
 } from "../api/adminIngredientMappingApi";
@@ -24,6 +26,7 @@ const STATUS_LABELS: Record<IngredientMappingStatus, string> = {
   HELD: "보류",
   APPROVED: "승인",
   REJECTED: "반려"
+  , NEEDS_REVIEW: "재검토 필요"
 };
 
 const STATUS_TONES: Record<IngredientMappingStatus, BadgeTone> = {
@@ -31,7 +34,23 @@ const STATUS_TONES: Record<IngredientMappingStatus, BadgeTone> = {
   HELD: "review",
   APPROVED: "success",
   REJECTED: "danger"
+  , NEEDS_REVIEW: "warning"
 };
+
+const FINAL_DISPOSITION_LABELS: Record<IngredientMappingFinalDisposition, string> = {
+  MAPPED: "정식 성분 연결",
+  NON_INGREDIENT: "성분 아님",
+  COMPOUND_MATERIAL: "복합 원료",
+  SOURCE_ERROR: "원문 오류·데이터 정정 필요",
+  UNRESOLVABLE: "근거 부족으로 매핑 불가"
+};
+
+const NON_MAPPING_FINAL_DISPOSITIONS: IngredientMappingNonMappingFinalDisposition[] = [
+  "NON_INGREDIENT",
+  "COMPOUND_MATERIAL",
+  "SOURCE_ERROR",
+  "UNRESOLVABLE"
+];
 
 const MATCH_SOURCE_LABELS: Record<IngredientMappingMatchSource, string> = {
   ALIAS_EXACT: "별칭 정확 일치",
@@ -67,12 +86,21 @@ const STATUS_FILTER_OPTIONS: Array<{ value: IngredientMappingStatusFilter; label
   { value: "REJECTED", label: "반려" }
 ];
 
+STATUS_FILTER_OPTIONS.splice(3, 0, { value: "NEEDS_REVIEW", label: "재검토 필요" });
+STATUS_FILTER_OPTIONS[0] = { value: "ALL", label: "미분류 전체" };
+
 const SKELETON_ROWS = Array.from({ length: 6 });
 
 const formatCount = (value: number): string => value.toLocaleString("ko-KR");
 
-const formatEventState = (status: IngredientMappingStatus, targetIngredientCode: string | null): string =>
-  `${STATUS_LABELS[status]}${targetIngredientCode ? ` (${targetIngredientCode})` : ""}`;
+const formatEventState = (
+  status: IngredientMappingStatus,
+  targetIngredientCode: string | null,
+  finalDisposition: IngredientMappingFinalDisposition | null
+): string =>
+  `${STATUS_LABELS[status]}${
+    finalDisposition ? ` · ${FINAL_DISPOSITION_LABELS[finalDisposition]}` : ""
+  }${targetIngredientCode ? ` (${targetIngredientCode})` : ""}`;
 
 export function AdminIngredientMappingSection({
   active,
@@ -80,6 +108,7 @@ export function AdminIngredientMappingSection({
 }: AdminIngredientMappingSectionProps) {
   const {
     statusFilter,
+    finalDispositionFilter,
     queryInput,
     setQueryInput,
     items,
@@ -91,6 +120,7 @@ export function AdminIngredientMappingSection({
     hasLoaded,
     applySearch,
     setStatusFilter,
+    setFinalDispositionFilter,
     resetFilters,
     refresh,
     loadMore,
@@ -121,12 +151,18 @@ export function AdminIngredientMappingSection({
   const [canonicalQuery, setCanonicalQuery] = useState("");
   const [selectedTargetCode, setSelectedTargetCode] = useState<string | null>(null);
   const [selectedTargetName, setSelectedTargetName] = useState<string | null>(null);
+  const [finalDisposition, setFinalDisposition] = useState<IngredientMappingNonMappingFinalDisposition | null>(null);
+  const [evidenceSourceUrl, setEvidenceSourceUrl] = useState("");
+  const [sourceReference, setSourceReference] = useState("");
 
   const openAction = (action: IngredientMappingAction) => {
     clearDecisionError();
     setActiveAction(action);
     setReasonInput("");
     setCanonicalQuery("");
+    setFinalDisposition(null);
+    setEvidenceSourceUrl("");
+    setSourceReference("");
     resetCanonicalSearch();
     // 승인 모달은 추천이 있으면 기본 target 으로 채운다.
     if (action === "APPROVE" && detail?.suggestion) {
@@ -144,6 +180,9 @@ export function AdminIngredientMappingSection({
     setCanonicalQuery("");
     setSelectedTargetCode(null);
     setSelectedTargetName(null);
+    setFinalDisposition(null);
+    setEvidenceSourceUrl("");
+    setSourceReference("");
     clearDecisionError();
     resetCanonicalSearch();
   };
@@ -160,10 +199,22 @@ export function AdminIngredientMappingSection({
 
   const reasonRequired = activeAction !== null && activeAction !== "APPROVE";
   const reasonTrimmed = reasonInput.trim();
+  const evidenceSourceUrlTrimmed = evidenceSourceUrl.trim();
+  const sourceReferenceTrimmed = sourceReference.trim();
+  const finalDispositionRequiresEvidence =
+    finalDisposition !== null && finalDisposition !== "NON_INGREDIENT";
   const canSubmitAction =
     activeAction !== null &&
     !decisionSubmitting &&
-    (activeAction === "APPROVE" ? selectedTargetCode !== null : reasonTrimmed.length > 0);
+    (activeAction === "APPROVE"
+      ? selectedTargetCode !== null
+      : activeAction === "REJECT"
+        ? reasonTrimmed.length > 0 &&
+          finalDisposition !== null &&
+          (!finalDispositionRequiresEvidence ||
+            evidenceSourceUrlTrimmed.length > 0 ||
+            sourceReferenceTrimmed.length > 0)
+        : reasonTrimmed.length > 0);
 
   const submitAction = async () => {
     if (!activeAction || !canSubmitAction) return;
@@ -174,7 +225,13 @@ export function AdminIngredientMappingSection({
     } else if (activeAction === "HOLD") {
       succeeded = await hold(reasonTrimmed);
     } else if (activeAction === "REJECT") {
-      succeeded = await reject(reasonTrimmed);
+      if (finalDisposition === null) return;
+      succeeded = await reject(
+        reasonTrimmed,
+        finalDisposition,
+        evidenceSourceUrlTrimmed || null,
+        sourceReferenceTrimmed || null
+      );
     } else if (activeAction === "REOPEN") {
       succeeded = await reopen(reasonTrimmed);
     }
@@ -261,6 +318,21 @@ export function AdminIngredientMappingSection({
                   {option.label}
                 </option>
               ))}
+            </select>
+            <select
+              aria-label="최종 분류 필터"
+              className="admin-secondary-button"
+              onChange={(event) =>
+                setFinalDispositionFilter(event.target.value as IngredientMappingFinalDisposition | "ALL")
+              }
+              value={finalDispositionFilter}
+            >
+              <option value="ALL">최종 분류 전체</option>
+              <option value="MAPPED">정식 성분 연결</option>
+              <option value="NON_INGREDIENT">성분 아님</option>
+              <option value="COMPOUND_MATERIAL">복합 원료</option>
+              <option value="SOURCE_ERROR">원문 오류</option>
+              <option value="UNRESOLVABLE">근거 부족</option>
             </select>
             <input
               aria-label="성분명·코드 검색"
@@ -447,6 +519,9 @@ export function AdminIngredientMappingSection({
                     <dt>관리자 판정</dt>
                     <dd>
                       {STATUS_LABELS[detail.decision.status]}
+                      {detail.decision.finalDisposition
+                        ? ` · ${FINAL_DISPOSITION_LABELS[detail.decision.finalDisposition]}`
+                        : ""}
                       {detail.decision.targetIngredientName
                         ? ` → ${detail.decision.targetIngredientName}`
                         : ""}
@@ -508,9 +583,17 @@ export function AdminIngredientMappingSection({
                       <li key={`${event.createdAt}-${index}`}>
                         <span>
                           {event.fromStatus
-                            ? `${formatEventState(event.fromStatus, event.fromTargetIngredientCode)} → `
+                            ? `${formatEventState(
+                                event.fromStatus,
+                                event.fromTargetIngredientCode,
+                                event.fromFinalDisposition
+                              )} → `
                             : "최초 판정 → "}
-                          {formatEventState(event.toStatus, event.toTargetIngredientCode)}
+                          {formatEventState(
+                            event.toStatus,
+                            event.toTargetIngredientCode,
+                            event.toFinalDisposition
+                          )}
                         </span>
                         <small className="admin-product-code">
                           {event.createdAt} · 관리자 #{event.actorId}
@@ -641,6 +724,65 @@ export function AdminIngredientMappingSection({
                     ))}
                   </ul>
                 )}
+              </div>
+            )}
+
+            {activeAction === "REJECT" && (
+              <div className="admin-ingredient-approve-target">
+                <label className="admin-ingredient-reason">
+                  <span className="admin-ingredient-reason-label">
+                    최종 분류
+                    <em>필수</em>
+                  </span>
+                  <select
+                    aria-label="최종 분류"
+                    onChange={(event) =>
+                      setFinalDisposition(
+                        event.target.value
+                          ? (event.target.value as IngredientMappingNonMappingFinalDisposition)
+                          : null
+                      )
+                    }
+                    value={finalDisposition ?? ""}
+                  >
+                    <option value="">선택해 주세요</option>
+                    {NON_MAPPING_FINAL_DISPOSITIONS.map((disposition) => (
+                      <option key={disposition} value={disposition}>
+                        {FINAL_DISPOSITION_LABELS[disposition]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="admin-ingredient-reason">
+                  <span className="admin-ingredient-reason-label">
+                    근거 출처 URL
+                    <em>{finalDispositionRequiresEvidence ? "필수(파일 식별자 대체 가능)" : "선택"}</em>
+                  </span>
+                  <input
+                    aria-label="근거 출처 URL"
+                    maxLength={2000}
+                    onChange={(event) => setEvidenceSourceUrl(event.target.value)}
+                    placeholder="https://…"
+                    type="url"
+                    value={evidenceSourceUrl}
+                  />
+                </label>
+
+                <label className="admin-ingredient-reason">
+                  <span className="admin-ingredient-reason-label">
+                    원본 파일 식별자
+                    <em>{finalDispositionRequiresEvidence ? "필수(URL 대체 가능)" : "선택"}</em>
+                  </span>
+                  <input
+                    aria-label="원본 파일 식별자"
+                    maxLength={255}
+                    onChange={(event) => setSourceReference(event.target.value)}
+                    placeholder="예: kcia_ingredients_2026-07.csv"
+                    type="text"
+                    value={sourceReference}
+                  />
+                </label>
               </div>
             )}
 

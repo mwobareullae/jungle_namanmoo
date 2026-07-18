@@ -102,6 +102,24 @@ def test_mapping_review_persists_non_mapping_final_disposition(
         assert review.final_disposition == final_disposition
 
 
+def test_mapping_review_persists_needs_review_without_final_disposition(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user, source, _target = _seed_references(session, "needs-review")
+        review = IngredientMappingReview(
+            source_ingredient_id=source.id,
+            normalized_source_name="source-name",
+            status="NEEDS_REVIEW",
+            decision_reason="재검토가 필요합니다",
+            reviewed_by_user_id=user.id,
+            reviewed_at=datetime(2026, 7, 19, 10, 0, tzinfo=UTC),
+        )
+        session.add(review)
+        session.flush()
+
+        assert review.final_disposition is None
+        assert review.target_ingredient_id is None
+
+
 @pytest.mark.parametrize(
     ("status", "final_disposition", "include_target"),
     [

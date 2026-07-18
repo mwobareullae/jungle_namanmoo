@@ -41,36 +41,45 @@ def test_normalize_source_name_lower_and_strip_whitespace() -> None:
 
 
 def test_cursor_round_trip_preserves_keys() -> None:
-    token = svc._encode_cursor("ing_pending_ab", "nsn1", status="PENDING", q="foo")
-    pc, nsn = svc._decode_cursor(token, status="PENDING", q="foo")
+    token = svc._encode_cursor(
+        "ing_pending_ab", "nsn1", status="PENDING", final_disposition=None, q="foo"
+    )
+    pc, nsn = svc._decode_cursor(token, status="PENDING", final_disposition=None, q="foo")
     assert (pc, nsn) == ("ing_pending_ab", "nsn1")
 
 
 def test_cursor_rejects_filter_mismatch() -> None:
-    token = svc._encode_cursor("ing_pending_ab", "nsn1", status="PENDING", q="foo")
+    token = svc._encode_cursor(
+        "ing_pending_ab", "nsn1", status="PENDING", final_disposition="MAPPED", q="foo"
+    )
     with pytest.raises(ApiError) as exc:
-        svc._decode_cursor(token, status="APPROVED", q="foo")
+        svc._decode_cursor(token, status="APPROVED", final_disposition="MAPPED", q="foo")
     assert exc.value.code == "INVALID_CURSOR"
     with pytest.raises(ApiError) as exc2:
-        svc._decode_cursor(token, status="PENDING", q="bar")
+        svc._decode_cursor(token, status="PENDING", final_disposition="MAPPED", q="bar")
     assert exc2.value.code == "INVALID_CURSOR"
+    with pytest.raises(ApiError) as exc3:
+        svc._decode_cursor(token, status="PENDING", final_disposition=None, q="foo")
+    assert exc3.value.code == "INVALID_CURSOR"
 
 
 def test_cursor_rejects_malformed_token() -> None:
     with pytest.raises(ApiError) as exc:
-        svc._decode_cursor("!!!not-base64!!!", status=None, q="")
+        svc._decode_cursor("!!!not-base64!!!", status=None, final_disposition=None, q="")
     assert exc.value.code == "INVALID_CURSOR"
 
 
 def test_effective_status_derives_pending_when_no_review() -> None:
     assert svc._effective_status(None) == "PENDING"
     assert svc._effective_status("HELD") == "HELD"
+    assert svc._effective_status("NEEDS_REVIEW") == "NEEDS_REVIEW"
     assert svc._effective_status("APPROVED") == "APPROVED"
 
 
 def test_available_actions_by_status() -> None:
     assert svc._ACTIONS_BY_STATUS["PENDING"] == ["APPROVE", "HOLD", "REJECT"]
     assert svc._ACTIONS_BY_STATUS["HELD"] == ["APPROVE", "REJECT"]
+    assert svc._ACTIONS_BY_STATUS["NEEDS_REVIEW"] == ["APPROVE", "HOLD", "REJECT"]
     assert svc._ACTIONS_BY_STATUS["APPROVED"] == ["REOPEN"]
     assert svc._ACTIONS_BY_STATUS["REJECTED"] == ["REOPEN"]
 
@@ -105,7 +114,16 @@ def test_normalize_status_filter_rejects_unknown() -> None:
         svc._normalize_status_filter("BOGUS")
     assert exc.value.code == "INVALID_INGREDIENT_MAPPING_STATUS"
     assert svc._normalize_status_filter("pending") == "PENDING"
+    assert svc._normalize_status_filter("needs_review") == "NEEDS_REVIEW"
     assert svc._normalize_status_filter(None) is None
+
+
+def test_normalize_final_disposition_filter_rejects_unknown() -> None:
+    assert svc._normalize_final_disposition_filter("mapped") == "MAPPED"
+    assert svc._normalize_final_disposition_filter(None) is None
+    with pytest.raises(ApiError) as exc:
+        svc._normalize_final_disposition_filter("BOGUS")
+    assert exc.value.code == "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION"
 
 
 def test_normalize_limit_bounds() -> None:
@@ -182,6 +200,14 @@ def test_list_rejects_invalid_status_before_query(client: TestClient, db_engine:
     response = client.get("/api/admin/ingredient-mappings", params={"status": "BOGUS"})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_STATUS"
+
+
+def test_list_rejects_invalid_final_disposition_before_query(client: TestClient, db_engine: Engine) -> None:
+    _signup(client, ADMIN_EMAIL, "admin-mapping")
+    _promote_admin(db_engine, ADMIN_EMAIL)
+    response = client.get("/api/admin/ingredient-mappings", params={"final_disposition": "BOGUS"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION"
 
 
 def test_list_rejects_invalid_limit_before_query(client: TestClient, db_engine: Engine) -> None:
