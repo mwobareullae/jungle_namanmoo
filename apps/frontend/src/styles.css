@@ -19060,3 +19060,256 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   cursor: pointer !important;
   pointer-events: auto !important;
 }
+
+/* M4 재고·가격 운영 화면: mock 통합 저장 대신 필드별 실 API 액션을 사용한다. */
+.admin-inventory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-inventory-hero,
+.admin-inventory-history-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.admin-inventory-table-panel {
+  min-width: 0;
+}
+
+.admin-inventory-detail {
+  position: sticky;
+  top: 20px;
+  min-width: 0;
+}
+
+.admin-inventory-filter-header {
+  align-items: flex-start;
+}
+
+.admin-inventory-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-inventory-filter-controls input,
+.admin-inventory-filter-controls select,
+.admin-inventory-action-card input,
+.admin-inventory-action-card textarea {
+  min-height: 38px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+}
+
+.admin-inventory-filter-controls input,
+.admin-inventory-filter-controls select {
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-inventory-filter-controls input {
+  min-width: 180px;
+}
+
+.admin-inventory-product-button {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-inventory-product-button:focus-visible,
+.admin-inventory-filter-controls input:focus-visible,
+.admin-inventory-filter-controls select:focus-visible,
+.admin-inventory-action-card input:focus-visible,
+.admin-inventory-action-card textarea:focus-visible {
+  outline: 2px solid var(--admin-accent-2);
+  outline-offset: 2px;
+}
+
+.admin-inventory-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.admin-inventory-action-card {
+  display: grid;
+  gap: 10px;
+  margin: 14px 18px 0;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.admin-inventory-action-card h3,
+.admin-inventory-action-card p {
+  margin: 0;
+}
+
+.admin-inventory-action-card h3 {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.admin-inventory-action-card p,
+.admin-inventory-help,
+.admin-inventory-loading,
+.admin-inventory-notice,
+.admin-inventory-error {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.admin-inventory-action-card p,
+.admin-inventory-help,
+.admin-inventory-loading {
+  color: var(--admin-muted);
+}
+
+.admin-inventory-action-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-inventory-action-card input,
+.admin-inventory-action-card textarea {
+  width: 100%;
+  padding: 9px 10px;
+}
+
+.admin-inventory-action-card textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.admin-inventory-action-card .admin-secondary-button,
+.admin-inventory-action-card .admin-primary-button {
+  justify-self: start;
+}
+
+.admin-inventory-sale-card {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: #fffaf0;
+}
+
+.admin-inventory-help,
+.admin-inventory-notice,
+.admin-inventory-error {
+  margin: 14px 18px 0;
+}
+
+.admin-inventory-notice {
+  color: #2aa6d1;
+}
+
+.admin-inventory-error {
+  padding: 10px 12px;
+  border-left: 3px solid #ff6b52;
+  border-radius: 6px;
+  background: #fff4f1;
+  color: #9f392b;
+}
+
+.admin-inventory-more {
+  display: flex;
+  justify-content: center;
+  padding: 16px 18px 18px;
+}
+
+.admin-inventory-confirm-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(12, 17, 23, 0.45);
+}
+
+.admin-inventory-confirm-dialog {
+  display: grid;
+  width: min(100%, 440px);
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-white);
+  box-shadow: 0 18px 48px rgba(12, 17, 23, 0.24);
+}
+
+.admin-inventory-confirm-dialog p,
+.admin-inventory-confirm-dialog h2,
+.admin-inventory-confirm-dialog span {
+  margin: 0;
+}
+
+.admin-inventory-confirm-dialog p {
+  color: #b36b00;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-inventory-confirm-dialog h2 {
+  color: var(--admin-text);
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.admin-inventory-confirm-dialog span {
+  color: var(--admin-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.admin-inventory-confirm-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media (max-width: 1180px) {
+  .admin-inventory-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inventory-detail {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-inventory-filter-controls {
+    justify-content: flex-start;
+  }
+
+  .admin-inventory-filter-controls input,
+  .admin-inventory-filter-controls select {
+    width: 100%;
+  }
+
+  .admin-inventory-action-card .admin-secondary-button,
+  .admin-inventory-action-card .admin-primary-button {
+    width: 100%;
+  }
+}
