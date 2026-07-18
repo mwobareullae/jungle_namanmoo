@@ -30,6 +30,7 @@ class WishlistItem(BaseModel):
 
 class WishlistResponse(BaseModel):
     items: list[WishlistItem]
+    next_cursor: str | None = None
 
 
 class RecentViewRequest(BaseModel):

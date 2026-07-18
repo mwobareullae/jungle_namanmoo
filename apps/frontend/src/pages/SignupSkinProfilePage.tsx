@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import HomeHeader from "../components/HomeHeader";
 import SignupProgress from "../components/SignupProgress";
 import { Button } from "../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { avoidIngredientCategories } from "../constants/avoidIngredientCategories";
 import { useAuth } from "../contexts/useAuth";
-import { API_BASE_URL } from "../lib/api";
+import { skinProfileQueryKey } from "../hooks/useSkinProfileQuery";
+import { createSignupSkinProfile, setMySkinProfileCache } from "../lib/profileApi";
 
 type SkinProfileForm = {
   skinType: string;
@@ -51,7 +53,8 @@ const getAvoidIngredientLabels = (ids: string[]) =>
 
 function SignupSkinProfilePage() {
   const navigate = useNavigate();
-  const { refreshAuthenticatedUser } = useAuth();
+  const queryClient = useQueryClient();
+  const { refreshAuthenticatedUser, user } = useAuth();
   const [form, setForm] = useState<SkinProfileForm>({
     skinType: "",
     sensitivity: "",
@@ -109,19 +112,18 @@ function SignupSkinProfilePage() {
         avoidIngredients: getAvoidIngredientLabels(form.avoidIngredients)
       };
 
-      const response = await fetch(`${API_BASE_URL}/skin-profile`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signupSkinProfilePayload)
-      });
-
-      if (!response.ok) {
+      const savedProfile = await createSignupSkinProfile(signupSkinProfilePayload);
+      if (!savedProfile) {
         setErrorMessage("피부 타입 저장에 실패했습니다. 다시 시도해주세요.");
         return;
       }
 
-      await refreshAuthenticatedUser().catch(() => null);
+      const refreshedUser = await refreshAuthenticatedUser().catch(() => null);
+      const userId = refreshedUser?.id ?? user?.id;
+      setMySkinProfileCache(userId, savedProfile);
+      if (typeof userId === "number") {
+        queryClient.setQueryData(skinProfileQueryKey(userId), savedProfile);
+      }
       navigate("/", { replace: true });
     } catch {
       setErrorMessage("피부 타입 저장에 실패했습니다. 다시 시도해주세요.");

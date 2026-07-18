@@ -1,4 +1,13 @@
 import "./ProductDetailPreviewPage.css";
+import {
+  Crosshair,
+  Infinity as InfinityIcon,
+  Leaf,
+  MagicWand,
+  ShieldCheck,
+  StackMinus,
+  Sun
+} from "@phosphor-icons/react";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useLocation } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
@@ -31,26 +40,30 @@ import ScoreAnalysisPanel from "../components/product-detail/ScoreAnalysisPanel"
 import { useProductComparison } from "../contexts/ProductComparisonContext";
 
 const tabs = ["상세정보", "성분정보", "구매후기", "점수분석", "Q&A"];
-type EvidenceIconKey = "brighten" | "wrinkle" | "acne" | "moisture" | "calming" | "exfoliation";
+type EvidenceIconKey = "brighten" | "wrinkle" | "acne" | "moisture" | "calming" | "exfoliation" | "other";
 
 const getEvidenceIconKey = (effect: string): EvidenceIconKey => {
   if (effect.includes("미백") || effect.includes("톤")) return "brighten";
   if (effect.includes("주름") || effect.includes("탄력")) return "wrinkle";
   if (effect.includes("여드름") || effect.includes("피지") || effect.includes("모공")) return "acne";
-  if (effect.includes("보습") || effect.includes("장벽")) return "moisture";
+  if (effect.includes("보습") || effect.includes("수분") || effect.includes("장벽")) return "moisture";
   if (effect.includes("각질")) return "exfoliation";
-  return "calming";
+  if (effect.includes("진정")) return "calming";
+  return "other";
 };
 
 function EvidenceIcon({ icon }: { icon: EvidenceIconKey }) {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {icon === "moisture" ? <path d="M12 2.5c4 5 7 8.5 7 12a7 7 0 1 1-14 0c0-3.5 3-7 7-12z" /> : null}
-    {icon === "calming" ? <><path d="M20 4c-7.5.5-12 4.3-12 9.6 0 3.1 2 5.4 5.1 5.4C18.2 19 20 12.8 20 4z" /><path d="M4 20c3-4 6.8-7 11.4-9.2" /></> : null}
-    {icon === "brighten" ? <><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" /></> : null}
-    {icon === "wrinkle" ? <><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" /><path d="M18 3v4h-4M6 21v-4h4" /></> : null}
-    {icon === "acne" ? <path d="M12 3l7 3.5v5c0 5-3 8.5-7 9.5-4-1-7-4.5-7-9.5v-5L12 3z" /> : null}
-    {icon === "exfoliation" ? <><path d="M5 7c2-1.4 4-1.4 6 0s4 1.4 6 0" /><path d="M5 12c2-1.4 4-1.4 6 0s4 1.4 6 0" /><path d="M5 17c2-1.4 4-1.4 6 0s4 1.4 6 0" /></> : null}
-  </svg>;
+  const Icon = {
+    brighten: Sun,
+    wrinkle: InfinityIcon,
+    acne: Crosshair,
+    moisture: ShieldCheck,
+    calming: Leaf,
+    exfoliation: StackMinus,
+    other: MagicWand
+  }[icon];
+
+  return <Icon aria-hidden="true" size={16} weight="regular" />;
 }
 
 function ProductDetailPreviewPage() {

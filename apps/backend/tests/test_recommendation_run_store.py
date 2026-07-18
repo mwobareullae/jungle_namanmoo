@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import app.services.recommendation_pipeline as recommendation_pipeline
 from app.db.base import Base
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -16,7 +17,10 @@ from app.db.models.recommendation import (
 from app.schemas.recommendation import RecommendationRequest
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
-from app.services.recommendation_pipeline import create_recommendation_response
+from app.services.recommendation_pipeline import (
+    create_recommendation_response,
+    get_recommendation_response,
+)
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.recommendation_run_store import (
     cleanup_expired_recommendation_runs,
@@ -172,6 +176,107 @@ def test_create_recommendation_response_skips_candidate_trace_persistence() -> N
     assert response.products
     assert _count_rows(session, SearchCandidate) == 0
     assert _count_rows(session, RecommendationResult) == len(response.products)
+
+
+def test_create_recommendation_response_uses_compact_fresh_response_path(
+    monkeypatch,
+) -> None:
+    session = _seed_example_session()
+    get_response = recommendation_pipeline.get_recommendation_response
+    events: list[dict] = []
+
+    def _unexpected_result_reload(*args, **kwargs):
+        raise AssertionError("fresh recommendation response must not reload persisted results")
+
+    def _record_event(_event_name: str, *, duration_ms: float, metadata: dict) -> None:
+        events.append({"duration_ms": duration_ms, "metadata": metadata})
+
+    monkeypatch.setattr(
+        recommendation_pipeline,
+        "get_recommendation_response",
+        _unexpected_result_reload,
+    )
+    monkeypatch.setattr(recommendation_pipeline, "log_performance_event", _record_event)
+
+    created = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="hydration recommendation"),
+        result_limit=2,
+        candidate_pool_limit=20,
+        page=2,
+        page_size=1,
+        commit=False,
+    )
+
+    assert created.products
+    assert created.pagination.page == 2
+    assert created.pagination.total_items == 2
+    completed = events[-1]["metadata"]
+    assert completed["response_read_path"] == "fresh_compact"
+    assert completed["response_run_load_ms"] == 0.0
+    assert completed["response_result_count_ms"] == 0.0
+    assert completed["response_thumbnail_load_ms"] == 0.0
+    assert completed["response_evidence_load_ms"] == 0.0
+    assert completed["response_display_query_ms"] >= 0.0
+
+    monkeypatch.setattr(
+        recommendation_pipeline,
+        "get_recommendation_response",
+        get_response,
+    )
+    loaded = get_recommendation_response(
+        session,
+        created.recommendation_id,
+        page=2,
+        page_size=1,
+    )
+
+    assert created.model_dump(mode="json") == loaded.model_dump(mode="json")
+
+
+def test_get_recommendation_response_records_response_load_diagnostics() -> None:
+    session = _seed_example_session()
+    created = create_recommendation_response(
+        session,
+        RecommendationRequest(concern_text="hydration recommendation"),
+        result_limit=10,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+
+    timings: dict[str, float] = {}
+    response = get_recommendation_response(
+        session,
+        created.recommendation_id,
+        timings=timings,
+    )
+
+    expected_keys = {
+        "response_load_ms",
+        "response_run_load_ms",
+        "response_result_count_ms",
+        "response_product_query_ms",
+        "response_thumbnail_load_ms",
+        "response_availability_build_ms",
+        "response_result_rows_ms",
+        "response_evidence_query_ms",
+        "response_evidence_group_ms",
+        "response_evidence_load_ms",
+        "response_serialize_ms",
+        "response_unattributed_ms",
+        "response_page_size",
+        "response_total_item_count",
+        "response_result_row_count",
+        "response_thumbnail_count",
+        "response_evidence_row_count",
+    }
+
+    assert response.products
+    assert expected_keys <= timings.keys()
+    assert timings["response_page_size"] == response.pagination.page_size
+    assert timings["response_total_item_count"] == response.pagination.total_items
+    assert timings["response_result_row_count"] == len(response.products)
+    assert all(value >= 0 for value in timings.values())
 
 
 def test_create_recommendation_response_persists_candidate_pool_diagnostics() -> None:

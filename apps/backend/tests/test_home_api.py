@@ -1,18 +1,29 @@
 from collections.abc import Generator
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.catalog import Product
+from app.db.models.catalog import Product, ProductPrice
 from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.recommendation import HomeSectionSnapshot, ProductRecommendationCoarseFeature
 from app.db.session import get_db
 from app.main import app
+from app.services import home_sections
 from app.services.db_seed import seed_database
+from app.services.home_section_snapshot_rollup import rollup_home_section_snapshots
+from app.services.recommendation_coarse_feature_rollup import (
+    rollup_product_recommendation_coarse_features,
+)
+from app.services.recommendation_feature_rollup import (
+    rollup_product_recommendation_features,
+)
 from tests.test_data_loader import EXAMPLES_DIR
 
 
@@ -202,6 +213,229 @@ def test_home_product_tags_use_the_highest_ranked_effect_ingredient_pair(client:
     assert products_by_id["prod_002"]["tags"] == ["피지 조절", "나이아신아마이드"]
 
 
+def test_home_evidence_picks_uses_coarse_shortlist(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _rollup_home_coarse_features(db_engine)
+    product_id_batches: list[list[int] | None] = []
+    original_load_products = home_sections._load_products
+
+    def capture_load_products(
+        session: Session,
+        *,
+        category_code: str | None,
+        product_ids: list[int] | None = None,
+    ):
+        product_id_batches.append(product_ids)
+        return original_load_products(
+            session,
+            category_code=category_code,
+            product_ids=product_ids,
+        )
+
+    monkeypatch.setattr(home_sections, "_load_products", capture_load_products)
+
+    response = client.get("/api/home/evidence-picks", params={"limit": 4})
+
+    assert response.status_code == 200
+    assert len(product_id_batches) == 1
+    assert product_id_batches[0] is not None
+    assert len(product_id_batches[0]) <= home_sections.HOME_EVIDENCE_SHORTLIST_LIMIT
+
+
+def test_home_for_you_uses_coarse_shortlist(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _rollup_home_coarse_features(db_engine)
+    product_id_batches: list[list[int] | None] = []
+    original_load_products = home_sections._load_products
+
+    def capture_load_products(
+        session: Session,
+        *,
+        category_code: str | None,
+        product_ids: list[int] | None = None,
+    ):
+        product_id_batches.append(product_ids)
+        return original_load_products(
+            session,
+            category_code=category_code,
+            product_ids=product_ids,
+        )
+
+    monkeypatch.setattr(home_sections, "_load_products", capture_load_products)
+
+    response = client.get("/api/home/for-you", params={"limit": 4})
+
+    assert response.status_code == 200
+    assert len(product_id_batches) == 1
+    assert product_id_batches[0] is not None
+    assert len(product_id_batches[0]) <= home_sections.HOME_FOR_YOU_SHORTLIST_LIMIT
+
+
+def test_home_coarse_shortlists_preserve_default_rankings(db_engine: Engine) -> None:
+    _rollup_home_coarse_features(db_engine)
+
+    with Session(db_engine) as session:
+        fast_evidence = home_sections.get_evidence_picks_response(session, limit=8)
+        fast_for_you = home_sections.get_for_you_response(session, limit=8)
+
+        session.execute(
+            update(ProductRecommendationCoarseFeature).values(source_current=False)
+        )
+        legacy_evidence = home_sections.get_evidence_picks_response(session, limit=8)
+        legacy_for_you = home_sections.get_for_you_response(session, limit=8)
+        session.rollback()
+
+    assert [product.product_id for product in fast_evidence.products] == [
+        product.product_id for product in legacy_evidence.products
+    ]
+    assert [product.product_id for product in fast_for_you.products] == [
+        product.product_id for product in legacy_for_you.products
+    ]
+
+
+def test_home_snapshot_rollup_creates_evidence_and_guest_skin_contexts(db_engine: Engine) -> None:
+    _rollup_home_coarse_features(db_engine)
+
+    with Session(db_engine) as session:
+        result = rollup_home_section_snapshots(session)
+        session.commit()
+        rows = session.execute(select(HomeSectionSnapshot)).scalars().all()
+
+    assert result.counts_by_context["evidence_picks:overall"] > 0
+    assert {
+        row.context_key
+        for row in rows
+        if row.section_id == "for_you"
+    } == {
+        "guest:skin_type:건성",
+        "guest:skin_type:지성",
+        "guest:skin_type:복합성",
+        "guest:skin_type:수부지",
+        "guest:skin_type:중성",
+    }
+
+
+def test_home_evidence_picks_reads_snapshot_and_current_price(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _rollup_home_snapshots(db_engine)
+    with Session(db_engine) as session:
+        first_snapshot = session.execute(
+            select(HomeSectionSnapshot)
+            .where(
+                HomeSectionSnapshot.section_id == "evidence_picks",
+                HomeSectionSnapshot.context_key == "overall",
+            )
+            .order_by(HomeSectionSnapshot.rank_order.asc())
+        ).scalars().first()
+        assert first_snapshot is not None
+        price = session.execute(
+            select(ProductPrice).where(ProductPrice.product_id == first_snapshot.product_id)
+        ).scalars().first()
+        assert price is not None
+        price.price = 12345
+        price.is_lowest = True
+        session.commit()
+
+    response = client.get("/api/home/evidence-picks", params={"limit": 1})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["algorithm"] == "home_v1_snapshot_evidence"
+    assert data["products"][0]["lowest_price"] == 12345
+
+
+def test_home_evidence_picks_falls_back_when_snapshot_is_stale(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _rollup_home_snapshots(db_engine)
+    with Session(db_engine) as session:
+        session.execute(
+            update(HomeSectionSnapshot)
+            .where(
+                HomeSectionSnapshot.section_id == "evidence_picks",
+                HomeSectionSnapshot.context_key == "overall",
+            )
+            .values(computed_at=datetime.now(UTC) - timedelta(days=3))
+        )
+        session.commit()
+
+    response = client.get("/api/home/evidence-picks", params={"limit": 2})
+
+    assert response.status_code == 200
+    assert response.json()["algorithm"] == "home_v0_ingredient_evidence"
+
+
+def test_home_for_you_uses_guest_snapshot_for_default_sensitivity(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _rollup_home_snapshots(db_engine)
+
+    without_sensitivity = client.get(
+        "/api/home/for-you",
+        params={"skin_type": "dry", "limit": 2},
+    )
+    default_sensitivity = client.get(
+        "/api/home/for-you",
+        params={"skin_type": "dry", "sensitivity": "medium", "limit": 2},
+    )
+
+    assert without_sensitivity.status_code == 200
+    assert default_sensitivity.status_code == 200
+    assert without_sensitivity.json()["algorithm"] == "home_v2_for_you_guest_snapshot"
+    assert _product_ids(without_sensitivity.json()["products"]) == _product_ids(
+        default_sensitivity.json()["products"]
+    )
+
+
+def test_home_for_you_falls_back_for_noncanonical_conditions(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _rollup_home_snapshots(db_engine)
+
+    response = client.get(
+        "/api/home/for-you",
+        params={"skin_type": "dry", "sensitivity": "high", "limit": 2},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["algorithm"] == "home_v1_for_you_personalized"
+
+
+def test_home_for_you_reranks_guest_snapshot_for_logged_in_user(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _rollup_home_snapshots(db_engine)
+    _signup(client, email="home-snapshot-user@example.com", nickname="home-snapshot")
+    profile_response = client.put(
+        "/api/me/skin-profile",
+        json={
+            "skin_type": "dry",
+            "sensitivity": "high",
+            "avoid_ingredients": [],
+            "concerns": [],
+        },
+    )
+    assert profile_response.status_code == 200
+
+    response = client.get("/api/home/for-you", params={"skin_type": "dry", "limit": 2})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["algorithm"] == "home_v2_for_you_snapshot_rerank"
+    assert "manual_skin_profile" in data["personalization_sources"]
+
 def test_home_for_you_returns_anonymous_fallback(client: TestClient) -> None:
     response = client.get("/api/home/for-you", params={"limit": 3})
 
@@ -319,6 +553,20 @@ def _assert_home_product_contract(product: dict) -> None:
 
 def _product_ids(products: list[dict]) -> list[str]:
     return [product["product_id"] for product in products]
+
+
+def _rollup_home_snapshots(db_engine: Engine) -> None:
+    _rollup_home_coarse_features(db_engine)
+    with Session(db_engine) as session:
+        rollup_home_section_snapshots(session)
+        session.commit()
+
+
+def _rollup_home_coarse_features(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        rollup_product_recommendation_features(session)
+        rollup_product_recommendation_coarse_features(session)
+        session.commit()
 
 
 def _signup(client: TestClient, *, email: str, nickname: str) -> dict:

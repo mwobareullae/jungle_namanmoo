@@ -28,6 +28,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class UpdateMeRequest(BaseModel):
+    nickname: str
+
+
 class GoogleLoginRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

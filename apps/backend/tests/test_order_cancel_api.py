@@ -170,7 +170,13 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     confirm_response = _confirm_toss_payment(client, pending)
     assert confirm_response.status_code == 200
 
-    response = client.post(f"/api/orders/{pending['order_code']}/cancel")
+    response = client.post(
+        f"/api/orders/{pending['order_code']}/cancel",
+        json={
+            "reason_code": "ORDER_MISTAKE",
+            "reason_detail": "  수량을 잘못 선택했습니다.  ",
+        },
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -205,7 +211,68 @@ def test_cancel_paid_order_moves_to_cancel_requested_without_stock_change(
     assert cancel_request.request_code == body["request_code"]
     assert cancel_request.status == "REQUESTED"
     assert cancel_request.user_id == order.user_id
+    assert cancel_request.reason_code == "ORDER_MISTAKE"
+    assert cancel_request.reason_detail == "수량을 잘못 선택했습니다."
     assert cancel_request.processed_at is None
+
+
+def test_cancel_paid_order_requires_reason(client: TestClient, db_engine: Engine) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="cancel-reason-required@example.com",
+        nickname="cancel-reason-required",
+        quantity=1,
+    )
+    assert _confirm_toss_payment(client, pending).status_code == 200
+
+    response = client.post(f"/api/orders/{pending['order_code']}/cancel")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "CANCEL_REASON_REQUIRED"
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        cancel_requests = session.execute(
+            select(OrderCancelRequest).where(OrderCancelRequest.order_id == order.id)
+        ).scalars().all()
+    assert order.status == "PAID"
+    assert cancel_requests == []
+
+
+def test_cancel_paid_order_requires_detail_for_other_reason(client: TestClient, db_engine: Engine) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="cancel-other-reason@example.com",
+        nickname="cancel-other-reason",
+        quantity=1,
+    )
+    assert _confirm_toss_payment(client, pending).status_code == 200
+
+    response = client.post(
+        f"/api/orders/{pending['order_code']}/cancel",
+        json={"reason_code": "OTHER", "reason_detail": "   "},
+    )
+
+    assert response.status_code == 400
+
+
+def test_cancel_paid_order_rejects_unknown_reason_code(client: TestClient, db_engine: Engine) -> None:
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email="cancel-invalid-reason@example.com",
+        nickname="cancel-invalid-reason",
+        quantity=1,
+    )
+    assert _confirm_toss_payment(client, pending).status_code == 200
+
+    response = client.post(
+        f"/api/orders/{pending['order_code']}/cancel",
+        json={"reason_code": "INVALID_REASON"},
+    )
+
+    assert response.status_code == 400
 
 
 def test_cancel_requested_order_replay_returns_same_request_code(
@@ -221,7 +288,10 @@ def test_cancel_requested_order_replay_returns_same_request_code(
     )
     assert _confirm_toss_payment(client, pending).status_code == 200
 
-    first = client.post(f"/api/orders/{pending['order_code']}/cancel")
+    first = client.post(
+        f"/api/orders/{pending['order_code']}/cancel",
+        json={"reason_code": "CHANGE_OF_MIND"},
+    )
     second = client.post(f"/api/orders/{pending['order_code']}/cancel")
 
     assert first.status_code == 200
@@ -304,7 +374,10 @@ def test_paid_order_cancel_rolls_back_when_request_row_creation_fails(
 
             monkeypatch.setattr(Session, "flush", _boom_flush)
 
-            response = boom_client.post(f"/api/orders/{pending['order_code']}/cancel")
+            response = boom_client.post(
+                f"/api/orders/{pending['order_code']}/cancel",
+                json={"reason_code": "CHANGE_OF_MIND"},
+            )
 
         assert response.status_code == 500
     finally:
