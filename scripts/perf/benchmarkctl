@@ -34,6 +34,10 @@ CONFIG_K6_EXIT_CODE="${BENCHMARK_K6_EXIT_CODE-}"
 CONFIG_K6_EXIT_CODE_SET="${BENCHMARK_K6_EXIT_CODE+x}"
 CONFIG_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH-}"
 CONFIG_SCORING_READ_PATH_SET="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH+x}"
+CONFIG_CANDIDATE_CACHE_STATE="${BENCHMARK_CANDIDATE_CACHE_STATE-}"
+CONFIG_CANDIDATE_CACHE_STATE_SET="${BENCHMARK_CANDIDATE_CACHE_STATE+x}"
+CONFIG_CANDIDATE_CACHE_ENABLED="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED-}"
+CONFIG_CANDIDATE_CACHE_ENABLED_SET="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED+x}"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -63,14 +67,33 @@ restore_env_override BENCHMARK_K6_EXIT_CODE "$CONFIG_K6_EXIT_CODE_SET" "$CONFIG_
 restore_env_override BENCHMARK_RECOMMENDATION_SCORING_READ_PATH \
   "$CONFIG_SCORING_READ_PATH_SET" \
   "$CONFIG_SCORING_READ_PATH"
+restore_env_override BENCHMARK_CANDIDATE_CACHE_STATE \
+  "$CONFIG_CANDIDATE_CACHE_STATE_SET" \
+  "$CONFIG_CANDIDATE_CACHE_STATE"
+restore_env_override BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED \
+  "$CONFIG_CANDIDATE_CACHE_ENABLED_SET" \
+  "$CONFIG_CANDIDATE_CACHE_ENABLED"
 
 BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
 BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
 RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$BENCHMARK_RUNTIME_ROOT/runs}"
 BENCHMARK_RECOMMENDATION_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH:-legacy_bulk}"
+BENCHMARK_CANDIDATE_CACHE_STATE="${BENCHMARK_CANDIDATE_CACHE_STATE:-off}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED:-false}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS:-300}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS:-60}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS:-0.05}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS:-0.05}"
 export BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
+export BENCHMARK_CANDIDATE_CACHE_STATE
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
+REDIS_SERVICE="${REDIS_SERVICE:-redis}"
 COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
 
 usage() {
@@ -81,6 +104,7 @@ Usage:
   scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl seed-users <1000|5000|10000|80000>
   scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl clear-candidate-cache <1000|5000|10000|80000>
   scripts/perf/benchmarkctl monitor-start <run_id> <1000|5000|10000|80000>
   scripts/perf/benchmarkctl monitor-stop <run_id> <1000|5000|10000|80000>
   scripts/perf/benchmarkctl build <source_dir> [output_root]
@@ -101,6 +125,16 @@ die() {
 case "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" in
   legacy_bulk|compact_v2|coarse_top50_v1) ;;
   *) die "BENCHMARK_RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, or coarse_top50_v1" ;;
+esac
+
+case "$BENCHMARK_CANDIDATE_CACHE_STATE" in
+  off|cold|warm) ;;
+  *) die "BENCHMARK_CANDIDATE_CACHE_STATE must be off, cold, or warm" ;;
+esac
+
+case "$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED" in
+  true|false) ;;
+  *) die "BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED must be true or false" ;;
 esac
 
 safe_label() {
@@ -165,7 +199,25 @@ bench_mode=$BENCH_MODE
 cache_state=$CACHE_STATE
 candidate_pool_limit=$CANDIDATE_POOL_LIMIT
 recommendation_scoring_read_path=$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
+candidate_cache_state=$BENCHMARK_CANDIDATE_CACHE_STATE
+candidate_cache_enabled=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
+candidate_cache_ttl_seconds=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS
+candidate_cache_redis_key_prefix=$BENCHMARK_REDIS_KEY_PREFIX
 EOF
+}
+
+clear_candidate_cache() {
+  local pattern="${BENCHMARK_REDIS_KEY_PREFIX}recommendation:candidate_bundle:*"
+  local deleted
+  deleted="$(compose exec -T "$REDIS_SERVICE" sh -lc '
+set -eu
+pattern="$1"
+redis-cli --scan --pattern "$pattern" \
+  | xargs -r redis-cli del \
+  | awk "{ total += \$1 } END { print total + 0 }"
+' _ "$pattern")"
+  echo "candidate_cache_deleted=${deleted:-0}"
+  echo "candidate_cache_pattern=$pattern"
 }
 
 verify_data_dir() {
@@ -861,6 +913,11 @@ PY
   "query_set": "$QUERY_SET",
   "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
   "recommendation_scoring_read_path": "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH",
+  "candidate_cache_state": "$BENCHMARK_CANDIDATE_CACHE_STATE",
+  "candidate_cache_enabled": $BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED,
+  "candidate_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS,
+  "candidate_price_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS,
+  "candidate_cache_redis_key_prefix": "$BENCHMARK_REDIS_KEY_PREFIX",
   "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
   "k6_result_present": $k6_result_present,
   "k6_output_present": $k6_output_present,
@@ -888,6 +945,7 @@ case "$COMMAND" in
   verify) load_profile "${2:-}"; verify ;;
   verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
   seed-users) load_profile "${2:-}"; seed_users ;;
+  clear-candidate-cache) load_profile "${2:-}"; clear_candidate_cache ;;
   monitor-start) monitor_start "${2:-}" "${3:-}" ;;
   monitor-stop) monitor_stop "${2:-}" "${3:-}" ;;
   build) build "${2:-}" "${3:-}" ;;
