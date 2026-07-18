@@ -6,10 +6,20 @@ import { ADMIN_API_BASE } from "./adminApi";
 // 검수 단위(외부 식별자)는 (pendingCode, normalizedSourceName) 복합키.
 // 계약: docs/admin/admin-m2a-ingredient-mapping-api-contract.md
 
-export type IngredientMappingStatus = "PENDING" | "HELD" | "APPROVED" | "REJECTED";
+export type IngredientMappingStatus = "PENDING" | "HELD" | "NEEDS_REVIEW" | "APPROVED" | "REJECTED";
+export type IngredientMappingFinalDisposition =
+  | "MAPPED"
+  | "NON_INGREDIENT"
+  | "COMPOUND_MATERIAL"
+  | "SOURCE_ERROR"
+  | "UNRESOLVABLE";
+export type IngredientMappingNonMappingFinalDisposition = Exclude<
+  IngredientMappingFinalDisposition,
+  "MAPPED"
+>;
 export type IngredientMappingMatchSource = "ALIAS_EXACT" | "CANONICAL_NAME_EXACT";
 export type IngredientMappingAction = "APPROVE" | "HOLD" | "REJECT" | "REOPEN";
-export type IngredientMappingDecisionStatus = "HELD" | "APPROVED" | "REJECTED";
+export type IngredientMappingDecisionStatus = "HELD" | "NEEDS_REVIEW" | "APPROVED" | "REJECTED";
 
 // 목록 필터. "ALL" 은 프론트 전용(백엔드로는 status 미전송).
 export type IngredientMappingStatusFilter = "ALL" | IngredientMappingStatus;
@@ -23,6 +33,7 @@ export type IngredientMappingSuggestion = {
 
 export type IngredientMappingDecision = {
   status: IngredientMappingDecisionStatus;
+  finalDisposition: IngredientMappingFinalDisposition | null;
   targetIngredientCode: string | null;
   targetIngredientName: string | null;
   decisionReason: string | null;
@@ -45,6 +56,8 @@ export type IngredientMappingRow = {
 export type IngredientMappingSummary = {
   pendingCount: number;
   heldCount: number;
+  needsReviewCount: number;
+  unclassifiedCount: number;
   approvedCount: number;
   rejectedCount: number;
 };
@@ -72,10 +85,14 @@ export type IngredientMappingSampleProduct = {
 export type IngredientMappingEvent = {
   fromStatus: IngredientMappingDecisionStatus | null;
   toStatus: IngredientMappingDecisionStatus;
+  fromFinalDisposition: IngredientMappingFinalDisposition | null;
+  toFinalDisposition: IngredientMappingFinalDisposition | null;
   fromTargetIngredientCode: string | null;
   toTargetIngredientCode: string | null;
   actorId: number;
   reason: string | null;
+  evidenceSourceUrl: string | null;
+  sourceReference: string | null;
   createdAt: string;
 };
 
@@ -88,6 +105,7 @@ export type IngredientMappingDetail = IngredientMappingRow & {
 
 export type IngredientMappingQuery = {
   status?: IngredientMappingStatusFilter;
+  finalDisposition?: IngredientMappingFinalDisposition | null;
   q?: string | null;
   limit?: number;
   cursor?: string | null;
@@ -102,6 +120,7 @@ type BackendSuggestion = {
 
 type BackendDecision = {
   status: IngredientMappingDecisionStatus;
+  final_disposition: IngredientMappingFinalDisposition | null;
   target_ingredient_code: string | null;
   target_ingredient_name: string | null;
   decision_reason: string | null;
@@ -124,6 +143,8 @@ type BackendRow = {
 type BackendSummary = {
   pending_count: number;
   held_count: number;
+  needs_review_count: number;
+  unclassified_count: number;
   approved_count: number;
   rejected_count: number;
 };
@@ -151,10 +172,14 @@ type BackendSampleProduct = {
 type BackendEvent = {
   from_status: IngredientMappingDecisionStatus | null;
   to_status: IngredientMappingDecisionStatus;
+  from_final_disposition: IngredientMappingFinalDisposition | null;
+  to_final_disposition: IngredientMappingFinalDisposition | null;
   from_target_ingredient_code: string | null;
   to_target_ingredient_code: string | null;
   actor_id: number;
   reason: string | null;
+  evidence_source_url: string | null;
+  source_reference: string | null;
   created_at: string;
 };
 
@@ -201,6 +226,7 @@ const adaptDecision = (decision: BackendDecision | null): IngredientMappingDecis
     ? null
     : {
         status: decision.status,
+        finalDisposition: decision.final_disposition,
         targetIngredientCode: decision.target_ingredient_code,
         targetIngredientName: decision.target_ingredient_name,
         decisionReason: decision.decision_reason,
@@ -238,10 +264,14 @@ const adaptDetail = (detail: BackendDetail): IngredientMappingDetail => ({
   events: detail.events.map((event) => ({
     fromStatus: event.from_status,
     toStatus: event.to_status,
+    fromFinalDisposition: event.from_final_disposition,
+    toFinalDisposition: event.to_final_disposition,
     fromTargetIngredientCode: event.from_target_ingredient_code,
     toTargetIngredientCode: event.to_target_ingredient_code,
     actorId: event.actor_id,
     reason: event.reason,
+    evidenceSourceUrl: event.evidence_source_url,
+    sourceReference: event.source_reference,
     createdAt: formatKstDateTime(event.created_at) ?? event.created_at
   }))
 });
@@ -251,6 +281,7 @@ export const getIngredientMappings = async (
 ): Promise<IngredientMappingListResult> => {
   const params = new URLSearchParams();
   if (query.status && query.status !== "ALL") params.set("status", query.status);
+  if (query.finalDisposition) params.set("final_disposition", query.finalDisposition);
   if (query.q) params.set("q", query.q);
   if (query.limit) params.set("limit", String(query.limit));
   if (query.cursor) params.set("cursor", query.cursor);
@@ -265,6 +296,8 @@ export const getIngredientMappings = async (
     summary: {
       pendingCount: body.summary.pending_count,
       heldCount: body.summary.held_count,
+      needsReviewCount: body.summary.needs_review_count,
+      unclassifiedCount: body.summary.unclassified_count,
       approvedCount: body.summary.approved_count,
       rejectedCount: body.summary.rejected_count
     },
@@ -289,6 +322,7 @@ export type IngredientMappingActionResult = {
   pendingCode: string;
   normalizedSourceName: string;
   status: IngredientMappingDecisionStatus;
+  finalDisposition: IngredientMappingFinalDisposition | null;
   targetIngredientCode: string | null;
   targetIngredientName: string | null;
   decisionReason: string | null;
@@ -300,6 +334,7 @@ type BackendActionResult = {
   pending_code: string;
   normalized_source_name: string;
   status: IngredientMappingDecisionStatus;
+  final_disposition: IngredientMappingFinalDisposition | null;
   target_ingredient_code: string | null;
   target_ingredient_name: string | null;
   decision_reason: string | null;
@@ -311,6 +346,7 @@ const adaptActionResult = (result: BackendActionResult): IngredientMappingAction
   pendingCode: result.pending_code,
   normalizedSourceName: result.normalized_source_name,
   status: result.status,
+  finalDisposition: result.final_disposition,
   targetIngredientCode: result.target_ingredient_code,
   targetIngredientName: result.target_ingredient_name,
   decisionReason: result.decision_reason,
@@ -359,11 +395,17 @@ export const holdIngredientMapping = (
 export const rejectIngredientMapping = (
   pendingCode: string,
   normalizedSourceName: string,
-  decisionReason: string
+  decisionReason: string,
+  finalDisposition: IngredientMappingNonMappingFinalDisposition,
+  evidenceSourceUrl: string | null,
+  sourceReference: string | null
 ): Promise<IngredientMappingActionResult> =>
   postDecision(pendingCode, "reject", {
     normalized_source_name: normalizedSourceName,
-    decision_reason: decisionReason
+    decision_reason: decisionReason,
+    final_disposition: finalDisposition,
+    ...(evidenceSourceUrl ? { evidence_source_url: evidenceSourceUrl } : {}),
+    ...(sourceReference ? { source_reference: sourceReference } : {})
   });
 
 export const reopenIngredientMapping = (

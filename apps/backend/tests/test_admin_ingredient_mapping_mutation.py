@@ -31,9 +31,9 @@ USER_EMAIL = "user-mapping-mutation@example.com"
 # --- 전이 가드 -------------------------------------------------------------
 
 def test_allowed_source_statuses_match_contract() -> None:
-    assert mut._ALLOWED_SOURCE_STATUSES["APPROVE"] == {"PENDING", "HELD"}
-    assert mut._ALLOWED_SOURCE_STATUSES["HOLD"] == {"PENDING", "HELD"}
-    assert mut._ALLOWED_SOURCE_STATUSES["REJECT"] == {"PENDING", "HELD"}
+    assert mut._ALLOWED_SOURCE_STATUSES["APPROVE"] == {"PENDING", "HELD", "NEEDS_REVIEW"}
+    assert mut._ALLOWED_SOURCE_STATUSES["HOLD"] == {"PENDING", "HELD", "NEEDS_REVIEW"}
+    assert mut._ALLOWED_SOURCE_STATUSES["REJECT"] == {"PENDING", "HELD", "NEEDS_REVIEW"}
     assert mut._ALLOWED_SOURCE_STATUSES["REOPEN"] == {"APPROVED", "REJECTED"}
 
 
@@ -42,8 +42,10 @@ def test_allowed_source_statuses_match_contract() -> None:
     [
         ("APPROVE", "PENDING"),
         ("APPROVE", "HELD"),
+        ("APPROVE", "NEEDS_REVIEW"),
         ("HOLD", "PENDING"),
         ("REJECT", "HELD"),
+        ("REJECT", "NEEDS_REVIEW"),
         ("REOPEN", "APPROVED"),
         ("REOPEN", "REJECTED"),
     ],
@@ -92,6 +94,34 @@ def test_normalize_optional_reason() -> None:
 
 
 # --- 라우트 인가 (SQL 실행 전) ---------------------------------------------
+
+# --- P3 final disposition validation ----------------------------------------
+
+def test_non_ingredient_final_disposition_allows_empty_evidence() -> None:
+    assert mut._normalize_final_disposition_evidence("NON_INGREDIENT", None, None) == (
+        "NON_INGREDIENT",
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize("final_disposition", ["COMPOUND_MATERIAL", "SOURCE_ERROR", "UNRESOLVABLE"])
+def test_non_mapping_final_disposition_requires_evidence(final_disposition: str) -> None:
+    with pytest.raises(ApiError) as exc:
+        mut._normalize_final_disposition_evidence(final_disposition, None, " ")
+    assert exc.value.code == "FINAL_DISPOSITION_EVIDENCE_REQUIRED"
+    assert mut._normalize_final_disposition_evidence(final_disposition, None, "data/source.csv") == (
+        final_disposition,
+        None,
+        "data/source.csv",
+    )
+
+
+def test_final_disposition_rejects_mapped() -> None:
+    with pytest.raises(ApiError) as exc:
+        mut._normalize_final_disposition_evidence("MAPPED", None, None)
+    assert exc.value.code == "INVALID_FINAL_DISPOSITION"
+
 
 @pytest.fixture()
 def db_engine() -> Generator[Engine, None, None]:

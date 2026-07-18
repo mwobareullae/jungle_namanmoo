@@ -43,10 +43,13 @@ MAX_LIMIT = 100
 CANONICAL_SEARCH_DEFAULT_LIMIT = 20
 CANONICAL_SEARCH_MAX_LIMIT = 50
 
-VALID_STATUS_FILTERS = frozenset({"PENDING", "HELD", "APPROVED", "REJECTED"})
-STORED_STATUSES = frozenset({"HELD", "APPROVED", "REJECTED"})
+VALID_STATUS_FILTERS = frozenset({"PENDING", "HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"})
+STORED_STATUSES = frozenset({"HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"})
+VALID_FINAL_DISPOSITION_FILTERS = frozenset(
+    {"MAPPED", "NON_INGREDIENT", "COMPOUND_MATERIAL", "SOURCE_ERROR", "UNRESOLVABLE"}
+)
 
-CURSOR_VERSION = 1
+CURSOR_VERSION = 2
 
 # 목록·상세·판정 저장이 공유하는 정규화 SQL. lower + 모든 공백 제거.
 # Python normalize_source_name() 과 반드시 동일 결과를 내야 한다(정규화 정합성).
@@ -60,6 +63,7 @@ _PENDING_PREDICATE = (
 _ACTIONS_BY_STATUS: dict[str, list[str]] = {
     "PENDING": ["APPROVE", "HOLD", "REJECT"],
     "HELD": ["APPROVE", "REJECT"],
+    "NEEDS_REVIEW": ["APPROVE", "HOLD", "REJECT"],
     "APPROVED": ["REOPEN"],
     "REJECTED": ["REOPEN"],
 }
@@ -76,19 +80,33 @@ def normalize_source_name(raw_name: str | None) -> str:
 
 # --- 커서 -----------------------------------------------------------------
 
-def _encode_cursor(pending_code: str, normalized_source_name: str, *, status: str | None, q: str) -> str:
+def _encode_cursor(
+    pending_code: str,
+    normalized_source_name: str,
+    *,
+    status: str | None,
+    final_disposition: str | None,
+    q: str,
+) -> str:
     payload = {
         "v": CURSOR_VERSION,
         "pc": pending_code,
         "nsn": normalized_source_name,
         "st": status or "",
+        "fd": final_disposition or "",
         "q": q,
     }
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-def _decode_cursor(cursor: str, *, status: str | None, q: str) -> tuple[str, str]:
+def _decode_cursor(
+    cursor: str,
+    *,
+    status: str | None,
+    final_disposition: str | None,
+    q: str,
+) -> tuple[str, str]:
     try:
         padding = "=" * (-len(cursor) % 4)
         raw = base64.urlsafe_b64decode(f"{cursor}{padding}".encode("ascii"))
@@ -102,7 +120,11 @@ def _decode_cursor(cursor: str, *, status: str | None, q: str) -> tuple[str, str
     if not isinstance(pending_code, str) or not isinstance(normalized_source_name, str):
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
     # 필터가 페이지 사이에 바뀌면 커서 위치가 무의미하므로 거부한다(계약 §4).
-    if payload.get("st") != (status or "") or payload.get("q") != q:
+    if (
+        payload.get("st") != (status or "")
+        or payload.get("fd") != (final_disposition or "")
+        or payload.get("q") != q
+    ):
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
     return pending_code, normalized_source_name
 
@@ -117,6 +139,17 @@ def _normalize_status_filter(status: str | None) -> str | None:
         return None
     if normalized not in VALID_STATUS_FILTERS:
         raise ApiError(400, "INVALID_INGREDIENT_MAPPING_STATUS", "Invalid status filter.")
+    return normalized
+
+
+def _normalize_final_disposition_filter(final_disposition: str | None) -> str | None:
+    if final_disposition is None:
+        return None
+    normalized = final_disposition.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in VALID_FINAL_DISPOSITION_FILTERS:
+        raise ApiError(400, "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION", "Invalid final disposition filter.")
     return normalized
 
 
@@ -172,6 +205,7 @@ def _decision_from_row(row: object) -> IngredientMappingDecision | None:
         return None
     return IngredientMappingDecision(
         status=status,
+        final_disposition=getattr(row, "final_disposition", None),
         target_ingredient_code=getattr(row, "target_ingredient_code", None),
         target_ingredient_name=getattr(row, "target_ingredient_name", None),
         decision_reason=getattr(row, "decision_reason", None),
@@ -245,7 +279,7 @@ _LIST_SQL = text(
     select g.pending_code, g.normalized_source_name as nsn, g.connection_count,
            g.raw_name,
            rev.id as review_id, rev.status as review_status,
-           rev.target_ingredient_id, rev.decision_reason,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
            rev.reviewed_by_user_id, rev.reviewed_at,
            tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
     from ingredient_mapping_pending_groups g
@@ -257,6 +291,12 @@ _LIST_SQL = text(
         (cast(:status as text) is null
          or (cast(:status as text) = 'PENDING' and rev.id is null)
          or (cast(:status as text) <> 'PENDING' and rev.status = cast(:status as text)))
+        and (cast(:final_disposition as text) is null
+             or rev.final_disposition = cast(:final_disposition as text))
+        and (cast(:status as text) is not null
+             or cast(:final_disposition as text) is not null
+             or rev.id is null
+             or rev.status in ('HELD', 'NEEDS_REVIEW'))
         and (cast(:q as text) = ''
              or g.pending_code ilike cast(:q_like as text)
              or g.normalized_source_name ilike cast(:q_like as text)
@@ -275,6 +315,8 @@ _SUMMARY_SQL = text(
     select
         count(*) filter (where rev.status is null) as pending_count,
         count(*) filter (where rev.status = 'HELD') as held_count,
+        count(*) filter (where rev.status = 'NEEDS_REVIEW') as needs_review_count,
+        count(*) filter (where rev.status is null or rev.status in ('HELD', 'NEEDS_REVIEW')) as unclassified_count,
         count(*) filter (where rev.status = 'APPROVED') as approved_count,
         count(*) filter (where rev.status = 'REJECTED') as rejected_count
     from ingredient_mapping_pending_groups g
@@ -292,15 +334,22 @@ def list_ingredient_mappings(
     q: str | None,
     limit: int,
     cursor: str | None,
+    final_disposition: str | None = None,
 ) -> IngredientMappingListResponse:
     normalized_status = _normalize_status_filter(status)
+    normalized_final_disposition = _normalize_final_disposition_filter(final_disposition)
     normalized_limit = _normalize_limit(limit)
     normalized_q = _normalize_q(q)
 
     cursor_pc: str | None = None
     cursor_nsn: str | None = None
     if cursor is not None and cursor.strip():
-        cursor_pc, cursor_nsn = _decode_cursor(cursor, status=normalized_status, q=normalized_q)
+        cursor_pc, cursor_nsn = _decode_cursor(
+            cursor,
+            status=normalized_status,
+            final_disposition=normalized_final_disposition,
+            q=normalized_q,
+        )
 
     q_like = f"%{_escape_like(normalized_q)}%" if normalized_q else ""
     rows = list(
@@ -308,6 +357,7 @@ def list_ingredient_mappings(
             _LIST_SQL,
             {
                 "status": normalized_status,
+                "final_disposition": normalized_final_disposition,
                 "q": normalized_q,
                 "q_like": q_like,
                 "cursor_pc": cursor_pc,
@@ -328,13 +378,19 @@ def list_ingredient_mappings(
     if has_more and page_rows:
         last = page_rows[normalized_limit - 1]
         next_cursor = _encode_cursor(
-            last.pending_code, last.nsn, status=normalized_status, q=normalized_q
+            last.pending_code,
+            last.nsn,
+            status=normalized_status,
+            final_disposition=normalized_final_disposition,
+            q=normalized_q,
         )
 
     summary_row = session.execute(_SUMMARY_SQL).one()
     summary = IngredientMappingSummary(
         pending_count=summary_row.pending_count,
         held_count=summary_row.held_count,
+        needs_review_count=summary_row.needs_review_count,
+        unclassified_count=summary_row.unclassified_count,
         approved_count=summary_row.approved_count,
         rejected_count=summary_row.rejected_count,
     )
@@ -394,7 +450,7 @@ _DETAIL_GROUP_SQL = text(
            (select raw_name from rep) as raw_name,
            count(*) as connection_count,
            rev.id as review_id, rev.status as review_status,
-           rev.target_ingredient_id, rev.decision_reason,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
            rev.reviewed_by_user_id, rev.reviewed_at,
            tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
     from scoped s
@@ -402,7 +458,7 @@ _DETAIL_GROUP_SQL = text(
            on rev.source_ingredient_id = s.source_id and rev.normalized_source_name = s.nsn
     left join ingredients tgt on tgt.id = rev.target_ingredient_id
     group by s.source_id, s.pending_code, s.pending_name, s.nsn,
-             rev.id, rev.status, rev.target_ingredient_id, rev.decision_reason,
+             rev.id, rev.status, rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
              rev.reviewed_by_user_id, rev.reviewed_at,
              tgt.ingredient_code, tgt.name_ko
     """
@@ -437,7 +493,8 @@ _DETAIL_SAMPLES_SQL = text(
 
 _DETAIL_EVENTS_SQL = text(
     """
-    select e.from_status, e.to_status, e.actor_id, e.reason, e.created_at,
+    select e.from_status, e.to_status, e.from_final_disposition, e.to_final_disposition,
+           e.actor_id, e.reason, e.metadata_json, e.created_at,
            ft.ingredient_code as from_target_code, tt.ingredient_code as to_target_code
     from ingredient_mapping_review_events e
     left join ingredients ft on ft.id = e.from_target_ingredient_id
@@ -509,10 +566,14 @@ def get_ingredient_mapping_detail(
             IngredientMappingEvent(
                 from_status=r.from_status,
                 to_status=r.to_status,
+                from_final_disposition=r.from_final_disposition,
+                to_final_disposition=r.to_final_disposition,
                 from_target_ingredient_code=r.from_target_code,
                 to_target_ingredient_code=r.to_target_code,
                 actor_id=r.actor_id,
                 reason=r.reason,
+                evidence_source_url=(r.metadata_json or {}).get("final_disposition_evidence_source_url"),
+                source_reference=(r.metadata_json or {}).get("final_disposition_source_reference"),
                 created_at=r.created_at,
             )
             for r in session.execute(_DETAIL_EVENTS_SQL, {"review_id": review_id})

@@ -31,13 +31,18 @@ from app.services.admin.ingredient_mapping_service import (
 
 
 MAX_DECISION_REASON_LENGTH = 1000
+MAX_EVIDENCE_SOURCE_URL_LENGTH = 2000
+MAX_SOURCE_REFERENCE_LENGTH = 255
+NON_MAPPING_FINAL_DISPOSITIONS = frozenset(
+    {"NON_INGREDIENT", "COMPOUND_MATERIAL", "SOURCE_ERROR", "UNRESOLVABLE"}
+)
 
 # 액션별 허용 시작 상태(현재 유효 상태 기준). 그 외 상태는 409 TRANSITION_NOT_ALLOWED.
 # 단, 결과가 이미 같은 상태면 아래 멱등 처리로 새 이벤트 없이 반환한다.
 _ALLOWED_SOURCE_STATUSES = {
-    "APPROVE": {"PENDING", "HELD"},
-    "HOLD": {"PENDING", "HELD"},
-    "REJECT": {"PENDING", "HELD"},
+    "APPROVE": {"PENDING", "HELD", "NEEDS_REVIEW"},
+    "HOLD": {"PENDING", "HELD", "NEEDS_REVIEW"},
+    "REJECT": {"PENDING", "HELD", "NEEDS_REVIEW"},
     "REOPEN": {"APPROVED", "REJECTED"},
 }
 
@@ -70,13 +75,24 @@ def approve_ingredient_mapping(
 
     _guard_transition("APPROVE", current)
     review = _upsert_review(session, review, source, nsn, actor_user_id)
-    from_status, from_target = _snapshot_before(review)
+    from_status, from_target, from_final_disposition = _snapshot_before(review)
     review.status = "APPROVED"
+    review.final_disposition = "MAPPED"
     review.target_ingredient_id = target.id
     review.decision_reason = reason
     _stamp(review, actor_user_id)
     session.flush()  # 신규 review 의 id 확보
-    _append_event(session, review, from_status, from_target, reason, actor_user_id, nsn, source)
+    _append_event(
+        session,
+        review,
+        from_status,
+        from_target,
+        from_final_disposition,
+        reason,
+        actor_user_id,
+        nsn,
+        source,
+    )
     session.flush()
     return _to_response(source, nsn, review, target=target)
 
@@ -106,12 +122,23 @@ def reject_ingredient_mapping(
     pending_code: str,
     normalized_source_name: str,
     decision_reason: str,
+    final_disposition: str,
+    evidence_source_url: str | None,
+    source_reference: str | None,
     actor_user_id: int,
 ) -> IngredientMappingActionResponse:
+    disposition, normalized_evidence_url, normalized_source_reference = _normalize_final_disposition_evidence(
+        final_disposition,
+        evidence_source_url,
+        source_reference,
+    )
     return _decide_no_target(
         session,
         action="REJECT",
         new_status="REJECTED",
+        final_disposition=disposition,
+        evidence_source_url=normalized_evidence_url,
+        source_reference=normalized_source_reference,
         pending_code=pending_code,
         normalized_source_name=normalized_source_name,
         decision_reason=decision_reason,
@@ -130,7 +157,10 @@ def reopen_ingredient_mapping(
     return _decide_no_target(
         session,
         action="REOPEN",
-        new_status="HELD",
+        new_status="NEEDS_REVIEW",
+        final_disposition=None,
+        evidence_source_url=None,
+        source_reference=None,
         pending_code=pending_code,
         normalized_source_name=normalized_source_name,
         decision_reason=decision_reason,
@@ -144,6 +174,9 @@ def _decide_no_target(
     *,
     action: str,
     new_status: str,
+    final_disposition: str | None = None,
+    evidence_source_url: str | None = None,
+    source_reference: str | None = None,
     pending_code: str,
     normalized_source_name: str,
     decision_reason: str,
@@ -156,18 +189,35 @@ def _decide_no_target(
     current = _effective_status(review.status if review else None)
 
     # 멱등: 이미 목표 상태면 이벤트 없이 반환.
-    if review is not None and review.status == new_status:
+    if (
+        review is not None
+        and review.status == new_status
+        and review.final_disposition == final_disposition
+    ):
         return _to_response(source, nsn, review)
 
     _guard_transition(action, current)
     review = _upsert_review(session, review, source, nsn, actor_user_id)
-    from_status, from_target = _snapshot_before(review)
+    from_status, from_target, from_final_disposition = _snapshot_before(review)
     review.status = new_status
     review.target_ingredient_id = None
+    review.final_disposition = final_disposition
     review.decision_reason = reason
     _stamp(review, actor_user_id)
     session.flush()  # 신규 review 의 id 확보
-    _append_event(session, review, from_status, from_target, reason, actor_user_id, nsn, source)
+    _append_event(
+        session,
+        review,
+        from_status,
+        from_target,
+        from_final_disposition,
+        reason,
+        actor_user_id,
+        nsn,
+        source,
+        evidence_source_url=evidence_source_url,
+        source_reference=source_reference,
+    )
     session.flush()
     return _to_response(source, nsn, review)
 
@@ -277,11 +327,11 @@ def _upsert_review(
     return review
 
 
-def _snapshot_before(review: IngredientMappingReview) -> tuple[str | None, int | None]:
+def _snapshot_before(review: IngredientMappingReview) -> tuple[str | None, int | None, str | None]:
     # 새로 만든(아직 flush 전) 행은 id 가 없으므로 최초 판정으로 간주(from=None).
     if review.id is None:
-        return None, None
-    return review.status, review.target_ingredient_id
+        return None, None, None
+    return review.status, review.target_ingredient_id, review.final_disposition
 
 
 def _stamp(review: IngredientMappingReview, actor_user_id: int) -> None:
@@ -296,21 +346,32 @@ def _append_event(
     review: IngredientMappingReview,
     from_status: str | None,
     from_target: int | None,
+    from_final_disposition: str | None,
     reason: str | None,
     actor_user_id: int,
     normalized_source_name: str,
     source: Ingredient,
+    *,
+    evidence_source_url: str | None = None,
+    source_reference: str | None = None,
 ) -> None:
+    metadata = _suggestion_snapshot(session, normalized_source_name, source)
+    if evidence_source_url is not None:
+        metadata["final_disposition_evidence_source_url"] = evidence_source_url
+    if source_reference is not None:
+        metadata["final_disposition_source_reference"] = source_reference
     session.add(
         IngredientMappingReviewEvent(
             review_id=review.id,
             from_status=from_status,
             to_status=review.status,
+            from_final_disposition=from_final_disposition,
+            to_final_disposition=review.final_disposition,
             from_target_ingredient_id=from_target,
             to_target_ingredient_id=review.target_ingredient_id,
             actor_id=actor_user_id,
             reason=reason,
-            metadata_json=_suggestion_snapshot(session, normalized_source_name, source),
+            metadata_json=metadata,
         )
     )
 
@@ -342,6 +403,7 @@ def _to_response(
         pending_code=source.ingredient_code,
         normalized_source_name=normalized_source_name,
         status=review.status,
+        final_disposition=review.final_disposition,
         target_ingredient_code=target_code,
         target_ingredient_name=target_name,
         decision_reason=review.decision_reason,
@@ -365,3 +427,30 @@ def _normalize_optional_reason(decision_reason: str | None) -> str | None:
         return None
     trimmed = decision_reason.strip()
     return trimmed[:MAX_DECISION_REASON_LENGTH] if trimmed else None
+
+
+def _normalize_final_disposition_evidence(
+    final_disposition: str,
+    evidence_source_url: str | None,
+    source_reference: str | None,
+) -> tuple[str, str | None, str | None]:
+    disposition = (final_disposition or "").strip().upper()
+    if disposition not in NON_MAPPING_FINAL_DISPOSITIONS:
+        raise ApiError(400, "INVALID_FINAL_DISPOSITION", "Invalid final disposition.")
+
+    normalized_evidence_url = _normalize_optional_value(evidence_source_url, MAX_EVIDENCE_SOURCE_URL_LENGTH)
+    normalized_source_reference = _normalize_optional_value(source_reference, MAX_SOURCE_REFERENCE_LENGTH)
+    if disposition != "NON_INGREDIENT" and not (normalized_evidence_url or normalized_source_reference):
+        raise ApiError(
+            400,
+            "FINAL_DISPOSITION_EVIDENCE_REQUIRED",
+            "Evidence source URL or source reference is required for this final disposition.",
+        )
+    return disposition, normalized_evidence_url, normalized_source_reference
+
+
+def _normalize_optional_value(value: str | None, max_length: int) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed[:max_length] if trimmed else None
