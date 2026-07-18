@@ -805,10 +805,10 @@ function HomeMainContent({
 
       pendingSearchQueryRef.current = null;
       setIsLoading(false);
-      setErrorMessage("추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setErrorMessage("");
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
-          detail: { status: "error", query: failedQuery, recommendation: null }
+          detail: { status: "idle", query: failedQuery, recommendation: null }
         })
       );
     };
