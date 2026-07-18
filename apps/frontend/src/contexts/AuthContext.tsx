@@ -15,6 +15,8 @@ import {
 import { AuthContext, type AuthUser } from "./authContextValue";
 
 const AUTH_USER_STORAGE_KEY = "mwobareullae.auth.user";
+const AUTH_SYNC_CHANNEL_NAME = "mwobareullae.auth.sync";
+const AUTH_USER_UPDATED_MESSAGE = "auth-user-updated";
 
 const isAuthUser = (value: unknown): value is AuthUser => {
   return (
@@ -60,6 +62,16 @@ const storeAuthUser = (nextUser: AuthUser) => {
 
 const clearStoredAuthUser = () => {
   window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+};
+
+const broadcastAuthUserUpdated = () => {
+  if (!("BroadcastChannel" in window)) {
+    return;
+  }
+
+  const channel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+  channel.postMessage({ type: AUTH_USER_UPDATED_MESSAGE });
+  channel.close();
 };
 
 const requestAuthenticatedUser = async (): Promise<AuthUser | null> => {
@@ -132,7 +144,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setAuthenticatedUser = useCallback((nextUser: AuthUser) => {
     storeAuthUser(nextUser);
     setUser(nextUser);
+    broadcastAuthUserUpdated();
   }, []);
+
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) {
+      return;
+    }
+
+    const channel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      const data = event.data;
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        "type" in data &&
+        data.type === AUTH_USER_UPDATED_MESSAGE
+      ) {
+        void refreshAuthenticatedUser().catch(() => null);
+      }
+    };
+
+    return () => channel.close();
+  }, [refreshAuthenticatedUser]);
+
+  useEffect(() => {
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshAuthenticatedUser().catch(() => null);
+      }
+    };
+
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [refreshAuthenticatedUser]);
 
   const logout = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
