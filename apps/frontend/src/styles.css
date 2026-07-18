@@ -1479,6 +1479,14 @@
   grid-column: 1 / -1;
 }
 
+/* 이미지 대량 연결은 저장 방식이 확정되기 전까지 안내만 노출한다. */
+.admin-image-deferred > aside,
+.admin-image-deferred > section:not(:first-child),
+.admin-image-deferred .admin-excel-state-row,
+.admin-image-deferred .admin-filter-row {
+  display: none;
+}
+
 .admin-upload-zone {
   display: flex;
   align-items: center;
