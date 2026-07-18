@@ -11,7 +11,12 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
+from app.services.concentration_estimates import (
+    ConcentrationEstimate,
+    load_concentration_estimates,
+)
 from app.db.models.catalog import (
     Brand as BrandRow,
     BrandAlias as BrandAliasRow,
@@ -1076,6 +1081,12 @@ def _seed_product_ingredients(
     batch_values: list[dict[str, object]] = []
     seen_pairs: set[tuple[int, int]] = set()
     records = _iter_product_ingredient_records(catalog, data_dir)
+
+    # 함량 추정치 오버레이 (플래그): 실측이 빈 행에만 근거 기반 추정치를 채운다.
+    concentration_estimates: dict[tuple[str, int, str], ConcentrationEstimate] = {}
+    if settings.concentration_estimate_overlay_enabled and data_dir is not None:
+        concentration_estimates = load_concentration_estimates(data_dir)
+    overlay_filled = 0
     canonical_by_source = {
         mapping.source_ingredient_id: mapping.canonical_id
         for mapping in catalog.ingredient_canonical_mappings
@@ -1116,6 +1127,20 @@ def _seed_product_ingredients(
             continue
         seen_pairs.add(pair)
 
+        normalized_value = _decimal_or_none(record.normalized_concentration_value)
+        normalized_unit = record.normalized_concentration_unit
+        concentration_confidence = record.concentration_confidence
+        # 실측 정규화 함량이 없을 때만 추정치를 채운다 (실측 무덮어쓰기).
+        if normalized_value is None and concentration_estimates:
+            estimate = concentration_estimates.get(
+                (record.product_id, record.display_order, record.ingredient_name)
+            )
+            if estimate is not None:
+                normalized_value = estimate.value
+                normalized_unit = estimate.unit
+                concentration_confidence = estimate.confidence
+                overlay_filled += 1
+
         batch_values.append(
             {
                 "product_id": product.id,
@@ -1126,9 +1151,9 @@ def _seed_product_ingredients(
                 "concentration_text": record.concentration_text,
                 "concentration_value": _decimal_or_none(record.concentration_value),
                 "concentration_unit": record.concentration_unit,
-                "concentration_confidence": record.concentration_confidence,
-                "normalized_concentration_value": _decimal_or_none(record.normalized_concentration_value),
-                "normalized_concentration_unit": record.normalized_concentration_unit,
+                "concentration_confidence": concentration_confidence,
+                "normalized_concentration_value": normalized_value,
+                "normalized_concentration_unit": normalized_unit,
             }
         )
         if len(batch_values) >= SEED_PRODUCT_INGREDIENT_BATCH_SIZE:
@@ -1146,6 +1171,14 @@ def _seed_product_ingredients(
     if batch_values:
         _upsert_product_ingredient_batch(session, batch_values)
     session.flush()
+    if concentration_estimates:
+        log_performance_event(
+            "seed.concentration_overlay",
+            metadata={
+                "overlay_filled_rows": overlay_filled,
+                "estimate_map_size": len(concentration_estimates),
+            },
+        )
     return len(seen_pairs)
 
 
