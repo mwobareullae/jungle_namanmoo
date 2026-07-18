@@ -160,7 +160,7 @@ def test_login_refresh_me_and_logout_flow(client: TestClient) -> None:
     assert me_after_logout_response.json()["code"] == "INVALID_SESSION"
 
 
-def test_login_rejects_invalid_credentials(client: TestClient) -> None:
+def test_login_distinguishes_invalid_password(client: TestClient) -> None:
     _signup(client, email="wrong@example.com", nickname="비번틀림")
 
     response = client.post(
@@ -169,7 +169,56 @@ def test_login_rejects_invalid_credentials(client: TestClient) -> None:
     )
 
     assert response.status_code == 401
-    assert response.json()["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["code"] == "INVALID_PASSWORD"
+    assert response.json()["message"] == "비밀번호가 일치하지 않습니다."
+
+
+def test_login_distinguishes_missing_account(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "missing@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
+    assert response.json()["message"] == "가입되지 않은 이메일입니다."
+
+
+def test_email_login_guides_google_only_account(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_google_id_token",
+        lambda credential: GoogleAccountInfo(
+            sub="google-only-login",
+            email="google-only-login@gmail.com",
+            email_verified=True,
+            name="Google Only",
+        ),
+    )
+    google_response = client.post(
+        "/api/auth/google",
+        json={
+            "credential": "valid-google-token",
+            "consents": {
+                "tos": True,
+                "privacy": True,
+                "age14": True,
+                "marketing": False,
+            },
+        },
+    )
+    assert google_response.status_code == 200
+
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "google-only-login@gmail.com", "password": "password123"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "EMAIL_LOGIN_NOT_AVAILABLE"
+    assert response.json()["message"] == "소셜 로그인으로 가입한 계정입니다."
 
 
 def test_google_login_creates_user_auth_account_consents_and_tokens(

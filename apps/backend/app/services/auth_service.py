@@ -117,8 +117,16 @@ def login(session: Session, email: str, password: str) -> IssuedAuthSession:
             AuthAccount.provider_account_id == normalized,
         )
     ).scalar_one_or_none()
-    if account is None or not verify_password(password, account.password_hash):
-        raise AuthServiceError(401, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 일치하지 않습니다.")
+    if account is None:
+        if _find_user_by_email(session, normalized) is not None:
+            raise AuthServiceError(
+                401,
+                "EMAIL_LOGIN_NOT_AVAILABLE",
+                "소셜 로그인으로 가입한 계정입니다.",
+            )
+        raise AuthServiceError(401, "ACCOUNT_NOT_FOUND", "가입되지 않은 이메일입니다.")
+    if not verify_password(password, account.password_hash):
+        raise AuthServiceError(401, "INVALID_PASSWORD", "비밀번호가 일치하지 않습니다.")
 
     user = session.get(User, account.user_id)
     if user is None or user.status != "ACTIVE":
