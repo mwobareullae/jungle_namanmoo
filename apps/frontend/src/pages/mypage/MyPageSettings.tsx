@@ -1,25 +1,24 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../contexts/authContextValue";
-import { Checkbox } from "../../components/ui/checkbox";
 import ActivityToast from "../../components/ui/ActivityToast";
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import { Input } from "../../components/ui/input";
 import { useActivityToast } from "../../hooks/useActivityToast";
-import { getMarketingConsent, updateMarketingConsent } from "../../lib/consentApi";
+import { deleteAccount, updateNickname } from "../../lib/accountApi";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
 type SettingRowProps = {
   label: string;
   value: string;
-  description?: string;
 };
 
-function SettingRow({ label, value, description }: SettingRowProps) {
+function SettingRow({ label, value }: SettingRowProps) {
   return (
     <div style={styles.settingRow}>
       <div>
         <strong style={styles.settingLabel}>{label}</strong>
-        {description ? <p style={styles.settingDescription}>{description}</p> : null}
       </div>
       <span style={styles.settingValue}>{value}</span>
     </div>
@@ -30,66 +29,65 @@ export default function MyPageSettings() {
   const authContext = useContext(AuthContext);
   const navigate = useNavigate();
   const { message: toastMessage, showToast } = useActivityToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  // null: 아직 안 불러왔거나 API가 없어서(백엔드 미구현) 못 불러온 상태 — 이땐 안내 문구로 대체
-  const [marketingConsent, setMarketingConsent] = useState<boolean | null>(null);
-  const [isMarketingConsentSaving, setIsMarketingConsentSaving] = useState(false);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [nicknameError, setNicknameError] = useState("");
+  const [isSavingNickname, setIsSavingNickname] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const user = authContext?.user ?? null;
 
-  useEffect(() => {
-    if (!user) {
+  const handleNicknameSave = async () => {
+    if (!authContext || isSavingNickname) {
       return;
     }
 
-    let isMounted = true;
-
-    getMarketingConsent()
-      .then((agreed) => {
-        if (isMounted) {
-          setMarketingConsent(agreed);
-        }
-      })
-      .catch(() => {
-        // 백엔드 API가 아직 없거나 실패하면 조용히 안내 문구 상태 유지
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user]);
-
-  const handleToggleMarketingConsent = async () => {
-    if (marketingConsent === null || isMarketingConsentSaving) {
+    const normalized = nicknameDraft.trim();
+    if (!normalized) {
+      setNicknameError("닉네임을 입력해 주세요.");
+      return;
+    }
+    if (normalized.length > 100) {
+      setNicknameError("닉네임은 100자 이하로 입력해 주세요.");
       return;
     }
 
-    const nextValue = !marketingConsent;
-    setIsMarketingConsentSaving(true);
+    if (normalized === user?.nickname?.trim()) {
+      setIsEditingNickname(false);
+      return;
+    }
 
+    setIsSavingNickname(true);
+    setNicknameError("");
     try {
-      const savedValue = await updateMarketingConsent(nextValue);
-      setMarketingConsent(savedValue);
-      showToast(savedValue ? "마케팅 알림 수신에 동의했습니다." : "마케팅 알림 수신을 거부했습니다.");
-    } catch {
-      showToast("마케팅 알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      const updatedUser = await updateNickname(normalized);
+      authContext.setAuthenticatedUser(updatedUser);
+      setNicknameDraft(updatedUser.nickname?.trim() ?? "");
+      setIsEditingNickname(false);
+      showToast("닉네임을 변경했습니다.");
+    } catch (error) {
+      setNicknameError(error instanceof Error ? error.message : "닉네임을 변경하지 못했습니다.");
     } finally {
-      setIsMarketingConsentSaving(false);
+      setIsSavingNickname(false);
     }
   };
 
-  const handleLogout = async () => {
-    if (!authContext || isLoggingOut) {
+  const handleDeleteAccount = async () => {
+    if (!authContext || isDeletingAccount) {
       return;
     }
 
-    setIsLoggingOut(true);
+    setIsDeletingAccount(true);
     try {
+      await deleteAccount();
       await authContext.logout();
-      navigate("/login", { replace: true });
-    } catch {
-      showToast("로그아웃에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      navigate("/", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "회원탈퇴에 실패했습니다.";
+      showToast(message);
+      setIsDeleteModalOpen(false);
     } finally {
-      setIsLoggingOut(false);
+      setIsDeletingAccount(false);
     }
   };
 
@@ -107,7 +105,72 @@ export default function MyPageSettings() {
           <div style={styles.cardBody}>
             <div style={styles.settingList}>
               <SettingRow label="이메일" value={user?.email ?? "-"} />
-              <SettingRow label="닉네임" value={user?.nickname?.trim() || "미설정"} />
+              <div style={{ ...styles.actionRow, ...styles.lastRow }}>
+                <div>
+                  <strong style={styles.settingLabel}>닉네임</strong>
+                  {nicknameError ? <p role="alert" style={styles.errorText}>{nicknameError}</p> : null}
+                </div>
+                {isEditingNickname ? (
+                  <div style={styles.nicknameEditor}>
+                    <Input
+                      aria-label="새 닉네임"
+                      disabled={isSavingNickname}
+                      maxLength={100}
+                      onChange={(event) => {
+                        setNicknameDraft(event.target.value);
+                        setNicknameError("");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleNicknameSave();
+                        }
+                      }}
+                      placeholder="새 닉네임"
+                      style={styles.nicknameInput}
+                      value={nicknameDraft}
+                    />
+                    <button
+                      className="bg-white hover:bg-[#FAFAFA]"
+                      disabled={isSavingNickname}
+                      onClick={() => {
+                        setNicknameDraft(user?.nickname?.trim() ?? "");
+                        setNicknameError("");
+                        setIsEditingNickname(false);
+                      }}
+                      style={styles.compactButton}
+                      type="button"
+                    >
+                      취소
+                    </button>
+                    <button
+                      className="bg-[#1A1A1A] hover:bg-[#333333]"
+                      disabled={isSavingNickname}
+                      onClick={() => void handleNicknameSave()}
+                      style={styles.saveButton}
+                      type="button"
+                    >
+                      {isSavingNickname ? "저장 중" : "저장"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={styles.nicknameValueGroup}>
+                    <span style={styles.settingValue}>{user?.nickname?.trim() || "미설정"}</span>
+                    <button
+                      className="bg-white hover:bg-[#FAFAFA]"
+                      onClick={() => {
+                        setNicknameDraft(user?.nickname?.trim() ?? "");
+                        setNicknameError("");
+                        setIsEditingNickname(true);
+                      }}
+                      style={styles.compactButton}
+                      type="button"
+                    >
+                      변경
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -115,11 +178,11 @@ export default function MyPageSettings() {
         <section aria-labelledby="securitySettingsTitle" style={styles.card}>
           <div style={styles.cardHeader}>
             <h2 id="securitySettingsTitle" style={styles.cardTitle}>보안</h2>
-            <p style={styles.cardDescription}>비밀번호 재설정과 세션 관리를 진행할 수 있어요.</p>
+            <p style={styles.cardDescription}>가입 이메일을 통해 비밀번호를 안전하게 변경할 수 있어요.</p>
           </div>
 
           <div style={styles.cardBody}>
-            <div style={styles.actionRow}>
+            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
               <div>
                 <strong style={styles.settingLabel}>비밀번호</strong>
                 <p style={styles.settingDescription}>가입 이메일로 재설정 안내를 받아 변경합니다.</p>
@@ -129,68 +192,51 @@ export default function MyPageSettings() {
               </Link>
             </div>
 
-          <div style={styles.actionRow}>
-            <div>
-              <strong style={styles.settingLabel}>로그아웃</strong>
-            </div>
-            <button
-                className="bg-white hover:bg-[#fff5f3]"
-                disabled={isLoggingOut}
-                onClick={() => void handleLogout()}
-                style={styles.dangerButton}
-                type="button"
-              >
-                {isLoggingOut ? "처리 중" : "로그아웃"}
-              </button>
-            </div>
           </div>
         </section>
 
-        <section aria-labelledby="preferenceSettingsTitle" style={styles.card}>
+        <section aria-labelledby="membershipSettingsTitle" style={styles.card}>
           <div style={styles.cardHeader}>
-            <h2 id="preferenceSettingsTitle" style={styles.cardTitle}>알림 및 맞춤 설정</h2>
-            <p style={styles.cardDescription}>세부 수신 설정은 API 확정 후 이 화면에서 연결합니다.</p>
+            <h2 id="membershipSettingsTitle" style={styles.cardTitle}>회원 관리</h2>
+            <p style={styles.cardDescription}>탈퇴하면 계정과 개인화 정보를 복구할 수 없습니다.</p>
           </div>
 
           <div style={styles.cardBody}>
-            <div style={styles.settingList}>
-              <SettingRow
-                description="추천 결과와 피부 프로필 기반 화면은 현재 저장된 프로필을 기준으로 표시됩니다."
-                label="맞춤 추천"
-                value="사용 중"
-              />
-              {marketingConsent === null ? (
-                <SettingRow
-                  description="마케팅 수신 동의 상태는 추후 약관/회원 API와 함께 연동됩니다."
-                  label="마케팅 알림"
-                  value="연동 예정"
-                />
-              ) : (
-                <div style={styles.settingRow}>
-                  <div>
-                    <strong style={styles.settingLabel}>마케팅 알림</strong>
-                    <p style={styles.settingDescription}>
-                      이벤트·할인 정보를 이메일/문자로 받아볼 수 있어요. 언제든 끌 수 있어요.
-                    </p>
-                  </div>
-                  <label style={styles.consentToggle}>
-                    <Checkbox
-                      checked={marketingConsent}
-                      disabled={isMarketingConsentSaving}
-                      onCheckedChange={() => void handleToggleMarketingConsent()}
-                    />
-                    <span style={styles.consentToggleLabel}>
-                      {marketingConsent ? "수신 동의" : "수신 거부"}
-                    </span>
-                  </label>
-                </div>
-              )}
+            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
+              <div>
+                <strong style={styles.settingLabel}>회원탈퇴</strong>
+                <p style={styles.settingDescription}>
+                  개인정보와 저장 활동은 삭제되며 주문·결제 내역은 관련 정책에 따라 보관됩니다.
+                </p>
+              </div>
+              <button
+                className="bg-white hover:bg-[#fff5f3]"
+                disabled={isDeletingAccount}
+                onClick={() => setIsDeleteModalOpen(true)}
+                style={styles.dangerButton}
+                type="button"
+              >
+                회원탈퇴
+              </button>
             </div>
           </div>
         </section>
       </div>
 
       <ActivityToast message={toastMessage} />
+      <ConfirmModal
+        cancelLabel="계속 이용하기"
+        confirmLabel={isDeletingAccount ? "처리 중" : "탈퇴하기"}
+        message="탈퇴하면 개인정보와 맞춤 정보가 삭제되며 복구할 수 없습니다. 정말 탈퇴하시겠어요?"
+        onCancel={() => {
+          if (!isDeletingAccount) {
+            setIsDeleteModalOpen(false);
+          }
+        }}
+        onConfirm={() => void handleDeleteAccount()}
+        open={isDeleteModalOpen}
+        title="회원탈퇴"
+      />
     </MyPageLayout>
   );
 }
@@ -261,25 +307,41 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     textAlign: "right"
   },
-  consentToggle: {
+  nicknameValueGroup: {
     display: "inline-flex",
-    flex: "0 0 auto",
     alignItems: "center",
-    gap: 8,
-    cursor: "pointer"
+    gap: 12
   },
-  consentToggleLabel: {
-    color: "#3D3D3D",
-    fontSize: 14,
-    fontWeight: 600
+  nicknameEditor: {
+    display: "flex",
+    flex: "1 1 360px",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    maxWidth: 440
+  },
+  nicknameInput: {
+    flex: "1 1 220px",
+    minWidth: 0
+  },
+  errorText: {
+    margin: "5px 0 0",
+    color: "#D92D20",
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: 1.45
   },
   actionRow: {
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 20,
     minHeight: 76,
     borderBottom: "1px solid #f2f4f6"
+  },
+  lastRow: {
+    borderBottom: "none"
   },
   secondaryButton: {
     display: "inline-flex",
@@ -294,6 +356,34 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     textDecoration: "none"
+  },
+  compactButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 62,
+    padding: "0 14px",
+    border: "1px solid #e1e5e8",
+    borderRadius: 999,
+    color: "#1A1A1A",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  saveButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 62,
+    padding: "0 14px",
+    border: "1px solid #1A1A1A",
+    borderRadius: 999,
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   dangerButton: {
     display: "inline-flex",

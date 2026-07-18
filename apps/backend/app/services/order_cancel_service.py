@@ -8,7 +8,7 @@ from app.core.performance_logging import current_time, elapsed_ms, log_performan
 from app.db.models.auth import User
 from app.db.models.commerce import Order, OrderCancelRequest, Payment
 from app.schemas.common import ApiError
-from app.schemas.order import OrderCancelResponse
+from app.schemas.order import OrderCancelRequestBody, OrderCancelResponse
 from app.services.pending_payment_terminal_service import (
     PendingPaymentTerminationResult,
     PendingPaymentTerminationSpec,
@@ -30,6 +30,9 @@ def cancel_order(
     session: Session,
     user: User,
     order_code: str,
+    request: OrderCancelRequestBody | None = None,
+    *,
+    require_reason: bool = False,
 ) -> OrderCancelResponse:
     started_at = current_time()
     try:
@@ -77,6 +80,9 @@ def cancel_order(
             return _to_response(order)
 
         if order.status == ORDER_STATUS_PAID:
+            if request is None and require_reason:
+                raise ApiError(400, "CANCEL_REASON_REQUIRED", "Cancel reason is required for a paid order.")
+            reason_detail = _normalize_reason_detail(request.reason_detail) if request is not None else None
             order.status = ORDER_STATUS_CANCEL_REQUESTED
             order.updated_at = now
             cancel_request = OrderCancelRequest(
@@ -84,6 +90,8 @@ def cancel_order(
                 order_id=order.id,
                 user_id=user.id,
                 status=CANCEL_REQUEST_STATUS_REQUESTED,
+                reason_code=request.reason_code if request is not None else None,
+                reason_detail=reason_detail,
                 requested_at=now,
                 created_at=now,
                 updated_at=now,
@@ -171,6 +179,13 @@ def _load_requested_cancel_request_code(session: Session, order_id: int) -> str 
 
 def _generate_cancel_request_code(now: datetime) -> str:
     return f"ocr_{now.strftime('%Y%m%d')}_{secrets.token_urlsafe(6).replace('-', '').replace('_', '')[:8]}"
+
+
+def _normalize_reason_detail(reason_detail: str | None) -> str | None:
+    if reason_detail is None:
+        return None
+    normalized = reason_detail.strip()
+    return normalized or None
 
 
 def _to_response(order: Order, *, request_code: str | None = None) -> OrderCancelResponse:

@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.catalog import Product
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, Order, OrderCancelRequest
 from app.db.session import get_db
 from app.api.routes.payments import get_toss_payments_client
 from app.main import app
@@ -184,6 +184,95 @@ def test_get_order_detail_returns_order_snapshots(
     assert data["shipping_address"]["recipient_name"] == "Kim Wonwoo"
     assert data["shipping_address"]["address1"] == "Seoul"
     assert data["shipping_groups"][0]["shipping_fee"] == 3000
+    assert data["cancel_request"] is None
+
+
+def test_order_detail_and_cancel_request_endpoint_return_customer_cancel_request(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="order-cancel-detail@example.com", nickname="order-cancel-detail")
+    created = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_001",
+        quantity=1,
+        key="cancel-detail-order",
+    )
+    assert _confirm_toss_payment(client, created).status_code == 200
+    cancel_response = client.post(
+        f"/api/orders/{created['order_code']}/cancel",
+        json={
+            "reason_code": "ORDER_INFO_CHANGE",
+            "reason_detail": "배송지를 변경하려고 합니다.",
+        },
+    )
+    assert cancel_response.status_code == 200
+
+    detail_response = client.get(f"/api/orders/{created['order_code']}")
+    request_response = client.get(f"/api/orders/{created['order_code']}/cancel-request")
+
+    assert detail_response.status_code == 200
+    assert request_response.status_code == 200
+    expected = request_response.json()
+    assert detail_response.json()["cancel_request"] == expected
+    assert expected["request_code"] == cancel_response.json()["request_code"]
+    assert expected["status"] == "REQUESTED"
+    assert expected["reason_code"] == "ORDER_INFO_CHANGE"
+    assert expected["reason_detail"] == "배송지를 변경하려고 합니다."
+    assert expected["processed_at"] is None
+    assert expected["payment_canceled_at"] is None
+
+
+def test_get_order_cancel_request_returns_404_when_request_does_not_exist(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="order-no-cancel@example.com", nickname="order-no-cancel")
+    created = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_001",
+        quantity=1,
+        key="no-cancel-order",
+    )
+
+    response = client.get(f"/api/orders/{created['order_code']}/cancel-request")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "CANCEL_REQUEST_NOT_FOUND"
+
+
+def test_get_order_cancel_request_enforces_order_ownership(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="order-cancel-owner@example.com", nickname="order-cancel-owner")
+    created = _create_pending_order(
+        client,
+        db_engine,
+        product_code="prod_001",
+        quantity=1,
+        key="cancel-owner-order",
+    )
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == created["order_code"])).scalar_one()
+        session.add(
+            OrderCancelRequest(
+                request_code="ocr_owner_test",
+                order_id=order.id,
+                user_id=order.user_id,
+                status="REQUESTED",
+                reason_code="CHANGE_OF_MIND",
+            )
+        )
+        session.commit()
+    _signup(client, email="order-cancel-other@example.com", nickname="order-cancel-other")
+
+    response = client.get(f"/api/orders/{created['order_code']}/cancel-request")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "ORDER_NOT_FOUND"
 
 
 def test_get_order_detail_ownership_is_enforced(

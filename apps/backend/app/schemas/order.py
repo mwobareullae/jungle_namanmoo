@@ -1,10 +1,18 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 PaymentProvider = Literal["MOCK", "TOSS", "KAKAO_PAY", "NAVER_PAY"]
+OrderCancelReasonCode = Literal[
+    "CHANGE_OF_MIND",
+    "ORDER_MISTAKE",
+    "ORDER_INFO_CHANGE",
+    "DELIVERY_DELAY",
+    "OTHER",
+]
+OrderCancelRequestStatus = Literal["REQUESTED", "APPROVED", "REJECTED"]
 
 
 class DirectShippingAddressRequest(BaseModel):
@@ -50,6 +58,28 @@ class OrderCancelResponse(BaseModel):
     order_code: str
     status: str
     request_code: str | None = None
+
+
+class OrderCancelRequestBody(BaseModel):
+    reason_code: OrderCancelReasonCode
+    reason_detail: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def require_other_reason_detail(self) -> "OrderCancelRequestBody":
+        if self.reason_code == "OTHER" and not (self.reason_detail or "").strip():
+            raise ValueError("reason_detail is required when reason_code is OTHER")
+        return self
+
+
+class OrderCancelRequestDetail(BaseModel):
+    request_code: str
+    status: OrderCancelRequestStatus
+    reason_code: OrderCancelReasonCode | None
+    reason_detail: str | None
+    decision_reason: str | None
+    requested_at: datetime
+    processed_at: datetime | None
+    payment_canceled_at: datetime | None
 
 
 class OrderListItem(BaseModel):
@@ -136,3 +166,4 @@ class OrderDetailResponse(BaseModel):
     items: list[OrderDetailItem]
     shipping_address: OrderDetailShippingAddress | None
     shipping_groups: list[OrderDetailShippingGroup]
+    cancel_request: OrderCancelRequestDetail | None = None

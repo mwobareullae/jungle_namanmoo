@@ -13,11 +13,19 @@ export function useActivityToast(duration = 2500) {
     }, duration);
   }, [duration]);
 
+  const clearToast = useCallback(() => {
+    setMessage("");
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
   }, []);
 
-  return { message, showToast };
+  return { message, showToast, clearToast };
 }
 
 export const wishlistToastMessage = {

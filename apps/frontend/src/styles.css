@@ -6143,6 +6143,16 @@ body {
   flex: 0 0 auto;
 }
 
+.activity-toast.activity-toast--error {
+  border-color: rgba(239, 111, 94, 0.42);
+  background: #fff6f4;
+  color: #d92d20;
+}
+
+.activity-toast--error .activity-toast__dot {
+  background: #ef6f5e;
+}
+
 .login-required-dialog-backdrop {
   position: fixed;
   inset: 0;
