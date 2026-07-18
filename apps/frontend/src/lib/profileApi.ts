@@ -59,8 +59,29 @@ export type SkinProfileUpdatePayload = {
   concerns?: string[];
 };
 
+export type SignupSkinProfilePayload = {
+  skinType: string;
+  sensitivity: string;
+  avoidIngredients: string[];
+  concerns: string[];
+};
+
 const skinTypes: readonly SkinType[] = ["건성", "지성", "복합성", "수부지", "중성"];
 const sensitivities: readonly Sensitivity[] = ["낮음", "보통", "높음"];
+const concernLabelsById: Readonly<Record<string, string>> = {
+  concern_acne: "여드름",
+  concern_brightening_spots: "미백",
+  concern_pore: "모공",
+  concern_sebum_oil: "피지/유분",
+  concern_dry_barrier: "속건조",
+  concern_wrinkle: "주름",
+  concern_elasticity: "탄력",
+  concern_redness_irritation: "홍조",
+  concern_dead_skin_texture: "각질",
+  concern_blemish_mark: "흔적 관리",
+  concern_skin_tone: "피부톤",
+  concern_dark_circle: "다크서클"
+};
 
 const isSkinType = (value: unknown): value is SkinType =>
   typeof value === "string" && skinTypes.includes(value as SkinType);
@@ -116,7 +137,7 @@ const mapSkinProfileData = (response: BackendSkinProfileResponse): SkinProfileDa
     explicitSkinType: explicit_skin_type,
     explicitSensitivity: explicit_sensitivity,
     avoidIngredients: normalizeAvoidIngredients(avoid_ingredients),
-    concerns: normalizeStringList(concerns),
+    concerns: normalizeStringList(concerns).map((concern) => concernLabelsById[concern] ?? concern),
     latestSkinTestResultId: latest_skin_test_result_id,
     latestSkinTestResultCode: latest_skin_test_result_code,
     baumannTypeCode: baumann_type_code,
@@ -162,7 +183,7 @@ export const getMySkinProfile = async (userId?: number | null): Promise<SkinProf
 
   try {
     const value = await request;
-    if (numericUserId !== null) {
+    if (numericUserId !== null && inFlightSkinProfileRequest?.request === request) {
       skinProfileCache.set(numericUserId, { value, expiresAt: Date.now() + SKIN_PROFILE_CACHE_TTL_MS });
     }
     return value;
@@ -175,14 +196,34 @@ export const getMySkinProfile = async (userId?: number | null): Promise<SkinProf
 
 export const setMySkinProfileCache = (userId: number | null | undefined, value: SkinProfileData | null) => {
   if (typeof userId === "number") {
+    if (inFlightSkinProfileRequest?.userId === userId) {
+      inFlightSkinProfileRequest = null;
+    }
     skinProfileCache.set(userId, { value, expiresAt: Date.now() + SKIN_PROFILE_CACHE_TTL_MS });
   }
 };
 
 export const invalidateMySkinProfileCache = (userId: number | null | undefined) => {
   if (typeof userId === "number") {
+    if (inFlightSkinProfileRequest?.userId === userId) {
+      inFlightSkinProfileRequest = null;
+    }
     skinProfileCache.delete(userId);
   }
+};
+
+export const createSignupSkinProfile = async (
+  payload: SignupSkinProfilePayload
+): Promise<SkinProfileData | null> => {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/skin-profile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return mapSkinProfileData(await parseJson<BackendSkinProfileResponse>(response));
 };
 
 export const getSavedSkinProfile = async (userId?: number | null): Promise<RecommendationProfile | null> => {
