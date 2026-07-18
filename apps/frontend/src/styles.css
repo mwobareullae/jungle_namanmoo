@@ -9540,6 +9540,7 @@ html[data-app-mode="community"] .search-results-shell {
   justify-content: center;
   width: 40px;
   height: 40px;
+  border: 1px solid #BDECF7;
   border-radius: 50%;
   background: #e9faff;
   color: #25a8ca;
