@@ -318,7 +318,22 @@ function LoginPage() {
         })
       });
       if (!response.ok) {
-        setMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
+        const errorBody = await response.json().catch(() => null) as {
+          code?: string;
+          error?: { code?: string };
+        } | null;
+        const errorCode = errorBody?.code ?? errorBody?.error?.code;
+        if (errorCode === "ACCOUNT_NOT_FOUND") {
+          setMessage("가입되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요.");
+        } else if (errorCode === "INVALID_PASSWORD") {
+          setMessage("비밀번호가 일치하지 않습니다. 다시 입력해 주세요.");
+        } else if (errorCode === "EMAIL_LOGIN_NOT_AVAILABLE") {
+          setMessage("소셜 로그인으로 가입한 계정입니다. Google 로그인을 이용해 주세요.");
+        } else if (errorCode === "USER_NOT_ACTIVE") {
+          setMessage("현재 사용할 수 없는 계정입니다. 고객센터에 문의해 주세요.");
+        } else {
+          setMessage("로그인 정보를 확인해 주세요.");
+        }
         return;
       }
       await completeLogin(response, { id: 0, email });

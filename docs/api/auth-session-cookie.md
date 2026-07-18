@@ -117,6 +117,18 @@ Also sets `mwbl_session` cookie.
 
 Response body is the same user wrapper as signup. Also sets `mwbl_session` cookie.
 
+Email login failures return `401` with a specific code so the login screen can guide the user:
+
+| Code | Meaning |
+|---|---|
+| `ACCOUNT_NOT_FOUND` | No user is registered with the email. |
+| `INVALID_PASSWORD` | The email account exists but the password does not match. |
+| `EMAIL_LOGIN_NOT_AVAILABLE` | The email belongs to a social-login-only account. |
+| `USER_NOT_ACTIVE` | The account exists but is not active. |
+
+This detailed contract intentionally favors login UX. Password-reset requests still return the same
+message regardless of account existence.
+
 ### `POST /api/auth/google`
 
 Google token verification and account linking stay the same. Successful login sets the same `mwbl_session` cookie.

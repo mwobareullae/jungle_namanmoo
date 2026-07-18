@@ -199,11 +199,20 @@ const authHandlers = [
   http.post("*/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as LoginRequestBody;
 
-    if (body.email !== MOCK_LOGIN_EMAIL || body.password !== MOCK_LOGIN_PASSWORD) {
+    if (body.email !== MOCK_LOGIN_EMAIL) {
       return HttpResponse.json(
         {
-          code: "INVALID_CREDENTIALS",
-          message: "이메일 또는 비밀번호가 일치하지 않습니다.",
+          code: "ACCOUNT_NOT_FOUND",
+          message: "가입되지 않은 이메일입니다.",
+        },
+        { status: 401 },
+      );
+    }
+    if (body.password !== MOCK_LOGIN_PASSWORD) {
+      return HttpResponse.json(
+        {
+          code: "INVALID_PASSWORD",
+          message: "비밀번호가 일치하지 않습니다.",
         },
         { status: 401 },
       );
