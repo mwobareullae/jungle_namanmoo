@@ -10,6 +10,8 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryAdjustmentResponse,
     AdminInventoryHistoryResponse,
     AdminInventoryPriceListResponse,
+    AdminInventoryPriceUpdateRequest,
+    AdminInventoryPriceUpdateResponse,
 )
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.catalog_sync import sync_catalog_product_after_commit
@@ -18,6 +20,7 @@ from app.services.admin.inventory_price_service import (
     adjust_admin_inventory,
     get_admin_inventory_history,
     list_admin_inventory_prices,
+    update_admin_inventory_price,
 )
 
 
@@ -115,3 +118,52 @@ def adjust_inventory(
         },
     )
     return response
+
+
+@router.patch(
+    "/inventory/{product_code}/price",
+    response_model=AdminInventoryPriceUpdateResponse,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def update_inventory_price(
+    product_code: str,
+    body: AdminInventoryPriceUpdateRequest,
+    session: Session = Depends(get_db),
+) -> AdminInventoryPriceUpdateResponse:
+    """자사 운영몰 가격을 갱신하고 판매 중 상품만 커밋 후 재색인한다."""
+
+    started_at = current_time()
+    try:
+        outcome = update_admin_inventory_price(session, product_code=product_code, price=body.price)
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_inventory_price_update_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"product_code": product_code, "error_code": exc.code},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_inventory_price_update_failed",
+            started_at=started_at,
+            metadata={"product_code": product_code, "error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
+        )
+        raise
+
+    if outcome.requires_catalog_sync:
+        sync_catalog_product_after_commit(session, outcome.response.product_code, event_prefix="admin_inventory")
+
+    log_performance_event(
+        "admin_inventory_price_update_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "product_code": outcome.response.product_code,
+            "changed": outcome.response.changed,
+            "catalog_sync": outcome.requires_catalog_sync,
+        },
+    )
+    return outcome.response

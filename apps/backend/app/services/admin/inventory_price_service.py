@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,10 +25,16 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryMovementItem,
     AdminInventoryPriceListItem,
     AdminInventoryPriceListResponse,
+    AdminInventoryPriceUpdateResponse,
 )
 from app.schemas.admin.product import AdminProductAvailability
 from app.schemas.common import ApiError
 from app.services.product_availability import build_product_availability
+from app.services.product_pricing import (
+    MAX_PRODUCT_PRICE,
+    build_product_url,
+    get_or_create_first_party_price_for_update,
+)
 
 
 DEFAULT_LIMIT = 50
@@ -38,6 +45,14 @@ INVENTORY_STOCK_MAX = 1_000_000
 VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN"})
 VALID_STOCK_STATUS_FILTERS = frozenset({"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN"})
 CURSOR_VERSION = 1
+
+
+@dataclass(frozen=True)
+class AdminInventoryPriceUpdateOutcome:
+    """라우트가 commit 뒤 ES 동기화 여부를 판단하기 위한 내부 결과."""
+
+    response: AdminInventoryPriceUpdateResponse
+    requires_catalog_sync: bool
 
 
 def list_admin_inventory_prices(
@@ -225,6 +240,74 @@ def adjust_admin_inventory(
     )
 
 
+def update_admin_inventory_price(
+    session: Session,
+    *,
+    product_code: str,
+    price: int,
+    now: datetime | None = None,
+) -> AdminInventoryPriceUpdateOutcome:
+    """자사 가격을 절대값으로 갱신하고, no-op은 멱등 성공으로 반환한다.
+
+    이 함수는 flush까지만 수행한다. commit 및 커밋 후 ES 동기화는 라우트 책임이다.
+    """
+
+    normalized_code = product_code.strip()
+    normalized_price = _normalize_inventory_price(price)
+    product = session.execute(
+        select(Product).where(Product.product_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    seller = session.execute(select(Seller).where(Seller.id == product.seller_id)).scalar_one()
+    timestamp = now or datetime.now(UTC)
+    price_row, created = get_or_create_first_party_price_for_update(
+        session,
+        product=product,
+        mall_name=seller.display_name,
+        price=normalized_price,
+        timestamp=timestamp,
+    )
+    if not created and int(price_row.price) == normalized_price:
+        return AdminInventoryPriceUpdateOutcome(
+            response=AdminInventoryPriceUpdateResponse(
+                changed=False,
+                product_code=product.product_code,
+                price=int(price_row.price),
+                currency=price_row.currency,
+                is_lowest=price_row.is_lowest,
+                collected_at=price_row.collected_at,
+                updated_at=product.updated_at,
+            ),
+            requires_catalog_sync=False,
+        )
+
+    price_row.price = normalized_price
+    price_row.currency = "KRW"
+    price_row.is_lowest = True
+    price_row.product_url = build_product_url(product.product_code)
+    price_row.collected_at = timestamp
+    product.updated_at = timestamp
+    session.flush()
+
+    sales_status = session.execute(
+        select(Inventory.sales_status).where(Inventory.product_id == product.id)
+    ).scalar_one_or_none()
+    return AdminInventoryPriceUpdateOutcome(
+        response=AdminInventoryPriceUpdateResponse(
+            changed=True,
+            product_code=product.product_code,
+            price=int(price_row.price),
+            currency=price_row.currency,
+            is_lowest=price_row.is_lowest,
+            collected_at=price_row.collected_at,
+            updated_at=product.updated_at,
+        ),
+        requires_catalog_sync=sales_status != "HIDDEN",
+    )
+
+
 def _base_statement() -> tuple[Any, Any]:
     """재고 운영용 페이지 조회 query와 파생 재고 상태 SQL을 만든다.
 
@@ -355,6 +438,14 @@ def _normalize_adjusted_stock_quantity(stock_quantity: int) -> int:
     if stock_quantity < 0 or stock_quantity > INVENTORY_STOCK_MAX:
         raise ApiError(400, "INVALID_INVENTORY_STOCK", "재고는 0 이상 1,000,000 이하의 정수여야 합니다.")
     return stock_quantity
+
+
+def _normalize_inventory_price(price: int) -> int:
+    if isinstance(price, bool) or not isinstance(price, int):
+        raise ApiError(400, "INVALID_PRICE", "가격은 1 이상 100,000,000 이하의 정수여야 합니다.")
+    if price < 1 or price > MAX_PRODUCT_PRICE:
+        raise ApiError(400, "INVALID_PRICE", "가격은 1 이상 100,000,000 이하의 정수여야 합니다.")
+    return price
 
 
 def _normalize_adjustment_reason(reason: str) -> str:

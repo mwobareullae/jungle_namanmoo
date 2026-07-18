@@ -386,6 +386,15 @@ def test_admin_patch_route_rejects_empty_body(client: TestClient, db_engine: Eng
     assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
 
 
+def test_admin_patch_route_rejects_price_above_shared_cap(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+
+    response = client.patch("/api/admin/products/prod_mwbl_editable", json={"price": 100_000_001})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
+
+
 def test_admin_patch_route_omitted_thumbnail_keeps_existing_image(
     client: TestClient, db_engine: Engine
 ) -> None:

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -24,7 +24,9 @@ from app.services.admin.inventory_price_service import (
     adjust_admin_inventory,
     get_admin_inventory_history,
     list_admin_inventory_prices,
+    update_admin_inventory_price,
 )
+from app.services.product_pricing import MAX_PRODUCT_PRICE
 
 
 ADMIN_EMAIL = "admin-inventory@example.com"
@@ -450,3 +452,144 @@ def test_adjust_route_rejects_blank_reason_and_unknown_fields(client: TestClient
     assert unknown_field.status_code == 400
     assert out_of_range.status_code == 400
     assert out_of_range.json()["error"]["code"] == "INVALID_INVENTORY_STOCK"
+
+
+def test_price_update_changes_price_and_product_updated_at(db_engine: Engine) -> None:
+    timestamp = datetime(2026, 7, 18, 15, 0, tzinfo=UTC)
+    with Session(db_engine) as session:
+        outcome = update_admin_inventory_price(
+            session,
+            product_code="prod_inventory_in",
+            price=21_900,
+            now=timestamp,
+        )
+        session.commit()
+
+    assert outcome.response.changed is True
+    assert outcome.response.price == 21_900
+    assert outcome.response.currency == "KRW"
+    assert outcome.response.is_lowest is True
+    assert outcome.response.collected_at == timestamp
+    assert outcome.response.updated_at == timestamp
+    assert outcome.requires_catalog_sync is True
+
+    with Session(db_engine) as session:
+        product = session.execute(select(Product).where(Product.product_code == "prod_inventory_in")).scalar_one()
+        price_row = session.execute(select(ProductPrice).where(ProductPrice.product_id == product.id)).scalar_one()
+    assert product.updated_at.replace(tzinfo=UTC) == timestamp
+    assert price_row.price == 21_900
+    assert price_row.product_url == "/product-detail?id=prod_inventory_in"
+
+
+def test_price_update_same_value_is_noop_without_timestamp_or_sync_change(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(select(Product).where(Product.product_code == "prod_inventory_in")).scalar_one()
+        price_row = session.execute(select(ProductPrice).where(ProductPrice.product_id == product.id)).scalar_one()
+        previous_updated_at = product.updated_at
+        previous_collected_at = price_row.collected_at
+
+        outcome = update_admin_inventory_price(
+            session,
+            product_code="prod_inventory_in",
+            price=price_row.price,
+            now=datetime(2026, 7, 18, 15, 0, tzinfo=UTC),
+        )
+        session.commit()
+
+    assert outcome.response.changed is False
+    assert outcome.response.updated_at == previous_updated_at
+    assert outcome.response.collected_at == previous_collected_at
+    assert outcome.requires_catalog_sync is False
+
+
+@pytest.mark.parametrize("invalid_value", [0, MAX_PRODUCT_PRICE + 1])
+def test_price_update_rejects_invalid_value_and_detects_duplicate_first_party_rows(
+    db_engine: Engine,
+    invalid_value: int,
+) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as invalid_price:
+            update_admin_inventory_price(
+                session,
+                product_code="prod_inventory_in",
+                price=invalid_value,
+            )
+
+        product = session.execute(select(Product).where(Product.product_code == "prod_inventory_in")).scalar_one()
+        session.add(
+            ProductPrice(
+                product_id=product.id,
+                mall_name="뭐바를래",
+                price=99_000,
+                currency="KRW",
+                product_url="/products/duplicate",
+                is_lowest=True,
+            )
+        )
+        session.flush()
+        with pytest.raises(ApiError) as duplicate_price:
+            update_admin_inventory_price(session, product_code="prod_inventory_in", price=22_000)
+        session.rollback()
+
+    assert invalid_price.value.status_code == 400
+    assert invalid_price.value.code == "INVALID_PRICE"
+    assert duplicate_price.value.status_code == 409
+    assert duplicate_price.value.code == "PRODUCT_PRICE_INCONSISTENT"
+
+
+def test_price_update_creates_missing_price_row_and_syncs_non_hidden_product(db_engine: Engine) -> None:
+    timestamp = datetime(2026, 7, 18, 15, 0, tzinfo=UTC)
+    with Session(db_engine) as session:
+        product = session.execute(select(Product).where(Product.product_code == "prod_inventory_unknown")).scalar_one()
+        product_id = product.id
+        session.execute(delete(ProductPrice).where(ProductPrice.product_id == product.id))
+        session.flush()
+
+        outcome = update_admin_inventory_price(
+            session,
+            product_code="prod_inventory_unknown",
+            price=30_000,
+            now=timestamp,
+        )
+        session.commit()
+
+    assert outcome.response.changed is True
+    assert outcome.response.price == 30_000
+    assert outcome.requires_catalog_sync is True
+
+    with Session(db_engine) as session:
+        price_row = session.execute(select(ProductPrice).where(ProductPrice.product_id == product_id)).scalar_one()
+    assert price_row.mall_name == "뭐바를래"
+    assert price_row.currency == "KRW"
+    assert price_row.is_lowest is True
+
+
+def test_price_route_reindexes_changed_non_hidden_products_only(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _as_admin(client, db_engine)
+    sync_calls: list[tuple[str, str]] = []
+
+    def fake_sync(session: Session, product_code: str, *, event_prefix: str = "admin_product") -> None:
+        assert session.in_transaction() is False
+        sync_calls.append((product_code, event_prefix))
+
+    monkeypatch.setattr(inventory_price_route, "sync_catalog_product_after_commit", fake_sync)
+
+    changed = client.patch("/api/admin/inventory/prod_inventory_in/price", json={"price": 20_000})
+    noop = client.patch("/api/admin/inventory/prod_inventory_in/price", json={"price": 20_000})
+    hidden = client.patch("/api/admin/inventory/prod_inventory_hidden/price", json={"price": 30_000})
+    sold_out = client.patch("/api/admin/inventory/prod_inventory_sold/price", json={"price": 40_000})
+
+    assert changed.status_code == 200
+    assert changed.json()["changed"] is True
+    assert noop.status_code == 200
+    assert noop.json()["changed"] is False
+    assert hidden.status_code == 200
+    assert sold_out.status_code == 200
+    assert sync_calls == [
+        ("prod_inventory_in", "admin_inventory"),
+        ("prod_inventory_sold", "admin_inventory"),
+    ]

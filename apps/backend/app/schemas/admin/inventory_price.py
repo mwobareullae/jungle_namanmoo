@@ -69,3 +69,21 @@ class AdminInventoryAdjustmentResponse(BaseModel):
     movement: AdminInventoryMovementItem | None = Field(
         ..., description="changed=true일 때 생성된 ADMIN_ADJUST 이력, no-op이면 None"
     )
+
+
+class AdminInventoryPriceUpdateRequest(BaseModel):
+    """자사 운영몰 절대 가격을 설정하는 단건 관리자 요청."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    price: int = Field(description="1 이상 100,000,000 이하의 KRW 절대 가격")
+
+
+class AdminInventoryPriceUpdateResponse(BaseModel):
+    changed: bool = Field(description="가격 행을 새로 만들었거나 실제 가격을 바꿨는지 여부")
+    product_code: str
+    price: int
+    currency: str
+    is_lowest: bool
+    collected_at: datetime
+    updated_at: datetime = Field(description="실제 변경 시 갱신된 Product.updated_at")
