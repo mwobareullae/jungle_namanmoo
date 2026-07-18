@@ -29,7 +29,6 @@ export default function MyPageSettings() {
   const authContext = useContext(AuthContext);
   const navigate = useNavigate();
   const { message: toastMessage, showToast } = useActivityToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameError, setNicknameError] = useState("");
@@ -70,22 +69,6 @@ export default function MyPageSettings() {
       setNicknameError(error instanceof Error ? error.message : "닉네임을 변경하지 못했습니다.");
     } finally {
       setIsSavingNickname(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    if (!authContext || isLoggingOut) {
-      return;
-    }
-
-    setIsLoggingOut(true);
-    try {
-      await authContext.logout();
-      navigate("/login", { replace: true });
-    } catch {
-      showToast("로그아웃에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setIsLoggingOut(false);
     }
   };
 
@@ -195,11 +178,11 @@ export default function MyPageSettings() {
         <section aria-labelledby="securitySettingsTitle" style={styles.card}>
           <div style={styles.cardHeader}>
             <h2 id="securitySettingsTitle" style={styles.cardTitle}>보안</h2>
-            <p style={styles.cardDescription}>비밀번호 재설정과 세션 관리를 진행할 수 있어요.</p>
+            <p style={styles.cardDescription}>가입 이메일을 통해 비밀번호를 안전하게 변경할 수 있어요.</p>
           </div>
 
           <div style={styles.cardBody}>
-            <div style={styles.actionRow}>
+            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
               <div>
                 <strong style={styles.settingLabel}>비밀번호</strong>
                 <p style={styles.settingDescription}>가입 이메일로 재설정 안내를 받아 변경합니다.</p>
@@ -209,20 +192,6 @@ export default function MyPageSettings() {
               </Link>
             </div>
 
-            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
-              <div>
-                <strong style={styles.settingLabel}>로그아웃</strong>
-              </div>
-              <button
-                className="bg-white hover:bg-[#fff5f3]"
-                disabled={isLoggingOut}
-                onClick={() => void handleLogout()}
-                style={styles.dangerButton}
-                type="button"
-              >
-                {isLoggingOut ? "처리 중" : "로그아웃"}
-              </button>
-            </div>
           </div>
         </section>
 
