@@ -182,6 +182,9 @@ function HomeHero({
       await navigateWithinApp(buildAgentPendingEntryUrl(normalized, profile));
       await runAgentEntryMessage(normalized, profile);
     } catch {
+      window.dispatchEvent(new CustomEvent("home-search-failed", {
+        detail: { query: normalized },
+      }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setIsAgentSubmitting(false);
@@ -206,6 +209,9 @@ function HomeHero({
       await navigateWithinApp(buildAgentPendingEntryUrl(text, profile));
       await runAgentEntryMessage(text, profile);
     } catch {
+      window.dispatchEvent(new CustomEvent("home-search-failed", {
+        detail: { query: text },
+      }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setIsAgentSubmitting(false);
