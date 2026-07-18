@@ -52,10 +52,13 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const getHomeSectionHref = (sectionId: string) => {
+const getHomeSectionHref = (sectionId: string, skinType?: string) => {
   if (sectionId === "market_popular") return "/products/popular";
   if (sectionId === "evidence_picks") return "/products/evidence-picks";
-  if (sectionId === "for_you") return "/products/for-you";
+  if (sectionId === "for_you") {
+    const query = skinType ? `?skin_type=${encodeURIComponent(skinType)}` : "";
+    return `/products/for-you${query}`;
+  }
   return "/catalog-search";
 };
 
@@ -514,7 +517,10 @@ function HomeDealSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
-      <HomeSectionMoreLink href={getHomeSectionHref(section.section_id)} title={section.title} />
+      <HomeSectionMoreLink
+        href={getHomeSectionHref(section.section_id, forYouFilters?.skinType)}
+        title={section.title}
+      />
     </section>
   );
 }
@@ -614,8 +620,12 @@ function HomeMainContent({
   const [marketPopularSection, setMarketPopularSection] = useState<HomeSection | null>(null);
   const [forYouSection, setForYouSection] = useState<HomeSection | null>(null);
   const [forYouSections, setForYouSections] = useState<Record<string, HomeSection | null>>({});
+  const forYouSkinTypesToLoad = useMemo(
+    () => (showForYouSkinTypeFilters ? FOR_YOU_SKIN_TYPES : [initialProfile.skin]),
+    [initialProfile.skin, showForYouSkinTypeFilters]
+  );
   const [forYouLoading, setForYouLoading] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, showDefaultSection]))
+    Object.fromEntries(forYouSkinTypesToLoad.map((skinType) => [skinType, showDefaultSection]))
   );
   const [evidencePicksSection, setEvidencePicksSection] = useState<HomeSection | null>(null);
   const [homeSectionLoading, setHomeSectionLoading] = useState<Record<HomeSectionKey, boolean>>({
@@ -961,13 +971,13 @@ function HomeMainContent({
         if (sectionKey === "marketPopular") {
           setMarketPopularSection(await api.getMarketPopular({ limit: 10 }));
         } else if (sectionKey === "forYou") {
-          setForYouLoading(Object.fromEntries(FOR_YOU_SKIN_TYPES.map((skinType) => [skinType, true])));
+          setForYouLoading(Object.fromEntries(forYouSkinTypesToLoad.map((skinType) => [skinType, true])));
           const prefetched = await Promise.all(
-            FOR_YOU_SKIN_TYPES.map(async (skinType) => {
+            forYouSkinTypesToLoad.map(async (skinType) => {
               try {
                 const section = await api.getForYou({ skinType, limit: 10 });
                 setForYouSections((current) => ({ ...current, [skinType]: section }));
-                if (skinType === "건성") setForYouSection(section);
+                if (skinType === forYouSkinTypesToLoad[0]) setForYouSection(section);
                 return [skinType, section] as const;
               } catch {
                 return [skinType, null] as const;
@@ -978,7 +988,7 @@ function HomeMainContent({
           );
           const nextSections = Object.fromEntries(prefetched) as Record<string, HomeSection | null>;
           setForYouSections(nextSections);
-          setForYouSection(nextSections["건성"] ?? null);
+          setForYouSection(nextSections[forYouSkinTypesToLoad[0]] ?? null);
         } else {
           setEvidencePicksSection(await api.getEvidencePicks({ limit: 10 }));
         }
@@ -990,7 +1000,7 @@ function HomeMainContent({
         setHomeSectionLoading((current) => ({ ...current, [sectionKey]: false }));
       }
     },
-    []
+    [forYouSkinTypesToLoad]
   );
 
   const updateForYouFilter = (key: keyof ForYouFilters, value: string) => {
@@ -1022,7 +1032,7 @@ function HomeMainContent({
     ? forYouFilters.skinType
     : initialProfile.skin;
   const selectedForYouSection =
-    forYouSections[selectedForYouSkinType] ?? (selectedForYouSkinType === "건성" ? forYouSection : null);
+    forYouSections[selectedForYouSkinType] ?? forYouSection;
   const selectedForYouLoading = forYouLoading[selectedForYouSkinType] ?? homeSectionLoading.forYou;
 
   const sortedProducts = useMemo(() => {
