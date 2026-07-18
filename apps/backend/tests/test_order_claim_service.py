@@ -15,6 +15,10 @@ from app.schemas.common import ApiError
 from app.services.order_claim_service import create_claim, withdraw_claim
 
 
+CLAIM_TEST_DELIVERED_AT = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
+CLAIM_TEST_NOW = CLAIM_TEST_DELIVERED_AT + timedelta(days=1)
+
+
 @pytest.fixture()
 def db_engine() -> Generator[Engine, None, None]:
     engine = create_engine(
@@ -33,7 +37,6 @@ def _create_delivered_order(session: Session) -> tuple[User, Order, OrderItem]:
     user = User(email="claim@example.com", display_name="claim-user")
     session.add(user)
     session.flush()
-    delivered_at = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
     order = Order(
         order_code="ord_claim_test",
         user_id=user.id,
@@ -46,7 +49,7 @@ def _create_delivered_order(session: Session) -> tuple[User, Order, OrderItem]:
         currency="KRW",
         item_count=1,
         total_quantity=2,
-        delivered_at=delivered_at,
+        delivered_at=CLAIM_TEST_DELIVERED_AT,
     )
     session.add(order)
     session.flush()
@@ -71,7 +74,6 @@ def _create_delivered_order(session: Session) -> tuple[User, Order, OrderItem]:
 
 
 def test_create_claim_allows_partial_quantity_and_records_event(db_engine: Engine) -> None:
-    now = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
     with Session(db_engine) as session:
         user, order, item = _create_delivered_order(session)
         claim = create_claim(
@@ -84,7 +86,7 @@ def test_create_claim_allows_partial_quantity_and_records_event(db_engine: Engin
                 reason_detail="Package was damaged.",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
             ),
-            now=now,
+            now=CLAIM_TEST_NOW,
         )
         claim_status = claim.status
         refund_amount = claim.refund_amount
@@ -110,11 +112,11 @@ def test_create_claim_rejects_quantity_already_reserved_by_active_claim(db_engin
             reason_code="SIZE",
             items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
         )
-        create_claim(session, user, request)
+        create_claim(session, user, request, now=CLAIM_TEST_NOW)
         session.commit()
 
         with pytest.raises(ApiError) as error:
-            create_claim(session, user, request)
+            create_claim(session, user, request, now=CLAIM_TEST_NOW)
 
     assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
 
@@ -134,6 +136,7 @@ def test_create_claim_rejects_quantity_already_completed_by_prior_claim(db_engin
                 reason_code="DAMAGED",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
             ),
+            now=CLAIM_TEST_NOW,
         )
         claim.status = "COMPLETED"
         session.commit()
@@ -148,6 +151,7 @@ def test_create_claim_rejects_quantity_already_completed_by_prior_claim(db_engin
                     reason_code="SIZE",
                     items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
                 ),
+                now=CLAIM_TEST_NOW,
             )
 
     assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
@@ -167,6 +171,7 @@ def test_create_claim_rejects_mixed_return_and_exchange_double_claim(db_engine: 
                 reason_code="DAMAGED",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
             ),
+            now=CLAIM_TEST_NOW,
         )
         session.commit()
 
@@ -180,6 +185,7 @@ def test_create_claim_rejects_mixed_return_and_exchange_double_claim(db_engine: 
                     reason_code="SIZE",
                     items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
                 ),
+                now=CLAIM_TEST_NOW,
             )
 
     assert error.value.code == "CLAIM_QUANTITY_EXCEEDED"
@@ -201,6 +207,7 @@ def test_create_claim_allows_quantity_after_rejected_or_withdrawn_claim(
                 reason_code="DAMAGED",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
             ),
+            now=CLAIM_TEST_NOW,
         )
         first.status = prior_status
         session.commit()
@@ -214,6 +221,7 @@ def test_create_claim_allows_quantity_after_rejected_or_withdrawn_claim(
                 reason_code="SIZE",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=2)],
             ),
+            now=CLAIM_TEST_NOW,
         )
         second_status = second.status
         session.commit()
@@ -222,7 +230,6 @@ def test_create_claim_allows_quantity_after_rejected_or_withdrawn_claim(
 
 
 def test_withdraw_claim_is_only_allowed_while_requested(db_engine: Engine) -> None:
-    now = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
     with Session(db_engine) as session:
         user, order, item = _create_delivered_order(session)
         claim = create_claim(
@@ -234,11 +241,16 @@ def test_withdraw_claim_is_only_allowed_while_requested(db_engine: Engine) -> No
                 reason_code="CHANGE_OF_MIND",
                 items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
             ),
-            now=now,
+            now=CLAIM_TEST_NOW,
         )
         session.commit()
 
-        withdrawn = withdraw_claim(session, user, claim.claim_code, now=now + timedelta(hours=1))
+        withdrawn = withdraw_claim(
+            session,
+            user,
+            claim.claim_code,
+            now=CLAIM_TEST_NOW + timedelta(hours=1),
+        )
         withdrawn_status = withdrawn.status
         session.commit()
 
