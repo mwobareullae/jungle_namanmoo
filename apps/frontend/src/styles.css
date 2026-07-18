@@ -13720,6 +13720,17 @@ html[data-app-mode="community"] .search-results-shell {
   border-bottom-left-radius: 6px;
   background: #dff2ff;
   color: #263442;
+  white-space: pre-wrap;
+}
+
+.agent-chat-list {
+  margin: 4px 0;
+  padding-left: 20px;
+  white-space: normal;
+}
+
+.agent-chat-list li + li {
+  margin-top: 4px;
 }
 
 .agent-chat-typing {
