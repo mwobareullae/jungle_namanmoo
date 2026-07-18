@@ -737,6 +737,7 @@ async def test_runner_passes_only_selected_guest_tools_and_logs_the_list(
     [
         ("담아줘", "담을 상품을 알려주세요"),
         ("추천해줘", "어떤 피부 고민이나 조건"),
+        ("피부 때문에 고민이에요", "여드름, 피지, 모공, 속건조, 홍조, 잡티, 피부결"),
         ("상위 상품 담아줘", "몇 개 담을까요"),
     ],
 )

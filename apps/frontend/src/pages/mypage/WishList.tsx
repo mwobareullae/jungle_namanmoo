@@ -400,7 +400,7 @@ function MypageProductList({
               <p style={styles.emptyDescription}>{emptyDescription}</p>
               <button
                 className="inline-flex min-h-[54px] min-w-[196px] items-center justify-center rounded-[10px] bg-[#0C1117] px-[26px] text-[15px] font-semibold text-white hover:bg-[#1A1A1A]"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/products/popular")}
                 type="button"
               >
                 상품 둘러보러 가기
@@ -515,7 +515,7 @@ function MypageProductList({
                 {shouldShowDate ? (
                   <div style={isTodayDivider ? styles.dateDividerToday : styles.dateDivider}>{item.dateLabel}</div>
                 ) : null}
-                <article style={styles.row}>
+                <article data-agent-product-id={item.productId} style={styles.row}>
                   <div
                     className="mypage-product-list-row-button bg-transparent"
                     onClick={() => openProduct(item)}

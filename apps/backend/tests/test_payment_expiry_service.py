@@ -292,6 +292,61 @@ def test_expire_pending_orders_restores_shared_product_across_carts_without_conf
     assert {payment.status for payment in payments} == {"EXPIRED"}
 
 
+@pytest.mark.parametrize("delete_mode", ["patch_zero", "single_delete", "bulk_delete"])
+def test_expired_order_restored_cart_item_can_be_deleted_without_losing_order_history(
+    client: TestClient,
+    db_engine: Engine,
+    delete_mode: str,
+) -> None:
+    """만료 주문에서 복원된 cart_item 삭제 시 주문 이력 FK는 NULL로 정리되어야 한다."""
+    with db_engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+    now = datetime.now(UTC)
+    pending = _create_pending_order(
+        client,
+        db_engine,
+        email=f"expiry-cart-delete-{delete_mode}@example.com",
+        nickname=f"expiry-cart-delete-{delete_mode}",
+        quantity=1,
+    )
+    _set_payment_expires_at(db_engine, pending["order_code"], now - timedelta(minutes=1))
+
+    with Session(db_engine) as session:
+        result = expire_pending_orders(session, now=now, limit=100)
+        session.commit()
+
+    assert result.expired_count == 1
+    cart_response = client.get("/api/cart")
+    assert cart_response.status_code == 200
+    restored_item_id = cart_response.json()["items"][0]["id"]
+
+    if delete_mode == "patch_zero":
+        delete_response = client.patch(f"/api/cart/items/{restored_item_id}", json={"quantity": 0})
+    elif delete_mode == "single_delete":
+        delete_response = client.delete(f"/api/cart/items/{restored_item_id}")
+    else:
+        delete_response = client.request(
+            "DELETE",
+            "/api/cart/items/bulk",
+            json={"cart_item_ids": [restored_item_id]},
+        )
+
+    assert delete_response.status_code == 200
+    response_cart = delete_response.json().get("cart", delete_response.json())
+    assert response_cart["items"] == []
+
+    with Session(db_engine) as session:
+        order = session.execute(select(Order).where(Order.order_code == pending["order_code"])).scalar_one()
+        order_item = session.execute(select(OrderItem).where(OrderItem.order_id == order.id)).scalar_one()
+        deleted_cart_item = session.get(CartItem, restored_item_id)
+
+    assert order.status == "EXPIRED"
+    assert order_item.status == "CANCELED"
+    assert order_item.cart_item_id is None
+    assert deleted_cart_item is None
+
+
 def test_expire_pending_orders_isolates_failed_order_and_processes_rest_of_batch(
     client: TestClient,
     db_engine: Engine,

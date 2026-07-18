@@ -77,6 +77,28 @@ def is_nickname_available(session: Session, nickname: str) -> bool:
     return _find_user_by_nickname(session, normalized) is None
 
 
+def update_nickname(session: Session, user: User, nickname: str) -> AuthUser:
+    normalized = normalize_nickname(nickname)
+    if not normalized:
+        raise AuthServiceError(400, "INVALID_NICKNAME", "닉네임을 입력해 주세요.")
+    if len(normalized) > 100:
+        raise AuthServiceError(400, "INVALID_NICKNAME", "닉네임은 100자 이하로 입력해 주세요.")
+
+    existing_user = session.execute(
+        select(User).where(
+            User.display_name == normalized,
+            User.id != user.id,
+        )
+    ).scalar_one_or_none()
+    if existing_user is not None:
+        raise AuthServiceError(409, "NICKNAME_ALREADY_EXISTS", "이미 사용 중인 닉네임입니다.")
+
+    user.display_name = normalized
+    user.updated_at = datetime.now(UTC)
+    session.flush()
+    return _to_auth_user(user)
+
+
 def signup(session: Session, request: SignupRequest) -> IssuedAuthSession:
     email = normalize_email(request.email)
     nickname = normalize_nickname(request.nickname)
@@ -117,8 +139,16 @@ def login(session: Session, email: str, password: str) -> IssuedAuthSession:
             AuthAccount.provider_account_id == normalized,
         )
     ).scalar_one_or_none()
-    if account is None or not verify_password(password, account.password_hash):
-        raise AuthServiceError(401, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 일치하지 않습니다.")
+    if account is None:
+        if _find_user_by_email(session, normalized) is not None:
+            raise AuthServiceError(
+                401,
+                "EMAIL_LOGIN_NOT_AVAILABLE",
+                "소셜 로그인으로 가입한 계정입니다.",
+            )
+        raise AuthServiceError(401, "ACCOUNT_NOT_FOUND", "가입되지 않은 이메일입니다.")
+    if not verify_password(password, account.password_hash):
+        raise AuthServiceError(401, "INVALID_PASSWORD", "비밀번호가 일치하지 않습니다.")
 
     user = session.get(User, account.user_id)
     if user is None or user.status != "ACTIVE":

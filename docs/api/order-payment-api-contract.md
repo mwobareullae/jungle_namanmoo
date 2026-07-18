@@ -574,13 +574,37 @@ Response:
 
 Cancels or requests cancellation.
 
+Request body:
+
+- `PENDING_PAYMENT`: body may be omitted because the order is canceled immediately.
+- `PAID`: body is required because a customer cancellation request is created.
+
+```json
+{
+  "reason_code": "ORDER_MISTAKE",
+  "reason_detail": "수량을 잘못 선택했습니다."
+}
+```
+
+Allowed `reason_code` values:
+
+```text
+CHANGE_OF_MIND
+ORDER_MISTAKE
+ORDER_INFO_CHANGE
+DELIVERY_DELAY
+OTHER
+```
+
+`reason_detail` is optional except when `reason_code` is `OTHER`, and is limited to 1,000 characters.
+
 Behavior:
 
 - If order is `PENDING_PAYMENT`, cancel immediately.
 - Immediate cancel releases reserved inventory.
 - Payment status becomes `CANCELED`.
 - If order is already `PAID`, do not auto-refund in MVP.
-- Paid orders move to `CANCEL_REQUESTED`, and an `order_cancel_requests` row (`status="REQUESTED"`) is created in the same transaction for admin review (see `admin-dashboard-milestone-plan.md` P1-M1.5-B).
+- Paid orders require a cancellation reason, move to `CANCEL_REQUESTED`, and create an `order_cancel_requests` row (`status="REQUESTED"`) with `reason_code` and `reason_detail` in the same transaction for admin review (see `admin-dashboard-milestone-plan.md` P1-M1.5-B).
 - Calling this again while the order is already `CANCEL_REQUESTED` is idempotent and returns the existing request's `request_code` unchanged.
 - If the order is `CANCEL_REQUESTED` but has no matching `order_cancel_requests` row (data inconsistency), responds `409 ORDER_CANCEL_REQUEST_NOT_FOUND` instead of a silent success.
 
@@ -605,6 +629,31 @@ Response — paid order requests cancellation (`PAID` → `CANCEL_REQUESTED`):
 ```
 
 Calling the endpoint again for the same `CANCEL_REQUESTED` order returns `200` with the same `request_code` (no new record is created).
+
+## Customer cancellation request lookup
+
+The latest cancellation request is included in `GET /api/orders/{order_code}` as nullable `cancel_request`.
+It can also be queried directly:
+
+```text
+GET /api/orders/{order_code}/cancel-request
+```
+
+Only the order owner can query it. If the order has no cancellation request, the endpoint returns
+`404 CANCEL_REQUEST_NOT_FOUND`.
+
+```json
+{
+  "request_code": "ocr_20260713_gkViqrBo",
+  "status": "REQUESTED",
+  "reason_code": "ORDER_MISTAKE",
+  "reason_detail": "수량을 잘못 선택했습니다.",
+  "decision_reason": null,
+  "requested_at": "2026-07-19T12:00:00Z",
+  "processed_at": null,
+  "payment_canceled_at": null
+}
+```
 
 ## `POST /api/payments/{payment_code}/mock/confirm`
 

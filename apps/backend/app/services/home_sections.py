@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Inventory, ProductPopularityMetric
+from app.db.models.recommendation import ProductRecommendationCoarseFeature
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence
 from app.schemas.home import (
     HomeLayoutResponse,
@@ -34,6 +35,8 @@ from app.services.skin_profile_service import load_skin_profile_for_user
 DEFAULT_HOME_LIMIT_PER_SECTION = 8
 MAX_HOME_LIMIT_PER_SECTION = 20
 MAX_HOME_LOOKUP_IDS = 10_000
+HOME_EVIDENCE_SHORTLIST_LIMIT = 50
+HOME_FOR_YOU_SHORTLIST_LIMIT = 200
 
 
 HOME_LAYOUT_SECTIONS = (
@@ -148,9 +151,26 @@ def get_evidence_picks_response(
     *,
     category_code: str | None = None,
     limit: int = DEFAULT_HOME_LIMIT_PER_SECTION,
+    _skip_snapshot: bool = False,
+    _internal_limit: int | None = None,
 ) -> HomeProductSectionResponse:
-    normalized_limit = _normalize_limit(limit)
-    products = _load_products(session, category_code=category_code)
+    normalized_limit = _internal_limit or _normalize_limit(limit)
+    if category_code is None and not _skip_snapshot:
+        from app.services.home_section_snapshot_service import get_evidence_snapshot_response
+
+        snapshot_response = get_evidence_snapshot_response(session, limit=normalized_limit)
+        if snapshot_response is not None:
+            return snapshot_response
+    shortlist_product_ids = _load_home_coarse_shortlist_product_ids(
+        session,
+        category_code=category_code,
+        limit=HOME_EVIDENCE_SHORTLIST_LIMIT,
+    )
+    products = _load_products(
+        session,
+        category_code=category_code,
+        product_ids=shortlist_product_ids,
+    )
     product_ids = [product.db_product_id for product in products]
     signals_by_product_id = _load_product_signals(session, product_ids)
     purchase_urls_by_product_id = _load_purchase_urls(session, product_ids)
@@ -181,8 +201,10 @@ def get_for_you_response(
     category_code: str | None = None,
     limit: int = DEFAULT_HOME_LIMIT_PER_SECTION,
     current_user: User | None = None,
+    _skip_snapshot: bool = False,
+    _internal_limit: int | None = None,
 ) -> HomeProductSectionResponse:
-    normalized_limit = _normalize_limit(limit)
+    normalized_limit = _internal_limit or _normalize_limit(limit)
     context = _build_for_you_context(
         session,
         current_user=current_user,
@@ -191,7 +213,31 @@ def get_for_you_response(
         concern=concern,
         effect=effect,
     )
-    products = _load_products(session, category_code=category_code)
+    if not _skip_snapshot:
+        from app.services.home_section_snapshot_service import get_for_you_snapshot_response
+
+        snapshot_response = get_for_you_snapshot_response(
+            session,
+            context=context,
+            current_user=current_user,
+            requested_sensitivity=sensitivity,
+            concern=concern,
+            effect=effect,
+            category_code=category_code,
+            limit=normalized_limit,
+        )
+        if snapshot_response is not None:
+            return snapshot_response
+    shortlist_product_ids = _load_home_coarse_shortlist_product_ids(
+        session,
+        category_code=category_code,
+        limit=HOME_FOR_YOU_SHORTLIST_LIMIT,
+    )
+    products = _load_products(
+        session,
+        category_code=category_code,
+        product_ids=shortlist_product_ids,
+    )
     product_ids = [product.db_product_id for product in products]
     signals_by_product_id = _load_product_signals(session, product_ids)
     skin_profiles_by_product_id = _load_skin_profiles(session, product_ids)
@@ -562,7 +608,50 @@ def _section_to_response(
     )
 
 
-def _load_products(session: Session, *, category_code: str | None) -> list[_ProductBase]:
+def _load_home_coarse_shortlist_product_ids(
+    session: Session,
+    *,
+    category_code: str | None,
+    limit: int,
+) -> list[int] | None:
+    statement = (
+        select(
+            ProductRecommendationCoarseFeature.product_id,
+            ProductRecommendationCoarseFeature.home_max_evidence_score,
+            ProductRecommendationCoarseFeature.home_max_effect_score,
+            ProductRecommendationCoarseFeature.home_lowest_price,
+        )
+        .join(Product, Product.id == ProductRecommendationCoarseFeature.product_id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .where(
+            Product.is_active.is_(True),
+            Product.is_recommendable.is_(True),
+            ProductRecommendationCoarseFeature.source_current.is_(True),
+            ProductRecommendationCoarseFeature.home_source_current.is_(True),
+        )
+    )
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    rows = session.execute(statement).all()
+    if not rows:
+        return None
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -int(row.home_max_evidence_score or 0),
+            -int(row.home_max_effect_score or 0),
+            int(row.home_lowest_price or 0),
+            int(row.product_id),
+        ),
+    )
+    return [int(row.product_id) for row in ranked[:limit]]
+
+def _load_products(
+    session: Session,
+    *,
+    category_code: str | None,
+    product_ids: list[int] | None = None,
+) -> list[_ProductBase]:
     lowest_price = func.min(ProductPrice.price)
     statement = (
         select(
@@ -608,6 +697,10 @@ def _load_products(session: Session, *, category_code: str | None) -> list[_Prod
     )
     if category_code:
         statement = statement.where(ProductCategory.category_code == category_code)
+    if product_ids is not None:
+        if not product_ids:
+            return []
+        statement = statement.where(Product.id.in_(product_ids))
 
     rows = session.execute(statement).all()
     thumbnail_storage_keys = load_thumbnail_storage_keys(session, [int(row.id) for row in rows])

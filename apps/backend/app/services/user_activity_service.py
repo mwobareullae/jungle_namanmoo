@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
@@ -28,9 +28,13 @@ def get_wishlist_response(
     user: User,
     *,
     limit: int = DEFAULT_ACTIVITY_LIMIT,
+    cursor: str | None = None,
 ) -> WishlistResponse:
-    rows = _load_wishlist_rows(session, user.id, _normalize_limit(limit))
-    thumbnails = load_thumbnail_storage_keys(session, [int(row.db_product_id) for row in rows])
+    normalized_limit = _normalize_limit(limit)
+    cursor_row = _load_wishlist_cursor(session, user.id, cursor)
+    rows = _load_wishlist_rows(session, user.id, normalized_limit + 1, cursor_row=cursor_row)
+    visible_rows = list(rows[:normalized_limit])
+    thumbnails = load_thumbnail_storage_keys(session, [int(row.db_product_id) for row in visible_rows])
     return WishlistResponse(
         items=[
             WishlistItem(
@@ -39,8 +43,13 @@ def get_wishlist_response(
                 added_at=row.activity_at,
                 product=_to_activity_product(row, thumbnails.get(int(row.db_product_id), "")),
             )
-            for row in rows
-        ]
+            for row in visible_rows
+        ],
+        next_cursor=(
+            str(visible_rows[-1].activity_id)
+            if len(rows) > normalized_limit and visible_rows
+            else None
+        ),
     )
 
 
@@ -171,6 +180,7 @@ def _load_wishlist_rows(
     limit: int,
     *,
     product_db_id: int | None = None,
+    cursor_row: Wishlist | None = None,
 ):
     statement = (
         _activity_product_statement(
@@ -184,7 +194,34 @@ def _load_wishlist_rows(
     )
     if product_db_id is not None:
         statement = statement.where(Wishlist.product_id == product_db_id)
+    if cursor_row is not None:
+        statement = statement.where(
+            or_(
+                Wishlist.added_at < cursor_row.added_at,
+                and_(Wishlist.added_at == cursor_row.added_at, Wishlist.id < cursor_row.id),
+            )
+        )
     return session.execute(statement).all()
+
+
+def _load_wishlist_cursor(session: Session, user_id: int, cursor: str | None) -> Wishlist | None:
+    if cursor is None or not cursor.strip():
+        return None
+    try:
+        cursor_id = int(cursor)
+    except ValueError as exc:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.") from exc
+    if cursor_id <= 0:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
+    row = session.execute(
+        select(Wishlist).where(
+            Wishlist.id == cursor_id,
+            Wishlist.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
+    return row
 
 
 def _load_recent_view_rows(

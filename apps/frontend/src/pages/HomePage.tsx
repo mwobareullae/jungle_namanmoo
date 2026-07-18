@@ -130,6 +130,13 @@ function HomePage({ bodyHtml }: HomePageProps) {
           <HomeMatchResult key={section.id} />
         ) : section.id === "maincontent" ? (
           <HomeMainContent
+            forYouSkinType={
+              isAuthLoading || isProfileLoading
+                ? null
+                : user
+                  ? profile.skin
+                  : "중성"
+            }
             key={section.id}
             initialProfile={profile}
             showForYouSkinTypeFilters={
