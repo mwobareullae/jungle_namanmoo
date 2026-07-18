@@ -48,3 +48,38 @@ class AdminBulkImportValidationRowResult(BaseModel):
 class AdminBulkImportValidationResponse(BaseModel):
     summary: AdminBulkImportValidationSummary
     rows: list[AdminBulkImportValidationRowResult]
+
+
+class AdminBulkImportIngredientSummary(BaseModel):
+    input_count: int
+    saved_count: int
+    canonical_count: int
+    pending_count: int
+    duplicate_count: int
+    created_pending_count: int
+
+
+class AdminBulkImportRowResult(BaseModel):
+    row_number: int
+    import_sku: str | None
+    status: Literal["CREATED", "SKIPPED", "FAILED"]
+    product_code: str | None = None
+    existing_product_code: str | None = None
+    field: str | None = None
+    error_code: str | None = None
+    message: str | None = None
+    ingredient_summary: AdminBulkImportIngredientSummary | None = None
+
+
+class AdminBulkImportSummary(BaseModel):
+    total: int
+    created: int
+    skipped: int
+    failed: int
+
+
+class AdminBulkImportResponse(BaseModel):
+    summary: AdminBulkImportSummary
+    rows: list[AdminBulkImportRowResult]
+    review_refresh: Literal["OK", "FAILED", "NOT_REQUIRED"]
+    refresh_recovery_command: str | None = None
