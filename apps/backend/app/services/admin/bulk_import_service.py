@@ -28,11 +28,11 @@ from app.services.admin.bulk_import_validation_service import (
     VerifiedBulkImportRow,
 )
 from app.services.admin.product_mutation_service import (
-    _build_product_url,
     _insert_product_with_code_retry,
     _load_first_party_seller,
 )
 from app.services.ingredient_resolution_service import ResolutionInput, resolve_many
+from app.services.product_pricing import build_product_url
 
 
 PENDING_INGREDIENT_PREFIXES = ("ing_pending_", "foreign_pending_")
@@ -240,7 +240,7 @@ def _create_or_skip_product(
                 mall_name=seller.display_name,
                 price=row.price,
                 currency="KRW",
-                product_url=_build_product_url(product.product_code),
+                product_url=build_product_url(product.product_code),
                 is_lowest=True,
                 collected_at=timestamp,
             ),
