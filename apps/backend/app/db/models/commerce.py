@@ -492,7 +492,11 @@ class OrderItem(Base):
 
     id: Mapped[int] = mapped_column(big_integer_pk_type(), primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
-    cart_item_id: Mapped[int | None] = mapped_column(ForeignKey("cart_items.id"), nullable=True, index=True)
+    cart_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cart_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), nullable=False, index=True)
     product_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
