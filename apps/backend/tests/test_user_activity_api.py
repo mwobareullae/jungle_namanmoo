@@ -89,15 +89,56 @@ def test_wishlist_add_list_delete_is_idempotent_and_uses_storage_key(
     assert first_add.json()["id"] == second_add.json()["id"]
     assert list_response.status_code == 200
     assert [item["product_id"] for item in list_response.json()["items"]] == ["prod_001"]
+    assert list_response.json()["next_cursor"] is None
     product = list_response.json()["items"][0]["product"]
     assert product["thumbnail_url"].startswith("products/")
     assert not product["thumbnail_url"].startswith("http")
+    assert product["stock_status"] in {"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN", "UNKNOWN"}
+    assert product["available_quantity"] is None or isinstance(product["available_quantity"], int)
     assert first_delete.status_code == 200
     assert first_delete.json() == {"success": True}
     assert second_delete.status_code == 200
     assert second_delete.json() == {"success": True}
     assert after_delete.json()["items"] == []
     assert wishlist_count == 0
+
+
+def test_wishlist_uses_owned_keyset_cursor_pagination(client: TestClient) -> None:
+    _signup(client, email="wishlist-page@example.com", nickname="찜페이지")
+    first_add = client.post("/api/me/wishlist", json={"product_id": "prod_001"})
+    second_add = client.post("/api/me/wishlist", json={"product_id": "prod_002"})
+    assert first_add.status_code == 200
+    assert second_add.status_code == 200
+
+    first_page = client.get("/api/me/wishlist", params={"limit": 1})
+    assert first_page.status_code == 200
+    first_data = first_page.json()
+    assert [item["product_id"] for item in first_data["items"]] == ["prod_002"]
+    assert first_data["next_cursor"] == str(second_add.json()["id"])
+
+    second_page = client.get(
+        "/api/me/wishlist",
+        params={"limit": 1, "cursor": first_data["next_cursor"]},
+    )
+    assert second_page.status_code == 200
+    assert [item["product_id"] for item in second_page.json()["items"]] == ["prod_001"]
+    assert second_page.json()["next_cursor"] is None
+
+
+def test_wishlist_rejects_invalid_or_other_users_cursor(client: TestClient) -> None:
+    _signup(client, email="wishlist-cursor-owner@example.com", nickname="커서소유자")
+    added = client.post("/api/me/wishlist", json={"product_id": "prod_001"})
+    assert added.status_code == 200
+    owner_cursor = str(added.json()["id"])
+
+    invalid_response = client.get("/api/me/wishlist", params={"cursor": "invalid"})
+    assert invalid_response.status_code == 400
+    assert invalid_response.json()["error"]["code"] == "INVALID_CURSOR"
+
+    _signup(client, email="wishlist-cursor-other@example.com", nickname="다른사용자")
+    ownership_response = client.get("/api/me/wishlist", params={"cursor": owner_cursor})
+    assert ownership_response.status_code == 400
+    assert ownership_response.json()["error"]["code"] == "INVALID_CURSOR"
 
 
 def test_user_activity_records_behavior_events(
@@ -179,6 +220,9 @@ def test_recent_view_upserts_and_orders_by_viewed_at(
     assert second_view.status_code == 200
     assert first_view.json()["id"] == second_view.json()["id"]
     assert [item["product_id"] for item in list_response.json()["items"]] == ["prod_001", "prod_002"]
+    product = list_response.json()["items"][0]["product"]
+    assert product["stock_status"] in {"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN", "UNKNOWN"}
+    assert product["available_quantity"] is None or isinstance(product["available_quantity"], int)
     assert len(recent_rows) == 2
 
 

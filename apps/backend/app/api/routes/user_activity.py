@@ -42,10 +42,11 @@ router = APIRouter(tags=["user-activity"])
 @router.get("/me/wishlist", response_model=WishlistResponse)
 def get_my_wishlist(
     limit: int = Query(default=DEFAULT_ACTIVITY_LIMIT, ge=1, le=MAX_ACTIVITY_LIMIT),
+    cursor: str | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> WishlistResponse:
-    return get_wishlist_response(session, current_user, limit=limit)
+    return get_wishlist_response(session, current_user, limit=limit, cursor=cursor)
 
 
 @router.post(
