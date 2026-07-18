@@ -2,6 +2,7 @@ from collections.abc import Generator
 from datetime import UTC, datetime
 import json
 import logging
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, delete, select
@@ -18,6 +19,7 @@ from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, Prod
 from app.db.models.events import EventLog
 from app.db.models.taxonomy import Ingredient, IngredientAlias
 from app.schemas.common import ApiError
+from app.schemas.agent import AgentContextResultItem, AgentLastToolResult
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
 from app.services.agent_commerce_tools import add_agent_cart_item
@@ -199,10 +201,22 @@ def test_dispatcher_rejects_invalid_arguments(db_engine: Engine) -> None:
                 session,
                 tool_name="compare_products",
                 arguments={"product_ids": ["prod_001"]},
+                conversation_id="conv_invalid_args",
+                request_id="req_invalid_args",
+                session_id="sess_invalid_args",
             )
+
+        recorded = session.execute(
+            select(AgentToolCall).where(AgentToolCall.request_id == "req_invalid_args")
+        ).scalar_one()
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "AGENT_TOOL_ARGUMENT_INVALID"
+    assert recorded.status == "FAILED"
+    assert recorded.error_code == "AGENT_TOOL_ARGUMENT_INVALID"
+    assert recorded.conversation_id == "conv_invalid_args"
+    assert recorded.session_id == "sess_invalid_args"
+    assert recorded.input_json == {"product_ids": ["prod_001"]}
 
 
 def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -> None:
@@ -212,10 +226,21 @@ def test_dispatcher_rejects_auth_required_tool_without_user(db_engine: Engine) -
                 session,
                 tool_name="order_status_lookup",
                 arguments={},
+                conversation_id="conv_auth_rejected",
+                request_id="req_auth_rejected",
+                session_id="sess_auth_rejected",
             )
+
+        recorded = session.execute(
+            select(AgentToolCall).where(AgentToolCall.request_id == "req_auth_rejected")
+        ).scalar_one()
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "AGENT_AUTH_REQUIRED"
+    assert recorded.status == "REJECTED"
+    assert recorded.error_code == "AGENT_AUTH_REQUIRED"
+    assert recorded.conversation_id == "conv_auth_rejected"
+    assert recorded.session_id == "sess_auth_rejected"
 
 
 def test_dispatcher_builds_order_history_filter_navigation(db_engine: Engine) -> None:
@@ -958,6 +983,80 @@ def test_dispatcher_resolves_wishlist_and_recent_references(db_engine: Engine) -
     assert wishlist_response.message == "상품을 장바구니에 담았어요."
     assert recent_response.message == "상품을 장바구니에 담았어요."
     assert {item.product_id for item in cart.items} == {"prod_001", "prod_002"}
+
+
+def test_openai_tool_deterministically_resolves_last_tool_result_position(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    anonymous_cart_id = "agent-last-result-cart"
+    last_tool_result = AgentLastToolResult(
+        action_type="show_products",
+        target="similar_products",
+        items=[
+            AgentContextResultItem(item_type="product", id="prod_001", title="첫 번째 상품"),
+            AgentContextResultItem(item_type="product", id="prod_002", title="두 번째 상품"),
+        ],
+    )
+
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_last_result",
+            request_id="req_last_result",
+            session_id="sess_last_result",
+            anonymous_user_id="anon_last_result",
+            anonymous_cart_id=anonymous_cart_id,
+            user_message="이 중에서 마지막 거 장바구니에 담아줘",
+            last_tool_result=last_tool_result,
+        )
+        tool_context = SimpleNamespace(context=context)
+
+        for _ in range(3):
+            _execute_tool(
+                tool_context,
+                tool_name="add_to_cart",
+                arguments={"product_id": "prod_001", "quantity": 1},
+            )
+
+        cart = get_cart_response(session, None, anonymous_cart_id)
+
+    assert [(item.product_id, item.quantity) for item in cart.items] == [("prod_002", 3)]
+
+
+def test_openai_tool_preserves_product_id_explicitly_written_by_user(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    _set_inventory(db_engine, "prod_002", stock_quantity=10)
+    anonymous_cart_id = "agent-explicit-result-cart"
+    last_tool_result = AgentLastToolResult(
+        action_type="show_products",
+        target="similar_products",
+        items=[
+            AgentContextResultItem(item_type="product", id="prod_001", title="첫 번째 상품"),
+            AgentContextResultItem(item_type="product", id="prod_002", title="두 번째 상품"),
+        ],
+    )
+
+    with Session(db_engine) as session:
+        context = CommerceAgentContext(
+            session=session,
+            user=None,
+            conversation_id="conv_explicit_result",
+            request_id="req_explicit_result",
+            session_id="sess_explicit_result",
+            anonymous_user_id="anon_explicit_result",
+            anonymous_cart_id=anonymous_cart_id,
+            user_message="마지막 상품 말고 prod_001을 장바구니에 담아줘",
+            last_tool_result=last_tool_result,
+        )
+        _execute_tool(
+            SimpleNamespace(context=context),
+            tool_name="add_to_cart",
+            arguments={"product_id": "prod_001", "quantity": 1},
+        )
+        cart = get_cart_response(session, None, anonymous_cart_id)
+
+    assert [item.product_id for item in cart.items] == ["prod_001"]
 
 
 def test_dispatcher_resolves_recommendation_rank_before_adding_to_cart(db_engine: Engine) -> None:

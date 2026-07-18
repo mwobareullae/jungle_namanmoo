@@ -120,6 +120,51 @@ CONTEXT_LOAD_STAGES = [
     ("behavior_context_load_ms", "behavior"),
 ]
 
+# Persistence is measured in three write groups.  Keeping each group separate
+# lets the benchmark distinguish Python payload construction from database work
+# such as bulk inserts, flushes, and deletes.
+PERSISTENCE_STAGES = [
+    ("run_save_ms", "recommendation run save"),
+    ("search_candidate_save_ms", "candidate trace save"),
+    ("result_save_ms", "result and evidence save"),
+    ("commit_ms", "transaction commit"),
+    ("response_load_ms", "response reload"),
+]
+
+RUN_SAVE_DETAIL_STAGES = [
+    ("run_row_build_ms", "run row build"),
+    ("run_insert_flush_ms", "run insert flush"),
+    ("run_relation_build_ms", "relation row build"),
+    ("run_relation_add_ms", "relation add"),
+    ("run_relation_flush_ms", "relation flush"),
+]
+
+CANDIDATE_SAVE_DETAIL_STAGES = [
+    ("candidate_trace_match_validation_ms", "trace match validation"),
+    ("candidate_trace_delete_ms", "existing trace delete"),
+    ("candidate_trace_row_build_ms", "candidate row build"),
+    ("candidate_trace_add_ms", "candidate add"),
+    ("candidate_trace_flush_ms", "candidate flush"),
+]
+
+RESULT_SAVE_DETAIL_STAGES = [
+    ("result_existing_lookup_ms", "existing result lookup"),
+    ("result_existing_evidence_delete_ms", "existing evidence delete"),
+    ("result_existing_result_delete_ms", "existing result delete"),
+    ("result_existing_delete_flush_ms", "existing delete flush"),
+    ("result_payload_build_ms", "result payload build"),
+    ("evidence_payload_build_ms", "evidence payload build"),
+    ("result_raw_sql_execute_ms", "raw SQL CTE execute"),
+    ("result_bulk_insert_ms", "result bulk insert (legacy)"),
+    ("evidence_bulk_insert_ms", "evidence bulk insert (legacy)"),
+    ("result_row_build_ms", "result row build"),
+    ("result_add_ms", "result add"),
+    ("result_flush_ms", "result flush"),
+    ("evidence_row_build_ms", "evidence row build"),
+    ("evidence_add_ms", "evidence add"),
+    ("evidence_flush_ms", "evidence flush"),
+]
+
 INTENT_STAGES = [
     ("intent_repository_load_ms", "repository load"),
     ("intent_rule_parse_ms", "rule parser"),
@@ -151,6 +196,7 @@ PURCHASE_PARSER_STAGES = [
 ANALYSIS_SUBDIRS = {
     "summary": "00-summary",
     "execution_flow": "00-summary/execution-flow",
+    "persistence": "00-summary/execution-flow/persistence",
     "pipeline": "10-pipeline",
     "instrumentation": "20-instrumentation",
     "intent": "30-root-cause/intent-parser",
@@ -1362,6 +1408,7 @@ def plot_stage_graphs(
     scope = f"{stage_dataset:,} products / VUS {stage_vus}"
     summary_dir = output_dirs["summary"]
     execution_flow_dir = output_dirs["execution_flow"]
+    persistence_dir = output_dirs["persistence"]
     pipeline_dir = output_dirs["pipeline"]
     intent_dir = output_dirs["intent"]
     scoring_dir = output_dirs["scoring"]
@@ -1374,6 +1421,15 @@ def plot_stage_graphs(
         execution_flow_dir,
         output_dirs["data"],
         stage_context=stage_context,
+        stage_dataset=stage_dataset,
+        stage_vus=stage_vus,
+        plt=plt,
+        sns=sns,
+    )
+    write_persistence_drilldown_report(
+        row,
+        persistence_dir,
+        output_dirs["data"],
         stage_dataset=stage_dataset,
         stage_vus=stage_vus,
         plt=plt,
@@ -1841,6 +1897,63 @@ def build_execution_flow_records(row) -> list[dict[str, Any]]:
         e2e_ms=e2e_ms,
         source_run_id=source_run_id,
     )
+
+    append_execution_children(
+        records,
+        parent_id="run_save_ms",
+        parent_label="recommendation run save",
+        parent_ms=numeric_or_none(row.get("run_save_ms_avg")) or 0.0,
+        level=3,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in RUN_SAVE_DETAIL_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+    append_execution_children(
+        records,
+        parent_id="search_candidate_save_ms",
+        parent_label="candidate trace save",
+        parent_ms=(
+            numeric_or_none(row.get("search_candidate_save_ms_avg")) or 0.0
+        ),
+        level=3,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in CANDIDATE_SAVE_DETAIL_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
+    append_execution_children(
+        records,
+        parent_id="result_save_ms",
+        parent_label="result and evidence save",
+        parent_ms=numeric_or_none(row.get("result_save_ms_avg")) or 0.0,
+        level=3,
+        children=[
+            (
+                key,
+                label,
+                f"{key}_avg",
+                numeric_or_none(row.get(f"{key}_avg")) or 0.0,
+            )
+            for key, label in RESULT_SAVE_DETAIL_STAGES
+        ],
+        e2e_ms=e2e_ms,
+        source_run_id=source_run_id,
+    )
     return records
 
 
@@ -2118,6 +2231,307 @@ def write_execution_flow_report(
     )
 
 
+def persistence_detail_groups() -> list[tuple[str, str, list[tuple[str, str]]]]:
+    return [
+        ("run_save_ms", "recommendation run save", RUN_SAVE_DETAIL_STAGES),
+        (
+            "search_candidate_save_ms",
+            "candidate trace save",
+            CANDIDATE_SAVE_DETAIL_STAGES,
+        ),
+        ("result_save_ms", "result and evidence save", RESULT_SAVE_DETAIL_STAGES),
+    ]
+
+
+def has_persistence_detail(row: dict[str, Any]) -> bool:
+    return any(
+        numeric_or_none(row.get(f"{key}_avg")) is not None
+        for _, _, stages in persistence_detail_groups()
+        for key, _ in stages
+    )
+
+
+def write_persistence_drilldown_report(
+    row: dict[str, Any],
+    output_dir: Path,
+    data_dir: Path,
+    *,
+    stage_dataset: int,
+    stage_vus: int,
+    plt,
+    sns,
+) -> None:
+    if not has_persistence_detail(row):
+        return
+
+    records = build_execution_flow_records(row)
+    top_level_records = build_stage_records(row, PERSISTENCE_STAGES, statistic="avg")
+    detail_records = [
+        record
+        for parent_id, _, _ in persistence_detail_groups()
+        for record in execution_flow_children(records, parent_id)
+    ]
+    if not detail_records:
+        return
+
+    source_run_id = str(row.get("run_id") or "")
+    persistence_rows = []
+    for record in detail_records:
+        metric = str(record["component_id"])
+        persistence_rows.append(
+            {
+                **record,
+                "p95_ms": numeric_or_none(row.get(f"{metric}_p95")),
+            }
+        )
+    top_level_rows = []
+    for metric, label in PERSISTENCE_STAGES:
+        average = numeric_or_none(row.get(f"{metric}_avg"))
+        if average is None or average <= 0:
+            continue
+        top_level_rows.append(
+            {
+                "component_id": metric,
+                "component": label,
+                "average_ms": average,
+                "p95_ms": numeric_or_none(row.get(f"{metric}_p95")),
+                "http_share_percent": (
+                    average
+                    / (numeric_or_none(row.get("latency_avg_ms")) or 1.0)
+                    * 100
+                ),
+            }
+        )
+    write_dict_csv(top_level_rows, data_dir / "persistence-stage-summary.csv")
+    write_dict_csv(persistence_rows, data_dir / "persistence-drilldown-timings.csv")
+    write_dict_csv(
+        [
+            {
+                "source_run_id": source_run_id,
+                "dataset": stage_dataset,
+                "actual_product_count": int_value(row.get("product_count")),
+                "vus": stage_vus,
+                "duration": str(row.get("duration") or ""),
+                "user_type": str(row.get("user_type") or ""),
+                "latency_avg_ms": numeric_or_none(row.get("latency_avg_ms")),
+                "latency_p95_ms": numeric_or_none(row.get("latency_p95_ms")),
+                "pipeline_avg_ms": numeric_or_none(row.get("duration_ms_avg")),
+                "pipeline_event_count": int_value(row.get("pipeline_event_count")),
+            }
+        ],
+        data_dir / "persistence-drilldown-basis.csv",
+    )
+
+    scope = f"{stage_dataset:,} products / VUS {stage_vus}"
+    plot_stage_bar(
+        row,
+        PERSISTENCE_STAGES,
+        output_dir / "01-persistence-stage-average.png",
+        f"persistence and response stages average ({scope})",
+        plt,
+        sns,
+        statistic="avg",
+    )
+    plot_stage_bar(
+        row,
+        PERSISTENCE_STAGES,
+        output_dir / "02-persistence-stage-p95.png",
+        f"persistence and response stages p95 ({scope})",
+        plt,
+        sns,
+        statistic="p95",
+    )
+    plot_persistence_hierarchy(
+        records,
+        output_dir / "03-persistence-hierarchy.png",
+        plt,
+    )
+    plot_persistence_detail_distribution(
+        row,
+        output_dir / "04-persistence-detail-average-vs-p95.png",
+        plt,
+        sns,
+    )
+    write_persistence_drilldown_readme(
+        output_dir / "README.md",
+        row,
+        records,
+        stage_dataset=stage_dataset,
+        stage_vus=stage_vus,
+    )
+
+
+def persistence_stage_markdown_table(row: dict[str, Any]) -> list[str]:
+    records = [
+        (key, label, numeric_or_none(row.get(f"{key}_avg")))
+        for key, label in PERSISTENCE_STAGES
+    ]
+    records = [record for record in records if record[2] is not None and record[2] > 0]
+    if not records:
+        return ["측정값이 없습니다."]
+    lines = [
+        "| 구간 | 평균(ms) | p95(ms) | HTTP 평균 대비 |",
+        "|---|---:|---:|---:|",
+    ]
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    for metric, label, measured_value in records:
+        value = float(measured_value)
+        p95 = numeric_or_none(row.get(f"{metric}_p95"))
+        p95_text = f"{p95:,.2f}" if p95 is not None else "-"
+        lines.append(
+            f"| {label} | {value:,.2f} | "
+            f"{p95_text} | {value / e2e_ms * 100 if e2e_ms else 0:.1f}% |"
+        )
+    return lines
+
+
+def write_persistence_drilldown_readme(
+    path: Path,
+    row: dict[str, Any],
+    records: list[dict[str, Any]],
+    *,
+    stage_dataset: int,
+    stage_vus: int,
+) -> None:
+    e2e_ms = numeric_or_none(row.get("latency_avg_ms")) or 0.0
+    pipeline_ms = numeric_or_none(row.get("duration_ms_avg")) or 0.0
+    candidate_save_ms = numeric_or_none(row.get("search_candidate_save_ms_avg")) or 0.0
+    lines = [
+        "# 추천 API 저장 단계 드릴다운",
+        "",
+        f"- 대표 run: `{row.get('run_id', '')}`",
+        f"- 조건: 실제 상품 {int_value(row.get('product_count')) or 0:,}개, "
+        f"VUS {stage_vus}, {row.get('duration', '')}, `{row.get('user_type', '')}`",
+        f"- HTTP 평균: **{e2e_ms:,.2f}ms**, backend pipeline 평균: "
+        f"**{pipeline_ms:,.2f}ms**",
+        f"- 후보 trace 저장 평균: **{candidate_save_ms:,.2f}ms** "
+        f"({candidate_save_ms / e2e_ms * 100 if e2e_ms else 0:.1f}% of HTTP)",
+        "",
+        "## 읽는 순서",
+        "",
+        "1. 후보 500개 trace 저장이 전체 저장 경로에서 가장 큰지 먼저 본다.",
+        "2. 그 다음 run 저장, 후보 trace 저장, 최종 결과 및 근거 저장을 각각 펼친다.",
+        "3. 각 하위 단계에서 Python 객체 생성(build/add)과 DB 작업(flush/delete)을 구분한다.",
+        "4. p95는 요청별 최악 구간의 95백분위이므로, 평균과 같은 행끼리만 비교한다.",
+        "",
+        "![저장 상위 구간 평균](./01-persistence-stage-average.png)",
+        "",
+        "![저장 상위 구간 p95](./02-persistence-stage-p95.png)",
+        "",
+        "## 저장 및 응답 재조회 상위 구간",
+        "",
+        *persistence_stage_markdown_table(row),
+        "",
+        "![저장 경로 계층](./03-persistence-hierarchy.png)",
+        "",
+    ]
+    for parent_id, heading, _ in persistence_detail_groups():
+        lines.extend(
+            [
+                f"## {heading}",
+                "",
+                *execution_flow_markdown_table(records, parent_id),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "![저장 세부 단계 평균과 p95](./04-persistence-detail-average-vs-p95.png)",
+            "",
+            "## 해석 주의",
+            "",
+            "- `candidate trace save`는 현재 500개 후보를 요청마다 기록하는 경로다.",
+            "- `result and evidence save`는 최종 50개 결과와 최대 150개 근거를 남기는 경로다.",
+            "- `response reload`는 저장 후 응답 DTO를 만들기 위해 최종 결과를 다시 읽는 비용이며, 쓰기 단계와 분리해 본다.",
+            "- 원본 수치는 `../../data/persistence-drilldown-timings.csv`, 대표 run 메타는 `../../data/persistence-drilldown-basis.csv`에 있다.",
+            "",
+        ]
+    )
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def plot_persistence_hierarchy(records, path: Path, plt) -> None:
+    groups = persistence_detail_groups()
+    group_records = [
+        (heading, execution_flow_children(records, parent_id))
+        for parent_id, heading, _ in groups
+    ]
+    group_records = [(heading, values) for heading, values in group_records if values]
+    if not group_records:
+        return
+
+    palette = ["#2563EB", "#7C3AED", "#EA580C", "#0F766E", "#DC2626", "#64748B"]
+    fig, ax = plt.subplots(figsize=(16, 8.5))
+    for y, (heading, children) in enumerate(group_records):
+        left = 0.0
+        for index, child in enumerate(children):
+            value = float(child["value_ms"])
+            ax.barh(y, value, left=left, color=palette[index % len(palette)], height=0.58)
+            if value >= 55:
+                ax.text(
+                    left + value / 2,
+                    y,
+                    f"{child['component']}\n{value:,.0f} ms",
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+            left += value
+        ax.text(left + max(left * 0.015, 8), y, f"{left:,.1f} ms", va="center", fontsize=11)
+    ax.set_yticks(range(len(group_records)), [heading for heading, _ in group_records])
+    ax.invert_yaxis()
+    ax.set_xlabel("average milliseconds per request")
+    ax.set_title("Persistence write path: parent stage split into measured substeps", fontweight="bold")
+    ax.spines[["right", "top"]].set_visible(False)
+    fig.tight_layout()
+    save_figure(fig, path, plt)
+
+
+def plot_persistence_detail_distribution(row: dict[str, Any], path: Path, plt, sns) -> None:
+    records = []
+    for _, heading, stages in persistence_detail_groups():
+        for key, label in stages:
+            average = numeric_or_none(row.get(f"{key}_avg"))
+            p95 = numeric_or_none(row.get(f"{key}_p95"))
+            if average is None and p95 is None:
+                continue
+            records.extend(
+                [
+                    {"group": heading, "component": label, "statistic": "average", "milliseconds": average or 0.0},
+                    {"group": heading, "component": label, "statistic": "p95", "milliseconds": p95 or 0.0},
+                ]
+            )
+    if not records:
+        return
+    pd, _, _ = load_plot_dependencies()
+    frame = pd.DataFrame(records)
+    components = (
+        frame.groupby("component", as_index=False)["milliseconds"]
+        .max()
+        .sort_values("milliseconds", ascending=True)["component"]
+        .tolist()
+    )
+    fig, ax = plt.subplots(figsize=(16, max(7, len(components) * 0.5 + 2)))
+    sns.barplot(
+        data=frame,
+        x="milliseconds",
+        y="component",
+        hue="statistic",
+        order=components,
+        palette={"average": "#2563EB", "p95": "#EA580C"},
+        ax=ax,
+    )
+    ax.set_xlabel("milliseconds per request")
+    ax.set_ylabel("")
+    ax.set_title("Persistence substep average vs p95", fontweight="bold")
+    ax.legend(title="")
+    ax.spines[["right", "top"]].set_visible(False)
+    fig.tight_layout()
+    save_figure(fig, path, plt)
+
+
 def write_execution_flow_readme(
     path: Path,
     row,
@@ -2183,6 +2597,7 @@ def write_execution_flow_readme(
         "## 백엔드 파이프라인",
         "",
         *execution_flow_markdown_table(records, "backend_pipeline"),
+        *persistence_execution_link(row),
         "",
         "![scoring 드릴다운](./03-scoring-drilldown.png)",
         "",
@@ -2224,6 +2639,16 @@ def write_execution_flow_readme(
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def persistence_execution_link(row: dict[str, Any]) -> list[str]:
+    if not has_persistence_detail(row):
+        return []
+    return [
+        "",
+        "저장 단계의 세부 payload/bulk-insert/flush 분해는 "
+        "[persistence 드릴다운](./persistence/README.md)에서 확인한다.",
+    ]
 
 
 def snapshot_read_model_markdown(
