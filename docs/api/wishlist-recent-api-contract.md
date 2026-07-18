@@ -43,6 +43,7 @@ Query:
 | Name | Type | Default | Description |
 |---|---:|---:|---|
 | `limit` | integer | `50` | 1 to 100 |
+| `cursor` | string | - | Previous response's `next_cursor` |
 
 Response:
 
@@ -67,7 +68,8 @@ Response:
         "in_stock": true
       }
     }
-  ]
+  ],
+  "next_cursor": null
 }
 ```
 
@@ -76,6 +78,9 @@ Sort:
 ```text
 added_at DESC, id DESC
 ```
+
+Pagination uses an owned keyset cursor. When more rows exist, `next_cursor` is the last returned
+wishlist row ID. Passing a malformed cursor or another user's row ID returns `400 INVALID_CURSOR`.
 
 ### `POST /api/me/wishlist`
 
@@ -147,7 +152,11 @@ Response:
         "category_code": "cream",
         "category_name": "크림",
         "thumbnail_url": "products/prod_001/thumbnail.jpg",
-        "lowest_price": 19900
+        "lowest_price": 19900,
+        "sales_status": "ON_SALE",
+        "stock_status": "IN_STOCK",
+        "available_quantity": 12,
+        "in_stock": true
       }
     }
   ]
