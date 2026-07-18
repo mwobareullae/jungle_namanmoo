@@ -778,6 +778,31 @@ function createAgentErrorMessage(
   };
 }
 
+const getAgentProviderErrorCopy = (code: string, status = 0) => {
+  if (code === "AGENT_OPENAI_BUSY" || code === "AGENT_OPENAI_RATE_LIMITED" || status === 429) {
+    return {
+      message: "AI가 다른 요청을 처리하고 있어요. 잠시만 기다려주세요.",
+      title: "AI 요청이 잠시 많아요",
+    };
+  }
+
+  if (code === "AGENT_OPENAI_CIRCUIT_OPEN") {
+    return {
+      message: "AI 연결에 일시적인 문제가 발생했어요. 약 30초 후 다시 시도해주세요.",
+      title: "일시적인 문제가 발생했어요",
+    };
+  }
+
+  if (code === "AGENT_OPENAI_TIMEOUT" || status === 408 || status === 504) {
+    return {
+      message: "AI 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.",
+      title: "응답이 지연되고 있어요",
+    };
+  }
+
+  return null;
+};
+
 function createAgentErrorFromUnknown(
   error: unknown,
   id: string,
@@ -813,15 +838,9 @@ function createAgentErrorFromUnknown(
     });
   }
 
-  if (status === 408 || status === 504 || code === "AGENT_OPENAI_TIMEOUT") {
-    return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
-      retryMessage,
-      idempotencyKey,
-    });
-  }
-
-  if (status === 429 || code === "AGENT_OPENAI_RATE_LIMITED") {
-    return createAgentErrorMessage(id, "AI 요청이 잠시 많아요", message, {
+  const providerErrorCopy = getAgentProviderErrorCopy(code, status);
+  if (providerErrorCopy) {
+    return createAgentErrorMessage(id, providerErrorCopy.title, providerErrorCopy.message, {
       retryMessage,
       idempotencyKey,
     });
@@ -888,6 +907,14 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
       action: "input",
       actionLabel: "다시 입력하기",
       tone: "info",
+    });
+  }
+
+  const providerErrorCopy = getAgentProviderErrorCopy(response.error.code);
+  if (providerErrorCopy) {
+    return createAgentErrorMessage(id, providerErrorCopy.title, providerErrorCopy.message, {
+      retryMessage,
+      tone: "amber",
     });
   }
 
