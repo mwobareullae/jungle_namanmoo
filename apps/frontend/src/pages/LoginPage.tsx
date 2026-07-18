@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
@@ -419,17 +420,24 @@ function LoginPage() {
                   setMessage("");
                 }}
                 placeholder="비밀번호"
-                style={{ paddingLeft: "2.75rem", paddingRight: "6rem" }}
+                style={{ paddingLeft: "2.75rem", paddingRight: "3rem" }}
                 type={showPassword ? "text" : "password"}
                 value={password}
               />
-              <Button
-                className="absolute top-1/2 right-4 -translate-y-1/2 p-0"
+              <button
+                aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                aria-pressed={showPassword}
+                className="absolute top-1/2 right-4 flex size-8 -translate-y-1/2 items-center justify-center text-[#6B7280] transition-colors hover:text-[#1A1A1A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A1A1A]"
                 onClick={() => setShowPassword((prev) => !prev)}
-                variant="link"
+                title={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                type="button"
               >
-                {showPassword ? "숨김" : "비밀번호 표시"}
-              </Button>
+                {showPassword ? (
+                  <EyeSlash aria-hidden="true" size={20} weight="regular" />
+                ) : (
+                  <Eye aria-hidden="true" size={20} weight="regular" />
+                )}
+              </button>
             </div>
             {passwordErrorMessage && (
               <p className="-mt-1 px-4 text-[13px] font-medium text-[#ff2b2b]">
