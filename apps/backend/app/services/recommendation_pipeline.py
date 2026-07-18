@@ -337,14 +337,13 @@ def _create_recommendation_response(
             session.flush()
         _record_stage_duration(stage_durations, "commit_ms", stage_started_at)
 
-        stage_started_at = current_time()
         response = get_recommendation_response(
             session,
             recommendation_code,
             page=pagination.page,
             page_size=pagination.page_size,
+            timings=stage_durations,
         )
-        _record_stage_duration(stage_durations, "response_load_ms", stage_started_at)
         log_performance_event(
             "recommendation_pipeline_completed",
             duration_ms=elapsed_ms(total_started_at),
@@ -436,19 +435,38 @@ def get_recommendation_response(
     *,
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
+    timings: dict[str, float] | None = None,
 ) -> RecommendationResponse:
+    response_started_at = current_time()
     pagination = normalize_pagination(page, page_size)
+
+    stage_started_at = current_time()
     run = load_recommendation_run(session, recommendation_id)
+    _record_optional_stage_duration(timings, "response_run_load_ms", stage_started_at)
+
+    stage_started_at = current_time()
     total_items = _count_result_rows(session, run.id)
+    _record_optional_stage_duration(timings, "response_result_count_ms", stage_started_at)
+
+    stage_started_at = current_time()
     result_rows = _load_result_rows(
         session,
         run.id,
         offset=pagination.offset,
         limit=pagination.page_size,
+        timings=timings,
     )
-    evidence_by_result_id = _load_result_evidence(session, [row.result.id for row in result_rows])
 
-    return RecommendationResponse(
+    stage_started_at = current_time()
+    evidence_by_result_id = _load_result_evidence(
+        session,
+        [row.result.id for row in result_rows],
+        timings=timings,
+    )
+    _record_optional_stage_duration(timings, "response_evidence_load_ms", stage_started_at)
+
+    stage_started_at = current_time()
+    response = RecommendationResponse(
         recommendation_id=run.recommendation_code,
         summary=_build_summary_from_run(run),
         unmatched_terms=_run_unmatched_terms(run),
@@ -466,6 +484,31 @@ def get_recommendation_response(
             total_items=total_items,
         ),
     )
+    _record_optional_stage_duration(timings, "response_serialize_ms", stage_started_at)
+    if timings is not None:
+        timings["response_page_size"] = float(pagination.page_size)
+        timings["response_total_item_count"] = float(total_items)
+        timings["response_result_row_count"] = float(len(result_rows))
+        timings["response_thumbnail_count"] = float(
+            sum(1 for row in result_rows if row.thumbnail_storage_key)
+        )
+        timings["response_evidence_row_count"] = float(
+            sum(len(evidence) for evidence in evidence_by_result_id.values())
+        )
+        _record_stage_duration(timings, "response_load_ms", response_started_at)
+        timings["response_unattributed_ms"] = round(
+            max(
+                0.0,
+                timings["response_load_ms"]
+                - timings["response_run_load_ms"]
+                - timings["response_result_count_ms"]
+                - timings["response_result_rows_ms"]
+                - timings["response_evidence_load_ms"]
+                - timings["response_serialize_ms"],
+            ),
+            2,
+        )
+    return response
 
 
 def _record_stage_duration(
@@ -474,6 +517,15 @@ def _record_stage_duration(
     started_at: float,
 ) -> None:
     stage_durations[key] = round(elapsed_ms(started_at), 2)
+
+
+def _record_optional_stage_duration(
+    stage_durations: dict[str, float] | None,
+    key: str,
+    started_at: float,
+) -> None:
+    if stage_durations is not None:
+        _record_stage_duration(stage_durations, key, started_at)
 
 
 def _filter_candidates_by_required_ingredients(
@@ -638,7 +690,9 @@ def _load_result_rows(
     *,
     offset: int,
     limit: int,
+    timings: dict[str, float] | None = None,
 ) -> list[_ResultRow]:
+    result_rows_started_at = current_time()
     lowest_prices = (
         select(
             ProductPrice.product_id.label("product_id"),
@@ -648,6 +702,7 @@ def _load_result_rows(
         .subquery()
     )
 
+    stage_started_at = current_time()
     rows = session.execute(
         select(
             RecommendationResult,
@@ -669,11 +724,16 @@ def _load_result_rows(
         .offset(offset)
         .limit(limit)
     ).all()
+    _record_optional_stage_duration(timings, "response_product_query_ms", stage_started_at)
+
+    stage_started_at = current_time()
     thumbnail_storage_keys = load_thumbnail_storage_keys(
         session,
         [int(product.id) for _, product, _, _, _, _, _, _, _ in rows],
     )
+    _record_optional_stage_duration(timings, "response_thumbnail_load_ms", stage_started_at)
 
+    stage_started_at = current_time()
     result_rows: list[_ResultRow] = []
     for result, product, brand, lowest_price, inventory_id, stock_quantity, reserved_quantity, safety_stock, sales_status in rows:
         availability = build_product_availability(
@@ -694,6 +754,8 @@ def _load_result_rows(
             available_quantity=availability.available_quantity,
             in_stock=availability.in_stock,
         ))
+    _record_optional_stage_duration(timings, "response_availability_build_ms", stage_started_at)
+    _record_optional_stage_duration(timings, "response_result_rows_ms", result_rows_started_at)
     return result_rows
 
 
@@ -712,10 +774,16 @@ def _build_pagination(*, page: int, page_size: int, total_items: int) -> Paginat
 def _load_result_evidence(
     session: Session,
     recommendation_result_ids: list[int],
+    *,
+    timings: dict[str, float] | None = None,
 ) -> dict[int, tuple[_ResultEvidence, ...]]:
     if not recommendation_result_ids:
+        if timings is not None:
+            timings["response_evidence_query_ms"] = 0.0
+            timings["response_evidence_group_ms"] = 0.0
         return {}
 
+    stage_started_at = current_time()
     rows = session.execute(
         select(
             RecommendationScoreEvidence.recommendation_result_id,
@@ -739,7 +807,9 @@ def _load_result_evidence(
             RecommendationScoreEvidence.id.asc(),
         )
     ).all()
+    _record_optional_stage_duration(timings, "response_evidence_query_ms", stage_started_at)
 
+    stage_started_at = current_time()
     grouped: dict[int, list[_ResultEvidence]] = {}
     for result_id, ingredient_name, effect_name, evidence_level in rows:
         if not ingredient_name and not effect_name:
@@ -752,7 +822,12 @@ def _load_result_evidence(
             )
         )
 
-    return {result_id: tuple(evidence) for result_id, evidence in grouped.items()}
+    evidence_by_result_id = {
+        result_id: tuple(evidence)
+        for result_id, evidence in grouped.items()
+    }
+    _record_optional_stage_duration(timings, "response_evidence_group_ms", stage_started_at)
+    return evidence_by_result_id
 
 
 def _result_row_to_recommended_product(
