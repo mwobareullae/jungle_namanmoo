@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
@@ -30,6 +30,7 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
+  isAuthenticated?: boolean;
   quickQuestionContext?: QuickQuestionContext;
   skinProfile?: {
     avoidIngredients?: string[];
@@ -145,6 +146,11 @@ const MAX_AGENT_CONTEXT_RESULT_ITEMS = 10;
 const MAX_STORED_AGENT_MESSAGES = 24;
 const MAX_AGENT_CHAT_THREAD_TITLE_LENGTH = 36;
 const REDACTED_ADDRESS_MESSAGE = "배송지 정보를 입력했어요.";
+const composeCategoryLabelMap: Record<string, string> = {
+  toner: "토너",
+  serum: "세럼",
+  cream: "크림",
+};
 
 const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   auth: [
@@ -154,7 +160,7 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   ],
   cart: [
     "현재 장바구니 상품으로 주문서 열어줘",
-    "내 피부에 맞는 토너와 크림을 10만원 안으로 추가해줘",
+    "내 피부에 맞는 토너와 크림을 5만원 안으로 추가해줘",
     "장바구니 상품과 총금액 다시 보여줘",
   ],
   checkout: [
@@ -163,13 +169,13 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "결제 예정 금액과 배송지를 다시 확인해줘",
   ],
   home: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘",
     "최근 주문 배송 상태 알려줘",
     "장바구니에 담긴 상품과 총금액 보여줘",
   ],
   mypage: [
     "최근 주문 배송 상태 보여줘",
-    "내 피부 타입에 맞는 토너와 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너와 크림을 5만원 이내로 구성해줘",
     "내 장바구니 상품과 총금액 보여줘",
   ],
   order: [
@@ -193,9 +199,9 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "최근 본 상품을 내 피부 타입 기준으로 추려줘",
   ],
   skinProfile: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
-    "내 피부 타입에 맞는 세럼과 크림을 7만원 이내로 구성해줘",
-    "내 피부 타입에 맞는 토너와 세럼을 6만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 추천해줘",
+    "민감도에 맞는 진정 제품 3개 추천해줘",
+    "피부 고민에 맞는 성분 근거 제품을 보여줘",
   ],
   wishlist: [
     "찜한 첫 두 상품을 비교해줘",
@@ -206,17 +212,48 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
 
 const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   auth: ["로그인하면 이어지는 기능은?", "로그인 후 맞춤 루틴 만들기"],
-  cart: ["이 장바구니로 주문서 열어줘", "10만원 맞춤 상품 추가해줘"],
+  cart: ["이 장바구니로 주문서 열어줘", "5만원 맞춤 상품 추가해줘"],
   checkout: ["이 주문서로 주문 생성해줘", "결제 진행해줘"],
-  home: ["10만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
-  mypage: ["최근 주문 배송 보여줘", "10만원 맞춤 루틴 구성해줘"],
+  home: ["5만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
+  mypage: ["최근 주문 배송 보여줘", "5만원 맞춤 루틴 구성해줘"],
   order: ["현재 주문 상태 보여줘", "현재 주문 취소해줘"],
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
-  skinProfile: ["10만원 맞춤 루틴 구성해줘", "7만원 세럼·크림 구성해줘"],
+  skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
+
+const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
+  home: [
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "5만원 이하 제품 추천해줘",
+    "장바구니 상품과 총금액 보여줘",
+  ],
+  cart: [
+    "장바구니 상품과 총금액 보여줘",
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "5만원 이하 제품 추천해줘",
+  ],
+  skinProfile: [
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "민감 피부 진정 제품 추천해줘",
+    "피부 프로필 설정 방법 알려줘",
+  ],
+};
+
+const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
+  home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
+  cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
+  skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
+};
+
+const emptySearchQuickQuestions = [
+  "내 피부 고민에 맞는 제품 추천해줘",
+  "5만원 이하 제품 추천해줘",
+];
+
+const emptySearchMiniChatLabels = ["피부 고민 제품 추천해줘", "5만원 이하 추천해줘"];
 
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
@@ -684,7 +721,17 @@ function buildAgentContext(
     route: `${pathname}${search}${hash}`,
   };
   const visibleProductIds = collectVisibleProductIds(currentProductId);
-  const orderCode = readString(params.get("order_code"));
+  const orderPathMatch = pathname.match(/^\/mypage\/orders\/([^/]+)/);
+  const orderCodeFromPath = orderPathMatch?.[1]
+    ? (() => {
+      try {
+        return decodeURIComponent(orderPathMatch[1]);
+      } catch {
+        return orderPathMatch[1];
+      }
+    })()
+    : null;
+  const orderCode = readString(params.get("order_code")) ?? readString(orderCodeFromPath);
   const recommendationId = readString(params.get("recommendation_id"));
   const searchQuery = readString(params.get("keyword"));
 
@@ -746,11 +793,22 @@ const getApprovalCopy = (toolName?: AgentToolName | null) => {
 function createApprovalMessage(response: AgentChatResponse, timestamp: number): AgentChatApprovalMessage {
   const copy = getApprovalCopy(response.tool_name);
   const orderCode = readString(response.ui_action.payload.order_code);
+  const composePayload = response.tool_name === "compose_cart" ? response.ui_action.payload : null;
+  const composeCategories = composePayload && Array.isArray(composePayload.categories)
+    ? composePayload.categories.filter((value): value is string => typeof value === "string")
+    : [];
+  const composeCategoryLabels = composeCategories.map((category) => composeCategoryLabelMap[category] ?? category);
+  const composeSkinType = composePayload ? readString(composePayload.skin_type) : null;
+  const composeSensitivity = composePayload ? readString(composePayload.sensitivity) : null;
+  const composeBudget = composePayload ? readNumber(composePayload.max_budget) : null;
+  const composeReason = response.tool_name === "compose_cart"
+    ? `저장된 피부 프로필${composeSkinType ? `(${composeSkinType}` : ""}${composeSensitivity ? `·민감도 ${composeSensitivity}` : ""}${composeSkinType ? ")" : ""}과 피해야 할 성분을 반영하고, ${composeCategoryLabels.length > 0 ? composeCategoryLabels.join("·") : "토너·세럼·크림"} 카테고리별 1개씩 총 ${composeCategories.length || 3}개 상품을 골라${composeBudget ? ` ${composeBudget.toLocaleString("ko-KR")}원 이내로` : " 예산 안에서"} 구성했어요.`
+    : null;
 
   return {
     id: `approval-${timestamp}`,
     approveLabel: copy.approveLabel,
-    description: orderCode ? `${copy.description} 대상 주문: ${orderCode}` : copy.description,
+    description: composeReason ?? (orderCode ? `${copy.description} 대상 주문: ${orderCode}` : copy.description),
     kind: "approval",
     rejectLabel: copy.rejectLabel,
     title: copy.title,
@@ -778,6 +836,31 @@ function createAgentErrorMessage(
   };
 }
 
+const getAgentProviderErrorCopy = (code: string, status = 0) => {
+  if (code === "AGENT_OPENAI_BUSY" || code === "AGENT_OPENAI_RATE_LIMITED" || status === 429) {
+    return {
+      message: "AI가 다른 요청을 처리하고 있어요. 잠시만 기다려주세요.",
+      title: "AI 요청이 잠시 많아요",
+    };
+  }
+
+  if (code === "AGENT_OPENAI_CIRCUIT_OPEN") {
+    return {
+      message: "AI 연결에 일시적인 문제가 발생했어요. 약 30초 후 다시 시도해주세요.",
+      title: "일시적인 문제가 발생했어요",
+    };
+  }
+
+  if (code === "AGENT_OPENAI_TIMEOUT" || status === 408 || status === 504) {
+    return {
+      message: "AI 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.",
+      title: "응답이 지연되고 있어요",
+    };
+  }
+
+  return null;
+};
+
 function createAgentErrorFromUnknown(
   error: unknown,
   id: string,
@@ -788,6 +871,7 @@ function createAgentErrorFromUnknown(
   const status = typeof apiError.status === "number" ? apiError.status : 0;
   const code = typeof apiError.code === "string" ? apiError.code : "";
   const message = typeof apiError.message === "string" ? apiError.message : "요청을 처리하지 못했어요.";
+  const isIdempotencyKeyConflict = code === "AGENT_IDEMPOTENCY_KEY_REUSED";
 
   if (status === 401 || code === "AGENT_AUTH_REQUIRED") {
     return createAgentErrorMessage(id, "로그인이 필요해요", message, {
@@ -813,15 +897,9 @@ function createAgentErrorFromUnknown(
     });
   }
 
-  if (status === 408 || status === 504 || code === "AGENT_OPENAI_TIMEOUT") {
-    return createAgentErrorMessage(id, "응답이 지연되고 있어요", message, {
-      retryMessage,
-      idempotencyKey,
-    });
-  }
-
-  if (status === 429 || code === "AGENT_OPENAI_RATE_LIMITED") {
-    return createAgentErrorMessage(id, "AI 요청이 잠시 많아요", message, {
+  const providerErrorCopy = getAgentProviderErrorCopy(code, status);
+  if (providerErrorCopy) {
+    return createAgentErrorMessage(id, providerErrorCopy.title, providerErrorCopy.message, {
       retryMessage,
       idempotencyKey,
     });
@@ -843,7 +921,8 @@ function createAgentErrorFromUnknown(
 
   return createAgentErrorMessage(id, "답변을 만들지 못했어요", message, {
     retryMessage,
-    idempotencyKey,
+    // 키 충돌 자체를 재시도할 때는 반드시 새 키를 발급한다.
+    idempotencyKey: isIdempotencyKeyConflict ? undefined : idempotencyKey,
   });
 }
 
@@ -854,7 +933,12 @@ const createAgentIdempotencyKey = () => {
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
 };
 
-function createAgentErrorFromResponse(response: AgentChatResponse, id: string, retryMessage?: string) {
+function createAgentErrorFromResponse(
+  response: AgentChatResponse,
+  id: string,
+  retryMessage?: string,
+  idempotencyKey?: string,
+) {
   if (!response.error) {
     return null;
   }
@@ -891,8 +975,27 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
     });
   }
 
+  const providerErrorCopy = getAgentProviderErrorCopy(response.error.code);
+  if (providerErrorCopy) {
+    return createAgentErrorMessage(id, providerErrorCopy.title, providerErrorCopy.message, {
+      retryMessage,
+      idempotencyKey,
+      tone: "amber",
+    });
+  }
+
+  if (response.error.code === "AGENT_IDEMPOTENCY_KEY_REUSED") {
+    return createAgentErrorMessage(id, "답변을 만들지 못했어요", response.error.message, {
+      retryMessage,
+      // 충돌한 키를 다시 보내지 않고, 재시도 시 새 키를 발급한다.
+      idempotencyKey: undefined,
+      tone: "info",
+    });
+  }
+
   return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
     retryMessage,
+    idempotencyKey,
     tone: response.error.retryable ? "amber" : "info",
   });
 }
@@ -1262,7 +1365,12 @@ const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[
   };
 };
 
-function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
+function createMessagesFromAgentResponse(
+  response: AgentChatResponse,
+  timestamp: number,
+  retryMessage: string,
+  idempotencyKey?: string,
+) {
   const nextMessages: AgentChatMessage[] = [];
   const resultMessage = createResultMessage(
     `result-${timestamp}`,
@@ -1275,7 +1383,7 @@ function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp:
     nextMessages.push(resultMessage);
   }
 
-  const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage);
+  const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage, idempotencyKey);
   if (errorMessage) {
     nextMessages.push(errorMessage);
   }
@@ -1383,6 +1491,45 @@ const renderInlineMarkdown = (content: string) => content
       ? <strong key={`${index}-${part}`}>{part.slice(2, -2)}</strong>
       : part
   ));
+
+/**
+ * 에이전트 응답에서 화면에 필요한 최소한의 Markdown만 렌더링한다.
+ * 백엔드 응답 내용은 변경하지 않고, 줄바꿈과 연속된 `- ` 목록만 보존한다.
+ */
+const renderAgentMessageContent = (content: string) => {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const nodes: ReactNode[] = [];
+  let lineIndex = 0;
+
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
+    if (/^\s*-\s+/.test(line)) {
+      const items: string[] = [];
+      while (lineIndex < lines.length && /^\s*-\s+/.test(lines[lineIndex])) {
+        items.push(lines[lineIndex].replace(/^\s*-\s+/, ""));
+        lineIndex += 1;
+      }
+      nodes.push(
+        <ul className="agent-chat-list" key={`list-${lineIndex}`}>
+          {items.map((item, itemIndex) => (
+            <li key={`${lineIndex}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    nodes.push(
+      <span key={`line-${lineIndex}`}>
+        {renderInlineMarkdown(line)}
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </span>,
+    );
+    lineIndex += 1;
+  }
+
+  return nodes;
+};
 
 const resolveAgentInteractionTarget = (action: AgentUiAction) => {
   if (typeof document === "undefined") return null;
@@ -1536,6 +1683,7 @@ const setAgentCartTargetBusy = (active: boolean) => {
 
 function AgentFloatingButton({
   isAgentResponding = false,
+  isAuthenticated = false,
   quickQuestionContext = "home",
   skinProfile,
   skinProfileStatus = "empty",
@@ -1558,6 +1706,7 @@ function AgentFloatingButton({
   const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialStoredMessages);
   const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(initialStoredMessages));
+  const [hasSearchProducts, setHasSearchProducts] = useState(quickQuestionContext !== "productList");
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(() => readStoredThreads(storageScope));
   const chatInputRef = useRef<HTMLInputElement | null>(null);
@@ -1576,20 +1725,29 @@ function AgentFloatingButton({
     contextProfile?: AgentFloatingButtonProps["skinProfile"],
     startNewThread?: boolean,
     retryIdempotencyKey?: string,
+    retryRequestMessage?: string,
   ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
   const previousSurfaceRef = useRef(surface);
   const quickQuestions = useMemo(
-    () => quickQuestionsByContext[quickQuestionContext],
-    [quickQuestionContext],
+    () => quickQuestionContext === "productList" && !hasSearchProducts
+      ? emptySearchQuickQuestions
+      : !isAuthenticated && guestQuickQuestionsByContext[quickQuestionContext]
+        ? guestQuickQuestionsByContext[quickQuestionContext]!
+        : quickQuestionsByContext[quickQuestionContext],
+    [hasSearchProducts, isAuthenticated, quickQuestionContext],
   );
   const miniChatQuestions = useMemo(
     () => quickQuestions.slice(0, 2).map((prompt, index) => ({
-      label: miniChatLabelsByContext[quickQuestionContext][index],
+      label: quickQuestionContext === "productList" && !hasSearchProducts
+        ? emptySearchMiniChatLabels[index]
+        : !isAuthenticated && guestMiniChatLabelsByContext[quickQuestionContext]
+          ? guestMiniChatLabelsByContext[quickQuestionContext]![index]
+          : miniChatLabelsByContext[quickQuestionContext][index],
       prompt,
     })),
-    [quickQuestionContext, quickQuestions],
+    [hasSearchProducts, isAuthenticated, quickQuestionContext, quickQuestions],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
@@ -1858,12 +2016,17 @@ function AgentFloatingButton({
     contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
     startNewThread = false,
     retryIdempotencyKey?: string,
+    retryRequestMessage?: string,
   ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
     if (!nextMessage || isSubmitting) {
       return null;
     }
+
+    // Keep async search events tied to the route where the request started.
+    // A response that arrives after browser navigation must not wake a new page.
+    const requestScope = window.location.pathname === "/search" ? "search" : "home";
 
     const sensitiveInputMessage = getSensitiveAgentInputMessage(nextMessage);
     if (sensitiveInputMessage) {
@@ -1886,7 +2049,14 @@ function AgentFloatingButton({
     }
 
     const timestamp = Date.now();
-    const idempotencyKey = retryIdempotencyKey ?? createAgentIdempotencyKey();
+    const canReuseRetryKey = Boolean(
+      retryIdempotencyKey
+      && retryRequestMessage
+      && retryRequestMessage.trim() === nextMessage,
+    );
+    const idempotencyKey = canReuseRetryKey && retryIdempotencyKey
+      ? retryIdempotencyKey
+      : createAgentIdempotencyKey();
     const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = startNewThread || activeView === "home";
@@ -1984,6 +2154,7 @@ function AgentFloatingButton({
               query: nextMessage,
               recommendationId: refinementRecommendationId,
               refinementFilters,
+              scope: requestScope,
             },
           }));
         } else {
@@ -2012,6 +2183,7 @@ function AgentFloatingButton({
             profile: resolveAgentSearchProfile(contextProfile, resultParams),
             query: resultQuery,
             recommendationId,
+            scope: requestScope,
           },
         }));
       }
@@ -2022,6 +2194,9 @@ function AgentFloatingButton({
         response.ui_action.type === "show_cart"
         && (response.tool_name === "add_to_cart" || response.tool_name === "compose_cart")
       ) || response.ui_action.type === "show_checkout_preview" || response.ui_action.type === "open_payment";
+      const shouldCloseHomeRecommendation = window.location.pathname === "/"
+        && response.ui_action.type === "show_products"
+        && response.items.some((item) => item.item_type === "product");
       setMessages((currentMessages) =>
         [
           ...currentMessages.flatMap((currentMessage) =>
@@ -2033,10 +2208,14 @@ function AgentFloatingButton({
                   : [])
               : [currentMessage],
           ),
-          ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
+          ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage, idempotencyKey),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       if (response.ui_action.type === "show_checkout_preview") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
+      if (shouldCloseHomeRecommendation) {
         setIsOpen(false);
         await waitForAgentInteraction(260);
       }
@@ -2076,6 +2255,42 @@ function AgentFloatingButton({
   };
 
   sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    const handleSearchPending = (event: Event) => {
+      const detail = (event as CustomEvent<{ scope?: string }>).detail;
+      if (detail?.scope !== "search") return;
+
+      // A new search starts a new agent context. Do not carry the rejected
+      // request's messages or tool result into the next request.
+      setConversationId(null);
+      setCurrentThreadId(null);
+      setMessages([]);
+      setLastToolResultContext(null);
+      setLastSentMessage("");
+      setIsAwaitingAddressInput(false);
+      pendingCheckoutCartItemIdsRef.current = [];
+      setAnswerReactions({});
+      setHasSearchProducts(false);
+    };
+
+    const handleRecommendationState = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        scope?: string;
+        status?: string;
+        recommendation?: { products?: unknown[] } | null;
+      }>).detail;
+      if (detail?.scope !== "search") return;
+      setHasSearchProducts(detail.status === "success" && Boolean(detail.recommendation?.products?.length));
+    };
+
+    window.addEventListener("home-search-pending", handleSearchPending);
+    window.addEventListener("home-recommendation-state", handleRecommendationState);
+    return () => {
+      window.removeEventListener("home-search-pending", handleSearchPending);
+      window.removeEventListener("home-recommendation-state", handleRecommendationState);
+    };
+  }, []);
 
   useEffect(() => {
     const handleEntryMessage = (event: Event) => {
@@ -2203,7 +2418,18 @@ function AgentFloatingButton({
   const handleRetry = (retryMessage?: string, idempotencyKey?: string) => {
     const nextRetryMessage = retryMessage || lastSentMessage;
     if (nextRetryMessage) {
-      void sendMessage(nextRetryMessage, skinProfile, false, idempotencyKey);
+      const canReuseRetryKey = Boolean(
+        idempotencyKey
+        && retryMessage
+        && retryMessage.trim() === nextRetryMessage.trim(),
+      );
+      void sendMessage(
+        nextRetryMessage,
+        skinProfile,
+        false,
+        canReuseRetryKey ? idempotencyKey : undefined,
+        nextRetryMessage,
+      );
     }
   };
 
@@ -2379,6 +2605,7 @@ function AgentFloatingButton({
               profile: resolveAgentSearchProfile(skinProfile, targetUrl.searchParams),
               query,
               recommendationId,
+              scope: window.location.pathname === "/search" ? "search" : "home",
             },
           }));
         }
@@ -2456,7 +2683,7 @@ function AgentFloatingButton({
       <div className={`agent-chat-message-line ${message.role}`}>
         {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" /> : null}
         <div className={`agent-chat-message ${message.role}`}>
-          {message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content}
+          {message.role === "assistant" ? renderAgentMessageContent(message.content) : message.content}
         </div>
       </div>
       {message.role === "assistant" && message.showActions ? (

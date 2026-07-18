@@ -43,3 +43,13 @@ export const originalPages = {
     ]
   }
 } satisfies Record<OriginalPageKey, OriginalPage>;
+
+// 검색 결과의 해석 캡션·후속 조건 칩은 React가 내용이 있을 때만 렌더링한다.
+// 기본 headHtml의 공통 숨김 규칙은 빈 컨테이너를 위한 것이므로, 내용이 있는
+// 검색 결과 컨테이너에만 표시 상태를 덮어쓴다.
+const searchResultSummaryVisibilityCss = `<style>
+body.search-results-page .api-result-summary:not(:empty) {
+  display: flex;
+}
+</style>`;
+originalPages.search.headHtml += searchResultSummaryVisibilityCss;

@@ -125,7 +125,7 @@ function SearchPage() {
         initialQuery={keyword}
         initialSearchMode={searchMode}
       />
-      <HomeMatchResult compact />
+      <HomeMatchResult compact scope="search" />
       <HomeMainContent
         initialProfile={profile}
         initialQuery={isProfileResolved ? keyword : ""}
