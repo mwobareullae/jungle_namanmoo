@@ -813,6 +813,7 @@ function createAgentErrorFromUnknown(
   const status = typeof apiError.status === "number" ? apiError.status : 0;
   const code = typeof apiError.code === "string" ? apiError.code : "";
   const message = typeof apiError.message === "string" ? apiError.message : "요청을 처리하지 못했어요.";
+  const isIdempotencyKeyConflict = code === "AGENT_IDEMPOTENCY_KEY_REUSED";
 
   if (status === 401 || code === "AGENT_AUTH_REQUIRED") {
     return createAgentErrorMessage(id, "로그인이 필요해요", message, {
@@ -862,7 +863,8 @@ function createAgentErrorFromUnknown(
 
   return createAgentErrorMessage(id, "답변을 만들지 못했어요", message, {
     retryMessage,
-    idempotencyKey,
+    // 키 충돌 자체를 재시도할 때는 반드시 새 키를 발급한다.
+    idempotencyKey: isIdempotencyKeyConflict ? undefined : idempotencyKey,
   });
 }
 
@@ -873,7 +875,12 @@ const createAgentIdempotencyKey = () => {
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
 };
 
-function createAgentErrorFromResponse(response: AgentChatResponse, id: string, retryMessage?: string) {
+function createAgentErrorFromResponse(
+  response: AgentChatResponse,
+  id: string,
+  retryMessage?: string,
+  idempotencyKey?: string,
+) {
   if (!response.error) {
     return null;
   }
@@ -914,12 +921,23 @@ function createAgentErrorFromResponse(response: AgentChatResponse, id: string, r
   if (providerErrorCopy) {
     return createAgentErrorMessage(id, providerErrorCopy.title, providerErrorCopy.message, {
       retryMessage,
+      idempotencyKey,
       tone: "amber",
+    });
+  }
+
+  if (response.error.code === "AGENT_IDEMPOTENCY_KEY_REUSED") {
+    return createAgentErrorMessage(id, "답변을 만들지 못했어요", response.error.message, {
+      retryMessage,
+      // 충돌한 키를 다시 보내지 않고, 재시도 시 새 키를 발급한다.
+      idempotencyKey: undefined,
+      tone: "info",
     });
   }
 
   return createAgentErrorMessage(id, "요청을 처리하지 못했어요", response.error.message, {
     retryMessage,
+    idempotencyKey,
     tone: response.error.retryable ? "amber" : "info",
   });
 }
@@ -1289,7 +1307,12 @@ const buildToolResultContext = (action: AgentUiAction, items: AgentResponseItem[
   };
 };
 
-function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp: number, retryMessage: string) {
+function createMessagesFromAgentResponse(
+  response: AgentChatResponse,
+  timestamp: number,
+  retryMessage: string,
+  idempotencyKey?: string,
+) {
   const nextMessages: AgentChatMessage[] = [];
   const resultMessage = createResultMessage(
     `result-${timestamp}`,
@@ -1302,7 +1325,7 @@ function createMessagesFromAgentResponse(response: AgentChatResponse, timestamp:
     nextMessages.push(resultMessage);
   }
 
-  const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage);
+  const errorMessage = createAgentErrorFromResponse(response, `error-${timestamp}`, retryMessage, idempotencyKey);
   if (errorMessage) {
     nextMessages.push(errorMessage);
   }
@@ -1642,6 +1665,7 @@ function AgentFloatingButton({
     contextProfile?: AgentFloatingButtonProps["skinProfile"],
     startNewThread?: boolean,
     retryIdempotencyKey?: string,
+    retryRequestMessage?: string,
   ) => Promise<AgentChatResponse | null>>(async () => null);
   const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
@@ -1924,6 +1948,7 @@ function AgentFloatingButton({
     contextProfile: AgentFloatingButtonProps["skinProfile"] = skinProfile,
     startNewThread = false,
     retryIdempotencyKey?: string,
+    retryRequestMessage?: string,
   ): Promise<AgentChatResponse | null> => {
     const nextMessage = message.trim();
 
@@ -1952,7 +1977,14 @@ function AgentFloatingButton({
     }
 
     const timestamp = Date.now();
-    const idempotencyKey = retryIdempotencyKey ?? createAgentIdempotencyKey();
+    const canReuseRetryKey = Boolean(
+      retryIdempotencyKey
+      && retryRequestMessage
+      && retryRequestMessage.trim() === nextMessage,
+    );
+    const idempotencyKey = canReuseRetryKey && retryIdempotencyKey
+      ? retryIdempotencyKey
+      : createAgentIdempotencyKey();
     const isSensitiveAddressMessage = isAwaitingAddressInput;
     const statusId = `status-${timestamp}`;
     const shouldStartNewThread = startNewThread || activeView === "home";
@@ -2099,7 +2131,7 @@ function AgentFloatingButton({
                   : [])
               : [currentMessage],
           ),
-          ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage),
+          ...createMessagesFromAgentResponse(response, responseTimestamp, nextMessage, idempotencyKey),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       if (response.ui_action.type === "show_checkout_preview") {
@@ -2269,7 +2301,18 @@ function AgentFloatingButton({
   const handleRetry = (retryMessage?: string, idempotencyKey?: string) => {
     const nextRetryMessage = retryMessage || lastSentMessage;
     if (nextRetryMessage) {
-      void sendMessage(nextRetryMessage, skinProfile, false, idempotencyKey);
+      const canReuseRetryKey = Boolean(
+        idempotencyKey
+        && retryMessage
+        && retryMessage.trim() === nextRetryMessage.trim(),
+      );
+      void sendMessage(
+        nextRetryMessage,
+        skinProfile,
+        false,
+        canReuseRetryKey ? idempotencyKey : undefined,
+        nextRetryMessage,
+      );
     }
   };
 
