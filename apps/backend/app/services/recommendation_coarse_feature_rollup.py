@@ -4,16 +4,22 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Product, ProductSkinProfile
+from app.db.models.catalog import (
+    Product,
+    ProductImage,
+    ProductIngredient,
+    ProductPrice,
+    ProductSkinProfile,
+)
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
     ProductRecommendationCoarseFeature,
     ProductRecommendationFeature,
 )
-from app.db.models.taxonomy import Effect
+from app.db.models.taxonomy import Effect, IngredientEffect, IngredientEvidence
 from app.services.recommendation_feature_rollup import upsert_rows
 from app.services.recommendation_feature_versions import (
     PRODUCT_EFFECT_RECOMMENDATION_FEATURE_VERSION,
@@ -126,6 +132,8 @@ def load_product_recommendation_coarse_feature_source_rows(
     if not product_ids:
         return []
 
+    home_signal_scores_by_product = _load_home_signal_scores(session, product_ids)
+    home_summaries_by_product = _load_home_product_summaries(session, product_ids)
     source_rows = session.execute(
         select(
             Product.id.label("product_id"),
@@ -175,6 +183,14 @@ def load_product_recommendation_coarse_feature_source_rows(
         product_id = int(source.product_id)
         if product_id not in rows_by_product:
             skin_profile_exists = source.skin_profile_product_id is not None
+            home_effect_score, home_evidence_score = home_signal_scores_by_product.get(
+                product_id,
+                (0, 0),
+            )
+            home_lowest_price, home_has_image = home_summaries_by_product.get(
+                product_id,
+                (0, False),
+            )
             row: dict[str, object] = {
                 "product_id": product_id,
                 **{column: 0 for column in EFFECT_SCORE_COLUMNS},
@@ -195,6 +211,11 @@ def load_product_recommendation_coarse_feature_source_rows(
                 "skin_profile_confidence_code": _confidence_code(
                     source.skin_profile_confidence if skin_profile_exists else None
                 ),
+                "home_max_effect_score": home_effect_score,
+                "home_max_evidence_score": home_evidence_score,
+                "home_lowest_price": home_lowest_price,
+                "home_has_image": home_has_image,
+                "home_source_current": False,
                 "source_current": False,
                 "feature_version": PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
                 "source_updated_at": _latest_datetime(
@@ -244,14 +265,83 @@ def load_product_recommendation_coarse_feature_source_rows(
 
     for product_id, row in rows_by_product.items():
         row["source_current"] = current_by_product[product_id]
+        row["home_source_current"] = current_by_product[product_id]
         row["source_updated_at"] = _latest_datetime(
             *source_times_by_product[product_id]
         )
     return [rows_by_product[product_id] for product_id in sorted(rows_by_product)]
 
 
+def _load_home_signal_scores(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, tuple[int, int]]:
+    rows = session.execute(
+        select(
+            ProductIngredient.product_id,
+            func.max(IngredientEffect.effect_score).label("max_effect_score"),
+            func.max(IngredientEvidence.evidence_score).label("max_evidence_score"),
+        )
+        .outerjoin(
+            IngredientEffect,
+            IngredientEffect.ingredient_id == ProductIngredient.ingredient_id,
+        )
+        .outerjoin(
+            IngredientEvidence,
+            and_(
+                IngredientEvidence.ingredient_id == ProductIngredient.ingredient_id,
+                IngredientEvidence.effect_id == IngredientEffect.effect_id,
+            ),
+        )
+        .where(ProductIngredient.product_id.in_(product_ids))
+        .group_by(ProductIngredient.product_id)
+    ).all()
+    return {
+        int(row.product_id): (
+            _scaled_home_score(row.max_effect_score),
+            _scaled_home_score(row.max_evidence_score),
+        )
+        for row in rows
+    }
+
+
+def _load_home_product_summaries(
+    session: Session,
+    product_ids: list[int],
+) -> dict[int, tuple[int, bool]]:
+    lowest_price = (
+        select(func.min(ProductPrice.price))
+        .where(ProductPrice.product_id == Product.id)
+        .scalar_subquery()
+    )
+    has_image = (
+        select(ProductImage.id)
+        .where(ProductImage.product_id == Product.id)
+        .exists()
+    )
+    rows = session.execute(
+        select(
+            Product.id,
+            lowest_price.label("lowest_price"),
+            has_image.label("has_image"),
+        ).where(Product.id.in_(product_ids))
+    ).all()
+    return {
+        int(row.id): (int(row.lowest_price or 0), bool(row.has_image))
+        for row in rows
+    }
+
+
 def _scaled_score(value: Decimal | float | int | None) -> int:
     normalized = max(0.0, min(1.0, float(value or 0.0)))
+    return int(round(normalized * SCORE_SCALE))
+
+
+def _scaled_home_score(value: Decimal | float | int | None) -> int:
+    normalized = float(value or 0.0)
+    if normalized > 1:
+        normalized /= 100
+    normalized = max(0.0, min(1.0, normalized))
     return int(round(normalized * SCORE_SCALE))
 
 

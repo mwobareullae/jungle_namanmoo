@@ -5,6 +5,8 @@ import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCan
 import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
 import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
+import type { AdminBulkImportRowInput } from "../features/admin/api/adminBulkImportApi";
+import { useAdminBulkImport } from "../features/admin/bulkImport/useAdminBulkImport";
 import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
 import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
 import { useAdminAccess } from "../features/admin/hooks/useAdminAccess";
@@ -27,7 +29,7 @@ type ProductStatus = "판매중" | "검수필요" | "품절임박" | "판매중�
 type ReviewStatus = "정상" | "성분 pending" | "이미지 누락" | "중복 확인";
 type IndexStatus = "반영 완료" | "검색 문서 완료" | "임베딩 대기" | "미반영";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
-type ExcelImportState = "idle" | "validated";
+type ExcelImportState = "idle" | "preview" | "submitting" | "done";
 type ImageBatchState = "idle" | "matched";
 type LocalSaveState = "idle" | "dirty" | "saved";
 type QueueState = "idle" | "pending" | "queued";
@@ -64,6 +66,17 @@ type AdminToast = {
 } | null;
 
 type CsvValue = string | number;
+type ExcelSummaryRow = { label: string; value: string; tone: BadgeTone };
+type ExcelClientIssue = {
+  row: number;
+  importSku: string;
+  field: string;
+  value: string;
+  reason: string;
+};
+type ExcelDisplayRow = ExcelClientIssue & {
+  status: "형식 통과" | "형식 오류" | "CREATED" | "SKIPPED" | "FAILED";
+};
 type PendingAction = "ingredient" | "duplicateProduct" | "excelFailure" | "imageFailure" | "embedding";
 
 type PendingItem = {
@@ -333,18 +346,6 @@ const emptyProduct: ProductRow = {
   updatedAt: "저장 전"
 };
 
-const canonicalIngredientNames = [
-  "정제수",
-  "부틸렌글라이콜",
-  "글리세린",
-  "나이아신아마이드",
-  "판테놀",
-  "소듐하이알루로네이트",
-  "세라마이드엔피",
-  "병풀추출물",
-  "자작나무수액"
-];
-
 const pendingItems: PendingItem[] = [
   {
     label: "성분 매핑 검수 대기",
@@ -417,52 +418,27 @@ const indexSummary = [
 ];
 
 const excelTemplateColumns = [
-  { label: "seller_sku", required: "필수", note: "셀러 기준 상품 식별자" },
-  { label: "product_name", required: "필수", note: "상품명, 기존 카탈로그 중복 경고 기준" },
-  { label: "brand_name", required: "필수", note: "브랜드/제조사 표시" },
-  { label: "price", required: "필수", note: "판매가, 숫자만 허용" },
-  { label: "stock_quantity", required: "필수", note: "초기 재고 수량" },
-  { label: "ingredients_raw", required: "필수", note: "전성분 원문 전체 저장" },
-  { label: "image_file_names", required: "선택", note: "파일명 기반 이미지 연결" }
+  { label: "import_sku", required: "필수", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
+  { label: "product_name", required: "필수", note: "상품명" },
+  { label: "brand_name", required: "필수", note: "등록된 브랜드명 또는 별칭" },
+  { label: "category_name", required: "필수", note: "등록된 카테고리명 또는 별칭" },
+  { label: "price", required: "필수", note: "양의 정수 판매가" },
+  { label: "stock_quantity", required: "필수", note: "0 이상의 정수 초기 재고" },
+  { label: "ingredients_raw", required: "필수", note: "전성분을 | 기호로 구분" }
 ];
+const BULK_IMPORT_REQUIRED_HEADERS = excelTemplateColumns.map((column) => column.label);
+const IMPORT_SKU_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,63}$/;
 
-const excelValidationSummary = [
-  { label: "총 행", value: "130", tone: "neutral" },
-  { label: "등록 가능", value: "118", tone: "success" },
-  { label: "실패", value: "12", tone: "danger" },
-  { label: "pending 성분", value: "27", tone: "warning" }
-];
-
-const excelFailureRows = [
-  {
-    row: 18,
-    sellerSku: "sku_hanyul_yuja_c_02",
-    field: "ingredients_raw",
-    value: "나이아신아마이드 2%, Citrus Junos Peel Extract",
-    reason: "정규화 exact match 실패. pending 성분으로 보관"
-  },
-  {
-    row: 27,
-    sellerSku: "sku_roundlab_birch_01",
-    field: "image_file_names",
-    value: "roundlab_birch_main.jpeg",
-    reason: "업로드 파일명과 매칭되는 이미지 없음"
-  },
-  {
-    row: 43,
-    sellerSku: "sku_dup_torriden_01",
-    field: "product_name",
-    value: "토리든 다이브인 저분자 히알루론산 세럼",
-    reason: "기존 카탈로그 이름 중복 후보"
-  },
-  {
-    row: 76,
-    sellerSku: "sku_price_blank_03",
-    field: "price",
-    value: "",
-    reason: "필수값 누락"
-  }
-];
+const getBulkImportFieldValue = (row: AdminBulkImportRowInput, field: string | null): string => {
+  if (field === "import_sku") return row.importSku;
+  if (field === "product_name") return row.productName;
+  if (field === "brand_name") return row.brandName;
+  if (field === "category_name") return row.categoryName;
+  if (field === "price") return String(row.price);
+  if (field === "stock_quantity") return String(row.stockQuantity);
+  if (field === "ingredients_raw") return row.ingredientsRaw;
+  return "-";
+};
 
 type ExcelGrid = string[][];
 type DeflateStream = { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> };
@@ -794,15 +770,6 @@ function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function normalizeIngredientName(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, "")
-    .replace(/[0-9.%]/g, "")
-    .replace(/[\s,·/+\-_]/g, "")
-    .trim();
-}
-
 function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): BadgeTone {
   if (status === "판매중" || status === "정상" || status === "반영 완료" || status === "검색 문서 완료") {
     return "success";
@@ -821,6 +788,7 @@ function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): Badg
 
 function AdminDashboardPage() {
   const access = useAdminAccess();
+  const bulkImport = useAdminBulkImport();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [selectedSellerId, setSelectedSellerId] = useState(MOCK_SELLERS[0].id);
   const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
@@ -828,10 +796,11 @@ function AdminDashboardPage() {
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
-  const [excelFileName, setExcelFileName] = useState("products_0706.xlsx");
+  const [excelFileName, setExcelFileName] = useState("파일을 선택해 주세요");
   const excelFileRef = useRef<File | null>(null);
-  const [excelSummaryRows, setExcelSummaryRows] = useState(excelValidationSummary);
-  const [excelFailureList, setExcelFailureList] = useState(excelFailureRows);
+  const [excelPreviewRows, setExcelPreviewRows] = useState<AdminBulkImportRowInput[]>([]);
+  const [excelClientIssues, setExcelClientIssues] = useState<ExcelClientIssue[]>([]);
+  const [excelFormError, setExcelFormError] = useState<string | null>(null);
   const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
   const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
   const [selectedStockProductId, setSelectedStockProductId] = useState(initialProducts[1]?.id ?? initialProducts[0]?.id ?? "");
@@ -841,10 +810,92 @@ function AdminDashboardPage() {
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
   const [stockHistory, setStockHistory] = useState(stockHistoryRows);
   const [toast, setToast] = useState<AdminToast>(null);
-  const [excelQueueState, setExcelQueueState] = useState<QueueState>("idle");
   const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
   const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
   const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
+
+  const excelDisplayRows = useMemo<ExcelDisplayRow[]>(() => {
+    if (bulkImport.result) {
+      return bulkImport.result.rows.map((resultRow) => {
+        const sourceRow = excelPreviewRows[resultRow.rowNumber - 1];
+        const importSku = resultRow.importSku ?? sourceRow?.importSku ?? "-";
+        if (resultRow.status === "CREATED") {
+          const pendingCount = resultRow.ingredientSummary?.pendingCount ?? 0;
+          return {
+            row: resultRow.rowNumber,
+            importSku,
+            status: "CREATED",
+            field: "product_code",
+            value: resultRow.productCode ?? "-",
+            reason: pendingCount > 0 ? `등록 완료 · pending 성분 ${pendingCount}개 생성` : "등록 완료",
+          };
+        }
+        if (resultRow.status === "SKIPPED") {
+          return {
+            row: resultRow.rowNumber,
+            importSku,
+            status: "SKIPPED",
+            field: "import_sku",
+            value: resultRow.existingProductCode ?? "-",
+            reason: "이미 등록된 import_sku라 기존 상품을 수정하지 않고 건너뛰었습니다.",
+          };
+        }
+        return {
+          row: resultRow.rowNumber,
+          importSku,
+          status: "FAILED",
+          field: resultRow.field ?? "product",
+          value: sourceRow ? getBulkImportFieldValue(sourceRow, resultRow.field) : "-",
+          reason: resultRow.message ?? "이 행을 등록하지 못했습니다.",
+        };
+      });
+    }
+
+    const issuesByRow = new Map(excelClientIssues.map((issue) => [issue.row, issue]));
+    return excelPreviewRows.map((row, index) => {
+      const issue = issuesByRow.get(index + 1);
+      return issue
+        ? { ...issue, status: "형식 오류" }
+        : {
+            row: index + 1,
+            importSku: row.importSku,
+            status: "형식 통과",
+            field: "-",
+            value: row.productName,
+            reason: "등록할 준비가 됐습니다.",
+          };
+    });
+  }, [bulkImport.result, excelClientIssues, excelPreviewRows]);
+
+  const excelSummaryRows = useMemo<ExcelSummaryRow[]>(() => {
+    if (bulkImport.result) {
+      const pendingCount = bulkImport.result.rows.reduce(
+        (total, row) => total + (row.ingredientSummary?.pendingCount ?? 0),
+        0,
+      );
+      return [
+        { label: "총 행", value: String(bulkImport.result.summary.total), tone: "neutral" },
+        { label: "등록 완료", value: String(bulkImport.result.summary.created), tone: "success" },
+        { label: "이미 존재", value: String(bulkImport.result.summary.skipped), tone: "warning" },
+        { label: "실패", value: String(bulkImport.result.summary.failed), tone: "danger" },
+        { label: "신규 pending", value: String(pendingCount), tone: "warning" },
+      ];
+    }
+
+    if (excelPreviewRows.length > 0) {
+      return [
+        { label: "총 행", value: String(excelPreviewRows.length), tone: "neutral" },
+        { label: "형식 통과", value: String(excelPreviewRows.length - excelClientIssues.length), tone: "success" },
+        { label: "형식 오류", value: String(excelClientIssues.length), tone: "danger" },
+      ];
+    }
+
+    return [
+      { label: "총 행", value: "-", tone: "neutral" },
+      { label: "등록 완료", value: "-", tone: "success" },
+      { label: "실패", value: "-", tone: "danger" },
+    ];
+  }, [bulkImport.result, excelClientIssues.length, excelPreviewRows.length]);
 
   const selectedStockProduct =
     products.find((product) => product.id === selectedStockProductId) ?? products[0] ?? emptyProduct;
@@ -987,86 +1038,123 @@ function AdminDashboardPage() {
     pushOperationLog("재고", "변경 이력 CSV 다운로드", "가격·재고 변경 이력 파일 생성", "neutral");
   };
 
-  const handleExcelValidate = async () => {
+  const handleExcelPreview = async () => {
     const file = excelFileRef.current;
-    if (file) {
-      const grid = await parseExcelUpload(file);
-      if (!grid || grid.length < 2) {
-        pushOperationLog("엑셀", "엑셀 파싱 실패", `${file.name} · xlsx/csv 형식 확인 필요`, "danger");
-        return;
-      }
-      const header = grid[0].map((cell) => (cell || "").replace(/^\ufeff/, "").trim());
-      const columnIndex = (name: string) => header.indexOf(name);
-      const skuCol = columnIndex("seller_sku");
-      const nameCol = columnIndex("product_name");
-      const priceCol = columnIndex("price");
-      const ingredientCol = columnIndex("ingredients_raw");
-      if (skuCol < 0 || nameCol < 0 || priceCol < 0 || ingredientCol < 0) {
-        pushOperationLog("엑셀", "템플릿 형식 오류", `${file.name} · 필수 컬럼 헤더 누락(seller_sku/product_name/price/ingredients_raw)`, "danger");
-        return;
-      }
-      const failures: { row: number; sellerSku: string; field: string; value: string; reason: string }[] = [];
-      const pendingNames = new Set<string>();
-      const canonicalNormalizedNames = new Set(canonicalIngredientNames.map((name) => normalizeIngredientName(name)));
-      const existingNames = new Set(products.map((product) => product.name));
-      let okCount = 0;
-      grid.slice(1).forEach((cells, index) => {
-        const rowNo = index + 2;
-        const sku = (cells[skuCol] || "").trim();
-        const fail = (field: string, value: string, reason: string) =>
-          failures.push({ row: rowNo, sellerSku: sku || "(누락)", field, value, reason });
-        let bad = false;
-        if (!sku) {
-          fail("seller_sku", "", "필수값 누락");
-          bad = true;
-        }
-        const productName = (cells[nameCol] || "").trim();
-        if (!productName) {
-          fail("product_name", "", "필수값 누락");
-          bad = true;
-        }
-        const priceRaw = (cells[priceCol] ?? "").toString().trim();
-        if (!priceRaw || Number.isNaN(Number(priceRaw))) {
-          fail("price", priceRaw, priceRaw ? "숫자만 허용" : "필수값 누락");
-          bad = true;
-        }
-        const ingredientsRaw = (cells[ingredientCol] || "").trim();
-        if (!ingredientsRaw) {
-          fail("ingredients_raw", "", "필수값 누락");
-          bad = true;
-        }
-        if (!bad && existingNames.has(productName)) {
-          fail("product_name", productName, "기존 카탈로그 이름 중복 후보");
-        }
-        ingredientsRaw
-          .split(",")
-          .map((token) => token.trim())
-          .filter(Boolean)
-          .forEach((token) => {
-            if (!canonicalNormalizedNames.has(normalizeIngredientName(token))) pendingNames.add(token);
-          });
-        if (!bad) okCount += 1;
-      });
-      setExcelSummaryRows([
-        { label: "총 행", value: String(grid.length - 1), tone: "neutral" },
-        { label: "등록 가능", value: String(okCount), tone: "success" },
-        { label: "실패", value: String(grid.length - 1 - okCount), tone: "danger" },
-        { label: "pending 성분", value: String(pendingNames.size), tone: "warning" }
-      ]);
-      setExcelFailureList(failures);
-      setExcelImportState("validated");
-      setExcelQueueState("pending");
-      pushOperationLog(
-        "엑셀",
-        "상품 엑셀 검증 완료",
-        `${file.name} · 총 ${grid.length - 1}행 · 등록 가능 ${okCount}행`,
-        failures.length > 0 ? "warning" : "success",
-      );
+    if (!file) {
+      setExcelFormError("먼저 등록할 xlsx 또는 csv 파일을 선택해 주세요.");
       return;
     }
-    setExcelImportState("validated");
-    setExcelQueueState("pending");
-    pushOperationLog("엑셀", "상품 엑셀 검증 완료", `${excelFileName} · 등록 가능 118행`, "warning");
+
+    const grid = await parseExcelUpload(file);
+    if (!grid || grid.length < 2) {
+      setExcelFormError("데이터 행이 있는 xlsx 또는 csv 파일만 등록할 수 있습니다.");
+      pushOperationLog("엑셀", "엑셀 파싱 실패", `${file.name} · 파일 형식을 확인해 주세요.`, "danger");
+      return;
+    }
+    if (grid.length - 1 > 200) {
+      setExcelFormError("한 번에 최대 200행까지 등록할 수 있습니다. 파일을 나누어 다시 시도해 주세요.");
+      return;
+    }
+
+    const header = grid[0].map((cell) => (cell || "").replace(/^\ufeff/, "").trim());
+    const missingHeaders = BULK_IMPORT_REQUIRED_HEADERS.filter((name) => !header.includes(name));
+    if (missingHeaders.length > 0) {
+      setExcelFormError(`필수 컬럼이 없습니다: ${missingHeaders.join(", ")}`);
+      return;
+    }
+
+    const columnIndex = (name: string) => header.indexOf(name);
+    const rows: AdminBulkImportRowInput[] = [];
+    const issues: ExcelClientIssue[] = [];
+
+    grid.slice(1).forEach((cells, index) => {
+      const row = index + 1;
+      const valueOf = (name: string) => (cells[columnIndex(name)] ?? "").toString().trim();
+      const parsedRow: AdminBulkImportRowInput = {
+        importSku: valueOf("import_sku"),
+        productName: valueOf("product_name"),
+        brandName: valueOf("brand_name"),
+        categoryName: valueOf("category_name"),
+        price: Number(valueOf("price")),
+        stockQuantity: Number(valueOf("stock_quantity")),
+        ingredientsRaw: valueOf("ingredients_raw"),
+      };
+      rows.push(parsedRow);
+
+      const fail = (field: string, value: string, reason: string) => {
+        if (issues.some((issue) => issue.row === row)) return;
+        issues.push({ row, importSku: parsedRow.importSku || "(누락)", field, value, reason });
+      };
+
+      if (!parsedRow.importSku) fail("import_sku", "", "필수값이 비어 있습니다.");
+      else if (!IMPORT_SKU_PATTERN.test(parsedRow.importSku)) {
+        fail("import_sku", parsedRow.importSku, "대문자 영문·숫자·._-만 사용해 1~64자로 입력해 주세요.");
+      }
+      if (!parsedRow.productName) fail("product_name", "", "필수값이 비어 있습니다.");
+      if (!parsedRow.brandName) fail("brand_name", "", "필수값이 비어 있습니다.");
+      if (!parsedRow.categoryName) fail("category_name", "", "필수값이 비어 있습니다.");
+
+      const priceRaw = valueOf("price");
+      if (!/^\d+$/.test(priceRaw) || parsedRow.price <= 0) {
+        fail("price", priceRaw, "0보다 큰 정수로 입력해 주세요.");
+      }
+      const stockRaw = valueOf("stock_quantity");
+      if (!/^\d+$/.test(stockRaw)) {
+        fail("stock_quantity", stockRaw, "0 이상의 정수로 입력해 주세요.");
+      }
+
+      if (!parsedRow.ingredientsRaw) {
+        fail("ingredients_raw", "", "전성분은 비어 있을 수 없습니다.");
+      } else if (parsedRow.ingredientsRaw.includes("%")) {
+        fail("ingredients_raw", parsedRow.ingredientsRaw, "% 문자는 현재 성분 입력 형식에서 지원하지 않습니다.");
+      } else if (parsedRow.ingredientsRaw.split("|").some((ingredient) => !ingredient.trim())) {
+        fail(
+          "ingredients_raw",
+          parsedRow.ingredientsRaw,
+          "전성분은 | 기호로 구분해 입력해 주세요. 앞뒤 또는 연속된 | 기호는 사용할 수 없습니다.",
+        );
+      }
+    });
+
+    setExcelPreviewRows(rows);
+    setExcelClientIssues(issues);
+    setExcelFormError(null);
+    bulkImport.reset();
+    setExcelImportState("preview");
+    pushOperationLog(
+      "엑셀",
+      "상품 엑셀 미리보기 완료",
+      `${file.name} · 총 ${rows.length}행 · 형식 오류 ${issues.length}행`,
+      issues.length > 0 ? "warning" : "success",
+    );
+  };
+
+  const handleExcelSubmit = async () => {
+    if (excelPreviewRows.length === 0) {
+      setExcelFormError("먼저 파일을 선택하고 미리보기를 실행해 주세요.");
+      return;
+    }
+    if (excelClientIssues.length > 0) {
+      setExcelFormError("형식 오류를 수정한 뒤 파일을 다시 선택하고 미리보기를 실행해 주세요.");
+      return;
+    }
+
+    setExcelFormError(null);
+    setExcelImportState("submitting");
+    const result = await bulkImport.submit(excelPreviewRows);
+    if (!result) {
+      setExcelImportState("preview");
+      return;
+    }
+
+    setExcelImportState("done");
+    const tone: BadgeTone = result.summary.failed > 0 || result.reviewRefresh === "FAILED" ? "warning" : "success";
+    pushOperationLog(
+      "엑셀",
+      "상품 대량등록 완료",
+      `등록 ${result.summary.created}행 · 기존 상품 ${result.summary.skipped}행 · 실패 ${result.summary.failed}행`,
+      tone,
+    );
   };
 
   const handleExcelTemplateDownload = () => {
@@ -1075,13 +1163,13 @@ function AdminDashboardPage() {
       buildCsv([
         excelTemplateColumns.map((column) => column.label),
         [
-          "sku_torriden_divein_serum",
+          "IMPORT_TORRIDEN_DIVEIN_SERUM",
           "토리든 다이브인 저분자 히알루론산 세럼",
           "토리든",
+          "serum",
           21800,
           142,
-          "정제수, 부틸렌글라이콜, 글리세린, 나이아신아마이드, 판테놀",
-          "prod_000245_main.jpg,prod_000245_01.jpg"
+          "정제수|부틸렌글라이콜|글리세린|나이아신아마이드|판테놀"
         ]
       ]),
     );
@@ -1101,8 +1189,8 @@ function AdminDashboardPage() {
       downloadTextFile(
         "mwbl_product_import_failures.csv",
         buildCsv([
-          ["row", "seller_sku", "field", "value", "reason"],
-          ...excelFailureList.map((row) => [row.row, row.sellerSku, row.field, row.value, row.reason])
+          ["row", "import_sku", "status", "field", "value", "reason"],
+          ...excelDisplayRows.map((row) => [row.row, row.importSku, row.status, row.field, row.value, row.reason])
         ]),
       );
     }
@@ -1167,8 +1255,6 @@ function AdminDashboardPage() {
     }
 
     if (item.action === "excelFailure") {
-      setExcelImportState("validated");
-      setExcelQueueState("pending");
       setActiveView("excelUpload");
       pushOperationLog("대시보드", "import 실패 행 확인", item.note, item.tone);
       return;
@@ -1657,22 +1743,31 @@ function AdminDashboardPage() {
         <div className="admin-panel-header admin-product-header">
           <div>
             <p>엑셀 기반 상품 대량 등록</p>
-            <h2>상품 정보 검증과 부분 성공 처리</h2>
+            <h2>파일 미리보기 후 상품·재고·전성분을 등록합니다</h2>
           </div>
           <div className="admin-filter-row">
-            <button
-              className="admin-secondary-button"
-              onClick={handleExcelTemplateDownload}
-              type="button"
-            >
+            <button className="admin-secondary-button" onClick={handleExcelTemplateDownload} type="button">
               템플릿
             </button>
             <button
-              className="admin-primary-button"
-              onClick={handleExcelValidate}
+              className="admin-secondary-button"
+              disabled={bulkImport.submitting}
+              onClick={() => void handleExcelPreview()}
               type="button"
             >
-              검증 실행
+              미리보기
+            </button>
+            <button
+              className="admin-primary-button"
+              disabled={
+                bulkImport.submitting ||
+                excelPreviewRows.length === 0 ||
+                excelClientIssues.length > 0
+              }
+              onClick={() => void handleExcelSubmit()}
+              type="button"
+            >
+              {bulkImport.submitting ? "등록 중…" : "등록 실행"}
             </button>
           </div>
         </div>
@@ -1680,37 +1775,78 @@ function AdminDashboardPage() {
         <div className="admin-upload-zone">
           <div>
             <strong>{excelFileName}</strong>
-            <p>xlsx/csv 템플릿 기준으로 상품명, 가격, 재고, 전성분 원문, 이미지 파일명을 검증합니다.</p>
+            <p>
+              xlsx/csv 파일을 선택하세요. 전성분은 쉼표가 아닌 | 기호로 구분합니다.
+            </p>
           </div>
           <label className="admin-upload-input">
             파일 선택
             <input
               accept=".xlsx,.csv"
               aria-label="상품 엑셀 파일 선택"
+              disabled={bulkImport.submitting}
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) {
-                  excelFileRef.current = file;
-                  setExcelFileName(file.name);
-                  setExcelImportState("idle");
-                  setExcelQueueState("idle");
-                }
+                if (!file) return;
+                excelFileRef.current = file;
+                setExcelFileName(file.name);
+                setExcelPreviewRows([]);
+                setExcelClientIssues([]);
+                setExcelFormError(null);
+                bulkImport.reset();
+                setExcelImportState("idle");
               }}
               type="file"
             />
           </label>
         </div>
 
+        {(excelFormError || bulkImport.error) && (
+          <div className="admin-state-banner danger" role="alert">
+            <strong>등록 전 확인이 필요합니다</strong>
+            <span>{excelFormError ?? bulkImport.error}</span>
+          </div>
+        )}
+
+        {bulkImport.result?.reviewRefresh === "FAILED" && (
+          <div className="admin-state-banner warning" role="status">
+            <strong>상품 등록은 완료됐지만 검수 목록 갱신에 실패했습니다</strong>
+            <span>잠시 후 검수 목록을 다시 확인하거나 운영 담당자에게 문의해 주세요.</span>
+          </div>
+        )}
+
         <div className="admin-excel-state-row">
-          <span className={`admin-badge ${excelImportState === "validated" ? "success" : "neutral"}`}>
-            {excelImportState === "validated" ? "검증 완료" : "검증 전"}
+          <span
+            className={`admin-badge ${
+              excelImportState === "done" && bulkImport.result?.reviewRefresh !== "FAILED"
+                ? "success"
+                : excelImportState === "submitting" || excelClientIssues.length > 0
+                  ? "warning"
+                  : excelImportState === "preview"
+                    ? "success"
+                    : "neutral"
+            }`}
+          >
+            {excelImportState === "done"
+              ? "등록 완료"
+              : excelImportState === "submitting"
+                ? "등록 중"
+                : excelImportState === "preview"
+                  ? "미리보기 완료"
+                  : "파일 선택 전"}
           </span>
           <span>
-            {excelQueueState === "queued"
-              ? "등록 대기열에 올라갔습니다. 검색 문서 rebuild와 임베딩 반영이 뒤따릅니다."
-              : excelQueueState === "pending"
-                ? "등록 가능 행이 확인됐습니다. 대기열에 추가하면 성공 행만 커밋됩니다."
-                : "성공 행은 커밋하고 실패 행은 결과 파일로 분리합니다."}
+            {excelImportState === "done"
+              ? bulkImport.result?.reviewRefresh === "OK"
+                ? "신규 pending 성분을 포함해 검수 목록을 갱신했습니다."
+                : bulkImport.result?.reviewRefresh === "NOT_REQUIRED"
+                  ? "새 pending 성분이 없어 검수 목록 갱신은 필요하지 않았습니다."
+                  : "검수 목록 갱신 상태를 확인해 주세요."
+              : excelImportState === "preview"
+                ? excelClientIssues.length > 0
+                  ? "형식 오류를 수정한 뒤 파일을 다시 선택해 미리보기를 실행해 주세요."
+                  : "형식이 확인되었습니다. 등록 실행 시 서버가 브랜드·카테고리·성분을 다시 검증합니다."
+                : "파일을 선택한 뒤 미리보기로 형식을 확인하고 등록을 실행하세요."}
           </span>
         </div>
       </section>
@@ -1729,9 +1865,7 @@ function AdminDashboardPage() {
                 <strong>{column.label}</strong>
                 <small>{column.note}</small>
               </span>
-              <b className={`admin-badge ${column.required === "필수" ? "warning" : "neutral"}`}>
-                {column.required}
-              </b>
+              <b className="admin-badge warning">{column.required}</b>
             </div>
           ))}
         </div>
@@ -1740,23 +1874,23 @@ function AdminDashboardPage() {
       <section className="admin-panel admin-excel-summary-panel">
         <div className="admin-panel-header compact">
           <div>
-            <p>검증 결과</p>
-            <h2>부분 성공 요약</h2>
+            <p>{bulkImport.result ? "등록 결과" : "미리보기"}</p>
+            <h2>{bulkImport.result ? "부분 성공 요약" : "파일 형식 요약"}</h2>
           </div>
           <button
             className="admin-secondary-button"
-            disabled={excelImportState === "idle"}
+            disabled={excelDisplayRows.length === 0}
             onClick={() => handleFailureFile("엑셀")}
             type="button"
           >
-            실패 파일
+            결과 파일
           </button>
         </div>
         <div className="admin-excel-summary-grid">
           {excelSummaryRows.map((item) => (
             <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
               <span>{item.label}</span>
-              <strong>{excelImportState === "validated" ? item.value : "-"}</strong>
+              <strong>{item.value}</strong>
             </article>
           ))}
         </div>
@@ -1765,28 +1899,44 @@ function AdminDashboardPage() {
       <section className="admin-panel admin-excel-failure-panel">
         <div className="admin-panel-header compact">
           <div>
-            <p>실패 행</p>
-            <h2>운영자 확인 목록</h2>
+            <p>{bulkImport.result ? "등록 행" : "파싱 행"}</p>
+            <h2>{bulkImport.result ? "CREATED · SKIPPED · FAILED 결과" : "등록 전 미리보기"}</h2>
           </div>
-          <span className="admin-badge warning">검수 필요</span>
+          <span className={`admin-badge ${bulkImport.result ? "neutral" : "warning"}`}>
+            {bulkImport.result ? "서버 결과" : "형식 확인"}
+          </span>
         </div>
         <div className="admin-table-wrap">
           <table className="admin-table admin-excel-table">
             <thead>
               <tr>
                 <th scope="col">행</th>
-                <th scope="col">SKU</th>
+                <th scope="col">import_sku</th>
+                <th scope="col">상태</th>
                 <th scope="col">필드</th>
-                <th scope="col">입력값</th>
-                <th scope="col">사유</th>
+                <th scope="col">값</th>
+                <th scope="col">상세</th>
               </tr>
             </thead>
             <tbody>
-              {excelImportState === "validated" ? (
-                excelFailureList.map((row) => (
-                  <tr key={`${row.row}-${row.field}`}>
+              {excelDisplayRows.length > 0 ? (
+                excelDisplayRows.map((row) => (
+                  <tr key={`${row.row}-${row.status}-${row.field}`}>
                     <td>{row.row}</td>
-                    <td className="admin-file-name">{row.sellerSku}</td>
+                    <td className="admin-file-name">{row.importSku}</td>
+                    <td>
+                      <span
+                        className={`admin-badge ${
+                          row.status === "CREATED" || row.status === "형식 통과"
+                            ? "success"
+                            : row.status === "SKIPPED"
+                              ? "warning"
+                              : "danger"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
                     <td>{row.field}</td>
                     <td>{row.value}</td>
                     <td>{row.reason}</td>
@@ -1794,10 +1944,10 @@ function AdminDashboardPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="admin-empty-state">
-                      <strong>아직 검증 결과가 없습니다</strong>
-                      <span>엑셀 파일을 선택한 뒤 검증 실행을 누르면 실패 행과 pending 성분이 표시됩니다.</span>
+                      <strong>아직 미리보기 결과가 없습니다</strong>
+                      <span>엑셀 파일을 선택한 뒤 미리보기를 실행하면 형식 오류를 바로 확인할 수 있습니다.</span>
                     </div>
                   </td>
                 </tr>
@@ -1806,37 +1956,34 @@ function AdminDashboardPage() {
           </table>
         </div>
       </section>
-
     </section>
   );
 
   const renderImageUpload = () => (
-    <section className="admin-excel-layout admin-image-layout">
+    <section className="admin-excel-layout admin-image-layout admin-image-deferred">
       <section className="admin-panel admin-excel-main">
         <div className="admin-panel-header admin-product-header">
           <div>
-            <p>파일명 기반 이미지 대량 연결</p>
-            <h2>이미지 묶음 매칭과 대표 이미지 확인</h2>
+            <p>상품 이미지 운영</p>
+            <h2>이미지 대량 연결은 추후 지원</h2>
           </div>
+          <span className="admin-badge neutral">추후 지원</span>
           <div className="admin-filter-row">
-            <button
-              className="admin-secondary-button"
-              onClick={handleImageMappingDownload}
-              type="button"
-            >
+            <button className="admin-secondary-button" onClick={handleImageMappingDownload} type="button">
               매핑표
             </button>
-            <button
-              className="admin-primary-button"
-              onClick={handleImageMatch}
-              type="button"
-            >
+            <button className="admin-primary-button" onClick={handleImageMatch} type="button">
               매칭 실행
             </button>
           </div>
         </div>
 
-        <div className="admin-upload-zone">
+        <div className="admin-state-banner neutral">
+          <strong>이미지 파일 업로드와 상품 연결 방식은 아직 준비 중입니다.</strong>
+          <span>상품 엑셀 대량등록은 이미지 없이 먼저 진행할 수 있습니다.</span>
+        </div>
+
+        <div className="admin-upload-zone" hidden>
           <div>
             <strong>{imageBatchName}</strong>
             <p>ZIP 또는 이미지 묶음을 파일명 규칙과 엑셀 image_file_names 값으로 상품에 연결합니다.</p>

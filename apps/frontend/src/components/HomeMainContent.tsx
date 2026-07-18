@@ -52,10 +52,13 @@ const mapHomeProductToCard = (product: HomeSectionProduct, index: number): Produ
 const formatPrice = (price: number | null) =>
   price === null ? "가격 정보 없음" : `${price.toLocaleString("ko-KR")}원`;
 
-const getHomeSectionHref = (sectionId: string) => {
+const getHomeSectionHref = (sectionId: string, skinType?: string) => {
   if (sectionId === "market_popular") return "/products/popular";
   if (sectionId === "evidence_picks") return "/products/evidence-picks";
-  if (sectionId === "for_you") return "/products/for-you";
+  if (sectionId === "for_you") {
+    const query = skinType ? `?skin_type=${encodeURIComponent(skinType)}` : "";
+    return `/products/for-you${query}`;
+  }
   return "/catalog-search";
 };
 
@@ -514,7 +517,10 @@ function HomeDealSection({
           <div className="empty-state">표시할 상품이 없습니다.</div>
         )}
       </div>
-      <HomeSectionMoreLink href={getHomeSectionHref(section.section_id)} title={section.title} />
+      <HomeSectionMoreLink
+        href={getHomeSectionHref(section.section_id, forYouFilters?.skinType)}
+        title={section.title}
+      />
     </section>
   );
 }

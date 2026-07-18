@@ -32,6 +32,8 @@ const pageConfig = {
   }
 } as const;
 
+const FOR_YOU_SKIN_TYPES = new Set(["건성", "지성", "복합성", "수부지", "중성"]);
+
 const mapHomeProductToCard = (product: HomeSectionProduct, index: number): ProductCardItem => ({
   product_id: product.product_id,
   rank: index + 1,
@@ -55,6 +57,10 @@ const formatPrice = (price: number | null) =>
 
 function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) {
   const config = pageConfig[sectionType];
+  const requestedSkinType = new URLSearchParams(window.location.search).get("skin_type");
+  const forYouSkinType = requestedSkinType && FOR_YOU_SKIN_TYPES.has(requestedSkinType)
+    ? requestedSkinType
+    : undefined;
   const { user } = useAuth();
   const { message: toastMessage, showToast } = useActivityToast();
   const [title, setTitle] = useState<string>(config.fallbackTitle);
@@ -94,7 +100,7 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
     let isMounted = true;
     const request = sectionType === "evidence-picks"
       ? api.getEvidencePicks({ limit: 20 })
-      : api.getForYou({ limit: 20 });
+      : api.getForYou({ skinType: forYouSkinType, limit: 20 });
 
     queueMicrotask(() => {
       if (isMounted) setIsLoading(true);
@@ -119,7 +125,7 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
     return () => {
       isMounted = false;
     };
-  }, [config.fallbackTitle, sectionType]);
+  }, [config.fallbackTitle, forYouSkinType, sectionType]);
 
   useEffect(() => observeProductImpressions(), [products]);
 
