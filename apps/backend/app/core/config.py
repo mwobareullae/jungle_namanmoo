@@ -80,10 +80,13 @@ class Settings(BaseModel):
     data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
     # 씨드 시점에 data/reconciliation/concentration_coverage_estimates.csv의 함량 추정치를
     # product_ingredients의 빈(normalized_concentration_value IS NULL) 행에만 오버레이할지.
-    # 기본 꺼짐 — 팀이 diff 검수 후 켠다. 추정치는 KCIA 고시·법정한도·1% 마커 규칙 기반이며
-    # 각 행의 confidence가 채점의 confidence_multiplier로 할인된다.
+    # 기본 켜짐(이 PR 제안) — 추정치는 KCIA 고시·법정한도 기반이며 각 행 confidence가
+    # 채점의 confidence_multiplier로 할인된다. 끄려면 =false.
+    # ⚠️ 병합 전 필수 검토(PR_CONCENTRATION_OVERLAY.md 참고): 추정치는 실측이 아니므로,
+    #    사용자에게 "함량 과다 주의" 경고가 추정치(법정 상한 등) 기반으로 노출될 수 있다.
+    #    사용자 노출(경고 UI) 전에 팀이 '추정치 출처 과다-경고 억제'를 먼저 처리해야 한다.
     concentration_estimate_overlay_enabled: bool = os.getenv(
-        "CONCENTRATION_ESTIMATE_OVERLAY_ENABLED", "false"
+        "CONCENTRATION_ESTIMATE_OVERLAY_ENABLED", "true"
     ).lower() not in {"0", "false", "no", ""}
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"

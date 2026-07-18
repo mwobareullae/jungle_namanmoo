@@ -1,6 +1,17 @@
-# feat: 함량 추정치 씨드 오버레이 (플래그, 기본 꺼짐)
+# feat: 함량 추정치 씨드 오버레이 (플래그, **기본 켜짐 제안**)
 
 **브랜치:** `feat/concentration-estimate-overlay` (origin/dev e34363e 기반) · push는 팀 결정
+
+> ## 🚧 병합 게이트 — 사용자 노출 전 반드시 처리
+> 이 오버레이를 켜면 함량 값이 **실측이 아닌 추정치**(KCIA 고시·법정 상한 등)로 채워진다.
+> 채점 내부용으론 문제없으나, **함량 버킷이 사용자 UI의 "함량 과다 주의" 경고로 노출되는
+> 경로가 있다면**, 추정치(예: 법정 상한 1%)가 실제 함유량이 아닌데도 "과다"로 경고될 수
+> 있어 **오인·법적 위험**이 있다.
+> **필수 후속(별도 작업):** product_ingredients에 '추정치 출처' 표식(컬럼/마이그레이션)을
+> 추가하고, 추정치 출처 행의 **과다-경고를 억제**(긍정 신호 '적정'은 살리고 경고만 차단)한
+> 뒤에 사용자 노출을 허용할 것. 이 처리 전에는 `=false`로 두거나 채점 내부용으로만 사용.
+> **로컬 클론 증명(2026-07-19):** 켜면 함량 있는 상품 919→1,251(+332), 버킷 unknown→적정
+> 이동 확인. 실측 무변경.
 
 ## 목적 — 함량(%) 정보를 계산에 실제로 태운다
 
@@ -26,7 +37,7 @@
 
 ## 변경
 
-- `app/core/config.py`: `concentration_estimate_overlay_enabled` 플래그 (**기본 False**).
+- `app/core/config.py`: `concentration_estimate_overlay_enabled` 플래그 (**기본 True — 이 PR이 제안**, `=false`로 끔).
 - `app/services/concentration_estimates.py` (신규): 추정치 로더 + 신뢰정책.
   - 허용 전략: exact / range / regulatory_anchor / legal_upper_bound / lower_bound
   - **제외**: prior_estimate(정제수 순수 휴리스틱) · marker_upper_bound(≤1% 상한을
@@ -38,9 +49,11 @@
 
 ## 안전성
 
-- **기본 꺼짐** → 켜기 전 동작 완전 불변. 팀이 diff·클론 검증 후 `CONCENTRATION_ESTIMATE_OVERLAY_ENABLED=true`로 켠다.
+- **기본 켜짐(제안)** — 채점 내부에서 함량 축이 근거 기반으로 작동. 되돌리려면 `CONCENTRATION_ESTIMATE_OVERLAY_ENABLED=false`.
 - 실측값 절대 무덮어쓰기 (NULL 행만).
 - 파일 없으면 무동작.
+- **프로덕션 반영은 여전히 머지+배포+재씨드가 필요** (플래그만으론 기존 DB 불변).
+- ⚠️ 사용자 경고 노출은 위 병합 게이트 처리 후에만.
 
 ## 적용·검증 절차 (권장)
 
