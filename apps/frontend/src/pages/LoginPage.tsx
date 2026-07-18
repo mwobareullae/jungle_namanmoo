@@ -3,6 +3,7 @@ import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
+import ActivityToast from "../components/ui/ActivityToast";
 import { Button } from "../components/ui/button";
 import { buttonVariantClassName } from "../components/ui/button-variants";
 import { Input } from "../components/ui/input";
@@ -11,6 +12,7 @@ import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { mergeCart } from "../lib/cartApi";
 import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
+import { useActivityToast } from "../hooks/useActivityToast";
 
 type LoginLocationState = {
   from?: string;
@@ -122,7 +124,6 @@ const loadGoogleIdentityScript = () => {
 };
 
 function LoginPage() {
-  const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -131,6 +132,7 @@ function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const { message: errorToastMessage, showToast: showErrorToast, clearToast } = useActivityToast(3500);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const { refreshAuthenticatedUser, setAuthenticatedUser } = useAuth();
@@ -159,21 +161,21 @@ function LoginPage() {
         .then(() => window.dispatchEvent(new Event("cart:updated")))
         .catch(() => null);
 
-      setMessage("로그인 성공!");
+      clearToast();
       markSkinTestPromptPending();
       navigate(getPostLoginRedirectPath(redirectPath), { replace: true });
     },
-    [navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
+    [clearToast, navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
   );
 
   const handleGoogleCredential = useCallback(
     async (credentialResponse: GoogleCredentialResponse) => {
       if (!credentialResponse.credential) {
-        setMessage("Google 로그인 인증 정보를 받지 못했습니다.");
+        showErrorToast("Google 로그인 인증 정보를 받지 못했습니다.");
         return;
       }
 
-      setMessage("");
+      clearToast();
       setIsGoogleSubmitting(true);
 
       try {
@@ -205,26 +207,26 @@ function LoginPage() {
           }
 
           if (errorCode === "GOOGLE_EMAIL_NOT_VERIFIED") {
-            setMessage("Google 이메일 인증이 완료된 계정으로 다시 시도해주세요.");
+            showErrorToast("Google 이메일 인증이 완료된 계정으로 다시 시도해주세요.");
             return;
           }
 
           if (errorCode === "INVALID_GOOGLE_TOKEN") {
-            setMessage("Google 토큰 검증에 실패했습니다. 백엔드 Google Client ID 설정을 확인해주세요.");
+            showErrorToast("Google 토큰 검증에 실패했습니다. 백엔드 Google Client ID 설정을 확인해주세요.");
             return;
           }
 
           if (errorCode === "GOOGLE_LOGIN_NOT_CONFIGURED") {
-            setMessage("백엔드 Google 로그인 설정이 아직 완료되지 않았습니다.");
+            showErrorToast("백엔드 Google 로그인 설정이 아직 완료되지 않았습니다.");
             return;
           }
 
           if (errorCode === "GOOGLE_AUTH_LIBRARY_NOT_INSTALLED") {
-            setMessage("백엔드 Google 인증 라이브러리 설정을 확인해주세요.");
+            showErrorToast("백엔드 Google 인증 라이브러리 설정을 확인해주세요.");
             return;
           }
 
-          setMessage(
+          showErrorToast(
             errorCode
               ? `Google 로그인에 실패했습니다. (${errorCode})`
               : "Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요."
@@ -234,12 +236,12 @@ function LoginPage() {
 
         await completeLogin(response);
       } catch {
-        setMessage("Google 로그인 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        showErrorToast("Google 로그인 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
       } finally {
         setIsGoogleSubmitting(false);
       }
     },
-    [completeLogin, navigate]
+    [clearToast, completeLogin, navigate, showErrorToast]
   );
 
   useEffect(() => {
@@ -275,14 +277,14 @@ function LoginPage() {
       .catch(() => {
         if (isMounted) {
           setIsGoogleReady(false);
-          setMessage("Google 로그인 스크립트를 불러오지 못했습니다.");
+          showErrorToast("Google 로그인 스크립트를 불러오지 못했습니다.");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [handleGoogleCredential]);
+  }, [handleGoogleCredential, showErrorToast]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -293,17 +295,17 @@ function LoginPage() {
 
     if (!isValidEmail(email)) {
       setEmailTouched(true);
-      setMessage("");
+      clearToast();
       return;
     }
 
     if (password.length === 0) {
       setPasswordTouched(true);
-      setMessage("");
+      clearToast();
       return;
     }
 
-    setMessage("");
+    clearToast();
     setIsSubmitting(true);
 
     try {
@@ -325,21 +327,21 @@ function LoginPage() {
         } | null;
         const errorCode = errorBody?.code ?? errorBody?.error?.code;
         if (errorCode === "ACCOUNT_NOT_FOUND") {
-          setMessage("가입되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요.");
+          showErrorToast("가입되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요.");
         } else if (errorCode === "INVALID_PASSWORD") {
-          setMessage("비밀번호가 일치하지 않습니다. 다시 입력해 주세요.");
+          showErrorToast("비밀번호가 일치하지 않습니다. 다시 입력해 주세요.");
         } else if (errorCode === "EMAIL_LOGIN_NOT_AVAILABLE") {
-          setMessage("소셜 로그인으로 가입한 계정입니다. Google 로그인을 이용해 주세요.");
+          showErrorToast("소셜 로그인으로 가입한 계정입니다. Google 로그인을 이용해 주세요.");
         } else if (errorCode === "USER_NOT_ACTIVE") {
-          setMessage("현재 사용할 수 없는 계정입니다. 고객센터에 문의해 주세요.");
+          showErrorToast("현재 사용할 수 없는 계정입니다. 고객센터에 문의해 주세요.");
         } else {
-          setMessage("로그인 정보를 확인해 주세요.");
+          showErrorToast("로그인 정보를 확인해 주세요.");
         }
         return;
       }
       await completeLogin(response, { id: 0, email });
     } catch {
-      setMessage("로그인 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showErrorToast("로그인 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
     }
@@ -374,12 +376,12 @@ function LoginPage() {
                 onBlur={() => {
                   setEmailTouched(true);
                   if (!isValidEmail(email)) {
-                    setMessage("");
+                    clearToast();
                   }
                 }}
                 onChange={(event) => {
                   setEmail(event.target.value);
-                  setMessage("");
+                  clearToast();
                 }}
                 placeholder="이메일"
                 style={{ paddingLeft: "2.75rem", paddingRight: "1rem" }}
@@ -412,12 +414,12 @@ function LoginPage() {
                 onBlur={() => {
                   setPasswordTouched(true);
                   if (password.length === 0) {
-                    setMessage("");
+                    clearToast();
                   }
                 }}
                 onChange={(event) => {
                   setPassword(event.target.value);
-                  setMessage("");
+                  clearToast();
                 }}
                 placeholder="비밀번호"
                 style={{ paddingLeft: "2.75rem", paddingRight: "3rem" }}
@@ -452,9 +454,6 @@ function LoginPage() {
               로그인
             </Button>
           </form>
-          {message && (
-            <p className="mt-4 text-center text-sm font-medium text-[#6B7280]">{message}</p>
-          )}
           <div className="mt-5 text-center text-[13px]">
             <Link className={buttonVariantClassName.link} to="/password-reset">
               비밀번호 재설정
@@ -482,7 +481,7 @@ function LoginPage() {
                   className="absolute inset-0 z-10 flex h-11 w-full items-center justify-center gap-3"
                   disabled={isGoogleSubmitting}
                   onClick={() => {
-                    setMessage(
+                    showErrorToast(
                       googleClientId
                         ? "Google 로그인 준비 중입니다."
                         : "Google Client ID가 설정되지 않았습니다."
@@ -515,6 +514,7 @@ function LoginPage() {
           </div>
         </div>
       </main>
+      <ActivityToast message={errorToastMessage} tone="error" />
     </div>
   );
 }
