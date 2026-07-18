@@ -14,11 +14,12 @@ type SettingRowProps = {
   label: string;
   value: string;
   description?: string;
+  isLast?: boolean;
 };
 
-function SettingRow({ label, value, description }: SettingRowProps) {
+function SettingRow({ label, value, description, isLast = false }: SettingRowProps) {
   return (
-    <div style={styles.settingRow}>
+    <div style={{ ...styles.settingRow, ...(isLast ? styles.lastRow : {}) }}>
       <div>
         <strong style={styles.settingLabel}>{label}</strong>
         {description ? <p style={styles.settingDescription}>{description}</p> : null}
@@ -130,7 +131,7 @@ export default function MyPageSettings() {
           <div style={styles.cardBody}>
             <div style={styles.settingList}>
               <SettingRow label="이메일" value={user?.email ?? "-"} />
-              <SettingRow label="닉네임" value={user?.nickname?.trim() || "미설정"} />
+              <SettingRow isLast label="닉네임" value={user?.nickname?.trim() || "미설정"} />
             </div>
           </div>
         </section>
@@ -152,11 +153,11 @@ export default function MyPageSettings() {
               </Link>
             </div>
 
-          <div style={styles.actionRow}>
-            <div>
-              <strong style={styles.settingLabel}>로그아웃</strong>
-            </div>
-            <button
+            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
+              <div>
+                <strong style={styles.settingLabel}>로그아웃</strong>
+              </div>
+              <button
                 className="bg-white hover:bg-[#fff5f3]"
                 disabled={isLoggingOut}
                 onClick={() => void handleLogout()}
@@ -185,11 +186,12 @@ export default function MyPageSettings() {
               {marketingConsent === null ? (
                 <SettingRow
                   description="마케팅 수신 동의 상태는 추후 약관/회원 API와 함께 연동됩니다."
+                  isLast
                   label="마케팅 알림"
                   value="연동 예정"
                 />
               ) : (
-                <div style={styles.settingRow}>
+                <div style={{ ...styles.settingRow, ...styles.lastRow }}>
                   <div>
                     <strong style={styles.settingLabel}>마케팅 알림</strong>
                     <p style={styles.settingDescription}>
@@ -219,7 +221,7 @@ export default function MyPageSettings() {
           </div>
 
           <div style={styles.cardBody}>
-            <div style={styles.actionRow}>
+            <div style={{ ...styles.actionRow, ...styles.lastRow }}>
               <div>
                 <strong style={styles.settingLabel}>회원탈퇴</strong>
                 <p style={styles.settingDescription}>
@@ -344,6 +346,9 @@ const styles: Record<string, CSSProperties> = {
     gap: 20,
     minHeight: 76,
     borderBottom: "1px solid #f2f4f6"
+  },
+  lastRow: {
+    borderBottom: "none"
   },
   secondaryButton: {
     display: "inline-flex",
