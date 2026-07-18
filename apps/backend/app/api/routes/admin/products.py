@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
@@ -31,50 +29,12 @@ from app.services.admin.product_service import (
     list_admin_products,
 )
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
-from app.services.elasticsearch_catalog_index import (
-    ElasticsearchCatalogIndexError,
-    reindex_catalog_product_to_elasticsearch,
-)
+from app.services.catalog_sync import sync_catalog_product_after_commit
 
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 _REFRESH_RECOVERY_COMMAND = "python -m app.cli.refresh_ingredient_mapping_pending_groups"
-
-
-def _sync_catalog_product_after_commit(session: Session, product_code: str) -> None:
-    """DB 커밋 이후 상품 1건을 ES에 best-effort로 동기화한다."""
-
-    started_at = current_time()
-    try:
-        result = reindex_catalog_product_to_elasticsearch(
-            session,
-            product_id=product_code,
-        )
-    except ElasticsearchCatalogIndexError as exc:
-        log_performance_event(
-            "admin_product_catalog_sync_failed",
-            duration_ms=elapsed_ms(started_at),
-            metadata={
-                "product_id": product_code,
-                "error": type(exc).__name__,
-            },
-        )
-        logger.warning(
-            "admin product catalog sync failed",
-            extra={"product_id": product_code, "error_type": type(exc).__name__},
-        )
-        return
-
-    log_performance_event(
-        "admin_product_catalog_sync_completed",
-        duration_ms=elapsed_ms(started_at),
-        metadata={
-            "product_id": product_code,
-            "action": result.action,
-        },
-    )
 
 
 @router.get("/product-brands", response_model=AdminProductMasterOptionListResponse)
@@ -138,7 +98,7 @@ def create_product(
     except Exception:
         session.rollback()
         raise
-    _sync_catalog_product_after_commit(session, result.product_code)
+    sync_catalog_product_after_commit(session, result.product_code)
     return result
 
 
@@ -241,5 +201,5 @@ def update_product(
     except Exception:
         session.rollback()
         raise
-    _sync_catalog_product_after_commit(session, result.product_code)
+    sync_catalog_product_after_commit(session, result.product_code)
     return result
