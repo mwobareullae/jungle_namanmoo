@@ -26,6 +26,7 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryPriceListItem,
     AdminInventoryPriceListResponse,
     AdminInventoryPriceUpdateResponse,
+    AdminProductSaleStartResponse,
 )
 from app.schemas.admin.product import AdminProductAvailability
 from app.schemas.common import ApiError
@@ -34,6 +35,7 @@ from app.services.product_pricing import (
     MAX_PRODUCT_PRICE,
     build_product_url,
     get_or_create_first_party_price_for_update,
+    load_first_party_price_for_update,
 )
 
 
@@ -306,6 +308,86 @@ def update_admin_inventory_price(
         ),
         requires_catalog_sync=sales_status != "HIDDEN",
     )
+
+
+def start_admin_product_sale(
+    session: Session,
+    *,
+    product_code: str,
+    now: datetime | None = None,
+) -> AdminProductSaleStartResponse:
+    """HIDDEN 상품을 판매 가능한 상태로 원자적으로 전환한다.
+
+    M3-A의 ``PRODUCT_NOT_READY_FOR_ACTIVATION`` 경로를 호출하지 않는다.
+    대신 가격·가용 재고·현재 브랜드/카테고리 활성 여부를 포함한 더 강한
+    조건을 직접 확인해 같은 목적(준비되지 않은 상품의 판매 방지)을 충족한다.
+    commit과 ES 동기화는 라우트가 담당한다.
+    """
+
+    normalized_code = product_code.strip()
+    product = session.execute(
+        select(Product).where(Product.product_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    inventory = session.execute(
+        select(Inventory).where(Inventory.product_id == product.id).with_for_update()
+    ).scalar_one_or_none()
+    if inventory is None:
+        raise ApiError(
+            409,
+            "INSUFFICIENT_STOCK_FOR_SALE",
+            "재고 행이 없거나 판매 가능한 재고가 없습니다.",
+        )
+    if inventory.sales_status != "HIDDEN":
+        raise ApiError(409, "PRODUCT_NOT_HIDDEN", "HIDDEN 상태의 상품만 판매를 시작할 수 있습니다.")
+
+    seller = session.execute(select(Seller).where(Seller.id == product.seller_id)).scalar_one()
+    price_row = load_first_party_price_for_update(
+        session,
+        product_id=product.id,
+        mall_name=seller.display_name,
+    )
+    if price_row is None or int(price_row.price) <= 0:
+        raise ApiError(409, "PRICE_NOT_READY", "판매 시작 전 자사몰 가격을 설정해 주세요.")
+
+    available_quantity = (
+        int(inventory.stock_quantity) - int(inventory.reserved_quantity) - int(inventory.safety_stock)
+    )
+    if available_quantity <= 0:
+        raise ApiError(409, "INSUFFICIENT_STOCK_FOR_SALE", "판매 가능한 재고가 없습니다.")
+
+    _assert_current_product_taxonomy_active(session, product=product)
+
+    timestamp = now or datetime.now(UTC)
+    inventory.sales_status = "ON_SALE"
+    product.is_active = True
+    product.updated_at = timestamp
+    session.flush()
+
+    return AdminProductSaleStartResponse(
+        product_code=product.product_code,
+        sales_status=inventory.sales_status,
+        is_active=product.is_active,
+        started_at=timestamp,
+    )
+
+
+def _assert_current_product_taxonomy_active(session: Session, *, product: Product) -> None:
+    """상품에 이미 연결된 브랜드·카테고리의 현재 활성 상태를 확인한다."""
+
+    brand_is_active = session.execute(
+        select(Brand.is_active).where(Brand.id == product.brand_id)
+    ).scalar_one_or_none()
+    if brand_is_active is not True:
+        raise ApiError(409, "BRAND_INACTIVE", "비활성 브랜드 상품은 판매를 시작할 수 없습니다.")
+
+    category_is_active = session.execute(
+        select(ProductCategory.is_active).where(ProductCategory.id == product.category_id)
+    ).scalar_one_or_none()
+    if category_is_active is not True:
+        raise ApiError(409, "CATEGORY_INACTIVE", "비활성 카테고리 상품은 판매를 시작할 수 없습니다.")
 
 
 def _base_statement() -> tuple[Any, Any]:

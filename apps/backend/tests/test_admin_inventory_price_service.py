@@ -24,6 +24,7 @@ from app.services.admin.inventory_price_service import (
     adjust_admin_inventory,
     get_admin_inventory_history,
     list_admin_inventory_prices,
+    start_admin_product_sale,
     update_admin_inventory_price,
 )
 from app.services.product_pricing import MAX_PRODUCT_PRICE
@@ -79,6 +80,7 @@ def _seed(session: Session) -> None:
         reserved: int = 0,
         safety: int = 0,
         sales_status: str = "ON_SALE",
+        is_active: bool = True,
     ) -> Product:
         row = Product(
             product_code=code,
@@ -86,7 +88,7 @@ def _seed(session: Session) -> None:
             brand_id=brand.id,
             category_id=category.id,
             product_name=name,
-            is_active=True,
+            is_active=is_active,
             is_recommendable=False,
             updated_at=base_time + timedelta(minutes=sequence),
         )
@@ -118,7 +120,14 @@ def _seed(session: Session) -> None:
     in_stock = product("prod_inventory_in", "재고 충분 세럼", sequence=1, stock=6)
     product("prod_inventory_low", "저재고 세럼", sequence=2, stock=7, reserved=1, safety=1)
     product("prod_inventory_sold", "품절 세럼", sequence=3, stock=1, reserved=1, sales_status="SOLD_OUT")
-    product("prod_inventory_hidden", "숨김 세럼", sequence=4, stock=99, sales_status="HIDDEN")
+    product(
+        "prod_inventory_hidden",
+        "숨김 세럼",
+        sequence=4,
+        stock=99,
+        sales_status="HIDDEN",
+        is_active=False,
+    )
     product("prod_inventory_unknown", "재고 미상 세럼", sequence=5, stock=None)
 
     inventory = session.execute(select(Inventory).where(Inventory.product_id == in_stock.id)).scalar_one()
@@ -256,6 +265,7 @@ def test_history_rejects_unknown_product(db_engine: Engine) -> None:
 
 def test_routes_require_admin_and_return_inventory_data(client: TestClient, db_engine: Engine) -> None:
     assert client.get("/api/admin/inventory").status_code == 401
+    assert client.post("/api/admin/inventory/prod_inventory_hidden/sale-start").status_code == 401
 
     client.post(
         "/api/auth/signup",
@@ -593,3 +603,121 @@ def test_price_route_reindexes_changed_non_hidden_products_only(
         ("prod_inventory_in", "admin_inventory"),
         ("prod_inventory_sold", "admin_inventory"),
     ]
+
+
+def test_sale_start_transitions_hidden_product_and_updates_timestamp(db_engine: Engine) -> None:
+    timestamp = datetime(2026, 7, 19, 10, 0, tzinfo=UTC)
+    with Session(db_engine) as session:
+        response = start_admin_product_sale(
+            session,
+            product_code="prod_inventory_hidden",
+            now=timestamp,
+        )
+        session.commit()
+
+    assert response.product_code == "prod_inventory_hidden"
+    assert response.sales_status == "ON_SALE"
+    assert response.is_active is True
+    assert response.started_at == timestamp
+
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_inventory_hidden")
+        ).scalar_one()
+        inventory = session.execute(
+            select(Inventory).where(Inventory.product_id == product.id)
+        ).scalar_one()
+    assert product.is_active is True
+    assert product.updated_at.replace(tzinfo=UTC) == timestamp
+    assert inventory.sales_status == "ON_SALE"
+
+
+@pytest.mark.parametrize(
+    ("product_code", "expected_status", "expected_code"),
+    [
+        ("prod_missing", 404, "PRODUCT_NOT_FOUND"),
+        ("prod_inventory_in", 409, "PRODUCT_NOT_HIDDEN"),
+        ("prod_inventory_sold", 409, "PRODUCT_NOT_HIDDEN"),
+        ("prod_inventory_unknown", 409, "INSUFFICIENT_STOCK_FOR_SALE"),
+    ],
+)
+def test_sale_start_rejects_missing_or_non_hidden_inventory_states(
+    db_engine: Engine,
+    product_code: str,
+    expected_status: int,
+    expected_code: str,
+) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as exc:
+            start_admin_product_sale(session, product_code=product_code)
+
+    assert exc.value.status_code == expected_status
+    assert exc.value.code == expected_code
+
+
+def test_sale_start_checks_price_stock_and_current_taxonomy_activity(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        hidden_product = session.execute(
+            select(Product).where(Product.product_code == "prod_inventory_hidden")
+        ).scalar_one()
+        hidden_product_id = hidden_product.id
+
+        session.execute(delete(ProductPrice).where(ProductPrice.product_id == hidden_product_id))
+        with pytest.raises(ApiError) as price_error:
+            start_admin_product_sale(session, product_code="prod_inventory_hidden")
+        session.rollback()
+
+        inventory = session.execute(
+            select(Inventory).where(Inventory.product_id == hidden_product_id)
+        ).scalar_one()
+        inventory.stock_quantity = 1
+        inventory.reserved_quantity = 1
+        with pytest.raises(ApiError) as stock_error:
+            start_admin_product_sale(session, product_code="prod_inventory_hidden")
+        session.rollback()
+
+        brand = session.execute(select(Brand)).scalar_one()
+        brand.is_active = False
+        with pytest.raises(ApiError) as brand_error:
+            start_admin_product_sale(session, product_code="prod_inventory_hidden")
+        session.rollback()
+
+        category = session.execute(select(ProductCategory)).scalar_one()
+        category.is_active = False
+        with pytest.raises(ApiError) as category_error:
+            start_admin_product_sale(session, product_code="prod_inventory_hidden")
+        session.rollback()
+
+    assert price_error.value.status_code == 409
+    assert price_error.value.code == "PRICE_NOT_READY"
+    assert stock_error.value.status_code == 409
+    assert stock_error.value.code == "INSUFFICIENT_STOCK_FOR_SALE"
+    assert brand_error.value.status_code == 409
+    assert brand_error.value.code == "BRAND_INACTIVE"
+    assert category_error.value.status_code == 409
+    assert category_error.value.code == "CATEGORY_INACTIVE"
+
+
+def test_sale_start_route_always_reindexes_after_commit(
+    client: TestClient,
+    db_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _as_admin(client, db_engine)
+    sync_calls: list[tuple[str, str]] = []
+
+    def fake_sync(session: Session, product_code: str, *, event_prefix: str = "admin_product") -> None:
+        assert session.in_transaction() is False
+        sync_calls.append((product_code, event_prefix))
+
+    monkeypatch.setattr(inventory_price_route, "sync_catalog_product_after_commit", fake_sync)
+
+    started = client.post("/api/admin/inventory/prod_inventory_hidden/sale-start")
+    repeated = client.post("/api/admin/inventory/prod_inventory_hidden/sale-start")
+
+    assert started.status_code == 200
+    assert started.json()["sales_status"] == "ON_SALE"
+    assert started.json()["is_active"] is True
+    assert repeated.status_code == 409
+    assert repeated.json()["error"]["code"] == "PRODUCT_NOT_HIDDEN"
+    assert sync_calls == [("prod_inventory_hidden", "admin_inventory")]
