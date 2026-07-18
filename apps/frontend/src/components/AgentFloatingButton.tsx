@@ -30,6 +30,7 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
+  isAuthenticated?: boolean;
   quickQuestionContext?: QuickQuestionContext;
   skinProfile?: {
     avoidIngredients?: string[];
@@ -216,6 +217,30 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
   skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
+};
+
+const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
+  home: [
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "5만원 이하 제품 추천해줘",
+    "장바구니 상품과 총금액 보여줘",
+  ],
+  cart: [
+    "장바구니 상품과 총금액 보여줘",
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "5만원 이하 제품 추천해줘",
+  ],
+  skinProfile: [
+    "내 피부 고민에 맞는 제품 추천해줘",
+    "민감 피부 진정 제품 추천해줘",
+    "피부 프로필 설정 방법 알려줘",
+  ],
+};
+
+const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
+  home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
+  cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
+  skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
 };
 
 const emptySearchQuickQuestions = [
@@ -1652,6 +1677,7 @@ const setAgentCartTargetBusy = (active: boolean) => {
 
 function AgentFloatingButton({
   isAgentResponding = false,
+  isAuthenticated = false,
   quickQuestionContext = "home",
   skinProfile,
   skinProfileStatus = "empty",
@@ -1701,17 +1727,21 @@ function AgentFloatingButton({
   const quickQuestions = useMemo(
     () => quickQuestionContext === "productList" && !hasSearchProducts
       ? emptySearchQuickQuestions
-      : quickQuestionsByContext[quickQuestionContext],
-    [hasSearchProducts, quickQuestionContext],
+      : !isAuthenticated && guestQuickQuestionsByContext[quickQuestionContext]
+        ? guestQuickQuestionsByContext[quickQuestionContext]!
+        : quickQuestionsByContext[quickQuestionContext],
+    [hasSearchProducts, isAuthenticated, quickQuestionContext],
   );
   const miniChatQuestions = useMemo(
     () => quickQuestions.slice(0, 2).map((prompt, index) => ({
       label: quickQuestionContext === "productList" && !hasSearchProducts
         ? emptySearchMiniChatLabels[index]
-        : miniChatLabelsByContext[quickQuestionContext][index],
+        : !isAuthenticated && guestMiniChatLabelsByContext[quickQuestionContext]
+          ? guestMiniChatLabelsByContext[quickQuestionContext]![index]
+          : miniChatLabelsByContext[quickQuestionContext][index],
       prompt,
     })),
-    [hasSearchProducts, quickQuestionContext, quickQuestions],
+    [hasSearchProducts, isAuthenticated, quickQuestionContext, quickQuestions],
   );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
