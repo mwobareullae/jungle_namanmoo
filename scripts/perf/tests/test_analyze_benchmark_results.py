@@ -123,8 +123,7 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
             "candidate_trace_delete_ms_avg": 50.0,
             "candidate_trace_flush_ms_avg": 200.0,
             "result_save_ms_avg": 200.0,
-            "result_flush_ms_avg": 100.0,
-            "evidence_flush_ms_avg": 60.0,
+            "result_raw_sql_execute_ms_avg": 160.0,
         }
 
         records = analysis.build_execution_flow_records(row)
@@ -140,7 +139,7 @@ class BenchmarkMetricExtractionTests(unittest.TestCase):
             ),
             (
                 "result_save_ms",
-                {"result_flush_ms", "evidence_flush_ms"},
+                {"result_raw_sql_execute_ms"},
             ),
         ):
             children = analysis.execution_flow_children(records, parent_id)
