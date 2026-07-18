@@ -818,13 +818,13 @@ P2 자사몰 장바구니, checkout, 관리자 재고 확인을 위한 seed 파�
 
 P2 자사몰 상품 상세 화면의 리뷰 목록에 사용할 리뷰 원문 데이터입니다. 파일 크기를 줄이기 위해 `data/storefront_product_reviews/` 디렉터리에 같은 헤더의 CSV 조각을 나눠 둘 수 있습니다.
 
-현재 리뷰 데이터는 올리브영 공개 리뷰를 기준으로 수집한 리뷰 seed이며, 리뷰 이미지 URL은 포함하지 않습니다. 한 행은 리뷰 1개를 의미합니다.
+현재 리뷰 데이터는 올리브영 공개 리뷰와 해외 커머스 공개 리뷰를 기준으로 수집한 리뷰 seed이며, 리뷰 이미지 URL은 포함하지 않습니다. 한 행은 리뷰 1개를 의미합니다.
 
 | 컬럼 | 설명 |
 | --- | --- |
 | `review_id` | 자사몰 리뷰 seed 기준 고유 ID |
 | `product_id` | 리뷰가 연결되는 상품 ID. `products.csv` 또는 `products/*.csv`의 `product_id`를 참조 |
-| `source` | 리뷰 출처. 예: `oliveyoung` |
+| `source` | 리뷰 출처. 예: `oliveyoung`, `ulta`, `lookfantastic`, `dermstore`, `cultbeauty` |
 | `source_review_id` | 원본 출처의 리뷰 식별자. 중복 제거와 재수집 대조용 |
 | `rating` | 별점. 1~5 스케일 |
 | `review_text` | 리뷰 본문 |
@@ -868,6 +868,7 @@ DB 정규화 원칙:
 
 - 점수 대상 외부 리뷰 1건의 기본 가중치는 `한달사용 배율 × 구매확인 배율 × helpful 최대 1.10`입니다.
 - `source=oliveyoung` seed는 현재 전량이 `MONTH_USE`이고 원본 구매확인 값도 없으므로 한달사용·구매확인 배율을 모두 `1.0`으로 둡니다. 이 두 필드로 같은 소스 안의 리뷰를 차등하지 않습니다.
+- 해외 커머스 seed(`ulta`, `lookfantastic`, `dermstore`, `cultbeauty`)는 원문 리뷰와 별점·helpful 중심으로 사용합니다. 한달사용·재구매·구매확인 신호가 원본에서 명확히 확인되지 않은 경우 해당 필드는 `false` 또는 공란으로 유지합니다.
 - 자사몰 `source=mubarelle` 리뷰는 원문·목록·공개 요약·정보 추출에는 보존하지만 상품 품질, 카테고리 prior, 프로필 affinity 점수에는 사용하지 않습니다. OliveYoung 이외 외부 소스의 한달사용·구매확인 값은 기존 배율 `1.15`·`1.10`을 유지하되, 신규 소스 도입 시 신호의 실재 여부를 별도 확인합니다.
 - helpful은 `1 + 0.10 × min(log(1 + helpful_count) / log(21), 1)`을 사용합니다.
 - 리뷰 작성일은 점수에 사용하지 않습니다.

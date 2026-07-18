@@ -115,6 +115,7 @@ def get_recommendation_by_id(
     session: Session = Depends(get_db),
 ) -> RecommendationResponse:
     started_at = current_time()
+    response_timings: dict[str, float] = {}
     has_refinement = any(
         value is not None
         for value in (min_price, max_price, category_code, skin_type, sensitivity)
@@ -139,6 +140,7 @@ def get_recommendation_by_id(
             recommendation_id,
             page=page,
             page_size=page_size,
+            timings=response_timings,
         )
     )
     _record_recommendation_event(
@@ -154,6 +156,7 @@ def get_recommendation_by_id(
         request_id=request_id_from_request(http_request),
         duration_ms=elapsed_ms(started_at),
         metadata={
+            **response_timings,
             "recommendation_id": response.recommendation_id,
             "returned_product_count": len(response.products),
             "total_items": response.pagination.total_items,

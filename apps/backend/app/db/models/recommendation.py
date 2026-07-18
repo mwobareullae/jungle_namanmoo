@@ -278,11 +278,68 @@ class ProductRecommendationCoarseFeature(Base):
     skin_profile_confidence_code: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, default=0, server_default="0"
     )
+    home_max_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    home_max_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    home_lowest_price: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    home_has_image: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    home_source_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     source_current: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
     feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
     source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class HomeSectionSnapshot(Base):
+    __tablename__ = "home_section_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "section_id",
+            "context_key",
+            "product_id",
+            name="uq_home_section_snapshot_product",
+        ),
+        CheckConstraint("rank_order > 0", name="ck_home_section_snapshot_rank_positive"),
+        CheckConstraint(
+            "display_score between 0 and 100",
+            name="ck_home_section_snapshot_display_score",
+        ),
+    )
+
+    section_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    context_key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    rank_order: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    display_score: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    reason_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    badges: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    tags: Mapped[list] = mapped_column(
+        jsonb_type(),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

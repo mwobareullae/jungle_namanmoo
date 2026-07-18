@@ -158,8 +158,8 @@ event:
 |---|---|---|
 | `home_layout_completed` | `GET /api/home/layout` | `section_count`, `section_ids` |
 | `home_market_popular_completed` | `GET /api/home/market-popular` | `product_count`, `category_code`, `limit` |
-| `home_evidence_picks_completed` | `GET /api/home/evidence-picks` | `product_count`, `category_code`, `limit` |
-| `home_for_you_completed` | `GET /api/home/for-you` | `product_count`, `category_code`, `skin_type`, `sensitivity`, `has_user`, `limit`, `personalization_sources` |
+| `home_evidence_picks_completed` | `GET /api/home/evidence-picks` | `product_count`, `category_code`, `limit`, `snapshot_hit`, `snapshot_context`, `snapshot_age_ms`, `snapshot_candidate_count`, `fallback_used` |
+| `home_for_you_completed` | `GET /api/home/for-you` | `product_count`, `category_code`, `skin_type`, `sensitivity`, `has_user`, `limit`, `personalization_sources`, `snapshot_hit`, `snapshot_context`, `snapshot_age_ms`, `snapshot_candidate_count`, `personalized_rerank_ms`, `fallback_used` |
 
 ### 상품
 
