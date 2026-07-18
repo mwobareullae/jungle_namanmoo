@@ -566,10 +566,12 @@ type HomeSearchEvent = CustomEvent<{
   profile: RecommendationProfile;
   recommendationId?: string;
   refinementFilters?: RecommendationRefinementFilters;
+  scope?: "home" | "search";
 }>;
 
 type HomeSearchPendingEvent = CustomEvent<{
   query: string;
+  scope?: "home" | "search";
 }>;
 
 type AgentRefinedProductsEvent = CustomEvent<{
@@ -743,7 +745,7 @@ function HomeMainContent({
       setRecommendation(null);
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
-          detail: { status: "loading", query: trimmedQuery, recommendation: null }
+          detail: { status: "loading", query: trimmedQuery, recommendation: null, scope: mode }
         })
       );
       if (shouldScrollToResults) {
@@ -804,7 +806,7 @@ function HomeMainContent({
         setRecommendation(displayResponse);
         window.dispatchEvent(
           new CustomEvent("home-recommendation-state", {
-            detail: { status: "success", query: trimmedQuery, recommendation: displayResponse }
+            detail: { status: "success", query: trimmedQuery, recommendation: displayResponse, scope: mode }
           })
         );
       } catch {
@@ -817,7 +819,7 @@ function HomeMainContent({
         setErrorMessage("추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         window.dispatchEvent(
           new CustomEvent("home-recommendation-state", {
-            detail: { status: "error", query: trimmedQuery, recommendation: null }
+            detail: { status: "error", query: trimmedQuery, recommendation: null, scope: mode }
           })
         );
       } finally {
@@ -829,7 +831,9 @@ function HomeMainContent({
 
   useEffect(() => {
     const handlePendingSearch = (event: Event) => {
-      const nextQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      const detail = (event as HomeSearchPendingEvent).detail;
+      if (detail?.scope && detail.scope !== mode) return;
+      const nextQuery = detail?.query?.trim();
       if (!nextQuery) return;
 
       activeSearchRequestRef.current += 1;
@@ -841,7 +845,7 @@ function HomeMainContent({
       setRecommendation(null);
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
-          detail: { status: "loading", query: nextQuery, recommendation: null }
+          detail: { status: "loading", query: nextQuery, recommendation: null, scope: mode }
         })
       );
       window.requestAnimationFrame(() => {
@@ -853,7 +857,9 @@ function HomeMainContent({
     };
 
     const handleFailedSearch = (event: Event) => {
-      const failedQuery = (event as HomeSearchPendingEvent).detail?.query?.trim();
+      const detail = (event as HomeSearchPendingEvent).detail;
+      if (detail?.scope && detail.scope !== mode) return;
+      const failedQuery = detail?.query?.trim();
       if (!failedQuery || pendingSearchQueryRef.current !== failedQuery) return;
 
       pendingSearchQueryRef.current = null;
@@ -861,7 +867,7 @@ function HomeMainContent({
       setErrorMessage("");
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
-          detail: { status: "idle", query: failedQuery, recommendation: null }
+          detail: { status: "idle", query: failedQuery, recommendation: null, scope: mode }
         })
       );
     };
@@ -872,11 +878,22 @@ function HomeMainContent({
       window.removeEventListener("home-search-pending", handlePendingSearch);
       window.removeEventListener("home-search-failed", handleFailedSearch);
     };
-  }, []);
+  }, [mode]);
+
+  useEffect(() => () => {
+    activeSearchRequestRef.current += 1;
+    pendingSearchQueryRef.current = null;
+    if (mode === "search") {
+      window.dispatchEvent(new CustomEvent("home-recommendation-state", {
+        detail: { status: "idle", query: "", recommendation: null, scope: "search" }
+      }));
+    }
+  }, [mode]);
 
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
-      const { query: nextQuery, profile, recommendationId, refinementFilters } = (event as HomeSearchEvent).detail;
+      const { query: nextQuery, profile, recommendationId, refinementFilters, scope } = (event as HomeSearchEvent).detail;
+      if (scope && scope !== mode) return;
       const mergedRefinementFilters = refinementFilters
         ? mergeRefinementFilters(agentRefinementFilters, refinementFilters)
         : undefined;
@@ -995,7 +1012,7 @@ function HomeMainContent({
         setIsLoading(true);
         window.dispatchEvent(
           new CustomEvent("home-recommendation-state", {
-            detail: { status: "loading", query: initialQuery, recommendation: null }
+            detail: { status: "loading", query: initialQuery, recommendation: null, scope: "search" }
           })
         );
       });
