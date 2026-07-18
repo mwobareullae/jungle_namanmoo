@@ -3587,8 +3587,8 @@ body {
 .popular-product-card__price {
   margin-top: 8px;
   color: #111111;
-  font-size: 21px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 650;
 }
 
 .popular-product-card--skeleton {
@@ -9542,7 +9542,7 @@ html[data-app-mode="community"] .search-results-shell {
   height: 40px;
   border: 1px solid #BDECF7;
   border-radius: 50%;
-  background: #e9faff;
+  background: #FFFFFF;
   color: #25a8ca;
 }
 
