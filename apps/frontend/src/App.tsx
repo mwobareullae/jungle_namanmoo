@@ -901,6 +901,7 @@ function GlobalAgentEntry() {
   return (
     <AgentFloatingButton
       key={agentChatStorageScope}
+      isAuthenticated={Boolean(user)}
       quickQuestionContext={quickQuestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
