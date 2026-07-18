@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.commerce import RecentView, Wishlist
+from app.db.models.catalog import Product
+from app.db.models.commerce import Inventory, RecentView, Wishlist
 from app.db.models.events import EventLog
 from app.db.session import get_db
 from app.main import app
@@ -224,6 +225,39 @@ def test_recent_view_upserts_and_orders_by_viewed_at(
     assert product["stock_status"] in {"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN", "UNKNOWN"}
     assert product["available_quantity"] is None or isinstance(product["available_quantity"], int)
     assert len(recent_rows) == 2
+
+
+def test_wishlist_and_recent_return_calculated_product_availability(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    with Session(db_engine) as session:
+        product = session.execute(
+            select(Product).where(Product.product_code == "prod_001")
+        ).scalar_one()
+        session.add(
+            Inventory(
+                product_id=product.id,
+                stock_quantity=12,
+                reserved_quantity=2,
+                safety_stock=3,
+                sales_status="ON_SALE",
+            )
+        )
+        session.commit()
+
+    _signup(client, email="activity-stock@example.com", nickname="재고확인")
+    assert client.post("/api/me/wishlist", json={"product_id": "prod_001"}).status_code == 200
+    assert client.post("/api/me/recent", json={"product_id": "prod_001"}).status_code == 200
+
+    wishlist_product = client.get("/api/me/wishlist").json()["items"][0]["product"]
+    recent_product = client.get("/api/me/recent").json()["items"][0]["product"]
+
+    for product_payload in (wishlist_product, recent_product):
+        assert product_payload["sales_status"] == "ON_SALE"
+        assert product_payload["stock_status"] == "IN_STOCK"
+        assert product_payload["available_quantity"] == 7
+        assert product_payload["in_stock"] is True
 
 
 def test_recent_view_delete_is_idempotent(
