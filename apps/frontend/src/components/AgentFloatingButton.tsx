@@ -763,11 +763,21 @@ const getApprovalCopy = (toolName?: AgentToolName | null) => {
 function createApprovalMessage(response: AgentChatResponse, timestamp: number): AgentChatApprovalMessage {
   const copy = getApprovalCopy(response.tool_name);
   const orderCode = readString(response.ui_action.payload.order_code);
+  const composePayload = response.tool_name === "compose_cart" ? response.ui_action.payload : null;
+  const composeCategories = composePayload && Array.isArray(composePayload.categories)
+    ? composePayload.categories.filter((value): value is string => typeof value === "string")
+    : [];
+  const composeSkinType = composePayload ? readString(composePayload.skin_type) : null;
+  const composeSensitivity = composePayload ? readString(composePayload.sensitivity) : null;
+  const composeBudget = composePayload ? readNumber(composePayload.max_budget) : null;
+  const composeReason = response.tool_name === "compose_cart"
+    ? `저장된 피부 프로필${composeSkinType ? `(${composeSkinType}` : ""}${composeSensitivity ? `·민감도 ${composeSensitivity}` : ""}${composeSkinType ? ")" : ""}과 피해야 할 성분을 반영하고, ${composeCategories.length > 0 ? composeCategories.join("·") : "토너·세럼·크림"} 카테고리에서 피부 적합도가 높은 상품을 골라${composeBudget ? ` ${composeBudget.toLocaleString("ko-KR")}원 이내로` : " 예산 안에서"} 구성했어요.`
+    : null;
 
   return {
     id: `approval-${timestamp}`,
     approveLabel: copy.approveLabel,
-    description: orderCode ? `${copy.description} 대상 주문: ${orderCode}` : copy.description,
+    description: composeReason ?? (orderCode ? `${copy.description} 대상 주문: ${orderCode}` : copy.description),
     kind: "approval",
     rejectLabel: copy.rejectLabel,
     title: copy.title,

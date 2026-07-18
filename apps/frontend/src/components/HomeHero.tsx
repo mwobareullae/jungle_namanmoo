@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { buildAgentPendingEntryUrl, runAgentEntryMessage } from "../lib/agentRecommendationSearch";
-import { navigateWithinApp } from "../lib/navigation";
+import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
 
@@ -203,13 +202,8 @@ function HomeHero({
     setIsAgentSubmitting(true);
     setIsSuggestionsOpen(false);
     try {
-      await navigateWithinApp(buildAgentPendingEntryUrl(normalized, profile));
       const response = await runAgentEntryMessage(normalized, profile);
-      if (
-        !response
-        || response.ui_action.type !== "show_products"
-        || response.ui_action.target !== "product_results"
-      ) {
+      if (!response) {
         throw new Error("추천 결과가 준비되지 않았습니다.");
       }
     } catch {
@@ -237,13 +231,8 @@ function HomeHero({
     setIsSuggestionsOpen(false);
     setIsAgentSubmitting(true);
     try {
-      await navigateWithinApp(buildAgentPendingEntryUrl(text, profile));
       const response = await runAgentEntryMessage(text, profile);
-      if (
-        !response
-        || response.ui_action.type !== "show_products"
-        || response.ui_action.target !== "product_results"
-      ) {
+      if (!response) {
         throw new Error("추천 결과가 준비되지 않았습니다.");
       }
     } catch {
