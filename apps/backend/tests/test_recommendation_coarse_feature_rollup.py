@@ -82,7 +82,7 @@ def test_coarse_feature_rollup_uses_fixed_select_count_per_batch() -> None:
     finally:
         event.remove(session.bind, "before_cursor_execute", count_selects)
 
-    assert select_count == 2
+    assert select_count == 4
 
 
 def test_coarse_feature_rollup_limits_rows_to_requested_product_ids() -> None:
@@ -169,6 +169,11 @@ def _coarse_values(session: Session) -> list[tuple[object, ...]]:
             row.dehydrated_oily_fit,
             row.sensitive_fit,
             row.skin_profile_confidence_code,
+            row.home_max_effect_score,
+            row.home_max_evidence_score,
+            row.home_lowest_price,
+            row.home_has_image,
+            row.home_source_current,
             row.source_current,
             row.feature_version,
             row.source_updated_at,
