@@ -38,7 +38,6 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
       const nextQuery = detail?.query;
       if (typeof nextQuery !== "string" || !nextQuery.trim()) return;
 
-      setQuery(nextQuery);
       if (detail.profile) setProfile(detail.profile);
       setIsSuggestionsOpen(false);
       callOriginal("closeSearchSuggestions");
@@ -97,16 +96,20 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     setQuery(trimmedQuery);
     callOriginal("closeSearchSuggestions");
     window.dispatchEvent(new CustomEvent("home-search-pending", {
-      detail: { profile, query: trimmedQuery },
+      detail: { profile, query: trimmedQuery, scope: "search" },
     }));
     try {
       const response = await runAgentEntryMessage(trimmedQuery, profile);
-      if (!response || response.ui_action.type !== "show_products") {
+      if (
+        !response
+        || response.ui_action.type !== "show_products"
+        || response.ui_action.target !== "product_results"
+      ) {
         throw new Error("추천 결과가 준비되지 않았습니다.");
       }
     } catch {
       window.dispatchEvent(new CustomEvent("home-search-failed", {
-        detail: { query: trimmedQuery },
+        detail: { query: trimmedQuery, scope: "search" },
       }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {

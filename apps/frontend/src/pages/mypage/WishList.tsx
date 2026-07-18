@@ -515,7 +515,7 @@ function MypageProductList({
                 {shouldShowDate ? (
                   <div style={isTodayDivider ? styles.dateDividerToday : styles.dateDivider}>{item.dateLabel}</div>
                 ) : null}
-                <article style={styles.row}>
+                <article data-agent-product-id={item.productId} style={styles.row}>
                   <div
                     className="mypage-product-list-row-button bg-transparent"
                     onClick={() => openProduct(item)}

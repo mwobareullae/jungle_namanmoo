@@ -1,17 +1,39 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { buildAgentPendingEntryUrl, runAgentEntryMessage } from "../lib/agentRecommendationSearch";
-import { navigateWithinApp } from "../lib/navigation";
+import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
 
-const placeholderExamples = [
-  "모공과 피지가 고민이에요",
-  "건조하고 속당김이 있어요",
-  "잡티와 색소침착이 걱정돼요",
-  "민감하고 붉은기가 자주 올라와요"
-];
+const exampleChipCandidates = [
+  { category: "모공·피지", text: "모공이 넓고 피지가 많아요" },
+  { category: "모공·피지", text: "티존만 유독 번들거려요" },
+  { category: "속건조", text: "속은 당기는데 겉은 번들거려요" },
+  { category: "속건조", text: "세안 후 바로 당기고 각질이 일어나요" },
+  { category: "여드름·트러블", text: "턱에 여드름이 자꾸 올라와요" },
+  { category: "여드름·트러블", text: "스트레스 받으면 트러블이 심해져요" },
+  { category: "홍조", text: "얼굴이 쉽게 붉어지고 열감이 있어요" },
+  { category: "홍조", text: "볼에 홍조가 계속 남아있어요" },
+  { category: "잡티·색소침착", text: "색소침착과 잡티가 있어요" },
+  { category: "잡티·색소침착", text: "여드름 자국이 잘 안 없어져요" },
+  { category: "피부결", text: "피부결이 울퉁불퉁하고 칙칙해요" },
+  { category: "피부결", text: "화장이 자꾸 뜨고 결이 거칠어요" },
+  { category: "복합", text: "예민한데 건조하고 트러블도 있어요" }
+] as const;
+
+// 자동완성도 단어만 노출하지 않고, 사용자가 실제로 입력할 수 있는
+// 자연어 고민 문장으로 순환시킨다.
+const placeholderExamples = exampleChipCandidates.map((candidate) => candidate.text);
+
+const pickExampleChips = () => {
+  const categories = [...new Set(exampleChipCandidates.map((candidate) => candidate.category))]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+  return categories.map((category) => {
+    const candidates = exampleChipCandidates.filter((candidate) => candidate.category === category);
+    return candidates[Math.floor(Math.random() * candidates.length)].text;
+  });
+};
 
 type HomeHeroProps = {
   initialQuery?: string;
@@ -35,7 +57,8 @@ function HomeHero({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(initialQuery);
   const [profile, setProfile] = useState(initialProfile);
-  const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
+  const [placeholder, setPlaceholder] = useState<string>(placeholderExamples[0]);
+  const [exampleChips] = useState<string[]>(pickExampleChips);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("ai");
   const [suggestions, setSuggestions] = useState<CatalogSuggestionItem[]>([]);
@@ -179,9 +202,14 @@ function HomeHero({
     setIsAgentSubmitting(true);
     setIsSuggestionsOpen(false);
     try {
-      await navigateWithinApp(buildAgentPendingEntryUrl(normalized, profile));
-      await runAgentEntryMessage(normalized, profile);
+      const response = await runAgentEntryMessage(normalized, profile);
+      if (!response) {
+        throw new Error("추천 결과가 준비되지 않았습니다.");
+      }
     } catch {
+      window.dispatchEvent(new CustomEvent("home-search-failed", {
+        detail: { query: normalized },
+      }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setIsAgentSubmitting(false);
@@ -203,9 +231,14 @@ function HomeHero({
     setIsSuggestionsOpen(false);
     setIsAgentSubmitting(true);
     try {
-      await navigateWithinApp(buildAgentPendingEntryUrl(text, profile));
-      await runAgentEntryMessage(text, profile);
+      const response = await runAgentEntryMessage(text, profile);
+      if (!response) {
+        throw new Error("추천 결과가 준비되지 않았습니다.");
+      }
     } catch {
+      window.dispatchEvent(new CustomEvent("home-search-failed", {
+        detail: { query: text },
+      }));
       callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setIsAgentSubmitting(false);
@@ -403,24 +436,11 @@ function HomeHero({
 
           {searchMode === "ai" ? (
             <div className="search-examples search-examples--with-guide">
-              <span
-                className="example-chip"
-                onClick={() => void handleExampleClick("모공이 넓고 피지가 많아요")}
-              >
-                모공이 넓고 피지가 많아요
-              </span>
-              <span
-                className="example-chip"
-                onClick={() => void handleExampleClick("건조하고 주름이 걱정돼요")}
-              >
-                건조하고 주름이 걱정돼요
-              </span>
-              <span
-                className="example-chip"
-                onClick={() => void handleExampleClick("색소침착과 잡티가 있어요")}
-              >
-                색소침착과 잡티가 있어요
-              </span>
+              {exampleChips.map((text) => (
+                <span className="example-chip" key={text} onClick={() => void handleExampleClick(text)}>
+                  {text}
+                </span>
+              ))}
               <a className="recommendation-guide-link" href="/recommendation-guide">
                 추천 기준 알아보기 ›
               </a>
