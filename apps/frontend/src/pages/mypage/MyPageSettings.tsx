@@ -1,29 +1,24 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../contexts/authContextValue";
-import { Checkbox } from "../../components/ui/checkbox";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import { Input } from "../../components/ui/input";
 import { useActivityToast } from "../../hooks/useActivityToast";
 import { deleteAccount, updateNickname } from "../../lib/accountApi";
-import { getMarketingConsent, updateMarketingConsent } from "../../lib/consentApi";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
 type SettingRowProps = {
   label: string;
   value: string;
-  description?: string;
-  isLast?: boolean;
 };
 
-function SettingRow({ label, value, description, isLast = false }: SettingRowProps) {
+function SettingRow({ label, value }: SettingRowProps) {
   return (
-    <div style={{ ...styles.settingRow, ...(isLast ? styles.lastRow : {}) }}>
+    <div style={styles.settingRow}>
       <div>
         <strong style={styles.settingLabel}>{label}</strong>
-        {description ? <p style={styles.settingDescription}>{description}</p> : null}
       </div>
       <span style={styles.settingValue}>{value}</span>
     </div>
@@ -41,51 +36,7 @@ export default function MyPageSettings() {
   const [isSavingNickname, setIsSavingNickname] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  // null: 아직 안 불러왔거나 API가 없어서(백엔드 미구현) 못 불러온 상태 — 이땐 안내 문구로 대체
-  const [marketingConsent, setMarketingConsent] = useState<boolean | null>(null);
-  const [isMarketingConsentSaving, setIsMarketingConsentSaving] = useState(false);
   const user = authContext?.user ?? null;
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let isMounted = true;
-
-    getMarketingConsent()
-      .then((agreed) => {
-        if (isMounted) {
-          setMarketingConsent(agreed);
-        }
-      })
-      .catch(() => {
-        // 백엔드 API가 아직 없거나 실패하면 조용히 안내 문구 상태 유지
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user]);
-
-  const handleToggleMarketingConsent = async () => {
-    if (marketingConsent === null || isMarketingConsentSaving) {
-      return;
-    }
-
-    const nextValue = !marketingConsent;
-    setIsMarketingConsentSaving(true);
-
-    try {
-      const savedValue = await updateMarketingConsent(nextValue);
-      setMarketingConsent(savedValue);
-      showToast(savedValue ? "마케팅 알림 수신에 동의했습니다." : "마케팅 알림 수신을 거부했습니다.");
-    } catch {
-      showToast("마케팅 알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setIsMarketingConsentSaving(false);
-    }
-  };
 
   const handleNicknameSave = async () => {
     if (!authContext || isSavingNickname) {
@@ -275,50 +226,6 @@ export default function MyPageSettings() {
           </div>
         </section>
 
-        <section aria-labelledby="preferenceSettingsTitle" style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h2 id="preferenceSettingsTitle" style={styles.cardTitle}>알림 및 맞춤 설정</h2>
-            <p style={styles.cardDescription}>세부 수신 설정은 API 확정 후 이 화면에서 연결합니다.</p>
-          </div>
-
-          <div style={styles.cardBody}>
-            <div style={styles.settingList}>
-              <SettingRow
-                description="추천 결과와 피부 프로필 기반 화면은 현재 저장된 프로필을 기준으로 표시됩니다."
-                label="맞춤 추천"
-                value="사용 중"
-              />
-              {marketingConsent === null ? (
-                <SettingRow
-                  description="마케팅 수신 동의 상태는 추후 약관/회원 API와 함께 연동됩니다."
-                  isLast
-                  label="마케팅 알림"
-                  value="연동 예정"
-                />
-              ) : (
-                <div style={{ ...styles.settingRow, ...styles.lastRow }}>
-                  <div>
-                    <strong style={styles.settingLabel}>마케팅 알림</strong>
-                    <p style={styles.settingDescription}>
-                      이벤트·할인 정보를 이메일/문자로 받아볼 수 있어요. 언제든 끌 수 있어요.
-                    </p>
-                  </div>
-                  <label style={styles.consentToggle}>
-                    <Checkbox
-                      checked={marketingConsent}
-                      disabled={isMarketingConsentSaving}
-                      onCheckedChange={() => void handleToggleMarketingConsent()}
-                    />
-                    <span style={styles.consentToggleLabel}>
-                      {marketingConsent ? "수신 동의" : "수신 거부"}
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
         <section aria-labelledby="membershipSettingsTitle" style={styles.card}>
           <div style={styles.cardHeader}>
             <h2 id="membershipSettingsTitle" style={styles.cardTitle}>회원 관리</h2>
@@ -454,18 +361,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 500,
     lineHeight: 1.45
-  },
-  consentToggle: {
-    display: "inline-flex",
-    flex: "0 0 auto",
-    alignItems: "center",
-    gap: 8,
-    cursor: "pointer"
-  },
-  consentToggleLabel: {
-    color: "#3D3D3D",
-    fontSize: 14,
-    fontWeight: 600
   },
   actionRow: {
     display: "flex",
