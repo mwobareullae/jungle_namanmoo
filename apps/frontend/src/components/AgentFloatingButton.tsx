@@ -154,7 +154,7 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
   ],
   cart: [
     "현재 장바구니 상품으로 주문서 열어줘",
-    "내 피부에 맞는 토너와 크림을 10만원 안으로 추가해줘",
+    "내 피부에 맞는 토너와 크림을 5만원 안으로 추가해줘",
     "장바구니 상품과 총금액 다시 보여줘",
   ],
   checkout: [
@@ -163,13 +163,13 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "결제 예정 금액과 배송지를 다시 확인해줘",
   ],
   home: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘",
     "최근 주문 배송 상태 알려줘",
     "장바구니에 담긴 상품과 총금액 보여줘",
   ],
   mypage: [
     "최근 주문 배송 상태 보여줘",
-    "내 피부 타입에 맞는 토너와 크림을 10만원 이내로 구성해줘",
+    "내 피부 타입에 맞는 토너와 크림을 5만원 이내로 구성해줘",
     "내 장바구니 상품과 총금액 보여줘",
   ],
   order: [
@@ -206,10 +206,10 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
 
 const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   auth: ["로그인하면 이어지는 기능은?", "로그인 후 맞춤 루틴 만들기"],
-  cart: ["이 장바구니로 주문서 열어줘", "10만원 맞춤 상품 추가해줘"],
+  cart: ["이 장바구니로 주문서 열어줘", "5만원 맞춤 상품 추가해줘"],
   checkout: ["이 주문서로 주문 생성해줘", "결제 진행해줘"],
-  home: ["10만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
-  mypage: ["최근 주문 배송 보여줘", "10만원 맞춤 루틴 구성해줘"],
+  home: ["5만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
+  mypage: ["최근 주문 배송 보여줘", "5만원 맞춤 루틴 구성해줘"],
   order: ["현재 주문 상태 보여줘", "현재 주문 취소해줘"],
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
