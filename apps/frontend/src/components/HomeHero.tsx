@@ -6,16 +6,6 @@ import { navigateWithinApp } from "../lib/navigation";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
 
-const placeholderExamples = [
-  "여드름",
-  "피지",
-  "모공",
-  "속건조",
-  "홍조",
-  "잡티",
-  "피부결"
-];
-
 const exampleChipCandidates = [
   { category: "모공·피지", text: "모공이 넓고 피지가 많아요" },
   { category: "모공·피지", text: "티존만 유독 번들거려요" },
@@ -31,6 +21,10 @@ const exampleChipCandidates = [
   { category: "피부결", text: "화장이 자꾸 뜨고 결이 거칠어요" },
   { category: "복합", text: "예민한데 건조하고 트러블도 있어요" }
 ] as const;
+
+// 자동완성도 단어만 노출하지 않고, 사용자가 실제로 입력할 수 있는
+// 자연어 고민 문장으로 순환시킨다.
+const placeholderExamples = exampleChipCandidates.map((candidate) => candidate.text);
 
 const pickExampleChips = () => {
   const categories = [...new Set(exampleChipCandidates.map((candidate) => candidate.category))]
@@ -64,7 +58,7 @@ function HomeHero({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(initialQuery);
   const [profile, setProfile] = useState(initialProfile);
-  const [placeholder, setPlaceholder] = useState(placeholderExamples[0]);
+  const [placeholder, setPlaceholder] = useState<string>(placeholderExamples[0]);
   const [exampleChips] = useState<string[]>(pickExampleChips);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("ai");
