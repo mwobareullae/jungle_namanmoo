@@ -129,6 +129,25 @@ Email login failures return `401` with a specific code so the login screen can g
 This detailed contract intentionally favors login UX. Password-reset requests still return the same
 message regardless of account existence.
 
+### `DELETE /api/me`
+
+Requires an authenticated session. The endpoint soft-deletes the account and expires the session cookie.
+
+- The user row and order/payment/claim/consent history are retained.
+- Email, nickname, phone, login providers, sessions, saved addresses, wishlist, recent views, skin data,
+  and personalized preference profiles are removed or anonymized.
+- Reviews, event logs, and agent tool records are retained without the user association.
+- The original email and nickname can be used for a new signup after deletion.
+- Admin accounts return `403 ADMIN_ACCOUNT_DELETION_NOT_ALLOWED`.
+
+Response:
+
+```json
+{
+  "message": "회원탈퇴가 완료되었습니다."
+}
+```
+
 ### `POST /api/auth/google`
 
 Google token verification and account linking stay the same. Successful login sets the same `mwbl_session` cookie.
