@@ -2194,6 +2194,9 @@ function AgentFloatingButton({
         response.ui_action.type === "show_cart"
         && (response.tool_name === "add_to_cart" || response.tool_name === "compose_cart")
       ) || response.ui_action.type === "show_checkout_preview" || response.ui_action.type === "open_payment";
+      const shouldCloseHomeRecommendation = window.location.pathname === "/"
+        && response.ui_action.type === "show_products"
+        && response.items.some((item) => item.item_type === "product");
       setMessages((currentMessages) =>
         [
           ...currentMessages.flatMap((currentMessage) =>
@@ -2209,6 +2212,10 @@ function AgentFloatingButton({
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
       if (response.ui_action.type === "show_checkout_preview") {
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
+      if (shouldCloseHomeRecommendation) {
         setIsOpen(false);
         await waitForAgentInteraction(260);
       }
