@@ -116,6 +116,7 @@ def _seed_order(
     payment_status: str | None,
     item_count: int = 1,
     stored_item_count: int | None = None,
+    item_status: str = "ORDERED",
 ) -> None:
     """관리자(ADMIN_EMAIL)를 주문자로 하는 주문·아이템·결제를 직접 시드한다.
 
@@ -156,7 +157,7 @@ def _seed_order(
                     line_discount_amount=0,
                     line_total=1000,
                     currency="KRW",
-                    status="ORDERED",
+                    status=item_status,
                     created_at=now,
                     updated_at=now,
                 )
@@ -204,11 +205,11 @@ def _load_order_state(db_engine: Engine, order_code: str) -> tuple[str, list[str
 
 
 @pytest.mark.parametrize(
-    ("path", "start_status", "expected_status", "expected_actions"),
+    ("path", "start_status", "start_item_status", "expected_status", "expected_actions"),
     [
-        ("prepare", "PAID", "PREPARING_SHIPMENT", ["START_SHIPMENT"]),
-        ("dispatch", "PREPARING_SHIPMENT", "SHIPPED", ["COMPLETE_DELIVERY"]),
-        ("deliver", "SHIPPED", "DELIVERED", []),
+        ("prepare", "PAID", "ORDERED", "PREPARING_SHIPMENT", ["START_SHIPMENT"]),
+        ("dispatch", "PREPARING_SHIPMENT", "PREPARING_SHIPMENT", "SHIPPED", ["COMPLETE_DELIVERY"]),
+        ("deliver", "SHIPPED", "SHIPPED", "DELIVERED", []),
     ],
 )
 def test_shipment_action_transitions_and_persists(
@@ -216,12 +217,20 @@ def test_shipment_action_transitions_and_persists(
     db_engine: Engine,
     path: str,
     start_status: str,
+    start_item_status: str,
     expected_status: str,
     expected_actions: list[str],
 ) -> None:
     _authed_admin(client, db_engine)
     order_code = f"ord_api_{path}"
-    _seed_order(db_engine, order_code=order_code, order_status=start_status, payment_status="APPROVED", item_count=2)
+    _seed_order(
+        db_engine,
+        order_code=order_code,
+        order_status=start_status,
+        item_status=start_item_status,
+        payment_status="APPROVED",
+        item_count=2,
+    )
 
     response = client.post(f"/api/admin/orders/{order_code}/ship/{path}")
 
@@ -259,7 +268,13 @@ def test_shipment_action_response_exposes_shipped_and_delivered_at(
 def test_shipment_action_idempotent_replay_returns_200(client: TestClient, db_engine: Engine) -> None:
     _authed_admin(client, db_engine)
     order_code = "ord_api_idempotent"
-    _seed_order(db_engine, order_code=order_code, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    _seed_order(
+        db_engine,
+        order_code=order_code,
+        order_status="PREPARING_SHIPMENT",
+        item_status="PREPARING_SHIPMENT",
+        payment_status="APPROVED",
+    )
 
     response = client.post(f"/api/admin/orders/{order_code}/ship/prepare")
 
@@ -402,7 +417,13 @@ def test_shipment_action_commit_failure_rolls_back_timestamp_and_event(
     # Order.status 와 함께 롤백돼야 한다(같은 트랜잭션).
     _authed_admin(client, db_engine)
     order_code = "ord_api_commit_fail_shipped_at"
-    _seed_order(db_engine, order_code=order_code, order_status="PREPARING_SHIPMENT", payment_status="APPROVED")
+    _seed_order(
+        db_engine,
+        order_code=order_code,
+        order_status="PREPARING_SHIPMENT",
+        item_status="PREPARING_SHIPMENT",
+        payment_status="APPROVED",
+    )
 
     def _boom_commit(self: Session) -> None:
         raise RuntimeError("commit boom")
