@@ -14,7 +14,11 @@ param(
     [ValidateSet("scale-sweep", "headline-repeats", "diagnostics")]
     [string]$RunKind,
     [ValidatePattern("^[a-z0-9][a-z0-9-]*$")]
-    [string]$Topic
+    [string]$Topic,
+    [ValidateSet("off", "cold", "warm")]
+    [string]$CandidateCacheMode,
+    [ValidatePattern("^[1-9][0-9]*[smh]$")]
+    [string]$CandidateCacheWarmupDuration
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,6 +95,31 @@ function Set-RemoteBenchmarkDatabase([string]$Dataset, [string]$RemoteConfig, [h
     Invoke-Ssh $remoteCommand $Config
 }
 
+function Set-RemoteCandidateCacheMode([string]$Mode, [string]$RemoteConfig, [hashtable]$Config) {
+    $enabled = if ($Mode -eq "off") { "false" } else { "true" }
+    $entries = @(
+        "BENCHMARK_CANDIDATE_CACHE_STATE=$Mode",
+        "BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED=$enabled"
+    )
+    $encodedEntries = [Convert]::ToBase64String(
+        [System.Text.Encoding]::UTF8.GetBytes(($entries -join "`n"))
+    )
+    $remoteScript = @(
+        'set -euo pipefail',
+        "config='$RemoteConfig'",
+        "printf %s $encodedEntries | base64 -d | while IFS= read -r entry; do",
+        '  key="${entry%%=*}"',
+        '  value="${entry#*=}"',
+        '  tmp="${config}.tmp.$$"',
+        '  awk -v key="$key" -v value="$value" ''BEGIN { replaced=0 } $0 ~ "^" key "=" { print key "=" value; replaced=1; next } { print } END { if (!replaced) print key "=" value }'' "$config" > "$tmp"',
+        '  mv "$tmp" "$config"',
+        'done',
+        'echo "candidate cache mode configured"'
+    ) -join "`n"
+    $encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
+    Invoke-Ssh "printf %s $encodedScript | base64 -d | bash" $Config
+}
+
 function Wait-HttpReady([string]$Url, [int]$TimeoutSeconds = 90) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -139,6 +168,8 @@ $RemoteK6Summary = "/tmp/$RunId-k6-summary.json"
 $RemoteK6Output = "/tmp/$RunId-k6-output.txt"
 $RemoteConfig = "$RemoteRuntimeRoot/config.benchmark.env"
 $RemoteCtl = "$RemoteAppDir/scripts/perf/benchmarkctl"
+$effectiveCandidateCacheMode = if ($CandidateCacheMode) { $CandidateCacheMode } elseif ($Config.ContainsKey("CANDIDATE_CACHE_MODE") -and $Config.CANDIDATE_CACHE_MODE) { $Config.CANDIDATE_CACHE_MODE } else { "off" }
+$effectiveCandidateCacheWarmupDuration = if ($CandidateCacheWarmupDuration) { $CandidateCacheWarmupDuration } elseif ($Config.ContainsKey("CANDIDATE_CACHE_WARMUP_DURATION") -and $Config.CANDIDATE_CACHE_WARMUP_DURATION) { $Config.CANDIDATE_CACHE_WARMUP_DURATION } else { "30s" }
 
 New-Item -ItemType Directory -Force $LocalRunDir | Out-Null
 
@@ -152,6 +183,9 @@ if ($Prepare) {
 
 Write-Host "[2/11] benchmark DB 대상 설정"
 Set-RemoteBenchmarkDatabase $Dataset $RemoteConfig $Config
+
+Write-Host "[cache] candidate cache mode=$effectiveCandidateCacheMode"
+Set-RemoteCandidateCacheMode $effectiveCandidateCacheMode $RemoteConfig $Config
 
 Write-Host "[3/11] benchmark backend 활성화"
 $activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
@@ -186,12 +220,8 @@ if ($effectiveQueryId -and $effectiveQueryId -notmatch '^[A-Za-z0-9][A-Za-z0-9_-
     throw "QUERY_ID 형식이 올바르지 않습니다: $effectiveQueryId"
 }
 
-$RunStartedAt = (Get-Date).ToUniversalTime().ToString("o")
-Write-Host "[6/11] 서버 resource monitor 시작"
-$monitorStartCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' ' + $RemoteCtl + ' monitor-start ' + $RunId + ' ' + $Dataset
-Invoke-Ssh $monitorStartCommand $Config
-
-Write-Host "[7/11] 로컬 k6 실행: dataset=$Dataset user_type=$UserType query_id=$(if ($effectiveQueryId) { $effectiveQueryId } else { 'all' })"
+$RunStartedAt = $null
+Write-Host "[7/11] 로컬 k6 실행 준비: dataset=$Dataset user_type=$UserType query_id=$(if ($effectiveQueryId) { $effectiveQueryId } else { 'all' })"
 $k6Args = @(
     "run",
     "--summary-export", $LocalK6Summary,
@@ -222,6 +252,43 @@ foreach ($envName in @(
     }
 }
 $k6Args += $K6Script
+
+if ($effectiveCandidateCacheMode -ne "off") {
+    Write-Host "[cache] benchmark Redis 후보 캐시 초기화"
+    $clearCacheCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' clear-candidate-cache ' + $Dataset
+    Invoke-Ssh $clearCacheCommand $Config
+}
+
+if ($effectiveCandidateCacheMode -eq "warm") {
+    Write-Host "[cache] 1 VU warm-up 실행: duration=$effectiveCandidateCacheWarmupDuration"
+    $warmupArgs = @()
+    for ($index = 0; $index -lt $k6Args.Count; $index++) {
+        if ($k6Args[$index] -eq "--summary-export") {
+            $index += 1
+            continue
+        }
+        if ($k6Args[$index] -eq "DURATION=$effectiveDuration") {
+            $warmupArgs += "DURATION=$effectiveCandidateCacheWarmupDuration"
+            continue
+        }
+        if ($k6Args[$index] -eq "VUS=$effectiveVus") {
+            $warmupArgs += "VUS=1"
+            continue
+        }
+        $warmupArgs += $k6Args[$index]
+    }
+    & k6 @warmupArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "candidate cache warm-up k6 실행 실패: exit_code=$LASTEXITCODE"
+    }
+}
+
+$RunStartedAt = (Get-Date).ToUniversalTime().ToString("o")
+Write-Host "[6/11] 서버 resource monitor 시작"
+$monitorStartCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' BENCHMARK_RUN_STARTED_AT=' + $RunStartedAt + ' ' + $RemoteCtl + ' monitor-start ' + $RunId + ' ' + $Dataset
+Invoke-Ssh $monitorStartCommand $Config
+
+Write-Host "[7/11] 로컬 k6 실행: dataset=$Dataset user_type=$UserType query_id=$(if ($effectiveQueryId) { $effectiveQueryId } else { 'all' })"
 $k6ExitCode = 0
 $RunFinishedAt = $null
 $previousErrorActionPreference = $ErrorActionPreference
