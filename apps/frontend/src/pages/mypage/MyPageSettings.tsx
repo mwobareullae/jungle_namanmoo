@@ -4,7 +4,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../contexts/authContextValue";
 import { Checkbox } from "../../components/ui/checkbox";
 import ActivityToast from "../../components/ui/ActivityToast";
+import ConfirmModal from "../../components/ui/ConfirmModal";
 import { useActivityToast } from "../../hooks/useActivityToast";
+import { deleteAccount } from "../../lib/accountApi";
 import { getMarketingConsent, updateMarketingConsent } from "../../lib/consentApi";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
@@ -31,6 +33,8 @@ export default function MyPageSettings() {
   const navigate = useNavigate();
   const { message: toastMessage, showToast } = useActivityToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   // null: 아직 안 불러왔거나 API가 없어서(백엔드 미구현) 못 불러온 상태 — 이땐 안내 문구로 대체
   const [marketingConsent, setMarketingConsent] = useState<boolean | null>(null);
   const [isMarketingConsentSaving, setIsMarketingConsentSaving] = useState(false);
@@ -90,6 +94,25 @@ export default function MyPageSettings() {
       showToast("로그아웃에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsLoggingOut(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!authContext || isDeletingAccount) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount();
+      await authContext.logout();
+      navigate("/", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "회원탈퇴에 실패했습니다.";
+      showToast(message);
+      setIsDeleteModalOpen(false);
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -188,9 +211,49 @@ export default function MyPageSettings() {
             </div>
           </div>
         </section>
+
+        <section aria-labelledby="membershipSettingsTitle" style={styles.card}>
+          <div style={styles.cardHeader}>
+            <h2 id="membershipSettingsTitle" style={styles.cardTitle}>회원 관리</h2>
+            <p style={styles.cardDescription}>탈퇴하면 계정과 개인화 정보를 복구할 수 없습니다.</p>
+          </div>
+
+          <div style={styles.cardBody}>
+            <div style={styles.actionRow}>
+              <div>
+                <strong style={styles.settingLabel}>회원탈퇴</strong>
+                <p style={styles.settingDescription}>
+                  개인정보와 저장 활동은 삭제되며 주문·결제 내역은 관련 정책에 따라 보관됩니다.
+                </p>
+              </div>
+              <button
+                className="bg-white hover:bg-[#fff5f3]"
+                disabled={isDeletingAccount}
+                onClick={() => setIsDeleteModalOpen(true)}
+                style={styles.dangerButton}
+                type="button"
+              >
+                회원탈퇴
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 
       <ActivityToast message={toastMessage} />
+      <ConfirmModal
+        cancelLabel="계속 이용하기"
+        confirmLabel={isDeletingAccount ? "처리 중" : "탈퇴하기"}
+        message="탈퇴하면 개인정보와 맞춤 정보가 삭제되며 복구할 수 없습니다. 정말 탈퇴하시겠어요?"
+        onCancel={() => {
+          if (!isDeletingAccount) {
+            setIsDeleteModalOpen(false);
+          }
+        }}
+        onConfirm={() => void handleDeleteAccount()}
+        open={isDeleteModalOpen}
+        title="회원탈퇴"
+      />
     </MyPageLayout>
   );
 }
@@ -275,6 +338,7 @@ const styles: Record<string, CSSProperties> = {
   },
   actionRow: {
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 20,
