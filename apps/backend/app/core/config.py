@@ -40,6 +40,10 @@ def _normalize_recommendation_scoring_read_path(value: str) -> str:
     )
 
 
+def _parse_bool(value: str) -> bool:
+    return value.strip().lower() not in {"0", "false", "no", "off", ""}
+
+
 def _default_elasticsearch_products_alias() -> str:
     index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
     return f"{index_prefix}_products_current"
@@ -110,6 +114,21 @@ class Settings(BaseModel):
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_key_prefix: str = os.getenv("REDIS_KEY_PREFIX", "mubarelle:dev:")
+    recommendation_candidate_cache_enabled: bool = _parse_bool(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_ENABLED", "false")
+    )
+    recommendation_candidate_cache_ttl_seconds: int = int(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS", "300")
+    )
+    recommendation_candidate_price_cache_ttl_seconds: int = int(
+        os.getenv("RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS", "60")
+    )
+    recommendation_candidate_cache_socket_connect_timeout_seconds: float = float(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS", "0.05")
+    )
+    recommendation_candidate_cache_socket_timeout_seconds: float = float(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS", "0.05")
+    )
     search_backend_mode: str = _normalize_search_backend_mode(
         os.getenv("SEARCH_BACKEND_MODE", "auto")
     )
