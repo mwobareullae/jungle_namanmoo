@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
@@ -1411,6 +1411,45 @@ const renderInlineMarkdown = (content: string) => content
       : part
   ));
 
+/**
+ * 에이전트 응답에서 화면에 필요한 최소한의 Markdown만 렌더링한다.
+ * 백엔드 응답 내용은 변경하지 않고, 줄바꿈과 연속된 `- ` 목록만 보존한다.
+ */
+const renderAgentMessageContent = (content: string) => {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const nodes: ReactNode[] = [];
+  let lineIndex = 0;
+
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
+    if (/^\s*-\s+/.test(line)) {
+      const items: string[] = [];
+      while (lineIndex < lines.length && /^\s*-\s+/.test(lines[lineIndex])) {
+        items.push(lines[lineIndex].replace(/^\s*-\s+/, ""));
+        lineIndex += 1;
+      }
+      nodes.push(
+        <ul className="agent-chat-list" key={`list-${lineIndex}`}>
+          {items.map((item, itemIndex) => (
+            <li key={`${lineIndex}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    nodes.push(
+      <span key={`line-${lineIndex}`}>
+        {renderInlineMarkdown(line)}
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </span>,
+    );
+    lineIndex += 1;
+  }
+
+  return nodes;
+};
+
 const resolveAgentInteractionTarget = (action: AgentUiAction) => {
   if (typeof document === "undefined") return null;
   if (action.type === "show_cart") return findVisibleAgentTarget("[data-agent-cart-target]");
@@ -2483,7 +2522,7 @@ function AgentFloatingButton({
       <div className={`agent-chat-message-line ${message.role}`}>
         {message.role === "assistant" ? <img alt="" src="/mwobareullae-rabbit-chat-transparent.png" /> : null}
         <div className={`agent-chat-message ${message.role}`}>
-          {message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content}
+          {message.role === "assistant" ? renderAgentMessageContent(message.content) : message.content}
         </div>
       </div>
       {message.role === "assistant" && message.showActions ? (
