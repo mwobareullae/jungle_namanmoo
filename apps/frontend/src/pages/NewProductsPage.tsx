@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
+import ProductListLoadingState from "../components/ProductListLoadingState";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import HeartIcon from "../components/ui/HeartIcon";
@@ -202,7 +203,7 @@ function NewProductsPage() {
         <p className="new-products-page__description">최근 출시된 상품부터 확인해 보세요.</p>
         <div className="popular-products-grid new-products-page__grid">
           {isLoading ? (
-            <div className="search-loading-state">불러오는 중...</div>
+            <ProductListLoadingState />
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length > 0 ? (

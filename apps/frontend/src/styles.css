@@ -7288,6 +7288,31 @@ body.search-results-page #searchResultsGrid .product-info {
   overflow: hidden;
 }
 
+.product-list-loading-state {
+  display: grid;
+  width: 100%;
+  min-height: 240px;
+  padding: 32px 16px;
+  grid-column: 1 / -1;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.product-list-loading-state__animation {
+  width: 180px;
+  height: 180px;
+}
+
+.product-list-loading-state p {
+  margin: 0;
+  color: #69737c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .search-loading-banner {
   display: flex;
   align-items: center;
