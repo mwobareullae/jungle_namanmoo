@@ -102,7 +102,7 @@ function Set-RemoteCandidateCacheMode([string]$Mode, [string]$RemoteConfig, [has
         "BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED=$enabled"
     )
     $encodedEntries = [Convert]::ToBase64String(
-        [System.Text.Encoding]::UTF8.GetBytes(($entries -join "`n"))
+        [System.Text.Encoding]::UTF8.GetBytes((($entries -join "`n") + "`n"))
     )
     $remoteScript = @(
         'set -euo pipefail',
