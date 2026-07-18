@@ -577,6 +577,55 @@ type AgentRefinedProductsEvent = CustomEvent<{
   filters?: Record<string, unknown>;
 }>;
 
+type RefinementChip = {
+  id: string;
+  label: string;
+  key: keyof RecommendationRefinementFilters;
+  value?: string;
+};
+
+const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
+
+const refinementChipsFromFilters = (filters?: RecommendationRefinementFilters | null): RefinementChip[] => {
+  if (!filters) return [];
+  const chips: RefinementChip[] = [];
+  if (filters.min_price != null || filters.max_price != null) {
+    const label = filters.min_price != null && filters.max_price != null
+      ? `${formatWon(filters.min_price)}~${formatWon(filters.max_price)}`
+      : filters.max_price != null
+        ? `${formatWon(filters.max_price)} 이하`
+        : `${formatWon(filters.min_price ?? 0)} 이상`;
+    chips.push({ id: "price", key: "min_price", label });
+  }
+  if (filters.category_code) chips.push({ id: "category", key: "category_code", label: filters.category_code });
+  if (filters.skin_type) chips.push({ id: "skin_type", key: "skin_type", label: `피부 ${filters.skin_type}` });
+  if (filters.sensitivity) chips.push({ id: "sensitivity", key: "sensitivity", label: `민감도 ${filters.sensitivity}` });
+  filters.effect_keywords?.forEach((value, index) => {
+    chips.push({ id: `effect-${index}-${value}`, key: "effect_keywords", value, label: `효능 ${value}` });
+  });
+  filters.required_ingredient_names?.forEach((value, index) => {
+    chips.push({ id: `ingredient-${index}-${value}`, key: "required_ingredient_names", value, label: `성분 ${value}` });
+  });
+  return chips;
+};
+
+const mergeRefinementFilters = (
+  current: RecommendationRefinementFilters | null,
+  next?: RecommendationRefinementFilters,
+): RecommendationRefinementFilters | undefined => {
+  if (!current && !next) return undefined;
+  const merged: RecommendationRefinementFilters = { ...(current ?? {}), ...(next ?? {}) };
+  if (current?.effect_keywords || next?.effect_keywords) {
+    merged.effect_keywords = [...new Set([...(current?.effect_keywords ?? []), ...(next?.effect_keywords ?? [])])];
+  }
+  if (current?.required_ingredient_names || next?.required_ingredient_names) {
+    merged.required_ingredient_names = [
+      ...new Set([...(current?.required_ingredient_names ?? []), ...(next?.required_ingredient_names ?? [])]),
+    ];
+  }
+  return merged;
+};
+
 type HomeMainContentProps = {
   deferInitialSearch?: boolean;
   initialQuery?: string;
@@ -629,6 +678,9 @@ function HomeMainContent({
   const [sortType, setSortType] = useState("score");
   const [agentRefinementFilters, setAgentRefinementFilters] = useState<RecommendationRefinementFilters | null>(
     initialRefinementFilters ?? null,
+  );
+  const [refinementChips, setRefinementChips] = useState<RefinementChip[]>(() =>
+    refinementChipsFromFilters(initialRefinementFilters),
   );
   const [errorMessage, setErrorMessage] = useState("");
   const activeSearchRequestRef = useRef(0);
@@ -687,6 +739,7 @@ function HomeMainContent({
       setIsLoading(true);
       setErrorMessage("");
       setAgentRefinementFilters(refinementFilters ?? null);
+      setRefinementChips(refinementChipsFromFilters(refinementFilters));
       setRecommendation(null);
       window.dispatchEvent(
         new CustomEvent("home-recommendation-state", {
@@ -824,12 +877,22 @@ function HomeMainContent({
   useEffect(() => {
     const handleSearchRequest = async (event: Event) => {
       const { query: nextQuery, profile, recommendationId, refinementFilters } = (event as HomeSearchEvent).detail;
-      await runSearch(nextQuery, profile, 1, recommendationId, mode !== "search", refinementFilters);
+      const mergedRefinementFilters = refinementFilters
+        ? mergeRefinementFilters(agentRefinementFilters, refinementFilters)
+        : undefined;
+      if (mergedRefinementFilters) {
+        setRefinementChips((current) => {
+          const next = refinementChipsFromFilters(mergedRefinementFilters);
+          const existingIds = new Set(current.map((chip) => chip.id));
+          return [...current, ...next.filter((chip) => !existingIds.has(chip.id))];
+        });
+      }
+      await runSearch(nextQuery, profile, 1, recommendationId, mode !== "search", mergedRefinementFilters);
     };
 
     window.addEventListener("home-search-request", handleSearchRequest);
     return () => window.removeEventListener("home-search-request", handleSearchRequest);
-  }, [mode, runSearch]);
+  }, [agentRefinementFilters, mode, runSearch]);
 
   useEffect(() => {
     if (mode !== "search") return;
@@ -837,6 +900,7 @@ function HomeMainContent({
     const handleAgentRefinement = (event: Event) => {
       const { products: rawProducts = [], filters = {} } = (event as AgentRefinedProductsEvent).detail;
       setAgentRefinementFilters(filters);
+      setRefinementChips(refinementChipsFromFilters(filters as RecommendationRefinementFilters));
       setRecommendation((current) => {
         if (!current) return current;
 
@@ -1041,6 +1105,17 @@ function HomeMainContent({
   const products = recommendation?.products ?? [];
   const pagination = recommendation?.pagination ?? createFallbackPagination(products.length);
   const hasSearchState = isLoading || Boolean(recommendation) || Boolean(errorMessage);
+  const interpretationChips = useMemo(() => {
+    const summary = recommendation?.summary;
+    if (!summary) return [];
+    const values = [
+      ...(summary.matched_concerns ?? summary.concerns ?? []),
+      ...(summary.expected_effects ?? summary.effects ?? []),
+      ...summary.purchase_constraints.categories.map((category) => category.name),
+      ...(summary.purchase_constraints.price_text ? [summary.purchase_constraints.price_text] : []),
+    ];
+    return [...new Set(values.filter(Boolean))].slice(0, 8);
+  }, [recommendation]);
   const showPagination = mode === "search" && !isLoading && pagination.total_pages > 1;
   const goToPage = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
@@ -1053,6 +1128,33 @@ function HomeMainContent({
       currentRecommendationId,
       true,
       agentRefinementFilters ?? undefined,
+    );
+  };
+
+  const removeRefinementChip = (chip: RefinementChip) => {
+    const currentFilters = agentRefinementFilters;
+    if (!currentFilters) return;
+    const nextFilters: RecommendationRefinementFilters = { ...currentFilters };
+    if (chip.key === "effect_keywords" || chip.key === "required_ingredient_names") {
+      const values = nextFilters[chip.key] ?? [];
+      const remainingValues = values.filter((value) => value !== chip.value);
+      nextFilters[chip.key] = remainingValues;
+      if (remainingValues.length === 0) delete nextFilters[chip.key];
+    } else if (chip.key === "min_price") {
+      delete nextFilters.min_price;
+      delete nextFilters.max_price;
+    } else {
+      delete nextFilters[chip.key];
+    }
+    setRefinementChips((current) => current.filter((item) => item.id !== chip.id && !(chip.id === "price" && item.id === "price")));
+    const currentRecommendationId = recommendation?.recommendation_id ?? initialRecommendationId;
+    void runSearch(
+      query || initialQuery,
+      initialProfile,
+      1,
+      currentRecommendationId,
+      true,
+      Object.keys(nextFilters).length ? nextFilters : undefined,
     );
   };
 
@@ -1118,6 +1220,42 @@ function HomeMainContent({
               className={`api-result-summary${recommendation?.unmatched_terms.length ? " active" : ""}`}
               id="apiResultSummary"
             >
+              {interpretationChips.length > 0 ? (
+                <div className="search-interpretation" aria-label="AI가 이해한 검색 조건">
+                  <span className="search-interpretation__label">이렇게 이해했어요</span>
+                  {interpretationChips.map((chip) => (
+                    <span className="api-summary-chip" key={chip}>
+                      {chip}
+                    </span>
+                  ))}
+                  {refinementChips.map((chip) => (
+                    <button
+                      className="api-summary-chip filter removable"
+                      key={chip.id}
+                      onClick={() => removeRefinementChip(chip)}
+                      title={`${chip.label} 조건 제거`}
+                      type="button"
+                    >
+                      {chip.label} <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              ) : refinementChips.length > 0 ? (
+                <div className="search-interpretation" aria-label="추가 검색 조건">
+                  <span className="search-interpretation__label">추가 조건</span>
+                  {refinementChips.map((chip) => (
+                    <button
+                      className="api-summary-chip filter removable"
+                      key={chip.id}
+                      onClick={() => removeRefinementChip(chip)}
+                      title={`${chip.label} 조건 제거`}
+                      type="button"
+                    >
+                      {chip.label} <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {recommendation?.unmatched_terms.map((term) => (
                 <span className="api-summary-chip warning" key={term}>
                   추가 확인 필요: {term}
@@ -1151,8 +1289,20 @@ function HomeMainContent({
                   />
                 ))
               ) : hasSearchState ? (
-                <div className="search-empty">
-                  검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.
+                <div className="search-empty search-empty--actionable">
+                  <strong>
+                    {agentRefinementFilters?.max_price != null
+                      ? `${formatWon(agentRefinementFilters.max_price)} 이하 조건에 맞는 상품이 없어요.`
+                      : agentRefinementFilters?.required_ingredient_names?.length
+                        ? "선택한 성분 조건에 맞는 상품이 없어요."
+                        : "입력한 고민과 조건에 맞는 상품이 없어요."}
+                  </strong>
+                  <span>조건을 완화하거나 다른 고민으로 다시 검색해 보세요.</span>
+                  {refinementChips.length > 0 ? (
+                    <button className="search-empty__action" onClick={() => removeRefinementChip(refinementChips[refinementChips.length - 1])} type="button">
+                      최근 조건 제거하고 다시 보기
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
