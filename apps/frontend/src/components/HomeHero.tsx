@@ -180,7 +180,14 @@ function HomeHero({
     setIsSuggestionsOpen(false);
     try {
       await navigateWithinApp(buildAgentPendingEntryUrl(normalized, profile));
-      await runAgentEntryMessage(normalized, profile);
+      const response = await runAgentEntryMessage(normalized, profile);
+      if (
+        !response
+        || response.ui_action.type !== "show_products"
+        || response.ui_action.target !== "product_results"
+      ) {
+        throw new Error("추천 결과가 준비되지 않았습니다.");
+      }
     } catch {
       window.dispatchEvent(new CustomEvent("home-search-failed", {
         detail: { query: normalized },
@@ -207,7 +214,14 @@ function HomeHero({
     setIsAgentSubmitting(true);
     try {
       await navigateWithinApp(buildAgentPendingEntryUrl(text, profile));
-      await runAgentEntryMessage(text, profile);
+      const response = await runAgentEntryMessage(text, profile);
+      if (
+        !response
+        || response.ui_action.type !== "show_products"
+        || response.ui_action.target !== "product_results"
+      ) {
+        throw new Error("추천 결과가 준비되지 않았습니다.");
+      }
     } catch {
       window.dispatchEvent(new CustomEvent("home-search-failed", {
         detail: { query: text },
