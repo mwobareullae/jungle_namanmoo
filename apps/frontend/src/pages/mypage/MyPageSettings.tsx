@@ -5,8 +5,9 @@ import { AuthContext } from "../../contexts/authContextValue";
 import { Checkbox } from "../../components/ui/checkbox";
 import ActivityToast from "../../components/ui/ActivityToast";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import { Input } from "../../components/ui/input";
 import { useActivityToast } from "../../hooks/useActivityToast";
-import { deleteAccount } from "../../lib/accountApi";
+import { deleteAccount, updateNickname } from "../../lib/accountApi";
 import { getMarketingConsent, updateMarketingConsent } from "../../lib/consentApi";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
@@ -34,6 +35,10 @@ export default function MyPageSettings() {
   const navigate = useNavigate();
   const { message: toastMessage, showToast } = useActivityToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [nicknameError, setNicknameError] = useState("");
+  const [isSavingNickname, setIsSavingNickname] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   // null: 아직 안 불러왔거나 API가 없어서(백엔드 미구현) 못 불러온 상태 — 이땐 안내 문구로 대체
@@ -79,6 +84,41 @@ export default function MyPageSettings() {
       showToast("마케팅 알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsMarketingConsentSaving(false);
+    }
+  };
+
+  const handleNicknameSave = async () => {
+    if (!authContext || isSavingNickname) {
+      return;
+    }
+
+    const normalized = nicknameDraft.trim();
+    if (!normalized) {
+      setNicknameError("닉네임을 입력해 주세요.");
+      return;
+    }
+    if (normalized.length > 100) {
+      setNicknameError("닉네임은 100자 이하로 입력해 주세요.");
+      return;
+    }
+
+    if (normalized === user?.nickname?.trim()) {
+      setIsEditingNickname(false);
+      return;
+    }
+
+    setIsSavingNickname(true);
+    setNicknameError("");
+    try {
+      const updatedUser = await updateNickname(normalized);
+      authContext.setAuthenticatedUser(updatedUser);
+      setNicknameDraft(updatedUser.nickname?.trim() ?? "");
+      setIsEditingNickname(false);
+      showToast("닉네임을 변경했습니다.");
+    } catch (error) {
+      setNicknameError(error instanceof Error ? error.message : "닉네임을 변경하지 못했습니다.");
+    } finally {
+      setIsSavingNickname(false);
     }
   };
 
@@ -131,7 +171,72 @@ export default function MyPageSettings() {
           <div style={styles.cardBody}>
             <div style={styles.settingList}>
               <SettingRow label="이메일" value={user?.email ?? "-"} />
-              <SettingRow isLast label="닉네임" value={user?.nickname?.trim() || "미설정"} />
+              <div style={{ ...styles.actionRow, ...styles.lastRow }}>
+                <div>
+                  <strong style={styles.settingLabel}>닉네임</strong>
+                  {nicknameError ? <p role="alert" style={styles.errorText}>{nicknameError}</p> : null}
+                </div>
+                {isEditingNickname ? (
+                  <div style={styles.nicknameEditor}>
+                    <Input
+                      aria-label="새 닉네임"
+                      disabled={isSavingNickname}
+                      maxLength={100}
+                      onChange={(event) => {
+                        setNicknameDraft(event.target.value);
+                        setNicknameError("");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleNicknameSave();
+                        }
+                      }}
+                      placeholder="새 닉네임"
+                      style={styles.nicknameInput}
+                      value={nicknameDraft}
+                    />
+                    <button
+                      className="bg-white hover:bg-[#FAFAFA]"
+                      disabled={isSavingNickname}
+                      onClick={() => {
+                        setNicknameDraft(user?.nickname?.trim() ?? "");
+                        setNicknameError("");
+                        setIsEditingNickname(false);
+                      }}
+                      style={styles.compactButton}
+                      type="button"
+                    >
+                      취소
+                    </button>
+                    <button
+                      className="bg-[#1A1A1A] hover:bg-[#333333]"
+                      disabled={isSavingNickname}
+                      onClick={() => void handleNicknameSave()}
+                      style={styles.saveButton}
+                      type="button"
+                    >
+                      {isSavingNickname ? "저장 중" : "저장"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={styles.nicknameValueGroup}>
+                    <span style={styles.settingValue}>{user?.nickname?.trim() || "미설정"}</span>
+                    <button
+                      className="bg-white hover:bg-[#FAFAFA]"
+                      onClick={() => {
+                        setNicknameDraft(user?.nickname?.trim() ?? "");
+                        setNicknameError("");
+                        setIsEditingNickname(true);
+                      }}
+                      style={styles.compactButton}
+                      type="button"
+                    >
+                      변경
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -326,6 +431,30 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     textAlign: "right"
   },
+  nicknameValueGroup: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 12
+  },
+  nicknameEditor: {
+    display: "flex",
+    flex: "1 1 360px",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    maxWidth: 440
+  },
+  nicknameInput: {
+    flex: "1 1 220px",
+    minWidth: 0
+  },
+  errorText: {
+    margin: "5px 0 0",
+    color: "#D92D20",
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: 1.45
+  },
   consentToggle: {
     display: "inline-flex",
     flex: "0 0 auto",
@@ -363,6 +492,34 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     textDecoration: "none"
+  },
+  compactButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 62,
+    padding: "0 14px",
+    border: "1px solid #e1e5e8",
+    borderRadius: 999,
+    color: "#1A1A1A",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  saveButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 62,
+    padding: "0 14px",
+    border: "1px solid #1A1A1A",
+    borderRadius: 999,
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   dangerButton: {
     display: "inline-flex",
