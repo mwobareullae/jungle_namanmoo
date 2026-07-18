@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -160,6 +161,73 @@ def test_login_refresh_me_and_logout_flow(client: TestClient) -> None:
     me_after_logout_response = client.get("/api/me")
     assert me_after_logout_response.status_code == 401
     assert me_after_logout_response.json()["code"] == "INVALID_SESSION"
+
+
+def test_patch_me_requires_authentication(client: TestClient) -> None:
+    response = client.patch("/api/me", json={"nickname": "새 닉네임"})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "INVALID_SESSION"
+
+
+def test_patch_me_updates_trimmed_nickname_and_returns_auth_user(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    signup_data = _signup(client, email="nickname-update@example.com", nickname="기존닉네임")
+    user_id = signup_data["user"]["id"]
+
+    response = client.patch("/api/me", json={"nickname": "  새 닉네임  "})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        **signup_data["user"],
+        "nickname": "새 닉네임",
+    }
+    assert client.get("/api/me").json()["nickname"] == "새 닉네임"
+    with Session(db_engine) as session:
+        user = session.get(User, user_id)
+        assert user is not None
+        assert user.display_name == "새 닉네임"
+
+
+@pytest.mark.parametrize("nickname", ["   ", "닉" * 101])
+def test_patch_me_rejects_invalid_nickname(client: TestClient, nickname: str) -> None:
+    _signup(client, email="nickname-invalid@example.com", nickname="유효닉네임")
+
+    response = client.patch("/api/me", json={"nickname": nickname})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_NICKNAME"
+    assert client.get("/api/me").json()["nickname"] == "유효닉네임"
+
+
+def test_patch_me_rejects_duplicate_nickname(client: TestClient) -> None:
+    _signup(client, email="nickname-owner@example.com", nickname="사용중닉네임")
+    _signup(client, email="nickname-editor@example.com", nickname="변경전닉네임")
+
+    response = client.patch("/api/me", json={"nickname": "사용중닉네임"})
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "NICKNAME_ALREADY_EXISTS"
+    assert client.get("/api/me").json()["nickname"] == "변경전닉네임"
+
+
+def test_patch_me_maps_unique_constraint_race_to_duplicate_error(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signup(client, email="nickname-race@example.com", nickname="경합전닉네임")
+
+    def raise_unique_conflict(*_args, **_kwargs):
+        raise IntegrityError("unique conflict", {}, Exception("duplicate"))
+
+    monkeypatch.setattr("app.api.routes.auth.update_nickname", raise_unique_conflict)
+
+    response = client.patch("/api/me", json={"nickname": "경합닉네임"})
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "NICKNAME_ALREADY_EXISTS"
 
 
 def test_delete_me_soft_deletes_account_and_allows_rejoin(
