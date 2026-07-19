@@ -29,14 +29,6 @@ type AdminView =
   | "sellerSettlement";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type ExcelImportState = "idle" | "preview" | "submitting" | "done";
-type OperationLogRow = {
-  id: string;
-  time: string;
-  area: string;
-  title: string;
-  detail: string;
-  tone: BadgeTone;
-};
 
 type AdminToast = {
   message: string;
@@ -369,41 +361,6 @@ const parseExcelUpload = async (file: File): Promise<ExcelGrid | null> => {
   }
 };
 
-const initialOperationLogs: OperationLogRow[] = [
-  {
-    id: "log_initial_excel",
-    time: "14:02",
-    area: "엑셀",
-    title: "products_0706.xlsx 검증",
-    detail: "118행 등록 가능, 12행 실패 파일 생성",
-    tone: "warning"
-  },
-  {
-    id: "log_initial_image",
-    time: "어제",
-    area: "이미지",
-    title: "image_batch_01.zip 매칭",
-    detail: "310개 연결, 4개 운영자 확인 필요",
-    tone: "success"
-  },
-  {
-    id: "log_initial_embedding",
-    time: "09:12",
-    area: "검색",
-    title: "검색 문서 rebuild 완료",
-    detail: "idx_prod_join_* 24,585건 반영",
-    tone: "success"
-  }
-];
-
-function formatCurrentTime() {
-  return new Intl.DateTimeFormat("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(new Date());
-}
-
 function buildCsv(rows: CsvValue[][]) {
   return rows
     .map((row) =>
@@ -441,7 +398,6 @@ function AdminDashboardPage() {
   const [excelPreviewRows, setExcelPreviewRows] = useState<AdminBulkImportRowInput[]>([]);
   const [excelClientIssues, setExcelClientIssues] = useState<ExcelClientIssue[]>([]);
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
-  const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
   const dashboardSummary = useAdminDashboardSummary({ enabled: activeView === "dashboard" });
   const [toast, setToast] = useState<AdminToast>(null);
 
@@ -604,20 +560,9 @@ function AdminDashboardPage() {
       { label: "재고 예약", value: summary.reservedQuantityTotal.toLocaleString("ko-KR") }
     ];
   }, [dashboardSummary.data]);
-  const pushOperationLog = (area: string, title: string, detail: string, tone: BadgeTone = "success") => {
-    const time = formatCurrentTime();
 
-    setOperationLogs((currentLogs) => [
-      {
-        id: `log_local_${currentLogs.length}_${area}_${title}_${time}`,
-        time,
-        area,
-        title,
-        detail,
-        tone
-      },
-      ...currentLogs
-    ].slice(0, 6));
+  const claimPendingCount = dashboardSummary.data?.claimSummary.pendingCount ?? null;
+  const pushOperationLog = (_area: string, title: string, detail: string, tone: BadgeTone = "success") => {
     setToast({ message: `${title} · ${detail}`, tone });
   };
 
@@ -780,6 +725,11 @@ function AdminDashboardPage() {
 
     setActiveView("imageUpload");
     pushOperationLog("대시보드", "이미지 연결 화면 이동", item.note, item.tone);
+  };
+
+  const handleClaimWidgetClick = () => {
+    setActiveView("cancelClaims");
+    pushOperationLog("대시보드", "취소·클레임 화면 이동", "클레임 대기 위젯에서 이동", "neutral");
   };
 
   const renderSellerList = () => {
@@ -1108,11 +1058,11 @@ function AdminDashboardPage() {
                   <text x="70" y="68" textAnchor="middle" style={{ fontSize: "20px", fontWeight: 700, fill: "#222" }}>
                     {summary.productStats.totalCount.toLocaleString("ko-KR")}
                   </text>
-                  <text x="70" y="86" textAnchor="middle" style={{ fontSize: "10px", fill: "#8a9099" }}>전체 상품</text>
+                  <text x="70" y="86" textAnchor="middle" style={{ fontSize: "11px", fill: "#8a9099" }}>전체 상품</text>
                 </svg>
-                <ul style={{ flex: "0 1 230px", maxWidth: "230px", listStyle: "none", margin: 0, padding: 0 }}>
+                <ul style={{ flex: "0 1 260px", maxWidth: "260px", listStyle: "none", margin: 0, padding: 0 }}>
                   {stockStatusSegments.map((seg) => (
-                    <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "11.5px", color: "#55585d", margin: "3px 0" }}>
+                    <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "13px", color: "#55585d", margin: "5px 0" }}>
                       <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: seg.color, flex: "0 0 auto" }} />
                       <span style={{ flex: 1 }}>{seg.label}</span>
                       <b style={{ color: "#222" }}>{seg.value.toLocaleString("ko-KR")}</b>
@@ -1134,14 +1084,14 @@ function AdminDashboardPage() {
               </div>
             </div>
             {summary ? (
-              <ul style={{ listStyle: "none", margin: 0, padding: "0 36px 0 0" }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: "0 24px 0 0" }}>
                 {ingredientQueueBars.map((bar) => (
-                  <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
-                    <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
+                  <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "10px 0" }}>
+                    <span style={{ width: "92px", fontSize: "13px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
                     <span style={{ flex: 1, background: "#eef1f4", borderRadius: "5px", height: "17px", overflow: "hidden" }}>
                       <span style={{ display: "block", width: `${Math.max(1.5, (bar.value / ingredientQueueMax) * 100)}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
                     </span>
-                    <b style={{ width: "56px", fontSize: "11.5px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
+                    <b style={{ width: "68px", fontSize: "13px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
                   </li>
                 ))}
               </ul>
@@ -1187,28 +1137,6 @@ function AdminDashboardPage() {
             )}
           </section>
 
-          <section className="admin-panel admin-operation-panel">
-            <div className="admin-panel-header compact">
-              <div>
-                <p>운영 액션</p>
-                <h2>최근 화면 조작 로그</h2>
-              </div>
-              <span className="admin-badge neutral">local</span>
-            </div>
-            <div className="admin-operation-list">
-              {operationLogs.map((log) => (
-                <article className="admin-operation-item" key={log.id}>
-                  <span className={`admin-operation-dot ${log.tone}`} />
-                  <div>
-                    <strong>{log.title}</strong>
-                    <small>{log.area} · {log.detail}</small>
-                  </div>
-                  <time>{log.time}</time>
-                </article>
-              ))}
-            </div>
-          </section>
-
           <section className="admin-panel">
             <div className="admin-panel-header compact">
               <div>
@@ -1228,6 +1156,33 @@ function AdminDashboardPage() {
             ) : (
               <div className="admin-state-banner neutral">
                 <strong>{summaryPlaceholder}</strong>
+              </div>
+            )}
+          </section>
+
+          <section className="admin-panel admin-full-width-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>주문 운영</p>
+                <h2>클레임 대기 현황</h2>
+              </div>
+            </div>
+            {claimPendingCount === null ? (
+              <div className="admin-state-banner neutral">
+                <strong>{summaryPlaceholder}</strong>
+              </div>
+            ) : (
+              <div className="admin-pending-list">
+                <button className="admin-pending-item" onClick={handleClaimWidgetClick} type="button">
+                  <span>
+                    <strong>처리 대기 클레임</strong>
+                    <small>반품·교환·환불 요청 중 아직 처리하지 않은 건</small>
+                  </span>
+                  <b className={`admin-badge ${claimPendingCount > 0 ? "warning" : "success"}`}>
+                    {claimPendingCount.toLocaleString("ko-KR")}건
+                  </b>
+                  <i aria-hidden="true">›</i>
+                </button>
               </div>
             )}
           </section>
@@ -1580,7 +1535,6 @@ function AdminDashboardPage() {
           <div>
             <div className="admin-title-row">
               <p>{viewTitle}</p>
-              <span>운영 확장</span>
             </div>
             <h1>상품 운영 관리자</h1>
           </div>
@@ -1593,8 +1547,6 @@ function AdminDashboardPage() {
             </div>
           )}
           <div className="admin-topbar-side">
-            <span className="admin-scope-chip">현재 운영 범위: 본사 셀러</span>
-            <span className="admin-scope-chip">권한: 플랫폼 상품 운영자</span>
             <time dateTime={todayIso}>{todayLabel}</time>
           </div>
         </header>
@@ -1642,11 +1594,6 @@ function AdminDashboardPage() {
         {activeView === "sellers" && renderSellerList()}
         {activeView === "sellerInspection" && renderSellerInspection()}
         {activeView === "sellerSettlement" && renderSellerSettlement()}
-
-        <p className="admin-footnote">
-          셀러 관리·셀러별 상품 검수·셀러별 정산 화면의 수치는 화면 검토용 예시값입니다.
-          대시보드 운영 지표는 실제 데이터를 반영합니다.
-        </p>
       </section>
     </main>
   );

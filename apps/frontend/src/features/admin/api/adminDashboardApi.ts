@@ -17,11 +17,16 @@ export type AdminDashboardStockStatusBreakdown = {
   unknownCount: number;
 };
 
+export type AdminDashboardClaimSummary = {
+  pendingCount: number;
+};
+
 export type AdminDashboardSummary = {
   orderSummary: AdminOrderSummary;
   ingredientReviewSummary: IngredientMappingSummary;
   productStats: AdminDashboardProductStats;
   stockStatusBreakdown: AdminDashboardStockStatusBreakdown;
+  claimSummary: AdminDashboardClaimSummary;
 };
 
 type BackendAdminDashboardSummary = {
@@ -50,6 +55,9 @@ type BackendAdminDashboardSummary = {
     sold_out_count: number;
     hidden_count: number;
     unknown_count: number;
+  };
+  claim_summary: {
+    pending_count: number;
   };
 };
 
@@ -82,6 +90,9 @@ export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary>
       soldOutCount: body.stock_status_breakdown.sold_out_count,
       hiddenCount: body.stock_status_breakdown.hidden_count,
       unknownCount: body.stock_status_breakdown.unknown_count
+    },
+    claimSummary: {
+      pendingCount: body.claim_summary.pending_count
     }
   };
 };
