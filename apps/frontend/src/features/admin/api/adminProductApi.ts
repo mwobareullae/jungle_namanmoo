@@ -80,6 +80,7 @@ export type AdminProductQuery = {
   categoryCode?: string | null;
   isActive?: boolean | null;
   salesStatus?: AdminSalesStatus | null;
+  stockStatus?: AdminStockStatus | null;
   page?: number;
   pageSize?: number;
 };
@@ -198,6 +199,7 @@ export const getAdminProducts = async (query: AdminProductQuery = {}): Promise<A
   if (query.categoryCode) params.set("category_code", query.categoryCode);
   if (query.isActive !== null && query.isActive !== undefined) params.set("is_active", String(query.isActive));
   if (query.salesStatus) params.set("sales_status", query.salesStatus);
+  if (query.stockStatus) params.set("stock_status", query.stockStatus);
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("page_size", String(query.pageSize));
 
