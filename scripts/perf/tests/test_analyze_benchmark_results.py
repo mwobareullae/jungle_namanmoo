@@ -441,6 +441,35 @@ class BenchmarkResourceParsingTests(unittest.TestCase):
         self.assertEqual([record["elapsed_seconds"] for record in records], [0.0, 3.0])
         self.assertEqual([record["service"] for record in records], ["backend", "elasticsearch"])
 
+    def test_host_resource_metrics_include_spec_and_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            profile_path = root / "host-profile.json"
+            stats_path = root / "host-stats.csv"
+            profile_path.write_text(
+                json.dumps(
+                    {
+                        "server_label": "test-4vcpu",
+                        "logical_vcpu_count": 4,
+                        "memory_total_mib": 16384,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stats_path.write_text(
+                "timestamp,cpu_usage_percent,load1,mem_used_mib,mem_available_mib,swap_free_mib,disk_root_used_percent,network_rx_bytes_per_second,network_tx_bytes_per_second\n"
+                "2026-07-20T00:00:00+00:00,40,1.2,4096,12000,2048,50,100,200\n"
+                "2026-07-20T00:00:01+00:00,80,2.4,8192,8000,2048,51,300,400\n",
+                encoding="utf-8",
+            )
+
+            result = analysis.extract_host_metrics(profile_path, stats_path)
+
+        self.assertEqual(result["host_server_label"], "test-4vcpu")
+        self.assertEqual(result["host_logical_vcpu_count"], 4)
+        self.assertEqual(result["host_cpu_usage_percent_max"], 80.0)
+        self.assertEqual(result["host_mem_used_mib_p95"], 8192.0)
+
 
 if __name__ == "__main__":
     unittest.main()
