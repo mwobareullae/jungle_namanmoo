@@ -34,7 +34,7 @@
   background: var(--admin-bg);
   color: var(--admin-text);
   font-family:
-    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
     sans-serif;
 }
 
@@ -286,20 +286,34 @@
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--admin-white);
+  box-shadow: 0 1px 2px rgba(11, 42, 58, 0.04);
 }
 
 .admin-stat {
   min-height: 118px;
-  padding: 18px;
+  padding: 20px 22px;
+  border-left: 3px solid var(--admin-line);
+}
+
+.admin-stats .admin-stat:nth-child(1) {
+  border-left-color: var(--admin-ink-navy);
+}
+
+.admin-stats .admin-stat:nth-child(2) {
+  border-left-color: var(--admin-accent-2);
+}
+
+.admin-stats .admin-stat:nth-child(3) {
+  border-left-color: #f0b429;
 }
 
 .admin-stat span,
@@ -309,8 +323,9 @@
 
 .admin-stat span {
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .admin-stat strong {
@@ -344,7 +359,7 @@
   justify-content: space-between;
   gap: 18px;
   min-height: 74px;
-  padding: 18px;
+  padding: 20px 22px;
   border-bottom: 1px solid var(--admin-line);
 }
 
@@ -588,13 +603,13 @@
 }
 
 .admin-shell {
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   background: #eceff3;
 }
 
 .admin-sidebar {
-  gap: 14px;
-  padding: 24px 14px;
+  gap: 16px;
+  padding: 24px 20px;
 }
 
 .admin-brand {
@@ -616,10 +631,10 @@
 
 .admin-nav a,
 .admin-nav button {
-  min-height: 38px;
-  padding: 11px 12px;
+  min-height: 44px;
+  padding: 13px 16px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .admin-nav a.active,
@@ -677,19 +692,19 @@
 
 .admin-stats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .admin-stat {
   min-height: 104px;
-  padding: 16px;
+  padding: 16px 18px;
 }
 
 .admin-stat strong {
@@ -780,14 +795,14 @@
 }
 
 .admin-pending-item strong {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
 .admin-pending-item small {
   margin-top: 5px;
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -957,13 +972,13 @@
 
 .admin-metric-list dt {
   color: var(--admin-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-metric-list dd {
   margin: 0;
   color: var(--admin-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   text-align: right;
 }
@@ -18393,7 +18408,7 @@ aside:has(.admin-nav) {
   font-family: var(--font-ui, "Pretendard Variable", "Pretendard", sans-serif) !important;
 }
 .admin-main { color: #222; }
-.admin-main h1 { font-family: var(--font-display, GmarketSans) !important; font-weight: 500 !important; }
+.admin-main h1 { font-family: var(--font-ui, "Pretendard Variable", sans-serif) !important; font-weight: 500 !important; }
 .admin-main h2, .admin-main h3, .admin-main h4 {
   font-family: var(--font-ui, sans-serif) !important; font-weight: 600 !important; color: #222 !important;
 }
@@ -18434,17 +18449,17 @@ nav.admin-nav button { font-weight: 500 !important; }
 }
 
 .admin-main { container-type: inline-size; }
-.admin-main h1 { font-size: clamp(20px, 3.2cqw, 30px) !important; }
-.admin-main h2, .admin-main .admin-panel h2 { font-size: clamp(13px, 1.95cqw, 18px) !important; }
-.admin-main h3 { font-size: clamp(11px, 1.62cqw, 15px) !important; }
-.admin-main .admin-table-wrap td { font-size: clamp(9.5px, 1.4cqw, 13px) !important; }
-.admin-main .admin-table-wrap th { font-size: clamp(9px, 1.3cqw, 12px) !important; }
-.admin-main .admin-badge { font-size: clamp(8.5px, 1.28cqw, 12px) !important; }
-.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: clamp(8.5px, 1.18cqw, 11px) !important; }
-.admin-main .admin-pending-item { font-size: clamp(10.5px, 1.5cqw, 14px) !important; }
-.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: clamp(19px, 3cqw, 28px) !important; }
+.admin-main h1 { font-size: 32px !important; }
+.admin-main h2, .admin-main .admin-panel h2 { font-size: 20px !important; }
+.admin-main h3 { font-size: 17px !important; }
+.admin-main .admin-table-wrap td { font-size: 14px !important; }
+.admin-main .admin-table-wrap th { font-size: 13px !important; }
+.admin-main .admin-badge { font-size: 13px !important; }
+.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: 13px !important; }
+.admin-main .admin-pending-item { font-size: 15px !important; }
+.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: 30px !important; }
+.admin-main small { font-size: 12px !important; }
 
-.admin-sidebar { flex: 0 0 auto !important; min-width: 200px !important; width: 200px !important; }
 nav.admin-nav { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; }
 nav.admin-nav button, nav.admin-nav > div {
   width: 100% !important; text-align: left !important; white-space: nowrap !important;
@@ -18455,17 +18470,17 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main .admin-product-table { table-layout: fixed !important; }
 .admin-main .admin-product-table td, .admin-main .admin-product-table th { overflow: hidden; }
 .admin-main .admin-product-table th:nth-child(1), .admin-main .admin-product-table td:nth-child(1) {
-  width: 22% !important; white-space: normal; word-break: keep-all; overflow: visible;
+  width: 18% !important; white-space: normal; word-break: keep-all; overflow: visible;
 }
-.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 10% !important; }
+.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 13% !important; white-space: nowrap !important; text-overflow: ellipsis; }
+.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 13% !important; white-space: nowrap !important; }
 .admin-main .admin-product-table th:nth-child(4), .admin-main .admin-product-table td:nth-child(4) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 10% !important; }
-.admin-main .admin-product-table th:nth-child(6), .admin-main .admin-product-table td:nth-child(6) { width: 14% !important; }
-.admin-main .admin-product-table th:nth-child(7), .admin-main .admin-product-table td:nth-child(7) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(8), .admin-main .admin-product-table td:nth-child(8) { width: 8% !important; }
+.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 9% !important; }
+.admin-main .admin-product-table th:nth-child(6), .admin-main .admin-product-table td:nth-child(6) { width: 8% !important; }
+.admin-main .admin-product-table th:nth-child(7), .admin-main .admin-product-table td:nth-child(7) { width: 20% !important; white-space: nowrap !important; }
+.admin-main .admin-product-table th:nth-child(8), .admin-main .admin-product-table td:nth-child(8) { width: 7% !important; }
 .admin-main .admin-product-table td .admin-badge {
-  font-size: 10px !important; padding: 2px 6px !important; max-width: 100%;
+  font-size: 11px !important; padding: 2px 6px !important; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; box-sizing: border-box;
 }
 .admin-main .admin-product-table td:nth-child(8) button,
@@ -18513,7 +18528,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-main .admin-grid { align-items: stretch !important; }
 .admin-main .admin-grid > section { align-self: stretch !important; height: auto !important; }
-.admin-main .admin-grid > .admin-operation-panel { grid-column: 1 / -1 !important; }
+.admin-main .admin-grid > .admin-full-width-panel { grid-column: 1 / -1 !important; }
 
 .admin-main .admin-pending-item { align-items: center; }
 .admin-main .admin-pending-item > span:first-child { flex: 1 1 auto; min-width: 0; }
