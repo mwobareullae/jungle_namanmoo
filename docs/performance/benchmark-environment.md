@@ -120,10 +120,14 @@ backend/backend.log
 database/slow-query.log
 elasticsearch/node-stats.json
 resources/docker-stats.csv
+resources/host-profile.json
+resources/host-stats.csv
 resources/compose-ps.txt
 k6/
 summary/
 ```
+
+`host-profile.json`에는 서버 hostname, vCPU 수, 총 RAM, 루트 디스크 크기, OS와 Docker 버전이 기록된다. `host-stats.csv`에는 실행 중 호스트 CPU, load average, 사용/가용 RAM, swap, 루트 디스크 사용률, 네트워크 송수신량이 기록된다. 서버 Scale Up 비교에서는 동일한 workload와 함께 이 두 파일을 보관한다.
 
 ## Windows에서 결과 가져오기
 
