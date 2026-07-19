@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import app.services.recommendation_pipeline as recommendation_pipeline
+import app.services.candidate_pool as candidate_pool_service
 from app.db.base import Base
 from app.db.models.recommendation import (
     RecommendationResult,
@@ -16,12 +17,25 @@ from app.db.models.recommendation import (
 )
 from app.schemas.recommendation import RecommendationRequest
 from app.db.session import make_engine
+from app.services.elasticsearch_recommendation_candidates import (
+    ElasticsearchRecommendationCandidateResult,
+)
 from app.services.db_seed import seed_database
+from app.services.product_candidates import ProductCandidate
+from app.services.recommendation_candidate_cache import (
+    CachedCandidateBundle,
+    CandidateCacheLookup,
+    CandidateCacheWrite,
+)
 from app.services.recommendation_pipeline import (
     create_recommendation_response,
+    create_structured_recommendation_response,
     get_recommendation_response,
 )
-from app.services.recommendation_intent import build_recommendation_intent
+from app.services.recommendation_intent import (
+    StructuredRecommendationIntent,
+    build_recommendation_intent,
+)
 from app.services.recommendation_run_store import (
     cleanup_expired_recommendation_runs,
     save_recommendation_run,
@@ -330,6 +344,78 @@ def test_create_recommendation_response_persists_candidate_pool_diagnostics() ->
     assert search_diagnostics["needs_alias_review"] is False
 
 
+def test_candidate_cache_hit_preserves_final_product_rank_and_score(monkeypatch) -> None:
+    first_session = _seed_example_session()
+    second_session = _seed_example_session()
+    cache = _PipelineCandidateCache()
+    es_call_count = 0
+
+    def fake_elasticsearch_search(*args, **kwargs) -> ElasticsearchRecommendationCandidateResult:
+        nonlocal es_call_count
+        es_call_count += 1
+        candidates = (_pipeline_candidate(2), _pipeline_candidate(1))
+        return ElasticsearchRecommendationCandidateResult(
+            candidates=candidates,
+            raw_hit_count=len(candidates),
+            direct_match_count=len(candidates),
+            popularity_fill_count=0,
+            pre_dedupe_count=len(candidates),
+            deduped_count=len(candidates),
+            attempted=True,
+            index_alias="test_catalog_current",
+            query_text="hydration recommendation",
+            duration_ms=1,
+            total_hit_count=len(candidates),
+        )
+
+    def cached_candidate_pool(session, intent, **kwargs):
+        return candidate_pool_service.generate_candidate_pool(
+            session,
+            intent,
+            **kwargs,
+            enable_elasticsearch=True,
+            elasticsearch_search=fake_elasticsearch_search,
+            candidate_cache=cache,
+        )
+
+    monkeypatch.setattr(
+        recommendation_pipeline,
+        "generate_candidate_pool",
+        cached_candidate_pool,
+    )
+    request = RecommendationRequest(concern_text="hydration recommendation")
+
+    structured_intent = StructuredRecommendationIntent()
+    first = create_structured_recommendation_response(
+        first_session,
+        request,
+        structured_intent=structured_intent,
+        result_limit=2,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+    second = create_structured_recommendation_response(
+        second_session,
+        request,
+        structured_intent=structured_intent,
+        result_limit=2,
+        candidate_pool_limit=20,
+        commit=False,
+    )
+
+    assert es_call_count == 1
+    assert [
+        (product.product_id, product.rank, product.total_score)
+        for product in first.products
+    ] == [
+        (product.product_id, product.rank, product.total_score)
+        for product in second.products
+    ]
+    cached_run = _load_run(second_session, second.recommendation_id)
+    assert cached_run.request_context["candidate_pool_diagnostics"]["candidate_cache_hit"] is True
+    assert cached_run.request_context["candidate_pool_diagnostics"]["candidate_es_bypassed"] is True
+
+
 def test_create_recommendation_response_persists_no_result_diagnostics() -> None:
     session = _seed_example_session()
 
@@ -351,6 +437,36 @@ def test_create_recommendation_response_persists_no_result_diagnostics() -> None
     assert diagnostics["positive_search_match_count"] == 0
     assert diagnostics["alias_candidate_terms"]
     assert diagnostics["needs_alias_review"] is True
+
+
+class _PipelineCandidateCache:
+    def __init__(self) -> None:
+        self.bundle: CachedCandidateBundle | None = None
+
+    def read(self, *args, **kwargs) -> CandidateCacheLookup:
+        return CandidateCacheLookup(
+            bundle=self.bundle,
+            lookup_ms=0.1,
+            ttl_seconds=300,
+            cache_enabled=True,
+        )
+
+    def write(self, *args, bundle: CachedCandidateBundle, **kwargs) -> CandidateCacheWrite:
+        self.bundle = bundle
+        return CandidateCacheWrite(write_ms=0.1, ttl_seconds=300)
+
+
+def _pipeline_candidate(product_db_id: int) -> ProductCandidate:
+    return ProductCandidate(
+        db_product_id=product_db_id,
+        product_id=f"prod_{product_db_id:03d}",
+        brand_code="test_brand",
+        brand="Test Brand",
+        category_code="serum",
+        name=f"Test Product {product_db_id}",
+        thumbnail_url=None,
+        lowest_price=10_000 + product_db_id,
+    )
 
 
 def _seed_example_session() -> Session:

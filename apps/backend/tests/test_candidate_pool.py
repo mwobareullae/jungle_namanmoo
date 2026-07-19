@@ -10,6 +10,11 @@ from app.services.elasticsearch_recommendation_candidates import (
     ElasticsearchRecommendationCandidateResult,
 )
 from app.services.product_candidates import ProductCandidate
+from app.services.recommendation_candidate_cache import (
+    CachedCandidateBundle,
+    CandidateCacheLookup,
+    CandidateCacheWrite,
+)
 from app.services.recommendation_intent import build_recommendation_intent
 from app.services.repository import load_repository
 from tests.test_data_loader import EXAMPLES_DIR
@@ -117,6 +122,7 @@ def test_generate_candidate_pool_caps_and_deduplicates_es_results() -> None:
 
 def test_generate_candidate_pool_uses_popularity_fallback_only_on_es_failure() -> None:
     session = _seed_example_session()
+    cache = _MemoryCandidateCache()
     session.add(
         ProductPopularityMetric(
             product_id=2,
@@ -138,6 +144,7 @@ def test_generate_candidate_pool_uses_popularity_fallback_only_on_es_failure() -
             (),
             failure_reason="index missing",
         ),
+        candidate_cache=cache,
     )
 
     assert [candidate.product_id for candidate in pool.candidates] == [
@@ -152,6 +159,66 @@ def test_generate_candidate_pool_uses_popularity_fallback_only_on_es_failure() -
     assert pool.fallback_used is True
     assert pool.fallback_reason == "index missing"
     assert pool.fallback_count == 2
+    assert cache.write_count == 0
+
+
+def test_generate_candidate_pool_reuses_cached_es_bundle_without_calling_es() -> None:
+    session = _seed_example_session()
+    cache = _MemoryCandidateCache()
+    intent = _build_intent()
+
+    first = generate_candidate_pool(
+        session,
+        intent,
+        skin_type="normal",
+        sensitivity="low",
+        avoid_ingredients=[],
+        target_pool_size=20,
+        enable_elasticsearch=True,
+        elasticsearch_search=_fake_es_search((_candidate(2), _candidate(1))),
+        candidate_cache=cache,
+    )
+    second = generate_candidate_pool(
+        session,
+        intent,
+        skin_type="normal",
+        sensitivity="low",
+        avoid_ingredients=[],
+        target_pool_size=20,
+        enable_elasticsearch=True,
+        elasticsearch_search=_unexpected_elasticsearch,
+        candidate_cache=cache,
+    )
+
+    assert [candidate.product_id for candidate in first.candidates] == [
+        candidate.product_id for candidate in second.candidates
+    ]
+    assert second.candidate_cache_hit is True
+    assert second.candidate_es_bypassed is True
+    assert second.es_search_ms == 0
+    assert cache.write_count == 1
+
+
+def test_generate_candidate_pool_falls_through_after_cache_read_failure() -> None:
+    session = _seed_example_session()
+    cache = _MemoryCandidateCache(read_failure_reason="redis_read_failed")
+
+    pool = generate_candidate_pool(
+        session,
+        _build_intent(),
+        skin_type="normal",
+        sensitivity="low",
+        avoid_ingredients=[],
+        target_pool_size=20,
+        enable_elasticsearch=True,
+        elasticsearch_search=_fake_es_search((_candidate(1),)),
+        candidate_cache=cache,
+    )
+
+    assert [candidate.product_id for candidate in pool.candidates] == ["prod_001"]
+    assert pool.candidate_cache_hit is False
+    assert pool.candidate_cache_fallback_reason == "redis_read_failed"
+    assert pool.fallback_used is False
 
 
 def _fake_es_search(
@@ -183,6 +250,27 @@ def _fake_es_search(
     return search
 
 
+class _MemoryCandidateCache:
+    def __init__(self, *, read_failure_reason: str | None = None) -> None:
+        self.bundle: CachedCandidateBundle | None = None
+        self.read_failure_reason = read_failure_reason
+        self.write_count = 0
+
+    def read(self, *args, **kwargs) -> CandidateCacheLookup:
+        return CandidateCacheLookup(
+            bundle=self.bundle,
+            lookup_ms=1.0,
+            ttl_seconds=300,
+            cache_enabled=True,
+            failure_reason=self.read_failure_reason,
+        )
+
+    def write(self, *args, bundle: CachedCandidateBundle, **kwargs) -> CandidateCacheWrite:
+        self.bundle = bundle
+        self.write_count += 1
+        return CandidateCacheWrite(write_ms=1.0, ttl_seconds=300)
+
+
 def _candidate(product_db_id: int) -> ProductCandidate:
     return ProductCandidate(
         db_product_id=product_db_id,
@@ -198,6 +286,10 @@ def _candidate(product_db_id: int) -> ProductCandidate:
 
 def _unexpected_fallback(*args, **kwargs):
     raise AssertionError("DB fallback must not run after a successful ES request")
+
+
+def _unexpected_elasticsearch(*args, **kwargs):
+    raise AssertionError("Elasticsearch must not run after a candidate cache hit")
 
 
 def _unexpected_pgvector(*args, **kwargs):

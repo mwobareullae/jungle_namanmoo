@@ -596,6 +596,11 @@ def test_settings_exposes_database_url() -> None:
 def test_settings_exposes_dev_infra_urls() -> None:
     assert settings.redis_url
     assert settings.redis_key_prefix
+    assert isinstance(settings.recommendation_candidate_cache_enabled, bool)
+    assert settings.recommendation_candidate_cache_ttl_seconds > 0
+    assert settings.recommendation_candidate_price_cache_ttl_seconds > 0
+    assert settings.recommendation_candidate_cache_socket_connect_timeout_seconds > 0
+    assert settings.recommendation_candidate_cache_socket_timeout_seconds > 0
     assert settings.search_backend_mode in {"auto", "postgres", "elasticsearch"}
     assert settings.elasticsearch_url
     assert settings.elasticsearch_index_prefix
