@@ -168,8 +168,12 @@ async def post_agent_chat(
                 telemetry.rate_limited = True
                 telemetry.outcome = "rate_limited"
             elif exc.code == "AGENT_OPENAI_BUSY":
-                telemetry.global_slot_rejected = True
-                telemetry.outcome = "global_slot_rejected"
+                telemetry.global_slot_rejected = not workflow_timing.global_slot_acquired
+                telemetry.outcome = (
+                    "global_slot_rejected"
+                    if telemetry.global_slot_rejected
+                    else "local_queue_rejected"
+                )
             elif exc.code == "AGENT_CAPACITY_UNAVAILABLE":
                 telemetry.outcome = "capacity_unavailable"
             elif exc.code == "AGENT_SENSITIVE_INPUT":

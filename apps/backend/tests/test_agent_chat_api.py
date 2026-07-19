@@ -994,6 +994,39 @@ def test_agent_chat_logs_admission_workflow_and_persist_timings(
     assert metadata["agent_total_ms"] >= 0
 
 
+def test_agent_chat_distinguishes_local_queue_rejection_from_global_slot_rejection(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[dict[str, object]] = []
+
+    async def reject_from_local_queue(*_args, **kwargs) -> AgentChatResponse:
+        timing = kwargs["workflow_timing"]
+        assert isinstance(timing, AgentWorkflowTiming)
+        timing.global_slot_acquired = True
+        raise ApiError(
+            429,
+            "AGENT_OPENAI_BUSY",
+            "local semaphore is busy",
+            headers={"Retry-After": "2"},
+        )
+
+    def capture_event(event: str, **kwargs) -> None:
+        if event == "agent_request_completed":
+            events.append(kwargs["metadata"])
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", reject_from_local_queue)
+    monkeypatch.setattr("app.api.routes.agent.log_performance_event", capture_event)
+
+    response = client.post("/api/agent/chat", json={"message": "recommend a moisturizer"})
+
+    assert response.status_code == 429
+    assert len(events) == 1
+    assert events[0]["agent_outcome"] == "local_queue_rejected"
+    assert events[0]["agent_global_slot_acquired"] is True
+    assert events[0]["agent_global_slot_rejected"] is False
+
+
 def test_agent_request_allows_retry_after_stale_pending_execution(db_engine: Engine) -> None:
     request = AgentChatRequest(message="현재 상품을 장바구니에 담아줘")
     key = "agent-request-stale-0001"
