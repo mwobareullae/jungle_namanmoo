@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Generator
+from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 import json
 from types import SimpleNamespace
@@ -30,6 +31,7 @@ from app.services.agent_openai_runner import (
     AGENT_INSTRUCTIONS,
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
+    AgentWorkflowTiming,
     _build_agent_input,
     _classify_openai_failure,
     _expected_tool_error_response,
@@ -43,6 +45,7 @@ from app.services.agent_openai_runner import (
 )
 from app.services.agent_idempotency import claim_agent_request_execution
 from app.services.agent_policy import AGENT_TOOL_POLICIES
+from app.services.agent_runtime_control import AgentGlobalSlotLease
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
@@ -65,15 +68,33 @@ def db_engine() -> Generator[Engine, None, None]:
 
 
 @pytest.fixture()
-def client(db_engine: Engine) -> Generator[TestClient, None, None]:
+def client(db_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
     def override_get_db():
         with Session(db_engine) as session:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    monkeypatch.setattr(
+        "app.api.routes.agent.get_default_agent_runtime_control",
+        lambda: _PermissiveAgentRuntimeControl(),
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+class _PermissiveAgentRuntimeControl:
+    def check_rate_limit(self, **_kwargs) -> SimpleNamespace:
+        return SimpleNamespace(check_ms=0.0)
+
+    @asynccontextmanager
+    async def acquire_global_slot(self):
+        yield AgentGlobalSlotLease(
+            slot_number=1,
+            owner_token="test-owner",
+            wait_ms=0.0,
+            acquire_ms=0.0,
+        )
 
 
 def test_agent_input_includes_bounded_conversation_context() -> None:
@@ -849,6 +870,130 @@ def test_agent_chat_rejects_different_request_with_reused_idempotency_key(
     assert response.json()["error"]["code"] == "AGENT_IDEMPOTENCY_KEY_REUSED"
 
 
+def test_agent_chat_allows_the_same_message_with_a_new_idempotency_key(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call_count = 0
+
+    async def fake_run_openai_agent_chat(*_args, **_kwargs) -> AgentChatResponse:
+        nonlocal call_count
+        call_count += 1
+        return AgentChatResponse(conversation_id="conv-new-key", message="새 요청으로 처리했어요.")
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fake_run_openai_agent_chat)
+    payload = {"message": "보습 세럼을 추천해 주세요."}
+
+    first = client.post(
+        "/api/agent/chat",
+        json=payload,
+        headers={"Idempotency-Key": "agent-new-key-0001"},
+    )
+    second = client.post(
+        "/api/agent/chat",
+        json=payload,
+        headers={"Idempotency-Key": "agent-new-key-0002"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert call_count == 2
+
+
+def test_agent_chat_rate_limit_happens_before_runner(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RateLimitedControl:
+        def check_rate_limit(self, **_kwargs) -> None:
+            raise ApiError(
+                429,
+                "AGENT_RATE_LIMITED",
+                "AI 요청이 잠시 많아요.",
+                headers={"Retry-After": "42"},
+            )
+
+    async def fail_if_runner_is_called(*_args, **_kwargs) -> AgentChatResponse:
+        raise AssertionError("rate limited request must not enter the Agent runner")
+
+    monkeypatch.setattr(
+        "app.api.routes.agent.get_default_agent_runtime_control",
+        lambda: RateLimitedControl(),
+    )
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fail_if_runner_is_called)
+
+    response = client.post("/api/agent/chat", json={"message": "보습 세럼을 추천해 주세요."})
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "42"
+    assert response.json()["error"]["code"] == "AGENT_RATE_LIMITED"
+
+
+def test_agent_chat_returns_capacity_error_when_redis_admission_is_unavailable(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class UnavailableControl:
+        def check_rate_limit(self, **_kwargs) -> None:
+            raise ApiError(
+                503,
+                "AGENT_CAPACITY_UNAVAILABLE",
+                "AI 요청 제어 서비스를 사용할 수 없어요.",
+            )
+
+    async def fail_if_runner_is_called(*_args, **_kwargs) -> AgentChatResponse:
+        raise AssertionError("unavailable admission must not enter the Agent runner")
+
+    monkeypatch.setattr(
+        "app.api.routes.agent.get_default_agent_runtime_control",
+        lambda: UnavailableControl(),
+    )
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fail_if_runner_is_called)
+
+    response = client.post("/api/agent/chat", json={"message": "보습 세럼을 추천해 주세요."})
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AGENT_CAPACITY_UNAVAILABLE"
+
+
+def test_agent_chat_logs_admission_workflow_and_persist_timings(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[dict[str, object]] = []
+
+    async def fake_run_openai_agent_chat(*_args, **kwargs) -> AgentChatResponse:
+        timing = kwargs["workflow_timing"]
+        assert isinstance(timing, AgentWorkflowTiming)
+        timing.global_slot_wait_ms = 12.5
+        timing.global_slot_acquire_ms = 0.4
+        timing.llm_workflow_ms = 34.5
+        timing.tool_execution_ms = 7.5
+        timing.global_slot_acquired = True
+        return AgentChatResponse(conversation_id="conv-timing", message="완료했어요.")
+
+    def capture_event(event: str, **kwargs) -> None:
+        if event == "agent_request_completed":
+            events.append(kwargs["metadata"])
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fake_run_openai_agent_chat)
+    monkeypatch.setattr("app.api.routes.agent.log_performance_event", capture_event)
+
+    response = client.post("/api/agent/chat", json={"message": "보습 세럼을 추천해 주세요."})
+
+    assert response.status_code == 200
+    assert len(events) == 1
+    metadata = events[0]
+    assert metadata["agent_outcome"] == "succeeded"
+    assert metadata["agent_global_slot_acquired"] is True
+    assert metadata["agent_global_slot_wait_ms"] == 12.5
+    assert metadata["agent_global_slot_acquire_ms"] == 0.4
+    assert metadata["agent_llm_workflow_ms"] == 34.5
+    assert metadata["agent_tool_execution_ms"] == 7.5
+    assert metadata["agent_response_persist_ms"] >= 0
+    assert metadata["agent_total_ms"] >= 0
+
+
 def test_agent_request_allows_retry_after_stale_pending_execution(db_engine: Engine) -> None:
     request = AgentChatRequest(message="현재 상품을 장바구니에 담아줘")
     key = "agent-request-stale-0001"
@@ -896,3 +1041,109 @@ def test_agent_chat_rejects_sensitive_input_before_runner(
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "AGENT_SENSITIVE_INPUT"
+
+
+@pytest.mark.anyio
+async def test_agent_trace_adds_only_safe_correlation_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agents
+    from agents import Runner
+
+    captured_trace: dict[str, object] = {}
+
+    @contextmanager
+    def fake_trace(workflow_name: str, **kwargs):
+        captured_trace["workflow_name"] = workflow_name
+        captured_trace.update(kwargs)
+        yield SimpleNamespace()
+
+    async def fake_run(*_args, **_kwargs):
+        return SimpleNamespace(final_output="처리했어요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(agents, "trace", fake_trace)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    metadata = {
+        "request_id": "req-trace-1",
+        "conversation_id": "conv-trace-1",
+        "environment": "test",
+        "route": "/api/agent/chat",
+        "authenticated": True,
+        "agent_release": "test-release",
+    }
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(
+            message="사용자 메시지 원문은 trace metadata에 넣지 않아요.",
+            context=AgentContext(order_code="ord-private", route="/orders/private"),
+        ),
+        user=SimpleNamespace(id=999, email="private@example.com"),
+        trace_metadata=metadata,
+    )
+
+    assert response.message == "처리했어요."
+    assert captured_trace["workflow_name"] == "mwobarellae_action_agent"
+    assert captured_trace["group_id"] == "conv-trace-1"
+    assert captured_trace["metadata"] == metadata
+    rendered_metadata = str(captured_trace["metadata"])
+    assert "private@example.com" not in rendered_metadata
+    assert "ord-private" not in rendered_metadata
+    assert "사용자 메시지" not in rendered_metadata
+
+
+@pytest.mark.anyio
+async def test_global_queue_wait_does_not_consume_agent_execution_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    class DelayedGlobalControl:
+        @asynccontextmanager
+        async def acquire_global_slot(self):
+            await asyncio.sleep(0.03)
+            yield AgentGlobalSlotLease(
+                slot_number=1,
+                owner_token="delayed-owner",
+                wait_ms=30.0,
+                acquire_ms=0.2,
+            )
+
+    async def fake_run(*_args, **_kwargs):
+        return SimpleNamespace(final_output="대기 뒤에 정상 실행했어요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_timeout_seconds", 0.02)
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    timing = AgentWorkflowTiming()
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message="보습 세럼을 추천해 주세요."),
+        runtime_control=DelayedGlobalControl(),
+        workflow_timing=timing,
+    )
+
+    assert response.message == "대기 뒤에 정상 실행했어요."
+    assert timing.global_slot_acquired is True
+    assert timing.global_slot_wait_ms >= 25
+    assert timing.llm_workflow_ms < 20
