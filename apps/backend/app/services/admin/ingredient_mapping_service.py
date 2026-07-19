@@ -581,8 +581,16 @@ def list_ingredient_mappings(
             connection_count=int(last.connection_count),
         )
 
+    summary = get_ingredient_mapping_summary(session)
+
+    return IngredientMappingListResponse(items=items, summary=summary, next_cursor=next_cursor)
+
+
+def get_ingredient_mapping_summary(session: Session) -> IngredientMappingSummary:
+    """성분 검수 목록·대시보드가 공유하는 전체 유효 상태 집계를 반환한다."""
+
     summary_row = session.execute(_SUMMARY_SQL).one()
-    summary = IngredientMappingSummary(
+    return IngredientMappingSummary(
         pending_count=summary_row.pending_count,
         held_count=summary_row.held_count,
         needs_review_count=summary_row.needs_review_count,
@@ -590,8 +598,6 @@ def list_ingredient_mappings(
         approved_count=summary_row.approved_count,
         rejected_count=summary_row.rejected_count,
     )
-
-    return IngredientMappingListResponse(items=items, summary=summary, next_cursor=next_cursor)
 
 
 def _to_list_item(
