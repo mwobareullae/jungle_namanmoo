@@ -56,12 +56,19 @@ def list_product_categories(session: Session = Depends(get_db)) -> AdminProductM
 
 @router.get("/products", response_model=AdminProductListResponse)
 def list_products(
-    q: str | None = Query(default=None, description="상품명 부분 검색"),
+    q: str | None = Query(default=None, description="상품명 또는 상품코드 부분 검색"),
     brand_code: str | None = Query(default=None),
     category_code: str | None = Query(default=None),
     is_active: bool | None = Query(default=None, description="노출 여부 필터. 미지정 시 전체(비활성 포함)"),
     sales_status: str | None = Query(
         default=None, description="ON_SALE/SOLD_OUT/HIDDEN/UNKNOWN(재고 행 없는 상품). 잘못된 값은 400."
+    ),
+    stock_status: str | None = Query(
+        default=None,
+        description=(
+            "IN_STOCK/LOW_STOCK/SOLD_OUT/HIDDEN/UNKNOWN. sales_status와 달리 가용 재고 수량까지"
+            " 반영한 상태(build_product_availability와 동일 기준). 잘못된 값은 400."
+        ),
     ),
     page: int = Query(default=DEFAULT_PAGE, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
@@ -78,6 +85,7 @@ def list_products(
         category_code=category_code,
         is_active=is_active,
         sales_status=sales_status,
+        stock_status=stock_status,
         page=page,
         page_size=page_size,
     )
