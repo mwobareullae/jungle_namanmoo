@@ -33,6 +33,12 @@ IngredientMappingNonMappingFinalDisposition = Literal[
 
 # 추천 근거. 그룹 정규화명이 alias/canonical 이름과 정확 일치할 때만 채운다.
 IngredientMappingMatchSource = Literal["ALIAS_EXACT", "CANONICAL_NAME_EXACT"]
+IngredientMappingCandidateType = Literal[
+    "CANONICAL_EXACT_MATCH",
+    "ALIAS_EXACT_MATCH",
+    "EXACT_MATCH_CONFLICT",
+    "NO_EXACT_MATCH",
+]
 
 IngredientMappingAction = Literal["APPROVE", "HOLD", "REJECT", "REOPEN"]
 
@@ -44,6 +50,17 @@ class IngredientMappingSuggestion(BaseModel):
     target_ingredient_code: str
     target_ingredient_name: str
     match_source: IngredientMappingMatchSource
+
+
+class IngredientMappingCandidate(BaseModel):
+    """관리자 검수용 읽기 전용 처리 후보.
+
+    후보는 등록된 canonical/alias의 정확 일치 여부만 표현한다. 최종 분류나
+    상품 성분 연결을 자동으로 변경하지 않는다.
+    """
+
+    candidate_type: IngredientMappingCandidateType
+    evidence: str
 
 
 class IngredientMappingDecision(BaseModel):
@@ -67,6 +84,7 @@ class IngredientMappingListItem(BaseModel):
     product_count: int
     connection_count: int
     status: IngredientMappingStatus
+    candidate: IngredientMappingCandidate
     suggestion: IngredientMappingSuggestion | None
     decision: IngredientMappingDecision | None
     available_actions: list[IngredientMappingAction]
