@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.admin.ingredient_mapping import (
     IngredientMappingDecision,
+    IngredientMappingCandidate,
     IngredientMappingDetail,
     IngredientMappingEvent,
     IngredientMappingListItem,
@@ -39,14 +40,21 @@ from app.schemas.common import ApiError
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 100
+DEFAULT_SORT = "CODE_ASC"
+VALID_SORTS = frozenset({"CODE_ASC", "CONNECTION_DESC"})
+VALID_CANDIDATE_TYPES = frozenset({"CANONICAL_EXACT_MATCH", "ALIAS_EXACT_MATCH", "EXACT_MATCH_CONFLICT", "NO_EXACT_MATCH"})
 
 CANONICAL_SEARCH_DEFAULT_LIMIT = 20
 CANONICAL_SEARCH_MAX_LIMIT = 50
 
-VALID_STATUS_FILTERS = frozenset({"PENDING", "HELD", "APPROVED", "REJECTED"})
-STORED_STATUSES = frozenset({"HELD", "APPROVED", "REJECTED"})
+VALID_STATUS_FILTERS = frozenset({"PENDING", "HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"})
+STORED_STATUSES = frozenset({"HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"})
+VALID_FINAL_DISPOSITION_FILTERS = frozenset(
+    {"MAPPED", "NON_INGREDIENT", "COMPOUND_MATERIAL", "SOURCE_ERROR", "UNRESOLVABLE"}
+)
 
-CURSOR_VERSION = 1
+CURSOR_VERSION = 2
+LIST_CURSOR_VERSION = 4
 
 # 목록·상세·판정 저장이 공유하는 정규화 SQL. lower + 모든 공백 제거.
 # Python normalize_source_name() 과 반드시 동일 결과를 내야 한다(정규화 정합성).
@@ -60,6 +68,7 @@ _PENDING_PREDICATE = (
 _ACTIONS_BY_STATUS: dict[str, list[str]] = {
     "PENDING": ["APPROVE", "HOLD", "REJECT"],
     "HELD": ["APPROVE", "REJECT"],
+    "NEEDS_REVIEW": ["APPROVE", "HOLD", "REJECT"],
     "APPROVED": ["REOPEN"],
     "REJECTED": ["REOPEN"],
 }
@@ -76,35 +85,69 @@ def normalize_source_name(raw_name: str | None) -> str:
 
 # --- 커서 -----------------------------------------------------------------
 
-def _encode_cursor(pending_code: str, normalized_source_name: str, *, status: str | None, q: str) -> str:
+def _encode_cursor(
+    pending_code: str,
+    normalized_source_name: str,
+    *,
+    status: str | None,
+    final_disposition: str | None,
+    q: str,
+    sort: str = DEFAULT_SORT,
+    candidate_type: str | None = None,
+    connection_count: int = 0,
+) -> str:
     payload = {
-        "v": CURSOR_VERSION,
+        "v": LIST_CURSOR_VERSION,
         "pc": pending_code,
         "nsn": normalized_source_name,
         "st": status or "",
+        "fd": final_disposition or "",
         "q": q,
+        "so": sort,
+        "ct": candidate_type or "",
+        "cc": connection_count,
     }
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-def _decode_cursor(cursor: str, *, status: str | None, q: str) -> tuple[str, str]:
+def _decode_cursor(
+    cursor: str,
+    *,
+    status: str | None,
+    final_disposition: str | None,
+    q: str,
+    sort: str = DEFAULT_SORT,
+    candidate_type: str | None = None,
+) -> tuple[str, str, int]:
     try:
         padding = "=" * (-len(cursor) % 4)
         raw = base64.urlsafe_b64decode(f"{cursor}{padding}".encode("ascii"))
         payload = json.loads(raw)
     except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.") from exc
-    if not isinstance(payload, dict) or payload.get("v") != CURSOR_VERSION:
+    if not isinstance(payload, dict) or payload.get("v") != LIST_CURSOR_VERSION:
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
     pending_code = payload.get("pc")
     normalized_source_name = payload.get("nsn")
-    if not isinstance(pending_code, str) or not isinstance(normalized_source_name, str):
+    connection_count = payload.get("cc")
+    if (
+        not isinstance(pending_code, str)
+        or not isinstance(normalized_source_name, str)
+        or not isinstance(connection_count, int)
+        or connection_count < 0
+    ):
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
     # 필터가 페이지 사이에 바뀌면 커서 위치가 무의미하므로 거부한다(계약 §4).
-    if payload.get("st") != (status or "") or payload.get("q") != q:
+    if (
+        payload.get("st") != (status or "")
+        or payload.get("fd") != (final_disposition or "")
+        or payload.get("q") != q
+        or payload.get("so") != sort
+        or payload.get("ct") != (candidate_type or "")
+    ):
         raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
-    return pending_code, normalized_source_name
+    return pending_code, normalized_source_name, connection_count
 
 
 # --- 검증 -----------------------------------------------------------------
@@ -120,10 +163,41 @@ def _normalize_status_filter(status: str | None) -> str | None:
     return normalized
 
 
+def _normalize_final_disposition_filter(final_disposition: str | None) -> str | None:
+    if final_disposition is None:
+        return None
+    normalized = final_disposition.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in VALID_FINAL_DISPOSITION_FILTERS:
+        raise ApiError(400, "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION", "Invalid final disposition filter.")
+    return normalized
+
+
 def _normalize_limit(limit: int) -> int:
     if limit < 1 or limit > MAX_LIMIT:
         raise ApiError(400, "INVALID_LIMIT", "Invalid limit.")
     return limit
+
+
+def _normalize_sort(sort: str | None) -> str:
+    normalized = (sort or DEFAULT_SORT).strip().upper()
+    if not normalized:
+        return DEFAULT_SORT
+    if normalized not in VALID_SORTS:
+        raise ApiError(400, "INVALID_INGREDIENT_MAPPING_SORT", "Invalid ingredient mapping sort.")
+    return normalized
+
+
+def _normalize_candidate_type(candidate_type: str | None) -> str | None:
+    if candidate_type is None:
+        return None
+    normalized = candidate_type.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in VALID_CANDIDATE_TYPES:
+        raise ApiError(400, "INVALID_INGREDIENT_MAPPING_CANDIDATE", "Invalid ingredient mapping candidate.")
+    return normalized
 
 
 def _normalize_q(q: str | None) -> str:
@@ -166,12 +240,46 @@ def _build_suggestion(
     return None
 
 
+def _build_candidate(
+    normalized_source_name: str,
+    alias_hits: dict[str, tuple[int, str, str]],
+    canonical_hits: dict[str, tuple[int, str, str]],
+    canonical_conflicts: set[str],
+) -> IngredientMappingCandidate:
+    """정확 일치 정보만으로 읽기 전용 처리 후보와 근거를 만든다."""
+
+    alias = alias_hits.get(normalized_source_name)
+    canonical = canonical_hits.get(normalized_source_name)
+    if normalized_source_name in canonical_conflicts or (
+        alias is not None and canonical is not None and alias[0] != canonical[0]
+    ):
+        return IngredientMappingCandidate(
+            candidate_type="EXACT_MATCH_CONFLICT",
+            evidence="정규화 원문과 정확히 일치하는 정식명 또는 별칭 후보가 서로 충돌합니다.",
+        )
+    if alias is not None:
+        return IngredientMappingCandidate(
+            candidate_type="ALIAS_EXACT_MATCH",
+            evidence="정규화 원문이 등록된 성분 별칭과 정확히 일치합니다.",
+        )
+    if canonical is not None:
+        return IngredientMappingCandidate(
+            candidate_type="CANONICAL_EXACT_MATCH",
+            evidence="정규화 원문이 활성 정식 성분명과 정확히 일치합니다.",
+        )
+    return IngredientMappingCandidate(
+        candidate_type="NO_EXACT_MATCH",
+        evidence="등록된 정식 성분명 또는 별칭의 정확 일치가 없어 근거 확인이 필요합니다.",
+    )
+
+
 def _decision_from_row(row: object) -> IngredientMappingDecision | None:
     status = getattr(row, "review_status", None)
     if status is None:
         return None
     return IngredientMappingDecision(
         status=status,
+        final_disposition=getattr(row, "final_disposition", None),
         target_ingredient_code=getattr(row, "target_ingredient_code", None),
         target_ingredient_name=getattr(row, "target_ingredient_name", None),
         decision_reason=getattr(row, "decision_reason", None),
@@ -186,11 +294,11 @@ def _effective_status(review_status: str | None) -> str:
 
 def _load_page_suggestions(
     session: Session, normalized_names: list[str]
-) -> tuple[dict[str, tuple[int, str, str]], dict[str, tuple[int, str, str]]]:
+) -> tuple[dict[str, tuple[int, str, str]], dict[str, tuple[int, str, str]], set[str]]:
     """현재 페이지 정규화명들의 alias/canonical 정확 일치를 묶음 조회(고정 2쿼리)."""
 
     if not normalized_names:
-        return {}, {}
+        return {}, {}, set()
     unique_names = list(dict.fromkeys(normalized_names))
 
     alias_stmt = text(
@@ -223,6 +331,7 @@ def _load_page_suggestions(
         alias_hits[r.nsn] = (int(r.target_id), r.target_code, r.target_name)
 
     canonical_hits: dict[str, tuple[int, str, str]] = {}
+    canonical_conflicts: set[str] = set()
     for r in session.execute(canonical_stmt, {"names": unique_names}):
         # normalized_name 은 전역 UNIQUE 가 아니다. 서로 다른 target 이 2개 이상이면
         # 오매핑 방지로 추천을 만들지 않는다(sentinel 로 표시).
@@ -230,22 +339,108 @@ def _load_page_suggestions(
         target_id = int(r.target_id)
         if existing is not None and existing[0] != target_id:
             canonical_hits[r.nsn] = (-1, "", "")  # 충돌 sentinel → _build_suggestion 에서 무시
+            canonical_conflicts.add(r.nsn)
             continue
         if existing is None:
             canonical_hits[r.nsn] = (target_id, r.target_code, r.target_name)
     # 충돌 sentinel 제거(서로 다른 canonical 2개 이상 → suggestion 없음)
     canonical_hits = {k: v for k, v in canonical_hits.items() if v[0] != -1}
-    return alias_hits, canonical_hits
+    return alias_hits, canonical_hits, canonical_conflicts
 
 
 # --- 목록 -----------------------------------------------------------------
+
+_LIST_CANDIDATE_SQL = text(
+    """
+    select g.pending_code, g.normalized_source_name as nsn, g.connection_count,
+           g.raw_name,
+           rev.id as review_id, rev.status as review_status,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
+           rev.reviewed_by_user_id, rev.reviewed_at,
+           tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
+    from ingredient_mapping_pending_groups g
+    left join ingredient_mapping_reviews rev
+           on rev.source_ingredient_id = g.source_ingredient_id
+          and rev.normalized_source_name = g.normalized_source_name
+    left join ingredients tgt on tgt.id = rev.target_ingredient_id
+    left join lateral (
+        select ing.id as target_id
+        from ingredient_aliases a
+        join ingredients ing on ing.id = a.ingredient_id
+        where a.normalized_alias = g.normalized_source_name
+          and ing.is_active = true
+          and ing.ingredient_code not like 'ing_pending_%'
+          and ing.ingredient_code not like 'foreign_pending_%'
+        limit 1
+    ) alias_match on true
+    left join lateral (
+        select count(*)::integer as match_count, min(ing.id) as target_id
+        from ingredients ing
+        where ing.normalized_name = g.normalized_source_name
+          and ing.is_active = true
+          and ing.ingredient_code not like 'ing_pending_%'
+          and ing.ingredient_code not like 'foreign_pending_%'
+    ) canonical_match on true
+    cross join lateral (
+        select case
+            when canonical_match.match_count > 1
+              or (alias_match.target_id is not null
+                  and canonical_match.match_count = 1
+                  and alias_match.target_id <> canonical_match.target_id)
+                then 'EXACT_MATCH_CONFLICT'
+            when alias_match.target_id is not null then 'ALIAS_EXACT_MATCH'
+            when canonical_match.match_count = 1 then 'CANONICAL_EXACT_MATCH'
+            else 'NO_EXACT_MATCH'
+        end as candidate_type
+    ) candidate_match
+    where
+        (cast(:status as text) is null
+         or (cast(:status as text) = 'PENDING' and rev.id is null)
+         or (cast(:status as text) <> 'PENDING' and rev.status = cast(:status as text)))
+        and (cast(:final_disposition as text) is null
+             or rev.final_disposition = cast(:final_disposition as text))
+        and (cast(:status as text) is not null
+             or cast(:final_disposition as text) is not null
+             or rev.id is null
+             or rev.status in ('HELD', 'NEEDS_REVIEW'))
+        and (cast(:q as text) = ''
+             or g.pending_code ilike cast(:q_like as text)
+             or g.normalized_source_name ilike cast(:q_like as text)
+             or g.raw_name ilike cast(:q_like as text))
+        and (cast(:candidate_type as text) is null
+             or candidate_match.candidate_type = cast(:candidate_type as text))
+        and (cast(:cursor_pc as text) is null
+             or (
+                 (:sort = 'CODE_ASC' and (g.pending_code, g.normalized_source_name) > (
+                     cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                 ))
+                 or (
+                     :sort = 'CONNECTION_DESC'
+                     and (
+                         g.connection_count < cast(:cursor_connection_count as integer)
+                         or (
+                             g.connection_count = cast(:cursor_connection_count as integer)
+                             and (g.pending_code, g.normalized_source_name) > (
+                                 cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                             )
+                         )
+                     )
+                 )
+             ))
+    order by
+        case when :sort = 'CONNECTION_DESC' then g.connection_count end desc,
+        g.pending_code asc,
+        g.normalized_source_name asc
+    limit :limit_plus_one
+    """
+)
 
 _LIST_SQL = text(
     """
     select g.pending_code, g.normalized_source_name as nsn, g.connection_count,
            g.raw_name,
            rev.id as review_id, rev.status as review_status,
-           rev.target_ingredient_id, rev.decision_reason,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
            rev.reviewed_by_user_id, rev.reviewed_at,
            tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
     from ingredient_mapping_pending_groups g
@@ -257,15 +452,38 @@ _LIST_SQL = text(
         (cast(:status as text) is null
          or (cast(:status as text) = 'PENDING' and rev.id is null)
          or (cast(:status as text) <> 'PENDING' and rev.status = cast(:status as text)))
+        and (cast(:final_disposition as text) is null
+             or rev.final_disposition = cast(:final_disposition as text))
+        and (cast(:status as text) is not null
+             or cast(:final_disposition as text) is not null
+             or rev.id is null
+             or rev.status in ('HELD', 'NEEDS_REVIEW'))
         and (cast(:q as text) = ''
              or g.pending_code ilike cast(:q_like as text)
              or g.normalized_source_name ilike cast(:q_like as text)
              or g.raw_name ilike cast(:q_like as text))
         and (cast(:cursor_pc as text) is null
-             or (g.pending_code, g.normalized_source_name) > (
-                 cast(:cursor_pc as text), cast(:cursor_nsn as text)
+             or (
+                 (:sort = 'CODE_ASC' and (g.pending_code, g.normalized_source_name) > (
+                     cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                 ))
+                 or (
+                     :sort = 'CONNECTION_DESC'
+                     and (
+                         g.connection_count < cast(:cursor_connection_count as integer)
+                         or (
+                             g.connection_count = cast(:cursor_connection_count as integer)
+                             and (g.pending_code, g.normalized_source_name) > (
+                                 cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                             )
+                         )
+                     )
+                 )
              ))
-    order by g.pending_code asc, g.normalized_source_name asc
+    order by
+        case when :sort = 'CONNECTION_DESC' then g.connection_count end desc,
+        g.pending_code asc,
+        g.normalized_source_name asc
     limit :limit_plus_one
     """
 )
@@ -275,6 +493,8 @@ _SUMMARY_SQL = text(
     select
         count(*) filter (where rev.status is null) as pending_count,
         count(*) filter (where rev.status = 'HELD') as held_count,
+        count(*) filter (where rev.status = 'NEEDS_REVIEW') as needs_review_count,
+        count(*) filter (where rev.status is null or rev.status in ('HELD', 'NEEDS_REVIEW')) as unclassified_count,
         count(*) filter (where rev.status = 'APPROVED') as approved_count,
         count(*) filter (where rev.status = 'REJECTED') as rejected_count
     from ingredient_mapping_pending_groups g
@@ -292,26 +512,45 @@ def list_ingredient_mappings(
     q: str | None,
     limit: int,
     cursor: str | None,
+    final_disposition: str | None = None,
+    sort: str | None = None,
+    candidate_type: str | None = None,
 ) -> IngredientMappingListResponse:
     normalized_status = _normalize_status_filter(status)
+    normalized_final_disposition = _normalize_final_disposition_filter(final_disposition)
     normalized_limit = _normalize_limit(limit)
+    normalized_sort = _normalize_sort(sort)
+    normalized_candidate_type = _normalize_candidate_type(candidate_type)
     normalized_q = _normalize_q(q)
 
     cursor_pc: str | None = None
     cursor_nsn: str | None = None
+    cursor_connection_count: int | None = None
     if cursor is not None and cursor.strip():
-        cursor_pc, cursor_nsn = _decode_cursor(cursor, status=normalized_status, q=normalized_q)
+        cursor_pc, cursor_nsn, cursor_connection_count = _decode_cursor(
+            cursor,
+            status=normalized_status,
+            final_disposition=normalized_final_disposition,
+            q=normalized_q,
+            sort=normalized_sort,
+            candidate_type=normalized_candidate_type,
+        )
 
     q_like = f"%{_escape_like(normalized_q)}%" if normalized_q else ""
+    list_sql = _LIST_CANDIDATE_SQL if normalized_candidate_type is not None else _LIST_SQL
     rows = list(
         session.execute(
-            _LIST_SQL,
+            list_sql,
             {
                 "status": normalized_status,
+                "final_disposition": normalized_final_disposition,
                 "q": normalized_q,
                 "q_like": q_like,
+                "sort": normalized_sort,
+                "candidate_type": normalized_candidate_type,
                 "cursor_pc": cursor_pc,
                 "cursor_nsn": cursor_nsn,
+                "cursor_connection_count": cursor_connection_count,
                 "limit_plus_one": normalized_limit + 1,
             },
         )
@@ -320,32 +559,52 @@ def list_ingredient_mappings(
     has_more = len(rows) > normalized_limit
     page_rows = rows[:normalized_limit]
 
-    alias_hits, canonical_hits = _load_page_suggestions(session, [r.nsn for r in page_rows])
+    alias_hits, canonical_hits, canonical_conflicts = _load_page_suggestions(
+        session, [r.nsn for r in page_rows]
+    )
 
-    items = [_to_list_item(r, alias_hits, canonical_hits) for r in page_rows]
+    items = [
+        _to_list_item(r, alias_hits, canonical_hits, canonical_conflicts) for r in page_rows
+    ]
 
     next_cursor = None
     if has_more and page_rows:
         last = page_rows[normalized_limit - 1]
         next_cursor = _encode_cursor(
-            last.pending_code, last.nsn, status=normalized_status, q=normalized_q
+            last.pending_code,
+            last.nsn,
+            status=normalized_status,
+            final_disposition=normalized_final_disposition,
+            q=normalized_q,
+            sort=normalized_sort,
+            candidate_type=normalized_candidate_type,
+            connection_count=int(last.connection_count),
         )
 
+    summary = get_ingredient_mapping_summary(session)
+
+    return IngredientMappingListResponse(items=items, summary=summary, next_cursor=next_cursor)
+
+
+def get_ingredient_mapping_summary(session: Session) -> IngredientMappingSummary:
+    """성분 검수 목록·대시보드가 공유하는 전체 유효 상태 집계를 반환한다."""
+
     summary_row = session.execute(_SUMMARY_SQL).one()
-    summary = IngredientMappingSummary(
+    return IngredientMappingSummary(
         pending_count=summary_row.pending_count,
         held_count=summary_row.held_count,
+        needs_review_count=summary_row.needs_review_count,
+        unclassified_count=summary_row.unclassified_count,
         approved_count=summary_row.approved_count,
         rejected_count=summary_row.rejected_count,
     )
-
-    return IngredientMappingListResponse(items=items, summary=summary, next_cursor=next_cursor)
 
 
 def _to_list_item(
     row: object,
     alias_hits: dict[str, tuple[int, str, str]],
     canonical_hits: dict[str, tuple[int, str, str]],
+    canonical_conflicts: set[str],
 ) -> IngredientMappingListItem:
     status = _effective_status(getattr(row, "review_status", None))
     connection_count = int(row.connection_count)
@@ -356,6 +615,7 @@ def _to_list_item(
         product_count=connection_count,
         connection_count=connection_count,
         status=status,
+        candidate=_build_candidate(row.nsn, alias_hits, canonical_hits, canonical_conflicts),
         suggestion=_build_suggestion(row.nsn, alias_hits, canonical_hits),
         decision=_decision_from_row(row),
         available_actions=list(_ACTIONS_BY_STATUS[status]),
@@ -394,7 +654,7 @@ _DETAIL_GROUP_SQL = text(
            (select raw_name from rep) as raw_name,
            count(*) as connection_count,
            rev.id as review_id, rev.status as review_status,
-           rev.target_ingredient_id, rev.decision_reason,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
            rev.reviewed_by_user_id, rev.reviewed_at,
            tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
     from scoped s
@@ -402,7 +662,7 @@ _DETAIL_GROUP_SQL = text(
            on rev.source_ingredient_id = s.source_id and rev.normalized_source_name = s.nsn
     left join ingredients tgt on tgt.id = rev.target_ingredient_id
     group by s.source_id, s.pending_code, s.pending_name, s.nsn,
-             rev.id, rev.status, rev.target_ingredient_id, rev.decision_reason,
+             rev.id, rev.status, rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
              rev.reviewed_by_user_id, rev.reviewed_at,
              tgt.ingredient_code, tgt.name_ko
     """
@@ -437,7 +697,8 @@ _DETAIL_SAMPLES_SQL = text(
 
 _DETAIL_EVENTS_SQL = text(
     """
-    select e.from_status, e.to_status, e.actor_id, e.reason, e.created_at,
+    select e.from_status, e.to_status, e.from_final_disposition, e.to_final_disposition,
+           e.actor_id, e.reason, e.metadata_json, e.created_at,
            ft.ingredient_code as from_target_code, tt.ingredient_code as to_target_code
     from ingredient_mapping_review_events e
     left join ingredients ft on ft.id = e.from_target_ingredient_id
@@ -475,7 +736,7 @@ def get_ingredient_mapping_detail(
             raise ApiError(404, "PENDING_INGREDIENT_NOT_FOUND", "Pending ingredient not found.")
         raise ApiError(404, "INGREDIENT_MAPPING_GROUP_NOT_FOUND", "Ingredient mapping group not found.")
 
-    alias_hits, canonical_hits = _load_page_suggestions(session, [nsn])
+    alias_hits, canonical_hits, canonical_conflicts = _load_page_suggestions(session, [nsn])
 
     variants = [
         IngredientMappingRawNameVariant(
@@ -509,10 +770,14 @@ def get_ingredient_mapping_detail(
             IngredientMappingEvent(
                 from_status=r.from_status,
                 to_status=r.to_status,
+                from_final_disposition=r.from_final_disposition,
+                to_final_disposition=r.to_final_disposition,
                 from_target_ingredient_code=r.from_target_code,
                 to_target_ingredient_code=r.to_target_code,
                 actor_id=r.actor_id,
                 reason=r.reason,
+                evidence_source_url=(r.metadata_json or {}).get("final_disposition_evidence_source_url"),
+                source_reference=(r.metadata_json or {}).get("final_disposition_source_reference"),
                 created_at=r.created_at,
             )
             for r in session.execute(_DETAIL_EVENTS_SQL, {"review_id": review_id})
@@ -527,6 +792,7 @@ def get_ingredient_mapping_detail(
         product_count=connection_count,
         connection_count=connection_count,
         status=status,
+        candidate=_build_candidate(nsn, alias_hits, canonical_hits, canonical_conflicts),
         suggestion=_build_suggestion(nsn, alias_hits, canonical_hits),
         decision=_decision_from_row(group_row),
         available_actions=list(_ACTIONS_BY_STATUS[status]),
