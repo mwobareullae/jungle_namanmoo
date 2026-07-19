@@ -90,6 +90,7 @@ BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS="${BENCHMARK_RECOMMEN
 BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS:-0.05}"
 BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS:-0.05}"
 BENCHMARK_UVICORN_WORKERS="${BENCHMARK_UVICORN_WORKERS:-1}"
+BENCHMARK_SERVER_LABEL="${BENCHMARK_SERVER_LABEL:-}"
 export BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
 export BENCHMARK_CANDIDATE_CACHE_STATE
 export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
@@ -214,6 +215,7 @@ candidate_cache_enabled=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
 candidate_cache_ttl_seconds=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS
 candidate_cache_redis_key_prefix=$BENCHMARK_REDIS_KEY_PREFIX
 uvicorn_workers=$BENCHMARK_UVICORN_WORKERS
+server_label=${BENCHMARK_SERVER_LABEL:-unknown}
 EOF
 }
 
@@ -707,14 +709,16 @@ monitor_start() {
   local pid_file="$resources_dir/monitor.pid"
   local docker_interval="${BENCHMARK_DOCKER_STATS_INTERVAL_SECONDS:-1}"
   local es_interval="${BENCHMARK_ES_STATS_INTERVAL_SECONDS:-5}"
+  local host_interval="${BENCHMARK_HOST_STATS_INTERVAL_SECONDS:-$docker_interval}"
   mkdir -p "$resources_dir" "$elasticsearch_dir"
 
   if [[ -f "$pid_file" ]]; then
     local existing_pid
-    existing_pid="$(cat "$pid_file" 2>/dev/null || true)"
-    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
-      die "monitor is already running: pid=$existing_pid"
-    fi
+    while IFS= read -r existing_pid; do
+      if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        die "monitor is already running: pid=$existing_pid"
+      fi
+    done <"$pid_file"
   fi
 
   cat >"$resources_dir/monitor-context.txt" <<EOF
@@ -723,9 +727,14 @@ dataset=$DATASET_LABEL
 started_at=${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}
 docker_stats_interval_seconds=$docker_interval
 elasticsearch_stats_interval_seconds=$es_interval
+host_stats_interval_seconds=$host_interval
 EOF
   printf 'timestamp,name,cpu_percent,mem_usage,mem_percent\n' >"$resources_dir/docker-stats.csv"
   : >"$elasticsearch_dir/node-stats.ndjson"
+  python3 "$SCRIPT_DIR/monitor_host_resources.py" snapshot \
+    --output "$resources_dir/host-profile.json" \
+    --server-label "$BENCHMARK_SERVER_LABEL" \
+    >"$resources_dir/host-profile.log" 2>&1 || true
 
   DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" nohup bash -c '
 set +e
@@ -783,8 +792,14 @@ done
     "$es_interval" \
     >"$resources_dir/monitor.log" 2>&1 &
 
-  echo "$!" >"$pid_file"
-  echo "monitor_started=$result_dir pid=$(cat "$pid_file")"
+  local docker_monitor_pid="$!"
+  nohup python3 "$SCRIPT_DIR/monitor_host_resources.py" monitor \
+    --output "$resources_dir/host-stats.csv" \
+    --interval "$host_interval" \
+    >"$resources_dir/host-monitor.log" 2>&1 &
+  local host_monitor_pid="$!"
+  printf '%s\n%s\n' "$docker_monitor_pid" "$host_monitor_pid" >"$pid_file"
+  echo "monitor_started=$result_dir docker_pid=$docker_monitor_pid host_pid=$host_monitor_pid"
 }
 
 monitor_stop() {
@@ -806,14 +821,15 @@ monitor_stop() {
   fi
 
   local pid
-  pid="$(cat "$pid_file" 2>/dev/null || true)"
-  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid" 2>/dev/null || true
-    sleep 1
-    if kill -0 "$pid" 2>/dev/null; then
-      kill -9 "$pid" 2>/dev/null || true
+  while IFS= read -r pid; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 1
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
     fi
-  fi
+  done <"$pid_file"
   rm -f "$pid_file"
   echo "stopped_at=$stopped_at" >"$resources_dir/monitor-stopped-at.txt"
   echo "monitor_stopped=$result_dir"
@@ -929,6 +945,8 @@ PY
   "candidate_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS,
   "candidate_price_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS,
   "candidate_cache_redis_key_prefix": "$BENCHMARK_REDIS_KEY_PREFIX",
+  "server_label": "${BENCHMARK_SERVER_LABEL:-unknown}",
+  "uvicorn_workers": $BENCHMARK_UVICORN_WORKERS,
   "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
   "k6_result_present": $k6_result_present,
   "k6_output_present": $k6_output_present,

@@ -19,7 +19,6 @@ param(
     [string]$CandidateCacheMode,
     [ValidatePattern("^[1-9][0-9]*[smh]$")]
     [string]$CandidateCacheWarmupDuration,
-    [ValidateRange(1, 4)]
     [int]$UvicornWorkers
 )
 
@@ -162,7 +161,14 @@ $SshUser = Require-Config $Config "SSH_USER"
 $SshHost = Require-Config $Config "SSH_HOST"
 $SshKey = Require-Config $Config "SSH_KEY"
 $Remote = "$SshUser@$SshHost"
+$isUvicornWorkersSpecified = $PSBoundParameters.ContainsKey("UvicornWorkers")
+if ($isUvicornWorkersSpecified -and $UvicornWorkers -lt 1) {
+    throw "UvicornWorkers must be a positive integer when specified."
+}
 $effectiveUvicornWorkers = if ($UvicornWorkers -gt 0) { $UvicornWorkers } elseif ($Config.ContainsKey("BENCHMARK_UVICORN_WORKERS") -and $Config.BENCHMARK_UVICORN_WORKERS) { [int]$Config.BENCHMARK_UVICORN_WORKERS } else { 1 }
+if ($effectiveUvicornWorkers -lt 1) {
+    throw "BENCHMARK_UVICORN_WORKERS must be a positive integer."
+}
 $RunId = "recommendation-$Dataset-$UserType-w$effectiveUvicornWorkers-$(Get-Date -Format yyyyMMdd-HHmmss)"
 if ($StageId -or $RunKind -or $Topic) {
     if (-not $StageId -or -not $RunKind) {
