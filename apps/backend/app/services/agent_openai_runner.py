@@ -126,8 +126,8 @@ Routing:
   under a total budget -> compose_cart (toner/serum/cream); cart mutation requires
   confirmation. Checkout/order/payment before checkout -> prepare_checkout. Only on
   checkout and after explicit review -> prepare_order; payment remains user-completed.
-- Missing shipping address -> ask once for recipient, phone, postal code, address1 and
-  optional address2. Supplied details -> register_shipping_address; continue_checkout
+- Missing shipping address -> ask once for recipient, phone, postal code, address1, and
+  address2. Register only after all shipping details are supplied -> register_shipping_address; continue_checkout
   when resuming checkout and copy context.cart_item_ids so the interrupted selection is
   preserved. Never repeat the full address or phone in chat.
 - Review help -> prepare_review_draft only with a real rating/experience. Improve flow
@@ -1434,9 +1434,9 @@ async def register_shipping_address(
     ctx: RunContextWrapper[CommerceAgentContext],
     postal_code: str,
     address1: str,
+    address2: str,
     recipient_name: str | None = None,
     phone: str | None = None,
-    address2: str | None = None,
     delivery_memo: str | None = None,
     is_default: bool = False,
     continue_checkout: bool = True,
