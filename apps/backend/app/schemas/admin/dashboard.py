@@ -20,6 +20,10 @@ class AdminDashboardStockStatusBreakdown(BaseModel):
     unknown_count: int
 
 
+class AdminDashboardClaimSummary(BaseModel):
+    pending_count: int
+
+
 class AdminDashboardSummaryResponse(BaseModel):
     """기존 운영 데이터만 묶은 단일 대시보드 응답.
 
@@ -31,3 +35,4 @@ class AdminDashboardSummaryResponse(BaseModel):
     ingredient_review_summary: IngredientMappingSummary
     product_stats: AdminDashboardProductStats
     stock_status_breakdown: AdminDashboardStockStatusBreakdown
+    claim_summary: AdminDashboardClaimSummary

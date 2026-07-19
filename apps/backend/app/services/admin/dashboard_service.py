@@ -4,13 +4,15 @@ from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Product, ProductImage
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, OrderClaim
 from app.schemas.admin.dashboard import (
+    AdminDashboardClaimSummary,
     AdminDashboardProductStats,
     AdminDashboardStockStatusBreakdown,
     AdminDashboardSummaryResponse,
 )
 from app.services.admin.ingredient_mapping_service import get_ingredient_mapping_summary
+from app.services.admin.order_claim_service import CLAIM_STATUS_REQUESTED
 from app.services.admin.order_service import get_admin_order_summary
 
 
@@ -57,6 +59,10 @@ def get_admin_dashboard_summary(session: Session) -> AdminDashboardSummaryRespon
     for status, count in stock_rows:
         stock_counts[str(status)] = int(count)
 
+    claim_pending_count = session.execute(
+        select(func.count(OrderClaim.id)).where(OrderClaim.status == CLAIM_STATUS_REQUESTED)
+    ).scalar_one()
+
     return AdminDashboardSummaryResponse(
         order_summary=get_admin_order_summary(session),
         ingredient_review_summary=get_ingredient_mapping_summary(session),
@@ -72,4 +78,5 @@ def get_admin_dashboard_summary(session: Session) -> AdminDashboardSummaryRespon
             hidden_count=stock_counts["HIDDEN"],
             unknown_count=stock_counts["UNKNOWN"],
         ),
+        claim_summary=AdminDashboardClaimSummary(pending_count=int(claim_pending_count)),
     )
