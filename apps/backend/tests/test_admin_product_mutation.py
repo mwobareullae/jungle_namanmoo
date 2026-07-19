@@ -264,6 +264,50 @@ def test_update_thumbnail_storage_key_null_clears_image(db_engine: Engine) -> No
     assert image_rows == []
 
 
+def test_create_and_update_thumbnail_keep_search_thumbnail_in_sync(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        created = create_admin_product(
+            session,
+            AdminProductCreateRequest(
+                name="thumbnail synchronization",
+                brand_code="brand_a",
+                category_code="cat_a",
+                price=1000,
+                thumbnail_storage_key="products/qa/thumb_0",
+            ),
+            now=FIXED_NOW,
+        )
+        product = session.execute(
+            select(Product).where(Product.product_code == created.product_code)
+        ).scalar_one()
+        assert product.thumbnail_url == "products/qa/thumb_0"
+
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key="products/qa/thumb_1"),
+            now=FIXED_NOW,
+        )
+        assert product.thumbnail_url == "products/qa/thumb_1"
+
+        updated_at_before_noop = product.updated_at
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key="products/qa/thumb_1"),
+            now=datetime(2026, 7, 16, 3, 0, tzinfo=timezone.utc),
+        )
+        assert product.updated_at == updated_at_before_noop
+
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key=None),
+            now=FIXED_NOW,
+        )
+        assert product.thumbnail_url is None
+
+
 def test_update_thumbnail_storage_key_conflict_with_existing_image(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         product = session.execute(
