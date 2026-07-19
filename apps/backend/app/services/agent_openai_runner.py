@@ -10,7 +10,7 @@ import random
 import re
 import threading
 import time
-from typing import Any, AsyncIterator, Literal
+from typing import Any, AsyncIterator, Literal, Mapping
 
 from sqlalchemy.orm import Session
 
@@ -59,6 +59,7 @@ from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
 from app.services.agent_tool_dispatcher import execute_agent_tool
 from app.services.agent_policy import get_tool_policy
+from app.services.agent_runtime_control import AgentRuntimeControl
 
 
 AGENT_INSTRUCTIONS = """
@@ -466,6 +467,29 @@ class _OpenAIConcurrencyLimiter:
 _OPENAI_CONCURRENCY_LIMITER = _OpenAIConcurrencyLimiter()
 
 
+@dataclass
+class AgentWorkflowTiming:
+    """Mutable request timing values filled by the Agent workflow."""
+
+    global_slot_wait_ms: float = 0.0
+    global_slot_acquire_ms: float = 0.0
+    llm_workflow_ms: float = 0.0
+    tool_execution_ms: float = 0.0
+    global_slot_acquired: bool = False
+    global_slot_rejected: bool = False
+
+
+@asynccontextmanager
+async def _global_slot_context(
+    runtime_control: AgentRuntimeControl | None,
+) -> AsyncIterator[object | None]:
+    if runtime_control is None:
+        yield None
+        return
+    async with runtime_control.acquire_global_slot() as lease:
+        yield lease
+
+
 async def run_openai_agent_chat(
     session: Session,
     request: AgentChatRequest,
@@ -475,6 +499,9 @@ async def run_openai_agent_chat(
     session_id: str | None = None,
     anonymous_user_id: str | None = None,
     anonymous_cart_id: str | None = None,
+    runtime_control: AgentRuntimeControl | None = None,
+    workflow_timing: AgentWorkflowTiming | None = None,
+    trace_metadata: Mapping[str, Any] | None = None,
 ) -> AgentChatResponse:
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
@@ -494,7 +521,7 @@ async def run_openai_agent_chat(
         raise ApiError(503, "AGENT_OPENAI_MODEL_NOT_CONFIGURED", "에이전트 모델 설정을 확인해 주세요.")
 
     try:
-        from agents import Agent, ModelSettings, Runner
+        from agents import Agent, ModelSettings, Runner, trace
     except ImportError as exc:
         raise ApiError(503, "AGENT_SDK_NOT_INSTALLED", "에이전트 실행 환경을 사용할 수 없어요.") from exc
 
@@ -537,66 +564,92 @@ async def run_openai_agent_chat(
     )
 
     started_at = current_time()
-    timeout_budget_seconds = max(float(settings.openai_agent_timeout_seconds), 0.1)
-    deadline = time.monotonic() + timeout_budget_seconds
     retry_count = 0
+    slot_wait_started_at = current_time()
     try:
-        _OPENAI_CIRCUIT_BREAKER.before_call()
-        max_retries = max(0, min(settings.openai_agent_max_retries, 1))
-        while True:
+        async with _global_slot_context(runtime_control) as lease:
+            if workflow_timing is not None:
+                workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+                if lease is not None:
+                    workflow_timing.global_slot_acquire_ms = round(
+                        float(getattr(lease, "acquire_ms", 0.0)),
+                        2,
+                    )
+                    workflow_timing.global_slot_acquired = True
+
+            # The global queue wait above is intentionally outside this budget.
+            # Local semaphore waiting, provider execution, and one bounded retry
+            # still share the existing Agent execution deadline.
+            workflow_started_at = current_time()
+            timeout_budget_seconds = max(float(settings.openai_agent_timeout_seconds), 0.1)
+            deadline = time.monotonic() + timeout_budget_seconds
             try:
-                remaining_seconds = deadline - time.monotonic()
-                if remaining_seconds <= 0:
-                    raise TimeoutError("OpenAI request timeout budget exhausted")
-                # Queueing, provider execution, and retries share one request budget.
-                # This prevents a retry from silently doubling the configured timeout.
-                async with asyncio.timeout(remaining_seconds):
-                    async with _OPENAI_CONCURRENCY_LIMITER.limit():
-                        result = await Runner.run(
-                            agent,
-                            input=_build_agent_input(request),
-                            context=context,
-                            max_turns=4,
+                _OPENAI_CIRCUIT_BREAKER.before_call()
+                max_retries = max(0, min(settings.openai_agent_max_retries, 1))
+                while True:
+                    try:
+                        remaining_seconds = deadline - time.monotonic()
+                        if remaining_seconds <= 0:
+                            raise TimeoutError("OpenAI request timeout budget exhausted")
+                        async with asyncio.timeout(remaining_seconds):
+                            async with _OPENAI_CONCURRENCY_LIMITER.limit():
+                                with trace(
+                                    "mwobarellae_action_agent",
+                                    group_id=_trace_group_id(trace_metadata),
+                                    metadata=dict(trace_metadata or {}),
+                                ):
+                                    result = await Runner.run(
+                                        agent,
+                                        input=_build_agent_input(request),
+                                        context=context,
+                                        max_turns=4,
+                                    )
+                        break
+                    except Exception as exc:
+                        _log_openai_failure_counter(
+                            exc,
+                            request_id=request_id,
+                            duration_ms=elapsed_ms(workflow_started_at),
                         )
-                break
-            except Exception as exc:
-                _log_openai_failure_counter(
-                    exc,
-                    request_id=request_id,
-                    duration_ms=elapsed_ms(started_at),
-                )
-                # Never retry after a commerce tool has run: retrying could duplicate
-                # a state-changing action such as add-to-cart or address registration.
-                if (
-                    retry_count >= max_retries
-                    or context.last_tool_response is not None
-                    or not _is_retryable_openai_exception(exc)
-                ):
-                    raise
-                remaining_seconds = deadline - time.monotonic()
-                retry_delay_seconds = _get_openai_retry_delay_seconds(
-                    exc,
-                    retry_count=retry_count,
-                    remaining_budget_seconds=remaining_seconds,
-                )
-                if retry_delay_seconds is None:
-                    raise
-                retry_count += 1
-                log_performance_event(
-                    "agent_openai_retry",
-                    request_id=request_id,
-                    duration_ms=elapsed_ms(started_at),
-                    metadata={
-                        "model": settings.openai_agent_model,
-                        "attempt": retry_count + 1,
-                        "exception_type": type(exc).__name__,
-                        "delay_ms": round(retry_delay_seconds * 1000, 2),
-                    },
-                    level=30,
-                )
-                await asyncio.sleep(retry_delay_seconds)
-        _OPENAI_CIRCUIT_BREAKER.record_success()
+                        # Never retry after a commerce tool has run: retrying could duplicate
+                        # a state-changing action such as add-to-cart or address registration.
+                        if (
+                            retry_count >= max_retries
+                            or context.last_tool_response is not None
+                            or not _is_retryable_openai_exception(exc)
+                        ):
+                            raise
+                        remaining_seconds = deadline - time.monotonic()
+                        retry_delay_seconds = _get_openai_retry_delay_seconds(
+                            exc,
+                            retry_count=retry_count,
+                            remaining_budget_seconds=remaining_seconds,
+                        )
+                        if retry_delay_seconds is None:
+                            raise
+                        retry_count += 1
+                        log_performance_event(
+                            "agent_openai_retry",
+                            request_id=request_id,
+                            duration_ms=elapsed_ms(workflow_started_at),
+                            metadata={
+                                "model": settings.openai_agent_model,
+                                "attempt": retry_count + 1,
+                                "exception_type": type(exc).__name__,
+                                "delay_ms": round(retry_delay_seconds * 1000, 2),
+                            },
+                            level=30,
+                        )
+                        await asyncio.sleep(retry_delay_seconds)
+                _OPENAI_CIRCUIT_BREAKER.record_success()
+            finally:
+                if workflow_timing is not None:
+                    workflow_timing.llm_workflow_ms = elapsed_ms(workflow_started_at)
+                    workflow_timing.tool_execution_ms = context.tool_execution_ms
     except Exception as exc:
+        if workflow_timing is not None and not workflow_timing.global_slot_acquired:
+            workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+            workflow_timing.global_slot_rejected = isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_BUSY"
         if isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_CIRCUIT_OPEN":
             _log_openai_failure_counter(
                 exc,
@@ -699,6 +752,7 @@ def _classify_openai_failure(
     if isinstance(exc, ApiError) and exc.code in {
         "AGENT_OPENAI_BUSY",
         "AGENT_OPENAI_CIRCUIT_OPEN",
+        "AGENT_CAPACITY_UNAVAILABLE",
     }:
         return "non_retryable"
 
@@ -720,6 +774,11 @@ def _classify_openai_failure(
     if any(token in name for token in ("timeout", "connection", "internalserver")):
         return "provider"
     return "non_retryable"
+
+
+def _trace_group_id(trace_metadata: Mapping[str, Any] | None) -> str | None:
+    conversation_id = (trace_metadata or {}).get("conversation_id")
+    return str(conversation_id) if conversation_id else None
 
 
 def _log_openai_failure_counter(
