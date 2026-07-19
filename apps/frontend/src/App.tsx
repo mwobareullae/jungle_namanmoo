@@ -913,6 +913,7 @@ function GlobalAgentEntry() {
 
 function GlobalFooter() {
   const location = useLocation();
+  if (location.pathname.startsWith("/admin")) return null;
   return <AppFooter variant={location.pathname === "/" ? "home" : "default"} />;
 }
 
