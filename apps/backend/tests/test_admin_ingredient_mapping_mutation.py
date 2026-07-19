@@ -93,6 +93,18 @@ def test_normalize_optional_reason() -> None:
     assert len(mut._normalize_optional_reason("나" * 2000)) == mut.MAX_DECISION_REASON_LENGTH
 
 
+def test_suggestion_snapshot_accepts_candidate_conflict_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    """후보 분류 조회가 conflict 집합까지 반환해도 승인 이력 저장이 깨지지 않는다."""
+
+    monkeypatch.setattr(
+        mut,
+        "_load_page_suggestions",
+        lambda _session, _names: ({}, {}, {"conflict"}),
+    )
+
+    assert mut._suggestion_snapshot(object(), "conflict", object()) == {}
+
+
 # --- 라우트 인가 (SQL 실행 전) ---------------------------------------------
 
 # --- P3 final disposition validation ----------------------------------------

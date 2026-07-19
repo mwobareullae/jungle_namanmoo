@@ -379,7 +379,9 @@ def _append_event(
 def _suggestion_snapshot(session: Session, normalized_source_name: str, source: Ingredient) -> dict:
     """판정 시점의 읽기 전용 추천을 스냅샷으로 남긴다(있을 때만)."""
 
-    alias_hits, canonical_hits = _load_page_suggestions(session, [normalized_source_name])
+    alias_hits, canonical_hits, _canonical_conflicts = _load_page_suggestions(
+        session, [normalized_source_name]
+    )
     suggestion = _build_suggestion(normalized_source_name, alias_hits, canonical_hits)
     if suggestion is None:
         return {}
