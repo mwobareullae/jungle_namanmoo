@@ -55,6 +55,7 @@ def approve_ingredient_mapping(
     target_ingredient_code: str,
     decision_reason: str | None,
     actor_user_id: int,
+    source_reference: str | None = None,
 ) -> IngredientMappingActionResponse:
     reason = _normalize_optional_reason(decision_reason)
     source = _load_locked_pending(session, pending_code)
@@ -92,6 +93,7 @@ def approve_ingredient_mapping(
         actor_user_id,
         nsn,
         source,
+        source_reference=source_reference,
     )
     session.flush()
     return _to_response(source, nsn, review, target=target)
