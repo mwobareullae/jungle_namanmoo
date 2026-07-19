@@ -1,14 +1,10 @@
-"""M3-C 이미지 대량 연결의 요청·검증 결과 스키마.
-
-검증 서비스는 DB를 변경하지 않는다. 실제 저장 결과 스키마는 Chunk 3에서
-별도로 확장한다.
-"""
+"""M3-C 이미지 대량 연결의 요청·검증·저장 결과 스키마."""
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AdminImageBulkLinkRowRequest(BaseModel):
@@ -23,7 +19,7 @@ class AdminImageBulkLinkRowRequest(BaseModel):
 class AdminImageBulkLinkRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    rows: list[AdminImageBulkLinkRowRequest]
+    rows: list[AdminImageBulkLinkRowRequest] = Field(min_length=1, max_length=1000)
 
 
 class AdminImageBulkLinkValidationSummary(BaseModel):
@@ -44,3 +40,25 @@ class AdminImageBulkLinkValidationRowResult(BaseModel):
 class AdminImageBulkLinkValidationResponse(BaseModel):
     summary: AdminImageBulkLinkValidationSummary
     rows: list[AdminImageBulkLinkValidationRowResult]
+
+
+class AdminImageBulkLinkSummary(BaseModel):
+    total: int
+    updated: int
+    skipped: int
+    failed: int
+
+
+class AdminImageBulkLinkRowResult(BaseModel):
+    row_number: int
+    import_sku: str | None
+    status: Literal["UPDATED", "SKIPPED", "FAILED"]
+    product_code: str | None = None
+    field: str | None = None
+    error_code: str | None = None
+    message: str | None = None
+
+
+class AdminImageBulkLinkResponse(BaseModel):
+    summary: AdminImageBulkLinkSummary
+    rows: list[AdminImageBulkLinkRowResult]
