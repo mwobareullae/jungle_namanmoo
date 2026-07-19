@@ -42,10 +42,22 @@ def test_normalize_source_name_lower_and_strip_whitespace() -> None:
 
 def test_cursor_round_trip_preserves_keys() -> None:
     token = svc._encode_cursor(
-        "ing_pending_ab", "nsn1", status="PENDING", final_disposition=None, q="foo"
+        "ing_pending_ab",
+        "nsn1",
+        status="PENDING",
+        final_disposition=None,
+        q="foo",
+        sort="CONNECTION_DESC",
+        connection_count=12,
     )
-    pc, nsn = svc._decode_cursor(token, status="PENDING", final_disposition=None, q="foo")
-    assert (pc, nsn) == ("ing_pending_ab", "nsn1")
+    pc, nsn, connection_count = svc._decode_cursor(
+        token,
+        status="PENDING",
+        final_disposition=None,
+        q="foo",
+        sort="CONNECTION_DESC",
+    )
+    assert (pc, nsn, connection_count) == ("ing_pending_ab", "nsn1", 12)
 
 
 def test_cursor_rejects_filter_mismatch() -> None:
@@ -61,6 +73,55 @@ def test_cursor_rejects_filter_mismatch() -> None:
     with pytest.raises(ApiError) as exc3:
         svc._decode_cursor(token, status="PENDING", final_disposition=None, q="foo")
     assert exc3.value.code == "INVALID_CURSOR"
+    with pytest.raises(ApiError) as exc4:
+        svc._decode_cursor(
+            token,
+            status="PENDING",
+            final_disposition="MAPPED",
+            q="foo",
+            sort="CONNECTION_DESC",
+        )
+    assert exc4.value.code == "INVALID_CURSOR"
+
+
+def test_cursor_rejects_sort_mismatch() -> None:
+    token = svc._encode_cursor(
+        "ing_pending_ab",
+        "nsn1",
+        status="PENDING",
+        final_disposition=None,
+        q="",
+        sort="CODE_ASC",
+    )
+    with pytest.raises(ApiError) as exc:
+        svc._decode_cursor(
+            token,
+            status="PENDING",
+            final_disposition=None,
+            q="",
+            sort="CONNECTION_DESC",
+        )
+    assert exc.value.code == "INVALID_CURSOR"
+
+
+def test_cursor_rejects_candidate_type_mismatch() -> None:
+    token = svc._encode_cursor(
+        "ing_pending_ab",
+        "nsn1",
+        status="PENDING",
+        final_disposition=None,
+        q="",
+        candidate_type="ALIAS_EXACT_MATCH",
+    )
+    with pytest.raises(ApiError) as exc:
+        svc._decode_cursor(
+            token,
+            status="PENDING",
+            final_disposition=None,
+            q="",
+            candidate_type="NO_EXACT_MATCH",
+        )
+    assert exc.value.code == "INVALID_CURSOR"
 
 
 def test_cursor_rejects_malformed_token() -> None:
@@ -109,6 +170,30 @@ def test_suggestion_none_when_no_candidate() -> None:
     assert svc._build_suggestion("nsn", {}, {}) is None
 
 
+def test_candidate_types_are_read_only_exact_match_categories() -> None:
+    assert svc._build_candidate("nsn", {}, {}, set()).candidate_type == "NO_EXACT_MATCH"
+    assert (
+        svc._build_candidate("nsn", {}, {"nsn": (7, "ing_c", "canonical")}, set()).candidate_type
+        == "CANONICAL_EXACT_MATCH"
+    )
+    assert (
+        svc._build_candidate("nsn", {"nsn": (7, "ing_c", "canonical")}, {}, set()).candidate_type
+        == "ALIAS_EXACT_MATCH"
+    )
+    assert (
+        svc._build_candidate(
+            "nsn",
+            {"nsn": (7, "ing_c", "canonical")},
+            {"nsn": (9, "ing_other", "other")},
+            set(),
+        ).candidate_type
+        == "EXACT_MATCH_CONFLICT"
+    )
+    assert (
+        svc._build_candidate("nsn", {}, {}, {"nsn"}).candidate_type == "EXACT_MATCH_CONFLICT"
+    )
+
+
 def test_normalize_status_filter_rejects_unknown() -> None:
     with pytest.raises(ApiError) as exc:
         svc._normalize_status_filter("BOGUS")
@@ -132,6 +217,24 @@ def test_normalize_limit_bounds() -> None:
         with pytest.raises(ApiError) as exc:
             svc._normalize_limit(bad)
         assert exc.value.code == "INVALID_LIMIT"
+
+
+def test_normalize_sort_rejects_unknown() -> None:
+    assert svc._normalize_sort(None) == "CODE_ASC"
+    assert svc._normalize_sort("") == "CODE_ASC"
+    assert svc._normalize_sort("connection_desc") == "CONNECTION_DESC"
+    with pytest.raises(ApiError) as exc:
+        svc._normalize_sort("BOGUS")
+    assert exc.value.code == "INVALID_INGREDIENT_MAPPING_SORT"
+
+
+def test_normalize_candidate_type_rejects_unknown() -> None:
+    assert svc._normalize_candidate_type(None) is None
+    assert svc._normalize_candidate_type("") is None
+    assert svc._normalize_candidate_type("alias_exact_match") == "ALIAS_EXACT_MATCH"
+    with pytest.raises(ApiError) as exc:
+        svc._normalize_candidate_type("SOURCE_ERROR")
+    assert exc.value.code == "INVALID_INGREDIENT_MAPPING_CANDIDATE"
 
 
 # --- 라우트 인가/검증 (SQL 실행 전에 결정됨) ------------------------------
@@ -208,6 +311,22 @@ def test_list_rejects_invalid_final_disposition_before_query(client: TestClient,
     response = client.get("/api/admin/ingredient-mappings", params={"final_disposition": "BOGUS"})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION"
+
+
+def test_list_rejects_invalid_sort_before_query(client: TestClient, db_engine: Engine) -> None:
+    _signup(client, ADMIN_EMAIL, "admin-mapping")
+    _promote_admin(db_engine, ADMIN_EMAIL)
+    response = client.get("/api/admin/ingredient-mappings", params={"sort": "BOGUS"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_SORT"
+
+
+def test_list_rejects_invalid_candidate_type_before_query(client: TestClient, db_engine: Engine) -> None:
+    _signup(client, ADMIN_EMAIL, "admin-mapping")
+    _promote_admin(db_engine, ADMIN_EMAIL)
+    response = client.get("/api/admin/ingredient-mappings", params={"candidate_type": "SOURCE_ERROR"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_CANDIDATE"
 
 
 def test_list_rejects_invalid_limit_before_query(client: TestClient, db_engine: Engine) -> None:

@@ -2,11 +2,14 @@ import { useState } from "react";
 
 import {
   IngredientMappingAction,
+  IngredientMappingCandidateFilter,
+  IngredientMappingCandidateType,
   IngredientMappingFinalDisposition,
   IngredientMappingMatchSource,
   IngredientMappingNonMappingFinalDisposition,
   IngredientMappingStatus,
-  IngredientMappingStatusFilter
+  IngredientMappingStatusFilter,
+  IngredientMappingSort
 } from "../api/adminIngredientMappingApi";
 import { useAdminIngredientMappings } from "./useAdminIngredientMappings";
 
@@ -55,6 +58,13 @@ const NON_MAPPING_FINAL_DISPOSITIONS: IngredientMappingNonMappingFinalDispositio
 const MATCH_SOURCE_LABELS: Record<IngredientMappingMatchSource, string> = {
   ALIAS_EXACT: "별칭 정확 일치",
   CANONICAL_NAME_EXACT: "표준명 정확 일치"
+};
+
+const CANDIDATE_TYPE_LABELS: Record<IngredientMappingCandidateType, string> = {
+  CANONICAL_EXACT_MATCH: "정식명 정확 일치",
+  ALIAS_EXACT_MATCH: "별칭 정확 일치",
+  EXACT_MATCH_CONFLICT: "정확 일치 충돌",
+  NO_EXACT_MATCH: "정확 일치 없음"
 };
 
 const ACTION_LABELS: Record<IngredientMappingAction, string> = {
@@ -109,6 +119,8 @@ export function AdminIngredientMappingSection({
   const {
     statusFilter,
     finalDispositionFilter,
+    sort,
+    candidateFilter,
     queryInput,
     setQueryInput,
     items,
@@ -121,6 +133,8 @@ export function AdminIngredientMappingSection({
     applySearch,
     setStatusFilter,
     setFinalDispositionFilter,
+    setSort,
+    setCandidateFilter,
     resetFilters,
     refresh,
     loadMore,
@@ -334,6 +348,29 @@ export function AdminIngredientMappingSection({
               <option value="SOURCE_ERROR">원문 오류</option>
               <option value="UNRESOLVABLE">근거 부족</option>
             </select>
+            <select
+              aria-label="검수 우선순위"
+              className="admin-secondary-button"
+              onChange={(event) => setSort(event.target.value as IngredientMappingSort)}
+              value={sort}
+            >
+              <option value="CODE_ASC">코드순</option>
+              <option value="CONNECTION_DESC">연결 상품 많은 순</option>
+            </select>
+            <select
+              aria-label="처리 후보"
+              className="admin-secondary-button"
+              onChange={(event) =>
+                setCandidateFilter(event.target.value as IngredientMappingCandidateFilter)
+              }
+              value={candidateFilter}
+            >
+              <option value="ALL">처리 후보 전체</option>
+              <option value="CANONICAL_EXACT_MATCH">정식명 정확 일치</option>
+              <option value="ALIAS_EXACT_MATCH">별칭 정확 일치</option>
+              <option value="EXACT_MATCH_CONFLICT">정확 일치 충돌</option>
+              <option value="NO_EXACT_MATCH">정확 일치 없음</option>
+            </select>
             <input
               aria-label="성분명·코드 검색"
               onChange={(event) => setQueryInput(event.target.value)}
@@ -419,13 +456,10 @@ export function AdminIngredientMappingSection({
                         <small className="admin-product-code">상품 {formatCount(row.productCount)}</small>
                       </td>
                       <td>
-                        {row.suggestion ? (
-                          <small className="admin-product-code">
-                            {MATCH_SOURCE_LABELS[row.suggestion.matchSource]}
-                          </small>
-                        ) : (
-                          "-"
-                        )}
+                        <small className="admin-product-code">
+                          {CANDIDATE_TYPE_LABELS[row.candidate.candidateType]}
+                          {row.suggestion ? ` · ${MATCH_SOURCE_LABELS[row.suggestion.matchSource]}` : ""}
+                        </small>
                       </td>
                       <td>
                         <span className={`admin-badge ${STATUS_TONES[row.status]}`}>
@@ -511,6 +545,13 @@ export function AdminIngredientMappingSection({
                   {detail.suggestion
                     ? `${detail.suggestion.targetIngredientName} (${MATCH_SOURCE_LABELS[detail.suggestion.matchSource]})`
                     : "없음 — canonical 직접 검색 필요"}
+                </dd>
+              </div>
+              <div>
+                <dt>처리 후보</dt>
+                <dd>
+                  {CANDIDATE_TYPE_LABELS[detail.candidate.candidateType]}
+                  {` · ${detail.candidate.evidence}`}
                 </dd>
               </div>
               {detail.decision && (

@@ -4,9 +4,11 @@ import type { ApiError } from "../../../types/recommendation";
 import {
   CanonicalIngredientSearchItem,
   IngredientMappingDetail,
+  IngredientMappingCandidateFilter,
   IngredientMappingFinalDisposition,
   IngredientMappingNonMappingFinalDisposition,
   IngredientMappingRow,
+  IngredientMappingSort,
   IngredientMappingStatusFilter,
   IngredientMappingSummary,
   approveIngredientMapping,
@@ -42,9 +44,11 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   const [finalDispositionFilter, setFinalDispositionFilter] = useState<
     IngredientMappingFinalDisposition | "ALL"
   >("ALL");
+  const [sort, setSort] = useState<IngredientMappingSort>("CODE_ASC");
+  const [candidateFilter, setCandidateFilter] = useState<IngredientMappingCandidateFilter>("ALL");
   const [queryInput, setQueryInput] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const filterScopeKey = `${statusFilter}::${finalDispositionFilter}::${submittedQuery}`;
+  const filterScopeKey = `${statusFilter}::${finalDispositionFilter}::${sort}::${candidateFilter}::${submittedQuery}`;
 
   const [items, setItems] = useState<IngredientMappingRow[]>([]);
   const [summary, setSummary] = useState<IngredientMappingSummary | null>(null);
@@ -72,6 +76,8 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
         const result = await getIngredientMappings({
           status: statusFilter,
           finalDisposition: finalDispositionFilter === "ALL" ? null : finalDispositionFilter,
+          sort,
+          candidateType: candidateFilter === "ALL" ? null : candidateFilter,
           q: submittedQuery.trim() || null,
           limit: PAGE_LIMIT,
           cursor
@@ -94,7 +100,7 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
         }
       }
     },
-    [statusFilter, finalDispositionFilter, submittedQuery]
+    [statusFilter, finalDispositionFilter, sort, candidateFilter, submittedQuery]
   );
 
   // 필터·검색 변경 시 첫 페이지부터 다시 조회(cursor 초기화).
@@ -102,7 +108,7 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     if (!enabled) return;
     void Promise.resolve().then(() => fetchList("reset", null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, statusFilter, finalDispositionFilter, submittedQuery]);
+  }, [enabled, statusFilter, finalDispositionFilter, sort, candidateFilter, submittedQuery]);
 
   const refresh = useCallback((): Promise<boolean> => {
     if (!enabled) return Promise.resolve(false);
@@ -164,10 +170,28 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     [clearSelectedMapping]
   );
 
+  const changeSort = useCallback(
+    (value: IngredientMappingSort) => {
+      clearSelectedMapping();
+      setSort(value);
+    },
+    [clearSelectedMapping]
+  );
+
+  const changeCandidateFilter = useCallback(
+    (value: IngredientMappingCandidateFilter) => {
+      clearSelectedMapping();
+      setCandidateFilter(value);
+    },
+    [clearSelectedMapping]
+  );
+
   const resetFilters = useCallback(() => {
     clearSelectedMapping();
     setStatusFilter("ALL");
     setFinalDispositionFilter("ALL");
+    setSort("CODE_ASC");
+    setCandidateFilter("ALL");
     setQueryInput("");
     setSubmittedQuery("");
   }, [clearSelectedMapping]);
@@ -335,6 +359,8 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   return {
     statusFilter,
     finalDispositionFilter,
+    sort,
+    candidateFilter,
     queryInput,
     setQueryInput,
     items,
@@ -347,6 +373,8 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     applySearch,
     setStatusFilter: changeStatusFilter,
     setFinalDispositionFilter: changeFinalDispositionFilter,
+    setSort: changeSort,
+    setCandidateFilter: changeCandidateFilter,
     resetFilters,
     refresh,
     loadMore,

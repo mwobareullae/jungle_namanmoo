@@ -23,7 +23,13 @@
 
 - `status`: `PENDING | HELD | NEEDS_REVIEW | APPROVED | REJECTED`
 - `final_disposition`: 최종 분류 5개 중 하나
+- `sort`: `CODE_ASC`(기본) | `CONNECTION_DESC`(연결 상품 수 내림차순)
+- `candidate_type`: `CANONICAL_EXACT_MATCH` | `ALIAS_EXACT_MATCH` | `EXACT_MATCH_CONFLICT` | `NO_EXACT_MATCH`
 - `q`, `limit`, `cursor`
+- `CONNECTION_DESC`는 pending 원문 그룹이 연결된 상품 수만 기준으로 우선 검수 순서를 정한다. 기존 alias/canonical 정확 일치 후보 표시는 그대로 사용하며, 이 정렬은 자동 승인·최종 분류·기존 상품 성분 변경을 수행하지 않는다.
+- `candidate_type`은 등록된 정식명·별칭의 **정확 일치 여부**를 읽기 전용 처리 후보로 나눈다. `EXACT_MATCH_CONFLICT`, `NO_EXACT_MATCH`는 자동 결론이 아니라 관리자 근거 검토 대상이다. 원문 오류·성분 아님·복합 원료를 자동으로 추정하지 않는다.
+- 각 항목의 `candidate`에는 후보 유형과 판단 근거가 포함된다. `suggestion`은 정확 일치로 단일 canonical 후보가 있을 때만 제공한다.
+- `cursor`는 `sort`, `candidate_type`까지 포함한 조회 범위와 함께 검증한다. 다른 정렬 또는 후보 필터로 재사용하면 `400 INVALID_CURSOR`다.
 - 상태와 최종 분류 필터를 모두 생략하면 임시 상태(`PENDING`, `HELD`, `NEEDS_REVIEW`)만 반환한다.
 - `cursor`는 `status`, `final_disposition`, `q`와 함께 묶인다. 다른 필터로 재사용하면 `400 INVALID_CURSOR`다.
 

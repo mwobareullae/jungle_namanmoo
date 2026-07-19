@@ -18,17 +18,29 @@ export type IngredientMappingNonMappingFinalDisposition = Exclude<
   "MAPPED"
 >;
 export type IngredientMappingMatchSource = "ALIAS_EXACT" | "CANONICAL_NAME_EXACT";
+export type IngredientMappingCandidateType =
+  | "CANONICAL_EXACT_MATCH"
+  | "ALIAS_EXACT_MATCH"
+  | "EXACT_MATCH_CONFLICT"
+  | "NO_EXACT_MATCH";
 export type IngredientMappingAction = "APPROVE" | "HOLD" | "REJECT" | "REOPEN";
 export type IngredientMappingDecisionStatus = "HELD" | "NEEDS_REVIEW" | "APPROVED" | "REJECTED";
 
 // 목록 필터. "ALL" 은 프론트 전용(백엔드로는 status 미전송).
 export type IngredientMappingStatusFilter = "ALL" | IngredientMappingStatus;
+export type IngredientMappingSort = "CODE_ASC" | "CONNECTION_DESC";
+export type IngredientMappingCandidateFilter = "ALL" | IngredientMappingCandidateType;
 
 export type IngredientMappingSuggestion = {
   targetIngredientId: number;
   targetIngredientCode: string;
   targetIngredientName: string;
   matchSource: IngredientMappingMatchSource;
+};
+
+export type IngredientMappingCandidate = {
+  candidateType: IngredientMappingCandidateType;
+  evidence: string;
 };
 
 export type IngredientMappingDecision = {
@@ -48,6 +60,7 @@ export type IngredientMappingRow = {
   productCount: number;
   connectionCount: number;
   status: IngredientMappingStatus;
+  candidate: IngredientMappingCandidate;
   suggestion: IngredientMappingSuggestion | null;
   decision: IngredientMappingDecision | null;
   availableActions: IngredientMappingAction[];
@@ -106,6 +119,8 @@ export type IngredientMappingDetail = IngredientMappingRow & {
 export type IngredientMappingQuery = {
   status?: IngredientMappingStatusFilter;
   finalDisposition?: IngredientMappingFinalDisposition | null;
+  sort?: IngredientMappingSort;
+  candidateType?: IngredientMappingCandidateType | null;
   q?: string | null;
   limit?: number;
   cursor?: string | null;
@@ -116,6 +131,11 @@ type BackendSuggestion = {
   target_ingredient_code: string;
   target_ingredient_name: string;
   match_source: IngredientMappingMatchSource;
+};
+
+type BackendCandidate = {
+  candidate_type: IngredientMappingCandidateType;
+  evidence: string;
 };
 
 type BackendDecision = {
@@ -135,6 +155,7 @@ type BackendRow = {
   product_count: number;
   connection_count: number;
   status: IngredientMappingStatus;
+  candidate: BackendCandidate;
   suggestion: BackendSuggestion | null;
   decision: BackendDecision | null;
   available_actions: IngredientMappingAction[];
@@ -221,6 +242,11 @@ const adaptSuggestion = (suggestion: BackendSuggestion | null): IngredientMappin
         matchSource: suggestion.match_source
       };
 
+const adaptCandidate = (candidate: BackendCandidate): IngredientMappingCandidate => ({
+  candidateType: candidate.candidate_type,
+  evidence: candidate.evidence
+});
+
 const adaptDecision = (decision: BackendDecision | null): IngredientMappingDecision | null =>
   decision === null
     ? null
@@ -241,6 +267,7 @@ const adaptRow = (row: BackendRow): IngredientMappingRow => ({
   productCount: row.product_count,
   connectionCount: row.connection_count,
   status: row.status,
+  candidate: adaptCandidate(row.candidate),
   suggestion: adaptSuggestion(row.suggestion),
   decision: adaptDecision(row.decision),
   availableActions: row.available_actions
@@ -282,6 +309,8 @@ export const getIngredientMappings = async (
   const params = new URLSearchParams();
   if (query.status && query.status !== "ALL") params.set("status", query.status);
   if (query.finalDisposition) params.set("final_disposition", query.finalDisposition);
+  if (query.sort && query.sort !== "CODE_ASC") params.set("sort", query.sort);
+  if (query.candidateType) params.set("candidate_type", query.candidateType);
   if (query.q) params.set("q", query.q);
   if (query.limit) params.set("limit", String(query.limit));
   if (query.cursor) params.set("cursor", query.cursor);

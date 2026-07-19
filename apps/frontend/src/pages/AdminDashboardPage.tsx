@@ -4,6 +4,7 @@ import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStat
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
 import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
 import { AdminInventoryPriceSection } from "../features/admin/inventoryPrice/AdminInventoryPriceSection";
+import { AdminImageBulkLinkSection } from "../features/admin/imageBulkLink/AdminImageBulkLinkSection";
 import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import type { AdminBulkImportRowInput } from "../features/admin/api/adminBulkImportApi";
@@ -28,9 +29,6 @@ type AdminView =
   | "sellerSettlement";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type ExcelImportState = "idle" | "preview" | "submitting" | "done";
-type ImageBatchState = "idle" | "matched";
-type LocalSaveState = "idle" | "dirty" | "saved";
-type QueueState = "idle" | "pending" | "queued";
 type OperationLogRow = {
   id: string;
   time: string;
@@ -475,101 +473,6 @@ const parseExcelUpload = async (file: File): Promise<ExcelGrid | null> => {
   }
 };
 
-const imageFileRules = [
-  { label: "대표 이미지", value: "seller_sku_main.jpg / product_code_main.jpg" },
-  { label: "추가 이미지", value: "seller_sku_01.jpg, seller_sku_02.jpg" },
-  { label: "매핑표", value: "image_file_names 컬럼과 동일 파일명 우선" },
-  { label: "불가", value: "OCR로 상품명 추정 후 자동 확정 금지" }
-];
-
-const imageOcrCandidateRows = [
-  {
-    field: "상품명",
-    extracted: "한율 달빛유자C 세럼",
-    confidence: "높음",
-    decision: "상품명 후보"
-  },
-  {
-    field: "브랜드",
-    extracted: "한율",
-    confidence: "높음",
-    decision: "브랜드 후보"
-  },
-  {
-    field: "전성분",
-    extracted: "나이아신아마이드 2%, Citrus Junos Peel Extract",
-    confidence: "중간",
-    decision: "pending 검수"
-  },
-  {
-    field: "가격/재고",
-    extracted: "추출 불가",
-    confidence: "낮음",
-    decision: "엑셀/직접 입력 필요"
-  }
-];
-
-const imageMatchingSummary = [
-  { label: "전체 파일", value: "314", tone: "neutral" },
-  { label: "매칭 성공", value: "310", tone: "success" },
-  { label: "실패", value: "4", tone: "danger" },
-  { label: "대표 누락", value: "18", tone: "warning" }
-];
-
-const imageFailureRows = [
-  {
-    fileName: "roundlab_birch_main.jpeg",
-    productCode: "prod_010014",
-    reason: "확장자는 허용되지만 엑셀 image_file_names 값과 불일치",
-    action: "매핑표 수정"
-  },
-  {
-    fileName: "sku_unknown_03.jpg",
-    productCode: "추정 불가",
-    reason: "seller_sku 또는 product_code 접두사 없음",
-    action: "파일명 변경"
-  },
-  {
-    fileName: "prod_020771_main.png",
-    productCode: "prod_020771",
-    reason: "대표 이미지가 이미 등록됨",
-    action: "덮어쓰기 확인"
-  },
-  {
-    fileName: "prod_bm_1021_detail.webp",
-    productCode: "prod_bm_1021",
-    reason: "상세 이미지 순번 누락",
-    action: "순번 부여"
-  }
-];
-
-const imagePreviewRows = [
-  {
-    label: "대표",
-    fileName: "prod_000245_main.jpg",
-    productName: "토리든 다이브인 세럼",
-    tone: "success"
-  },
-  {
-    label: "상세 01",
-    fileName: "prod_000245_01.jpg",
-    productName: "토리든 다이브인 세럼",
-    tone: "success"
-  },
-  {
-    label: "확인",
-    fileName: "prod_020771_main.png",
-    productName: "닥터지 수딩 크림",
-    tone: "warning"
-  },
-  {
-    label: "실패",
-    fileName: "sku_unknown_03.jpg",
-    productName: "상품 미확정",
-    tone: "danger"
-  }
-];
-
 const initialOperationLogs: OperationLogRow[] = [
   {
     id: "log_initial_excel",
@@ -642,13 +545,9 @@ function AdminDashboardPage() {
   const [excelPreviewRows, setExcelPreviewRows] = useState<AdminBulkImportRowInput[]>([]);
   const [excelClientIssues, setExcelClientIssues] = useState<ExcelClientIssue[]>([]);
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
-  const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
-  const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
   const [orders] = useState<MockOrderRow[]>(mockOrderRows);
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
   const [toast, setToast] = useState<AdminToast>(null);
-  const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
-  const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
 
   const excelDisplayRows = useMemo<ExcelDisplayRow[]>(() => {
     if (bulkImport.result) {
@@ -908,54 +807,16 @@ function AdminDashboardPage() {
     pushOperationLog("엑셀", "템플릿 다운로드", "상품 대량 등록 CSV 템플릿 생성", "neutral");
   };
 
-  const handleFailureFile = (area: "엑셀" | "이미지" | "import") => {
-    if (area === "이미지") {
-      downloadTextFile(
-        "mwbl_image_match_failures.csv",
-        buildCsv([
-          ["file_name", "product_code", "reason", "action"],
-          ...imageFailureRows.map((row) => [row.fileName, row.productCode, row.reason, row.action])
-        ]),
-      );
-    } else {
-      downloadTextFile(
-        "mwbl_product_import_failures.csv",
-        buildCsv([
-          ["row", "import_sku", "status", "field", "value", "reason"],
-          ...excelDisplayRows.map((row) => [row.row, row.importSku, row.status, row.field, row.value, row.reason])
-        ]),
-      );
-    }
-
-    pushOperationLog(area, "실패 파일 다운로드", "검수 실패 행을 CSV로 생성", "neutral");
-  };
-
-  const handleImageMatch = () => {
-    setImageBatchState("matched");
-    setImageQueueState("pending");
-    setImageOcrState("idle");
-    pushOperationLog("이미지", "이미지 매칭 완료", `${imageBatchName} · 310개 연결`, "success");
-  };
-
-  const handleImageMappingDownload = () => {
+  const handleFailureFile = (area: "엑셀" | "import") => {
     downloadTextFile(
-      "mwbl_image_mapping_template.csv",
+      "mwbl_product_import_failures.csv",
       buildCsv([
-        ["seller_sku", "product_code", "image_file_name", "image_role", "sort_order"],
-        ["sku_torriden_divein_serum", "prod_000245", "prod_000245_main.jpg", "main", 0],
-        ["sku_torriden_divein_serum", "prod_000245", "prod_000245_01.jpg", "detail", 1]
+        ["row", "import_sku", "status", "field", "value", "reason"],
+        ...excelDisplayRows.map((row) => [row.row, row.importSku, row.status, row.field, row.value, row.reason])
       ]),
     );
-    pushOperationLog("이미지", "매핑표 다운로드", "파일명 기반 이미지 연결 CSV 생성", "neutral");
-  };
 
-  const handleImageOcrAssist = () => {
-    if (imageBatchState === "idle") {
-      return;
-    }
-
-    setImageOcrState("dirty");
-    pushOperationLog("이미지", "OCR 후보 추출", "상품명·브랜드·전성분 후보를 검수 목록에 표시", "warning");
+    pushOperationLog(area, "실패 파일 다운로드", "검수 실패 행을 CSV로 생성", "neutral");
   };
 
   const handlePendingItemClick = (item: PendingItem) => {
@@ -978,10 +839,8 @@ function AdminDashboardPage() {
     }
 
     if (item.action === "imageFailure") {
-      setImageBatchState("matched");
-      setImageQueueState("pending");
       setActiveView("imageUpload");
-      pushOperationLog("대시보드", "이미지 매칭 실패 확인", item.note, item.tone);
+      pushOperationLog("대시보드", "이미지 연결 화면 이동", item.note, item.tone);
       return;
     }
 
@@ -1676,237 +1535,7 @@ function AdminDashboardPage() {
     </section>
   );
 
-  const renderImageUpload = () => (
-    <section className="admin-excel-layout admin-image-layout admin-image-deferred">
-      <section className="admin-panel admin-excel-main">
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>상품 이미지 운영</p>
-            <h2>이미지 대량 연결은 추후 지원</h2>
-          </div>
-          <span className="admin-badge neutral">추후 지원</span>
-          <div className="admin-filter-row">
-            <button className="admin-secondary-button" onClick={handleImageMappingDownload} type="button">
-              매핑표
-            </button>
-            <button className="admin-primary-button" onClick={handleImageMatch} type="button">
-              매칭 실행
-            </button>
-          </div>
-        </div>
-
-        <div className="admin-state-banner neutral">
-          <strong>이미지 파일 업로드와 상품 연결 방식은 아직 준비 중입니다.</strong>
-          <span>상품 엑셀 대량등록은 이미지 없이 먼저 진행할 수 있습니다.</span>
-        </div>
-
-        <div className="admin-upload-zone" hidden>
-          <div>
-            <strong>{imageBatchName}</strong>
-            <p>ZIP 또는 이미지 묶음을 파일명 규칙과 엑셀 image_file_names 값으로 상품에 연결합니다.</p>
-          </div>
-          <label className="admin-upload-input">
-            파일 선택
-            <input
-              accept=".zip,image/jpeg,image/png,image/webp"
-              aria-label="상품 이미지 파일 선택"
-              multiple
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  setImageBatchName(event.target.files && event.target.files.length > 1 ? `${file.name} 외 ${event.target.files.length - 1}개` : file.name);
-                  setImageBatchState("idle");
-                  setImageQueueState("idle");
-                }
-              }}
-              type="file"
-            />
-          </label>
-        </div>
-
-        <div className="admin-excel-state-row">
-          <span className={`admin-badge ${imageBatchState === "matched" ? "success" : "neutral"}`}>
-            {imageBatchState === "matched" ? "매칭 완료" : "매칭 전"}
-          </span>
-          <span>
-            {imageQueueState === "queued"
-              ? "이미지 연결 job에 올라갔습니다. 실패 파일은 운영자 확인 목록에 남습니다."
-              : imageQueueState === "pending"
-                ? "매칭 결과를 확인한 뒤 연결 대기열에 추가할 수 있습니다."
-                : "자동 연결은 파일명/매핑표 exact 기준이며, OCR 추정은 자동 확정하지 않습니다."}
-          </span>
-        </div>
-      </section>
-
-      <aside className="admin-panel admin-template-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>파일명 규칙</p>
-            <h2>자동 연결 기준</h2>
-          </div>
-        </div>
-        <div className="admin-template-list">
-          {imageFileRules.map((rule) => (
-            <div key={rule.label}>
-              <span>
-                <strong>{rule.label}</strong>
-                <small>{rule.value}</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <section className="admin-panel admin-excel-summary-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>매칭 결과</p>
-            <h2>이미지 연결 요약</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={imageBatchState === "idle"}
-            onClick={() => handleFailureFile("이미지")}
-            type="button"
-          >
-            실패 파일
-          </button>
-        </div>
-        <div className="admin-excel-summary-grid">
-          {imageMatchingSummary.map((item) => (
-            <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{imageBatchState === "matched" ? item.value : "-"}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-image-ocr-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>라벨/상세이미지 OCR</p>
-            <h2>자동 등록 후보 추출 미리보기</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={imageBatchState === "idle"}
-            onClick={handleImageOcrAssist}
-            type="button"
-          >
-            OCR 후보 추출
-          </button>
-        </div>
-        <div className={`admin-state-banner ${imageOcrState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>{imageOcrState === "dirty" ? "검수 후보 생성됨" : "후보 추출 전"}</strong>
-          <span>
-            {imageOcrState === "dirty"
-              ? "상품명과 브랜드는 후보로 보여주고, 전성분은 pending 검수로 넘깁니다. 가격·재고는 이미지 단독 추출 대상이 아닙니다."
-              : "이미지 매칭 후 OCR 후보 추출을 누르면 상품 등록 후보값을 미리 볼 수 있습니다."}
-          </span>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table compact admin-image-ocr-table">
-            <thead>
-              <tr>
-                <th scope="col">필드</th>
-                <th scope="col">추출값</th>
-                <th scope="col">신뢰도</th>
-                <th scope="col">처리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imageOcrState === "dirty" ? (
-                imageOcrCandidateRows.map((row) => (
-                  <tr key={row.field}>
-                    <td>{row.field}</td>
-                    <td className="admin-file-name">{row.extracted}</td>
-                    <td>{row.confidence}</td>
-                    <td>{row.decision}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4}>
-                    <div className="admin-empty-state">
-                      <strong>아직 OCR 후보가 없습니다</strong>
-                      <span>이미지 매칭 실행 후 OCR 후보 추출을 누르면 자동 등록 가능값과 검수 필요값을 분리합니다.</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>미리보기</p>
-            <h2>연결 상태 샘플</h2>
-          </div>
-          <span className="admin-badge neutral">썸네일</span>
-        </div>
-        <div className="admin-image-preview-grid">
-          {imagePreviewRows.map((item) => (
-            <article className="admin-image-preview-card" key={item.fileName}>
-              <div className={`admin-image-thumb ${item.tone}`}>
-                <span>{item.label}</span>
-              </div>
-              <strong>{item.fileName}</strong>
-              <small>{item.productName}</small>
-              <b className={`admin-badge ${item.tone}`}>{item.label}</b>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-excel-failure-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>실패/확인 목록</p>
-            <h2>운영자 조치가 필요한 파일</h2>
-          </div>
-          <span className="admin-badge warning">확인 필요</span>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-excel-table">
-            <thead>
-              <tr>
-                <th scope="col">파일명</th>
-                <th scope="col">상품</th>
-                <th scope="col">사유</th>
-                <th scope="col">조치</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imageBatchState === "matched" ? (
-                imageFailureRows.map((row) => (
-                  <tr key={row.fileName}>
-                    <td className="admin-file-name">{row.fileName}</td>
-                    <td>{row.productCode}</td>
-                    <td>{row.reason}</td>
-                    <td>{row.action}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4}>
-                    <div className="admin-empty-state">
-                      <strong>아직 매칭 결과가 없습니다</strong>
-                      <span>이미지 묶음을 선택하고 매칭 실행을 누르면 실패 파일과 덮어쓰기 확인 대상이 표시됩니다.</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-    </section>
-  );
+  const renderImageUpload = () => <AdminImageBulkLinkSection parseSpreadsheet={parseExcelUpload} />;
 
   const renderStockPrice = () => <AdminInventoryPriceSection />;
 
