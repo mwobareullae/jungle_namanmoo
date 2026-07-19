@@ -504,9 +504,31 @@ function AdminDashboardPage() {
       { label: "재고 미확인", value: breakdown.unknownCount, color: "#c9cdd3" }
     ];
     const total = raw.reduce((sum, seg) => sum + seg.value, 0);
+    if (total <= 0) return raw.map((seg) => ({ ...seg, dash: 0, offset: 0 }));
+
+    // 판매중 비중이 압도적(예: 99%)이면 나머지 상태는 각도가 거의 0이라 도넛에서 안 보인다.
+    // 값이 있는 항목은 최소 이 비율만큼은 보이게 하고, 그만큼을 큰 항목들에서 나눠 덜어낸다.
+    // (같은 대시보드의 성분 검수 막대그래프도 Math.max(1.5, ...)로 동일한 문제를 처리한다.)
+    const MIN_SLICE_FRACTION = 0.025;
+    const smallLabels = new Set(
+      raw.filter((seg) => seg.value > 0 && seg.value / total < MIN_SLICE_FRACTION).map((seg) => seg.label)
+    );
+    const reserved = smallLabels.size * MIN_SLICE_FRACTION;
+    const largeTotal = raw
+      .filter((seg) => !smallLabels.has(seg.label))
+      .reduce((sum, seg) => sum + seg.value, 0);
+
     let acc = 0;
     return raw.map((seg) => {
-      const dash = total > 0 ? (seg.value / total) * DONUT_CIRC : 0;
+      let fraction: number;
+      if (seg.value <= 0) {
+        fraction = 0;
+      } else if (smallLabels.has(seg.label)) {
+        fraction = MIN_SLICE_FRACTION;
+      } else {
+        fraction = largeTotal > 0 ? (seg.value / largeTotal) * (1 - reserved) : 0;
+      }
+      const dash = fraction * DONUT_CIRC;
       const segment = { ...seg, dash, offset: -acc };
       acc += dash;
       return segment;
@@ -1418,31 +1440,6 @@ function AdminDashboardPage() {
 
   const renderStockPrice = () => <AdminInventoryPriceSection />;
 
-  const viewTitle =
-    activeView === "dashboard"
-      ? "대시보드"
-      : activeView === "products"
-        ? "상품 조회"
-        : activeView === "excelUpload"
-          ? "엑셀 대량 등록"
-          : activeView === "imageUpload"
-          ? "이미지 등록"
-          : activeView === "ingredientReview"
-            ? "성분 매핑 검수"
-            : activeView === "evidenceReview"
-              ? "논문 근거 관리"
-            : activeView === "stockPrice"
-              ? "재고·가격"
-              : activeView === "orderStatus"
-                ? "주문·결제"
-                : activeView === "sellers"
-                  ? "셀러 관리"
-                  : activeView === "sellerInspection"
-                    ? "셀러별 상품 검수"
-                    : activeView === "sellerSettlement"
-                      ? "셀러별 정산"
-                      : "상품 등록";
-
   if (access.status !== "authenticated") {
     return <AdminAccessNotice status={access.status} retry={access.retry} />;
   }
@@ -1532,12 +1529,7 @@ function AdminDashboardPage() {
 
       <section className="admin-main" id="admin-dashboard">
         <header className="admin-topbar">
-          <div>
-            <div className="admin-title-row">
-              <p>{viewTitle}</p>
-            </div>
-            <h1>상품 운영 관리자</h1>
-          </div>
+          <div />
           {toast && (
             <div className={`admin-toast ${toast.tone}`} role="status">
               <span>{toast.message}</span>
