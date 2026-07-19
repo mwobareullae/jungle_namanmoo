@@ -18,7 +18,9 @@ param(
     [ValidateSet("off", "cold", "warm")]
     [string]$CandidateCacheMode,
     [ValidatePattern("^[1-9][0-9]*[smh]$")]
-    [string]$CandidateCacheWarmupDuration
+    [string]$CandidateCacheWarmupDuration,
+    [ValidateRange(1, 4)]
+    [int]$UvicornWorkers
 )
 
 $ErrorActionPreference = "Stop"
@@ -120,6 +122,20 @@ function Set-RemoteCandidateCacheMode([string]$Mode, [string]$RemoteConfig, [has
     Invoke-Ssh "printf %s $encodedScript | base64 -d | bash" $Config
 }
 
+function Set-RemoteUvicornWorkers([int]$Workers, [string]$RemoteConfig, [hashtable]$Config) {
+    $remoteScript = @(
+        'set -euo pipefail',
+        "config='$RemoteConfig'",
+        "workers='$Workers'",
+        'tmp="${config}.tmp.$$"',
+        'awk -v workers="$workers" ''BEGIN { replaced=0 } /^BENCHMARK_UVICORN_WORKERS=/ { print "BENCHMARK_UVICORN_WORKERS=" workers; replaced=1; next } { print } END { if (!replaced) print "BENCHMARK_UVICORN_WORKERS=" workers }'' "$config" > "$tmp"',
+        'mv "$tmp" "$config"',
+        'echo "benchmark uvicorn workers configured: $workers"'
+    ) -join "`n"
+    $encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
+    Invoke-Ssh "printf %s $encodedScript | base64 -d | bash" $Config
+}
+
 function Wait-HttpReady([string]$Url, [int]$TimeoutSeconds = 90) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -146,7 +162,8 @@ $SshUser = Require-Config $Config "SSH_USER"
 $SshHost = Require-Config $Config "SSH_HOST"
 $SshKey = Require-Config $Config "SSH_KEY"
 $Remote = "$SshUser@$SshHost"
-$RunId = "recommendation-$Dataset-$UserType-$(Get-Date -Format yyyyMMdd-HHmmss)"
+$effectiveUvicornWorkers = if ($UvicornWorkers -gt 0) { $UvicornWorkers } elseif ($Config.ContainsKey("BENCHMARK_UVICORN_WORKERS") -and $Config.BENCHMARK_UVICORN_WORKERS) { [int]$Config.BENCHMARK_UVICORN_WORKERS } else { 1 }
+$RunId = "recommendation-$Dataset-$UserType-w$effectiveUvicornWorkers-$(Get-Date -Format yyyyMMdd-HHmmss)"
 if ($StageId -or $RunKind -or $Topic) {
     if (-not $StageId -or -not $RunKind) {
         throw "분류 저장에는 StageId와 RunKind가 모두 필요합니다."
@@ -186,6 +203,9 @@ Set-RemoteBenchmarkDatabase $Dataset $RemoteConfig $Config
 
 Write-Host "[cache] candidate cache mode=$effectiveCandidateCacheMode"
 Set-RemoteCandidateCacheMode $effectiveCandidateCacheMode $RemoteConfig $Config
+
+Write-Host "[runtime] benchmark uvicorn workers=$effectiveUvicornWorkers"
+Set-RemoteUvicornWorkers $effectiveUvicornWorkers $RemoteConfig $Config
 
 Write-Host "[3/11] benchmark backend 활성화"
 $activateCommand = 'cd ' + $RemoteAppDir + ' && BENCHMARK_CONFIG_FILE=' + $RemoteConfig + ' ' + $RemoteCtl + ' activate ' + $Dataset
