@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -14,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductPrice
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
 from app.db.models.commerce import Inventory, Seller
 from app.schemas.admin.product import (
     AdminProductCreateRequest,
@@ -28,20 +27,22 @@ from app.services.product_pricing import (
     build_product_url,
     get_or_create_first_party_price_for_update,
 )
+from app.services.product_thumbnail import (
+    normalize_thumbnail_storage_key,
+    set_product_thumbnail,
+)
 
 
 FIRST_PARTY_SELLER_CODE = "mwobareullae"
 PRODUCT_CODE_PREFIX = "prod_mwbl_"
 PRODUCT_CODE_RETRY_LIMIT = 3
 MAX_DESCRIPTION_LENGTH = 10_000
-MAX_STORAGE_KEY_LENGTH = 500
-THUMBNAIL_IMAGE_TYPE = "thumbnail"
-THUMBNAIL_DISPLAY_ORDER = 0
 # 프론트 getStaticAssetUrl/getProductImageUrl(imageUrls.ts)의 absoluteUrlPattern과 동일 정의.
 # storage_key는 CDN 버킷 내 상대 경로여야 한다 — 완성 URL을 그대로 받으면 프론트가
 # CDN_BASE + "/resized/w400/" + storage_key 로 조합할 때 깨지고, product-image-response-contract.md
 # 가 금지한 원본(예: 올리브영) URL 노출로 이어질 수 있다.
-_ABSOLUTE_URL_PATTERN = re.compile(r"^[a-z][a-z\d+.-]*://", re.IGNORECASE)
+
+
 
 
 def create_admin_product(
@@ -59,7 +60,7 @@ def create_admin_product(
     name = _normalize_required_text(request.name, "name", max_length=512)
     price = _normalize_price(request.price)
     description = _normalize_description(request.description)
-    thumbnail_storage_key = _normalize_thumbnail_storage_key(request.thumbnail_storage_key)
+    thumbnail_storage_key = normalize_thumbnail_storage_key(request.thumbnail_storage_key)
 
     product = _insert_product_with_code_retry(
         session,
@@ -95,15 +96,8 @@ def create_admin_product(
     )
     if thumbnail_storage_key is not None:
         # 신규 상품이라 이 product_id 로는 아직 어떤 product_images 행도 없다 — 충돌 가능성 없이
-        # 바로 추가한다(기존 행과의 충돌 처리는 update 쪽 _set_thumbnail_image 에서 담당).
-        session.add(
-            ProductImage(
-                product_id=product.id,
-                image_type=THUMBNAIL_IMAGE_TYPE,
-                display_order=THUMBNAIL_DISPLAY_ORDER,
-                storage_key=thumbnail_storage_key,
-            )
-        )
+        # 신규 상품도 수정·대량 연결 경로와 같은 공용 헬퍼로 동기화한다.
+        set_product_thumbnail(session, product, thumbnail_storage_key)
     session.flush()
     return get_admin_product_detail(session, product.product_code)
 
@@ -172,12 +166,14 @@ def update_admin_product(
         price_row.product_url = build_product_url(product.product_code)
         price_row.collected_at = timestamp
 
+    thumbnail_changed = False
     if "thumbnail_storage_key" in fields:
-        _set_thumbnail_image(
-            session, product.id, _normalize_thumbnail_storage_key(request.thumbnail_storage_key)
+        thumbnail_changed = set_product_thumbnail(
+            session, product, normalize_thumbnail_storage_key(request.thumbnail_storage_key)
         )
 
-    product.updated_at = timestamp
+    if fields != {"thumbnail_storage_key"} or thumbnail_changed:
+        product.updated_at = timestamp
     session.flush()
     return get_admin_product_detail(session, product.product_code)
 
@@ -275,70 +271,6 @@ def _normalize_price(value: int | None) -> int:
     if value is None or value <= 0 or value > MAX_PRODUCT_PRICE:
         raise ApiError(400, "INVALID_PRODUCT_FIELD", "price must be between 1 and 100,000,000.")
     return value
-
-
-def _normalize_thumbnail_storage_key(value: str | None) -> str | None:
-    # 빈 문자열은 "값 없음"과 동일하게 취급한다(description 정규화와 동일 관례).
-    # 업로드 API 는 M3-A 범위 밖이라 파일 실존 여부는 검증하지 않는다 — admin이 이미
-    # 스토리지/CDN에 올려둔 storage_key 를 그대로 신뢰한다. 다만 "완성 URL이 아니라
-    # storage_key만 허용" 계약은 지켜야 하므로 절대 URL·경로 이동 표현은 거절한다.
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    if len(normalized) > MAX_STORAGE_KEY_LENGTH:
-        raise ApiError(400, "INVALID_PRODUCT_FIELD", "Invalid thumbnail_storage_key.")
-    if _ABSOLUTE_URL_PATTERN.match(normalized):
-        raise ApiError(
-            400, "INVALID_PRODUCT_FIELD", "thumbnail_storage_key must be a storage key, not an absolute URL."
-        )
-    if ".." in normalized:
-        raise ApiError(400, "INVALID_PRODUCT_FIELD", "thumbnail_storage_key must not contain '..'.")
-    return normalized
-
-
-def _set_thumbnail_image(session: Session, product_id: int, storage_key: str | None) -> None:
-    """대표(thumbnail) 이미지 1장만 upsert/삭제한다. 갤러리 전체 관리는 M3-A 범위 밖."""
-
-    existing = session.execute(
-        select(ProductImage)
-        .where(
-            ProductImage.product_id == product_id,
-            ProductImage.image_type == THUMBNAIL_IMAGE_TYPE,
-            ProductImage.display_order == THUMBNAIL_DISPLAY_ORDER,
-        )
-        .with_for_update()
-    ).scalar_one_or_none()
-
-    if storage_key is None:
-        if existing is not None:
-            session.delete(existing)
-        return
-
-    if existing is not None:
-        existing.storage_key = storage_key
-    else:
-        session.add(
-            ProductImage(
-                product_id=product_id,
-                image_type=THUMBNAIL_IMAGE_TYPE,
-                display_order=THUMBNAIL_DISPLAY_ORDER,
-                storage_key=storage_key,
-            )
-        )
-
-    try:
-        # storage_key 가 이 상품의 다른(예: detail) 이미지 행과 겹치면
-        # uq_product_images_product_storage_key 위반 — 이 행만 격리해 깔끔한 409로 변환한다.
-        with session.begin_nested():
-            session.flush()
-    except IntegrityError as exc:
-        raise ApiError(
-            409,
-            "PRODUCT_IMAGE_STORAGE_KEY_CONFLICT",
-            "이미 같은 storage_key를 사용하는 이미지가 있습니다.",
-        ) from exc
 
 
 def _generate_product_code() -> str:

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_current_admin
 from app.api.routes.admin import (
+    dashboard,
     inventory_price,
     ingredient_mappings,
     order_cancel_requests,
@@ -33,3 +34,4 @@ admin_router.include_router(order_claims.router)
 admin_router.include_router(products.router)
 admin_router.include_router(inventory_price.router)
 admin_router.include_router(ingredient_mappings.router)
+admin_router.include_router(dashboard.router)

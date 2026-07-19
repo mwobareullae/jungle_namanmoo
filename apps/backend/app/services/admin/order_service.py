@@ -136,7 +136,7 @@ def list_admin_orders(
     )
     return AdminOrderListResponse(
         items=items,
-        summary=_compute_summary(session),
+        summary=get_admin_order_summary(session),
         next_cursor=next_cursor,
     )
 
@@ -502,7 +502,8 @@ def _to_shipment_response(order: Order, payment: Payment | None) -> AdminOrderSh
     )
 
 
-def _compute_summary(session: Session) -> AdminOrderSummary:
+def get_admin_order_summary(session: Session) -> AdminOrderSummary:
+    """관리자 주문 목록과 대시보드가 공유하는 전체 현재 상태 요약을 반환한다."""
     status_counts = dict(
         session.execute(
             select(Order.status, func.count()).group_by(Order.status)
