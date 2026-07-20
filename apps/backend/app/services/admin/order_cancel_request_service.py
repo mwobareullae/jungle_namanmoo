@@ -8,7 +8,7 @@ payment_cancel_service.cancel_paid_order() 를 재사용해 실제 취소를 처
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
@@ -18,6 +18,7 @@ from app.schemas.admin.order_cancel_request import (
     AdminOrderCancelRequestDetailResponse,
     AdminOrderCancelRequestItem,
     AdminOrderCancelRequestListResponse,
+    AdminOrderCancelRequestPagination,
 )
 from app.schemas.common import ApiError
 from app.services.payment_cancel_service import cancel_paid_order
@@ -36,32 +37,30 @@ PAYMENT_PROVIDER_MOCK = "MOCK"
 PAYMENT_PROVIDER_TOSS = "TOSS"
 ADMIN_CANCEL_SUPPORTED_PROVIDERS = {PAYMENT_PROVIDER_MOCK, PAYMENT_PROVIDER_TOSS}
 
-DEFAULT_LIMIT = 20
-MAX_LIMIT = 50
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
 
 
 def list_admin_cancel_requests(
     session: Session,
     *,
     status: str | None,
-    limit: int,
-    cursor: str | None,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> AdminOrderCancelRequestListResponse:
     normalized_status = _normalize_status(status)
-    normalized_limit = _normalize_limit(limit)
-    cursor_request = _load_cursor_request(session, cursor)
+    normalized_page = page if page >= 1 else DEFAULT_PAGE
+    normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
 
     conditions = []
     if normalized_status is not None:
         conditions.append(OrderCancelRequest.status == normalized_status)
-    if cursor_request is not None:
-        conditions.append(
-            (OrderCancelRequest.requested_at < cursor_request.requested_at)
-            | (
-                (OrderCancelRequest.requested_at == cursor_request.requested_at)
-                & (OrderCancelRequest.id < cursor_request.id)
-            )
-        )
+
+    total_items = session.execute(
+        select(func.count()).select_from(OrderCancelRequest).where(*conditions)
+    ).scalar_one()
+    total_pages = max((total_items + normalized_page_size - 1) // normalized_page_size, 1)
 
     rows = session.execute(
         select(OrderCancelRequest, Order, Payment)
@@ -69,17 +68,26 @@ def list_admin_cancel_requests(
         .outerjoin(Payment, Payment.order_id == Order.id)
         .where(*conditions)
         .order_by(OrderCancelRequest.requested_at.desc(), OrderCancelRequest.id.desc())
-        .limit(normalized_limit + 1)
+        .limit(normalized_page_size)
+        .offset((normalized_page - 1) * normalized_page_size)
     ).all()
-    visible_rows = list(rows[:normalized_limit])
 
-    users_by_id = _load_users_by_id(session, [int(order.user_id) for _request, order, _payment in visible_rows])
+    users_by_id = _load_users_by_id(session, [int(order.user_id) for _request, order, _payment in rows])
     items = [
         _to_list_item(request, order=order, payment=payment, user=users_by_id.get(int(order.user_id)))
-        for request, order, payment in visible_rows
+        for request, order, payment in rows
     ]
-    next_cursor = str(visible_rows[-1][0].id) if len(rows) > normalized_limit and visible_rows else None
-    return AdminOrderCancelRequestListResponse(items=items, next_cursor=next_cursor)
+    return AdminOrderCancelRequestListResponse(
+        items=items,
+        pagination=AdminOrderCancelRequestPagination(
+            page=normalized_page,
+            page_size=normalized_page_size,
+            total_items=total_items,
+            total_pages=total_pages,
+            has_next=normalized_page < total_pages,
+            has_prev=normalized_page > 1,
+        ),
+    )
 
 
 def get_admin_cancel_request(session: Session, request_code: str) -> AdminOrderCancelRequestDetailResponse:
@@ -250,29 +258,6 @@ def _normalize_status(status: str | None) -> str | None:
     if normalized not in CANCEL_REQUEST_STATUSES:
         raise ApiError(400, "INVALID_CANCEL_REQUEST_STATUS", "Invalid cancel request status.")
     return normalized
-
-
-def _normalize_limit(limit: int) -> int:
-    if limit < 1:
-        raise ApiError(400, "INVALID_LIMIT", "limit must be at least 1.")
-    return min(limit, MAX_LIMIT)
-
-
-def _load_cursor_request(session: Session, cursor: str | None) -> OrderCancelRequest | None:
-    if cursor is None or not cursor.strip():
-        return None
-    try:
-        cursor_id = int(cursor)
-    except ValueError as exc:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.") from exc
-    if cursor_id <= 0:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
-    request = session.execute(
-        select(OrderCancelRequest).where(OrderCancelRequest.id == cursor_id)
-    ).scalar_one_or_none()
-    if request is None:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
-    return request
 
 
 def _load_request_row(
