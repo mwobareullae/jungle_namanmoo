@@ -39,6 +39,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
       if (typeof nextQuery !== "string" || !nextQuery.trim()) return;
 
       if (detail.profile) setProfile(detail.profile);
+      setQuery(nextQuery.trim());
       setIsSuggestionsOpen(false);
       callOriginal("closeSearchSuggestions");
     };
