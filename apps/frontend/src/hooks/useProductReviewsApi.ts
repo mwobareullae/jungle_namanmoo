@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, fetchWithTimeout, parseJson } from "../lib/api";
 import { getStaticAssetUrl } from "../lib/imageUrls";
 import type { ProductReviewSummary as ApiReviewSummary } from "../types/recommendation";
@@ -52,6 +52,7 @@ export const invalidateProductReviews = (productId: string | null | undefined) =
 };
 
 export type ProductReviewsQuery = {
+  append?: boolean;
   cursor?: string | null;
   sort?: "latest" | "helpful" | "rating_high" | "rating_low";
   reviewType?: "GENERAL" | "MONTH_USE";
@@ -152,6 +153,7 @@ export const useProductReviewsApi = (
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(productId));
   const [errorMessage, setErrorMessage] = useState("");
+  const loadedQueryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -162,6 +164,7 @@ export const useProductReviewsApi = (
         setHasNext(false);
         setNextCursor(null);
         setIsLoading(false);
+        loadedQueryKeyRef.current = null;
       });
       return () => {
         isMounted = false;
@@ -173,6 +176,7 @@ export const useProductReviewsApi = (
     if (query.reviewType) params.set("review_type", query.reviewType);
     if (query.repurchase !== undefined) params.set("repurchase", String(query.repurchase));
     if (query.skinType) params.set("skin_type", query.skinType);
+    const queryKey = `${productId}?sort=${query.sort ?? "helpful"}&review_type=${query.reviewType ?? ""}&repurchase=${query.repurchase ?? ""}&skin_type=${query.skinType ?? ""}`;
     queueMicrotask(() => {
       if (!isMounted) return;
       setIsLoading(true);
@@ -194,7 +198,15 @@ export const useProductReviewsApi = (
       .then((response) => {
         if (!isFresh) productReviewsCache.set(cacheKey, { value: response, expiresAt: Date.now() + PRODUCT_REVIEWS_CACHE_TTL_MS });
         if (isMounted) {
-          setReviews(response.items.map(mapReview));
+          const nextReviews = response.items.map(mapReview);
+          const shouldAppend = query.append === true && Boolean(query.cursor) && loadedQueryKeyRef.current === queryKey;
+          setReviews((current) => {
+            if (!shouldAppend) return nextReviews;
+
+            const existingIds = new Set(current.map((review) => review.id));
+            return [...current, ...nextReviews.filter((review) => !existingIds.has(review.id))];
+          });
+          loadedQueryKeyRef.current = queryKey;
           setHasNext(response.has_next);
           setNextCursor(response.next_cursor);
         }
@@ -215,7 +227,7 @@ export const useProductReviewsApi = (
     return () => {
       isMounted = false;
     };
-  }, [productId, query.cursor, query.repurchase, query.reviewType, query.skinType, query.sort]);
+  }, [productId, query.append, query.cursor, query.repurchase, query.reviewType, query.skinType, query.sort]);
 
   return useMemo(
     () => ({
