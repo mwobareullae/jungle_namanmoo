@@ -119,7 +119,8 @@
   font-size: 18px;
   font-weight: 800;
 }
-.naver-preview-review-line { padding-bottom: 16px; border-bottom: 1px solid #eee; }
+.naver-preview-review-line { display: flex; align-items: center; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid #eee; line-height: 1; }
+.naver-preview-review-line u { display: inline-flex; align-items: center; text-decoration: none; }
 .naver-preview-single-price { display: flex; align-items: baseline; justify-content: space-between; padding: 18px 0; border-bottom: 1px solid #eee; }
 .naver-preview-single-price span,
 .naver-preview-brand-row > b { color: #777; font-size: 13px; font-weight: 700; line-height: 1.55; }
