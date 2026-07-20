@@ -1,15 +1,43 @@
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createAddress, deleteAddress, getAddresses, updateAddress } from "../../lib/addressApi";
+import {
+  digitsOnly,
+  emptyPhoneParts,
+  hasText,
+  isCompletePhone,
+  joinPhone,
+  sanitizeRecipientName,
+  splitPhone
+} from "../../lib/addressValidation";
 import type { UserAddress, UserAddressCreateRequest } from "../../types/address";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
-type AddressForm = Omit<UserAddressCreateRequest, "is_default"> & { is_default: boolean };
-const emptyForm: AddressForm = { recipient_name: "", phone: "", postal_code: "", address1: "", address2: "", delivery_memo: "", is_default: false };
+type AddressForm = Omit<UserAddressCreateRequest, "phone" | "address2" | "is_default"> & {
+  phone_first: string;
+  phone_middle: string;
+  phone_last: string;
+  address2: string;
+  is_default: boolean;
+};
+
+const emptyForm: AddressForm = {
+  recipient_name: "",
+  phone_first: emptyPhoneParts.first,
+  phone_middle: emptyPhoneParts.middle,
+  phone_last: emptyPhoneParts.last,
+  postal_code: "",
+  address1: "",
+  address2: "",
+  delivery_memo: "",
+  is_default: false
+};
 
 const toForm = (address: UserAddress): AddressForm => ({
   recipient_name: address.recipient_name,
-  phone: address.phone,
+  phone_first: splitPhone(address.phone).first,
+  phone_middle: splitPhone(address.phone).middle,
+  phone_last: splitPhone(address.phone).last,
   postal_code: address.postal_code,
   address1: address.address1,
   address2: address.address2 ?? "",
@@ -47,26 +75,32 @@ export default function Addresses() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setErrorMessage("");
     setFormMode("create");
   };
 
   const openEdit = (address: UserAddress) => {
     setEditingId(address.id);
     setForm(toForm(address));
+    setErrorMessage("");
     setFormMode("edit");
   };
 
   const saveForm = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.recipient_name.trim() || !form.phone.trim() || !form.postal_code.trim() || !form.address1.trim()) {
-      setErrorMessage("받는 분, 연락처, 우편번호, 주소를 입력해주세요.");
-      return;
-    }
+    if (!hasText(form.recipient_name)) return setErrorMessage("받는 분을 입력해주세요.");
+    if (!isCompletePhone({ first: form.phone_first, middle: form.phone_middle, last: form.phone_last })) return setErrorMessage("연락처를 입력해주세요.");
+    if (!hasText(form.postal_code)) return setErrorMessage("우편번호를 입력해주세요.");
+    if (!hasText(form.address1)) return setErrorMessage("주소를 입력해주세요.");
+    if (!hasText(form.address2)) return setErrorMessage("상세 주소를 입력해주세요.");
     setIsSaving(true);
     setErrorMessage("");
     const payload: UserAddressCreateRequest = {
-      recipient_name: form.recipient_name.trim(), phone: form.phone.trim(), postal_code: form.postal_code.trim(),
-      address1: form.address1.trim(), address2: form.address2?.trim() || null,
+      recipient_name: form.recipient_name.trim(),
+      phone: joinPhone({ first: form.phone_first, middle: form.phone_middle, last: form.phone_last }),
+      postal_code: form.postal_code.trim(),
+      address1: form.address1.trim(),
+      address2: form.address2.trim(),
       delivery_memo: form.delivery_memo?.trim() || null, is_default: form.is_default
     };
     try {
@@ -113,7 +147,92 @@ export default function Addresses() {
           </div>
         )}
       </section>
-      {formMode !== "closed" ? <form onSubmit={saveForm} style={styles.form}><div style={styles.cardHeader}><h2 style={styles.title}>{formMode === "edit" ? "배송지 수정" : "새 배송지 추가"}</h2><button onClick={() => setFormMode("closed")} style={styles.closeButton} type="button">닫기</button></div>{(["recipient_name", "phone", "postal_code", "address1", "address2", "delivery_memo"] as const).map((field) => <label key={field} style={styles.field}>{({ recipient_name: "받는 분", phone: "연락처", postal_code: "우편번호", address1: "주소", address2: "상세 주소", delivery_memo: "배송 메모" } as Record<string, string>)[field]}<input required={["recipient_name", "phone", "postal_code", "address1"].includes(field)} value={form[field] ?? ""} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} style={styles.input} /></label>)}<label style={styles.checkbox}><input checked={form.is_default} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} type="checkbox" /> 기본 배송지로 설정</label><button disabled={isSaving} style={styles.saveButton} type="submit">{isSaving ? "저장 중" : "저장하기"}</button></form> : null}
+      {formMode !== "closed" ? (
+        <form onSubmit={saveForm} style={styles.form}>
+          <div style={styles.cardHeader}>
+            <h2 style={styles.title}>{formMode === "edit" ? "배송지 수정" : "새 배송지 추가"}</h2>
+            <button onClick={() => setFormMode("closed")} style={styles.closeButton} type="button">닫기</button>
+          </div>
+          <label style={styles.field}>
+            받는 분
+            <input
+              value={form.recipient_name}
+              onChange={(event) => setForm((current) => ({ ...current, recipient_name: sanitizeRecipientName(event.target.value) }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.field}>
+            연락처
+            <span style={styles.phoneRow}>
+              <input
+                aria-label="연락처 앞자리"
+                inputMode="numeric"
+                maxLength={3}
+                value={form.phone_first}
+                onChange={(event) => setForm((current) => ({ ...current, phone_first: digitsOnly(event.target.value) }))}
+                style={styles.phoneInput}
+              />
+              <span aria-hidden="true">-</span>
+              <input
+                aria-label="연락처 가운데 자리"
+                inputMode="numeric"
+                maxLength={4}
+                value={form.phone_middle}
+                onChange={(event) => setForm((current) => ({ ...current, phone_middle: digitsOnly(event.target.value) }))}
+                style={styles.phoneInput}
+              />
+              <span aria-hidden="true">-</span>
+              <input
+                aria-label="연락처 뒷자리"
+                inputMode="numeric"
+                maxLength={4}
+                value={form.phone_last}
+                onChange={(event) => setForm((current) => ({ ...current, phone_last: digitsOnly(event.target.value) }))}
+                style={styles.phoneInput}
+              />
+            </span>
+          </label>
+          <label style={styles.field}>
+            우편번호
+            <input
+              inputMode="numeric"
+              maxLength={5}
+              value={form.postal_code}
+              onChange={(event) => setForm((current) => ({ ...current, postal_code: digitsOnly(event.target.value) }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.field}>
+            주소
+            <input
+              value={form.address1}
+              onChange={(event) => setForm((current) => ({ ...current, address1: event.target.value }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.field}>
+            상세 주소
+            <input
+              value={form.address2}
+              onChange={(event) => setForm((current) => ({ ...current, address2: event.target.value }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.field}>
+            배송 메모
+            <input
+              value={form.delivery_memo ?? ""}
+              onChange={(event) => setForm((current) => ({ ...current, delivery_memo: event.target.value }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.checkbox}>
+            <input checked={form.is_default} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} type="checkbox" />
+            기본 배송지로 설정
+          </label>
+          <button disabled={isSaving} style={styles.saveButton} type="submit">{isSaving ? "저장 중" : "저장하기"}</button>
+        </form>
+      ) : null}
     </MyPageLayout>
   );
 }
@@ -131,6 +250,8 @@ const styles: Record<string, CSSProperties> = {
   actions: { display: "flex", flexWrap: "wrap" as const, justifyContent: "flex-end", gap: 6 },
   field: { display: "grid", gap: 7, color: "#444", fontSize: 13, fontWeight: 600 },
   input: { minHeight: 42, padding: "0 12px", border: "1px solid #dfe4e8", borderRadius: 8, background: "#fff", font: "inherit" },
+  phoneRow: { display: "grid", gridTemplateColumns: "88px auto 108px auto 108px", alignItems: "center", width: "fit-content", maxWidth: "100%", gap: 6 },
+  phoneInput: { minWidth: 0, minHeight: 42, padding: "0 8px", border: "1px solid #dfe4e8", borderRadius: 8, background: "#fff", font: "inherit", textAlign: "center" as const },
   state: { margin: 0, padding: "44px 0", color: "#8b929b", textAlign: "center" as const, fontSize: 14 },
   error: { margin: "0 0 14px", color: "#b42318", fontSize: 13 },
   checkbox: { display: "flex", alignItems: "center", gap: 8, color: "#555", fontSize: 13 },

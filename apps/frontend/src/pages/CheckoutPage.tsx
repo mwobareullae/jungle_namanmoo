@@ -8,6 +8,15 @@ import { useAuth } from "../contexts/useAuth";
 import { useCartQuery } from "../hooks/useCartQuery";
 import { api } from "../lib/api";
 import { createAddress, deleteAddress, getAddresses, updateAddress } from "../lib/addressApi";
+import {
+  digitsOnly,
+  emptyPhoneParts,
+  hasText,
+  isCompletePhone,
+  joinPhone,
+  sanitizeRecipientName,
+  splitPhone
+} from "../lib/addressValidation";
 import { previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
@@ -34,7 +43,9 @@ type CashReceiptMode = "personal" | "business";
 
 type AddressFormState = {
   recipient_name: string;
-  phone: string;
+  phone_first: string;
+  phone_middle: string;
+  phone_last: string;
   postal_code: string;
   address1: string;
   address2: string;
@@ -67,7 +78,9 @@ declare global {
 
 const emptyAddressForm: AddressFormState = {
   recipient_name: "",
-  phone: "",
+  phone_first: emptyPhoneParts.first,
+  phone_middle: emptyPhoneParts.middle,
+  phone_last: emptyPhoneParts.last,
   postal_code: "",
   address1: "",
   address2: "",
@@ -288,7 +301,9 @@ const mapCartItemToOrderProduct = (item: CartItem): OrderProduct => ({
 
 const mapAddressToForm = (address: UserAddress): AddressFormState => ({
   recipient_name: address.recipient_name,
-  phone: address.phone,
+  phone_first: splitPhone(address.phone).first,
+  phone_middle: splitPhone(address.phone).middle,
+  phone_last: splitPhone(address.phone).last,
   postal_code: address.postal_code,
   address1: address.address1,
   address2: address.address2 ?? "",
@@ -864,27 +879,43 @@ function CheckoutPage() {
     field: Field,
     value: AddressFormState[Field],
   ) => {
+    const normalizedValue = typeof value === "string"
+      ? field === "recipient_name"
+        ? sanitizeRecipientName(value)
+        : field === "phone_first" || field === "phone_middle" || field === "phone_last" || field === "postal_code"
+          ? digitsOnly(value)
+          : value
+      : value;
     setAddressForm((currentForm) => ({
       ...currentForm,
-      [field]: value,
+      [field]: normalizedValue,
     }));
   };
 
   const buildAddressRequest = (): UserAddressCreateRequest => ({
     recipient_name: addressForm.recipient_name.trim(),
-    phone: addressForm.phone.trim(),
+    phone: joinPhone({
+      first: addressForm.phone_first,
+      middle: addressForm.phone_middle,
+      last: addressForm.phone_last
+    }),
     postal_code: addressForm.postal_code.trim(),
     address1: addressForm.address1.trim(),
-    address2: addressForm.address2.trim() || null,
+    address2: addressForm.address2.trim(),
     delivery_memo: addressForm.delivery_memo.trim() || null,
     is_default: addressForm.is_default,
   });
 
   const validateAddressForm = () => {
-    if (!addressForm.recipient_name.trim()) return "받는 분을 입력해주세요.";
-    if (!addressForm.phone.trim()) return "연락처를 입력해주세요.";
-    if (!addressForm.postal_code.trim()) return "우편번호를 입력해주세요.";
-    if (!addressForm.address1.trim()) return "주소를 입력해주세요.";
+    if (!hasText(addressForm.recipient_name)) return "받는 분을 입력해주세요.";
+    if (!isCompletePhone({
+      first: addressForm.phone_first,
+      middle: addressForm.phone_middle,
+      last: addressForm.phone_last
+    })) return "연락처를 입력해주세요.";
+    if (!hasText(addressForm.postal_code)) return "우편번호를 입력해주세요.";
+    if (!hasText(addressForm.address1)) return "주소를 입력해주세요.";
+    if (!hasText(addressForm.address2)) return "상세 주소를 입력해주세요.";
     return "";
   };
 
@@ -1480,16 +1511,41 @@ function CheckoutPage() {
                     </label>
                     <label>
                       연락처
-                      <input
-                        value={addressForm.phone}
-                        onChange={(event) => updateAddressFormField("phone", event.target.value)}
-                        placeholder="010-1234-5678"
-                      />
+                      <div className="checkout-phone-row">
+                        <input
+                          aria-label="연락처 앞자리"
+                          inputMode="numeric"
+                          maxLength={3}
+                          onChange={(event) => updateAddressFormField("phone_first", event.target.value)}
+                          placeholder="010"
+                          value={addressForm.phone_first}
+                        />
+                        <span aria-hidden="true">-</span>
+                        <input
+                          aria-label="연락처 가운데 자리"
+                          inputMode="numeric"
+                          maxLength={4}
+                          onChange={(event) => updateAddressFormField("phone_middle", event.target.value)}
+                          placeholder="1234"
+                          value={addressForm.phone_middle}
+                        />
+                        <span aria-hidden="true">-</span>
+                        <input
+                          aria-label="연락처 뒷자리"
+                          inputMode="numeric"
+                          maxLength={4}
+                          onChange={(event) => updateAddressFormField("phone_last", event.target.value)}
+                          placeholder="5678"
+                          value={addressForm.phone_last}
+                        />
+                      </div>
                     </label>
                     <label>
                       우편번호
                       <div className="checkout-postcode-row">
                         <input
+                          inputMode="numeric"
+                          maxLength={5}
                           value={addressForm.postal_code}
                           onChange={(event) => updateAddressFormField("postal_code", event.target.value)}
                           placeholder="12345"
