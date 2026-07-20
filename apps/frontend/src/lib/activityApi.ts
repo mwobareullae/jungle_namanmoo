@@ -140,6 +140,11 @@ export const clearWishlistCache = (userId: number | null | undefined) => {
   if (typeof userId === "number") wishlistCache.delete(userId);
 };
 
+export const clearAllWishlistCache = () => {
+  wishlistCache.clear();
+  wishlistRequests.clear();
+};
+
 export const addMyWishlistItem = async (productId: string, userId?: number | null): Promise<ActivityProductItem> => {
   const response = await fetchWithTimeout(`${API_BASE_URL}/me/wishlist`, {
     method: "POST",

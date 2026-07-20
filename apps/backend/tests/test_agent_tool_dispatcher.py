@@ -730,7 +730,7 @@ def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engin
 
     assert address is not None
     assert address.is_default is True
-    assert address.phone == raw_phone
+    assert address.phone == "01098765432"
     assert address.address1 == raw_address
     assert response.tool_name == "register_shipping_address"
     assert response.ui_action.type == "show_checkout_preview"
@@ -775,6 +775,7 @@ def test_prepare_product_checkout_preserves_selection_through_address_registrati
                 "phone": "010-1234-5678",
                 "postal_code": "04524",
                 "address1": "서울특별시 중구 세종대로 110",
+                "address2": "3층",
                 "continue_checkout": True,
                 "cart_item_ids": selected_ids,
             },
@@ -817,6 +818,7 @@ def test_register_shipping_address_requires_missing_profile_details(db_engine: E
                 arguments={
                     "postal_code": "04524",
                     "address1": "서울특별시 중구 세종대로 110",
+                    "address2": "3층",
                     "continue_checkout": False,
                 },
                 user=user,

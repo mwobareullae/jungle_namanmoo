@@ -23,7 +23,7 @@ def register_shipping_address(
     phone: str | None,
     postal_code: str,
     address1: str,
-    address2: str | None,
+    address2: str,
     delivery_memo: str | None,
     is_default: bool,
     continue_checkout: bool,

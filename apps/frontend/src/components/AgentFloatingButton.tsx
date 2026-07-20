@@ -11,6 +11,7 @@ import { getProductImageUrl } from "../lib/imageUrls";
 import { getSensitiveAgentInputMessage } from "../lib/agentInputSafety";
 import { getAgentChatStorageKeys, type AgentChatStorageScope } from "../lib/agentChatStorage";
 import { getOrderDetail } from "../lib/orderApi";
+import { clearAllWishlistCache } from "../lib/activityApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
   useProductComparison,
@@ -52,6 +53,7 @@ type QuickQuestionContext =
   | "productDetail"
   | "productList"
   | "recent"
+  | "searchResults"
   | "skinProfile"
   | "wishlist";
 
@@ -198,6 +200,11 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "최근 본 상품 중 5만원 이하만 보여줘",
     "최근 본 상품을 내 피부 타입 기준으로 추려줘",
   ],
+  searchResults: [
+    "2만원대 상품만 보여줘",
+    "3만원 이하 세럼만 보여줘",
+    "추천 결과 상위 2개 비교해줘",
+  ],
   skinProfile: [
     "내 피부 타입에 맞는 토너, 세럼, 크림을 추천해줘",
     "민감도에 맞는 진정 제품 3개 추천해줘",
@@ -220,6 +227,7 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
@@ -240,11 +248,17 @@ const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[
     "민감 피부 진정 제품 추천해줘",
     "피부 프로필 설정 방법 알려줘",
   ],
+  searchResults: [
+    "2만원대 상품만 보여줘",
+    "3만원 이하 세럼만 보여줘",
+    "장바구니 상품과 총금액 보여줘",
+  ],
 };
 
 const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
   home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
   cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
 };
 
@@ -2355,6 +2369,13 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
+      const shouldCloseAfterBulkWishlist = action === "confirm"
+        && approvalMessage.toolName === "bulk_wishlist_by_popular_ingredient";
+      if (shouldCloseAfterBulkWishlist) {
+        clearAllWishlistCache();
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
       await applyAgentUiAction(
         response.ui_action,
         [],
