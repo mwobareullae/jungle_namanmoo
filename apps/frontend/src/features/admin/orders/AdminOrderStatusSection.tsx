@@ -461,7 +461,9 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                         </small>
                       </td>
                       <td>
-                        <strong title={order.productSummary}>{order.productSummary}</strong>
+                        <strong className="admin-product-name" title={order.productSummary}>
+                          {order.productSummary}
+                        </strong>
                         <small className="admin-product-code">{order.itemCount}개 상품</small>
                       </td>
                       <td>{formatCurrency(order.totalAmount)}</td>
