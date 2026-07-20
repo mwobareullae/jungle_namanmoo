@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
@@ -1808,16 +1808,16 @@ function AgentFloatingButton({
     void sendMessage(question);
   };
 
-  const updateTeaserVisibility = () => {
+  const updateTeaserVisibility = useCallback(() => {
     if (isOpen || hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return;
     }
 
     setIsTeaserVisible(true);
-  };
+  }, [isOpen]);
 
-  const scheduleTeaserVisibilityCheck = () => {
+  const scheduleTeaserVisibilityCheck = useCallback(() => {
     if (typeof window === "undefined" || teaserVisibilityFrameRef.current !== null) {
       return;
     }
@@ -1826,7 +1826,7 @@ function AgentFloatingButton({
       teaserVisibilityFrameRef.current = null;
       updateTeaserVisibility();
     });
-  };
+  }, [updateTeaserVisibility]);
 
   useEffect(() => {
     if (previousSurfaceRef.current !== surface) {
@@ -1874,7 +1874,7 @@ function AgentFloatingButton({
         teaserVisibilityFrameRef.current = null;
       }
     };
-  }, [isOpen, surface]);
+  }, [isOpen, scheduleTeaserVisibilityCheck, surface]);
 
   useEffect(() => {
     if (!isOpen) {
