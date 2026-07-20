@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
+import { buildAgentPendingSearchUrl, runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
 
@@ -24,6 +24,13 @@ const exampleChipCandidates = [
 // 자동완성도 단어만 노출하지 않고, 사용자가 실제로 입력할 수 있는
 // 자연어 고민 문장으로 순환시킨다.
 const placeholderExamples = exampleChipCandidates.map((candidate) => candidate.text);
+
+const shouldFastRouteDemoConcern = (value: string) => {
+  const normalized = value.replace(/[\s,，.。!?！？·ㆍ/|]+/g, "");
+  const poreSebumDemo = /피지/.test(normalized) && /모공/.test(normalized) && /고민/.test(normalized);
+  const oilyBlemishDemo = /지성/.test(normalized) && /뾰루지/.test(normalized);
+  return poreSebumDemo || oilyBlemishDemo;
+};
 
 const pickExampleChips = () => {
   const categories = [...new Set(exampleChipCandidates.map((candidate) => candidate.category))]
@@ -191,6 +198,12 @@ function HomeHero({
     if (event.key === "Enter") void handleSearch();
   };
 
+  const routeDemoConcernIfNeeded = (text: string) => {
+    if (!shouldFastRouteDemoConcern(text)) return false;
+    window.location.assign(buildAgentPendingSearchUrl(text.trim(), profile));
+    return true;
+  };
+
   const handleSearch = async () => {
     const normalized = query.trim();
     if (!normalized || isAgentSubmitting) return;
@@ -198,6 +211,8 @@ function HomeHero({
       window.location.assign(`/catalog-search?q=${encodeURIComponent(normalized)}`);
       return;
     }
+
+    if (routeDemoConcernIfNeeded(normalized)) return;
 
     setIsAgentSubmitting(true);
     setIsSuggestionsOpen(false);
@@ -229,6 +244,7 @@ function HomeHero({
     if (isAgentSubmitting) return;
     setQuery(text);
     setIsSuggestionsOpen(false);
+    if (routeDemoConcernIfNeeded(text)) return;
     setIsAgentSubmitting(true);
     try {
       const response = await runAgentEntryMessage(text, profile);
