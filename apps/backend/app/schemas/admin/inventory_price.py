@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.admin.product import AdminProductAvailability
+from app.schemas.admin.product import AdminProductAvailability, AdminProductPagination
 
 
 class AdminInventoryPriceListItem(BaseModel):
@@ -30,7 +30,16 @@ class AdminInventoryPriceListItem(BaseModel):
 
 class AdminInventoryPriceListResponse(BaseModel):
     items: list[AdminInventoryPriceListItem]
-    next_cursor: str | None
+    pagination: AdminProductPagination
+
+
+class AdminInventorySummaryResponse(BaseModel):
+    """운영 현황 요약 카드용 전체 집계. 판매·재고 상태 드롭다운 필터와는 무관하게(그 두
+    필터가 바로 이 집계가 나누는 축이므로) 검색어·카테고리·브랜드·노출 필터만 반영한다."""
+
+    low_stock_count: int = Field(description="파생 재고 상태가 LOW_STOCK 인 상품 수")
+    hidden_count: int = Field(description="Inventory.sales_status 가 HIDDEN 인 상품 수")
+    unknown_count: int = Field(description="재고 행이 없어 파생 재고 상태가 UNKNOWN 인 상품 수")
 
 
 class AdminInventoryMovementItem(BaseModel):

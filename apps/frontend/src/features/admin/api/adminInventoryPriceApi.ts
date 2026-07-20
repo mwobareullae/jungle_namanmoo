@@ -1,5 +1,6 @@
 import { fetchWithTimeout, parseJson } from "../../../lib/api";
 import { ADMIN_API_BASE } from "./adminApi";
+import type { AdminProductPagination } from "./adminProductApi";
 
 export type AdminInventoryAvailability = {
   salesStatus: "ON_SALE" | "SOLD_OUT" | "HIDDEN" | null;
@@ -36,15 +37,31 @@ export type AdminInventoryMovement = {
 
 export type AdminInventoryFilters = {
   query?: string;
+  brandCode?: string;
+  categoryCode?: string;
+  isActive?: boolean;
   salesStatus?: "ON_SALE" | "SOLD_OUT" | "HIDDEN";
   stockStatus?: "IN_STOCK" | "LOW_STOCK" | "SOLD_OUT" | "HIDDEN";
-  cursor?: string;
-  limit?: number;
+  page?: number;
+  pageSize?: number;
 };
 
 export type AdminInventoryListResult = {
   items: AdminInventoryPriceItem[];
-  nextCursor: string | null;
+  pagination: AdminProductPagination;
+};
+
+export type AdminInventorySummaryFilters = {
+  query?: string;
+  brandCode?: string;
+  categoryCode?: string;
+  isActive?: boolean;
+};
+
+export type AdminInventorySummary = {
+  lowStockCount: number;
+  hiddenCount: number;
+  unknownCount: number;
 };
 
 export type AdminInventoryAdjustmentResult = {
@@ -108,9 +125,24 @@ type BackendInventoryMovement = {
   created_at: string;
 };
 
+type BackendPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
 type BackendInventoryListResponse = {
   items: BackendInventoryPriceItem[];
-  next_cursor: string | null;
+  pagination: BackendPagination;
+};
+
+type BackendInventorySummaryResponse = {
+  low_stock_count: number;
+  hidden_count: number;
+  unknown_count: number;
 };
 
 type BackendInventoryHistoryResponse = {
@@ -184,15 +216,47 @@ export const listAdminInventoryPrices = async (
 ): Promise<AdminInventoryListResult> => {
   const params = new URLSearchParams();
   if (filters.query?.trim()) params.set("q", filters.query.trim());
+  if (filters.brandCode) params.set("brand_code", filters.brandCode);
+  if (filters.categoryCode) params.set("category_code", filters.categoryCode);
+  if (filters.isActive !== undefined) params.set("is_active", String(filters.isActive));
   if (filters.salesStatus) params.set("sales_status", filters.salesStatus);
   if (filters.stockStatus) params.set("stock_status", filters.stockStatus);
-  if (filters.cursor) params.set("cursor", filters.cursor);
-  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("page_size", String(filters.pageSize));
 
   const query = params.toString();
   const response = await fetchWithTimeout(`${ADMIN_API_BASE}/inventory${query ? `?${query}` : ""}`);
   const body = await parseJson<BackendInventoryListResponse>(response);
-  return { items: body.items.map(adaptItem), nextCursor: body.next_cursor };
+  return {
+    items: body.items.map(adaptItem),
+    pagination: {
+      page: body.pagination.page,
+      pageSize: body.pagination.page_size,
+      totalItems: body.pagination.total_items,
+      totalPages: body.pagination.total_pages,
+      hasNext: body.pagination.has_next,
+      hasPrev: body.pagination.has_prev
+    }
+  };
+};
+
+export const getAdminInventorySummary = async (
+  filters: AdminInventorySummaryFilters
+): Promise<AdminInventorySummary> => {
+  const params = new URLSearchParams();
+  if (filters.query?.trim()) params.set("q", filters.query.trim());
+  if (filters.brandCode) params.set("brand_code", filters.brandCode);
+  if (filters.categoryCode) params.set("category_code", filters.categoryCode);
+  if (filters.isActive !== undefined) params.set("is_active", String(filters.isActive));
+
+  const query = params.toString();
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/inventory/summary${query ? `?${query}` : ""}`);
+  const body = await parseJson<BackendInventorySummaryResponse>(response);
+  return {
+    lowStockCount: body.low_stock_count,
+    hiddenCount: body.hidden_count,
+    unknownCount: body.unknown_count
+  };
 };
 
 export const getAdminInventoryHistory = async (
