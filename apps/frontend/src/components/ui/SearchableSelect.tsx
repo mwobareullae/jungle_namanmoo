@@ -80,7 +80,10 @@ export function SearchableSelect({
         onFocus={(event) => {
           // 이미 선택된 값이 있는 상태에서 포커스를 받으면 텍스트를 전체 선택해, 바로 타이핑을
           // 시작했을 때 기존 값 뒤에 붙지 않고 덮어써지게 한다(특히 필터용으로 쓸 때 중요).
-          event.target.select();
+          // 마우스 클릭으로 포커스가 들어온 경우, 브라우저가 focus 이후 mouseup 에서 클릭
+          // 위치로 커서를 다시 놓아 select()를 덮어써버리므로 다음 tick 으로 미룬다.
+          const input = event.target;
+          setTimeout(() => input.select(), 0);
           setIsOpen(true);
         }}
         onKeyDown={(event) => {
