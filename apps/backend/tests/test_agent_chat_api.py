@@ -567,6 +567,45 @@ def test_agent_instructions_require_one_clarification_before_ambiguous_tool_use(
     assert "exactly one brief clarification question in Korean" in AGENT_INSTRUCTIONS
 
 
+@pytest.mark.anyio
+async def test_popular_ingredient_wishlist_routes_deterministically_before_llm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_execute_agent_tool(*_args, **kwargs):
+        captured.update(kwargs)
+        return AgentChatResponse(
+            conversation_id="conv_bulk",
+            message="찜할 상품을 확인했어요.",
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            ui_action=AgentUiAction(type="open_modal", target="agent_confirmation", payload={}),
+            items=[],
+            requires_confirmation=True,
+        )
+
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.execute_agent_tool",
+        fake_execute_agent_tool,
+    )
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(message="인기 상품 상위 20개 중 스쿠알란 성분 들어있는 제품만 찜해줘"),
+        user=SimpleNamespace(id=1),
+        request_id="req_bulk_deterministic",
+    )
+
+    assert response.tool_name == "bulk_wishlist_by_popular_ingredient"
+    assert captured["tool_name"] == "bulk_wishlist_by_popular_ingredient"
+    assert captured["arguments"] == {
+        "ingredient_name": "스쿠알란",
+        "rank_limit": 20,
+        "window_days": 7,
+    }
+
+
 def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
     tool_names = _select_agent_tool_names(
         user=None,

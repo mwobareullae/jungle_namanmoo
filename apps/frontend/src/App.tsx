@@ -871,6 +871,8 @@ function GlobalAgentEntry() {
   const path = location.pathname;
   const quickQuestionContext = path.startsWith("/product-detail")
     ? "productDetail"
+    : path.startsWith("/search")
+      ? "searchResults"
     : path === "/cart"
       ? "cart"
       : path.startsWith("/checkout")
@@ -892,6 +894,8 @@ function GlobalAgentEntry() {
                       : "home";
   const agentSurface = path.startsWith("/product-detail")
     ? "productDetail"
+    : path.startsWith("/search")
+      ? "context"
     : /recommend|skin-test|recommendations/.test(path)
       ? "context"
       : /mypage|cart|checkout|login|signup|order/.test(path)
