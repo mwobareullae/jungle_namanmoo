@@ -1,21 +1,35 @@
-import type { FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
+import ConfirmModal from "../../../components/ui/ConfirmModal";
+import { SearchableSelect } from "../../../components/ui/SearchableSelect";
+import { getProductImageUrl } from "../../../lib/imageUrls";
 import { useAdminProductForm } from "./useAdminProductForm";
 
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 
+const SALES_STATUS_LABELS: Record<string, string> = {
+  ON_SALE: "판매중",
+  SOLD_OUT: "품절",
+  HIDDEN: "숨김",
+  UNKNOWN: "미상"
+};
+
 type AdminProductFormSectionProps = {
   active: boolean;
   productCode: string | null;
+  onDirtyChange: (dirty: boolean) => void;
   onSaved: (productCode: string) => void;
   onOperationLog: (area: string, title: string, detail: string, tone?: BadgeTone) => void;
+  onViewInventory: () => void;
 };
 
 export function AdminProductFormSection({
   active,
   productCode,
+  onDirtyChange,
   onSaved,
-  onOperationLog
+  onOperationLog,
+  onViewInventory
 }: AdminProductFormSectionProps) {
   const {
     brands,
@@ -24,6 +38,7 @@ export function AdminProductFormSection({
     optionsError,
     detail,
     values,
+    originalValues,
     loading,
     submitting,
     error,
@@ -35,6 +50,51 @@ export function AdminProductFormSection({
   } = useAdminProductForm({ enabled: active, productCode });
 
   const isEdit = productCode !== null;
+  const [confirmingNavigation, setConfirmingNavigation] = useState(false);
+  const [thumbnailPreviewError, setThumbnailPreviewError] = useState(false);
+  const thumbnailStorageKey = values.thumbnailStorageKey.trim();
+  const thumbnailPreviewUrl = thumbnailStorageKey ? getProductImageUrl(thumbnailStorageKey) : "";
+
+  // 신규 등록 중 "운영 기본값" 위젯에 보여줄 미리보기. 매 입력마다가 아니라, 필드에서
+  // 포커스가 빠질 때(다른 곳 클릭 시)만 반영한다 — 타이핑 중 계속 흔들리지 않게.
+  const [previewValues, setPreviewValues] = useState(values);
+  const commitPreview = () => setPreviewValues(values);
+
+  // 다른 상품으로 전환하면(수정 대상이 바뀌면) 이전 상품의 미리보기 실패 상태가 남지 않게 한다.
+  useEffect(() => {
+    void Promise.resolve().then(() => setThumbnailPreviewError(false));
+  }, [productCode]);
+
+  // 상품을 새로 불러오거나(수정 대상 전환) 저장에 성공하면 기준값이 바뀌므로, 운영 기본값
+  // 미리보기도 그 기준으로 다시 맞춘다.
+  useEffect(() => {
+    void Promise.resolve().then(() => setPreviewValues(originalValues));
+  }, [originalValues]);
+
+  // 부모(AdminDashboardPage)가 사이드바 이동 시 저장 안 한 내용이 있는지 알 수 있게 알려준다.
+  useEffect(() => {
+    void Promise.resolve().then(() => onDirtyChange(dirty));
+  }, [dirty, onDirtyChange]);
+
+  const handleViewInventoryClick = () => {
+    if (dirty) {
+      setConfirmingNavigation(true);
+      return;
+    }
+    onViewInventory();
+  };
+
+  const handleReset = () => {
+    reset();
+    setPreviewValues(originalValues);
+  };
+
+  const previewBrandName = brands.find((brand) => brand.code === previewValues.brandCode)?.name ?? "-";
+  const previewCategoryName =
+    categories.find((category) => category.code === previewValues.categoryCode)?.name ?? "-";
+  const previewPrice = Number(previewValues.price);
+  const previewPriceLabel =
+    previewValues.price && Number.isFinite(previewPrice) ? `${previewPrice.toLocaleString("ko-KR")}원` : "-";
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -58,7 +118,12 @@ export function AdminProductFormSection({
             <h2>{isEdit ? "상품 기본정보 수정" : "새 상품 등록"}</h2>
           </div>
           <div className="admin-filter-row">
-            <button className="admin-secondary-button" disabled={!dirty || submitting} onClick={reset} type="button">
+            <button
+              className="admin-secondary-button admin-light-button"
+              disabled={!dirty || submitting}
+              onClick={handleReset}
+              type="button"
+            >
               입력값 되돌리기
             </button>
             <button
@@ -71,12 +136,6 @@ export function AdminProductFormSection({
           </div>
         </div>
 
-        {(loading || optionsLoading) && (
-          <div className="admin-state-banner neutral">
-            <strong>상품 폼을 준비하는 중입니다</strong>
-            <span>상품 정보와 선택 목록을 불러오고 있습니다.</span>
-          </div>
-        )}
         {(error || optionsError) && (
           <div className="admin-state-banner danger" role="alert">
             <strong>상품을 저장할 수 없습니다</strong>
@@ -89,17 +148,17 @@ export function AdminProductFormSection({
             <span>{savedMessage}</span>
           </div>
         )}
-        {!error && !optionsError && !savedMessage && (
-          <div className={`admin-state-banner ${dirty ? "warning" : "neutral"}`}>
-            <strong>{dirty ? "저장 대기" : "변경 없음"}</strong>
-            <span>{dirty ? "수정한 내용은 저장 전까지 서버에 반영되지 않습니다." : "상품 기본정보를 입력해 주세요."}</span>
+        {!error && !optionsError && !savedMessage && isEdit && dirty && (
+          <div className="admin-state-banner warning">
+            <strong>저장 대기</strong>
+            <span>수정한 내용은 저장 전까지 서버에 반영되지 않습니다.</span>
           </div>
         )}
 
         <div className="admin-form-grid">
           {isEdit && (
             <label>
-              product_code
+              상품코드
               <input disabled readOnly value={productCode ?? ""} />
             </label>
           )}
@@ -107,6 +166,7 @@ export function AdminProductFormSection({
             상품명
             <input
               disabled={loading || submitting}
+              onBlur={commitPreview}
               onChange={(event) => patchValues({ name: event.target.value })}
               placeholder="상품명을 입력하세요"
               value={values.name}
@@ -114,48 +174,39 @@ export function AdminProductFormSection({
           </label>
           <label>
             브랜드
-            <select
+            <SearchableSelect
+              ariaLabel="브랜드"
               disabled={optionsLoading || submitting}
-              onChange={(event) => patchValues({ brandCode: event.target.value })}
+              onBlur={commitPreview}
+              onChange={(brandCode) => patchValues({ brandCode })}
+              options={brands}
+              placeholder="브랜드 검색"
               value={values.brandCode}
-            >
-              <option value="">브랜드 선택</option>
-              {brands.map((brand) => (
-                <option key={brand.code} value={brand.code}>{brand.name}</option>
-              ))}
-            </select>
+            />
           </label>
           <label>
             카테고리
-            <select
+            <SearchableSelect
+              ariaLabel="카테고리"
               disabled={optionsLoading || submitting}
-              onChange={(event) => patchValues({ categoryCode: event.target.value })}
+              onBlur={commitPreview}
+              onChange={(categoryCode) => patchValues({ categoryCode })}
+              options={categories}
+              placeholder="카테고리 검색"
               value={values.categoryCode}
-            >
-              <option value="">카테고리 선택</option>
-              {categories.map((category) => (
-                <option key={category.code} value={category.code}>{category.name}</option>
-              ))}
-            </select>
+            />
           </label>
           <label>
             판매가
             <input
               disabled={loading || submitting}
               min="1"
+              onBlur={commitPreview}
               onChange={(event) => patchValues({ price: event.target.value })}
+              placeholder="예: 19900"
               step="1"
               type="number"
               value={values.price}
-            />
-          </label>
-          <label>
-            출시일
-            <input
-              disabled={loading || submitting}
-              onChange={(event) => patchValues({ releasedDate: event.target.value })}
-              type="date"
-              value={values.releasedDate}
             />
           </label>
           <label>
@@ -185,12 +236,28 @@ export function AdminProductFormSection({
           </label>
           <label className="admin-form-wide">
             대표 이미지 storage_key
-            <input
-              disabled={loading || submitting}
-              onChange={(event) => patchValues({ thumbnailStorageKey: event.target.value })}
-              placeholder="products/.../thumbnail_0"
-              value={values.thumbnailStorageKey}
-            />
+            <div className="admin-thumbnail-field">
+              <input
+                disabled={loading || submitting}
+                onChange={(event) => {
+                  patchValues({ thumbnailStorageKey: event.target.value });
+                  setThumbnailPreviewError(false);
+                }}
+                placeholder="products/.../thumbnail_0"
+                value={values.thumbnailStorageKey}
+              />
+              <div className="admin-thumbnail-preview">
+                {thumbnailPreviewUrl && !thumbnailPreviewError ? (
+                  <img
+                    alt="대표 이미지 미리보기"
+                    onError={() => setThumbnailPreviewError(true)}
+                    src={thumbnailPreviewUrl}
+                  />
+                ) : (
+                  <span>{thumbnailStorageKey ? "이미지를 불러올 수 없습니다" : "미리보기 없음"}</span>
+                )}
+              </div>
+            </div>
             <small>완성 URL이 아닌, 스토리지에 이미 업로드된 상대 경로만 입력합니다.</small>
           </label>
         </div>
@@ -200,25 +267,60 @@ export function AdminProductFormSection({
         <div className="admin-panel-header compact">
           <div>
             <p>운영 기본값</p>
-            <h2>{detail?.name ?? "신규 상품"}</h2>
+            <h2>{detail ? detail.name : previewValues.name.trim() || "신규 상품"}</h2>
           </div>
-          <span className="admin-badge neutral">{detail?.isActive ? "공개" : "비공개"}</span>
+          {detail ? (
+            <span className="admin-badge neutral">{detail.isActive ? "공개" : "비공개"}</span>
+          ) : (
+            <span className="admin-badge neutral">비공개</span>
+          )}
         </div>
-        <dl className="admin-metric-list">
-          <div><dt>셀러</dt><dd>{detail?.sellerName ?? "뭐바를래"}</dd></div>
-          <div><dt>판매 상태</dt><dd>{detail?.availability.salesStatus ?? "HIDDEN"}</dd></div>
-          <div><dt>재고</dt><dd>{detail?.stockQuantity ?? 0}</dd></div>
-          <div><dt>추천</dt><dd>{detail?.isRecommendable ? "가능" : "제외"}</dd></div>
-        </dl>
-        <div className="admin-state-banner neutral">
-          <strong>이번 단계에서 편집하지 않는 항목</strong>
-          <span>재고·판매 상태는 M4, 성분은 M2/M3-B에서 관리합니다. 여기서는 대표 이미지 storage_key 1개만 연결합니다.</span>
-        </div>
-        <div className="admin-state-banner warning">
-          <strong>공개 전 확인</strong>
-          <span>재고 상태가 HIDDEN인 상품은 공개할 수 없습니다. 먼저 재고 운영에서 판매 상태를 준비해야 합니다.</span>
-        </div>
+        {detail ? (
+          <>
+            <dl className="admin-metric-list">
+              <div><dt>상품코드</dt><dd>{detail.productCode}</dd></div>
+              <div><dt>브랜드</dt><dd>{detail.brand}</dd></div>
+              <div><dt>카테고리</dt><dd>{detail.categoryName}</dd></div>
+              <div>
+                <dt>판매가</dt>
+                <dd>{detail.price === null ? "-" : `${detail.price.toLocaleString("ko-KR")}원`}</dd>
+              </div>
+              <div>
+                <dt>판매 상태/재고</dt>
+                <dd>
+                  {SALES_STATUS_LABELS[detail.availability.salesStatus]} · 재고{" "}
+                  {(detail.stockQuantity ?? 0).toLocaleString("ko-KR")}개
+                </dd>
+              </div>
+              <div><dt>노출 상태</dt><dd>{detail.isActive ? "공개" : "비공개"}</dd></div>
+            </dl>
+            <button
+              className="admin-secondary-button admin-light-button"
+              onClick={handleViewInventoryClick}
+              type="button"
+            >
+              재고/가격 확인으로 이동
+            </button>
+          </>
+        ) : (
+          <dl className="admin-metric-list">
+            <div><dt>브랜드</dt><dd>{previewBrandName}</dd></div>
+            <div><dt>카테고리</dt><dd>{previewCategoryName}</dd></div>
+            <div><dt>판매가</dt><dd>{previewPriceLabel}</dd></div>
+            <div><dt>노출 상태</dt><dd>비공개</dd></div>
+          </dl>
+        )}
       </aside>
+      <ConfirmModal
+        compact
+        message="저장하지 않은 수정 내용이 있습니다. 지금 이동하면 사라집니다. 계속할까요?"
+        onCancel={() => setConfirmingNavigation(false)}
+        onConfirm={() => {
+          setConfirmingNavigation(false);
+          onViewInventory();
+        }}
+        open={confirmingNavigation}
+      />
     </section>
   );
 }

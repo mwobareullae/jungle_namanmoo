@@ -6,9 +6,9 @@
 공통 build_product_availability 로 재사용해 가용성 계약과 정합을 맞춘다.
 """
 
-from typing import Any
+from typing import Any, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage, ProductPrice
@@ -23,7 +23,7 @@ from app.schemas.admin.product import (
     AdminProductPagination,
 )
 from app.schemas.common import ApiError
-from app.services.product_availability import build_product_availability
+from app.services.product_availability import build_product_availability, build_stock_status_sql_case
 from app.services.product_image_service import load_thumbnail_storage_keys
 
 
@@ -36,6 +36,10 @@ MAX_PAGE_SIZE = 200
 # 다른 관리자 라우트(order_service._normalize_order_status 등)와 동일하게 서비스
 # 레이어에서 ApiError(400) 로 통일한다.
 VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN", "UNKNOWN"})
+
+# build_product_availability/build_stock_status_sql_case 가 계산하는 재고 상태(stock_status)
+# 값. sales_status와 다른 축이며 재고 수량까지 반영한 세부 상태다.
+VALID_STOCK_STATUS_FILTERS = frozenset({"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN", "UNKNOWN"})
 
 
 def list_active_product_brands(session: Session) -> AdminProductMasterOptionListResponse:
@@ -71,10 +75,36 @@ def _normalize_sales_status(sales_status: str | None) -> str | None:
     return normalized
 
 
-def _base_statement() -> Any:
+def _normalize_stock_status(stock_status: str | None) -> str | None:
+    if stock_status is None:
+        return None
+    normalized = stock_status.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in VALID_STOCK_STATUS_FILTERS:
+        raise ApiError(400, "INVALID_INPUT", "Invalid stock_status.")
+    return normalized
+
+
+def _filterable_statement() -> Any:
+    # 카운트·페이지 대상 product_id 결정에 필요한 최소 조인만 포함한다. 가격/이미지 수
+    # 집계(_detail_statement)는 여기서 하지 않는다 — 안 그러면 필터/페이지 이동마다
+    # 79,953건 전체에 대해 product_prices·product_images 를 집계해야 해서 요청당
+    # ~1초씩 걸렸다(가격·이미지는 최종 페이지 분량(50건 등)에 대해서만 채우면 된다).
+    return (
+        select(Product.id.label("product_db_id"))
+        .join(Brand, Product.brand_id == Brand.id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
+    )
+
+
+def _detail_statement(product_ids: Sequence[int]) -> Any:
     # 자사몰 운영 가격은 해당 상품 seller.display_name/원화/is_lowest 행이다. 외부몰
     # 가격이 더 낮더라도 관리자 기본가격으로 섞지 않는다. 중복 오염 시에도 목록
     # 행이 늘어나지 않도록 자사몰 후보 안에서만 min 집계한다.
+    # product_ids 로 두 집계 서브쿼리 자체를 제한해서(LATERAL 이 아니라 표준 SQL —
+    # SQLite 테스트 환경도 호환) 요청받은 상품 수만큼만 집계하도록 한다.
     first_party_price = (
         select(
             ProductPrice.product_id.label("product_id"),
@@ -83,6 +113,7 @@ def _base_statement() -> Any:
         .join(Product, ProductPrice.product_id == Product.id)
         .join(Seller, Product.seller_id == Seller.id)
         .where(
+            ProductPrice.product_id.in_(product_ids),
             ProductPrice.mall_name == Seller.display_name,
             ProductPrice.currency == "KRW",
             ProductPrice.is_lowest.is_(True),
@@ -95,6 +126,7 @@ def _base_statement() -> Any:
             ProductImage.product_id.label("product_id"),
             func.count(ProductImage.id).label("image_count"),
         )
+        .where(ProductImage.product_id.in_(product_ids))
         .group_by(ProductImage.product_id)
         .subquery()
     )
@@ -123,6 +155,7 @@ def _base_statement() -> Any:
             Inventory.safety_stock,
             func.coalesce(image_count.c.image_count, 0).label("image_count"),
         )
+        .where(Product.id.in_(product_ids))
         # brand/category/seller 는 NOT NULL FK 라 inner join
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
@@ -141,9 +174,13 @@ def _apply_filters(
     category_code: str | None,
     is_active: bool | None,
     sales_status: str | None,
+    stock_status: str | None = None,
 ) -> Any:
     if query and query.strip():
-        statement = statement.where(Product.product_name.ilike(f"%{query.strip()}%"))
+        term = f"%{query.strip()}%"
+        statement = statement.where(
+            or_(Product.product_name.ilike(term), Product.product_code.ilike(term))
+        )
     if brand_code:
         statement = statement.where(Brand.brand_code == brand_code)
     if category_code:
@@ -156,6 +193,15 @@ def _apply_filters(
         statement = statement.where(Inventory.id.is_(None))
     elif sales_status:
         statement = statement.where(Inventory.sales_status == sales_status)
+    if stock_status:
+        computed_stock_status = build_stock_status_sql_case(
+            inventory_id=Inventory.id,
+            sales_status=Inventory.sales_status,
+            stock_quantity=Inventory.stock_quantity,
+            reserved_quantity=Inventory.reserved_quantity,
+            safety_stock=Inventory.safety_stock,
+        )
+        statement = statement.where(computed_stock_status == stock_status)
     return statement
 
 
@@ -167,33 +213,45 @@ def list_admin_products(
     category_code: str | None = None,
     is_active: bool | None = None,
     sales_status: str | None = None,
+    stock_status: str | None = None,
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
 ) -> AdminProductListResponse:
     normalized_page = page if page >= 1 else DEFAULT_PAGE
     normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
     normalized_sales_status = _normalize_sales_status(sales_status)
+    normalized_stock_status = _normalize_stock_status(stock_status)
 
-    filtered = _apply_filters(
-        _base_statement(),
+    id_filtered = _apply_filters(
+        _filterable_statement(),
         query=query,
         brand_code=brand_code,
         category_code=category_code,
         is_active=is_active,
         sales_status=normalized_sales_status,
+        stock_status=normalized_stock_status,
     )
 
     total_items = session.execute(
-        select(func.count()).select_from(filtered.subquery())
+        select(func.count()).select_from(id_filtered.subquery())
     ).scalar_one()
 
-    rows = session.execute(
-        filtered.order_by(Product.updated_at.desc(), Product.id.desc())
+    id_rows = session.execute(
+        id_filtered.order_by(Product.updated_at.desc(), Product.id.desc())
         .limit(normalized_page_size)
         .offset((normalized_page - 1) * normalized_page_size)
     ).all()
+    product_ids = [row.product_db_id for row in id_rows]
 
-    thumbnails = load_thumbnail_storage_keys(session, [row.product_db_id for row in rows])
+    rows = (
+        session.execute(
+            _detail_statement(product_ids).order_by(Product.updated_at.desc(), Product.id.desc())
+        ).all()
+        if product_ids
+        else []
+    )
+
+    thumbnails = load_thumbnail_storage_keys(session, product_ids)
 
     total_pages = max((total_items + normalized_page_size - 1) // normalized_page_size, 1)
     return AdminProductListResponse(
@@ -210,9 +268,12 @@ def list_admin_products(
 
 
 def get_admin_product_detail(session: Session, product_code: str) -> AdminProductDetail:
-    row = session.execute(
-        _base_statement().where(Product.product_code == product_code)
-    ).first()
+    product_id = session.execute(
+        select(Product.id).where(Product.product_code == product_code)
+    ).scalar_one_or_none()
+    if product_id is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+    row = session.execute(_detail_statement([product_id])).first()
     if row is None:
         raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
     thumbnail = load_thumbnail_storage_keys(session, [row.product_db_id]).get(row.product_db_id, "")

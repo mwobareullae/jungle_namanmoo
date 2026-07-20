@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import { privacyPolicy, termsOfService } from "../content/terms";
-import { renderTermBody } from "./SignupTermsPage";
+import { TermBody } from "./SignupTermsPage";
 
 type LegalDocumentPageProps = {
   documentType: "terms" | "privacy";
@@ -41,7 +41,7 @@ function LegalDocumentPage({ documentType }: LegalDocumentPageProps) {
         </nav>
         <h1 className="category-page__title">{document.title}</h1>
         <article className="legal-document-page__content">
-          {renderTermBody(document.body)}
+          <TermBody body={document.body} />
         </article>
       </main>
     </div>

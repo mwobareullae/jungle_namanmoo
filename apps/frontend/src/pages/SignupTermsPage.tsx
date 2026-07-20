@@ -75,7 +75,7 @@ const parseTableRow = (line: string) =>
     .split("|")
     .map((cell) => cell.trim());
 
-export const renderTermBody = (body: string) => {
+export function TermBody({ body }: { body: string }) {
   let listContext: "none" | "numbered" | "nestedBullet" | "topBullet" = "none";
   const lines = body.split("\n");
   const renderedNodes: ReactNode[] = [];
@@ -244,7 +244,7 @@ export const renderTermBody = (body: string) => {
   }
 
   return renderedNodes;
-};
+}
 
 function SignupTermsPage() {
   const navigate = useNavigate();
@@ -465,7 +465,7 @@ function SignupTermsPage() {
               <DialogTitle>{termContent[selectedTerm].title}</DialogTitle>
               <DialogCloseButton />
             </DialogHeader>
-            <DialogBody>{renderTermBody(termContent[selectedTerm].body)}</DialogBody>
+            <DialogBody><TermBody body={termContent[selectedTerm].body} /></DialogBody>
             <DialogFooter>
               <Button className="w-full" onClick={() => setSelectedTerm(null)}>
                 확인

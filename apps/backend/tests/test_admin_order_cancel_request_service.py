@@ -125,7 +125,7 @@ def test_list_returns_requested_with_approve_and_reject_actions(session: Session
     _make_cancel_request(session, request_status="REQUESTED", payment_provider="MOCK", display_name="닉네임")
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert len(response.items) == 1
     item = response.items[0]
@@ -138,7 +138,7 @@ def test_list_toss_payment_offers_simulated_approve_and_reject(session: Session)
     _make_cancel_request(session, request_status="REQUESTED", payment_provider="TOSS")
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert response.items[0].available_actions == ["APPROVE", "REJECT"]
 
@@ -147,7 +147,7 @@ def test_list_missing_payment_offers_no_actions(session: Session) -> None:
     _make_cancel_request(session, request_status="REQUESTED", payment_status=None)
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert response.items[0].available_actions == []
 
@@ -162,7 +162,7 @@ def test_list_decided_request_offers_no_actions(session: Session) -> None:
     )
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert response.items[0].available_actions == []
 
@@ -178,7 +178,7 @@ def test_list_filters_by_status(session: Session) -> None:
     )
     session.commit()
 
-    response = list_admin_cancel_requests(session, status="REJECTED", limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status="REJECTED", page_size=20)
 
     assert len(response.items) == 1
     assert response.items[0].status == "REJECTED"
@@ -187,29 +187,13 @@ def test_list_filters_by_status(session: Session) -> None:
 
 def test_list_rejects_invalid_status(session: Session) -> None:
     with pytest.raises(ApiError) as exc_info:
-        list_admin_cancel_requests(session, status="NOT_A_STATUS", limit=20, cursor=None)
+        list_admin_cancel_requests(session, status="NOT_A_STATUS", page_size=20)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "INVALID_CANCEL_REQUEST_STATUS"
 
 
-def test_list_rejects_invalid_cursor(session: Session) -> None:
-    with pytest.raises(ApiError) as exc_info:
-        list_admin_cancel_requests(session, status=None, limit=20, cursor="not-a-number")
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.code == "INVALID_CURSOR"
-
-
-def test_list_rejects_invalid_limit(session: Session) -> None:
-    with pytest.raises(ApiError) as exc_info:
-        list_admin_cancel_requests(session, status=None, limit=0, cursor=None)
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.code == "INVALID_LIMIT"
-
-
-def test_list_paginates_with_cursor_newest_first(session: Session) -> None:
+def test_list_paginates_by_page_newest_first(session: Session) -> None:
     base_time = datetime.now(UTC)
     codes = [
         _make_cancel_request(session, requested_at=base_time + timedelta(minutes=idx)).request_code
@@ -217,14 +201,18 @@ def test_list_paginates_with_cursor_newest_first(session: Session) -> None:
     ]
     session.commit()
 
-    first_page = list_admin_cancel_requests(session, status=None, limit=2, cursor=None)
+    first_page = list_admin_cancel_requests(session, status=None, page=1, page_size=2)
     assert len(first_page.items) == 2
-    assert first_page.next_cursor is not None
+    assert first_page.pagination.total_items == 3
+    assert first_page.pagination.total_pages == 2
+    assert first_page.pagination.has_next is True
+    assert first_page.pagination.has_prev is False
     assert [item.request_code for item in first_page.items] == [codes[2], codes[1]]
 
-    second_page = list_admin_cancel_requests(session, status=None, limit=2, cursor=first_page.next_cursor)
+    second_page = list_admin_cancel_requests(session, status=None, page=2, page_size=2)
     assert [item.request_code for item in second_page.items] == [codes[0]]
-    assert second_page.next_cursor is None
+    assert second_page.pagination.has_next is False
+    assert second_page.pagination.has_prev is True
 
 
 def test_get_detail_returns_order_and_payment_fields(session: Session) -> None:
@@ -255,7 +243,7 @@ def test_list_ties_on_requested_at_break_by_id_descending(session: Session) -> N
     codes = [_make_cancel_request(session, requested_at=same_time).request_code for _ in range(3)]
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert [item.request_code for item in response.items] == list(reversed(codes))
 
@@ -264,7 +252,7 @@ def test_list_falls_back_to_user_id_display_when_nickname_missing(session: Sessi
     request = _make_cancel_request(session, display_name=None)
     session.commit()
 
-    response = list_admin_cancel_requests(session, status=None, limit=20, cursor=None)
+    response = list_admin_cancel_requests(session, status=None, page_size=20)
 
     assert response.items[0].customer_display == f"user_{request.user_id}"
 
