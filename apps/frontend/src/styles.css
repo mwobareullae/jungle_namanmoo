@@ -14717,6 +14717,25 @@ html[data-app-mode="community"] .search-results-shell {
   min-width: 0;
 }
 
+.checkout-phone-row {
+  display: grid;
+  grid-template-columns: 88px auto 108px auto 108px;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 6px;
+}
+
+.checkout-phone-row input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+.checkout-phone-row span {
+  color: var(--color-muted-text);
+}
+
 .checkout-postcode-row input {
   width: 100%;
   min-width: 0;

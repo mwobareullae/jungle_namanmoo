@@ -211,7 +211,7 @@ class RegisterShippingAddressArgs(BaseModel):
     phone: str | None = Field(default=None, min_length=1, max_length=30)
     postal_code: str = Field(..., min_length=1, max_length=20)
     address1: str = Field(..., min_length=1, max_length=255)
-    address2: str | None = Field(default=None, max_length=255)
+    address2: str = Field(..., min_length=1, max_length=255)
     delivery_memo: str | None = Field(default=None, max_length=255)
     is_default: bool = False
     continue_checkout: bool = True

@@ -3,7 +3,7 @@ export type UserAddressCreateRequest = {
   phone: string;
   postal_code: string;
   address1: string;
-  address2?: string | null;
+  address2: string;
   delivery_memo?: string | null;
   is_default?: boolean;
 };
@@ -13,7 +13,7 @@ export type UserAddressUpdateRequest = {
   phone?: string;
   postal_code?: string;
   address1?: string;
-  address2?: string | null;
+  address2?: string;
   delivery_memo?: string | null;
   is_default?: boolean | null;
 };
