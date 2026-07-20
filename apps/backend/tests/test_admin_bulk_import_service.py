@@ -191,7 +191,7 @@ def test_bulk_route_skips_es_sync_and_returns_not_required_for_hidden_product(
     def _unexpected_es_sync(*args: object, **kwargs: object) -> None:
         raise AssertionError("HIDDEN bulk product must not invoke ES sync")
 
-    monkeypatch.setattr(products_route, "_sync_catalog_product_after_commit", _unexpected_es_sync)
+    monkeypatch.setattr(products_route, "sync_catalog_product_after_commit", _unexpected_es_sync)
 
     response = products_route.bulk_create_products(_request(), session)
 

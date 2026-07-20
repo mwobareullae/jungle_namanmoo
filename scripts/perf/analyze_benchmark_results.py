@@ -443,6 +443,12 @@ def build_run_row(input_dir: Path, run_dir: Path) -> dict[str, Any] | None:
     row.update(extract_k6_output_metrics(run_dir / "k6" / "k6-output.txt"))
     row.update(extract_backend_metrics(run_dir / "backend" / "backend.log"))
     row.update(extract_resource_metrics(run_dir / "resources" / "docker-stats.csv"))
+    row.update(
+        extract_host_metrics(
+            run_dir / "resources" / "host-profile.json",
+            run_dir / "resources" / "host-stats.csv",
+        )
+    )
     return row
 
 
@@ -758,6 +764,42 @@ def extract_resource_metrics(path: Path) -> dict[str, Any]:
     return result
 
 
+def extract_host_metrics(profile_path: Path, stats_path: Path) -> dict[str, Any]:
+    profile = load_json(profile_path) or {}
+    result: dict[str, Any] = {
+        "host_server_label": profile.get("server_label"),
+        "host_hostname": profile.get("hostname"),
+        "host_logical_vcpu_count": int_value(profile.get("logical_vcpu_count")),
+        "host_memory_total_mib": float_value(profile.get("memory_total_mib")),
+        "host_root_disk_total_gib": float_value(profile.get("root_disk_total_gib")),
+    }
+    result = {key: value for key, value in result.items() if value is not None}
+    if not stats_path.exists():
+        return result
+
+    rows = list(
+        csv.DictReader(stats_path.read_text(encoding="utf-8", errors="ignore").splitlines())
+    )
+    for metric_name in (
+        "cpu_usage_percent",
+        "load1",
+        "mem_used_mib",
+        "mem_available_mib",
+        "swap_free_mib",
+        "disk_root_used_percent",
+        "network_rx_bytes_per_second",
+        "network_tx_bytes_per_second",
+    ):
+        values = [float_value(row.get(metric_name)) for row in rows]
+        result.update(
+            summarize_resource_values(
+                [value for value in values if value is not None],
+                f"host_{metric_name}",
+            )
+        )
+    return result
+
+
 def load_docker_stats_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -871,6 +913,11 @@ def write_summary_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "resource_backend_mem_percent_max",
         "resource_elasticsearch_cpu_percent_max",
         "resource_elasticsearch_mem_percent_max",
+        "host_server_label",
+        "host_logical_vcpu_count",
+        "host_memory_total_mib",
+        "host_cpu_usage_percent_p95",
+        "host_mem_used_mib_p95",
     ]
     for key in preferred:
         if any(key in row for row in rows):
@@ -4809,6 +4856,17 @@ def plot_resource_timeseries(
         title=f"container memory over time ({scope})",
         plt=plt,
     )
+    host_records = load_host_resource_timeseries_records(
+        run_dir / "resources" / "host-stats.csv"
+    )
+    if host_records:
+        plot_host_resource_timeseries(
+            host_records,
+            output_dir / f"host_resource_timeseries_{stage_dataset}_vus{stage_vus:02d}.png",
+            stage_dataset=stage_dataset,
+            stage_vus=stage_vus,
+            plt=plt,
+        )
 
 
 def load_resource_timeseries_records(path: Path) -> list[dict[str, Any]]:
@@ -4836,6 +4894,49 @@ def load_resource_timeseries_records(path: Path) -> list[dict[str, Any]]:
     for record in records:
         record["elapsed_seconds"] = (record["timestamp"] - started_at).total_seconds()
     return records
+
+
+def load_host_resource_timeseries_records(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    for row in csv.DictReader(path.read_text(encoding="utf-8", errors="ignore").splitlines()):
+        timestamp = parse_iso_timestamp(row.get("timestamp"))
+        if timestamp is None:
+            continue
+        record: dict[str, Any] = {"timestamp": timestamp}
+        for metric in ("cpu_usage_percent", "mem_used_mib", "mem_available_mib", "load1"):
+            record[metric] = float_value(row.get(metric))
+        records.append(record)
+    if not records:
+        return []
+    started_at = min(record["timestamp"] for record in records)
+    for record in records:
+        record["elapsed_seconds"] = (record["timestamp"] - started_at).total_seconds()
+    return records
+
+
+def plot_host_resource_timeseries(records, path: Path, *, stage_dataset: int, stage_vus: int, plt) -> None:
+    fig, (cpu_ax, memory_ax) = plt.subplots(
+        2, 1, figsize=(10.5, 7.4), sharex=True, layout="constrained"
+    )
+    elapsed = [record["elapsed_seconds"] for record in records]
+    cpu_values = [record.get("cpu_usage_percent") for record in records]
+    memory_used = [record.get("mem_used_mib") for record in records]
+    memory_available = [record.get("mem_available_mib") for record in records]
+    if not any(value is not None for value in cpu_values + memory_used + memory_available):
+        plt.close(fig)
+        return
+    cpu_ax.plot(elapsed, cpu_values, linewidth=2, color="#2563eb", label="host CPU")
+    cpu_ax.set_ylabel("host CPU (%)")
+    cpu_ax.legend()
+    memory_ax.plot(elapsed, memory_used, linewidth=2, color="#dc2626", label="used")
+    memory_ax.plot(elapsed, memory_available, linewidth=2, color="#16a34a", label="available")
+    memory_ax.set_xlabel("elapsed time (seconds)")
+    memory_ax.set_ylabel("host memory (MiB)")
+    memory_ax.legend()
+    fig.suptitle(f"host resources over time ({stage_dataset:,} products / VUS {stage_vus})")
+    save_figure(fig, path, plt)
 
 
 def parse_iso_timestamp(value: Any) -> datetime | None:

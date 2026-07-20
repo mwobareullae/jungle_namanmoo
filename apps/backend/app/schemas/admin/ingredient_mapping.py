@@ -16,10 +16,29 @@ from pydantic import BaseModel, Field
 
 
 # 저장 상태(HELD/APPROVED/REJECTED)는 review 행, PENDING 은 행 없이 파생.
-IngredientMappingStatus = Literal["PENDING", "HELD", "APPROVED", "REJECTED"]
+IngredientMappingStatus = Literal["PENDING", "HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"]
+IngredientMappingFinalDisposition = Literal[
+    "MAPPED",
+    "NON_INGREDIENT",
+    "COMPOUND_MATERIAL",
+    "SOURCE_ERROR",
+    "UNRESOLVABLE",
+]
+IngredientMappingNonMappingFinalDisposition = Literal[
+    "NON_INGREDIENT",
+    "COMPOUND_MATERIAL",
+    "SOURCE_ERROR",
+    "UNRESOLVABLE",
+]
 
 # 추천 근거. 그룹 정규화명이 alias/canonical 이름과 정확 일치할 때만 채운다.
 IngredientMappingMatchSource = Literal["ALIAS_EXACT", "CANONICAL_NAME_EXACT"]
+IngredientMappingCandidateType = Literal[
+    "CANONICAL_EXACT_MATCH",
+    "ALIAS_EXACT_MATCH",
+    "EXACT_MATCH_CONFLICT",
+    "NO_EXACT_MATCH",
+]
 
 IngredientMappingAction = Literal["APPROVE", "HOLD", "REJECT", "REOPEN"]
 
@@ -33,10 +52,22 @@ class IngredientMappingSuggestion(BaseModel):
     match_source: IngredientMappingMatchSource
 
 
+class IngredientMappingCandidate(BaseModel):
+    """관리자 검수용 읽기 전용 처리 후보.
+
+    후보는 등록된 canonical/alias의 정확 일치 여부만 표현한다. 최종 분류나
+    상품 성분 연결을 자동으로 변경하지 않는다.
+    """
+
+    candidate_type: IngredientMappingCandidateType
+    evidence: str
+
+
 class IngredientMappingDecision(BaseModel):
     """저장된 관리자 판정 스냅샷. 판정 행이 없으면 상위 필드가 None."""
 
-    status: Literal["HELD", "APPROVED", "REJECTED"]
+    status: Literal["HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"]
+    final_disposition: IngredientMappingFinalDisposition | None
     target_ingredient_code: str | None
     target_ingredient_name: str | None
     decision_reason: str | None
@@ -53,6 +84,7 @@ class IngredientMappingListItem(BaseModel):
     product_count: int
     connection_count: int
     status: IngredientMappingStatus
+    candidate: IngredientMappingCandidate
     suggestion: IngredientMappingSuggestion | None
     decision: IngredientMappingDecision | None
     available_actions: list[IngredientMappingAction]
@@ -63,6 +95,8 @@ class IngredientMappingSummary(BaseModel):
 
     pending_count: int
     held_count: int
+    needs_review_count: int
+    unclassified_count: int
     approved_count: int
     rejected_count: int
 
@@ -88,12 +122,16 @@ class IngredientMappingSampleProduct(BaseModel):
 
 
 class IngredientMappingEvent(BaseModel):
-    from_status: Literal["HELD", "APPROVED", "REJECTED"] | None
-    to_status: Literal["HELD", "APPROVED", "REJECTED"]
+    from_status: Literal["HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"] | None
+    to_status: Literal["HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"]
+    from_final_disposition: IngredientMappingFinalDisposition | None
+    to_final_disposition: IngredientMappingFinalDisposition | None
     from_target_ingredient_code: str | None
     to_target_ingredient_code: str | None
     actor_id: int
     reason: str | None
+    evidence_source_url: str | None
+    source_reference: str | None
     created_at: datetime
 
 
@@ -121,10 +159,19 @@ class IngredientMappingReasonRequest(BaseModel):
     decision_reason: str = Field(min_length=1, max_length=1000)
 
 
+class IngredientMappingRejectRequest(IngredientMappingReasonRequest):
+    """canonical로 연결하지 않는 최종 분류 확정 요청."""
+
+    final_disposition: IngredientMappingNonMappingFinalDisposition
+    evidence_source_url: str | None = Field(default=None, max_length=2000)
+    source_reference: str | None = Field(default=None, max_length=255)
+
+
 class IngredientMappingActionResponse(BaseModel):
     pending_code: str
     normalized_source_name: str
-    status: Literal["HELD", "APPROVED", "REJECTED"]
+    status: Literal["HELD", "NEEDS_REVIEW", "APPROVED", "REJECTED"]
+    final_disposition: IngredientMappingFinalDisposition | None
     target_ingredient_code: str | None
     target_ingredient_name: str | None
     decision_reason: str | None

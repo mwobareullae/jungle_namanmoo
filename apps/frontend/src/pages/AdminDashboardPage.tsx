@@ -3,11 +3,13 @@ import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateR
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
 import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
+import { AdminInventoryPriceSection } from "../features/admin/inventoryPrice/AdminInventoryPriceSection";
+import { AdminImageBulkLinkSection } from "../features/admin/imageBulkLink/AdminImageBulkLinkSection";
 import { AdminProductFormSection } from "../features/admin/products/AdminProductFormSection";
 import { AdminProductSection } from "../features/admin/products/AdminProductSection";
 import type { AdminBulkImportRowInput } from "../features/admin/api/adminBulkImportApi";
 import { useAdminBulkImport } from "../features/admin/bulkImport/useAdminBulkImport";
-import { mockOrderRows, MockOrderRow } from "../features/admin/orders/adminOrderMock";
+import { useAdminDashboardSummary } from "../features/admin/dashboard/useAdminDashboardSummary";
 import { AdminAccessNotice } from "../features/admin/AdminAccessNotice";
 import { useAdminAccess } from "../features/admin/hooks/useAdminAccess";
 
@@ -25,32 +27,8 @@ type AdminView =
   | "sellers"
   | "sellerInspection"
   | "sellerSettlement";
-type ProductStatus = "판매중" | "검수필요" | "품절임박" | "판매중지";
-type ReviewStatus = "정상" | "성분 pending" | "이미지 누락" | "중복 확인";
-type IndexStatus = "반영 완료" | "검색 문서 완료" | "임베딩 대기" | "미반영";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type ExcelImportState = "idle" | "preview" | "submitting" | "done";
-type ImageBatchState = "idle" | "matched";
-type LocalSaveState = "idle" | "dirty" | "saved";
-type QueueState = "idle" | "pending" | "queued";
-type StockFocusFilter = "전체" | "품절임박" | "검수필요" | "판매중지";
-
-type ProductRow = {
-  id: string;
-  productCode: string;
-  name: string;
-  brand: string;
-  price: number;
-  stock: number;
-  status: ProductStatus;
-  reviewStatus: ReviewStatus;
-  imageCount: number;
-  ingredientState: string;
-  ingredientsRaw: string;
-  indexStatus: IndexStatus;
-  updatedAt: string;
-};
-
 type OperationLogRow = {
   id: string;
   time: string;
@@ -77,7 +55,7 @@ type ExcelClientIssue = {
 type ExcelDisplayRow = ExcelClientIssue & {
   status: "형식 통과" | "형식 오류" | "CREATED" | "SKIPPED" | "FAILED";
 };
-type PendingAction = "ingredient" | "duplicateProduct" | "excelFailure" | "imageFailure" | "embedding";
+type PendingAction = "ingredient" | "imageMissing";
 
 type PendingItem = {
   label: string;
@@ -217,205 +195,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const todayIso = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
 const todayLabel = `${todayIso} ${["일", "월", "화", "수", "목", "금", "토"][now.getDay()]}`;
 
-const stats = [
-  { label: "전체 상품", value: "24,585" },
-  { label: "추천 가능", value: "10,167" },
-  { label: "전성분 원문", value: "24,585" },
-  { label: "인덱스 대기", value: "0" }
-];
-
-// 화면 검토용 예시값(mock). 실제 API 연동 시 이 상수만 교체하면 된다.
-const MOCK_STATUS_BREAKDOWN = [
-  { label: "판매중", value: 9812, color: "#3aa6d1" },
-  { label: "검수 필요", value: 1204, color: "#f0b429" },
-  { label: "이미지 누락", value: 342, color: "#e57373" },
-  { label: "품절 임박", value: 87, color: "#9575cd" },
-  { label: "정상", value: 13140, color: "#e2e8ee" }
-];
-const MOCK_STATUS_TOTAL = MOCK_STATUS_BREAKDOWN.reduce((sum, seg) => sum + seg.value, 0);
 const DONUT_CIRC = 2 * Math.PI * 52;
-const MOCK_STATUS_SEGMENTS = (() => {
-  let acc = 0;
-  return MOCK_STATUS_BREAKDOWN.map((seg) => {
-    const dash = (seg.value / MOCK_STATUS_TOTAL) * DONUT_CIRC;
-    const segment = { ...seg, dash, offset: -acc };
-    acc += dash;
-    return segment;
-  });
-})();
-const MOCK_PENDING_QUEUE = [
-  { label: "성분 검수", value: 27243, color: "#f0b429" },
-  { label: "상품명 중복", value: 2590, color: "#3aa6d1" },
-  { label: "import 실패", value: 12, color: "#e57373" },
-  { label: "이미지 실패", value: 4, color: "#e57373" },
-  { label: "임베딩 대기", value: 1, color: "#9575cd" }
-];
-const MOCK_PENDING_MAX = Math.max(...MOCK_PENDING_QUEUE.map((bar) => bar.value));
-
-const initialProducts: ProductRow[] = [
-  {
-    id: "1",
-    productCode: "prod_000245",
-    name: "토리든 다이브인 저분자 히알루론산 세럼",
-    brand: "토리든",
-    price: 21800,
-    stock: 142,
-    status: "판매중",
-    reviewStatus: "정상",
-    imageCount: 5,
-    ingredientState: "exact 38 / pending 0",
-    ingredientsRaw: "정제수, 부틸렌글라이콜, 글리세린, 나이아신아마이드, 판테놀, 소듐하이알루로네이트",
-    indexStatus: "반영 완료",
-    updatedAt: "2026-07-06 14:12"
-  },
-  {
-    id: "2",
-    productCode: "prod_bm_1021",
-    name: "한율 달빛유자C 세럼",
-    brand: "한율",
-    price: 32000,
-    stock: 18,
-    status: "품절임박",
-    reviewStatus: "성분 pending",
-    imageCount: 4,
-    ingredientState: "exact 34 / pending 2",
-    ingredientsRaw: "정제수, 부틸렌글라이콜, 나이아신아마이드 2%, Citrus Junos Peel Extract, 판테놀",
-    indexStatus: "임베딩 대기",
-    updatedAt: "2026-07-06 13:48"
-  },
-  {
-    id: "3",
-    productCode: "prod_001984",
-    name: "차앤박 핑크토닝 딥인샷 앰플",
-    brand: "CNP",
-    price: 29800,
-    stock: 64,
-    status: "검수필요",
-    reviewStatus: "성분 pending",
-    imageCount: 3,
-    ingredientState: "exact 29 / pending 3",
-    ingredientsRaw: "정제수, 글리세린, 나이아신아마이드, Pink Vitamin Complex, 소듐하이알루로네이트",
-    indexStatus: "검색 문서 완료",
-    updatedAt: "2026-07-06 12:02"
-  },
-  {
-    id: "4",
-    productCode: "prod_010014",
-    name: "라운드랩 자작나무 수분 크림",
-    brand: "라운드랩",
-    price: 24000,
-    stock: 0,
-    status: "판매중지",
-    reviewStatus: "이미지 누락",
-    imageCount: 0,
-    ingredientState: "exact 41 / pending 1",
-    ingredientsRaw: "정제수, 자작나무수액, 부틸렌글라이콜, 판테놀, 세라마이드엔피",
-    indexStatus: "미반영",
-    updatedAt: "2026-07-05 19:22"
-  },
-  {
-    id: "5",
-    productCode: "prod_020771",
-    name: "닥터지 레드 블레미쉬 클리어 수딩 크림",
-    brand: "닥터지",
-    price: 18900,
-    stock: 203,
-    status: "판매중",
-    reviewStatus: "중복 확인",
-    imageCount: 6,
-    ingredientState: "exact 44 / pending 0",
-    ingredientsRaw: "정제수, 글리세린, 병풀추출물, 판테놀, 소듐하이알루로네이트, 세라마이드엔피",
-    indexStatus: "반영 완료",
-    updatedAt: "2026-07-05 18:41"
-  }
-];
-
-const emptyProduct: ProductRow = {
-  id: "draft",
-  productCode: "seller_sku_new",
-  name: "",
-  brand: "",
-  price: 0,
-  stock: 0,
-  status: "검수필요",
-  reviewStatus: "성분 pending",
-  imageCount: 0,
-  ingredientState: "exact 0 / pending 0",
-  ingredientsRaw: "",
-  indexStatus: "미반영",
-  updatedAt: "저장 전"
-};
-
-const pendingItems: PendingItem[] = [
-  {
-    label: "성분 매핑 검수 대기",
-    note: "pending 27,243종 · 연결 665,304건",
-    status: "검수 필요",
-    tone: "warning",
-    action: "ingredient"
-  },
-  {
-    label: "상품명 중복 후보",
-    note: "2,590그룹 · 6,450개 상품",
-    status: "확인 대기",
-    tone: "neutral",
-    action: "duplicateProduct"
-  },
-  {
-    label: "import 실패 행",
-    note: "products_0706.xlsx · 12행",
-    status: "실패 파일",
-    tone: "danger",
-    action: "excelFailure"
-  },
-  {
-    label: "이미지 자동 연결 실패",
-    note: "image_batch_01.zip · 4개 파일",
-    status: "매칭 실패",
-    tone: "warning",
-    action: "imageFailure"
-  },
-  {
-    label: "임베딩 자동 반영",
-    note: "서버 OPENAI_API_KEY 준비 전 일배치",
-    status: "키 대기",
-    tone: "neutral",
-    action: "embedding"
-  }
-];
-
-const importRows = [
-  {
-    time: "14:02",
-    file: "products_0706.xlsx",
-    success: 118,
-    failed: 12,
-    status: "부분 실패",
-    tone: "danger"
-  },
-  {
-    time: "10:31",
-    file: "brand_a_products.xlsx",
-    success: 42,
-    failed: 0,
-    status: "완료",
-    tone: "success"
-  },
-  {
-    time: "어제",
-    file: "image_batch_01.zip",
-    success: 310,
-    failed: 4,
-    status: "매칭 실패",
-    tone: "warning"
-  }
-];
-
-const indexSummary = [
-  { label: "조인 문서", value: "24,585" },
-  { label: "임베딩 반영", value: "24,585 / 24,585" },
-  { label: "마지막 rebuild", value: "09:12 · 13.3초" }
-];
 
 const excelTemplateColumns = [
   { label: "import_sku", required: "필수", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
@@ -589,125 +369,6 @@ const parseExcelUpload = async (file: File): Promise<ExcelGrid | null> => {
   }
 };
 
-const imageFileRules = [
-  { label: "대표 이미지", value: "seller_sku_main.jpg / product_code_main.jpg" },
-  { label: "추가 이미지", value: "seller_sku_01.jpg, seller_sku_02.jpg" },
-  { label: "매핑표", value: "image_file_names 컬럼과 동일 파일명 우선" },
-  { label: "불가", value: "OCR로 상품명 추정 후 자동 확정 금지" }
-];
-
-const imageOcrCandidateRows = [
-  {
-    field: "상품명",
-    extracted: "한율 달빛유자C 세럼",
-    confidence: "높음",
-    decision: "상품명 후보"
-  },
-  {
-    field: "브랜드",
-    extracted: "한율",
-    confidence: "높음",
-    decision: "브랜드 후보"
-  },
-  {
-    field: "전성분",
-    extracted: "나이아신아마이드 2%, Citrus Junos Peel Extract",
-    confidence: "중간",
-    decision: "pending 검수"
-  },
-  {
-    field: "가격/재고",
-    extracted: "추출 불가",
-    confidence: "낮음",
-    decision: "엑셀/직접 입력 필요"
-  }
-];
-
-const imageMatchingSummary = [
-  { label: "전체 파일", value: "314", tone: "neutral" },
-  { label: "매칭 성공", value: "310", tone: "success" },
-  { label: "실패", value: "4", tone: "danger" },
-  { label: "대표 누락", value: "18", tone: "warning" }
-];
-
-const imageFailureRows = [
-  {
-    fileName: "roundlab_birch_main.jpeg",
-    productCode: "prod_010014",
-    reason: "확장자는 허용되지만 엑셀 image_file_names 값과 불일치",
-    action: "매핑표 수정"
-  },
-  {
-    fileName: "sku_unknown_03.jpg",
-    productCode: "추정 불가",
-    reason: "seller_sku 또는 product_code 접두사 없음",
-    action: "파일명 변경"
-  },
-  {
-    fileName: "prod_020771_main.png",
-    productCode: "prod_020771",
-    reason: "대표 이미지가 이미 등록됨",
-    action: "덮어쓰기 확인"
-  },
-  {
-    fileName: "prod_bm_1021_detail.webp",
-    productCode: "prod_bm_1021",
-    reason: "상세 이미지 순번 누락",
-    action: "순번 부여"
-  }
-];
-
-const imagePreviewRows = [
-  {
-    label: "대표",
-    fileName: "prod_000245_main.jpg",
-    productName: "토리든 다이브인 세럼",
-    tone: "success"
-  },
-  {
-    label: "상세 01",
-    fileName: "prod_000245_01.jpg",
-    productName: "토리든 다이브인 세럼",
-    tone: "success"
-  },
-  {
-    label: "확인",
-    fileName: "prod_020771_main.png",
-    productName: "닥터지 수딩 크림",
-    tone: "warning"
-  },
-  {
-    label: "실패",
-    fileName: "sku_unknown_03.jpg",
-    productName: "상품 미확정",
-    tone: "danger"
-  }
-];
-
-const stockHistoryRows = [
-  {
-    time: "15:24",
-    product: "한율 달빛유자C 세럼",
-    change: "재고 12 → 18",
-    actor: "관리자",
-    reason: "공식몰 재고 보정"
-  },
-  {
-    time: "14:51",
-    product: "라운드랩 자작나무 수분 크림",
-    change: "판매중 → 판매중지",
-    actor: "관리자",
-    reason: "대표 이미지 누락"
-  },
-  {
-    time: "13:17",
-    product: "닥터지 레드 블레미쉬 수딩 크림",
-    change: "18,900원 → 19,900원",
-    actor: "import job",
-    reason: "엑셀 대량 등록"
-  }
-];
-
 const initialOperationLogs: OperationLogRow[] = [
   {
     id: "log_initial_excel",
@@ -734,10 +395,6 @@ const initialOperationLogs: OperationLogRow[] = [
     tone: "success"
   }
 ];
-
-function formatCurrency(value: number) {
-  return `${value.toLocaleString("ko-KR")}원`;
-}
 
 function formatCurrentTime() {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -770,22 +427,6 @@ function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function getStatusTone(status: ProductStatus | ReviewStatus | IndexStatus): BadgeTone {
-  if (status === "판매중" || status === "정상" || status === "반영 완료" || status === "검색 문서 완료") {
-    return "success";
-  }
-
-  if (status === "검수필요" || status === "성분 pending" || status === "품절임박" || status === "임베딩 대기") {
-    return "warning";
-  }
-
-  if (status === "판매중지" || status === "이미지 누락" || status === "미반영") {
-    return "danger";
-  }
-
-  return "neutral";
-}
-
 function AdminDashboardPage() {
   const access = useAdminAccess();
   const bulkImport = useAdminBulkImport();
@@ -793,7 +434,6 @@ function AdminDashboardPage() {
   const [selectedSellerId, setSelectedSellerId] = useState(MOCK_SELLERS[0].id);
   const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
   const [selectedSettlementId, setSelectedSettlementId] = useState(MOCK_SETTLEMENTS[0].id);
-  const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("파일을 선택해 주세요");
@@ -801,18 +441,9 @@ function AdminDashboardPage() {
   const [excelPreviewRows, setExcelPreviewRows] = useState<AdminBulkImportRowInput[]>([]);
   const [excelClientIssues, setExcelClientIssues] = useState<ExcelClientIssue[]>([]);
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
-  const [imageBatchState, setImageBatchState] = useState<ImageBatchState>("idle");
-  const [imageBatchName, setImageBatchName] = useState("image_batch_01.zip");
-  const [selectedStockProductId, setSelectedStockProductId] = useState(initialProducts[1]?.id ?? initialProducts[0]?.id ?? "");
-  const [stockFocusFilter, setStockFocusFilter] = useState<StockFocusFilter>("전체");
-  const [stockChangeReason, setStockChangeReason] = useState("운영자 확인 후 간단 수정");
-  const [orders] = useState<MockOrderRow[]>(mockOrderRows);
   const [operationLogs, setOperationLogs] = useState<OperationLogRow[]>(initialOperationLogs);
-  const [stockHistory, setStockHistory] = useState(stockHistoryRows);
+  const dashboardSummary = useAdminDashboardSummary({ enabled: activeView === "dashboard" });
   const [toast, setToast] = useState<AdminToast>(null);
-  const [imageQueueState, setImageQueueState] = useState<QueueState>("idle");
-  const [imageOcrState, setImageOcrState] = useState<LocalSaveState>("idle");
-  const [stockSaveState, setStockSaveState] = useState<LocalSaveState>("idle");
 
   const excelDisplayRows = useMemo<ExcelDisplayRow[]>(() => {
     if (bulkImport.result) {
@@ -897,72 +528,82 @@ function AdminDashboardPage() {
     ];
   }, [bulkImport.result, excelClientIssues.length, excelPreviewRows.length]);
 
-  const selectedStockProduct =
-    products.find((product) => product.id === selectedStockProductId) ?? products[0] ?? emptyProduct;
-  const filteredStockProducts = useMemo(
-    () =>
-      products.filter((product) => {
-        if (stockFocusFilter === "품절임박") {
-          return product.stock <= 20 || product.status === "품절임박";
-        }
+  const dashboardStatCards = useMemo(() => {
+    const productStats = dashboardSummary.data?.productStats;
+    return [
+      { label: "전체 상품", value: productStats ? productStats.totalCount.toLocaleString("ko-KR") : "-" },
+      { label: "추천 가능", value: productStats ? productStats.recommendableCount.toLocaleString("ko-KR") : "-" },
+      { label: "이미지 미연결", value: productStats ? productStats.imageMissingCount.toLocaleString("ko-KR") : "-" }
+    ];
+  }, [dashboardSummary.data]);
 
-        if (stockFocusFilter === "검수필요") {
-          return product.status === "검수필요" || product.reviewStatus !== "정상";
-        }
+  const stockStatusSegments = useMemo(() => {
+    const breakdown = dashboardSummary.data?.stockStatusBreakdown;
+    if (!breakdown) return [];
+    const raw = [
+      { label: "판매중", value: breakdown.inStockCount, color: "#3aa6d1" },
+      { label: "품절 임박", value: breakdown.lowStockCount, color: "#f0b429" },
+      { label: "품절", value: breakdown.soldOutCount, color: "#e57373" },
+      { label: "숨김", value: breakdown.hiddenCount, color: "#9575cd" },
+      { label: "재고 미확인", value: breakdown.unknownCount, color: "#c9cdd3" }
+    ];
+    const total = raw.reduce((sum, seg) => sum + seg.value, 0);
+    let acc = 0;
+    return raw.map((seg) => {
+      const dash = total > 0 ? (seg.value / total) * DONUT_CIRC : 0;
+      const segment = { ...seg, dash, offset: -acc };
+      acc += dash;
+      return segment;
+    });
+  }, [dashboardSummary.data]);
 
-        if (stockFocusFilter === "판매중지") {
-          return product.status === "판매중지";
-        }
+  const ingredientQueueBars = useMemo(() => {
+    const summary = dashboardSummary.data?.ingredientReviewSummary;
+    if (!summary) return [];
+    return [
+      { label: "신규 대기", value: summary.pendingCount, color: "#f0b429" },
+      { label: "보류", value: summary.heldCount, color: "#e57373" },
+      { label: "재검토", value: summary.needsReviewCount, color: "#3aa6d1" },
+      { label: "미분류", value: summary.unclassifiedCount, color: "#9575cd" }
+    ];
+  }, [dashboardSummary.data]);
+  const ingredientQueueMax = Math.max(1, ...ingredientQueueBars.map((bar) => bar.value));
 
-        return true;
-      }),
-    [products, stockFocusFilter],
-  );
-  const liveStockPriceSummary = useMemo(
-    () => [
+  const pendingItems = useMemo<PendingItem[]>(() => {
+    const summary = dashboardSummary.data;
+    if (!summary) return [];
+    const ingredientWaiting =
+      summary.ingredientReviewSummary.pendingCount +
+      summary.ingredientReviewSummary.heldCount +
+      summary.ingredientReviewSummary.needsReviewCount;
+    return [
       {
-        label: "수정 대기",
-        value: stockSaveState === "dirty" ? "1" : "0",
-        tone: stockSaveState === "dirty" ? ("warning" as const) : ("neutral" as const)
+        label: "성분 매핑 검수 대기",
+        note: `신규 대기 ${summary.ingredientReviewSummary.pendingCount.toLocaleString("ko-KR")}건 · 보류 ${summary.ingredientReviewSummary.heldCount.toLocaleString("ko-KR")}건 · 재검토 ${summary.ingredientReviewSummary.needsReviewCount.toLocaleString("ko-KR")}건`,
+        status: ingredientWaiting > 0 ? "검수 필요" : "정상",
+        tone: ingredientWaiting > 0 ? "warning" : "success",
+        action: "ingredient"
       },
       {
-        label: "품절/임박",
-        value: products.filter((product) => product.stock <= 20 || product.status === "품절임박").length.toLocaleString("ko-KR"),
-        tone: "danger" as const
-      },
-      {
-        label: "판매중지",
-        value: products.filter((product) => product.status === "판매중지").length.toLocaleString("ko-KR"),
-        tone: "neutral" as const
-      },
-      {
-        label: "주문 예약 재고",
-        value: orders.reduce((sum, order) => sum + order.stockReserved, 0).toLocaleString("ko-KR"),
-        tone: "success" as const
+        label: "이미지 미연결 상품",
+        note: `대표·상세 이미지가 없는 상품 ${summary.productStats.imageMissingCount.toLocaleString("ko-KR")}개`,
+        status: summary.productStats.imageMissingCount > 0 ? "연결 필요" : "정상",
+        tone: summary.productStats.imageMissingCount > 0 ? "warning" : "success",
+        action: "imageMissing"
       }
-    ],
-    [orders, products, stockSaveState],
-  );
-  const liveDashboardOrderSummary = useMemo(
-    () => [
-      { label: "신규 주문", value: orders.length.toLocaleString("ko-KR") },
-      {
-        label: "결제 완료",
-        value: orders.filter((order) => order.paymentStatus === "승인완료").length.toLocaleString("ko-KR")
-      },
-      {
-        label: "결제 대기",
-        value: orders.filter((order) => order.status === "결제대기").length.toLocaleString("ko-KR")
-      },
-      {
-        label: "취소/만료",
-        value: orders
-          .filter((order) => order.status === "취소완료" || order.status === "만료" || order.paymentStatus === "취소완료")
-          .length.toLocaleString("ko-KR")
-      }
-    ],
-    [orders],
-  );
+    ];
+  }, [dashboardSummary.data]);
+
+  const orderSummaryCards = useMemo(() => {
+    const summary = dashboardSummary.data?.orderSummary;
+    if (!summary) return [];
+    return [
+      { label: "결제 대기", value: summary.pendingPaymentCount.toLocaleString("ko-KR") },
+      { label: "배송 준비", value: summary.preparingShipmentCount.toLocaleString("ko-KR") },
+      { label: "취소 요청", value: summary.cancelRequestedCount.toLocaleString("ko-KR") },
+      { label: "재고 예약", value: summary.reservedQuantityTotal.toLocaleString("ko-KR") }
+    ];
+  }, [dashboardSummary.data]);
   const pushOperationLog = (area: string, title: string, detail: string, tone: BadgeTone = "success") => {
     const time = formatCurrentTime();
 
@@ -978,64 +619,6 @@ function AdminDashboardPage() {
       ...currentLogs
     ].slice(0, 6));
     setToast({ message: `${title} · ${detail}`, tone });
-  };
-
-  const handleStockPatch = (productId: string, patch: Partial<Pick<ProductRow, "price" | "stock" | "status">>) => {
-    setProducts((currentProducts) =>
-      currentProducts.map((product) => (product.id === productId ? { ...product, ...patch, updatedAt: "로컬 수정" } : product)),
-    );
-    setStockSaveState("dirty");
-  };
-
-  const handleSelectStockProduct = (productId: string) => {
-    setSelectedStockProductId(productId);
-    setStockSaveState("idle");
-  };
-
-  const handleStockFilterReset = () => {
-    setStockFocusFilter("전체");
-    pushOperationLog("재고", "재고 필터 초기화", "전체 상품 표시", "neutral");
-  };
-
-  const handleLowStockSuspend = () => {
-    const affectedProducts = products.filter((product) => product.stock <= 20 && product.status !== "판매중지");
-
-    if (affectedProducts.length === 0) {
-      pushOperationLog("재고", "일괄 판매중지 대상 없음", "재고 20개 이하 판매중 상품 없음", "neutral");
-      return;
-    }
-
-    setProducts((currentProducts) =>
-      currentProducts.map((product) =>
-        product.stock <= 20 && product.status !== "판매중지"
-          ? { ...product, status: "판매중지", updatedAt: "로컬 일괄 처리" }
-          : product,
-      ),
-    );
-    setStockHistory((currentRows) => [
-      {
-        time: formatCurrentTime(),
-        product: `${affectedProducts.length.toLocaleString("ko-KR")}개 상품`,
-        change: "재고 20개 이하 → 판매중지",
-        actor: "관리자",
-        reason: stockChangeReason || "저재고 운영 보호"
-      },
-      ...currentRows
-    ]);
-    setStockFocusFilter("판매중지");
-    setStockSaveState("saved");
-    pushOperationLog("재고", "저재고 상품 일괄 판매중지", `${affectedProducts.length.toLocaleString("ko-KR")}개 상품`, "warning");
-  };
-
-  const handleStockHistoryDownload = () => {
-    downloadTextFile(
-      "mwbl_stock_price_changes.csv",
-      buildCsv([
-        ["time", "product", "change", "actor", "reason"],
-        ...stockHistory.map((row) => [row.time, row.product, row.change, row.actor, row.reason])
-      ]),
-    );
-    pushOperationLog("재고", "변경 이력 CSV 다운로드", "가격·재고 변경 이력 파일 생성", "neutral");
   };
 
   const handleExcelPreview = async () => {
@@ -1176,69 +759,16 @@ function AdminDashboardPage() {
     pushOperationLog("엑셀", "템플릿 다운로드", "상품 대량 등록 CSV 템플릿 생성", "neutral");
   };
 
-  const handleFailureFile = (area: "엑셀" | "이미지" | "import") => {
-    if (area === "이미지") {
-      downloadTextFile(
-        "mwbl_image_match_failures.csv",
-        buildCsv([
-          ["file_name", "product_code", "reason", "action"],
-          ...imageFailureRows.map((row) => [row.fileName, row.productCode, row.reason, row.action])
-        ]),
-      );
-    } else {
-      downloadTextFile(
-        "mwbl_product_import_failures.csv",
-        buildCsv([
-          ["row", "import_sku", "status", "field", "value", "reason"],
-          ...excelDisplayRows.map((row) => [row.row, row.importSku, row.status, row.field, row.value, row.reason])
-        ]),
-      );
-    }
-
-    pushOperationLog(area, "실패 파일 다운로드", "검수 실패 행을 CSV로 생성", "neutral");
-  };
-
-  const handleImageMatch = () => {
-    setImageBatchState("matched");
-    setImageQueueState("pending");
-    setImageOcrState("idle");
-    pushOperationLog("이미지", "이미지 매칭 완료", `${imageBatchName} · 310개 연결`, "success");
-  };
-
-  const handleImageMappingDownload = () => {
+  const handleFailureFile = () => {
     downloadTextFile(
-      "mwbl_image_mapping_template.csv",
+      "mwbl_product_import_failures.csv",
       buildCsv([
-        ["seller_sku", "product_code", "image_file_name", "image_role", "sort_order"],
-        ["sku_torriden_divein_serum", "prod_000245", "prod_000245_main.jpg", "main", 0],
-        ["sku_torriden_divein_serum", "prod_000245", "prod_000245_01.jpg", "detail", 1]
+        ["row", "import_sku", "status", "field", "value", "reason"],
+        ...excelDisplayRows.map((row) => [row.row, row.importSku, row.status, row.field, row.value, row.reason])
       ]),
     );
-    pushOperationLog("이미지", "매핑표 다운로드", "파일명 기반 이미지 연결 CSV 생성", "neutral");
-  };
 
-  const handleImageOcrAssist = () => {
-    if (imageBatchState === "idle") {
-      return;
-    }
-
-    setImageOcrState("dirty");
-    pushOperationLog("이미지", "OCR 후보 추출", "상품명·브랜드·전성분 후보를 검수 목록에 표시", "warning");
-  };
-
-  const handleStockSave = () => {
-    setStockHistory((currentRows) => [
-      {
-        time: formatCurrentTime(),
-        product: selectedStockProduct.name,
-        change: `${formatCurrency(selectedStockProduct.price)} · 재고 ${selectedStockProduct.stock}`,
-        actor: "관리자",
-        reason: stockChangeReason || "로컬 수정 저장"
-      },
-      ...currentRows
-    ]);
-    setStockSaveState("saved");
-    pushOperationLog("재고", "가격·재고 수정 저장", `${selectedStockProduct.name} · ${stockChangeReason}`, "success");
+    pushOperationLog("엑셀", "실패 파일 다운로드", "검수 실패 행을 CSV로 생성", "neutral");
   };
 
   const handlePendingItemClick = (item: PendingItem) => {
@@ -1248,28 +778,8 @@ function AdminDashboardPage() {
       return;
     }
 
-    if (item.action === "duplicateProduct") {
-      setActiveView("products");
-      pushOperationLog("대시보드", "상품 중복 후보 확인", item.note, item.tone);
-      return;
-    }
-
-    if (item.action === "excelFailure") {
-      setActiveView("excelUpload");
-      pushOperationLog("대시보드", "import 실패 행 확인", item.note, item.tone);
-      return;
-    }
-
-    if (item.action === "imageFailure") {
-      setImageBatchState("matched");
-      setImageQueueState("pending");
-      setActiveView("imageUpload");
-      pushOperationLog("대시보드", "이미지 매칭 실패 확인", item.note, item.tone);
-      return;
-    }
-
-    setActiveView("dashboard");
-    pushOperationLog("대시보드", "임베딩 자동 반영 확인", item.note, item.tone);
+    setActiveView("imageUpload");
+    pushOperationLog("대시보드", "이미지 연결 화면 이동", item.note, item.tone);
   };
 
   const renderSellerList = () => {
@@ -1536,206 +1046,196 @@ function AdminDashboardPage() {
       </section>
     );
   };
-  const renderDashboard = () => (
-    <>
-      <section className="admin-stats" aria-label="운영 지표">
-        {stats.map((item) => (
-          <article className="admin-stat" key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </article>
-        ))}
-      </section>
+  const renderDashboard = () => {
+    const summary = dashboardSummary.data;
+    const summaryPending = dashboardSummary.loading && !summary;
+    const summaryPlaceholder = summaryPending ? "불러오는 중입니다" : "정보 없음";
 
-      <section
-        className="admin-dashboard-charts"
-        aria-label="상품 구성과 처리 대기"
-        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "16px", margin: "0 0 18px" }}
-      >
-        <article className="admin-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p>상품 구성</p>
-              <h2>상품 상태 구성비</h2>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "22px" }}>
-            <svg viewBox="0 0 140 140" role="img" aria-label="상품 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
-              {MOCK_STATUS_SEGMENTS.map((seg) => (
-                <circle
-                  key={seg.label}
-                  cx="70"
-                  cy="70"
-                  r="52"
-                  fill="none"
-                  stroke={seg.color}
-                  strokeWidth="16"
-                  strokeDasharray={`${seg.dash} ${DONUT_CIRC - seg.dash}`}
-                  strokeDashoffset={seg.offset}
-                  transform="rotate(-90 70 70)"
-                />
-              ))}
-              <text x="70" y="68" textAnchor="middle" style={{ fontSize: "20px", fontWeight: 700, fill: "#222" }}>24.6k</text>
-              <text x="70" y="86" textAnchor="middle" style={{ fontSize: "10px", fill: "#8a9099" }}>전체 상품</text>
-            </svg>
-            <ul style={{ flex: "0 1 230px", maxWidth: "230px", listStyle: "none", margin: 0, padding: 0 }}>
-              {MOCK_STATUS_BREAKDOWN.map((seg) => (
-                <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "11.5px", color: "#55585d", margin: "3px 0" }}>
-                  <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: seg.color, flex: "0 0 auto" }} />
-                  <span style={{ flex: 1 }}>{seg.label}</span>
-                  <b style={{ color: "#222" }}>{seg.value.toLocaleString("ko-KR")}</b>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </article>
-        <article className="admin-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p>처리 대기</p>
-              <h2>업무별 대기 건수</h2>
-            </div>
-          </div>
-          <ul style={{ listStyle: "none", margin: 0, padding: "0 36px 0 0" }}>
-            {MOCK_PENDING_QUEUE.map((bar) => (
-              <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
-                <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
-                <span style={{ flex: 1, background: "#eef1f4", borderRadius: "5px", height: "17px", overflow: "hidden" }}>
-                  <span style={{ display: "block", width: `${Math.max(1.5, (bar.value / MOCK_PENDING_MAX) * 100)}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
-                </span>
-                <b style={{ width: "56px", fontSize: "11.5px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
-              </li>
-            ))}
-          </ul>
-        </article>
-      </section>
-
-      <section className="admin-grid">
-
-        <section className="admin-panel admin-pending-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p>처리 대기</p>
-              <h2>오늘 확인할 일</h2>
-            </div>
-          </div>
-          <div className="admin-pending-list">
-            {pendingItems.map((item) => (
-              <button
-                className="admin-pending-item"
-                key={item.label}
-                onClick={() => handlePendingItemClick(item)}
-                type="button"
-              >
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.note}</small>
-                </span>
-                <b className={`admin-badge ${item.tone}`}>{item.status}</b>
-                <i aria-hidden="true">›</i>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="admin-panel admin-import-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p>최근 import job</p>
-              <h2>엑셀·이미지 업로드 결과</h2>
-            </div>
-            <button className="admin-secondary-button" onClick={() => handleFailureFile("import")} type="button">
-              실패 파일
+    return (
+      <>
+        {dashboardSummary.error && (
+          <div className="admin-state-banner danger" role="alert">
+            <strong>운영 현황을 불러오지 못했습니다</strong>
+            <span>{dashboardSummary.error}</span>
+            <button
+              className="admin-secondary-button"
+              onClick={() => void dashboardSummary.refresh()}
+              type="button"
+            >
+              다시 시도
             </button>
           </div>
-          <div className="admin-table-wrap">
-            <table className="admin-table compact">
-              <thead>
-                <tr>
-                  <th scope="col">시간</th>
-                  <th scope="col">파일</th>
-                  <th scope="col">성공</th>
-                  <th scope="col">실패</th>
-                  <th scope="col">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importRows.map((row) => (
-                  <tr key={`${row.time}-${row.file}`}>
-                    <td>{row.time}</td>
-                    <td className="admin-file-name">{row.file}</td>
-                    <td>{row.success}</td>
-                    <td className={row.failed > 0 ? "admin-danger-text" : undefined}>{row.failed}</td>
-                    <td>
-                      <span className={`admin-badge ${row.tone}`}>{row.status}</span>
-                    </td>
-                  </tr>
+        )}
+
+        <section className="admin-stats" aria-label="운영 지표" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          {dashboardStatCards.map((item) => (
+            <article className="admin-stat" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </section>
+
+        <section
+          className="admin-dashboard-charts"
+          aria-label="상품 구성과 처리 대기"
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "16px", margin: "0 0 18px" }}
+        >
+          <article className="admin-panel">
+            <div className="admin-panel-header">
+              <div>
+                <p>상품 구성</p>
+                <h2>재고 상태 구성비</h2>
+              </div>
+            </div>
+            {summary ? (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "22px" }}>
+                <svg viewBox="0 0 140 140" role="img" aria-label="재고 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
+                  {stockStatusSegments.map((seg) => (
+                    <circle
+                      key={seg.label}
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      fill="none"
+                      stroke={seg.color}
+                      strokeWidth="16"
+                      strokeDasharray={`${seg.dash} ${DONUT_CIRC - seg.dash}`}
+                      strokeDashoffset={seg.offset}
+                      transform="rotate(-90 70 70)"
+                    />
+                  ))}
+                  <text x="70" y="68" textAnchor="middle" style={{ fontSize: "20px", fontWeight: 700, fill: "#222" }}>
+                    {summary.productStats.totalCount.toLocaleString("ko-KR")}
+                  </text>
+                  <text x="70" y="86" textAnchor="middle" style={{ fontSize: "10px", fill: "#8a9099" }}>전체 상품</text>
+                </svg>
+                <ul style={{ flex: "0 1 230px", maxWidth: "230px", listStyle: "none", margin: 0, padding: 0 }}>
+                  {stockStatusSegments.map((seg) => (
+                    <li key={seg.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "11.5px", color: "#55585d", margin: "3px 0" }}>
+                      <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: seg.color, flex: "0 0 auto" }} />
+                      <span style={{ flex: 1 }}>{seg.label}</span>
+                      <b style={{ color: "#222" }}>{seg.value.toLocaleString("ko-KR")}</b>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="admin-state-banner neutral">
+                <strong>{summaryPlaceholder}</strong>
+              </div>
+            )}
+          </article>
+          <article className="admin-panel">
+            <div className="admin-panel-header">
+              <div>
+                <p>처리 대기</p>
+                <h2>성분 검수 대기 현황</h2>
+              </div>
+            </div>
+            {summary ? (
+              <ul style={{ listStyle: "none", margin: 0, padding: "0 36px 0 0" }}>
+                {ingredientQueueBars.map((bar) => (
+                  <li key={bar.label} style={{ display: "flex", alignItems: "center", gap: "9px", margin: "8px 0" }}>
+                    <span style={{ width: "78px", fontSize: "11.5px", color: "#55585d", textAlign: "right", flex: "0 0 auto" }}>{bar.label}</span>
+                    <span style={{ flex: 1, background: "#eef1f4", borderRadius: "5px", height: "17px", overflow: "hidden" }}>
+                      <span style={{ display: "block", width: `${Math.max(1.5, (bar.value / ingredientQueueMax) * 100)}%`, height: "100%", background: bar.color, borderRadius: "5px" }} />
+                    </span>
+                    <b style={{ width: "56px", fontSize: "11.5px", color: "#222", textAlign: "right", flex: "0 0 auto" }}>{bar.value.toLocaleString("ko-KR")}</b>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="admin-panel admin-operation-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>운영 액션</p>
-              <h2>최근 화면 조작 로그</h2>
-            </div>
-            <span className="admin-badge neutral">local</span>
-          </div>
-          <div className="admin-operation-list">
-            {operationLogs.map((log) => (
-              <article className="admin-operation-item" key={log.id}>
-                <span className={`admin-operation-dot ${log.tone}`} />
-                <div>
-                  <strong>{log.title}</strong>
-                  <small>{log.area} · {log.detail}</small>
-                </div>
-                <time>{log.time}</time>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>주문·결제</p>
-              <h2>오늘 요약</h2>
-            </div>
-          </div>
-          <dl className="admin-metric-list">
-            {liveDashboardOrderSummary.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
+              </ul>
+            ) : (
+              <div className="admin-state-banner neutral">
+                <strong>{summaryPlaceholder}</strong>
               </div>
-            ))}
-          </dl>
+            )}
+          </article>
         </section>
 
-        <section className="admin-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <p>검색·추천</p>
-              <h2>인덱스 상태</h2>
-            </div>
-            <span className="admin-badge success">정상</span>
-          </div>
-          <dl className="admin-metric-list">
-            {indexSummary.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
+        <section className="admin-grid">
+
+          <section className="admin-panel admin-pending-panel">
+            <div className="admin-panel-header">
+              <div>
+                <p>처리 대기</p>
+                <h2>오늘 확인할 일</h2>
               </div>
-            ))}
-          </dl>
-        </section>
+            </div>
+            {summary ? (
+              <div className="admin-pending-list">
+                {pendingItems.map((item) => (
+                  <button
+                    className="admin-pending-item"
+                    key={item.label}
+                    onClick={() => handlePendingItemClick(item)}
+                    type="button"
+                  >
+                    <span>
+                      <strong>{item.label}</strong>
+                      <small>{item.note}</small>
+                    </span>
+                    <b className={`admin-badge ${item.tone}`}>{item.status}</b>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="admin-state-banner neutral">
+                <strong>{summaryPlaceholder}</strong>
+              </div>
+            )}
+          </section>
 
-      </section>
-    </>
-  );
+          <section className="admin-panel admin-operation-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>운영 액션</p>
+                <h2>최근 화면 조작 로그</h2>
+              </div>
+              <span className="admin-badge neutral">local</span>
+            </div>
+            <div className="admin-operation-list">
+              {operationLogs.map((log) => (
+                <article className="admin-operation-item" key={log.id}>
+                  <span className={`admin-operation-dot ${log.tone}`} />
+                  <div>
+                    <strong>{log.title}</strong>
+                    <small>{log.area} · {log.detail}</small>
+                  </div>
+                  <time>{log.time}</time>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="admin-panel">
+            <div className="admin-panel-header compact">
+              <div>
+                <p>주문·결제</p>
+                <h2>현재 주문·결제 현황</h2>
+              </div>
+            </div>
+            {summary ? (
+              <dl className="admin-metric-list">
+                {orderSummaryCards.map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="admin-state-banner neutral">
+                <strong>{summaryPlaceholder}</strong>
+              </div>
+            )}
+          </section>
+
+        </section>
+      </>
+    );
+  };
 
   const renderExcelUpload = () => (
     <section className="admin-excel-layout">
@@ -1880,7 +1380,7 @@ function AdminDashboardPage() {
           <button
             className="admin-secondary-button"
             disabled={excelDisplayRows.length === 0}
-            onClick={() => handleFailureFile("엑셀")}
+            onClick={() => handleFailureFile()}
             type="button"
           >
             결과 파일
@@ -1959,460 +1459,9 @@ function AdminDashboardPage() {
     </section>
   );
 
-  const renderImageUpload = () => (
-    <section className="admin-excel-layout admin-image-layout admin-image-deferred">
-      <section className="admin-panel admin-excel-main">
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>상품 이미지 운영</p>
-            <h2>이미지 대량 연결은 추후 지원</h2>
-          </div>
-          <span className="admin-badge neutral">추후 지원</span>
-          <div className="admin-filter-row">
-            <button className="admin-secondary-button" onClick={handleImageMappingDownload} type="button">
-              매핑표
-            </button>
-            <button className="admin-primary-button" onClick={handleImageMatch} type="button">
-              매칭 실행
-            </button>
-          </div>
-        </div>
+  const renderImageUpload = () => <AdminImageBulkLinkSection parseSpreadsheet={parseExcelUpload} />;
 
-        <div className="admin-state-banner neutral">
-          <strong>이미지 파일 업로드와 상품 연결 방식은 아직 준비 중입니다.</strong>
-          <span>상품 엑셀 대량등록은 이미지 없이 먼저 진행할 수 있습니다.</span>
-        </div>
-
-        <div className="admin-upload-zone" hidden>
-          <div>
-            <strong>{imageBatchName}</strong>
-            <p>ZIP 또는 이미지 묶음을 파일명 규칙과 엑셀 image_file_names 값으로 상품에 연결합니다.</p>
-          </div>
-          <label className="admin-upload-input">
-            파일 선택
-            <input
-              accept=".zip,image/jpeg,image/png,image/webp"
-              aria-label="상품 이미지 파일 선택"
-              multiple
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  setImageBatchName(event.target.files && event.target.files.length > 1 ? `${file.name} 외 ${event.target.files.length - 1}개` : file.name);
-                  setImageBatchState("idle");
-                  setImageQueueState("idle");
-                }
-              }}
-              type="file"
-            />
-          </label>
-        </div>
-
-        <div className="admin-excel-state-row">
-          <span className={`admin-badge ${imageBatchState === "matched" ? "success" : "neutral"}`}>
-            {imageBatchState === "matched" ? "매칭 완료" : "매칭 전"}
-          </span>
-          <span>
-            {imageQueueState === "queued"
-              ? "이미지 연결 job에 올라갔습니다. 실패 파일은 운영자 확인 목록에 남습니다."
-              : imageQueueState === "pending"
-                ? "매칭 결과를 확인한 뒤 연결 대기열에 추가할 수 있습니다."
-                : "자동 연결은 파일명/매핑표 exact 기준이며, OCR 추정은 자동 확정하지 않습니다."}
-          </span>
-        </div>
-      </section>
-
-      <aside className="admin-panel admin-template-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>파일명 규칙</p>
-            <h2>자동 연결 기준</h2>
-          </div>
-        </div>
-        <div className="admin-template-list">
-          {imageFileRules.map((rule) => (
-            <div key={rule.label}>
-              <span>
-                <strong>{rule.label}</strong>
-                <small>{rule.value}</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <section className="admin-panel admin-excel-summary-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>매칭 결과</p>
-            <h2>이미지 연결 요약</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={imageBatchState === "idle"}
-            onClick={() => handleFailureFile("이미지")}
-            type="button"
-          >
-            실패 파일
-          </button>
-        </div>
-        <div className="admin-excel-summary-grid">
-          {imageMatchingSummary.map((item) => (
-            <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{imageBatchState === "matched" ? item.value : "-"}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-image-ocr-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>라벨/상세이미지 OCR</p>
-            <h2>자동 등록 후보 추출 미리보기</h2>
-          </div>
-          <button
-            className="admin-secondary-button"
-            disabled={imageBatchState === "idle"}
-            onClick={handleImageOcrAssist}
-            type="button"
-          >
-            OCR 후보 추출
-          </button>
-        </div>
-        <div className={`admin-state-banner ${imageOcrState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>{imageOcrState === "dirty" ? "검수 후보 생성됨" : "후보 추출 전"}</strong>
-          <span>
-            {imageOcrState === "dirty"
-              ? "상품명과 브랜드는 후보로 보여주고, 전성분은 pending 검수로 넘깁니다. 가격·재고는 이미지 단독 추출 대상이 아닙니다."
-              : "이미지 매칭 후 OCR 후보 추출을 누르면 상품 등록 후보값을 미리 볼 수 있습니다."}
-          </span>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table compact admin-image-ocr-table">
-            <thead>
-              <tr>
-                <th scope="col">필드</th>
-                <th scope="col">추출값</th>
-                <th scope="col">신뢰도</th>
-                <th scope="col">처리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imageOcrState === "dirty" ? (
-                imageOcrCandidateRows.map((row) => (
-                  <tr key={row.field}>
-                    <td>{row.field}</td>
-                    <td className="admin-file-name">{row.extracted}</td>
-                    <td>{row.confidence}</td>
-                    <td>{row.decision}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4}>
-                    <div className="admin-empty-state">
-                      <strong>아직 OCR 후보가 없습니다</strong>
-                      <span>이미지 매칭 실행 후 OCR 후보 추출을 누르면 자동 등록 가능값과 검수 필요값을 분리합니다.</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>미리보기</p>
-            <h2>연결 상태 샘플</h2>
-          </div>
-          <span className="admin-badge neutral">썸네일</span>
-        </div>
-        <div className="admin-image-preview-grid">
-          {imagePreviewRows.map((item) => (
-            <article className="admin-image-preview-card" key={item.fileName}>
-              <div className={`admin-image-thumb ${item.tone}`}>
-                <span>{item.label}</span>
-              </div>
-              <strong>{item.fileName}</strong>
-              <small>{item.productName}</small>
-              <b className={`admin-badge ${item.tone}`}>{item.label}</b>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-excel-failure-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>실패/확인 목록</p>
-            <h2>운영자 조치가 필요한 파일</h2>
-          </div>
-          <span className="admin-badge warning">확인 필요</span>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-excel-table">
-            <thead>
-              <tr>
-                <th scope="col">파일명</th>
-                <th scope="col">상품</th>
-                <th scope="col">사유</th>
-                <th scope="col">조치</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imageBatchState === "matched" ? (
-                imageFailureRows.map((row) => (
-                  <tr key={row.fileName}>
-                    <td className="admin-file-name">{row.fileName}</td>
-                    <td>{row.productCode}</td>
-                    <td>{row.reason}</td>
-                    <td>{row.action}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4}>
-                    <div className="admin-empty-state">
-                      <strong>아직 매칭 결과가 없습니다</strong>
-                      <span>이미지 묶음을 선택하고 매칭 실행을 누르면 실패 파일과 덮어쓰기 확인 대상이 표시됩니다.</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-    </section>
-  );
-
-  const renderStockPrice = () => (
-    <section className="admin-stock-layout">
-      <section className="admin-panel admin-stock-hero">
-        <div className="admin-panel-header admin-product-header">
-          <div>
-            <p>재고·가격 상태 확인</p>
-            <h2>판매가, 재고, 판매 상태 간단 수정</h2>
-          </div>
-          <div className="admin-filter-row">
-            <button
-              className="admin-secondary-button"
-              onClick={handleStockHistoryDownload}
-              type="button"
-            >
-              이력 CSV
-            </button>
-            <button
-              className="admin-secondary-button"
-              onClick={handleLowStockSuspend}
-              type="button"
-            >
-              저재고 중지
-            </button>
-            <button className="admin-primary-button" onClick={handleStockSave} type="button">
-              수정 저장
-            </button>
-          </div>
-        </div>
-        <div className="admin-excel-summary-grid">
-          {liveStockPriceSummary.map((item) => (
-            <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="admin-panel admin-stock-table-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>상품별 수정</p>
-            <h2>가격·재고 입력</h2>
-          </div>
-          <div className="admin-filter-row">
-            <select
-              aria-label="재고 화면 필터"
-              onChange={(event) => setStockFocusFilter(event.target.value as StockFocusFilter)}
-              value={stockFocusFilter}
-            >
-              <option value="전체">전체 상품</option>
-              <option value="품절임박">품절/임박</option>
-              <option value="검수필요">검수 필요</option>
-              <option value="판매중지">판매중지</option>
-            </select>
-            <button className="admin-secondary-button" onClick={handleStockFilterReset} type="button">
-              초기화
-            </button>
-          </div>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-stock-table">
-            <thead>
-              <tr>
-                <th scope="col">상품</th>
-                <th scope="col">판매가</th>
-                <th scope="col">재고</th>
-                <th scope="col">판매상태</th>
-                <th scope="col">업데이트</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStockProducts.map((product) => (
-                <tr
-                  className={product.id === selectedStockProduct.id ? "selected" : undefined}
-                  key={product.id}
-                  onClick={() => handleSelectStockProduct(product.id)}
-                >
-                  <td>
-                    <strong className="admin-product-name">{product.name}</strong>
-                    <small className="admin-product-code">{product.brand} · {product.productCode}</small>
-                  </td>
-                  <td>
-                    <input
-                      aria-label={`${product.name} 판매가`}
-                      className="admin-stock-input"
-                      min="0"
-                      onChange={(event) => handleStockPatch(product.id, { price: Number(event.target.value) })}
-                      type="number"
-                      value={product.price}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      aria-label={`${product.name} 재고`}
-                      className="admin-stock-input"
-                      min="0"
-                      onChange={(event) => handleStockPatch(product.id, { stock: Number(event.target.value) })}
-                      type="number"
-                      value={product.stock}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      aria-label={`${product.name} 판매상태`}
-                      className="admin-stock-select"
-                      onChange={(event) => handleStockPatch(product.id, { status: event.target.value as ProductStatus })}
-                      value={product.status}
-                    >
-                      <option>판매중</option>
-                      <option>검수필요</option>
-                      <option>품절임박</option>
-                      <option>판매중지</option>
-                    </select>
-                  </td>
-                  <td>
-                    <span className={`admin-badge ${getStatusTone(product.status)}`}>{product.status}</span>
-                    <small className="admin-product-code">{product.updatedAt}</small>
-                  </td>
-                </tr>
-              ))}
-              {filteredStockProducts.length === 0 && (
-                <tr>
-                  <td className="admin-empty-row" colSpan={5}>
-                    조건에 맞는 상품이 없습니다. 필터를 초기화해 주세요.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <aside className="admin-panel admin-stock-detail">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>선택 상품</p>
-            <h2>{selectedStockProduct.brand}</h2>
-          </div>
-          <span className={`admin-badge ${getStatusTone(selectedStockProduct.status)}`}>
-            {selectedStockProduct.status}
-          </span>
-        </div>
-        <dl className="admin-metric-list">
-          <div>
-            <dt>상품명</dt>
-            <dd>{selectedStockProduct.name}</dd>
-          </div>
-          <div>
-            <dt>판매가</dt>
-            <dd>{formatCurrency(selectedStockProduct.price)}</dd>
-          </div>
-          <div>
-            <dt>재고</dt>
-            <dd>{selectedStockProduct.stock.toLocaleString("ko-KR")}</dd>
-          </div>
-          <div>
-            <dt>검색 반영</dt>
-            <dd>{selectedStockProduct.indexStatus}</dd>
-          </div>
-        </dl>
-        <label className="admin-stock-reason-field">
-          <span>변경 사유</span>
-          <textarea
-            onChange={(event) => {
-              setStockChangeReason(event.target.value);
-              setStockSaveState("dirty");
-            }}
-            rows={3}
-            value={stockChangeReason}
-          />
-        </label>
-        <div className={`admin-state-banner ${stockSaveState === "saved" ? "success" : stockSaveState === "dirty" ? "warning" : "neutral"}`}>
-          <strong>{stockSaveState === "saved" ? "수정 저장 완료" : stockSaveState === "dirty" ? "수정 저장 대기" : "변경 없음"}</strong>
-          <span>
-            {stockSaveState === "saved"
-              ? "변경 이력에 로컬 저장 기록을 남겼습니다."
-              : stockSaveState === "dirty"
-                ? "가격·재고·판매상태 변경값이 아직 저장되지 않았습니다."
-                : "표의 값을 수정하면 저장 대기 상태로 바뀝니다."}
-          </span>
-        </div>
-        <div className="admin-stock-warning">
-          주문/결제 흐름에서는 checkout preview가 서버 기준 가격과 재고를 다시 검증합니다.
-        </div>
-      </aside>
-
-      <section className="admin-panel">
-        <div className="admin-panel-header compact">
-          <div>
-            <p>최근 변경</p>
-            <h2>가격·재고 이력</h2>
-          </div>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table compact admin-stock-history-table">
-            <thead>
-              <tr>
-                <th scope="col">시간</th>
-                <th scope="col">상품</th>
-                <th scope="col">변경</th>
-                <th scope="col">담당</th>
-                <th scope="col">사유</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stockHistory.map((row) => (
-                <tr key={`${row.time}-${row.product}`}>
-                  <td>{row.time}</td>
-                  <td>{row.product}</td>
-                  <td>{row.change}</td>
-                  <td>{row.actor}</td>
-                  <td>{row.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-    </section>
-  );
+  const renderStockPrice = () => <AdminInventoryPriceSection />;
 
   const viewTitle =
     activeView === "dashboard"
@@ -2595,8 +1644,8 @@ function AdminDashboardPage() {
         {activeView === "sellerSettlement" && renderSellerSettlement()}
 
         <p className="admin-footnote">
-          판매중·검수 필요·품절 임박·이미지 누락·주문·import 수치는 화면 검토용 예시값입니다.
-          검색/추천 인덱스와 pending 수치는 현재 프로젝트 실측 기준을 반영했습니다.
+          셀러 관리·셀러별 상품 검수·셀러별 정산 화면의 수치는 화면 검토용 예시값입니다.
+          대시보드 운영 지표는 실제 데이터를 반영합니다.
         </p>
       </section>
     </main>

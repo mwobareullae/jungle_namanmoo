@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
@@ -14,9 +12,12 @@ from app.schemas.admin.product import (
     AdminProductUpdateRequest,
 )
 from app.schemas.admin.bulk_import import AdminBulkImportRequest, AdminBulkImportResponse
+from app.schemas.admin.image_bulk_link import AdminImageBulkLinkRequest, AdminImageBulkLinkResponse
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.admin.bulk_import_service import run_bulk_import
 from app.services.admin.bulk_import_validation_service import validate_bulk_import
+from app.services.admin.image_bulk_link_service import run_image_bulk_link
+from app.services.admin.image_bulk_link_validation_service import validate_image_bulk_link
 from app.services.admin.ingredient_mapping_pending_groups import (
     PendingIngredientGroupsRefreshError,
     refresh_pending_ingredient_mapping_groups,
@@ -31,50 +32,12 @@ from app.services.admin.product_service import (
     list_admin_products,
 )
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
-from app.services.elasticsearch_catalog_index import (
-    ElasticsearchCatalogIndexError,
-    reindex_catalog_product_to_elasticsearch,
-)
+from app.services.catalog_sync import sync_catalog_product_after_commit
 
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 _REFRESH_RECOVERY_COMMAND = "python -m app.cli.refresh_ingredient_mapping_pending_groups"
-
-
-def _sync_catalog_product_after_commit(session: Session, product_code: str) -> None:
-    """DB 커밋 이후 상품 1건을 ES에 best-effort로 동기화한다."""
-
-    started_at = current_time()
-    try:
-        result = reindex_catalog_product_to_elasticsearch(
-            session,
-            product_id=product_code,
-        )
-    except ElasticsearchCatalogIndexError as exc:
-        log_performance_event(
-            "admin_product_catalog_sync_failed",
-            duration_ms=elapsed_ms(started_at),
-            metadata={
-                "product_id": product_code,
-                "error": type(exc).__name__,
-            },
-        )
-        logger.warning(
-            "admin product catalog sync failed",
-            extra={"product_id": product_code, "error_type": type(exc).__name__},
-        )
-        return
-
-    log_performance_event(
-        "admin_product_catalog_sync_completed",
-        duration_ms=elapsed_ms(started_at),
-        metadata={
-            "product_id": product_code,
-            "action": result.action,
-        },
-    )
 
 
 @router.get("/product-brands", response_model=AdminProductMasterOptionListResponse)
@@ -138,7 +101,7 @@ def create_product(
     except Exception:
         session.rollback()
         raise
-    _sync_catalog_product_after_commit(session, result.product_code)
+    sync_catalog_product_after_commit(session, result.product_code)
     return result
 
 
@@ -203,6 +166,62 @@ def bulk_create_products(
     return response
 
 
+@router.post(
+    "/products/images/bulk",
+    response_model=AdminImageBulkLinkResponse,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def bulk_link_product_images(
+    body: AdminImageBulkLinkRequest,
+    session: Session = Depends(get_db),
+) -> AdminImageBulkLinkResponse:
+    """엑셀 이미지 행을 부분 성공 방식으로 기존 상품에 연결한다.
+
+    파일 업로드·CDN 파일 존재 확인은 이 API 범위 밖이다. 저장 서비스는 행별
+    savepoint와 flush까지만 담당하고, 이 라우트가 전체 commit 및 조건부 ES
+    동기화를 맡는다.
+    """
+
+    started_at = current_time()
+    try:
+        validation = validate_image_bulk_link(session, body)
+        outcome = run_image_bulk_link(session, validation)
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_bulk_image_link_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"error_code": exc.code},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_bulk_image_link_failed",
+            started_at=started_at,
+            metadata={"error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
+        )
+        raise
+
+    for product_code in sorted(outcome.catalog_sync_product_codes):
+        sync_catalog_product_after_commit(session, product_code, event_prefix="admin_bulk_image_link")
+
+    response = outcome.to_response()
+    log_performance_event(
+        "admin_bulk_image_link_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "updated": response.summary.updated,
+            "skipped": response.summary.skipped,
+            "failed": response.summary.failed,
+            "catalog_sync_count": len(outcome.catalog_sync_product_codes),
+        },
+    )
+    return response
+
+
 @router.get(
     "/products/{product_code}",
     response_model=AdminProductDetail,
@@ -241,5 +260,5 @@ def update_product(
     except Exception:
         session.rollback()
         raise
-    _sync_catalog_product_after_commit(session, result.product_code)
+    sync_catalog_product_after_commit(session, result.product_code)
     return result

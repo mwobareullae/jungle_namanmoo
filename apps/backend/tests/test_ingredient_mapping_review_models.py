@@ -41,6 +41,7 @@ def test_mapping_review_persists_approved_decision_and_initial_event(db_engine: 
             normalized_source_name="sodiumhyaluronate",
             target_ingredient_id=target.id,
             status="APPROVED",
+            final_disposition="MAPPED",
             reviewed_by_user_id=user.id,
             reviewed_at=reviewed_at,
         )
@@ -50,6 +51,7 @@ def test_mapping_review_persists_approved_decision_and_initial_event(db_engine: 
             IngredientMappingReviewEvent(
                 review_id=review.id,
                 to_status="APPROVED",
+                to_final_disposition="MAPPED",
                 to_target_ingredient_id=target.id,
                 actor_id=user.id,
             )
@@ -59,8 +61,95 @@ def test_mapping_review_persists_approved_decision_and_initial_event(db_engine: 
         saved_event = session.scalar(sa.select(IngredientMappingReviewEvent))
         assert review.status == "APPROVED"
         assert review.target_ingredient_id == target.id
+        assert review.final_disposition == "MAPPED"
         assert saved_event is not None
+        assert saved_event.to_final_disposition == "MAPPED"
         assert saved_event.metadata_json == {}
+
+
+@pytest.mark.parametrize(
+    "final_disposition",
+    ["NON_INGREDIENT", "COMPOUND_MATERIAL", "SOURCE_ERROR", "UNRESOLVABLE"],
+)
+def test_mapping_review_persists_non_mapping_final_disposition(
+    db_engine: Engine,
+    final_disposition: str,
+) -> None:
+    with Session(db_engine) as session:
+        user, source, _target = _seed_references(session, final_disposition.lower())
+        review = IngredientMappingReview(
+            source_ingredient_id=source.id,
+            normalized_source_name="source-name",
+            status="REJECTED",
+            final_disposition=final_disposition,
+            decision_reason="final classification reason",
+            reviewed_by_user_id=user.id,
+            reviewed_at=datetime(2026, 7, 19, 10, 0, tzinfo=UTC),
+        )
+        session.add(review)
+        session.flush()
+        session.add(
+            IngredientMappingReviewEvent(
+                review_id=review.id,
+                to_status="REJECTED",
+                to_final_disposition=final_disposition,
+                actor_id=user.id,
+                reason="final classification reason",
+            )
+        )
+        session.commit()
+
+        assert review.final_disposition == final_disposition
+
+
+def test_mapping_review_persists_needs_review_without_final_disposition(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        user, source, _target = _seed_references(session, "needs-review")
+        review = IngredientMappingReview(
+            source_ingredient_id=source.id,
+            normalized_source_name="source-name",
+            status="NEEDS_REVIEW",
+            decision_reason="재검토가 필요합니다",
+            reviewed_by_user_id=user.id,
+            reviewed_at=datetime(2026, 7, 19, 10, 0, tzinfo=UTC),
+        )
+        session.add(review)
+        session.flush()
+
+        assert review.final_disposition is None
+        assert review.target_ingredient_id is None
+
+
+@pytest.mark.parametrize(
+    ("status", "final_disposition", "include_target"),
+    [
+        ("APPROVED", "NON_INGREDIENT", True),
+        ("REJECTED", "MAPPED", False),
+        ("HELD", "SOURCE_ERROR", False),
+    ],
+)
+def test_mapping_review_rejects_inconsistent_final_disposition(
+    db_engine: Engine,
+    status: str,
+    final_disposition: str,
+    include_target: bool,
+) -> None:
+    with Session(db_engine) as session:
+        user, source, target = _seed_references(session, f"invalid-{status.lower()}")
+        session.add(
+            IngredientMappingReview(
+                source_ingredient_id=source.id,
+                normalized_source_name="source-name",
+                target_ingredient_id=target.id if include_target else None,
+                status=status,
+                final_disposition=final_disposition,
+                decision_reason="validation reason",
+                reviewed_by_user_id=user.id,
+                reviewed_at=datetime(2026, 7, 19, 10, 0, tzinfo=UTC),
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.flush()
 
 
 @pytest.mark.parametrize(

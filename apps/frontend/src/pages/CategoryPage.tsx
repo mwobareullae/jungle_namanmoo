@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import LoginRequiredDialog from "../components/LoginRequiredDialog";
+import ProductListLoadingState from "../components/ProductListLoadingState";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ActivityToast from "../components/ui/ActivityToast";
@@ -298,7 +299,7 @@ function CategoryPage() {
         ) : null}
         <div className="popular-products-grid new-products-page__grid category-listing-page__grid">
           {isLoading ? (
-            <div className="search-loading-state">불러오는 중...</div>
+            <ProductListLoadingState />
           ) : errorMessage ? (
             <div className="search-empty">{errorMessage}</div>
           ) : products.length ? (

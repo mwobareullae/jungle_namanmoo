@@ -40,6 +40,10 @@ def _normalize_recommendation_scoring_read_path(value: str) -> str:
     )
 
 
+def _parse_bool(value: str) -> bool:
+    return value.strip().lower() not in {"0", "false", "no", "off", ""}
+
+
 def _default_elasticsearch_products_alias() -> str:
     index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "mubarelle_dev")
     return f"{index_prefix}_products_current"
@@ -79,6 +83,8 @@ class Settings(BaseModel):
     )
     data_dir: str = os.getenv("DATA_DIR") or _default_data_dir()
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    app_env: str = os.getenv("APP_ENV", "local")
+    agent_release: str = os.getenv("AGENT_RELEASE", "local")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
     openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "15"))
@@ -87,10 +93,24 @@ class Settings(BaseModel):
     # enough for a small demo burst without flooding one shared provider key.
     openai_agent_max_concurrency: int = int(os.getenv("OPENAI_AGENT_MAX_CONCURRENCY", "3"))
     openai_agent_queue_timeout_seconds: float = float(
-        os.getenv("OPENAI_AGENT_QUEUE_TIMEOUT_SECONDS", "2")
+        os.getenv("OPENAI_AGENT_QUEUE_TIMEOUT_SECONDS", "10")
     )
     openai_agent_busy_retry_after_seconds: int = int(
         os.getenv("OPENAI_AGENT_BUSY_RETRY_AFTER_SECONDS", "2")
+    )
+    # The runtime enforces a 45s floor so one 15s workflow plus a bounded
+    # retry can never leave a live Redis lease behind.
+    openai_agent_global_lease_ttl_seconds: int = max(
+        int(os.getenv("OPENAI_AGENT_GLOBAL_LEASE_TTL_SECONDS", "45")),
+        45,
+    )
+    openai_agent_authenticated_rate_limit_per_minute: int = max(
+        int(os.getenv("OPENAI_AGENT_AUTHENTICATED_RATE_LIMIT_PER_MINUTE", "30")),
+        1,
+    )
+    openai_agent_anonymous_rate_limit_per_minute: int = max(
+        int(os.getenv("OPENAI_AGENT_ANONYMOUS_RATE_LIMIT_PER_MINUTE", "20")),
+        1,
     )
     openai_agent_circuit_failure_threshold: int = int(
         os.getenv("OPENAI_AGENT_CIRCUIT_FAILURE_THRESHOLD", "3")
@@ -110,6 +130,21 @@ class Settings(BaseModel):
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_key_prefix: str = os.getenv("REDIS_KEY_PREFIX", "mubarelle:dev:")
+    recommendation_candidate_cache_enabled: bool = _parse_bool(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_ENABLED", "false")
+    )
+    recommendation_candidate_cache_ttl_seconds: int = int(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS", "300")
+    )
+    recommendation_candidate_price_cache_ttl_seconds: int = int(
+        os.getenv("RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS", "60")
+    )
+    recommendation_candidate_cache_socket_connect_timeout_seconds: float = float(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS", "0.05")
+    )
+    recommendation_candidate_cache_socket_timeout_seconds: float = float(
+        os.getenv("RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS", "0.05")
+    )
     search_backend_mode: str = _normalize_search_backend_mode(
         os.getenv("SEARCH_BACKEND_MODE", "auto")
     )
