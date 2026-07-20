@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useRef, useState } from "react";
-import EvidenceCandidateReviewPanel from "../components/admin/EvidenceCandidateReviewPanel";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
 import { AdminIngredientMappingSection } from "../features/admin/ingredientMappings/AdminIngredientMappingSection";
@@ -20,13 +20,9 @@ type AdminView =
   | "excelUpload"
   | "imageUpload"
   | "ingredientReview"
-  | "evidenceReview"
   | "stockPrice"
   | "orderStatus"
-  | "cancelClaims"
-  | "sellers"
-  | "sellerInspection"
-  | "sellerSettlement";
+  | "cancelClaims";
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 type ExcelImportState = "idle" | "preview" | "submitting" | "done";
 
@@ -64,110 +60,16 @@ const navItems: Array<{ label: string; view: AdminView }> = [
   { label: "엑셀 상품 대량 등록", view: "excelUpload" },
   { label: "이미지 대량 연결", view: "imageUpload" },
   { label: "성분 매핑 검수", view: "ingredientReview" },
-  { label: "논문 근거 관리", view: "evidenceReview" },
   { label: "재고/가격 확인", view: "stockPrice" },
   { label: "주문 상태 확인", view: "orderStatus" },
-  { label: "취소·클레임 관리", view: "cancelClaims" },
-  { label: "셀러 관리", view: "sellers" },
-  { label: "셀러별 상품 검수", view: "sellerInspection" },
-  { label: "셀러별 정산", view: "sellerSettlement" }
+  { label: "취소·클레임 관리", view: "cancelClaims" }
 ];
 
 const navGroupHeadings: Partial<Record<AdminView, string>> = {
   products: "상품 운영",
-  evidenceReview: "추천 운영",
-  orderStatus: "주문 운영",
-  sellers: "셀러 운영"
+  stockPrice: "추천 운영",
+  orderStatus: "주문 운영"
 };
-
-type SellerStatus = "입점중" | "심사중" | "정지";
-type SellerRow = {
-  id: string;
-  name: string;
-  bizNo: string;
-  owner: string;
-  manager: string;
-  contact: string;
-  status: SellerStatus;
-  joinedAt: string;
-  productCount: number;
-  pendingCount: number;
-  monthlySales: number;
-  lastActive: string;
-};
-
-const MOCK_SELLERS: SellerRow[] = [
-  { id: "sel_torriden", name: "토리든", bizNo: "000-00-00000", owner: "대표자 1", manager: "담당자 A", contact: "010-0000-0000", status: "입점중", joinedAt: "2025-11-02", productCount: 42, pendingCount: 0, monthlySales: 18_400_000, lastActive: "2026-07-08" },
-  { id: "sel_roundlab", name: "라운드랩", bizNo: "000-00-00000", owner: "대표자 2", manager: "담당자 B", contact: "010-0000-0000", status: "입점중", joinedAt: "2025-11-15", productCount: 38, pendingCount: 2, monthlySales: 22_950_000, lastActive: "2026-07-09" },
-  { id: "sel_numbuzin", name: "넘버즈인", bizNo: "000-00-00000", owner: "대표자 3", manager: "담당자 C", contact: "010-0000-0000", status: "입점중", joinedAt: "2025-12-01", productCount: 27, pendingCount: 1, monthlySales: 15_300_000, lastActive: "2026-07-09" },
-  { id: "sel_layerlab", name: "레이어랩", bizNo: "000-00-00000", owner: "대표자 4", manager: "담당자 D", contact: "010-0000-0000", status: "심사중", joinedAt: "2026-07-05", productCount: 0, pendingCount: 12, monthlySales: 0, lastActive: "2026-07-08" },
-  { id: "sel_dearcia", name: "닥터엘시아", bizNo: "000-00-00000", owner: "대표자 5", manager: "담당자 E", contact: "010-0000-0000", status: "입점중", joinedAt: "2026-01-10", productCount: 19, pendingCount: 0, monthlySales: 8_700_000, lastActive: "2026-07-07" },
-  { id: "sel_partion", name: "파티온", bizNo: "000-00-00000", owner: "대표자 6", manager: "담당자 F", contact: "010-0000-0000", status: "심사중", joinedAt: "2026-07-06", productCount: 0, pendingCount: 8, monthlySales: 0, lastActive: "2026-07-06" },
-  { id: "sel_itsskin", name: "잇츠스킨", bizNo: "000-00-00000", owner: "대표자 7", manager: "담당자 G", contact: "010-0000-0000", status: "정지", joinedAt: "2025-10-20", productCount: 14, pendingCount: 0, monthlySales: 0, lastActive: "2026-06-14" },
-  { id: "sel_naturep", name: "네이처리퍼블릭", bizNo: "000-00-00000", owner: "대표자 8", manager: "담당자 H", contact: "010-0000-0000", status: "입점중", joinedAt: "2025-12-18", productCount: 51, pendingCount: 3, monthlySales: 27_600_000, lastActive: "2026-07-09" }
-];
-
-const MOCK_SELLER_STATS = {
-  total: MOCK_SELLERS.length,
-  active: MOCK_SELLERS.filter((s) => s.status === "입점중").length,
-  review: MOCK_SELLERS.filter((s) => s.status === "심사중").length,
-  suspended: MOCK_SELLERS.filter((s) => s.status === "정지").length
-};
-
-type InspectionState = "검수대기" | "보류" | "반려" | "검수통과";
-type InspectionRow = {
-  id: string;
-  seller: string;
-  importJob: string;
-  productName: string;
-  sellerSku: string;
-  reviewState: InspectionState;
-  failReason: string;
-  imageState: "정상" | "대기";
-  recommendable: "가능" | "불가" | "—";
-  ingredientPending: string;
-  imageMatch: string;
-  duplicateCandidate: string;
-};
-
-const MOCK_INSPECTIONS: InspectionRow[] = [
-  { id: "insp_1024", seller: "토리든", importJob: "job_1024", productName: "다이브인 시카 세럼", sellerSku: "sku_torriden_01", reviewState: "검수통과", failReason: "—", imageState: "정상", recommendable: "가능", ingredientPending: "없음", imageMatch: "정상", duplicateCandidate: "없음" },
-  { id: "insp_1025", seller: "라운드랩", importJob: "job_1025", productName: "자작나무 수분 크림", sellerSku: "sku_roundlab_01", reviewState: "검수대기", failReason: "이미지 미매칭", imageState: "대기", recommendable: "—", ingredientPending: "없음", imageMatch: "미매칭 (1)", duplicateCandidate: "없음" },
-  { id: "insp_1026", seller: "넘버즈인", importJob: "job_1026", productName: "5번 글루타치온 앰플", sellerSku: "sku_numbuzin_05", reviewState: "보류", failReason: "성분 pending 2", imageState: "정상", recommendable: "—", ingredientPending: "2건", imageMatch: "정상", duplicateCandidate: "없음" },
-  { id: "insp_1027", seller: "레이어랩", importJob: "job_1027", productName: "니오좀 판테놀 세럼", sellerSku: "sku_layerlab_01", reviewState: "검수대기", failReason: "성분 pending 5", imageState: "대기", recommendable: "—", ingredientPending: "5건", imageMatch: "대기", duplicateCandidate: "없음" },
-  { id: "insp_1028", seller: "파티온", importJob: "job_1028", productName: "노스카나인 흔적 앰플", sellerSku: "sku_partion_09", reviewState: "반려", failReason: "중복 상품 후보", imageState: "정상", recommendable: "불가", ingredientPending: "없음", imageMatch: "정상", duplicateCandidate: "후보 1건" },
-  { id: "insp_1029", seller: "닥터엘시아", importJob: "job_1029", productName: "비타민C 부스팅 세럼", sellerSku: "sku_dearcia_02", reviewState: "검수통과", failReason: "—", imageState: "정상", recommendable: "가능", ingredientPending: "없음", imageMatch: "정상", duplicateCandidate: "없음" }
-];
-
-const MOCK_INSPECTION_STATS = {
-  waiting: 3,
-  held: 2,
-  ingredientPending: 7,
-  imageUnmatched: 1
-};
-
-type SettlementState = "정산대기" | "정산예정" | "정산완료" | "보류";
-type SettlementRow = {
-  id: string;
-  seller: string;
-  sales: number;
-  refunds: number;
-  fee: number;
-  payout: number;
-  state: SettlementState;
-  scheduledAt: string;
-  completedAt: string;
-  accountVerified: "확인" | "미확인";
-};
-
-const MOCK_SETTLEMENTS: SettlementRow[] = [
-  { id: "stl_torriden", seller: "토리든", sales: 18_400_000, refunds: 620_000, fee: 1_778_000, payout: 16_002_000, state: "정산완료", scheduledAt: "2026-07-05", completedAt: "2026-07-05", accountVerified: "확인" },
-  { id: "stl_roundlab", seller: "라운드랩", sales: 22_950_000, refunds: 950_000, fee: 2_200_000, payout: 19_800_000, state: "정산예정", scheduledAt: "2026-07-15", completedAt: "—", accountVerified: "확인" },
-  { id: "stl_numbuzin", seller: "넘버즈인", sales: 15_300_000, refunds: 300_000, fee: 1_500_000, payout: 13_500_000, state: "정산예정", scheduledAt: "2026-07-15", completedAt: "—", accountVerified: "확인" },
-  { id: "stl_dearcia", seller: "닥터엘시아", sales: 8_700_000, refunds: 200_000, fee: 850_000, payout: 7_650_000, state: "정산완료", scheduledAt: "2026-07-05", completedAt: "2026-07-05", accountVerified: "확인" },
-  { id: "stl_naturep", seller: "네이처리퍼블릭", sales: 27_600_000, refunds: 1_100_000, fee: 2_650_000, payout: 23_850_000, state: "정산대기", scheduledAt: "2026-07-25", completedAt: "—", accountVerified: "확인" },
-  { id: "stl_itsskin", seller: "잇츠스킨", sales: 4_200_000, refunds: 180_000, fee: 402_000, payout: 3_618_000, state: "보류", scheduledAt: "—", completedAt: "—", accountVerified: "미확인" }
-];
 
 const navPendingGroups: Array<{ heading: string; items: string[] }> = [
   {
@@ -388,10 +290,9 @@ function AdminDashboardPage() {
   const access = useAdminAccess();
   const bulkImport = useAdminBulkImport();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
-  const [selectedSellerId, setSelectedSellerId] = useState(MOCK_SELLERS[0].id);
-  const [selectedInspectionId, setSelectedInspectionId] = useState(MOCK_INSPECTIONS[0].id);
-  const [selectedSettlementId, setSelectedSettlementId] = useState(MOCK_SETTLEMENTS[0].id);
   const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
+  const [productFormDirty, setProductFormDirty] = useState(false);
+  const [pendingNavView, setPendingNavView] = useState<AdminView | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
   const [excelFileName, setExcelFileName] = useState("파일을 선택해 주세요");
   const excelFileRef = useRef<File | null>(null);
@@ -738,286 +639,34 @@ function AdminDashboardPage() {
     pushOperationLog("엑셀", "실패 파일 다운로드", "검수 실패 행을 CSV로 생성", "neutral");
   };
 
+  const navigateTo = (view: AdminView) => {
+    if (view === "productForm") setEditingProductCode(null);
+    setActiveView(view);
+  };
+
+  // 상품 등록/수정 화면에서 저장 안 한 수정 내용이 있는 채로 다른 메뉴로 이동하면 그 내용이
+  // 그냥 사라진다. "재고/가격 확인으로 이동" 버튼과 같은 이유로 사이드바 이동도 확인을 받는다.
+  const handleNavClick = (view: AdminView) => {
+    if (activeView === "productForm" && productFormDirty) {
+      setPendingNavView(view);
+      return;
+    }
+    navigateTo(view);
+  };
+
   const handlePendingItemClick = (item: PendingItem) => {
     if (item.action === "ingredient") {
       setActiveView("ingredientReview");
-      pushOperationLog("대시보드", "성분 검수 화면 이동", item.note, item.tone);
       return;
     }
 
     setActiveView("imageUpload");
-    pushOperationLog("대시보드", "이미지 연결 화면 이동", item.note, item.tone);
   };
 
   const handleClaimWidgetClick = () => {
     setActiveView("cancelClaims");
-    pushOperationLog("대시보드", "취소·클레임 화면 이동", "클레임 대기 위젯에서 이동", "neutral");
   };
 
-  const renderSellerList = () => {
-    const seller = MOCK_SELLERS.find((s) => s.id === selectedSellerId) ?? MOCK_SELLERS[0];
-    const sellerTone = (status: SellerStatus): BadgeTone =>
-      status === "입점중" ? "success" : status === "심사중" ? "warning" : "danger";
-    return (
-      <section className="admin-seller-layout admin-product-layout">
-        <article className="admin-panel admin-product-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p className="admin-panel-eyebrow">셀러 운영</p>
-              <h2>입점 셀러 관리</h2>
-            </div>
-          </div>
-          <div className="admin-stats admin-seller-stats">
-            <div className="admin-stat"><span>전체 셀러</span><strong>{MOCK_SELLER_STATS.total}</strong></div>
-            <div className="admin-stat"><span>입점중</span><strong>{MOCK_SELLER_STATS.active}</strong></div>
-            <div className="admin-stat"><span>심사중</span><strong>{MOCK_SELLER_STATS.review}</strong></div>
-            <div className="admin-stat"><span>정지</span><strong>{MOCK_SELLER_STATS.suspended}</strong></div>
-          </div>
-          <div className="admin-table-wrap">
-            <table className="admin-table admin-seller-table">
-              <thead>
-                <tr><th>상호</th><th>상태</th><th>등록 상품</th><th>최근 30일 매출</th><th>입점일</th></tr>
-              </thead>
-              <tbody>
-                {MOCK_SELLERS.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={row.id === selectedSellerId ? "is-selected" : ""}
-                    tabIndex={0}
-                    aria-selected={row.id === selectedSellerId}
-                    onClick={() => setSelectedSellerId(row.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedSellerId(row.id);
-                      }
-                    }}
-                  >
-                    <td>{row.name}</td>
-                    <td><span className={`admin-badge ${sellerTone(row.status)}`}>{row.status}</span></td>
-                    <td>{row.productCount.toLocaleString("ko-KR")}개</td>
-                    <td>{row.monthlySales > 0 ? `${row.monthlySales.toLocaleString("ko-KR")}원` : "—"}</td>
-                    <td>{row.joinedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <aside className="admin-panel admin-seller-detail">
-          <div className="admin-panel-header compact">
-            <div>
-              <p className="admin-panel-eyebrow">셀러 상세</p>
-              <h2>{seller.name}</h2>
-            </div>
-            <span className={`admin-badge ${sellerTone(seller.status)}`}>{seller.status}</span>
-          </div>
-          <dl className="admin-detail-list">
-            <div><dt>사업자등록번호</dt><dd>{seller.bizNo}</dd></div>
-            <div><dt>대표자</dt><dd>{seller.owner}</dd></div>
-            <div><dt>담당자</dt><dd>{seller.manager}</dd></div>
-            <div><dt>연락처</dt><dd>{seller.contact}</dd></div>
-            <div><dt>등록 상품</dt><dd>{seller.productCount.toLocaleString("ko-KR")}개</dd></div>
-            <div><dt>검수 대기</dt><dd>{seller.pendingCount > 0 ? `${seller.pendingCount}건` : "없음"}</dd></div>
-            <div><dt>최근 30일 매출</dt><dd>{seller.monthlySales > 0 ? `${seller.monthlySales.toLocaleString("ko-KR")}원` : "—"}</dd></div>
-            <div><dt>최근 활동</dt><dd>{seller.lastActive}</dd></div>
-          </dl>
-        </aside>
-      </section>
-    );
-  };
-  const renderSellerInspection = () => {
-    const inspection =
-      MOCK_INSPECTIONS.find((r) => r.id === selectedInspectionId) ?? MOCK_INSPECTIONS[0];
-    const inspectionTone = (state: InspectionState): BadgeTone =>
-      state === "검수통과"
-        ? "success"
-        : state === "검수대기"
-          ? "warning"
-          : state === "보류"
-            ? "neutral"
-            : "danger";
-    return (
-      <section className="admin-seller-layout admin-product-layout">
-        <article className="admin-panel admin-product-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p className="admin-panel-eyebrow">셀러 운영</p>
-              <h2>셀러별 상품 검수</h2>
-            </div>
-          </div>
-          <div className="admin-stats admin-seller-stats">
-            <div className="admin-stat"><span>검수 대기 상품</span><strong>{MOCK_INSPECTION_STATS.waiting}</strong></div>
-            <div className="admin-stat"><span>보류·반려</span><strong>{MOCK_INSPECTION_STATS.held}</strong></div>
-            <div className="admin-stat"><span>성분 pending</span><strong>{MOCK_INSPECTION_STATS.ingredientPending}</strong></div>
-            <div className="admin-stat"><span>이미지 미매칭</span><strong>{MOCK_INSPECTION_STATS.imageUnmatched}</strong></div>
-          </div>
-          <div className="admin-table-wrap">
-            <table className="admin-table admin-seller-table admin-inspection-table">
-              <thead>
-                <tr>
-                  <th>셀러</th>
-                  <th>import job</th>
-                  <th>상품명</th>
-                  <th>seller_sku</th>
-                  <th>검수 상태</th>
-                  <th>실패/보류 사유</th>
-                  <th>이미지</th>
-                  <th>추천</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_INSPECTIONS.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={row.id === selectedInspectionId ? "is-selected" : ""}
-                    tabIndex={0}
-                    aria-selected={row.id === selectedInspectionId}
-                    onClick={() => setSelectedInspectionId(row.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedInspectionId(row.id);
-                      }
-                    }}
-                  >
-                    <td>{row.seller}</td>
-                    <td>{row.importJob}</td>
-                    <td>{row.productName}</td>
-                    <td>{row.sellerSku}</td>
-                    <td><span className={`admin-badge ${inspectionTone(row.reviewState)}`}>{row.reviewState}</span></td>
-                    <td>{row.failReason}</td>
-                    <td>{row.imageState}</td>
-                    <td>{row.recommendable}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <aside className="admin-panel admin-seller-detail">
-          <div className="admin-panel-header compact">
-            <div>
-              <p className="admin-panel-eyebrow">검수 상세</p>
-              <h2>{inspection.seller} · {inspection.productName}</h2>
-            </div>
-            <span className={`admin-badge ${inspectionTone(inspection.reviewState)}`}>{inspection.reviewState}</span>
-          </div>
-          <dl className="admin-detail-list">
-            <div><dt>seller_sku</dt><dd>{inspection.sellerSku}</dd></div>
-            <div><dt>import job</dt><dd>{inspection.importJob}</dd></div>
-            <div><dt>성분 pending</dt><dd>{inspection.ingredientPending}</dd></div>
-            <div><dt>이미지 매칭</dt><dd>{inspection.imageMatch}</dd></div>
-            <div><dt>중복 후보</dt><dd>{inspection.duplicateCandidate}</dd></div>
-            <div><dt>is_recommendable</dt><dd>{inspection.recommendable === "가능" ? "가능" : inspection.recommendable === "불가" ? "불가" : "대기"}</dd></div>
-          </dl>
-          <p className="admin-detail-note">
-            검수 통과 전까지 추천·검색 인덱스에 반영되지 않습니다. mock 시안 · API 미확정.
-          </p>
-        </aside>
-      </section>
-    );
-  };
-  const renderSellerSettlement = () => {
-    const settlement =
-      MOCK_SETTLEMENTS.find((r) => r.id === selectedSettlementId) ?? MOCK_SETTLEMENTS[0];
-    const settlementTone = (state: SettlementState): BadgeTone =>
-      state === "정산완료"
-        ? "success"
-        : state === "정산예정"
-          ? "warning"
-          : state === "정산대기"
-            ? "neutral"
-            : "danger";
-    const scheduledTotal = MOCK_SETTLEMENTS
-      .filter((r) => r.state === "정산예정")
-      .reduce((sum, r) => sum + r.payout, 0);
-    const completedTotal = MOCK_SETTLEMENTS
-      .filter((r) => r.state === "정산완료")
-      .reduce((sum, r) => sum + r.payout, 0);
-    const waitingCount = MOCK_SETTLEMENTS.filter((r) => r.state === "정산대기").length;
-    const heldCount = MOCK_SETTLEMENTS.filter((r) => r.state === "보류").length;
-    const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
-    return (
-      <section className="admin-seller-layout admin-product-layout">
-        <article className="admin-panel admin-product-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p className="admin-panel-eyebrow">셀러 운영</p>
-              <h2>셀러별 정산</h2>
-            </div>
-          </div>
-          <div className="admin-stats admin-seller-stats">
-            <div className="admin-stat"><span>정산 예정 총액</span><strong>{won(scheduledTotal)}</strong></div>
-            <div className="admin-stat"><span>이번 달 정산 완료</span><strong>{won(completedTotal)}</strong></div>
-            <div className="admin-stat"><span>정산 대기 셀러</span><strong>{waitingCount}</strong></div>
-            <div className="admin-stat"><span>정산 보류</span><strong>{heldCount}</strong></div>
-          </div>
-          <div className="admin-table-wrap">
-            <table className="admin-table admin-seller-table admin-settlement-table">
-              <thead>
-                <tr>
-                  <th>셀러</th>
-                  <th>판매액</th>
-                  <th>취소/환불</th>
-                  <th>수수료</th>
-                  <th>정산 예정액</th>
-                  <th>정산 상태</th>
-                  <th>정산 예정일</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_SETTLEMENTS.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={row.id === selectedSettlementId ? "is-selected" : ""}
-                    tabIndex={0}
-                    aria-selected={row.id === selectedSettlementId}
-                    onClick={() => setSelectedSettlementId(row.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedSettlementId(row.id);
-                      }
-                    }}
-                  >
-                    <td>{row.seller}</td>
-                    <td>{won(row.sales)}</td>
-                    <td>{row.refunds > 0 ? won(row.refunds) : "—"}</td>
-                    <td>{won(row.fee)}</td>
-                    <td>{won(row.payout)}</td>
-                    <td><span className={`admin-badge ${settlementTone(row.state)}`}>{row.state}</span></td>
-                    <td>{row.scheduledAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <aside className="admin-panel admin-seller-detail">
-          <div className="admin-panel-header compact">
-            <div>
-              <p className="admin-panel-eyebrow">정산 상세</p>
-              <h2>{settlement.seller}</h2>
-            </div>
-            <span className={`admin-badge ${settlementTone(settlement.state)}`}>{settlement.state}</span>
-          </div>
-          <dl className="admin-detail-list">
-            <div><dt>판매액</dt><dd>{won(settlement.sales)}</dd></div>
-            <div><dt>취소/환불액</dt><dd>{settlement.refunds > 0 ? won(settlement.refunds) : "—"}</dd></div>
-            <div><dt>수수료</dt><dd>{won(settlement.fee)}</dd></div>
-            <div><dt>정산 예정액</dt><dd>{won(settlement.payout)}</dd></div>
-            <div><dt>정산 예정일</dt><dd>{settlement.scheduledAt}</dd></div>
-            <div><dt>정산 완료일</dt><dd>{settlement.completedAt}</dd></div>
-            <div><dt>계좌 확인</dt><dd>{settlement.accountVerified}</dd></div>
-          </dl>
-          <p className="admin-detail-note">
-            읽기 전용 정산 시안입니다. 실제 지급·계좌 검증 연동은 미구현. mock 시안 · API 미확정.
-          </p>
-        </aside>
-      </section>
-    );
-  };
   const renderDashboard = () => {
     const summary = dashboardSummary.data;
     const summaryPending = dashboardSummary.loading && !summary;
@@ -1471,13 +1120,9 @@ function AdminDashboardPage() {
                     "excelUpload",
                     "imageUpload",
                     "ingredientReview",
-                    "evidenceReview",
                     "stockPrice",
                     "orderStatus",
-                    "cancelClaims",
-                    "sellers",
-                    "sellerInspection",
-                    "sellerSettlement"
+                    "cancelClaims"
                   ].includes(item.view)
                 }
                 onClick={() => {
@@ -1488,16 +1133,11 @@ function AdminDashboardPage() {
                     item.view === "excelUpload" ||
                     item.view === "imageUpload" ||
                     item.view === "ingredientReview" ||
-                    item.view === "evidenceReview" ||
                     item.view === "stockPrice" ||
                     item.view === "orderStatus" ||
-                    item.view === "cancelClaims" ||
-                    item.view === "sellers" ||
-                    item.view === "sellerInspection" ||
-                    item.view === "sellerSettlement"
+                    item.view === "cancelClaims"
                   ) {
-                    if (item.view === "productForm") setEditingProductCode(null);
-                    setActiveView(item.view);
+                    handleNavClick(item.view);
                   }
                 }}
                 type="button"
@@ -1546,11 +1186,6 @@ function AdminDashboardPage() {
         {activeView === "dashboard" && renderDashboard()}
         {activeView === "excelUpload" && renderExcelUpload()}
         {activeView === "imageUpload" && renderImageUpload()}
-        {activeView === "evidenceReview" && (
-          <EvidenceCandidateReviewPanel
-            onNotify={(message, tone) => setToast({ message, tone })}
-          />
-        )}
         {activeView === "stockPrice" && renderStockPrice()}
         <AdminIngredientMappingSection
           key="admin-ingredient-mapping"
@@ -1570,8 +1205,10 @@ function AdminDashboardPage() {
           key="admin-product-form"
           active={activeView === "productForm"}
           productCode={editingProductCode}
+          onDirtyChange={setProductFormDirty}
           onOperationLog={pushOperationLog}
           onSaved={setEditingProductCode}
+          onViewInventory={() => setActiveView("stockPrice")}
         />
         <AdminOrderStatusSection
           key="admin-order-status"
@@ -1583,10 +1220,18 @@ function AdminDashboardPage() {
           active={activeView === "cancelClaims"}
           onOperationLog={pushOperationLog}
         />
-        {activeView === "sellers" && renderSellerList()}
-        {activeView === "sellerInspection" && renderSellerInspection()}
-        {activeView === "sellerSettlement" && renderSellerSettlement()}
       </section>
+      <ConfirmModal
+        compact
+        message="저장하지 않은 수정 내용이 있습니다. 지금 이동하면 사라집니다. 계속할까요?"
+        onCancel={() => setPendingNavView(null)}
+        onConfirm={() => {
+          const view = pendingNavView;
+          setPendingNavView(null);
+          if (view) navigateTo(view);
+        }}
+        open={pendingNavView !== null}
+      />
     </main>
   );
 }
