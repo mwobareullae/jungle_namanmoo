@@ -13734,7 +13734,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-floating-entry__teasers button:hover,
 .agent-floating-entry__teasers button:focus-visible {
   border-color: #95e9df;
-  background: #effdfa;
+  background: #ffffff;
   color: #238ca1;
   outline: none;
   transform: translateY(-2px);
@@ -14784,17 +14784,17 @@ html[data-app-mode="community"] .search-results-shell {
   height: 40px;
   border: 0;
   border-radius: 50%;
-  background: #1687f8;
-  color: #ffffff;
+  background: #16c7e8;
+  color: #0b2a3a;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .agent-chat-input button:not(:disabled):hover,
 .agent-chat-input button:not(:disabled):focus-visible {
-  background: #0874df;
-  box-shadow: 0 8px 20px rgba(22, 135, 248, 0.38);
+  background: #00b6d9;
+  box-shadow: 0 8px 20px rgba(0, 182, 217, 0.38);
   transform: translateY(-1px);
 }
 
@@ -14806,8 +14806,8 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .agent-chat-popup .agent-chat-input button:not(:disabled) {
-  background: #1687f8;
-  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  background: #16c7e8;
+  box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
 }
 
 .agent-chat-input button svg {
