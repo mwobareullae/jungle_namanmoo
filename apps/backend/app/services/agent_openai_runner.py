@@ -196,6 +196,15 @@ _AMBIGUOUS_BULK_REQUEST_PATTERN = re.compile(r"^\s*(?:상위\s*상품|인기\s*�
 _COMPLEX_MULTI_ACTION_PATTERN = re.compile(
     r"(?:인기|베스트|수부지|건성|지성|복합성|민감).{0,80}(?:\d+\s*개|상위\s*\d+).{0,40}(?:장바구니|찜|담아|넣어)"
 )
+_POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
+    r"(?:인기|베스트)"
+    r".{0,40}?"
+    r"(?:(?P<rank>\d+)\s*위\s*(?:이내|안|까지|내)?|상위\s*(?P<top>\d+)\s*(?:위|개)?)?"
+    r".{0,60}?"
+    r"(?P<ingredient>[가-힣A-Za-z0-9·ㆍ\-\s]{1,40})\s*성분"
+    r".{0,20}?(?:들어|포함)"
+    r".{0,40}?(?:찜|위시)",
+)
 
 _AGENT_TOOL_ORDER: tuple[AgentToolName, ...] = (
     CREATE_RECOMMENDATION_TOOL,
@@ -506,6 +515,21 @@ async def run_openai_agent_chat(
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
         return _clarification_response(request.conversation_id, generic_clarification)
+
+    deterministic_bulk_wishlist_arguments = _get_popular_ingredient_wishlist_arguments(request.message)
+    if deterministic_bulk_wishlist_arguments is not None:
+        return execute_agent_tool(
+            session,
+            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+            arguments=deterministic_bulk_wishlist_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
 
     multi_action_clarification = _get_multi_action_clarification(request.message)
     if multi_action_clarification:
@@ -969,6 +993,44 @@ def _get_multi_action_clarification(message: str) -> str | None:
         "여러 상품을 바로 반영하기 전에 먼저 조건에 맞는 추천 결과를 확인할게요. "
         "추천 결과에서 상품 순위를 알려주시면 선택한 상품만 장바구니에 담아드릴게요."
     )
+
+
+def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] | None:
+    match = _POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message)
+    if match is None:
+        return None
+    ingredient_name = _normalize_popular_ingredient_query(match.group("ingredient"))
+    if not ingredient_name:
+        return None
+    raw_rank = match.group("rank") or match.group("top")
+    rank_limit = int(raw_rank) if raw_rank else 20
+    rank_limit = max(1, min(rank_limit, 20))
+    window_days = 7
+    if re.search(r"1\s*(?:일|day)", message):
+        window_days = 1
+    elif re.search(r"30\s*(?:일|day)", message):
+        window_days = 30
+    return {
+        "ingredient_name": ingredient_name,
+        "rank_limit": rank_limit,
+        "window_days": window_days,
+    }
+
+
+def _normalize_popular_ingredient_query(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip(" \t\n\r,，.。!?！？·ㆍ-")
+    prefix_patterns = (
+        r"^(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의|그중|그 중)\s+",
+        r"^(?:상위\s*)?\d+\s*(?:위|개)\s*(?:이내|안|까지|내|중|에서|의)?\s*",
+    )
+    while True:
+        before = normalized
+        for pattern in prefix_patterns:
+            normalized = re.sub(pattern, "", normalized)
+        if normalized == before:
+            break
+    normalized = re.sub(r"\s*(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의)$", "", normalized)
+    return normalized.strip()
 
 
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
