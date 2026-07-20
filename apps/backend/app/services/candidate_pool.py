@@ -16,6 +16,11 @@ from app.services.product_candidates import (
     ProductCandidate,
     list_recommendation_fallback_candidates,
 )
+from app.services.recommendation_candidate_cache import (
+    CachedCandidateBundle,
+    RecommendationCandidateCache,
+    get_default_recommendation_candidate_cache,
+)
 from app.services.recommendation_intent import RecommendationIntent
 
 
@@ -72,6 +77,13 @@ class CandidatePool:
     post_dedupe_count: int = 0
     cap_applied_count: int = 0
     hard_filter_total_count: int | None = None
+    candidate_cache_enabled: bool = False
+    candidate_cache_hit: bool = False
+    candidate_cache_lookup_ms: float = 0.0
+    candidate_cache_write_ms: float = 0.0
+    candidate_cache_ttl_seconds: int | None = None
+    candidate_cache_fallback_reason: str | None = None
+    candidate_es_bypassed: bool = False
     notes: tuple[str, ...] = ()
 
     @property
@@ -108,6 +120,13 @@ class CandidatePool:
             "fallback_duration_ms": self.fallback_duration_ms,
             "fallback_count": self.fallback_count,
             "hard_filter_total_count": self.hard_filter_total_count,
+            "candidate_cache_enabled": self.candidate_cache_enabled,
+            "candidate_cache_hit": self.candidate_cache_hit,
+            "candidate_cache_lookup_ms": self.candidate_cache_lookup_ms,
+            "candidate_cache_write_ms": self.candidate_cache_write_ms,
+            "candidate_cache_ttl_seconds": self.candidate_cache_ttl_seconds,
+            "candidate_cache_fallback_reason": self.candidate_cache_fallback_reason,
+            "candidate_es_bypassed": self.candidate_es_bypassed,
             "notes": list(self.notes),
         }
 
@@ -122,6 +141,7 @@ def generate_candidate_pool(
     target_pool_size: int,
     enable_elasticsearch: bool | None = None,
     elasticsearch_search: ElasticsearchSearchFunc = search_elasticsearch_recommendation_candidates,
+    candidate_cache: RecommendationCandidateCache | None = None,
 ) -> CandidatePool:
     requested_limit = max(1, target_pool_size)
     source_diagnostics: list[CandidateSourceDiagnostic] = []
@@ -132,11 +152,39 @@ def generate_candidate_pool(
     ]
     es_result: ElasticsearchRecommendationCandidateResult | None = None
     fallback_reason: str | None = None
+    candidate_cache_enabled = False
+    candidate_cache_hit = False
+    candidate_cache_lookup_ms = 0.0
+    candidate_cache_write_ms = 0.0
+    candidate_cache_ttl_seconds: int | None = None
+    candidate_cache_fallback_reason: str | None = None
 
     if _should_attempt_elasticsearch(
         session,
         enable_elasticsearch=enable_elasticsearch,
     ):
+        resolved_cache = candidate_cache or get_default_recommendation_candidate_cache()
+        cache_lookup = resolved_cache.read(
+            intent,
+            avoid_ingredients=avoid_ingredients,
+            target_pool_size=requested_limit,
+            candidate_generation_version=CANDIDATE_GENERATION_VERSION,
+        )
+        candidate_cache_enabled = cache_lookup.cache_enabled
+        candidate_cache_lookup_ms = cache_lookup.lookup_ms
+        candidate_cache_ttl_seconds = cache_lookup.ttl_seconds
+        candidate_cache_fallback_reason = cache_lookup.failure_reason
+        if cache_lookup.hit:
+            return _build_cached_candidate_pool(
+                bundle=cache_lookup.bundle,
+                requested_limit=requested_limit,
+                notes=notes,
+                cache_enabled=candidate_cache_enabled,
+                cache_lookup_ms=candidate_cache_lookup_ms,
+                cache_ttl_seconds=candidate_cache_ttl_seconds,
+                cache_fallback_reason=candidate_cache_fallback_reason,
+            )
+
         es_result = elasticsearch_search(
             intent,
             avoid_ingredients=avoid_ingredients,
@@ -151,6 +199,28 @@ def generate_candidate_pool(
         if es_result.successful:
             candidates = _dedupe_candidates(list(es_result.candidates))
             capped_candidates = candidates[:requested_limit]
+            cache_write = resolved_cache.write(
+                intent,
+                avoid_ingredients=avoid_ingredients,
+                target_pool_size=requested_limit,
+                candidate_generation_version=CANDIDATE_GENERATION_VERSION,
+                bundle=CachedCandidateBundle(
+                    candidates=tuple(es_result.candidates),
+                    raw_hit_count=es_result.raw_hit_count,
+                    direct_match_count=es_result.direct_match_count,
+                    popularity_fill_count=es_result.popularity_fill_count,
+                    pre_dedupe_count=es_result.pre_dedupe_count,
+                    deduped_count=es_result.deduped_count,
+                    total_hit_count=es_result.total_hit_count,
+                ),
+            )
+            candidate_cache_write_ms = cache_write.write_ms
+            candidate_cache_ttl_seconds = (
+                cache_write.ttl_seconds or candidate_cache_ttl_seconds
+            )
+            candidate_cache_fallback_reason = (
+                candidate_cache_fallback_reason or cache_write.failure_reason
+            )
             return CandidatePool(
                 candidates=capped_candidates,
                 requested_candidate_pool_limit=requested_limit,
@@ -166,6 +236,13 @@ def generate_candidate_pool(
                 post_dedupe_count=len(candidates),
                 cap_applied_count=max(0, len(candidates) - len(capped_candidates)),
                 hard_filter_total_count=es_result.total_hit_count,
+                candidate_cache_enabled=candidate_cache_enabled,
+                candidate_cache_hit=False,
+                candidate_cache_lookup_ms=candidate_cache_lookup_ms,
+                candidate_cache_write_ms=candidate_cache_write_ms,
+                candidate_cache_ttl_seconds=candidate_cache_ttl_seconds,
+                candidate_cache_fallback_reason=candidate_cache_fallback_reason,
+                candidate_es_bypassed=False,
                 notes=tuple((*notes, "catalog Elasticsearch source connected")),
             )
         fallback_reason = es_result.failure_reason or es_result.skipped_reason or "unknown ES failure"
@@ -236,7 +313,73 @@ def generate_candidate_pool(
         hard_filter_total_count=(
             es_result.total_hit_count if es_result is not None else None
         ),
+        candidate_cache_enabled=candidate_cache_enabled,
+        candidate_cache_hit=candidate_cache_hit,
+        candidate_cache_lookup_ms=candidate_cache_lookup_ms,
+        candidate_cache_write_ms=candidate_cache_write_ms,
+        candidate_cache_ttl_seconds=candidate_cache_ttl_seconds,
+        candidate_cache_fallback_reason=candidate_cache_fallback_reason,
+        candidate_es_bypassed=False,
         notes=tuple(notes),
+    )
+
+
+def _build_cached_candidate_pool(
+    *,
+    bundle: CachedCandidateBundle | None,
+    requested_limit: int,
+    notes: list[str],
+    cache_enabled: bool,
+    cache_lookup_ms: float,
+    cache_ttl_seconds: int | None,
+    cache_fallback_reason: str | None,
+) -> CandidatePool:
+    if bundle is None:
+        raise ValueError("cached candidate bundle must exist on a cache hit")
+
+    candidates = _dedupe_candidates(list(bundle.candidates))
+    capped_candidates = candidates[:requested_limit]
+    source_diagnostic = CandidateSourceDiagnostic(
+        source=RECOMMENDATION_CANDIDATE_SOURCE,
+        requested_limit=requested_limit,
+        returned_count=len(capped_candidates),
+        after_dedupe_count=len(candidates),
+        skipped_count=max(0, bundle.raw_hit_count - bundle.pre_dedupe_count),
+        duration_ms=0,
+        metadata={
+            "raw_hit_count": bundle.raw_hit_count,
+            "direct_match_count": bundle.direct_match_count,
+            "popularity_fill_count": bundle.popularity_fill_count,
+            "pre_dedupe_count": bundle.pre_dedupe_count,
+            "post_dedupe_count": bundle.deduped_count,
+            "total_hit_count": bundle.total_hit_count,
+            "candidate_cache_hit": True,
+            "candidate_es_bypassed": True,
+        },
+    )
+    return CandidatePool(
+        candidates=capped_candidates,
+        requested_candidate_pool_limit=requested_limit,
+        merged_count=bundle.pre_dedupe_count,
+        deduped_count=len(candidates),
+        avoid_filtered_count=0,
+        source_diagnostics=(source_diagnostic,),
+        es_search_ms=0,
+        es_direct_match_count=bundle.direct_match_count,
+        es_popularity_fill_count=bundle.popularity_fill_count,
+        es_raw_hit_count=bundle.raw_hit_count,
+        pre_dedupe_count=bundle.pre_dedupe_count,
+        post_dedupe_count=len(candidates),
+        cap_applied_count=max(0, len(candidates) - len(capped_candidates)),
+        hard_filter_total_count=bundle.total_hit_count,
+        candidate_cache_enabled=cache_enabled,
+        candidate_cache_hit=True,
+        candidate_cache_lookup_ms=cache_lookup_ms,
+        candidate_cache_write_ms=0.0,
+        candidate_cache_ttl_seconds=cache_ttl_seconds,
+        candidate_cache_fallback_reason=cache_fallback_reason,
+        candidate_es_bypassed=True,
+        notes=tuple((*notes, "catalog Elasticsearch source restored from Redis cache")),
     )
 
 

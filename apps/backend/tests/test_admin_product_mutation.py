@@ -17,9 +17,9 @@ from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage,
 from app.db.models.commerce import Inventory, Seller
 from app.db.session import get_db
 from app.main import app
-from app.api.routes.admin import products as admin_products_route
 from app.schemas.admin.product import AdminProductCreateRequest, AdminProductUpdateRequest
 from app.schemas.common import ApiError
+from app.services import catalog_sync
 from app.services.admin import product_mutation_service
 from app.services.admin.product_mutation_service import create_admin_product, update_admin_product
 from app.services.elasticsearch_catalog_index import ElasticsearchCatalogIndexError
@@ -264,6 +264,50 @@ def test_update_thumbnail_storage_key_null_clears_image(db_engine: Engine) -> No
     assert image_rows == []
 
 
+def test_create_and_update_thumbnail_keep_search_thumbnail_in_sync(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        created = create_admin_product(
+            session,
+            AdminProductCreateRequest(
+                name="thumbnail synchronization",
+                brand_code="brand_a",
+                category_code="cat_a",
+                price=1000,
+                thumbnail_storage_key="products/qa/thumb_0",
+            ),
+            now=FIXED_NOW,
+        )
+        product = session.execute(
+            select(Product).where(Product.product_code == created.product_code)
+        ).scalar_one()
+        assert product.thumbnail_url == "products/qa/thumb_0"
+
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key="products/qa/thumb_1"),
+            now=FIXED_NOW,
+        )
+        assert product.thumbnail_url == "products/qa/thumb_1"
+
+        updated_at_before_noop = product.updated_at
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key="products/qa/thumb_1"),
+            now=datetime(2026, 7, 16, 3, 0, tzinfo=timezone.utc),
+        )
+        assert product.updated_at == updated_at_before_noop
+
+        update_admin_product(
+            session,
+            created.product_code,
+            AdminProductUpdateRequest(thumbnail_storage_key=None),
+            now=FIXED_NOW,
+        )
+        assert product.thumbnail_url is None
+
+
 def test_update_thumbnail_storage_key_conflict_with_existing_image(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         product = session.execute(
@@ -386,6 +430,15 @@ def test_admin_patch_route_rejects_empty_body(client: TestClient, db_engine: Eng
     assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
 
 
+def test_admin_patch_route_rejects_price_above_shared_cap(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+
+    response = client.patch("/api/admin/products/prod_mwbl_editable", json={"price": 100_000_001})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_PRODUCT_FIELD"
+
+
 def test_admin_patch_route_omitted_thumbnail_keeps_existing_image(
     client: TestClient, db_engine: Engine
 ) -> None:
@@ -483,8 +536,8 @@ def test_admin_product_mutation_reindexes_after_commit(
     def fake_log(event: str, **kwargs: object) -> None:
         performance_events.append((event, kwargs))
 
-    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fake_reindex)
-    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+    monkeypatch.setattr(catalog_sync, "reindex_catalog_product_to_elasticsearch", fake_reindex)
+    monkeypatch.setattr(catalog_sync, "log_performance_event", fake_log)
 
     response = getattr(client, method)(path, json=body)
 
@@ -513,8 +566,8 @@ def test_admin_product_es_failure_keeps_committed_update(
     def fake_log(event: str, **kwargs: object) -> None:
         performance_events.append((event, kwargs))
 
-    monkeypatch.setattr(admin_products_route, "reindex_catalog_product_to_elasticsearch", fail_reindex)
-    monkeypatch.setattr(admin_products_route, "log_performance_event", fake_log)
+    monkeypatch.setattr(catalog_sync, "reindex_catalog_product_to_elasticsearch", fail_reindex)
+    monkeypatch.setattr(catalog_sync, "log_performance_event", fake_log)
 
     response = client.patch(
         "/api/admin/products/prod_mwbl_editable",

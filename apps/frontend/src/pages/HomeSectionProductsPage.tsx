@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import HomeHeader from "../components/HomeHeader";
+import ProductListLoadingState from "../components/ProductListLoadingState";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import HeartIcon from "../components/ui/HeartIcon";
@@ -192,7 +193,7 @@ function HomeSectionProductsPage({ sectionType }: HomeSectionProductsPageProps) 
           {errorMessage ? <p className="popular-products-error">{errorMessage}</p> : null}
           <section aria-label={`${title} 목록`} className="popular-products-grid">
             {isLoading ? (
-              <div className="search-loading-state">상품을 불러오는 중...</div>
+              <ProductListLoadingState />
             ) : !errorMessage ? (
               products.map((product) => {
                 const isSoldOut = isProductSoldOut(product);

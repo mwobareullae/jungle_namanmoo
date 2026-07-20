@@ -21,6 +21,7 @@ from app.schemas.admin.ingredient_mapping import (
     IngredientMappingDetail,
     IngredientMappingListResponse,
     IngredientMappingReasonRequest,
+    IngredientMappingRejectRequest,
 )
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.admin.ingredient_mapping_mutation_service import (
@@ -56,16 +57,34 @@ _ACTION_RESPONSES = {
 )
 def list_mappings(
     status: str | None = Query(
-        default=None, description="PENDING/HELD/APPROVED/REJECTED. 잘못된 값은 400."
+        default=None, description="PENDING/HELD/NEEDS_REVIEW/APPROVED/REJECTED. 잘못된 값은 400."
+    ),
+    final_disposition: str | None = Query(
+        default=None,
+        description="MAPPED/NON_INGREDIENT/COMPOUND_MATERIAL/SOURCE_ERROR/UNRESOLVABLE. 잘못된 값은 400.",
     ),
     q: str | None = Query(default=None, description="pending code·대표 원문명·정규화명 부분 검색"),
+    sort: str | None = Query(default=None, description="CODE_ASC/CONNECTION_DESC. Invalid values return 400."),
+    candidate_type: str | None = Query(
+        default=None,
+        description="CANONICAL_EXACT_MATCH/ALIAS_EXACT_MATCH/EXACT_MATCH_CONFLICT/NO_EXACT_MATCH.",
+    ),
     limit: int = Query(default=DEFAULT_LIMIT),
     cursor: str | None = Query(default=None, description="서버 발급 opaque cursor. 프론트 해석 금지"),
     session: Session = Depends(get_db),
 ) -> IngredientMappingListResponse:
     """pending 성분 원문 그룹 목록. review 를 붙여 상태를 계산하고 추천을 함께 반환한다."""
 
-    return list_ingredient_mappings(session, status=status, q=q, limit=limit, cursor=cursor)
+    return list_ingredient_mappings(
+        session,
+        status=status,
+        final_disposition=final_disposition,
+        sort=sort,
+        candidate_type=candidate_type,
+        q=q,
+        limit=limit,
+        cursor=cursor,
+    )
 
 
 @router.get(
@@ -159,7 +178,7 @@ def hold_mapping(
 )
 def reject_mapping(
     pending_code: str,
-    body: IngredientMappingReasonRequest,
+    body: IngredientMappingRejectRequest,
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ) -> IngredientMappingActionResponse:
@@ -170,6 +189,9 @@ def reject_mapping(
             pending_code=pending_code,
             normalized_source_name=body.normalized_source_name,
             decision_reason=body.decision_reason,
+            final_disposition=body.final_disposition,
+            evidence_source_url=body.evidence_source_url,
+            source_reference=body.source_reference,
             actor_user_id=int(current_user.id),
         ),
         action="REJECT",
