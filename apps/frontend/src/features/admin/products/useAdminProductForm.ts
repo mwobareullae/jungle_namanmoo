@@ -19,7 +19,6 @@ export type AdminProductFormValues = {
   categoryCode: string;
   price: string;
   description: string;
-  releasedDate: string;
   thumbnailStorageKey: string;
   isActive: boolean;
 };
@@ -30,7 +29,6 @@ const EMPTY_VALUES: AdminProductFormValues = {
   categoryCode: "",
   price: "",
   description: "",
-  releasedDate: "",
   thumbnailStorageKey: "",
   isActive: false
 };
@@ -48,13 +46,9 @@ const valuesFromDetail = (detail: AdminProductDetail): AdminProductFormValues =>
   categoryCode: detail.categoryCode,
   price: detail.price === null ? "" : String(detail.price),
   description: detail.description ?? "",
-  releasedDate: detail.releasedAt?.slice(0, 10) ?? "",
   thumbnailStorageKey: detail.thumbnailStorageKey,
   isActive: detail.isActive
 });
-
-const toReleasedAt = (date: string): string | null =>
-  date ? new Date(`${date}T00:00:00+09:00`).toISOString() : null;
 
 export function useAdminProductForm({ enabled, productCode }: { enabled: boolean; productCode: string | null }) {
   const [brands, setBrands] = useState<AdminProductMasterOption[]>([]);
@@ -170,7 +164,6 @@ export function useAdminProductForm({ enabled, productCode }: { enabled: boolean
           categoryCode: values.categoryCode,
           price,
           description: values.description.trim() || null,
-          releasedAt: toReleasedAt(values.releasedDate),
           thumbnailStorageKey: values.thumbnailStorageKey.trim() || null
         };
         result = await createAdminProduct(input);
@@ -182,9 +175,6 @@ export function useAdminProductForm({ enabled, productCode }: { enabled: boolean
         if (price !== Number(originalValues.price)) input.price = price;
         if (values.description.trim() !== originalValues.description.trim()) {
           input.description = values.description.trim() || null;
-        }
-        if (values.releasedDate !== originalValues.releasedDate) {
-          input.releasedAt = toReleasedAt(values.releasedDate);
         }
         if (values.thumbnailStorageKey.trim() !== originalValues.thumbnailStorageKey.trim()) {
           input.thumbnailStorageKey = values.thumbnailStorageKey.trim() || null;
@@ -218,6 +208,7 @@ export function useAdminProductForm({ enabled, productCode }: { enabled: boolean
     optionsError,
     detail,
     values,
+    originalValues,
     loading,
     submitting,
     error,

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { SearchableSelect } from "../../../components/ui/SearchableSelect";
 import { AdminProductRow, AdminSalesStatus, AdminStockStatus } from "../api/adminProductApi";
 import { AdminProductActiveFilter, useAdminProducts } from "./useAdminProducts";
 
@@ -108,6 +109,14 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
 
   const [searchInput, setSearchInput] = useState("");
 
+  // 검색 가능한 콤보박스도 "전체" 상태(필터 없음)를 선택지로 가질 수 있어야 하니, 맨 앞에
+  // 합성 옵션을 끼워 넣는다. code가 빈 문자열이면 필터가 꺼진 상태와 동일하다.
+  const categoryOptions = useMemo(
+    () => [{ code: "", name: "카테고리 전체" }, ...categories],
+    [categories]
+  );
+  const brandOptions = useMemo(() => [{ code: "", name: "브랜드 전체" }, ...brands], [brands]);
+
   // 페이지를 넘기면(검색/필터로 인한 1페이지 초기화 포함) 스크롤을 맨 위로 되돌린다.
   useEffect(() => {
     if (!active) return;
@@ -170,30 +179,20 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
             </button>
           </form>
           <div className="admin-filter-row">
-            <select
-              aria-label="카테고리 필터"
-              onChange={(event) => setCategoryCodeFilter(event.target.value === "" ? null : event.target.value)}
+            <SearchableSelect
+              ariaLabel="카테고리 필터"
+              onChange={(code) => setCategoryCodeFilter(code === "" ? null : code)}
+              options={categoryOptions}
+              placeholder="카테고리 검색"
               value={categoryCodeFilter ?? ""}
-            >
-              <option value="">카테고리 전체</option>
-              {categories.map((category) => (
-                <option key={category.code} value={category.code}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="브랜드 필터"
-              onChange={(event) => setBrandCodeFilter(event.target.value === "" ? null : event.target.value)}
+            />
+            <SearchableSelect
+              ariaLabel="브랜드 필터"
+              onChange={(code) => setBrandCodeFilter(code === "" ? null : code)}
+              options={brandOptions}
+              placeholder="브랜드 검색"
               value={brandCodeFilter ?? ""}
-            >
-              <option value="">브랜드 전체</option>
-              {brands.map((brand) => (
-                <option key={brand.code} value={brand.code}>
-                  {brand.name}
-                </option>
-              ))}
-            </select>
+            />
             <select
               aria-label="노출 필터"
               onChange={(event) => setActiveFilter(event.target.value as AdminProductActiveFilter)}
@@ -460,12 +459,7 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
               이 상품 수정
             </button>
           </div>
-        ) : (
-          <div className="admin-state-banner neutral">
-            <strong>선택된 상품 없음</strong>
-            <span>표에서 상품을 선택하면 상세 정보가 표시됩니다.</span>
-          </div>
-        )}
+        ) : null}
       </aside>
     </section>
   );
