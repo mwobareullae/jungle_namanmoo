@@ -186,7 +186,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     setShipmentActionState("idle");
     setConfirmingAction(null);
     clearShipmentActionFeedback();
-    onOperationLog("주문", "주문 상태 새로고침", selectedOrder?.orderCode ?? "-", "success");
   };
 
   // 주문 선택·필터 변경 시, 이전 주문에 대한 확인 대기·에러·동기화 경고가 새 화면에
@@ -208,7 +207,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     resetFilters();
     setOrderRefreshState("idle");
     resetShipmentActionUiState();
-    onOperationLog("주문", "필터 초기화", "전체 주문 목록 표시", "neutral");
   };
 
   const handleOrderStatusFilterChange = (value: AdminOrderStatus | null) => {
@@ -284,13 +282,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                 <h2>주문 흐름, 결제 상태, 예약 재고를 한 화면에서 확인</h2>
               </div>
               <div className="admin-filter-row">
-                <button
-                  className="admin-secondary-button"
-                  onClick={() => onOperationLog("주문", "상태 이력 확인", "선택 주문의 상태 흐름을 확인", "neutral")}
-                  type="button"
-                >
-                  상태 이력
-                </button>
                 <button
                   className="admin-primary-button"
                   disabled={listRequestInProgress || shipmentActionInProgress}

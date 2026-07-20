@@ -325,12 +325,8 @@ export function AdminIngredientMappingSection({
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
-    onOperationLog(
-      "성분",
-      succeeded ? "성분 매핑 목록 새로고침" : "성분 매핑 목록 새로고침 실패",
-      succeeded ? "검수 대기 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
+    if (succeeded) return;
+    onOperationLog("성분", "성분 매핑 목록 새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
   const summaryCards = summary

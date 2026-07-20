@@ -204,13 +204,11 @@ function CancelRequestsTab({
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
-    if (succeeded) clearActionError();
-    onOperationLog(
-      "취소 요청",
-      succeeded ? "목록 새로고침" : "새로고침 실패",
-      succeeded ? "취소 요청 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
+    if (succeeded) {
+      clearActionError();
+      return;
+    }
+    onOperationLog("취소 요청", "새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
   // 승인·거절 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
@@ -613,13 +611,11 @@ function ClaimsTab({
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
-    if (succeeded) clearActionError();
-    onOperationLog(
-      "클레임",
-      succeeded ? "목록 새로고침" : "새로고침 실패",
-      succeeded ? "클레임 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
+    if (succeeded) {
+      clearActionError();
+      return;
+    }
+    onOperationLog("클레임", "새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
   // 승인·거절·처리시작·완료 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
