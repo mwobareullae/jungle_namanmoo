@@ -50,7 +50,9 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
   // 최신 page/pageSize/필터를 담아둔다 — 자동 새로고침·resync 콜백이 클로저에 갇힌 값이
   // 아니라 항상 "지금 보고 있는 페이지"를 다시 조회하도록 하기 위함이다.
   const currentQueryRef = useRef({ page, pageSize, orderStatusFilter, paymentStatusFilter });
-  currentQueryRef.current = { page, pageSize, orderStatusFilter, paymentStatusFilter };
+  useEffect(() => {
+    currentQueryRef.current = { page, pageSize, orderStatusFilter, paymentStatusFilter };
+  }, [orderStatusFilter, page, pageSize, paymentStatusFilter]);
 
   // useAdminRowAction 의 resync 콜백은 아래 fetchPage 를 가리켜야 하는데, fetchPage 자체가
   // useAdminRowAction 이 돌려주는 actionInFlightRef 를 필요로 해 서로를 참조한다. ref 로
