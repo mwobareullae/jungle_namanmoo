@@ -18,6 +18,9 @@ from app.schemas.admin.ingredient_mapping import (
     CanonicalIngredientSearchResponse,
     IngredientMappingActionResponse,
     IngredientMappingApproveRequest,
+    IngredientMappingBulkApprovalPreviewResponse,
+    IngredientMappingBulkApprovalRequest,
+    IngredientMappingBulkApprovalResponse,
     IngredientMappingDetail,
     IngredientMappingListResponse,
     IngredientMappingReasonRequest,
@@ -29,6 +32,10 @@ from app.services.admin.ingredient_mapping_mutation_service import (
     hold_ingredient_mapping,
     reject_ingredient_mapping,
     reopen_ingredient_mapping,
+)
+from app.services.admin.ingredient_mapping_bulk_approval_service import (
+    approve_kcia_alias_exact_batch,
+    get_kcia_alias_exact_bulk_preview,
 )
 from app.services.admin.ingredient_mapping_service import (
     CANONICAL_SEARCH_DEFAULT_LIMIT,
@@ -85,6 +92,66 @@ def list_mappings(
         limit=limit,
         cursor=cursor,
     )
+
+
+@router.get(
+    "/ingredient-mappings/bulk-approve/preview",
+    response_model=IngredientMappingBulkApprovalPreviewResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def get_bulk_approval_preview(
+    session: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> IngredientMappingBulkApprovalPreviewResponse:
+    """KCIA 근거 별칭 정확 일치 일괄 승인 전용 미리보기."""
+
+    return get_kcia_alias_exact_bulk_preview(session)
+
+
+@router.post(
+    "/ingredient-mappings/bulk-approve",
+    response_model=IngredientMappingBulkApprovalResponse,
+    responses=_ACTION_RESPONSES,
+)
+def post_bulk_approval(
+    body: IngredientMappingBulkApprovalRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> IngredientMappingBulkApprovalResponse:
+    """선택된 KCIA 근거 후보를 전부 재검증해 원자적으로 승인한다."""
+
+    started_at = current_time()
+    try:
+        response = approve_kcia_alias_exact_batch(
+            session,
+            items=body.items,
+            confirmed_count=body.confirmed_count,
+            actor_user_id=int(current_user.id),
+        )
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_ingredient_mapping_bulk_approval_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"error_code": exc.code, "selected_count": len(body.items)},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_ingredient_mapping_bulk_approval_failed",
+            started_at=started_at,
+            metadata={"selected_count": len(body.items), "error_code": "UNEXPECTED_ERROR"},
+            exc=exc,
+        )
+        raise
+    log_performance_event(
+        "admin_ingredient_mapping_bulk_approval_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={"approved_count": response.approved_count, "batch_reference": response.batch_reference},
+    )
+    return response
 
 
 @router.get(

@@ -27,7 +27,7 @@ const describeApiError = (caughtError: unknown, fallbackMessage: string): string
   return apiError?.message ?? fallbackMessage;
 };
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 50;
 
 export type UseAdminClaimsOptions = {
   enabled: boolean;
@@ -37,6 +37,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
   const [statusFilter, setStatusFilterState] = useState<AdminClaimStatus | null>(null);
   const [claimTypeFilter, setClaimTypeFilterState] = useState<AdminClaimType | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const [items, setItems] = useState<AdminClaimRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -95,7 +96,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
           status: statusFilter,
           claimType: claimTypeFilter,
           page: targetPage,
-          pageSize: PAGE_SIZE
+          pageSize
         });
         if (requestId !== requestIdRef.current) return false; // 이후 요청이 이미 진행 중 — 이 응답은 버림
 
@@ -117,7 +118,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
         }
       }
     },
-    [statusFilter, claimTypeFilter, actionInFlightRef, clearSyncWarning]
+    [statusFilter, claimTypeFilter, pageSize, actionInFlightRef, clearSyncWarning]
   );
 
   useEffect(() => {
@@ -128,12 +129,17 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
     if (!enabled) return;
     void Promise.resolve().then(() => fetchPage(page));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, statusFilter, claimTypeFilter, page]);
+  }, [enabled, statusFilter, claimTypeFilter, pageSize, page]);
 
   const refresh = useCallback((): Promise<boolean> => {
     if (!enabled || actionInFlightRef.current) return Promise.resolve(false);
     return fetchPage(page);
   }, [enabled, fetchPage, page, actionInFlightRef]);
+
+  const changePageSize = useCallback((value: number) => {
+    setPageSize(value);
+    setPage(1);
+  }, []);
 
   const goToPage = useCallback(
     (targetPage: number) => {
@@ -171,7 +177,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
     clearActionError();
   }, [actionInFlightRef, clearActionError]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const runClaimAction = useCallback(
     (
@@ -206,7 +212,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
   return {
     items,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     totalCount,
     totalPages,
     loading,
@@ -215,6 +221,7 @@ export function useAdminClaims({ enabled }: UseAdminClaimsOptions) {
     claimTypeFilter,
     setStatusFilter,
     setClaimTypeFilter,
+    setPageSize: changePageSize,
     resetFilters,
     refresh,
     goToPage,

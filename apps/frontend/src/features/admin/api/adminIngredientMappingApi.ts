@@ -81,6 +81,25 @@ export type IngredientMappingListResult = {
   nextCursor: string | null;
 };
 
+export type IngredientMappingBulkApprovalPreviewItem = {
+  pendingCode: string;
+  normalizedSourceName: string;
+  rawName: string;
+  productCount: number;
+  connectionCount: number;
+  targetIngredientCode: string;
+  targetIngredientName: string;
+  aliasSource: string;
+  canonicalSourceUrl: string;
+};
+
+export type IngredientMappingBulkApprovalPreview = {
+  criteria: "KCIA_ALIAS_EXACT";
+  maximumCount: number;
+  eligibleCount: number;
+  items: IngredientMappingBulkApprovalPreviewItem[];
+};
+
 export type IngredientMappingRawNameVariant = {
   rawName: string;
   productCount: number;
@@ -174,6 +193,25 @@ type BackendListResponse = {
   items: BackendRow[];
   summary: BackendSummary;
   next_cursor: string | null;
+};
+
+type BackendBulkApprovalPreviewItem = {
+  pending_code: string;
+  normalized_source_name: string;
+  raw_name: string;
+  product_count: number;
+  connection_count: number;
+  target_ingredient_code: string;
+  target_ingredient_name: string;
+  alias_source: string;
+  canonical_source_url: string;
+};
+
+type BackendBulkApprovalPreview = {
+  criteria: "KCIA_ALIAS_EXACT";
+  maximum_count: number;
+  eligible_count: number;
+  items: BackendBulkApprovalPreviewItem[];
 };
 
 type BackendRawNameVariant = {
@@ -345,6 +383,27 @@ export const getIngredientMappingDetail = async (
   return adaptDetail(await parseJson<BackendDetail>(response));
 };
 
+export const getKciaAliasExactBulkApprovalPreview = async (): Promise<IngredientMappingBulkApprovalPreview> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/ingredient-mappings/bulk-approve/preview`);
+  const body = await parseJson<BackendBulkApprovalPreview>(response);
+  return {
+    criteria: body.criteria,
+    maximumCount: body.maximum_count,
+    eligibleCount: body.eligible_count,
+    items: body.items.map((item) => ({
+      pendingCode: item.pending_code,
+      normalizedSourceName: item.normalized_source_name,
+      rawName: item.raw_name,
+      productCount: item.product_count,
+      connectionCount: item.connection_count,
+      targetIngredientCode: item.target_ingredient_code,
+      targetIngredientName: item.target_ingredient_name,
+      aliasSource: item.alias_source,
+      canonicalSourceUrl: item.canonical_source_url
+    }))
+  };
+};
+
 // --- 판정 액션 (쓰기) ------------------------------------------------------
 
 export type IngredientMappingActionResult = {
@@ -446,6 +505,41 @@ export const reopenIngredientMapping = (
     normalized_source_name: normalizedSourceName,
     decision_reason: decisionReason
   });
+
+export type IngredientMappingBulkApprovalResult = {
+  batchReference: string;
+  approvedCount: number;
+  items: IngredientMappingActionResult[];
+};
+
+type BackendBulkApprovalResult = {
+  batch_reference: string;
+  approved_count: number;
+  items: BackendActionResult[];
+};
+
+export const approveKciaAliasExactMappings = async (
+  items: IngredientMappingBulkApprovalPreviewItem[]
+): Promise<IngredientMappingBulkApprovalResult> => {
+  const response = await fetchWithTimeout(`${ADMIN_API_BASE}/ingredient-mappings/bulk-approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      confirmed_count: items.length,
+      items: items.map((item) => ({
+        pending_code: item.pendingCode,
+        normalized_source_name: item.normalizedSourceName,
+        target_ingredient_code: item.targetIngredientCode
+      }))
+    })
+  });
+  const body = await parseJson<BackendBulkApprovalResult>(response);
+  return {
+    batchReference: body.batch_reference,
+    approvedCount: body.approved_count,
+    items: body.items.map(adaptActionResult)
+  };
+};
 
 // --- canonical 검색 (승인 target 선택용, §6) -------------------------------
 

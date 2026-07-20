@@ -121,23 +121,52 @@ function formatCurrentTime() {
   }).format(new Date());
 }
 
-const PAYMENT_STATUS_OPTIONS = Object.keys(PAYMENT_STATUS_LABELS) as AdminPaymentStatus[];
+const PAYMENT_STATUS_GROUPS: Array<{ label: string; statuses: AdminPaymentStatus[] }> = [
+  {
+    label: "결제 진행",
+    statuses: ["READY", "CONFIRMING", "UNKNOWN"]
+  },
+  {
+    label: "결제 결과",
+    statuses: ["APPROVED", "FAILED", "CANCELED", "EXPIRED"]
+  },
+  {
+    label: "환불",
+    statuses: ["REFUND_REQUESTED", "REFUNDED", "PARTIALLY_REFUNDED"]
+  }
+];
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+// 재고/가격 확인과 같은 네이버식 블록 페이지네이션(10개씩 묶어서 이동).
+const PAGE_BLOCK_SIZE = 10;
+
+const getBlockPages = (current: number, total: number): number[] => {
+  const blockIndex = Math.floor((current - 1) / PAGE_BLOCK_SIZE);
+  const start = blockIndex * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, total);
+  const pages: number[] = [];
+  for (let page = start; page <= end; page += 1) pages.push(page);
+  return pages;
+};
 
 export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderStatusSectionProps) {
   const {
     items,
     summary,
-    hasMore,
+    pagination,
     loading,
-    loadingMore,
     error,
+    page,
+    pageSize,
     orderStatusFilter,
     paymentStatusFilter,
     setOrderStatusFilter,
     setPaymentStatusFilter,
+    setPageSize,
     resetFilters,
     refresh,
-    loadMore,
+    goToPage,
     actionOrderId,
     actionError,
     syncWarning,
@@ -152,15 +181,20 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
   const [shipmentActionState, setShipmentActionState] = useState<OrderUiState>("idle");
   const [confirmingAction, setConfirmingAction] = useState<PendingShipmentAction | null>(null);
 
-  // 아직 아무 주문도 선택하지 않았을 때만 첫 주문을 자동 선택한다. 이미 선택한 주문이 있는데
-  // (예: 30초 자동 새로고침으로 목록이 1페이지로 다시 줄어들며) 그 주문이 현재 items 에서
-  // 사라졌다면, items[0] 등 다른 주문으로 조용히 바꿔치기하지 않는다 — 그렇게 하면 관리자가
-  // 여전히 원래 주문을 보고 있다고 착각한 채 배송 액션 버튼을 눌러 엉뚱한 주문에 실행될 수 있다.
-  const selectedOrder =
-    selectedOrderId === null ? items[0] ?? null : items.find((order) => order.id === selectedOrderId) ?? null;
+  // 직접 선택하기 전까지는 아무 주문도 자동으로 보여주지 않는다. 이미 선택한 주문이 있는데
+  // (예: 30초 자동 새로고침으로 목록이 갱신되며) 그 주문이 현재 items 에서 사라졌다면,
+  // items[0] 등 다른 주문으로 조용히 바꿔치기하지 않는다 — 그렇게 하면 관리자가 여전히
+  // 원래 주문을 보고 있다고 착각한 채 배송 액션 버튼을 눌러 엉뚱한 주문에 실행될 수 있다.
+  const selectedOrder = selectedOrderId === null ? null : items.find((order) => order.id === selectedOrderId) ?? null;
   const selectedOrderMissing = selectedOrderId !== null && selectedOrder === null && items.length > 0;
   const shipmentActionInProgress = actionOrderId !== null;
-  const listRequestInProgress = loading || loadingMore;
+  const listRequestInProgress = loading;
+  const totalPages = pagination?.totalPages ?? 1;
+  const blockPages = getBlockPages(page, totalPages);
+  const blockStart = blockPages[0] ?? 1;
+  const blockEnd = blockPages[blockPages.length - 1] ?? 1;
+  const hasPrevBlock = blockStart > 1;
+  const hasNextBlock = blockEnd < totalPages;
 
   const handleOrderRefresh = async () => {
     if (shipmentActionInProgress) return;
@@ -186,7 +220,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     setShipmentActionState("idle");
     setConfirmingAction(null);
     clearShipmentActionFeedback();
-    onOperationLog("주문", "주문 상태 새로고침", selectedOrder?.orderCode ?? "-", "success");
   };
 
   // 주문 선택·필터 변경 시, 이전 주문에 대한 확인 대기·에러·동기화 경고가 새 화면에
@@ -208,7 +241,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     resetFilters();
     setOrderRefreshState("idle");
     resetShipmentActionUiState();
-    onOperationLog("주문", "필터 초기화", "전체 주문 목록 표시", "neutral");
   };
 
   const handleOrderStatusFilterChange = (value: AdminOrderStatus | null) => {
@@ -281,18 +313,11 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
             <div className="admin-panel-header admin-product-header">
               <div>
                 <p>주문·결제 상태 확인</p>
-                <h2>주문 흐름, 결제 상태, 예약 재고를 한 화면에서 확인</h2>
+                <h2>주문·결제·재고 현황</h2>
               </div>
               <div className="admin-filter-row">
                 <button
-                  className="admin-secondary-button"
-                  onClick={() => onOperationLog("주문", "상태 이력 확인", "선택 주문의 상태 흐름을 확인", "neutral")}
-                  type="button"
-                >
-                  상태 이력
-                </button>
-                <button
-                  className="admin-primary-button"
+                  className="admin-secondary-button admin-light-button"
                   disabled={listRequestInProgress || shipmentActionInProgress}
                   onClick={handleOrderRefresh}
                   type="button"
@@ -365,14 +390,18 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                   value={paymentStatusFilter ?? ""}
                 >
                   <option value="">결제 전체</option>
-                  {PAYMENT_STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {PAYMENT_STATUS_LABELS[status]}
-                    </option>
+                  {PAYMENT_STATUS_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.statuses.map((status) => (
+                        <option key={status} value={status}>
+                          {PAYMENT_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 <button
-                  className="admin-secondary-button"
+                  className="admin-secondary-button admin-light-button"
                   disabled={shipmentActionInProgress}
                   onClick={handleOrderFilterReset}
                   type="button"
@@ -387,7 +416,23 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                 <span>{error}</span>
               </div>
             )}
-            <div className="admin-table-wrap">
+            <div className="admin-list-toolbar">
+              <div className="admin-page-size">
+                <label htmlFor="admin-order-page-size">페이지당</label>
+                <select
+                  id="admin-order-page-size"
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  value={pageSize}
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}개
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="admin-table-wrap admin-order-table-scroll">
               <table className="admin-table admin-order-table">
                 <thead>
                   <tr>
@@ -408,13 +453,17 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                       onClick={() => handleSelectOrder(order.id)}
                     >
                       <td>
-                        <strong className="admin-product-name">{order.orderCode}</strong>
-                        <small className="admin-product-code">
+                        <strong className="admin-product-name" title={order.orderCode}>
+                          {order.orderCode}
+                        </strong>
+                        <small className="admin-product-code" title={`${order.customer} · 주문 ${order.orderedAt}`}>
                           {order.customer} · 주문 {order.orderedAt}
                         </small>
                       </td>
                       <td>
-                        <strong>{order.productSummary}</strong>
+                        <strong className="admin-product-name" title={order.productSummary}>
+                          {order.productSummary}
+                        </strong>
                         <small className="admin-product-code">{order.itemCount}개 상품</small>
                       </td>
                       <td>{formatCurrency(order.totalAmount)}</td>
@@ -431,7 +480,9 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                         </span>
                       </td>
                       <td>{order.stockReserved}개</td>
-                      <td className="admin-file-name">{order.recommendationId}</td>
+                      <td className="admin-file-name" title={order.recommendationId}>
+                        {order.recommendationId}
+                      </td>
                     </tr>
                   ))}
                   {loading && items.length === 0 && (
@@ -453,23 +504,60 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                 </tbody>
               </table>
             </div>
-            {hasMore && (
-              <button
-                className="admin-secondary-button"
-                disabled={listRequestInProgress || shipmentActionInProgress}
-                onClick={loadMore}
-                type="button"
-              >
-                {loadingMore ? "불러오는 중..." : "더 보기"}
-              </button>
-            )}
+            <div className="admin-pagination-row">
+              <div className="admin-pagination">
+                <button
+                  className="admin-pagination-jump"
+                  disabled={page <= 1 || listRequestInProgress}
+                  onClick={() => goToPage(1)}
+                  type="button"
+                >
+                  처음
+                </button>
+                <button
+                  className="admin-pagination-jump"
+                  disabled={!hasPrevBlock || listRequestInProgress}
+                  onClick={() => goToPage(blockStart - 1)}
+                  type="button"
+                >
+                  이전
+                </button>
+                {blockPages.map((entry) => (
+                  <button
+                    className={`admin-pagination-page${entry === page ? " active" : ""}`}
+                    disabled={listRequestInProgress}
+                    key={entry}
+                    onClick={() => goToPage(entry)}
+                    type="button"
+                  >
+                    {entry}
+                  </button>
+                ))}
+                <button
+                  className="admin-pagination-jump"
+                  disabled={!hasNextBlock || listRequestInProgress}
+                  onClick={() => goToPage(blockEnd + 1)}
+                  type="button"
+                >
+                  다음
+                </button>
+                <button
+                  className="admin-pagination-jump"
+                  disabled={page >= totalPages || listRequestInProgress}
+                  onClick={() => goToPage(totalPages)}
+                  type="button"
+                >
+                  맨끝
+                </button>
+              </div>
+            </div>
           </section>
 
           <aside className="admin-panel admin-order-detail">
             <div className="admin-panel-header compact">
               <div>
                 <p>선택 주문</p>
-                <h2>{selectedOrder ? selectedOrder.orderCode : "선택된 주문 없음"}</h2>
+                <h2>{selectedOrder ? selectedOrder.orderCode : "-"}</h2>
               </div>
               {selectedOrder && (
                 <span className={`admin-badge ${ORDER_STATUS_TONE[selectedOrder.orderStatusRaw]}`}>
@@ -477,119 +565,149 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                 </span>
               )}
             </div>
-            {selectedOrder ? (
-              <>
+            <div className="admin-order-detail-scroll">
+              {selectedOrderMissing && (
+                <div className="admin-state-banner neutral">
+                  <strong>선택한 주문을 찾을 수 없음</strong>
+                  <span>목록이 갱신되며 선택했던 주문이 현재 페이지에 보이지 않습니다. 표에서 다시 선택해 주세요.</span>
+                </div>
+              )}
+              {!selectedOrder ? (
                 <dl className="admin-metric-list">
                   <div>
                     <dt>고객</dt>
-                    <dd>{selectedOrder.customer}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>상품</dt>
-                    <dd>{selectedOrder.productSummary}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>결제 상태</dt>
-                    <dd>{selectedOrder.paymentStatus}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>결제일</dt>
-                    <dd>{selectedOrder.paidAt ?? "결제 미완료"}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>배송 시작일</dt>
-                    <dd>{selectedOrder.shippedAt ?? "배송 시작 전"}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>배송완료일</dt>
-                    <dd>{selectedOrder.deliveredAt ?? "배송완료 전"}</dd>
+                    <dd>-</dd>
                   </div>
                   <div>
                     <dt>추천 ID</dt>
-                    <dd>{selectedOrder.recommendationId}</dd>
+                    <dd>-</dd>
                   </div>
                 </dl>
-                <div className={`admin-state-banner ${orderRefreshState === "saved" ? "success" : "neutral"}`}>
-                  <strong>{orderRefreshState === "saved" ? "상태 동기화 완료" : "자동 동기화 사용 중"}</strong>
-                  <span>
-                    {orderRefreshState === "saved"
-                      ? "선택 주문의 최신 상태 확인 기록을 예외 목록에 남겼습니다."
-                      : "주문 화면으로 돌아오면 즉시, 화면을 보는 동안에는 30초마다 결제·배송 상태를 자동 갱신합니다."}
-                  </span>
-                </div>
-
-                {/* 배송 액션: 서버가 계산한 availableActions 기준으로만 버튼 표시 — 프론트는 직접 계산하지 않는다 */}
-                {actionError && (
-                  <div className="admin-state-banner danger">
-                    <strong>배송 상태 변경 실패</strong>
-                    <span>{actionError}</span>
-                  </div>
-                )}
-                {syncWarning && (
-                  <div className="admin-state-banner warning">
-                    <strong>목록 동기화 필요</strong>
-                    <span>{syncWarning}</span>
-                  </div>
-                )}
-                {shipmentActionState === "saved" && (
-                  <div className="admin-state-banner success">
-                    <strong>배송 상태 반영 완료</strong>
-                    <span>서버에 실제로 반영됐고, 새로고침해도 유지됩니다.</span>
-                  </div>
-                )}
-                {selectedOrder.orderStatusRaw === "CANCEL_REQUESTED" && (
-                  <div className="admin-state-banner review">
-                    <strong>취소 요청 처리 안내</strong>
+              ) : (
+                <>
+                  <dl className="admin-metric-list">
+                    <div>
+                      <dt>고객</dt>
+                      <dd>{selectedOrder.customer}</dd>
+                    </div>
+                    <div>
+                      <dt>상품</dt>
+                      <dd>{selectedOrder.productSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>결제 상태</dt>
+                      <dd>{selectedOrder.paymentStatus}</dd>
+                    </div>
+                    <div>
+                      <dt>결제일</dt>
+                      <dd>{selectedOrder.paidAt ?? "결제 미완료"}</dd>
+                    </div>
+                    <div>
+                      <dt>배송 시작일</dt>
+                      <dd>{selectedOrder.shippedAt ?? "배송 시작 전"}</dd>
+                    </div>
+                    <div>
+                      <dt>배송완료일</dt>
+                      <dd>{selectedOrder.deliveredAt ?? "배송완료 전"}</dd>
+                    </div>
+                    <div>
+                      <dt>추천 ID</dt>
+                      <dd>{selectedOrder.recommendationId}</dd>
+                    </div>
+                  </dl>
+                  <div className={`admin-state-banner ${orderRefreshState === "saved" ? "success" : "neutral"}`}>
+                    <strong>{orderRefreshState === "saved" ? "상태 동기화 완료" : "자동 동기화 사용 중"}</strong>
                     <span>
-                      이 주문의 취소 승인·거절은 사이드바의 &quot;취소·클레임 관리&quot; 화면 &gt; 취소 요청 탭에서
-                      처리합니다.
+                      {orderRefreshState === "saved"
+                        ? "선택 주문의 최신 상태 확인 기록을 예외 목록에 남겼습니다."
+                        : "주문 화면으로 돌아오면 즉시, 화면을 보는 동안에는 30초마다 결제·배송 상태를 자동 갱신합니다."}
                     </span>
                   </div>
-                )}
-                <div className="admin-order-action-grid" aria-label="주문 운영 액션">
-                  {selectedOrder.availableActions.map((action) => (
-                    <button
-                      className="admin-primary-button admin-order-shipment-button"
-                      disabled={shipmentActionInProgress || listRequestInProgress}
-                      key={action}
-                      onClick={() => handleShipmentButtonClick(action, selectedOrder)}
-                      type="button"
-                    >
-                      {actionOrderId === selectedOrder.id ? "처리 중..." : SHIPMENT_ACTION_CONFIG[action].label}
-                    </button>
-                  ))}
-                </div>
-                <ConfirmModal
-                  cancelLabel="취소"
-                  confirmLabel={shipmentActionInProgress ? "처리 중..." : listRequestInProgress ? "목록 조회 중..." : "확인"}
-                  message={confirmingAction ? SHIPMENT_ACTION_CONFIG[confirmingAction.action].confirmMessage ?? "" : ""}
-                  onCancel={() => {
-                    if (shipmentActionInProgress) return; // 처리 중에는 닫지 않음
-                    setConfirmingAction(null);
-                  }}
-                  onConfirm={() => {
-                    if (!confirmingAction || shipmentActionInProgress || listRequestInProgress) return;
-                    void executeShipmentAction(
-                      confirmingAction.action,
-                      confirmingAction.orderId,
-                      confirmingAction.orderCode,
-                      confirmingAction.statusLabelBefore
-                    );
-                  }}
-                  open={confirmingAction !== null}
-                  title={confirmingAction ? SHIPMENT_ACTION_CONFIG[confirmingAction.action].label : undefined}
-                />
-              </>
-            ) : (
-              <div className="admin-state-banner neutral">
-                <strong>{selectedOrderMissing ? "선택한 주문을 찾을 수 없음" : "선택된 주문 없음"}</strong>
-                <span>
-                  {selectedOrderMissing
-                    ? "목록이 갱신되며 선택했던 주문이 현재 페이지에 보이지 않습니다. 표에서 다시 선택해 주세요."
-                    : "표에서 주문을 선택하면 상세 정보가 표시됩니다."}
-                </span>
-              </div>
-            )}
+
+                  {/* 배송 액션: 서버가 계산한 availableActions 기준으로만 버튼 표시 — 프론트는 직접 계산하지 않는다 */}
+                  {actionError && (
+                    <div className="admin-state-banner danger">
+                      <strong>배송 상태 변경 실패</strong>
+                      <span>{actionError}</span>
+                    </div>
+                  )}
+                  {syncWarning && (
+                    <div className="admin-state-banner warning">
+                      <strong>목록 동기화 필요</strong>
+                      <span>{syncWarning}</span>
+                    </div>
+                  )}
+                  {shipmentActionState === "saved" && (
+                    <div className="admin-state-banner success">
+                      <strong>배송 상태 반영 완료</strong>
+                      <span>서버에 실제로 반영됐고, 새로고침해도 유지됩니다.</span>
+                    </div>
+                  )}
+                  {selectedOrder.orderStatusRaw === "CANCEL_REQUESTED" && (
+                    <div className="admin-state-banner review">
+                      <strong>취소 요청 처리 안내</strong>
+                      <span>
+                        이 주문의 취소 승인·거절은 사이드바의 &quot;취소·클레임 관리&quot; 화면 &gt; 취소 요청 탭에서
+                        처리합니다.
+                      </span>
+                    </div>
+                  )}
+                  <div className="admin-order-action-grid" aria-label="주문 운영 액션">
+                    {selectedOrder.availableActions.map((action) => (
+                      <button
+                        className="admin-primary-button admin-order-shipment-button"
+                        disabled={shipmentActionInProgress || listRequestInProgress}
+                        key={action}
+                        onClick={() => handleShipmentButtonClick(action, selectedOrder)}
+                        type="button"
+                      >
+                        {actionOrderId === selectedOrder.id ? "처리 중..." : SHIPMENT_ACTION_CONFIG[action].label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <ConfirmModal
+              cancelLabel="취소"
+              confirmLabel={shipmentActionInProgress ? "처리 중..." : listRequestInProgress ? "목록 조회 중..." : "확인"}
+              message={confirmingAction ? SHIPMENT_ACTION_CONFIG[confirmingAction.action].confirmMessage ?? "" : ""}
+              onCancel={() => {
+                if (shipmentActionInProgress) return; // 처리 중에는 닫지 않음
+                setConfirmingAction(null);
+              }}
+              onConfirm={() => {
+                if (!confirmingAction || shipmentActionInProgress || listRequestInProgress) return;
+                void executeShipmentAction(
+                  confirmingAction.action,
+                  confirmingAction.orderId,
+                  confirmingAction.orderCode,
+                  confirmingAction.statusLabelBefore
+                );
+              }}
+              open={confirmingAction !== null}
+              title={confirmingAction ? SHIPMENT_ACTION_CONFIG[confirmingAction.action].label : undefined}
+            />
           </aside>
 
           <section className="admin-panel">

@@ -23,6 +23,7 @@ from app.services.admin.inventory_price_service import (
     INVENTORY_STOCK_MAX,
     adjust_admin_inventory,
     get_admin_inventory_history,
+    get_admin_inventory_summary,
     list_admin_inventory_prices,
     start_admin_product_sale,
     update_admin_inventory_price,
@@ -171,8 +172,8 @@ def test_list_uses_common_availability_and_keeps_unknown_visible(db_engine: Engi
             query=None,
             sales_status=None,
             stock_status=None,
-            limit=20,
-            cursor=None,
+            page=1,
+            page_size=20,
         )
 
     by_code = {item.product_code: item for item in result.items}
@@ -192,56 +193,103 @@ def test_list_filters_actual_sales_status_and_derived_stock_status(db_engine: En
             query=None,
             sales_status=None,
             stock_status="LOW_STOCK",
-            limit=20,
-            cursor=None,
+            page=1,
+            page_size=20,
         )
         hidden = list_admin_inventory_prices(
             session,
             query=None,
             sales_status="HIDDEN",
             stock_status="HIDDEN",
-            limit=20,
-            cursor=None,
+            page=1,
+            page_size=20,
         )
 
     assert [item.product_code for item in low_stock.items] == ["prod_inventory_low"]
     assert [item.product_code for item in hidden.items] == ["prod_inventory_hidden"]
 
 
-def test_list_cursor_is_stable_and_rejects_filter_change(db_engine: Engine) -> None:
+def test_list_filters_by_brand_category_and_active(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        by_brand = list_admin_inventory_prices(
+            session, query=None, brand_code="brand_a", sales_status=None, stock_status=None
+        )
+        by_category = list_admin_inventory_prices(
+            session, query=None, category_code="serum", sales_status=None, stock_status=None
+        )
+        by_missing_brand = list_admin_inventory_prices(
+            session, query=None, brand_code="brand_missing", sales_status=None, stock_status=None
+        )
+        inactive_only = list_admin_inventory_prices(
+            session, query=None, is_active=False, sales_status=None, stock_status=None
+        )
+
+    assert len(by_brand.items) == 5
+    assert len(by_category.items) == 5
+    assert by_missing_brand.items == []
+    assert [item.product_code for item in inactive_only.items] == ["prod_inventory_hidden"]
+
+
+def test_list_supports_page_based_pagination(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         first = list_admin_inventory_prices(
             session,
             query=None,
             sales_status=None,
             stock_status=None,
-            limit=2,
-            cursor=None,
+            page=1,
+            page_size=2,
         )
         second = list_admin_inventory_prices(
             session,
             query=None,
             sales_status=None,
             stock_status=None,
-            limit=2,
-            cursor=first.next_cursor,
+            page=2,
+            page_size=2,
         )
-        assert first.next_cursor is not None
-        with pytest.raises(ApiError) as exc:
-            list_admin_inventory_prices(
-                session,
-                query=None,
-                sales_status=None,
-                stock_status="LOW_STOCK",
-                limit=2,
-                cursor=first.next_cursor,
-            )
 
+    assert first.pagination.page == 1
+    assert first.pagination.page_size == 2
+    assert first.pagination.total_items == 5
+    assert first.pagination.total_pages == 3
+    assert first.pagination.has_next is True
+    assert first.pagination.has_prev is False
+    assert len(first.items) == 2
+
+    assert second.pagination.page == 2
+    assert second.pagination.has_prev is True
     first_codes = {item.product_code for item in first.items}
     second_codes = {item.product_code for item in second.items}
     assert not first_codes & second_codes
-    assert exc.value.status_code == 400
-    assert exc.value.code == "INVALID_CURSOR"
+
+
+def test_summary_counts_ignore_sales_and_stock_filters_but_respect_scope_filters(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        overall = get_admin_inventory_summary(session, query=None)
+        scoped_to_missing_brand = get_admin_inventory_summary(session, query=None, brand_code="brand_missing")
+        scoped_to_brand = get_admin_inventory_summary(session, query=None, brand_code="brand_a")
+
+    assert overall.low_stock_count == 1
+    assert overall.hidden_count == 1
+    assert overall.unknown_count == 1
+    assert scoped_to_missing_brand.low_stock_count == 0
+    assert scoped_to_missing_brand.hidden_count == 0
+    assert scoped_to_missing_brand.unknown_count == 0
+    assert scoped_to_brand.low_stock_count == 1
+    assert scoped_to_brand.hidden_count == 1
+    assert scoped_to_brand.unknown_count == 1
+
+
+def test_summary_route_requires_admin_and_returns_counts(client: TestClient, db_engine: Engine) -> None:
+    assert client.get("/api/admin/inventory/summary").status_code == 401
+    _as_admin(client, db_engine)
+    response = client.get("/api/admin/inventory/summary")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["low_stock_count"] == 1
+    assert body["hidden_count"] == 1
+    assert body["unknown_count"] == 1
 
 
 def test_history_returns_latest_twenty_real_movement_codes(db_engine: Engine) -> None:

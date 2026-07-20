@@ -34,7 +34,7 @@
   background: var(--admin-bg);
   color: var(--admin-text);
   font-family:
-    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
     sans-serif;
 }
 
@@ -175,16 +175,10 @@
   font-weight: 700;
 }
 
-.admin-topbar h1,
 .admin-panel-header h2 {
   margin: 0;
   color: var(--admin-text);
   letter-spacing: 0;
-}
-
-.admin-topbar h1 {
-  font-size: 28px;
-  line-height: 1.2;
 }
 
 .admin-toast {
@@ -247,6 +241,7 @@
 .admin-topbar-actions,
 .admin-filter-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
@@ -277,29 +272,60 @@
   padding: 0 14px;
 }
 
+.admin-primary-button:hover:not(:disabled) {
+  border-color: #3fb3da;
+  background: #3fb3da;
+}
+
 .admin-primary-button:disabled,
 .admin-secondary-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
+/* 흰 배경 secondary-button 이 눈에 안 띄는 화면(상품 조회 검색/초기화/새로고침 등)에서
+   토스트 버튼과 같은 연한 하늘색 톤으로 구분되게 한다. */
+.admin-light-button {
+  border-color: transparent;
+  background: #eef7fa;
+  color: var(--admin-ink-navy);
+}
+
+.admin-light-button:hover:not(:disabled) {
+  background: #def2fa;
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--admin-white);
+  box-shadow: 0 1px 2px rgba(11, 42, 58, 0.04);
 }
 
 .admin-stat {
   min-height: 118px;
-  padding: 18px;
+  padding: 20px 22px;
+  border-left: 3px solid var(--admin-line);
+}
+
+.admin-stats .admin-stat:nth-child(1) {
+  border-left-color: var(--admin-ink-navy);
+}
+
+.admin-stats .admin-stat:nth-child(2) {
+  border-left-color: var(--admin-accent-2);
+}
+
+.admin-stats .admin-stat:nth-child(3) {
+  border-left-color: #f0b429;
 }
 
 .admin-stat span,
@@ -309,8 +335,9 @@
 
 .admin-stat span {
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .admin-stat strong {
@@ -344,7 +371,7 @@
   justify-content: space-between;
   gap: 18px;
   min-height: 74px;
-  padding: 18px;
+  padding: 20px 22px;
   border-bottom: 1px solid var(--admin-line);
 }
 
@@ -417,9 +444,11 @@
 }
 
 .admin-product-name {
+  display: block;
   max-width: 360px;
   overflow: hidden;
   font-weight: 700;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
@@ -588,13 +617,13 @@
 }
 
 .admin-shell {
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   background: #eceff3;
 }
 
 .admin-sidebar {
-  gap: 14px;
-  padding: 24px 14px;
+  gap: 16px;
+  padding: 24px 20px;
 }
 
 .admin-brand {
@@ -616,10 +645,10 @@
 
 .admin-nav a,
 .admin-nav button {
-  min-height: 38px;
-  padding: 11px 12px;
+  min-height: 44px;
+  padding: 13px 16px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .admin-nav a.active,
@@ -638,36 +667,6 @@
   margin-bottom: 18px;
 }
 
-.admin-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.admin-title-row p {
-  margin: 0;
-  color: var(--admin-text);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.admin-title-row span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--admin-accent-mint);
-  color: var(--admin-ink-navy);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.admin-topbar h1 {
-  font-size: 30px;
-}
-
 .admin-topbar time {
   color: var(--admin-muted);
   font-size: 13px;
@@ -677,19 +676,19 @@
 
 .admin-stats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .admin-stat {
   min-height: 104px;
-  padding: 16px;
+  padding: 16px 18px;
 }
 
 .admin-stat strong {
@@ -726,6 +725,90 @@
 
 .admin-product-header {
   align-items: center;
+}
+
+.admin-product-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 18px 0;
+}
+
+.admin-page-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-page-size select {
+  min-height: 34px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0 10px;
+}
+
+.admin-pagination-row {
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+}
+
+.admin-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.admin-pagination-page,
+.admin-pagination-jump {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-pagination-jump {
+  color: var(--admin-muted);
+}
+
+.admin-pagination-page:hover:not(:disabled),
+.admin-pagination-jump:hover:not(:disabled) {
+  background: #f1f7fa;
+}
+
+.admin-pagination-page.active {
+  color: var(--admin-ink-navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-pagination-page:disabled,
+.admin-pagination-jump:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .admin-panel-header {
@@ -780,14 +863,14 @@
 }
 
 .admin-pending-item strong {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
 .admin-pending-item small {
   margin-top: 5px;
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -877,9 +960,12 @@
 .admin-product-code {
   display: block;
   margin-top: 5px;
+  overflow: hidden;
   color: var(--admin-muted);
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .admin-danger-text {
@@ -957,15 +1043,71 @@
 
 .admin-metric-list dt {
   color: var(--admin-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-metric-list dd {
   margin: 0;
   color: var(--admin-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   text-align: right;
+}
+
+.admin-metric-sub {
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-metric-group-title {
+  margin: 14px 18px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-detail-body > .admin-metric-group-title:first-child {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: none;
+}
+
+/* 상품명이 길어 3줄까지 줄바꿈되는 경우가 많아, 다른 화면의 짧은 한 줄 패널 제목(20px/600)과
+   달리 여기서는 더 가벼운 크기로 낮춘다. admin-main h2 전역 규칙(파일 뒤쪽, !important)을
+   이기려면 이쪽도 !important 가 필요하다. */
+.admin-panel.admin-product-detail .admin-panel-header h2,
+.admin-panel.admin-inventory-detail .admin-panel-header h2 {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+
+/* 전역 규칙(admin-main [class*="panel-header"] > div:first-child { flex: 1 1 240px })이 제목
+   div 를 flex-grow 시켜서, 제목이 짧을 때(예: "신규 상품") 배지가 옆에 들어갈 자리가 없어
+   다음 줄로 밀려났다. 제목 길이와 무관하게 배지가 항상 같은 줄 오른쪽에 붙도록 고정한다. */
+.admin-panel.admin-product-detail .admin-panel-header.compact > div:first-child {
+  flex: 1 1 auto;
+}
+
+.admin-panel.admin-product-detail .admin-panel-header.compact > .admin-badge {
+  flex-shrink: 0;
+}
+
+.admin-detail-body > .admin-primary-button {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 18px 18px 4px;
+}
+
+/* 상품 등록/수정 화면의 "운영 기본값" 위젯 하단 "재고/가격 확인으로 이동" 버튼.
+   .admin-detail-body 로 감싸지 않은 aside 직속 버튼이라 별도 규칙이 필요하다. */
+.admin-product-detail > button {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 4px 18px 18px;
 }
 
 .admin-operation-list {
@@ -1312,7 +1454,7 @@
   color: var(--admin-text);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .admin-form-grid input,
@@ -1329,6 +1471,82 @@
 
 .admin-form-wide {
   grid-column: 1 / -1;
+}
+
+.admin-searchable-select {
+  position: relative;
+}
+
+.admin-searchable-select-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-white);
+  box-shadow: 0 10px 30px rgba(11, 42, 58, 0.12);
+}
+
+.admin-searchable-select-option {
+  padding: 8px 12px;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-searchable-select-option:hover,
+.admin-searchable-select-option.active {
+  background: #eef7fa;
+}
+
+.admin-searchable-select-empty {
+  padding: 8px 12px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-thumbnail-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-thumbnail-field input {
+  flex: 1;
+}
+
+.admin-thumbnail-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.admin-thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-thumbnail-preview span {
+  padding: 0 6px;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .admin-form-aside {
@@ -1380,6 +1598,19 @@
 .admin-state-banner.neutral,
 .admin-state-banner.review {
   border-left-color: var(--admin-accent-2);
+}
+
+/* 상세 패널이 표 높이에 맞춰 stretch 되어 있어(.admin-product-layout align-items:stretch),
+   상품 미선택/로딩 안내 박스가 위쪽에 붙고 그 아래가 텅 비어 보인다. 남는 공간 안에서
+   안내 박스 자체를 세로 가운데로 옮긴다(박스 크기·모양은 그대로 유지). */
+.admin-product-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-product-detail > .admin-state-banner.neutral {
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .admin-state-banner strong {
@@ -1644,6 +1875,11 @@
 .admin-excel-summary.danger {
   border-color: #ffd1c9;
   background: #fff1ee;
+}
+
+.admin-excel-summary.review {
+  border-color: #c7dcff;
+  background: #eef4ff;
 }
 
 .admin-excel-table {
@@ -2576,7 +2812,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-order-hero,
@@ -2587,6 +2823,30 @@
 
 .admin-order-hero {
   grid-column: 1 / -1;
+}
+
+/* 상품 목록/선택 주문 위젯을 각각 독립적으로 스크롤한다(재고/가격 확인과 동일 패턴) —
+   페이지 전체 스크롤 대신, 마우스가 올라간 위젯만 스크롤한다. 두 위젯을 flex 세로열로
+   만들어 헤더·필터·페이지네이션은 고정하고, 실제 목록/상세 내용만 담긴 자식
+   (.admin-order-table-scroll, .admin-order-detail-scroll)에 overflow-y:auto 를 준다. */
+.admin-order-table-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-order-table-panel > .admin-panel-header,
+.admin-order-table-panel > .admin-product-filters,
+.admin-order-table-panel > .admin-list-toolbar,
+.admin-order-table-panel > .admin-pagination-row,
+.admin-order-table-panel > .admin-state-banner {
+  flex-shrink: 0;
+}
+
+/* 표 헤더 56px + tbody tr 56px x 10 = 616px — 재고/가격 확인과 같은 기준으로 기본 10행이
+   보이는 높이를 고정하고, 그 이상은 내부 스크롤로 처리한다. */
+.admin-order-table-scroll {
+  height: 616px;
+  overflow-y: auto;
 }
 
 .admin-order-table {
@@ -2605,9 +2865,68 @@
   vertical-align: middle;
 }
 
+/* 내용 길이에 맞춰 배정한다 — 주문/상품은 텍스트가 길어(상품명은 여러 줄로 줄바꿈되기도
+   함) 넓게, 주문 상태/결제는 짧은 뱃지 하나뿐이라 좁게, 금액/예약/추천 추적은 그 사이. */
+.admin-order-table th:nth-child(1), .admin-order-table td:nth-child(1) { width: 20% !important; }
+.admin-order-table th:nth-child(2), .admin-order-table td:nth-child(2) { width: 32% !important; }
+.admin-order-table th:nth-child(3), .admin-order-table td:nth-child(3) { width: 10% !important; }
+.admin-order-table th:nth-child(4), .admin-order-table td:nth-child(4) { width: 12% !important; }
+.admin-order-table th:nth-child(5), .admin-order-table td:nth-child(5) { width: 12% !important; }
+.admin-order-table th:nth-child(6), .admin-order-table td:nth-child(6) { width: 7% !important; }
+.admin-order-table th:nth-child(7), .admin-order-table td:nth-child(7) { width: 7% !important; }
+
+/* 취소 요청·클레임 표는 주문 표와 컬럼 개수·의미가 달라 .admin-order-table 을 그대로 공유하면
+   폭이 완전히 깨진다(예: "가능 액션" 칸이 세로로 쪼개질 정도로 좁아짐) — 전용 클래스로 분리. */
+.admin-cancelrequest-table,
+.admin-claim-table {
+  min-width: 1020px;
+}
+
+.admin-cancelrequest-table tbody tr,
+.admin-claim-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-cancelrequest-table tbody tr.selected,
+.admin-claim-table tbody tr.selected {
+  background: #f0fbfe;
+}
+
+.admin-cancelrequest-table td,
+.admin-claim-table td {
+  vertical-align: middle;
+}
+
+/* 요청번호/주문은 코드 문자열이라 비슷한 길이로, 상태·유형은 뱃지 하나뿐이라 좁게 배정. */
+.admin-cancelrequest-table th:nth-child(1), .admin-cancelrequest-table td:nth-child(1) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(2), .admin-cancelrequest-table td:nth-child(2) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(3), .admin-cancelrequest-table td:nth-child(3) { width: 16% !important; }
+.admin-cancelrequest-table th:nth-child(4), .admin-cancelrequest-table td:nth-child(4) { width: 12% !important; }
+.admin-cancelrequest-table th:nth-child(5), .admin-cancelrequest-table td:nth-child(5) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(6), .admin-cancelrequest-table td:nth-child(6) { width: 18% !important; }
+
+.admin-claim-table th:nth-child(1), .admin-claim-table td:nth-child(1) { width: 16% !important; }
+.admin-claim-table th:nth-child(2), .admin-claim-table td:nth-child(2) { width: 16% !important; }
+.admin-claim-table th:nth-child(3), .admin-claim-table td:nth-child(3) { width: 14% !important; }
+.admin-claim-table th:nth-child(4), .admin-claim-table td:nth-child(4) { width: 10% !important; }
+.admin-claim-table th:nth-child(5), .admin-claim-table td:nth-child(5) { width: 10% !important; }
+.admin-claim-table th:nth-child(6), .admin-claim-table td:nth-child(6) { width: 16% !important; }
+.admin-claim-table th:nth-child(7), .admin-claim-table td:nth-child(7) { width: 18% !important; }
+
 .admin-order-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-order-detail > .admin-panel-header {
+  flex-shrink: 0;
+}
+
+.admin-order-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-order-detail .admin-metric-list dd {
@@ -2795,11 +3114,6 @@
   .admin-panel-header > div:first-child p,
   .admin-panel-header > div:first-child h2 {
     white-space: normal;
-  }
-
-  .admin-topbar h1 {
-    font-size: 27px;
-    line-height: 1.22;
   }
 
   .admin-topbar time {
@@ -18488,7 +18802,7 @@ aside:has(.admin-nav) {
   font-family: var(--font-ui, "Pretendard Variable", "Pretendard", sans-serif) !important;
 }
 .admin-main { color: #222; }
-.admin-main h1 { font-family: var(--font-display, GmarketSans) !important; font-weight: 500 !important; }
+.admin-main h1 { font-family: var(--font-ui, "Pretendard Variable", sans-serif) !important; font-weight: 500 !important; }
 .admin-main h2, .admin-main h3, .admin-main h4 {
   font-family: var(--font-ui, sans-serif) !important; font-weight: 600 !important; color: #222 !important;
 }
@@ -18529,17 +18843,17 @@ nav.admin-nav button { font-weight: 500 !important; }
 }
 
 .admin-main { container-type: inline-size; }
-.admin-main h1 { font-size: clamp(20px, 3.2cqw, 30px) !important; }
-.admin-main h2, .admin-main .admin-panel h2 { font-size: clamp(13px, 1.95cqw, 18px) !important; }
-.admin-main h3 { font-size: clamp(11px, 1.62cqw, 15px) !important; }
-.admin-main .admin-table-wrap td { font-size: clamp(9.5px, 1.4cqw, 13px) !important; }
-.admin-main .admin-table-wrap th { font-size: clamp(9px, 1.3cqw, 12px) !important; }
-.admin-main .admin-badge { font-size: clamp(8.5px, 1.28cqw, 12px) !important; }
-.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: clamp(8.5px, 1.18cqw, 11px) !important; }
-.admin-main .admin-pending-item { font-size: clamp(10.5px, 1.5cqw, 14px) !important; }
-.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: clamp(19px, 3cqw, 28px) !important; }
+.admin-main h1 { font-size: 32px !important; }
+.admin-main h2, .admin-main .admin-panel h2 { font-size: 20px !important; }
+.admin-main h3 { font-size: 17px !important; }
+.admin-main .admin-table-wrap td { font-size: 14px !important; }
+.admin-main .admin-table-wrap th { font-size: 13px !important; }
+.admin-main .admin-badge { font-size: 13px !important; }
+.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: 13px !important; }
+.admin-main .admin-pending-item { font-size: 15px !important; }
+.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: 30px !important; }
+.admin-main small { font-size: 12px !important; }
 
-.admin-sidebar { flex: 0 0 auto !important; min-width: 200px !important; width: 200px !important; }
 nav.admin-nav { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; }
 nav.admin-nav button, nav.admin-nav > div {
   width: 100% !important; text-align: left !important; white-space: nowrap !important;
@@ -18550,21 +18864,33 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main .admin-product-table { table-layout: fixed !important; }
 .admin-main .admin-product-table td, .admin-main .admin-product-table th { overflow: hidden; }
 .admin-main .admin-product-table th:nth-child(1), .admin-main .admin-product-table td:nth-child(1) {
-  width: 22% !important; white-space: normal; word-break: keep-all; overflow: visible;
+  width: 34% !important; overflow: hidden;
 }
-.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 10% !important; }
-.admin-main .admin-product-table th:nth-child(4), .admin-main .admin-product-table td:nth-child(4) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 10% !important; }
-.admin-main .admin-product-table th:nth-child(6), .admin-main .admin-product-table td:nth-child(6) { width: 14% !important; }
-.admin-main .admin-product-table th:nth-child(7), .admin-main .admin-product-table td:nth-child(7) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(8), .admin-main .admin-product-table td:nth-child(8) { width: 8% !important; }
+.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 18% !important; white-space: nowrap !important; text-overflow: ellipsis; }
+.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 16% !important; white-space: nowrap !important; }
+.admin-main .admin-product-table th:nth-child(4), .admin-main .admin-product-table td:nth-child(4) { width: 14% !important; white-space: nowrap !important; }
+.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 18% !important; white-space: nowrap !important; }
 .admin-main .admin-product-table td .admin-badge {
-  font-size: 10px !important; padding: 2px 6px !important; max-width: 100%;
+  font-size: 12px !important; padding: 2px 6px !important; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; box-sizing: border-box;
 }
-.admin-main .admin-product-table td:nth-child(8) button,
-.admin-main .admin-product-table td:nth-child(8) a { white-space: nowrap !important; padding: 4px 8px !important; }
+
+/* 재고/가격 확인 표: table-layout:fixed 인데 컬럼별 폭 지정이 없어 5개 컬럼이 균등폭(147px)으로
+   깨졌다. 상품명이 잘리고 판매가·재고 컬럼엔 빈 공간만 남던 문제라 폭을 재배분한다. */
+.admin-main .admin-stock-table th:nth-child(1), .admin-main .admin-stock-table td:nth-child(1) { width: 33% !important; }
+.admin-main .admin-stock-table th:nth-child(2), .admin-main .admin-stock-table td:nth-child(2) { width: 13% !important; }
+.admin-main .admin-stock-table th:nth-child(3), .admin-main .admin-stock-table td:nth-child(3) { width: 15% !important; }
+.admin-main .admin-stock-table th:nth-child(4), .admin-main .admin-stock-table td:nth-child(4) { width: 19% !important; }
+.admin-main .admin-stock-table th:nth-child(5), .admin-main .admin-stock-table td:nth-child(5) { width: 20% !important; }
+
+/* 재고 이력 표도 같은 이유(table-layout:fixed + 폭 지정 없음)로 5칸이 균등폭이었다. 사유는
+   자유 입력 텍스트라 길면 줄바꿈되어 행이 크게 늘어나므로, 나머지 짧은 값 칸은 좁히고
+   사유 칸에 가장 많은 공간을 준다. */
+.admin-main .admin-stock-history-table th:nth-child(1), .admin-main .admin-stock-history-table td:nth-child(1) { width: 18% !important; }
+.admin-main .admin-stock-history-table th:nth-child(2), .admin-main .admin-stock-history-table td:nth-child(2) { width: 15% !important; }
+.admin-main .admin-stock-history-table th:nth-child(3), .admin-main .admin-stock-history-table td:nth-child(3) { width: 10% !important; }
+.admin-main .admin-stock-history-table th:nth-child(4), .admin-main .admin-stock-history-table td:nth-child(4) { width: 15% !important; }
+.admin-main .admin-stock-history-table th:nth-child(5), .admin-main .admin-stock-history-table td:nth-child(5) { width: 42% !important; }
 
 @media (max-width: 760px) {
   /* 상품 조회/상태 확인 표: 위 nth-child 고정 폭 대신 가로 스크롤 허용(데스크톱·태블릿은 위 규칙 그대로 적용) */
@@ -18593,6 +18919,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main .admin-excel-summary.success > span:first-child, .admin-main .admin-excel-summary.success > p:first-child { background: #dff3f9; color: #1b6f8c; }
 .admin-main .admin-excel-summary.danger > span:first-child, .admin-main .admin-excel-summary.danger > p:first-child { background: #fde3e3; color: #a13b3b; }
 .admin-main .admin-excel-summary.warning > span:first-child, .admin-main .admin-excel-summary.warning > p:first-child { background: #fff1c9; color: #8a6d1a; }
+.admin-main .admin-excel-summary.review > span:first-child, .admin-main .admin-excel-summary.review > p:first-child { background: #e9f1ff; color: #21508c; }
 .admin-main .admin-excel-summary > strong { color: #222 !important; }
 
 .admin-main .admin-image-thumb {
@@ -18608,7 +18935,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-main .admin-grid { align-items: stretch !important; }
 .admin-main .admin-grid > section { align-self: stretch !important; height: auto !important; }
-.admin-main .admin-grid > .admin-operation-panel { grid-column: 1 / -1 !important; }
+.admin-main .admin-grid > .admin-full-width-panel { grid-column: 1 / -1 !important; }
 
 .admin-main .admin-pending-item { align-items: center; }
 .admin-main .admin-pending-item > span:first-child { flex: 1 1 auto; min-width: 0; }
@@ -19161,7 +19488,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-inventory-hero,
@@ -19170,29 +19497,49 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   min-width: 0;
 }
 
+/* 상품 목록/선택 상품 위젯을 각각 독립적으로 스크롤한다(페이지 전체 스크롤 대신, 마우스가
+   올라간 위젯만 스크롤). 두 위젯을 flex 세로열로 만들어 헤더·필터·페이지네이션은 고정하고,
+   실제 목록/상세 내용만 담긴 자식(.admin-inventory-table-scroll, .admin-inventory-detail-scroll)
+   에 overflow-y:auto 를 준다. */
 .admin-inventory-table-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
+/* 스크롤은 유지하되, 기본 노출 행은 정확히 10개가 되도록 높이를 고정한다
+   (thead 56px + tbody tr 56px x 10 = 616px). 헤더가 tbody 와 함께 스크롤되어도
+   10행이라는 기준은 항상 이 높이만큼 보이는 걸로 지킨다. */
+.admin-inventory-table-scroll {
+  height: 616px;
+  overflow-y: auto;
+}
+
 .admin-inventory-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+
+.admin-inventory-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.admin-inventory-table-panel > .admin-panel-header,
+.admin-inventory-table-panel > .admin-product-filters,
+.admin-inventory-table-panel > .admin-list-toolbar,
+.admin-inventory-table-panel > .admin-pagination-row,
+.admin-inventory-table-panel > .admin-state-banner,
+.admin-inventory-detail > .admin-panel-header {
+  flex-shrink: 0;
 }
 
 .admin-inventory-filter-header {
   align-items: flex-start;
 }
 
-.admin-inventory-filter-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.admin-inventory-filter-controls input,
-.admin-inventory-filter-controls select,
 .admin-inventory-action-card input,
 .admin-inventory-action-card textarea {
   min-height: 38px;
@@ -19201,17 +19548,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   background: var(--admin-white);
   color: var(--admin-text);
   font: inherit;
-}
-
-.admin-inventory-filter-controls input,
-.admin-inventory-filter-controls select {
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.admin-inventory-filter-controls input {
-  min-width: 180px;
 }
 
 .admin-inventory-product-button {
@@ -19227,8 +19563,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-product-button:focus-visible,
-.admin-inventory-filter-controls input:focus-visible,
-.admin-inventory-filter-controls select:focus-visible,
 .admin-inventory-action-card input:focus-visible,
 .admin-inventory-action-card textarea:focus-visible {
   outline: 2px solid var(--admin-accent-2);
@@ -19237,18 +19571,19 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-inventory-badges {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
 }
 
+/* 가격 저장/재고 저장/판매 중지는 각자 박스(테두리+배경+패딩)로 감싸여 있었는데, 내용에
+   비해 여백·테두리가 차지하는 비중이 커서 조밀하게 바꿨다. 판매 시작만 강조가 필요해
+   .admin-inventory-sale-card 에서 다시 박스 스타일을 되살린다. */
 .admin-inventory-action-card {
   display: grid;
-  gap: 10px;
-  margin: 14px 18px 0;
-  padding: 14px;
-  border: 1px solid var(--admin-line);
-  border-radius: 8px;
-  background: #fafafa;
+  gap: 6px;
+  margin: 10px 18px 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--admin-line);
 }
 
 .admin-inventory-action-card h3,
@@ -19258,13 +19593,11 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-inventory-action-card h3 {
   color: var(--admin-text);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .admin-inventory-action-card p,
 .admin-inventory-help,
-.admin-inventory-loading,
-.admin-inventory-notice,
 .admin-inventory-error {
   font-size: 12px;
   font-weight: 700;
@@ -19272,8 +19605,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-action-card p,
-.admin-inventory-help,
-.admin-inventory-loading {
+.admin-inventory-help {
   color: var(--admin-muted);
 }
 
@@ -19292,28 +19624,49 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-action-card textarea {
-  min-height: 76px;
+  min-height: 56px;
   resize: vertical;
 }
 
 .admin-inventory-action-card .admin-secondary-button,
 .admin-inventory-action-card .admin-primary-button {
-  justify-self: start;
+  justify-self: end;
+}
+
+/* 판매가는 필드 하나뿐이라, 라벨+입력값과 저장 버튼을 한 줄에 붙여 "이 버튼은 이 입력값
+   것"이라는 게 바로 보이게 한다(재고 저장은 필드가 2개라 아래에 쌓고, 버튼은 끝에 오른쪽
+   정렬만 맞춘다 — 모양 자체가 달라서 두 저장 버튼이 헷갈리지 않는다). */
+.admin-inventory-inline-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-inventory-inline-row label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-inventory-inline-row .admin-primary-button {
+  flex: 0 0 auto;
+}
+
+.admin-inventory-required {
+  color: #c2402c;
 }
 
 .admin-inventory-sale-card {
-  border-color: rgba(245, 158, 11, 0.35);
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
   background: #fffaf0;
 }
 
 .admin-inventory-help,
-.admin-inventory-notice,
 .admin-inventory-error {
   margin: 14px 18px 0;
-}
-
-.admin-inventory-notice {
-  color: #2aa6d1;
 }
 
 .admin-inventory-error {
@@ -19324,85 +19677,13 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   color: #9f392b;
 }
 
-.admin-inventory-more {
-  display: flex;
-  justify-content: center;
-  padding: 16px 18px 18px;
-}
-
-.admin-inventory-confirm-backdrop {
-  position: fixed;
-  z-index: 40;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(12, 17, 23, 0.45);
-}
-
-.admin-inventory-confirm-dialog {
-  display: grid;
-  width: min(100%, 440px);
-  gap: 12px;
-  padding: 24px;
-  border: 1px solid var(--admin-line);
-  border-radius: 12px;
-  background: var(--admin-white);
-  box-shadow: 0 18px 48px rgba(12, 17, 23, 0.24);
-}
-
-.admin-inventory-confirm-dialog p,
-.admin-inventory-confirm-dialog h2,
-.admin-inventory-confirm-dialog span {
-  margin: 0;
-}
-
-.admin-inventory-confirm-dialog p {
-  color: #b36b00;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.admin-inventory-confirm-dialog h2 {
-  color: var(--admin-text);
-  font-size: 18px;
-  line-height: 1.4;
-}
-
-.admin-inventory-confirm-dialog span {
-  color: var(--admin-muted);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.55;
-}
-
-.admin-inventory-confirm-dialog > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
 @media (max-width: 1180px) {
   .admin-inventory-layout {
     grid-template-columns: 1fr;
   }
-
-  .admin-inventory-detail {
-    position: static;
-  }
 }
 
 @media (max-width: 760px) {
-  .admin-inventory-filter-controls {
-    justify-content: flex-start;
-  }
-
-  .admin-inventory-filter-controls input,
-  .admin-inventory-filter-controls select {
-    width: 100%;
-  }
-
   .admin-inventory-action-card .admin-secondary-button,
   .admin-inventory-action-card .admin-primary-button {
     width: 100%;

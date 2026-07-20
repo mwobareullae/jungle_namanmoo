@@ -11,7 +11,8 @@ from app.services.admin.order_service import (
     ACTION_COMPLETE_DELIVERY,
     ACTION_START_PREPARATION,
     ACTION_START_SHIPMENT,
-    DEFAULT_LIMIT,
+    DEFAULT_PAGE,
+    DEFAULT_PAGE_SIZE,
     ShipmentTransitionResult,
     complete_delivery,
     list_admin_orders,
@@ -34,8 +35,8 @@ _SHIPMENT_ACTION_RESPONSES = {
 def list_orders(
     order_status: str | None = Query(default=None),
     payment_status: str | None = Query(default=None),
-    limit: int = Query(default=DEFAULT_LIMIT),
-    cursor: str | None = Query(default=None),
+    page: int = Query(default=DEFAULT_PAGE),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE),
     session: Session = Depends(get_db),
 ) -> AdminOrderListResponse:
     """관리자 주문 목록 조회. 인증/인가는 admin_router 공통 가드가 적용."""
@@ -43,8 +44,8 @@ def list_orders(
         session,
         order_status=order_status,
         payment_status=payment_status,
-        limit=limit,
-        cursor=cursor,
+        page=page,
+        page_size=page_size,
     )
 
 

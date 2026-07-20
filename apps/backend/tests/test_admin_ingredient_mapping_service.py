@@ -237,6 +237,12 @@ def test_normalize_candidate_type_rejects_unknown() -> None:
     assert exc.value.code == "INVALID_INGREDIENT_MAPPING_CANDIDATE"
 
 
+def test_alias_exact_match_uses_targeted_list_query() -> None:
+    assert svc._list_sql_for_candidate_type("ALIAS_EXACT_MATCH") is svc._LIST_ALIAS_EXACT_MATCH_SQL
+    assert svc._list_sql_for_candidate_type("CANONICAL_EXACT_MATCH") is svc._LIST_CANDIDATE_SQL
+    assert svc._list_sql_for_candidate_type(None) is svc._LIST_SQL
+
+
 # --- 라우트 인가/검증 (SQL 실행 전에 결정됨) ------------------------------
 
 @pytest.fixture()
