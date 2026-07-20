@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
+import { buildRecommendationSearchUrl } from "../lib/agentRecommendationSearch";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import type { RecommendationProfile, SearchMode, Sensitivity, SkinType } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
@@ -83,7 +83,7 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     };
   }, [query, searchMode]);
 
-  const goToSearch = async (nextQuery = query) => {
+  const goToSearch = (nextQuery = query) => {
     const trimmedQuery = nextQuery.trim();
     if (!trimmedQuery || isAgentSubmitting) return;
 
@@ -96,26 +96,8 @@ function SearchBarPanel({ initialQuery = "", initialSearchMode = "ai", initialPr
     setIsSuggestionsOpen(false);
     setQuery(trimmedQuery);
     callOriginal("closeSearchSuggestions");
-    window.dispatchEvent(new CustomEvent("home-search-pending", {
-      detail: { profile, query: trimmedQuery, scope: "search" },
-    }));
-    try {
-      const response = await runAgentEntryMessage(trimmedQuery, profile);
-      if (
-        !response
-        || response.ui_action.type !== "show_products"
-        || response.ui_action.target !== "product_results"
-      ) {
-        throw new Error("추천 결과가 준비되지 않았습니다.");
-      }
-    } catch {
-      window.dispatchEvent(new CustomEvent("home-search-failed", {
-        detail: { query: trimmedQuery, scope: "search" },
-      }));
-      callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
-    } finally {
-      setIsAgentSubmitting(false);
-    }
+    callOriginal("saveRecentConcern", trimmedQuery);
+    window.location.assign(buildRecommendationSearchUrl(trimmedQuery, profile));
   };
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
