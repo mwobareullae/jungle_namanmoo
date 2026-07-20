@@ -2865,17 +2865,53 @@
   vertical-align: middle;
 }
 
-.admin-order-table th:nth-child(1), .admin-order-table td:nth-child(1),
-.admin-order-table th:nth-child(2), .admin-order-table td:nth-child(2),
-.admin-order-table th:nth-child(3), .admin-order-table td:nth-child(3),
-.admin-order-table th:nth-child(6), .admin-order-table td:nth-child(6),
-.admin-order-table th:nth-child(7), .admin-order-table td:nth-child(7) {
-  width: 12.4% !important;
+/* 내용 길이에 맞춰 배정한다 — 주문/상품은 텍스트가 길어(상품명은 여러 줄로 줄바꿈되기도
+   함) 넓게, 주문 상태/결제는 짧은 뱃지 하나뿐이라 좁게, 금액/예약/추천 추적은 그 사이. */
+.admin-order-table th:nth-child(1), .admin-order-table td:nth-child(1) { width: 20% !important; }
+.admin-order-table th:nth-child(2), .admin-order-table td:nth-child(2) { width: 32% !important; }
+.admin-order-table th:nth-child(3), .admin-order-table td:nth-child(3) { width: 10% !important; }
+.admin-order-table th:nth-child(4), .admin-order-table td:nth-child(4) { width: 12% !important; }
+.admin-order-table th:nth-child(5), .admin-order-table td:nth-child(5) { width: 12% !important; }
+.admin-order-table th:nth-child(6), .admin-order-table td:nth-child(6) { width: 7% !important; }
+.admin-order-table th:nth-child(7), .admin-order-table td:nth-child(7) { width: 7% !important; }
+
+/* 취소 요청·클레임 표는 주문 표와 컬럼 개수·의미가 달라 .admin-order-table 을 그대로 공유하면
+   폭이 완전히 깨진다(예: "가능 액션" 칸이 세로로 쪼개질 정도로 좁아짐) — 전용 클래스로 분리. */
+.admin-cancelrequest-table,
+.admin-claim-table {
+  min-width: 1020px;
 }
-.admin-order-table th:nth-child(4), .admin-order-table td:nth-child(4),
-.admin-order-table th:nth-child(5), .admin-order-table td:nth-child(5) {
-  width: 19% !important;
+
+.admin-cancelrequest-table tbody tr,
+.admin-claim-table tbody tr {
+  cursor: pointer;
 }
+
+.admin-cancelrequest-table tbody tr.selected,
+.admin-claim-table tbody tr.selected {
+  background: #f0fbfe;
+}
+
+.admin-cancelrequest-table td,
+.admin-claim-table td {
+  vertical-align: middle;
+}
+
+/* 요청번호/주문은 코드 문자열이라 비슷한 길이로, 상태·유형은 뱃지 하나뿐이라 좁게 배정. */
+.admin-cancelrequest-table th:nth-child(1), .admin-cancelrequest-table td:nth-child(1) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(2), .admin-cancelrequest-table td:nth-child(2) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(3), .admin-cancelrequest-table td:nth-child(3) { width: 16% !important; }
+.admin-cancelrequest-table th:nth-child(4), .admin-cancelrequest-table td:nth-child(4) { width: 12% !important; }
+.admin-cancelrequest-table th:nth-child(5), .admin-cancelrequest-table td:nth-child(5) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(6), .admin-cancelrequest-table td:nth-child(6) { width: 18% !important; }
+
+.admin-claim-table th:nth-child(1), .admin-claim-table td:nth-child(1) { width: 16% !important; }
+.admin-claim-table th:nth-child(2), .admin-claim-table td:nth-child(2) { width: 16% !important; }
+.admin-claim-table th:nth-child(3), .admin-claim-table td:nth-child(3) { width: 14% !important; }
+.admin-claim-table th:nth-child(4), .admin-claim-table td:nth-child(4) { width: 10% !important; }
+.admin-claim-table th:nth-child(5), .admin-claim-table td:nth-child(5) { width: 10% !important; }
+.admin-claim-table th:nth-child(6), .admin-claim-table td:nth-child(6) { width: 16% !important; }
+.admin-claim-table th:nth-child(7), .admin-claim-table td:nth-child(7) { width: 18% !important; }
 
 .admin-order-detail {
   display: flex;

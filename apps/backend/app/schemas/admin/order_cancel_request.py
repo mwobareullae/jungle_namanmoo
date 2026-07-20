@@ -47,9 +47,18 @@ class AdminOrderCancelRequestItem(BaseModel):
     )
 
 
+class AdminOrderCancelRequestPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
 class AdminOrderCancelRequestListResponse(BaseModel):
     items: list[AdminOrderCancelRequestItem]
-    next_cursor: str | None
+    pagination: AdminOrderCancelRequestPagination
 
 
 class AdminOrderCancelRequestDetailResponse(AdminOrderCancelRequestItem):
