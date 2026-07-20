@@ -71,19 +71,6 @@ const navGroupHeadings: Partial<Record<AdminView, string>> = {
   orderStatus: "주문 운영"
 };
 
-const navPendingGroups: Array<{ heading: string; items: string[] }> = [
-  {
-    heading: "운영 설정",
-    items: [
-      "카테고리·브랜드 관리",
-      "성분 사전 관리",
-      "이미지 파일명 규칙",
-      "엑셀 업로드 양식",
-      "관리자 권한/작업 로그"
-    ]
-  }
-];
-
 const now = new Date();
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const todayIso = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
@@ -1146,25 +1133,7 @@ function AdminDashboardPage() {
               </button>
             </Fragment>
           ))}
-          {navPendingGroups.map((group) => (
-            <Fragment key={group.heading}>
-              <div className="admin-nav-group">
-                {group.heading}
-                <span className="admin-nav-ready">준비중</span>
-              </div>
-              {group.items.map((label) => (
-                <div className="admin-nav-disabled" key={label}>
-                  {label}
-                </div>
-              ))}
-            </Fragment>
-          ))}
         </nav>
-
-        <div className="admin-sidebar-status">
-          <span>preview</span>
-          <strong>필수 6개 화면 로컬 시안</strong>
-        </div>
       </aside>
 
       <section className="admin-main" id="admin-dashboard">

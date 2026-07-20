@@ -77,7 +77,12 @@ export function SearchableSelect({
           setHighlightedIndex(0);
           setIsOpen(true);
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={(event) => {
+          // 이미 선택된 값이 있는 상태에서 포커스를 받으면 텍스트를 전체 선택해, 바로 타이핑을
+          // 시작했을 때 기존 값 뒤에 붙지 않고 덮어써지게 한다(특히 필터용으로 쓸 때 중요).
+          event.target.select();
+          setIsOpen(true);
+        }}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
             event.preventDefault();
