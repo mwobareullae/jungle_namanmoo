@@ -906,7 +906,7 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 22,
     borderRadius: "50%",
     border: "1px solid rgba(148,224,248,0.55)",
-    background: "rgba(148,224,248,0.10)",
+    background: "#ffffff",
     color: "#76ccea"
   },
   emptyLoadingSpacer: {
