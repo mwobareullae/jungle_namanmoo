@@ -136,12 +136,6 @@ export function AdminProductFormSection({
           </div>
         </div>
 
-        {(loading || optionsLoading) && (
-          <div className="admin-state-banner neutral">
-            <strong>상품 폼을 준비하는 중입니다</strong>
-            <span>상품 정보와 선택 목록을 불러오고 있습니다.</span>
-          </div>
-        )}
         {(error || optionsError) && (
           <div className="admin-state-banner danger" role="alert">
             <strong>상품을 저장할 수 없습니다</strong>
