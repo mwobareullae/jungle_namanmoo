@@ -11,6 +11,7 @@ import { getProductImageUrl } from "../lib/imageUrls";
 import { getSensitiveAgentInputMessage } from "../lib/agentInputSafety";
 import { getAgentChatStorageKeys, type AgentChatStorageScope } from "../lib/agentChatStorage";
 import { getOrderDetail } from "../lib/orderApi";
+import { clearAllWishlistCache } from "../lib/activityApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
   useProductComparison,
@@ -257,7 +258,7 @@ const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[
 const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
   home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
   cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
-  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 추천해줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
 };
 
@@ -2368,6 +2369,13 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
+      const shouldCloseAfterBulkWishlist = action === "confirm"
+        && approvalMessage.toolName === "bulk_wishlist_by_popular_ingredient";
+      if (shouldCloseAfterBulkWishlist) {
+        clearAllWishlistCache();
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
       await applyAgentUiAction(
         response.ui_action,
         [],
