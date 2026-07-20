@@ -83,6 +83,60 @@ def test_create_first_address_sets_default_and_trims_values(
     assert row.is_default is True
 
 
+@pytest.mark.parametrize(
+    ("phone", "expected_phone"),
+    [
+        ("010-123-4567", "0101234567"),
+        ("010 1234 5678", "01012345678"),
+    ],
+)
+def test_create_address_normalizes_formatted_phone(
+    client: TestClient,
+    phone: str,
+    expected_phone: str,
+) -> None:
+    _signup(client, email="address-phone-normalize@example.com", nickname="address-phone-normalize")
+
+    response = client.post(
+        "/api/me/addresses",
+        json={
+            "recipient_name": "배송 받는 사람",
+            "phone": phone,
+            "postal_code": "12345",
+            "address1": "Seoul",
+            "address2": "101",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["phone"] == expected_phone
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("recipient_name", "Kim123"),
+        ("phone", "010-1234-56"),
+        ("postal_code", "1234a"),
+        ("address2", "   "),
+    ],
+)
+def test_create_address_rejects_invalid_required_values(client: TestClient, field: str, value: str) -> None:
+    _signup(client, email=f"address-invalid-{field}@example.com", nickname=f"address-invalid-{field}")
+    payload = {
+        "recipient_name": "Recipient",
+        "phone": "01012345678",
+        "postal_code": "12345",
+        "address1": "Seoul",
+        "address2": "101",
+    }
+    payload[field] = value
+
+    response = client.post("/api/me/addresses", json=payload)
+
+    assert response.status_code == 400
+
+
 def test_creating_new_default_unsets_previous_default(client: TestClient) -> None:
     _signup(client, email="address-default@example.com", nickname="address-default")
     first_id = _create_address(client, recipient_name="First", is_default=True)["id"]
@@ -97,7 +151,7 @@ def test_creating_new_default_unsets_previous_default(client: TestClient) -> Non
     assert items[1]["is_default"] is False
 
 
-def test_update_address_can_clear_optional_values_and_change_default(client: TestClient) -> None:
+def test_update_address_can_clear_delivery_memo_and_change_default(client: TestClient) -> None:
     _signup(client, email="address-update@example.com", nickname="address-update")
     first_id = _create_address(client, recipient_name="First", is_default=True)["id"]
     second_id = _create_address(
@@ -112,7 +166,6 @@ def test_update_address_can_clear_optional_values_and_change_default(client: Tes
         f"/api/me/addresses/{second_id}",
         json={
             "recipient_name": "Updated",
-            "address2": None,
             "delivery_memo": None,
             "is_default": True,
         },
@@ -122,12 +175,21 @@ def test_update_address_can_clear_optional_values_and_change_default(client: Tes
     assert response.status_code == 200
     data = response.json()
     assert data["recipient_name"] == "Updated"
-    assert data["address2"] is None
+    assert data["address2"] == "Before clear"
     assert data["delivery_memo"] is None
     assert data["is_default"] is True
     items_by_id = {item["id"]: item for item in list_response.json()["items"]}
     assert items_by_id[second_id]["is_default"] is True
     assert items_by_id[first_id]["is_default"] is False
+
+
+def test_update_address_rejects_empty_detail_address(client: TestClient) -> None:
+    _signup(client, email="address-detail-required@example.com", nickname="address-detail-required")
+    address_id = _create_address(client, recipient_name="Recipient")["id"]
+
+    response = client.patch(f"/api/me/addresses/{address_id}", json={"address2": None})
+
+    assert response.status_code == 400
 
 
 def test_update_default_false_keeps_one_default_address(client: TestClient) -> None:
@@ -267,7 +329,7 @@ def _create_address(
     client: TestClient,
     *,
     recipient_name: str,
-    address2: str | None = None,
+    address2: str = "101",
     delivery_memo: str | None = None,
     is_default: bool = False,
 ) -> dict:
