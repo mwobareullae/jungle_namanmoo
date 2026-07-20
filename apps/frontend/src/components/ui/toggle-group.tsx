@@ -11,13 +11,13 @@ type ToggleGroupItemTone = "accent" | "mint" | "danger" | "neutral";
 // accent = 회원가입 피부프로필(SignupSkinProfilePage)의 선택 상태 색, 나머지는 마이페이지 피부프로필의 색.
 const toneClassName: Record<ToggleGroupItemTone, string> = {
   accent:
-    "data-[state=off]:border-[rgba(0,0,0,0.07)] data-[state=off]:bg-white data-[state=off]:text-[#3D3D3D] data-[state=on]:border-[#0096C6] data-[state=on]:bg-[rgba(0,150,198,0.12)] data-[state=on]:text-[#005F7E]",
+    "data-[state=off]:border-[rgba(0,0,0,0.07)] data-[state=off]:bg-white data-[state=off]:text-[#3D3D3D] data-[state=on]:border-[#0096C6] data-[state=on]:bg-white data-[state=on]:text-[#005F7E]",
   mint:
-    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[rgba(148,224,248,0.95)] data-[state=on]:bg-[rgba(148,224,248,0.22)] data-[state=on]:text-[#063445]",
+    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[rgba(148,224,248,0.95)] data-[state=on]:bg-white data-[state=on]:text-[#063445]",
   danger:
-    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[rgba(239,68,68,0.34)] data-[state=on]:bg-[rgba(239,68,68,0.12)] data-[state=on]:text-[#9f2c2c]",
+    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[rgba(239,68,68,0.34)] data-[state=on]:bg-white data-[state=on]:text-[#9f2c2c]",
   neutral:
-    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[#4b5563] data-[state=on]:bg-[#4b5563] data-[state=on]:text-white"
+    "data-[state=off]:border-[#e1e5e8] data-[state=off]:bg-white data-[state=off]:text-[#4b5563] data-[state=on]:border-[#4b5563] data-[state=on]:bg-white data-[state=on]:text-[#4b5563]"
 };
 
 type ToggleGroupItemProps = ComponentProps<typeof ToggleGroupPrimitive.Item> & {
@@ -43,7 +43,7 @@ function ToggleGroupItem({
 
   return (
     <ToggleGroupPrimitive.Item
-      className={`inline-flex cursor-pointer items-center justify-center border font-semibold leading-none transition-colors ${radiusClassName} ${toneClassName[tone]} focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(148,224,248,0.35)] ${sizeClassName} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center border font-semibold leading-none transition-colors data-[state=on]:border-2 ${radiusClassName} ${toneClassName[tone]} focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(148,224,248,0.35)] ${sizeClassName} ${className}`}
       {...props}
     />
   );
