@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { callOriginal } from "../lib/originalRuntime";
 import { api } from "../lib/api";
-import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
+import {
+  buildRecommendationSearchUrl,
+  runAgentEntryMessage,
+} from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
 import type { CatalogSuggestionItem } from "../types/product";
 
@@ -225,24 +228,12 @@ function HomeHero({
     setQuery(suggestion.text);
   };
 
-  const handleExampleClick = async (text: string) => {
+  const handleExampleClick = (text: string) => {
     if (isAgentSubmitting) return;
     setQuery(text);
     setIsSuggestionsOpen(false);
-    setIsAgentSubmitting(true);
-    try {
-      const response = await runAgentEntryMessage(text, profile);
-      if (!response) {
-        throw new Error("추천 결과가 준비되지 않았습니다.");
-      }
-    } catch {
-      window.dispatchEvent(new CustomEvent("home-search-failed", {
-        detail: { query: text },
-      }));
-      callOriginal("showToast", "추천을 준비하지 못했어요. 잠시 후 다시 시도해주세요");
-    } finally {
-      setIsAgentSubmitting(false);
-    }
+    callOriginal("saveRecentConcern", text);
+    window.location.assign(buildRecommendationSearchUrl(text, profile));
   };
 
   const selectSearchMode = (mode: SearchMode) => {
@@ -437,7 +428,7 @@ function HomeHero({
           {searchMode === "ai" ? (
             <div className="search-examples search-examples--with-guide">
               {exampleChips.map((text) => (
-                <span className="example-chip" key={text} onClick={() => void handleExampleClick(text)}>
+                <span className="example-chip" key={text} onClick={() => handleExampleClick(text)}>
                   {text}
                 </span>
               ))}

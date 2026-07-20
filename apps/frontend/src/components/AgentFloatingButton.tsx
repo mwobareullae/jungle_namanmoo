@@ -1119,7 +1119,17 @@ const normalizeInternalResultUrl = (value: unknown) => {
   }
 };
 
-const buildProductsResultUrl = (action: AgentUiAction) => {
+const overrideSearchResultKeyword = (resultUrl: string, queryOverride?: string) => {
+  const normalizedQuery = queryOverride?.trim();
+  if (!normalizedQuery || typeof window === "undefined") return resultUrl;
+
+  const url = new URL(resultUrl, window.location.origin);
+  if (url.pathname !== "/search") return resultUrl;
+  url.searchParams.set("keyword", normalizedQuery);
+  return `${url.pathname}${url.search}${url.hash}`;
+};
+
+const buildProductsResultUrl = (action: AgentUiAction, queryOverride?: string) => {
   if (action.type !== "show_products") {
     return null;
   }
@@ -1130,7 +1140,7 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
     normalizeInternalResultUrl(action.payload.url) ??
     normalizeInternalResultUrl(action.payload.href);
   if (directUrl) {
-    return directUrl;
+    return overrideSearchResultKeyword(directUrl, queryOverride);
   }
 
   const filters = isRecord(action.payload.filters) ? action.payload.filters : {};
@@ -1160,7 +1170,8 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
   if (recommendationId) params.set("recommendation_id", recommendationId);
   params.set("page_size", String(pageSize));
 
-  return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
+  const resultUrl = params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
+  return resultUrl ? overrideSearchResultKeyword(resultUrl, queryOverride) : null;
 };
 
 const resolveAgentSearchProfile = (
@@ -1340,13 +1351,7 @@ function createResultMessage(
 
   const title = getResultTitle(action);
   const emptyProducts = action.type === "show_products" && resultItems.length === 0;
-  const rawActionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action);
-  let actionUrl = rawActionUrl;
-  if (rawActionUrl && action.type === "show_products" && queryOverride?.trim()) {
-    const resultUrl = new URL(rawActionUrl, window.location.origin);
-    resultUrl.searchParams.set("keyword", queryOverride.trim());
-    actionUrl = `${resultUrl.pathname}${resultUrl.search}${resultUrl.hash}`;
-  }
+  const actionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action, queryOverride);
 
   return {
     id,
@@ -1571,6 +1576,7 @@ const applyAgentUiAction = async (
   message = "",
   currentProductId: string | null,
   openComparison: (intent: ProductComparisonIntent) => void,
+  searchQueryOverride?: string,
 ) => {
   if (
     action.type === "open_modal"
@@ -1648,7 +1654,7 @@ const applyAgentUiAction = async (
     && (action.target === "product_results" || action.target === "refined_products")
     && readPayloadString(action.payload, ["recommendation_id", "recommendationId"])
   ) {
-    const resultUrl = buildProductsResultUrl(action);
+    const resultUrl = buildProductsResultUrl(action, searchQueryOverride);
     if (resultUrl) {
       if (window.location.pathname === "/search") {
         window.history.replaceState(null, "", resultUrl);
@@ -2185,17 +2191,16 @@ function AgentFloatingButton({
         && response.ui_action.target === "product_results"
         && window.location.pathname === "/search"
       ) {
-        const resultUrl = buildProductsResultUrl(response.ui_action);
+        const resultUrl = buildProductsResultUrl(response.ui_action, nextMessage);
         const resultParams = resultUrl
           ? new URL(resultUrl, window.location.origin).searchParams
           : null;
         const recommendationId = resultParams?.get("recommendation_id") ?? undefined;
-        const resultQuery = resultParams?.get("keyword")?.trim() || nextMessage;
 
         window.dispatchEvent(new CustomEvent("home-search-request", {
           detail: {
             profile: resolveAgentSearchProfile(contextProfile, resultParams),
-            query: resultQuery,
+            query: nextMessage,
             recommendationId,
             scope: requestScope,
           },
@@ -2240,12 +2245,23 @@ function AgentFloatingButton({
         await playAgentClickInteraction(cartTarget);
         await navigateWithinApp("/cart");
       } else {
+        const currentSearchQuery = window.location.pathname === "/search"
+          ? new URLSearchParams(window.location.search).get("keyword")?.trim()
+          : undefined;
+        const searchQueryOverride = response.ui_action.type === "show_products"
+          ? response.ui_action.target === "product_results"
+            ? nextMessage
+            : response.ui_action.target === "refined_products"
+              ? currentSearchQuery
+              : undefined
+          : undefined;
         await applyAgentUiAction(
           response.ui_action,
           response.items,
           response.message,
-            buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
+          buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
           openComparison,
+          searchQueryOverride,
         );
       }
       return response;
