@@ -4428,13 +4428,35 @@ body {
 
 .api-summary-chip.removable {
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.search-interpretation .api-summary-chip,
+.search-interpretation .api-summary-chip.filter,
+.search-interpretation .api-summary-chip.removable,
+#apiResultSummary .api-summary-chip,
+#apiResultSummary .api-summary-chip.filter,
+#apiResultSummary .api-summary-chip.removable {
+  min-height: 30px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .api-summary-chip.removable span {
   margin-left: 4px;
-  font-size: 15px;
+  font-size: 12px;
   line-height: 1;
+}
+
+.search-interpretation .api-summary-chip.removable span,
+#apiResultSummary .api-summary-chip.removable span {
+  font-size: 12px;
 }
 
 .search-empty--actionable {
@@ -4546,6 +4568,21 @@ body {
   min-height: 116px;
   background: #ffffff;
   backdrop-filter: none;
+}
+
+body.search-results-page .flow-tag,
+body.search-results-page .flow-tag.highlight,
+.search-page-shell .ai-result-section .flow-tag {
+  background: #ffffff;
+  border-color: #dfe6e8;
+  color: var(--ink2);
+}
+
+body.search-results-page .flow-tag.profile,
+.search-page-shell .ai-result-section .flow-tag.profile {
+  background: #edf8fb;
+  border-color: #94e0f8;
+  color: var(--accent-text);
 }
 
 @media (max-width: 1024px) {
@@ -13222,7 +13259,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-floating-entry {
   position: fixed;
   right: 28px;
-  bottom: 44px;
+  bottom: 28px;
   z-index: 170;
   display: inline-flex;
   align-items: center;
@@ -13364,8 +13401,12 @@ html[data-app-mode="community"] .search-results-shell {
   z-index: 173;
   display: flex;
   flex-direction: column;
-  width: min(454px, calc(100vw - 40px));
-  height: min(720px, calc(100vh - 120px));
+  width: clamp(340px, 28vw, 420px);
+  aspect-ratio: 1 / 1.65;
+  height: auto;
+  min-height: min(560px, calc(100svh - 140px));
+  max-height: calc(100svh - 120px);
+  overflow: hidden;
   border: 1px solid #dfe9ee;
   border-radius: 36px;
   background: #ffffff;
@@ -13468,12 +13509,12 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-popup__body {
   display: grid;
   align-content: start;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   align-content: start;
   gap: 0;
   min-width: 0;
   min-height: 0;
-  padding: 6px 22px 10px;
+  padding: 6px 22px 28px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   overflow-y: auto;
@@ -13710,7 +13751,15 @@ html[data-app-mode="community"] .search-results-shell {
   min-height: 100%;
   align-content: start;
   gap: 10px;
-  padding: 6px 0 40px;
+  padding: 6px 0 72px;
+}
+
+.agent-chat-thread > div[aria-hidden="true"] {
+  min-height: 24px;
+}
+
+.agent-chat-thread .agent-chat-message-group:last-of-type {
+  margin-bottom: 28px;
 }
 
 .agent-chat-message-group {
@@ -14343,7 +14392,7 @@ html[data-app-mode="community"] .search-results-shell {
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 8px;
   align-items: center;
-  margin: 20px 16px 16px;
+  margin: 20px 16px 28px;
   border: 1px solid #dfe9ee;
   border-radius: 16px;
   background: #f0f7fa;
@@ -17824,8 +17873,7 @@ html[data-app-mode="community"] .search-results-shell {
   .agent-chat-popup {
     right: 0;
     bottom: calc(100% + 12px);
-    width: min(431px, max(320px, calc(50vw - 16px)));
-    height: min(616px, calc(100vh - 168px));
+    width: clamp(340px, 28vw, 400px);
     border-radius: 30px;
   }
 
@@ -17844,11 +17892,11 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .agent-chat-popup__body {
-    padding: 6px 20px 10px;
+    padding: 6px 20px 28px;
   }
 
   .agent-chat-input {
-    margin: 0 14px 14px;
+    margin: 0 14px 28px;
   }
 
   .detail-loading {
@@ -18073,8 +18121,29 @@ html[data-app-mode="community"] .search-results-shell {
 
 @media (min-width: 1081px) and (max-height: 900px) {
   .agent-chat-popup {
-    width: min(431px, calc(100vw - 40px));
-    height: min(616px, calc(100vh - 168px));
+    width: clamp(340px, 28vw, 400px);
+    aspect-ratio: 1 / 1.6;
+    height: auto;
+    min-height: min(540px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
+  }
+}
+
+@media (min-aspect-ratio: 4 / 3) {
+  .agent-chat-popup {
+    aspect-ratio: 1 / 1.6;
+    height: auto;
+    min-height: min(540px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
+  }
+}
+
+@media (min-aspect-ratio: 16 / 9) {
+  .agent-chat-popup {
+    aspect-ratio: 1 / 1.55;
+    height: auto;
+    min-height: min(520px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
   }
 }
 
