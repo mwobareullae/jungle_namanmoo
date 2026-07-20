@@ -500,6 +500,13 @@ function ProductDetailPreviewPage() {
 
       {product && activeComparison ? (
         <ProductComparisonPanel
+          candidateMatchReasons={Object.fromEntries(
+            activeComparison.candidatePreviews.map((candidate) => [candidate.productId, candidate.matchReasons]),
+          )}
+          comparisonProfile={{
+            expectedEffects: recommendationSummary?.expected_effects ?? [],
+            matchedConcerns: recommendationSummary?.matched_concerns ?? [],
+          }}
           differences={activeComparison.differences}
           errorMessage={comparisonErrorMessage}
           expectedProductCount={activeComparison.compareProductIds.length + 1}

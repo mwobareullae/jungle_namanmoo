@@ -12903,9 +12903,8 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-card {
   position: relative;
-  display: grid;
-  grid-template-rows: 260px minmax(0, 1fr);
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 440px;
   overflow: hidden;
@@ -13035,6 +13034,54 @@ html[data-app-mode="community"] .search-results-shell {
   color: var(--accent-text);
   font-size: 13px;
   font-weight: 700;
+}
+
+.product-comparison-card__recommendation {
+  display: grid;
+  gap: 8px;
+  margin: 0 18px 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid #e6eef1;
+  text-align: left;
+}
+
+.product-comparison-card__recommendation.current {
+  min-height: 52px;
+}
+
+.product-comparison-card__reasons,
+.product-comparison-card__info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-comparison-card__reasons span {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #5ec6e8;
+  border-radius: 999px;
+  background: #f5f9fe;
+  color: #238ca1;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.product-comparison-card__info-chip {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #F4B6C8;
+  border-radius: 999px;
+  background: #FFF0F5;
+  color: #B8476A;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .product-comparison-card__empty {
