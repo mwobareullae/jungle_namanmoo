@@ -227,7 +227,7 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
-  searchResults: ["2만원대 상품만 보여줘", "추천 상위 2개 비교해줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
@@ -250,7 +250,7 @@ const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[
   ],
   searchResults: [
     "2만원대 상품만 보여줘",
-    "3만원 이하 제품 추천해줘",
+    "3만원 이하 세럼만 보여줘",
     "장바구니 상품과 총금액 보여줘",
   ],
 };
