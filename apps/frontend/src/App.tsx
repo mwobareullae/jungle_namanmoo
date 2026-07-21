@@ -871,6 +871,8 @@ function GlobalAgentEntry() {
   const path = location.pathname;
   const quickQuestionContext = path.startsWith("/product-detail")
     ? "productDetail"
+    : path.startsWith("/search")
+      ? "searchResults"
     : path === "/cart"
       ? "cart"
       : path.startsWith("/checkout")
@@ -892,6 +894,8 @@ function GlobalAgentEntry() {
                       : "home";
   const agentSurface = path.startsWith("/product-detail")
     ? "productDetail"
+    : path.startsWith("/search")
+      ? "context"
     : /recommend|skin-test|recommendations/.test(path)
       ? "context"
       : /mypage|cart|checkout|login|signup|order/.test(path)
@@ -913,6 +917,7 @@ function GlobalAgentEntry() {
 
 function GlobalFooter() {
   const location = useLocation();
+  if (location.pathname.startsWith("/admin")) return null;
   return <AppFooter variant={location.pathname === "/" ? "home" : "default"} />;
 }
 
@@ -1000,7 +1005,14 @@ function App() {
           {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
           {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
           {appMode !== "community" && (
-            <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />
+            <Route
+              path="/signup/skin-profile"
+              element={
+                <ProtectedRoute>
+                  <SignupSkinProfilePage />
+                </ProtectedRoute>
+              }
+            />
           )}
           {appMode !== "community" && (
             <Route

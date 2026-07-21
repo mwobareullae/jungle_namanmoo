@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductImage
-from app.db.models.commerce import Inventory, Order, Seller
+from app.db.models.commerce import Inventory, Order, OrderClaim, Seller
 from app.db.session import get_db
 from app.main import app
 from app.schemas.admin.ingredient_mapping import IngredientMappingSummary
@@ -138,6 +138,31 @@ def _seed_orders(session: Session, *, user_id: int) -> None:
                 updated_at=now,
             )
         )
+    session.flush()
+
+    claim_order = session.execute(
+        select(Order).where(Order.order_code == "ord_dashboard_prepare")
+    ).scalar_one()
+    session.add_all(
+        [
+            OrderClaim(
+                claim_code="claim_dashboard_requested",
+                order_id=claim_order.id,
+                user_id=user_id,
+                claim_type="RETURN",
+                status="REQUESTED",
+                reason_code="CHANGE_OF_MIND",
+            ),
+            OrderClaim(
+                claim_code="claim_dashboard_completed",
+                order_id=claim_order.id,
+                user_id=user_id,
+                claim_type="EXCHANGE",
+                status="COMPLETED",
+                reason_code="DEFECTIVE",
+            ),
+        ]
+    )
 
 
 def _summary() -> IngredientMappingSummary:
@@ -170,6 +195,7 @@ def test_dashboard_summary_returns_existing_summary_contract(
         "order_summary": {
             "pending_payment_count": 1,
             "preparing_shipment_count": 1,
+            "shipped_count": 0,
             "cancel_requested_count": 1,
             "reserved_quantity_total": 3,
         },
@@ -192,6 +218,9 @@ def test_dashboard_summary_returns_existing_summary_contract(
             "sold_out_count": 1,
             "hidden_count": 1,
             "unknown_count": 1,
+        },
+        "claim_summary": {
+            "pending_count": 1,
         },
     }
 

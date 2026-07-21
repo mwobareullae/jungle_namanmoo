@@ -12,14 +12,18 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryPriceListResponse,
     AdminInventoryPriceUpdateRequest,
     AdminInventoryPriceUpdateResponse,
+    AdminInventorySummaryResponse,
     AdminProductSaleStartResponse,
 )
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.catalog_sync import sync_catalog_product_after_commit
 from app.services.admin.inventory_price_service import (
-    DEFAULT_LIMIT,
+    DEFAULT_PAGE,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
     adjust_admin_inventory,
     get_admin_inventory_history,
+    get_admin_inventory_summary,
     list_admin_inventory_prices,
     start_admin_product_sale,
     update_admin_inventory_price,
@@ -36,10 +40,13 @@ router = APIRouter()
 )
 def list_inventory_prices(
     q: str | None = Query(default=None, description="상품명 부분 검색"),
+    brand_code: str | None = Query(default=None),
+    category_code: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None, description="노출 여부 필터. 미지정 시 전체(비활성 포함)"),
     sales_status: str | None = Query(default=None, description="ON_SALE/SOLD_OUT/HIDDEN"),
     stock_status: str | None = Query(default=None, description="IN_STOCK/LOW_STOCK/SOLD_OUT/HIDDEN"),
-    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=100),
-    cursor: str | None = Query(default=None, description="서버 발급 opaque cursor. 프론트 해석 금지"),
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     session: Session = Depends(get_db),
 ) -> AdminInventoryPriceListResponse:
     """재고·가격 운영 목록을 반환한다. 관리자 공통 인증 가드가 적용된다."""
@@ -47,10 +54,39 @@ def list_inventory_prices(
     return list_admin_inventory_prices(
         session,
         query=q,
+        brand_code=brand_code,
+        category_code=category_code,
+        is_active=is_active,
         sales_status=sales_status,
         stock_status=stock_status,
-        limit=limit,
-        cursor=cursor,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/inventory/summary",
+    response_model=AdminInventorySummaryResponse,
+)
+def get_inventory_summary(
+    q: str | None = Query(default=None, description="상품명 부분 검색"),
+    brand_code: str | None = Query(default=None),
+    category_code: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None, description="노출 여부 필터. 미지정 시 전체(비활성 포함)"),
+    session: Session = Depends(get_db),
+) -> AdminInventorySummaryResponse:
+    """운영 현황 요약 카드(품절임박/판매 시작 전/재고 정보 없음)용 전체 집계를 반환한다.
+
+    목록의 판매·재고 상태 필터는 일부러 받지 않는다 — summary 자체가 그 두 축의 분포이기
+    때문이다.
+    """
+
+    return get_admin_inventory_summary(
+        session,
+        query=q,
+        brand_code=brand_code,
+        category_code=category_code,
+        is_active=is_active,
     )
 
 

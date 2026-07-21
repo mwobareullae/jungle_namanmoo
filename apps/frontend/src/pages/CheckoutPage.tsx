@@ -3,11 +3,22 @@ import { ANONYMOUS, loadTossPayments, type TossPaymentsSDK } from "@tosspayments
 import { useLocation, useNavigate } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
+import ActivityToast from "../components/ui/ActivityToast";
 import { Dialog, DialogClose, DialogRawContent } from "../components/ui/dialog";
 import { useAuth } from "../contexts/useAuth";
+import { useActivityToast } from "../hooks/useActivityToast";
 import { useCartQuery } from "../hooks/useCartQuery";
 import { api } from "../lib/api";
 import { createAddress, deleteAddress, getAddresses, updateAddress } from "../lib/addressApi";
+import {
+  digitsOnly,
+  emptyPhoneParts,
+  hasText,
+  isCompletePhone,
+  joinPhone,
+  sanitizeRecipientName,
+  splitPhone
+} from "../lib/addressValidation";
 import { previewCheckout } from "../lib/cartApi";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
@@ -34,7 +45,9 @@ type CashReceiptMode = "personal" | "business";
 
 type AddressFormState = {
   recipient_name: string;
-  phone: string;
+  phone_first: string;
+  phone_middle: string;
+  phone_last: string;
   postal_code: string;
   address1: string;
   address2: string;
@@ -67,7 +80,9 @@ declare global {
 
 const emptyAddressForm: AddressFormState = {
   recipient_name: "",
-  phone: "",
+  phone_first: emptyPhoneParts.first,
+  phone_middle: emptyPhoneParts.middle,
+  phone_last: emptyPhoneParts.last,
   postal_code: "",
   address1: "",
   address2: "",
@@ -288,13 +303,38 @@ const mapCartItemToOrderProduct = (item: CartItem): OrderProduct => ({
 
 const mapAddressToForm = (address: UserAddress): AddressFormState => ({
   recipient_name: address.recipient_name,
-  phone: address.phone,
+  phone_first: splitPhone(address.phone).first,
+  phone_middle: splitPhone(address.phone).middle,
+  phone_last: splitPhone(address.phone).last,
   postal_code: address.postal_code,
   address1: address.address1,
   address2: address.address2 ?? "",
   delivery_memo: address.delivery_memo ?? "",
   is_default: address.is_default,
 });
+
+// 커스텀 드롭다운이라 트리거 바로 아래에만 렌더링하면 되고(네이티브 select처럼
+// 선택값 위치에 맞춰 재정렬되는 브라우저 동작이 없음), Radix Dialog 안에서 클릭이
+// 씹히지 않도록 document.body 포털 없이 같은 DOM 트리 안에서 absolute로 띄운다.
+function DeliveryMemoDropdown({
+  value,
+  onSelect
+}: {
+  value: string;
+  onSelect: (option: string) => void;
+}) {
+  return (
+    <select
+      className="checkout-delivery-memo-select"
+      value={value}
+      onChange={(event) => onSelect(event.target.value)}
+    >
+      {DELIVERY_MEMO_OPTIONS.map((option) => (
+        <option key={option} value={option}>{option}</option>
+      ))}
+    </select>
+  );
+}
 
 function CheckoutPage() {
   const [{ selectedId, mode, recommendationId, skinType, sensitivity, cartItemIds: requestedCartItemIds }] =
@@ -345,10 +385,11 @@ function CheckoutPage() {
   const [addressFormMode, setAddressFormMode] = useState<AddressFormMode>("closed");
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
   const [addressForm, setAddressForm] = useState<AddressFormState>(emptyAddressForm);
+  const [isAddressMemoCustom, setIsAddressMemoCustom] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState<number | null>(null);
   const [defaultingAddressId, setDefaultingAddressId] = useState<number | null>(null);
-  const [addressFormErrorMessage, setAddressFormErrorMessage] = useState("");
+  const { message: addressToastMessage, showToast: showAddressErrorToast } = useActivityToast(3000);
   const tossClientKey = import.meta.env.VITE_TOSS_CLIENT_KEY ?? "";
 
   useEffect(() => {
@@ -809,14 +850,15 @@ function CheckoutPage() {
     setAddressFormMode("create");
     setEditingAddressId(null);
     setAddressForm(emptyAddressForm);
-    setAddressFormErrorMessage("");
+    setIsAddressMemoCustom(false);
   };
 
   const openEditAddressForm = (address: UserAddress) => {
     setAddressFormMode("edit");
     setEditingAddressId(address.id);
     setAddressForm(mapAddressToForm(address));
-    setAddressFormErrorMessage("");
+    const normalizedMemo = address.delivery_memo ?? "";
+    setIsAddressMemoCustom(normalizedMemo !== "" && !DELIVERY_MEMO_OPTIONS.includes(normalizedMemo));
   };
 
   const closeAddressForm = () => {
@@ -824,7 +866,6 @@ function CheckoutPage() {
     setEditingAddressId(null);
     setAddressForm(emptyAddressForm);
     setIsSavingAddress(false);
-    setAddressFormErrorMessage("");
   };
 
   const openAddressManager = () => {
@@ -846,7 +887,6 @@ function CheckoutPage() {
   const handleSetDefaultAddress = async (address: UserAddress) => {
     setDefaultingAddressId(address.id);
     setAddressErrorMessage("");
-    setAddressFormErrorMessage("");
 
     try {
       const savedAddress = await updateAddress(address.id, { is_default: true });
@@ -864,15 +904,26 @@ function CheckoutPage() {
     field: Field,
     value: AddressFormState[Field],
   ) => {
+    const normalizedValue = typeof value === "string"
+      ? field === "recipient_name"
+        ? sanitizeRecipientName(value)
+        : field === "phone_first" || field === "phone_middle" || field === "phone_last" || field === "postal_code"
+          ? digitsOnly(value)
+          : value
+      : value;
     setAddressForm((currentForm) => ({
       ...currentForm,
-      [field]: value,
+      [field]: normalizedValue,
     }));
   };
 
   const buildAddressRequest = (): UserAddressCreateRequest => ({
     recipient_name: addressForm.recipient_name.trim(),
-    phone: addressForm.phone.trim(),
+    phone: joinPhone({
+      first: addressForm.phone_first,
+      middle: addressForm.phone_middle,
+      last: addressForm.phone_last
+    }),
     postal_code: addressForm.postal_code.trim(),
     address1: addressForm.address1.trim(),
     address2: addressForm.address2.trim() || null,
@@ -881,10 +932,14 @@ function CheckoutPage() {
   });
 
   const validateAddressForm = () => {
-    if (!addressForm.recipient_name.trim()) return "받는 분을 입력해주세요.";
-    if (!addressForm.phone.trim()) return "연락처를 입력해주세요.";
-    if (!addressForm.postal_code.trim()) return "우편번호를 입력해주세요.";
-    if (!addressForm.address1.trim()) return "주소를 입력해주세요.";
+    if (!hasText(addressForm.recipient_name)) return "받는 분을 입력해주세요.";
+    if (!isCompletePhone({
+      first: addressForm.phone_first,
+      middle: addressForm.phone_middle,
+      last: addressForm.phone_last
+    })) return "연락처를 입력해주세요.";
+    if (!hasText(addressForm.postal_code)) return "우편번호를 입력해주세요.";
+    if (!hasText(addressForm.address1)) return "주소를 입력해주세요.";
     return "";
   };
 
@@ -893,12 +948,11 @@ function CheckoutPage() {
 
     const validationMessage = validateAddressForm();
     if (validationMessage) {
-      setAddressFormErrorMessage(validationMessage);
+      showAddressErrorToast(validationMessage);
       return;
     }
 
     setIsSavingAddress(true);
-    setAddressFormErrorMessage("");
 
     try {
       const request = buildAddressRequest();
@@ -926,7 +980,7 @@ function CheckoutPage() {
       setEditingAddressId(null);
       setAddressForm(emptyAddressForm);
     } catch (error) {
-      setAddressFormErrorMessage(error instanceof Error ? error.message : "배송지 저장에 실패했습니다.");
+      showAddressErrorToast(error instanceof Error ? error.message : "배송지 저장에 실패했습니다.");
     } finally {
       setIsSavingAddress(false);
     }
@@ -935,7 +989,6 @@ function CheckoutPage() {
   const handleDeleteAddress = async (addressId: number) => {
     setDeletingAddressId(addressId);
     setAddressErrorMessage("");
-    setAddressFormErrorMessage("");
 
     try {
       await deleteAddress(addressId);
@@ -964,6 +1017,7 @@ function CheckoutPage() {
   return (
     <>
       <HomeHeader />
+      <ActivityToast message={addressToastMessage} tone="error" />
       <main className="checkout-page">
         <section className="checkout-shell">
           <CommercePageHeader
@@ -1376,6 +1430,8 @@ function CheckoutPage() {
           aria-labelledby="checkoutAddressModalTitle"
           className="checkout-address-modal-content-wrap"
           overlayClassName="checkout-address-modal-backdrop"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               closeAddressManager();
@@ -1466,9 +1522,6 @@ function CheckoutPage() {
                       취소
                     </button>
                   </div>
-                  {addressFormErrorMessage ? (
-                    <p role="alert">{addressFormErrorMessage}</p>
-                  ) : null}
                   <div className="checkout-address-form-grid">
                     <label>
                       받는 분
@@ -1480,16 +1533,41 @@ function CheckoutPage() {
                     </label>
                     <label>
                       연락처
-                      <input
-                        value={addressForm.phone}
-                        onChange={(event) => updateAddressFormField("phone", event.target.value)}
-                        placeholder="010-1234-5678"
-                      />
+                      <div className="checkout-phone-row">
+                        <input
+                          aria-label="연락처 앞자리"
+                          inputMode="numeric"
+                          maxLength={3}
+                          onChange={(event) => updateAddressFormField("phone_first", event.target.value)}
+                          placeholder="010"
+                          value={addressForm.phone_first}
+                        />
+                        <span aria-hidden="true">-</span>
+                        <input
+                          aria-label="연락처 가운데 자리"
+                          inputMode="numeric"
+                          maxLength={4}
+                          onChange={(event) => updateAddressFormField("phone_middle", event.target.value)}
+                          placeholder="1234"
+                          value={addressForm.phone_middle}
+                        />
+                        <span aria-hidden="true">-</span>
+                        <input
+                          aria-label="연락처 뒷자리"
+                          inputMode="numeric"
+                          maxLength={4}
+                          onChange={(event) => updateAddressFormField("phone_last", event.target.value)}
+                          placeholder="5678"
+                          value={addressForm.phone_last}
+                        />
+                      </div>
                     </label>
                     <label>
                       우편번호
                       <div className="checkout-postcode-row">
                         <input
+                          inputMode="numeric"
+                          maxLength={5}
                           value={addressForm.postal_code}
                           onChange={(event) => updateAddressFormField("postal_code", event.target.value)}
                           placeholder="12345"
@@ -1515,7 +1593,7 @@ function CheckoutPage() {
                       />
                     </label>
                     <label className="full">
-                      상세주소
+                      상세 주소 (선택)
                       <input
                         id="addressFormDetail"
                         value={addressForm.address2}
@@ -1525,11 +1603,35 @@ function CheckoutPage() {
                     </label>
                     <label className="full">
                       배송 요청사항
-                      <input
-                        value={addressForm.delivery_memo}
-                        onChange={(event) => updateAddressFormField("delivery_memo", event.target.value)}
-                        placeholder="문 앞에 놓아주세요"
+                      <DeliveryMemoDropdown
+                        value={
+                          isAddressMemoCustom
+                            ? "직접 입력"
+                            : DELIVERY_MEMO_OPTIONS.includes(addressForm.delivery_memo)
+                              ? addressForm.delivery_memo
+                              : DELIVERY_MEMO_OPTIONS[0]
+                        }
+                        onSelect={(next) => {
+                          if (next === "직접 입력") {
+                            setIsAddressMemoCustom(true);
+                            updateAddressFormField("delivery_memo", "");
+                            return;
+                          }
+                          setIsAddressMemoCustom(false);
+                          updateAddressFormField("delivery_memo", next === DELIVERY_MEMO_OPTIONS[0] ? "" : next);
+                        }}
                       />
+                      {isAddressMemoCustom ? (
+                        <input
+                          className="checkout-direct-memo-input"
+                          value={addressForm.delivery_memo}
+                          onChange={(event) =>
+                            updateAddressFormField("delivery_memo", event.target.value.slice(0, 50))
+                          }
+                          maxLength={50}
+                          placeholder="부재 시 문 앞에 놓아주세요."
+                        />
+                      ) : null}
                     </label>
                     <label className="checkout-address-default-check">
                       <input

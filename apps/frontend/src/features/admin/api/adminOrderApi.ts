@@ -101,14 +101,24 @@ type BackendAdminOrderListItem = {
 type BackendAdminOrderSummary = {
   pending_payment_count: number;
   preparing_shipment_count: number;
+  shipped_count: number;
   cancel_requested_count: number;
   reserved_quantity_total: number;
+};
+
+type BackendAdminOrderPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 };
 
 type BackendAdminOrderListResponse = {
   items: BackendAdminOrderListItem[];
   summary: BackendAdminOrderSummary;
-  next_cursor: string | null;
+  pagination: BackendAdminOrderPagination;
 };
 
 // 화면이 쓰는 행 모양 (한글 라벨 + 원본 영문 enum 병행 보관).
@@ -137,21 +147,31 @@ export type AdminOrderRow = {
 export type AdminOrderSummary = {
   pendingPaymentCount: number;
   preparingShipmentCount: number;
+  shippedCount: number;
   cancelRequestedCount: number;
   reservedQuantityTotal: number;
+};
+
+export type AdminOrderPagination = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 };
 
 export type AdminOrderListResult = {
   items: AdminOrderRow[];
   summary: AdminOrderSummary;
-  nextCursor: string | null;
+  pagination: AdminOrderPagination;
 };
 
 export type AdminOrderQuery = {
   orderStatus?: AdminOrderStatus | null;
   paymentStatus?: AdminPaymentStatus | null;
-  limit?: number;
-  cursor?: string | null;
+  page?: number;
+  pageSize?: number;
 };
 
 // 백엔드가 UTC(예: ...Z)를 반환하므로 KST(Asia/Seoul)로 변환해 "YYYY-MM-DD HH:mm" 표기.
@@ -204,8 +224,8 @@ export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<Admin
   const params = new URLSearchParams();
   if (query.orderStatus) params.set("order_status", query.orderStatus);
   if (query.paymentStatus) params.set("payment_status", query.paymentStatus);
-  if (query.limit) params.set("limit", String(query.limit));
-  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("page_size", String(query.pageSize));
 
   const queryString = params.toString();
   const response = await fetchWithTimeout(
@@ -217,10 +237,18 @@ export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<Admin
     summary: {
       pendingPaymentCount: body.summary.pending_payment_count,
       preparingShipmentCount: body.summary.preparing_shipment_count,
+      shippedCount: body.summary.shipped_count,
       cancelRequestedCount: body.summary.cancel_requested_count,
       reservedQuantityTotal: body.summary.reserved_quantity_total
     },
-    nextCursor: body.next_cursor
+    pagination: {
+      page: body.pagination.page,
+      pageSize: body.pagination.page_size,
+      totalItems: body.pagination.total_items,
+      totalPages: body.pagination.total_pages,
+      hasNext: body.pagination.has_next,
+      hasPrev: body.pagination.has_prev
+    }
   };
 };
 

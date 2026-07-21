@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiError } from "../../../types/recommendation";
 import {
   CanonicalIngredientSearchItem,
+  IngredientMappingBulkApprovalPreview,
+  IngredientMappingBulkApprovalPreviewItem,
   IngredientMappingDetail,
   IngredientMappingCandidateFilter,
   IngredientMappingFinalDisposition,
@@ -12,6 +14,8 @@ import {
   IngredientMappingStatusFilter,
   IngredientMappingSummary,
   approveIngredientMapping,
+  approveKciaAliasExactMappings,
+  getKciaAliasExactBulkApprovalPreview,
   getIngredientMappingDetail,
   getIngredientMappings,
   holdIngredientMapping,
@@ -230,6 +234,12 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const decisionInFlightRef = useRef(false);
 
+  const [bulkPreview, setBulkPreview] = useState<IngredientMappingBulkApprovalPreview | null>(null);
+  const [bulkPreviewLoading, setBulkPreviewLoading] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const bulkInFlightRef = useRef(false);
+
   const clearDecisionError = useCallback(() => setDecisionError(null), []);
 
   // 확인 모달 이후 즉시 실행. 중복 클릭을 막고, 성공 시 상세·목록을 재조회한다(계약 §10).
@@ -317,6 +327,47 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     [runDecision]
   );
 
+  const loadKciaBulkApprovalPreview = useCallback(async (): Promise<IngredientMappingBulkApprovalPreview | null> => {
+    if (bulkInFlightRef.current) return null;
+    bulkInFlightRef.current = true;
+    setBulkPreviewLoading(true);
+    setBulkError(null);
+    try {
+      const result = await getKciaAliasExactBulkApprovalPreview();
+      setBulkPreview(result);
+      return result;
+    } catch (caughtError: unknown) {
+      setBulkPreview(null);
+      setBulkError(describeApiError(caughtError, "KCIA 일괄 승인 후보를 불러오지 못했습니다."));
+      return null;
+    } finally {
+      bulkInFlightRef.current = false;
+      setBulkPreviewLoading(false);
+    }
+  }, []);
+
+  const approveKciaBulk = useCallback(
+    async (selectedItems: IngredientMappingBulkApprovalPreviewItem[]) => {
+      if (selectedItems.length === 0 || bulkInFlightRef.current) return null;
+      bulkInFlightRef.current = true;
+      setBulkSubmitting(true);
+      setBulkError(null);
+      try {
+        const result = await approveKciaAliasExactMappings(selectedItems);
+        setBulkPreview(null);
+        void fetchList("reset", null);
+        return result;
+      } catch (caughtError: unknown) {
+        setBulkError(describeApiError(caughtError, "KCIA 일괄 승인을 저장하지 못했습니다."));
+        return null;
+      } finally {
+        bulkInFlightRef.current = false;
+        setBulkSubmitting(false);
+      }
+    },
+    [fetchList]
+  );
+
   // --- canonical 검색 (승인 target 선택용) ---------------------------------
   const [canonicalResults, setCanonicalResults] = useState<CanonicalIngredientSearchItem[]>([]);
   const [canonicalSearching, setCanonicalSearching] = useState(false);
@@ -390,6 +441,12 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     hold,
     reject,
     reopen,
+    bulkPreview,
+    bulkPreviewLoading,
+    bulkSubmitting,
+    bulkError,
+    loadKciaBulkApprovalPreview,
+    approveKciaBulk,
     canonicalResults,
     canonicalSearching,
     canonicalError,

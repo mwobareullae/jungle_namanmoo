@@ -66,6 +66,7 @@ class AdminOrderClaimEventDetail(BaseModel):
 
 class AdminOrderClaimDetailResponse(AdminOrderClaimListItem):
     order_status: str
+    payment_provider: str | None = Field(..., description="결제 수단. 결제 레코드가 없으면 None.")
     items: list[AdminOrderClaimItemDetail]
     events: list[AdminOrderClaimEventDetail]
 

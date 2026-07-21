@@ -226,7 +226,6 @@ def test_create_order_with_direct_address_can_save_address_book(
                 "phone": "01099998888",
                 "postal_code": "99999",
                 "address1": "Busan",
-                "address2": None,
                 "delivery_memo": "Call first",
                 "save_to_address_book": True,
                 "set_as_default": True,
@@ -245,7 +244,9 @@ def test_create_order_with_direct_address_can_save_address_book(
 
     assert saved_address.recipient_name == "Direct User"
     assert saved_address.is_default is True
+    assert saved_address.address2 is None
     assert shipping_address.user_address_id == saved_address.id
+    assert shipping_address.address2 is None
     assert shipping_address.delivery_memo == "Call first"
 
 

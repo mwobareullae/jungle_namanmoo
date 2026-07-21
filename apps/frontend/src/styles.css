@@ -34,7 +34,7 @@
   background: var(--admin-bg);
   color: var(--admin-text);
   font-family:
-    "GmarketSans", "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
     sans-serif;
 }
 
@@ -175,16 +175,10 @@
   font-weight: 700;
 }
 
-.admin-topbar h1,
 .admin-panel-header h2 {
   margin: 0;
   color: var(--admin-text);
   letter-spacing: 0;
-}
-
-.admin-topbar h1 {
-  font-size: 28px;
-  line-height: 1.2;
 }
 
 .admin-toast {
@@ -247,6 +241,7 @@
 .admin-topbar-actions,
 .admin-filter-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
@@ -277,29 +272,60 @@
   padding: 0 14px;
 }
 
+.admin-primary-button:hover:not(:disabled) {
+  border-color: #3fb3da;
+  background: #3fb3da;
+}
+
 .admin-primary-button:disabled,
 .admin-secondary-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
+/* 흰 배경 secondary-button 이 눈에 안 띄는 화면(상품 조회 검색/초기화/새로고침 등)에서
+   토스트 버튼과 같은 연한 하늘색 톤으로 구분되게 한다. */
+.admin-light-button {
+  border-color: transparent;
+  background: #eef7fa;
+  color: var(--admin-ink-navy);
+}
+
+.admin-light-button:hover:not(:disabled) {
+  background: #def2fa;
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--admin-white);
+  box-shadow: 0 1px 2px rgba(11, 42, 58, 0.04);
 }
 
 .admin-stat {
   min-height: 118px;
-  padding: 18px;
+  padding: 20px 22px;
+  border-left: 3px solid var(--admin-line);
+}
+
+.admin-stats .admin-stat:nth-child(1) {
+  border-left-color: var(--admin-ink-navy);
+}
+
+.admin-stats .admin-stat:nth-child(2) {
+  border-left-color: var(--admin-accent-2);
+}
+
+.admin-stats .admin-stat:nth-child(3) {
+  border-left-color: #f0b429;
 }
 
 .admin-stat span,
@@ -309,8 +335,9 @@
 
 .admin-stat span {
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .admin-stat strong {
@@ -344,7 +371,7 @@
   justify-content: space-between;
   gap: 18px;
   min-height: 74px;
-  padding: 18px;
+  padding: 20px 22px;
   border-bottom: 1px solid var(--admin-line);
 }
 
@@ -417,9 +444,11 @@
 }
 
 .admin-product-name {
+  display: block;
   max-width: 360px;
   overflow: hidden;
   font-weight: 700;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
@@ -588,13 +617,13 @@
 }
 
 .admin-shell {
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   background: #eceff3;
 }
 
 .admin-sidebar {
-  gap: 14px;
-  padding: 24px 14px;
+  gap: 16px;
+  padding: 24px 20px;
 }
 
 .admin-brand {
@@ -616,10 +645,10 @@
 
 .admin-nav a,
 .admin-nav button {
-  min-height: 38px;
-  padding: 11px 12px;
+  min-height: 44px;
+  padding: 13px 16px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .admin-nav a.active,
@@ -638,36 +667,6 @@
   margin-bottom: 18px;
 }
 
-.admin-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.admin-title-row p {
-  margin: 0;
-  color: var(--admin-text);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.admin-title-row span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--admin-accent-mint);
-  color: var(--admin-ink-navy);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.admin-topbar h1 {
-  font-size: 30px;
-}
-
 .admin-topbar time {
   color: var(--admin-muted);
   font-size: 13px;
@@ -677,19 +676,19 @@
 
 .admin-stats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
 .admin-stat,
 .admin-panel {
   border: 1px solid var(--admin-line);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .admin-stat {
   min-height: 104px;
-  padding: 16px;
+  padding: 16px 18px;
 }
 
 .admin-stat strong {
@@ -726,6 +725,90 @@
 
 .admin-product-header {
   align-items: center;
+}
+
+.admin-product-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 18px 0;
+}
+
+.admin-page-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-page-size select {
+  min-height: 34px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0 10px;
+}
+
+.admin-pagination-row {
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+}
+
+.admin-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.admin-pagination-page,
+.admin-pagination-jump {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-pagination-jump {
+  color: var(--admin-muted);
+}
+
+.admin-pagination-page:hover:not(:disabled),
+.admin-pagination-jump:hover:not(:disabled) {
+  background: #f1f7fa;
+}
+
+.admin-pagination-page.active {
+  color: var(--admin-ink-navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-pagination-page:disabled,
+.admin-pagination-jump:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .admin-panel-header {
@@ -780,14 +863,14 @@
 }
 
 .admin-pending-item strong {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
 .admin-pending-item small {
   margin-top: 5px;
   color: var(--admin-muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -866,6 +949,17 @@
   text-align: right;
 }
 
+/* 클레임 상세의 상품 목록·처리 이력 표: table-layout:fixed 인데 컬럼별 폭 지정이 없어
+   3칸이 균등폭으로 깨져 있었다(상품명이 잘리고 짧은 값 칸엔 빈 공간만 남음). 내용 길이에
+   맞춰 폭을 재배분하고, 텍스트 칸(처리 방식·사유)은 숫자 칸이 아니므로 왼쪽 정렬로 되돌린다. */
+.admin-claim-item-table th:nth-child(1), .admin-claim-item-table td:nth-child(1) { width: 60% !important; }
+.admin-claim-item-table th:nth-child(2), .admin-claim-item-table td:nth-child(2) { width: 15% !important; }
+.admin-claim-item-table th:nth-child(3), .admin-claim-item-table td:nth-child(3) { width: 25% !important; text-align: left !important; }
+
+.admin-claim-history-table th:nth-child(1), .admin-claim-history-table td:nth-child(1) { width: 30% !important; }
+.admin-claim-history-table th:nth-child(2), .admin-claim-history-table td:nth-child(2) { width: 20% !important; }
+.admin-claim-history-table th:nth-child(3), .admin-claim-history-table td:nth-child(3) { width: 50% !important; text-align: left !important; }
+
 .admin-file-name {
   max-width: 260px;
   overflow: hidden;
@@ -874,12 +968,23 @@
   text-overflow: ellipsis;
 }
 
+/* .admin-main 아래 표 셀에는 white-space:normal !important 전역 규칙이 걸려 있어(이 파일 뒤쪽),
+   .admin-file-name 의 ellipsis 가 적용되지 못하고 요청번호·주문번호 같은 코드값이 셀 폭에서
+   글자 단위로 줄바꿈됐다. 더 구체적인 선택자로 nowrap 을 되살려 한 줄 말줄임이 실제로 동작하게 한다. */
+.admin-main .admin-table-wrap td.admin-file-name {
+  overflow-wrap: normal !important;
+  white-space: nowrap !important;
+}
+
 .admin-product-code {
   display: block;
   margin-top: 5px;
+  overflow: hidden;
   color: var(--admin-muted);
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .admin-danger-text {
@@ -957,15 +1062,72 @@
 
 .admin-metric-list dt {
   color: var(--admin-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-metric-list dd {
   margin: 0;
   color: var(--admin-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   text-align: right;
+}
+
+.admin-metric-sub {
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-metric-group-title {
+  margin: 14px 18px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-detail-body > .admin-metric-group-title:first-child {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: none;
+}
+
+/* 상품명이 길어 3줄까지 줄바꿈되는 경우가 많아, 다른 화면의 짧은 한 줄 패널 제목(20px/600)과
+   달리 여기서는 더 가벼운 크기로 낮춘다. admin-main h2 전역 규칙(파일 뒤쪽, !important)을
+   이기려면 이쪽도 !important 가 필요하다. */
+.admin-panel.admin-product-detail .admin-panel-header h2,
+.admin-panel.admin-inventory-detail .admin-panel-header h2,
+.admin-panel.admin-order-detail .admin-panel-header h2 {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+
+/* 전역 규칙(admin-main [class*="panel-header"] > div:first-child { flex: 1 1 240px })이 제목
+   div 를 flex-grow 시켜서, 제목이 짧을 때(예: "신규 상품") 배지가 옆에 들어갈 자리가 없어
+   다음 줄로 밀려났다. 제목 길이와 무관하게 배지가 항상 같은 줄 오른쪽에 붙도록 고정한다. */
+.admin-panel.admin-product-detail .admin-panel-header.compact > div:first-child {
+  flex: 1 1 auto;
+}
+
+.admin-panel.admin-product-detail .admin-panel-header.compact > .admin-badge {
+  flex-shrink: 0;
+}
+
+.admin-detail-body > .admin-primary-button {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 18px 18px 4px;
+}
+
+/* 상품 등록/수정 화면의 "운영 기본값" 위젯 하단 "재고/가격 확인으로 이동" 버튼.
+   .admin-detail-body 로 감싸지 않은 aside 직속 버튼이라 별도 규칙이 필요하다. */
+.admin-product-detail > button {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 4px 18px 18px;
 }
 
 .admin-operation-list {
@@ -1312,7 +1474,7 @@
   color: var(--admin-text);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .admin-form-grid input,
@@ -1329,6 +1491,82 @@
 
 .admin-form-wide {
   grid-column: 1 / -1;
+}
+
+.admin-searchable-select {
+  position: relative;
+}
+
+.admin-searchable-select-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-white);
+  box-shadow: 0 10px 30px rgba(11, 42, 58, 0.12);
+}
+
+.admin-searchable-select-option {
+  padding: 8px 12px;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-searchable-select-option:hover,
+.admin-searchable-select-option.active {
+  background: #eef7fa;
+}
+
+.admin-searchable-select-empty {
+  padding: 8px 12px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-thumbnail-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-thumbnail-field input {
+  flex: 1;
+}
+
+.admin-thumbnail-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.admin-thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-thumbnail-preview span {
+  padding: 0 6px;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .admin-form-aside {
@@ -1380,6 +1618,35 @@
 .admin-state-banner.neutral,
 .admin-state-banner.review {
   border-left-color: var(--admin-accent-2);
+}
+
+/* 배너·토스트 박스 없이 액션 버튼 옆에 짧게만 안내하는 인라인 실패·경고 문구
+   (주문 상태 확인의 배송 액션 실패/동기화 경고 — 결과는 결제·재고 예외 표에도 별도 기록됨). */
+.admin-inline-message {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-inline-message.danger {
+  color: #ff6b52;
+}
+
+.admin-inline-message.warning {
+  color: #f59e0b;
+}
+
+/* 상세 패널이 표 높이에 맞춰 stretch 되어 있어(.admin-product-layout align-items:stretch),
+   상품 미선택/로딩 안내 박스가 위쪽에 붙고 그 아래가 텅 비어 보인다. 남는 공간 안에서
+   안내 박스 자체를 세로 가운데로 옮긴다(박스 크기·모양은 그대로 유지). */
+.admin-product-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-product-detail > .admin-state-banner.neutral {
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .admin-state-banner strong {
@@ -1477,14 +1744,6 @@
 
 .admin-image-layout .admin-excel-failure-panel {
   grid-column: 1 / -1;
-}
-
-/* 이미지 대량 연결은 저장 방식이 확정되기 전까지 안내만 노출한다. */
-.admin-image-deferred > aside,
-.admin-image-deferred > section:not(:first-child),
-.admin-image-deferred .admin-excel-state-row,
-.admin-image-deferred .admin-filter-row {
-  display: none;
 }
 
 .admin-upload-zone {
@@ -1605,6 +1864,11 @@
   padding: 16px 18px 18px;
 }
 
+/* 주문 상태 확인 요약 카드는 5개(결제 대기/배송 준비/배송 중/취소 요청/재고 예약)라 5열로 배정한다. */
+.admin-order-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .admin-excel-summary {
   min-height: 96px;
   padding: 14px;
@@ -1644,6 +1908,11 @@
 .admin-excel-summary.danger {
   border-color: #ffd1c9;
   background: #fff1ee;
+}
+
+.admin-excel-summary.review {
+  border-color: #c7dcff;
+  background: #eef4ff;
 }
 
 .admin-excel-table {
@@ -2576,7 +2845,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-order-hero,
@@ -2587,6 +2856,30 @@
 
 .admin-order-hero {
   grid-column: 1 / -1;
+}
+
+/* 상품 목록/선택 주문 위젯을 각각 독립적으로 스크롤한다(재고/가격 확인과 동일 패턴) —
+   페이지 전체 스크롤 대신, 마우스가 올라간 위젯만 스크롤한다. 두 위젯을 flex 세로열로
+   만들어 헤더·필터·페이지네이션은 고정하고, 실제 목록/상세 내용만 담긴 자식
+   (.admin-order-table-scroll, .admin-order-detail-scroll)에 overflow-y:auto 를 준다. */
+.admin-order-table-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-order-table-panel > .admin-panel-header,
+.admin-order-table-panel > .admin-product-filters,
+.admin-order-table-panel > .admin-list-toolbar,
+.admin-order-table-panel > .admin-pagination-row,
+.admin-order-table-panel > .admin-state-banner {
+  flex-shrink: 0;
+}
+
+/* 표 헤더 56px + tbody tr 56px x 10 = 616px — 재고/가격 확인과 같은 기준으로 기본 10행이
+   보이는 높이를 고정하고, 그 이상은 내부 스크롤로 처리한다. */
+.admin-order-table-scroll {
+  height: 616px;
+  overflow-y: auto;
 }
 
 .admin-order-table {
@@ -2605,9 +2898,68 @@
   vertical-align: middle;
 }
 
+/* 내용 길이에 맞춰 배정한다 — 주문/상품은 텍스트가 길어(상품명은 여러 줄로 줄바꿈되기도
+   함) 넓게, 주문 상태/결제는 짧은 뱃지 하나뿐이라 좁게, 금액/예약/추천 추적은 그 사이. */
+.admin-order-table th:nth-child(1), .admin-order-table td:nth-child(1) { width: 20% !important; }
+.admin-order-table th:nth-child(2), .admin-order-table td:nth-child(2) { width: 32% !important; }
+.admin-order-table th:nth-child(3), .admin-order-table td:nth-child(3) { width: 10% !important; }
+.admin-order-table th:nth-child(4), .admin-order-table td:nth-child(4) { width: 12% !important; }
+.admin-order-table th:nth-child(5), .admin-order-table td:nth-child(5) { width: 12% !important; }
+.admin-order-table th:nth-child(6), .admin-order-table td:nth-child(6) { width: 7% !important; }
+.admin-order-table th:nth-child(7), .admin-order-table td:nth-child(7) { width: 7% !important; }
+
+/* 취소 요청·클레임 표는 주문 표와 컬럼 개수·의미가 달라 .admin-order-table 을 그대로 공유하면
+   폭이 완전히 깨진다(예: "가능 액션" 칸이 세로로 쪼개질 정도로 좁아짐) — 전용 클래스로 분리. */
+.admin-cancelrequest-table,
+.admin-claim-table {
+  min-width: 1020px;
+}
+
+.admin-cancelrequest-table tbody tr,
+.admin-claim-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-cancelrequest-table tbody tr.selected,
+.admin-claim-table tbody tr.selected {
+  background: #f0fbfe;
+}
+
+.admin-cancelrequest-table td,
+.admin-claim-table td {
+  vertical-align: middle;
+}
+
+/* 요청번호/주문은 코드 문자열이라 비슷한 길이로, 상태·유형은 뱃지 하나뿐이라 좁게 배정. */
+.admin-cancelrequest-table th:nth-child(1), .admin-cancelrequest-table td:nth-child(1) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(2), .admin-cancelrequest-table td:nth-child(2) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(3), .admin-cancelrequest-table td:nth-child(3) { width: 16% !important; }
+.admin-cancelrequest-table th:nth-child(4), .admin-cancelrequest-table td:nth-child(4) { width: 12% !important; }
+.admin-cancelrequest-table th:nth-child(5), .admin-cancelrequest-table td:nth-child(5) { width: 18% !important; }
+.admin-cancelrequest-table th:nth-child(6), .admin-cancelrequest-table td:nth-child(6) { width: 18% !important; }
+
+.admin-claim-table th:nth-child(1), .admin-claim-table td:nth-child(1) { width: 16% !important; }
+.admin-claim-table th:nth-child(2), .admin-claim-table td:nth-child(2) { width: 16% !important; }
+.admin-claim-table th:nth-child(3), .admin-claim-table td:nth-child(3) { width: 14% !important; }
+.admin-claim-table th:nth-child(4), .admin-claim-table td:nth-child(4) { width: 10% !important; }
+.admin-claim-table th:nth-child(5), .admin-claim-table td:nth-child(5) { width: 10% !important; }
+.admin-claim-table th:nth-child(6), .admin-claim-table td:nth-child(6) { width: 16% !important; }
+.admin-claim-table th:nth-child(7), .admin-claim-table td:nth-child(7) { width: 18% !important; }
+
 .admin-order-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-order-detail > .admin-panel-header {
+  flex-shrink: 0;
+}
+
+.admin-order-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-order-detail .admin-metric-list dd {
@@ -2620,6 +2972,30 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
+}
+
+/* 반품·환불 완료 처리 확인 모달 안의 "수령 확인 — 재고 복구" 토글. 기본 체크박스 네모 대신
+   다른 관리자 버튼들과 같은 알약형 칩으로 켜짐/꺼짐을 색으로만 보여준다. */
+.admin-modal-toggle-chip {
+  padding: 10px 18px;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: var(--admin-white);
+  color: var(--admin-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-modal-toggle-chip.active {
+  border-color: var(--admin-accent-2);
+  background: #eaf9fd;
+  color: #1583a8;
+}
+
+.admin-modal-toggle-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .admin-order-action-grid .admin-secondary-button {
@@ -2684,6 +3060,12 @@
 
 .admin-order-exception-table {
   min-width: 720px;
+}
+
+/* 재고/가격 확인의 "재고 이력 최근 20건" 위젯과 같이 목록·상세 두 칸을 합친 전체 너비로 표시한다. */
+.admin-order-exception-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .admin-empty-row {
@@ -2797,11 +3179,6 @@
     white-space: normal;
   }
 
-  .admin-topbar h1 {
-    font-size: 27px;
-    line-height: 1.22;
-  }
-
   .admin-topbar time {
     white-space: normal;
   }
@@ -2876,6 +3253,10 @@
   }
 
   .admin-excel-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-order-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3061,6 +3442,22 @@ body {
 .mypage-order-action-button--neutral:hover {
   background: #fafafa !important;
   border-color: #b9c0c7 !important;
+}
+
+.mypage-order-back-link {
+  color: #6b7280;
+}
+
+.mypage-order-back-link:hover {
+  color: #1a1a1a;
+}
+
+.mypage-order-primary-link {
+  background: #0c1117;
+}
+
+.mypage-order-primary-link:hover {
+  background: #1a1a1a;
 }
 
 .mypage-expand-button-expanded {
@@ -4428,13 +4825,35 @@ body {
 
 .api-summary-chip.removable {
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.search-interpretation .api-summary-chip,
+.search-interpretation .api-summary-chip.filter,
+.search-interpretation .api-summary-chip.removable,
+#apiResultSummary .api-summary-chip,
+#apiResultSummary .api-summary-chip.filter,
+#apiResultSummary .api-summary-chip.removable {
+  min-height: 30px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .api-summary-chip.removable span {
   margin-left: 4px;
-  font-size: 15px;
+  font-size: 12px;
   line-height: 1;
+}
+
+.search-interpretation .api-summary-chip.removable span,
+#apiResultSummary .api-summary-chip.removable span {
+  font-size: 12px;
 }
 
 .search-empty--actionable {
@@ -4546,6 +4965,21 @@ body {
   min-height: 116px;
   background: #ffffff;
   backdrop-filter: none;
+}
+
+body.search-results-page .flow-tag,
+body.search-results-page .flow-tag.highlight,
+.search-page-shell .ai-result-section .flow-tag {
+  background: #ffffff;
+  border-color: #dfe6e8;
+  color: var(--ink2);
+}
+
+body.search-results-page .flow-tag.profile,
+.search-page-shell .ai-result-section .flow-tag.profile {
+  background: #edf8fb;
+  border-color: #94e0f8;
+  color: var(--accent-text);
 }
 
 @media (max-width: 1024px) {
@@ -6139,7 +6573,7 @@ body {
   position: fixed;
   left: 50%;
   bottom: 40px;
-  z-index: 300;
+  z-index: 2200;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -12552,9 +12986,8 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-card {
   position: relative;
-  display: grid;
-  grid-template-rows: 260px minmax(0, 1fr);
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 440px;
   overflow: hidden;
@@ -12684,6 +13117,55 @@ html[data-app-mode="community"] .search-results-shell {
   color: var(--accent-text);
   font-size: 13px;
   font-weight: 700;
+}
+
+.product-comparison-card__recommendation {
+  display: grid;
+  gap: 8px;
+  margin: 0 18px 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid #e6eef1;
+  text-align: left;
+}
+
+.product-comparison-card__recommendation.current {
+  min-height: 52px;
+}
+
+.product-comparison-card__reasons,
+.product-comparison-card__info {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-comparison-card__reasons span {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #5ec6e8;
+  border-radius: 999px;
+  background: #f5f9fe;
+  color: #238ca1;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.product-comparison-card__info-chip {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #F4B6C8;
+  border-radius: 999px;
+  background: #FFF0F5;
+  color: #B8476A;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .product-comparison-card__empty {
@@ -13222,7 +13704,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-floating-entry {
   position: fixed;
   right: 28px;
-  bottom: 44px;
+  bottom: 28px;
   z-index: 170;
   display: inline-flex;
   align-items: center;
@@ -13336,7 +13818,7 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-floating-entry__teasers button:hover,
 .agent-floating-entry__teasers button:focus-visible {
   border-color: #95e9df;
-  background: #effdfa;
+  background: #ffffff;
   color: #238ca1;
   outline: none;
   transform: translateY(-2px);
@@ -13364,8 +13846,12 @@ html[data-app-mode="community"] .search-results-shell {
   z-index: 173;
   display: flex;
   flex-direction: column;
-  width: min(454px, calc(100vw - 40px));
-  height: min(720px, calc(100vh - 120px));
+  width: clamp(340px, 28vw, 420px);
+  aspect-ratio: 1 / 1.65;
+  height: auto;
+  min-height: min(560px, calc(100svh - 140px));
+  max-height: calc(100svh - 120px);
+  overflow: hidden;
   border: 1px solid #dfe9ee;
   border-radius: 36px;
   background: #ffffff;
@@ -13468,12 +13954,12 @@ html[data-app-mode="community"] .search-results-shell {
 .agent-chat-popup__body {
   display: grid;
   align-content: start;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   align-content: start;
   gap: 0;
   min-width: 0;
   min-height: 0;
-  padding: 6px 22px 10px;
+  padding: 6px 22px 28px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   overflow-y: auto;
@@ -13710,7 +14196,15 @@ html[data-app-mode="community"] .search-results-shell {
   min-height: 100%;
   align-content: start;
   gap: 10px;
-  padding: 6px 0 40px;
+  padding: 6px 0 72px;
+}
+
+.agent-chat-thread > div[aria-hidden="true"] {
+  min-height: 24px;
+}
+
+.agent-chat-thread .agent-chat-message-group:last-of-type {
+  margin-bottom: 28px;
 }
 
 .agent-chat-message-group {
@@ -13766,7 +14260,7 @@ html[data-app-mode="community"] .search-results-shell {
   max-width: 86%;
   border-radius: 16px;
   padding: 11px 13px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 550;
   line-height: 1.55;
 }
@@ -13775,8 +14269,8 @@ html[data-app-mode="community"] .search-results-shell {
   justify-self: end;
   max-width: 94%;
   border-bottom-right-radius: 6px;
-  background: #202327;
-  color: #ffffff;
+  background: #f2f2f2;
+  color: #000000;
 }
 
 .agent-chat-message.assistant {
@@ -14343,7 +14837,7 @@ html[data-app-mode="community"] .search-results-shell {
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 8px;
   align-items: center;
-  margin: 20px 16px 16px;
+  margin: 20px 16px 28px;
   border: 1px solid #dfe9ee;
   border-radius: 16px;
   background: #f0f7fa;
@@ -14374,17 +14868,17 @@ html[data-app-mode="community"] .search-results-shell {
   height: 40px;
   border: 0;
   border-radius: 50%;
-  background: #1687f8;
+  background: #16c7e8;
   color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .agent-chat-input button:not(:disabled):hover,
 .agent-chat-input button:not(:disabled):focus-visible {
-  background: #0874df;
-  box-shadow: 0 8px 20px rgba(22, 135, 248, 0.38);
+  background: #00b6d9;
+  box-shadow: 0 8px 20px rgba(0, 182, 217, 0.38);
   transform: translateY(-1px);
 }
 
@@ -14396,8 +14890,8 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .agent-chat-popup .agent-chat-input button:not(:disabled) {
-  background: #1687f8;
-  box-shadow: 0 6px 16px rgba(22, 135, 248, 0.3);
+  background: #16c7e8;
+  box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
 }
 
 .agent-chat-input button svg {
@@ -14623,13 +15117,6 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
 }
 
-.checkout-address-form > p[role="alert"] {
-  margin: 0;
-  color: var(--color-muted-text);
-  font-size: var(--fs-13, 13px);
-  font-weight: 700;
-}
-
 .checkout-address-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -14668,6 +15155,25 @@ html[data-app-mode="community"] .search-results-shell {
   min-width: 0;
 }
 
+.checkout-phone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 88px) auto minmax(0, 108px) auto minmax(0, 108px);
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  gap: 6px;
+}
+
+.checkout-phone-row input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+.checkout-phone-row span {
+  color: var(--color-muted-text);
+}
+
 .checkout-postcode-row input {
   width: 100%;
   min-width: 0;
@@ -14685,6 +15191,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.checkout-postcode-row button:hover:not(:disabled) {
+  background: rgba(148, 224, 248, 0.28);
 }
 
 .checkout-postcode-row button:disabled {
@@ -14726,10 +15236,19 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
+.checkout-address-form-head button:hover:not(:disabled),
+.checkout-address-form-actions button:not([type="submit"]):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-address-form-actions button[type="submit"] {
   border-color: transparent;
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-form-actions button:disabled {
@@ -15151,6 +15670,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 700;
 }
 
+.checkout-page:not(.cart-page) .checkout-address-change-button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-page:not(.cart-page) .checkout-address-summary {
   display: grid;
   gap: 8px;
@@ -15161,9 +15684,6 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .checkout-page:not(.cart-page) .checkout-address-summary.muted {
-  padding: 16px;
-  border: 1px solid var(--color-edge);
-  border-radius: 12px;
   color: var(--color-muted-text);
 }
 
@@ -15171,7 +15691,11 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
 }
 
-.checkout-page:not(.cart-page) .checkout-address-summary select {
+.checkout-page:not(.cart-page) .checkout-address-summary select,
+/* .checkout-delivery-memo-select은 "배송지 관리" 모달(Radix Dialog)에서도 쓰이는데
+   그 모달은 document.body에 포털로 렌더링되어 .checkout-page 밖으로 빠지므로,
+   위 스코프에 기대지 않고 이 클래스 자체로도 매칭되게 별도로 둔다. */
+.checkout-delivery-memo-select {
   width: 100%;
   min-height: 44px;
   margin-top: 12px;
@@ -15293,6 +15817,10 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #fff;
+}
+
+.checkout-page:not(.cart-page) .checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-page:not(.cart-page) .payment-options {
@@ -15943,6 +16471,15 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #ffffff;
+}
+
+.checkout-address-manager-actions button:not(:first-child):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.checkout-address-manager-actions button:first-child:hover:not(:disabled),
+.checkout-address-create-button:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-manager-actions button:disabled {
@@ -17824,8 +18361,7 @@ html[data-app-mode="community"] .search-results-shell {
   .agent-chat-popup {
     right: 0;
     bottom: calc(100% + 12px);
-    width: min(454px, max(320px, calc(50vw - 16px)));
-    height: min(680px, calc(100vh - 168px));
+    width: clamp(340px, 28vw, 400px);
     border-radius: 30px;
   }
 
@@ -17844,11 +18380,11 @@ html[data-app-mode="community"] .search-results-shell {
   }
 
   .agent-chat-popup__body {
-    padding: 6px 20px 10px;
+    padding: 6px 20px 28px;
   }
 
   .agent-chat-input {
-    margin: 0 14px 14px;
+    margin: 0 14px 28px;
   }
 
   .detail-loading {
@@ -18068,6 +18604,34 @@ html[data-app-mode="community"] .search-results-shell {
 
   .cart-page-summary-card {
     padding: 22px;
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 900px) {
+  .agent-chat-popup {
+    width: clamp(340px, 28vw, 400px);
+    aspect-ratio: 1 / 1.6;
+    height: auto;
+    min-height: min(540px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
+  }
+}
+
+@media (min-aspect-ratio: 4 / 3) {
+  .agent-chat-popup {
+    aspect-ratio: 1 / 1.6;
+    height: auto;
+    min-height: min(540px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
+  }
+}
+
+@media (min-aspect-ratio: 16 / 9) {
+  .agent-chat-popup {
+    aspect-ratio: 1 / 1.55;
+    height: auto;
+    min-height: min(520px, calc(100svh - 132px));
+    max-height: calc(100svh - 116px);
   }
 }
 
@@ -18393,7 +18957,7 @@ aside:has(.admin-nav) {
   font-family: var(--font-ui, "Pretendard Variable", "Pretendard", sans-serif) !important;
 }
 .admin-main { color: #222; }
-.admin-main h1 { font-family: var(--font-display, GmarketSans) !important; font-weight: 500 !important; }
+.admin-main h1 { font-family: var(--font-ui, "Pretendard Variable", sans-serif) !important; font-weight: 500 !important; }
 .admin-main h2, .admin-main h3, .admin-main h4 {
   font-family: var(--font-ui, sans-serif) !important; font-weight: 600 !important; color: #222 !important;
 }
@@ -18415,6 +18979,11 @@ nav.admin-nav button { font-weight: 500 !important; }
 }
 .admin-main .admin-panel, .admin-main [class*="grid"] { min-width: 0 !important; max-width: 100% !important; }
 
+/* 금액 칸: "16,000원"처럼 숫자와 "원" 사이에서 줄바꿈되던 것을 한 줄로 고정한다. */
+.admin-main .admin-table-wrap td.admin-order-amount {
+  white-space: nowrap !important;
+}
+
 @media (max-width: 760px) {
   /* 주문 상태 확인·취소·클레임 관리 표: 주문코드처럼 끊어지지 않는 문자열이
      글자 단위로 줄바꿈되는 대신 가로 스크롤로 보이게 한다(데스크톱·태블릿은 위 규칙 그대로 적용). */
@@ -18434,17 +19003,17 @@ nav.admin-nav button { font-weight: 500 !important; }
 }
 
 .admin-main { container-type: inline-size; }
-.admin-main h1 { font-size: clamp(20px, 3.2cqw, 30px) !important; }
-.admin-main h2, .admin-main .admin-panel h2 { font-size: clamp(13px, 1.95cqw, 18px) !important; }
-.admin-main h3 { font-size: clamp(11px, 1.62cqw, 15px) !important; }
-.admin-main .admin-table-wrap td { font-size: clamp(9.5px, 1.4cqw, 13px) !important; }
-.admin-main .admin-table-wrap th { font-size: clamp(9px, 1.3cqw, 12px) !important; }
-.admin-main .admin-badge { font-size: clamp(8.5px, 1.28cqw, 12px) !important; }
-.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: clamp(8.5px, 1.18cqw, 11px) !important; }
-.admin-main .admin-pending-item { font-size: clamp(10.5px, 1.5cqw, 14px) !important; }
-.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: clamp(19px, 3cqw, 28px) !important; }
+.admin-main h1 { font-size: 32px !important; }
+.admin-main h2, .admin-main .admin-panel h2 { font-size: 20px !important; }
+.admin-main h3 { font-size: 17px !important; }
+.admin-main .admin-table-wrap td { font-size: 14px !important; }
+.admin-main .admin-table-wrap th { font-size: 13px !important; }
+.admin-main .admin-badge { font-size: 13px !important; }
+.admin-main .admin-panel p, .admin-main [class*="eyebrow"] { font-size: 13px !important; }
+.admin-main .admin-pending-item { font-size: 15px !important; }
+.admin-main .admin-stat strong, .admin-main .admin-stat b { font-size: 30px !important; }
+.admin-main small { font-size: 12px !important; }
 
-.admin-sidebar { flex: 0 0 auto !important; min-width: 200px !important; width: 200px !important; }
 nav.admin-nav { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; }
 nav.admin-nav button, nav.admin-nav > div {
   width: 100% !important; text-align: left !important; white-space: nowrap !important;
@@ -18455,21 +19024,33 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main .admin-product-table { table-layout: fixed !important; }
 .admin-main .admin-product-table td, .admin-main .admin-product-table th { overflow: hidden; }
 .admin-main .admin-product-table th:nth-child(1), .admin-main .admin-product-table td:nth-child(1) {
-  width: 22% !important; white-space: normal; word-break: keep-all; overflow: visible;
+  width: 34% !important; overflow: hidden;
 }
-.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 10% !important; }
-.admin-main .admin-product-table th:nth-child(4), .admin-main .admin-product-table td:nth-child(4) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 10% !important; }
-.admin-main .admin-product-table th:nth-child(6), .admin-main .admin-product-table td:nth-child(6) { width: 14% !important; }
-.admin-main .admin-product-table th:nth-child(7), .admin-main .admin-product-table td:nth-child(7) { width: 12% !important; }
-.admin-main .admin-product-table th:nth-child(8), .admin-main .admin-product-table td:nth-child(8) { width: 8% !important; }
+.admin-main .admin-product-table th:nth-child(2), .admin-main .admin-product-table td:nth-child(2) { width: 18% !important; white-space: nowrap !important; text-overflow: ellipsis; }
+.admin-main .admin-product-table th:nth-child(3), .admin-main .admin-product-table td:nth-child(3) { width: 16% !important; white-space: nowrap !important; }
+.admin-main .admin-product-table th:nth-child(4), .admin-main .admin-product-table td:nth-child(4) { width: 14% !important; white-space: nowrap !important; }
+.admin-main .admin-product-table th:nth-child(5), .admin-main .admin-product-table td:nth-child(5) { width: 18% !important; white-space: nowrap !important; }
 .admin-main .admin-product-table td .admin-badge {
-  font-size: 10px !important; padding: 2px 6px !important; max-width: 100%;
+  font-size: 12px !important; padding: 2px 6px !important; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; box-sizing: border-box;
 }
-.admin-main .admin-product-table td:nth-child(8) button,
-.admin-main .admin-product-table td:nth-child(8) a { white-space: nowrap !important; padding: 4px 8px !important; }
+
+/* 재고/가격 확인 표: table-layout:fixed 인데 컬럼별 폭 지정이 없어 5개 컬럼이 균등폭(147px)으로
+   깨졌다. 상품명이 잘리고 판매가·재고 컬럼엔 빈 공간만 남던 문제라 폭을 재배분한다. */
+.admin-main .admin-stock-table th:nth-child(1), .admin-main .admin-stock-table td:nth-child(1) { width: 33% !important; }
+.admin-main .admin-stock-table th:nth-child(2), .admin-main .admin-stock-table td:nth-child(2) { width: 13% !important; }
+.admin-main .admin-stock-table th:nth-child(3), .admin-main .admin-stock-table td:nth-child(3) { width: 15% !important; }
+.admin-main .admin-stock-table th:nth-child(4), .admin-main .admin-stock-table td:nth-child(4) { width: 19% !important; }
+.admin-main .admin-stock-table th:nth-child(5), .admin-main .admin-stock-table td:nth-child(5) { width: 20% !important; }
+
+/* 재고 이력 표도 같은 이유(table-layout:fixed + 폭 지정 없음)로 5칸이 균등폭이었다. 사유는
+   자유 입력 텍스트라 길면 줄바꿈되어 행이 크게 늘어나므로, 나머지 짧은 값 칸은 좁히고
+   사유 칸에 가장 많은 공간을 준다. */
+.admin-main .admin-stock-history-table th:nth-child(1), .admin-main .admin-stock-history-table td:nth-child(1) { width: 18% !important; }
+.admin-main .admin-stock-history-table th:nth-child(2), .admin-main .admin-stock-history-table td:nth-child(2) { width: 15% !important; }
+.admin-main .admin-stock-history-table th:nth-child(3), .admin-main .admin-stock-history-table td:nth-child(3) { width: 10% !important; }
+.admin-main .admin-stock-history-table th:nth-child(4), .admin-main .admin-stock-history-table td:nth-child(4) { width: 15% !important; }
+.admin-main .admin-stock-history-table th:nth-child(5), .admin-main .admin-stock-history-table td:nth-child(5) { width: 42% !important; }
 
 @media (max-width: 760px) {
   /* 상품 조회/상태 확인 표: 위 nth-child 고정 폭 대신 가로 스크롤 허용(데스크톱·태블릿은 위 규칙 그대로 적용) */
@@ -18498,6 +19079,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .admin-main .admin-excel-summary.success > span:first-child, .admin-main .admin-excel-summary.success > p:first-child { background: #dff3f9; color: #1b6f8c; }
 .admin-main .admin-excel-summary.danger > span:first-child, .admin-main .admin-excel-summary.danger > p:first-child { background: #fde3e3; color: #a13b3b; }
 .admin-main .admin-excel-summary.warning > span:first-child, .admin-main .admin-excel-summary.warning > p:first-child { background: #fff1c9; color: #8a6d1a; }
+.admin-main .admin-excel-summary.review > span:first-child, .admin-main .admin-excel-summary.review > p:first-child { background: #e9f1ff; color: #21508c; }
 .admin-main .admin-excel-summary > strong { color: #222 !important; }
 
 .admin-main .admin-image-thumb {
@@ -18513,7 +19095,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-main .admin-grid { align-items: stretch !important; }
 .admin-main .admin-grid > section { align-self: stretch !important; height: auto !important; }
-.admin-main .admin-grid > .admin-operation-panel { grid-column: 1 / -1 !important; }
+.admin-main .admin-grid > .admin-full-width-panel { grid-column: 1 / -1 !important; }
 
 .admin-main .admin-pending-item { align-items: center; }
 .admin-main .admin-pending-item > span:first-child { flex: 1 1 auto; min-width: 0; }
@@ -18604,15 +19186,15 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 /* recommendation mock panel */
 .recommendation-mock-panel { width: min(960px, calc(100% - 36px)); margin: 28px auto 0; padding-bottom: 48px; color: #0c1117; }
 .recommendation-mock-trigger { width: 100%; margin: 16px 0 0; padding-bottom: 0; }
-.recommendation-mock-trigger-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "copy score" "copy action"; align-items: center; gap: 4px 10px; padding: 16px 18px; border: 1px solid transparent; border-radius: 12px; background: linear-gradient(#f0fbfe, #f0fbfe) padding-box, linear-gradient(120deg, #94e0f8, #2aa6d1, #b5ecff, #94e0f8) border-box; background-size: 100% 100%, 240% 240%; animation: recommendation-ai-border 7s ease-in-out infinite; }
+.recommendation-mock-trigger-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "copy score" "question action"; align-items: center; gap: 8px 10px; padding: 16px 18px 16px 12px; border: 1px solid transparent; border-radius: 12px; background: linear-gradient(#f0fbfe, #f0fbfe) padding-box, linear-gradient(120deg, #94e0f8, #2aa6d1, #b5ecff, #94e0f8) border-box; background-size: 100% 100%, 240% 240%; animation: recommendation-ai-border 7s ease-in-out infinite; }
 .recommendation-mock-trigger-copy { grid-area: copy; display: grid; gap: 3px; min-width: 0; }
 .recommendation-mock-trigger-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .recommendation-mock-trigger-robot { flex: 0 0 auto; width: 34px; height: 34px; object-fit: contain; }
 .recommendation-mock-trigger-copy strong { color: #0c1117; font-family: "GmarketSans", sans-serif; font-size: 16px; font-weight: 500; }
-.recommendation-mock-trigger-copy b { color: #0c1117; font-size: 13px; font-weight: 600; }
-.recommendation-mock-trigger-copy p { margin: 4px 0 0; color: #4f5859; font-size: 11px; line-height: 1.45; }
-.recommendation-mock-trigger-score { grid-area: score; align-self: end; color: #1686ad; font-family: "GmarketSans", sans-serif; font-size: 28px; font-weight: 500; text-align: right; white-space: nowrap; }
-.recommendation-mock-trigger-button { grid-area: action; min-width: 112px; padding: 10px 16px; border: 1px solid #aeb8bb; border-radius: 9px; background: #fff; color: #0c1117; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.recommendation-mock-trigger-score { grid-area: score; align-self: center; color: #1686ad; font-family: "GmarketSans", sans-serif; font-size: 28px; font-weight: 500; text-align: right; white-space: nowrap; }
+.recommendation-mock-trigger-question { grid-area: question; align-self: center; color: #0c1117; font-size: 15px; font-weight: 600; }
+.recommendation-mock-trigger-button { align-self: center; }
+.recommendation-mock-trigger-button { grid-area: action; min-width: 100px; padding: 10px 16px; border: 1px solid #aeb8bb; border-radius: 9px; background: #fff; color: #0c1117; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .recommendation-mock-trigger-button:hover, .recommendation-mock-trigger-button:focus-visible { border-color: #2aa6d1; outline: 2px solid rgba(148,224,248,.35); outline-offset: 2px; }
 @keyframes recommendation-ai-border { 0%, 100% { background-position: 0 0, 0% 50%; } 50% { background-position: 0 0, 100% 50%; } }
 @media (prefers-reduced-motion: reduce) { .recommendation-mock-trigger-card { animation: none; } }
@@ -18635,21 +19217,26 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-mock-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; margin: 0 0 18px; padding: 16px 22px; border: 1px solid #e4edec; border-radius: 16px; background: #fff; color: #0c1117; font: inherit; font-size: 14.5px; font-weight: 700; cursor: pointer; }
 .recommendation-mock-toggle span { color: #697273; font-size: 18px; line-height: 1; }
 .recommendation-mock-hero { margin-bottom: 14px; padding: 24px; border: 1px solid #e4edec; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(12,17,23,.04); }
-.recommendation-mock-hero > h3 { margin: 0 0 2px; font-size: 15px; }
+.recommendation-mock-hero > h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600;}
 .recommendation-mock-hero > p { margin: 0 0 20px; color: #697273; font-size: 12.5px; }
-.recommendation-mock-chain { position: relative; display: grid; gap: 10px; padding-left: 30px; }
+.recommendation-mock-chain { position: relative; display: grid; gap: 18px; padding-left: 30px; }
 .recommendation-mock-chain::before { position: absolute; top: 8px; bottom: 34px; left: 9px; width: 2px; background: linear-gradient(#94e0f8,#f0fbfe); content: ""; }
 .recommendation-mock-node { position: relative; padding-bottom: 6px; }
 .recommendation-mock-node::before { position: absolute; top: 4px; left: -30px; width: 20px; height: 20px; border: 2px solid #94e0f8; border-radius: 50%; background: #fff; content: ""; }
 .recommendation-mock-node > b { display: block; margin-bottom: 5px; color: #4f5859; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; }
 .recommendation-mock-node > div { display: flex; flex-wrap: wrap; gap: 7px; }
-.recommendation-mock-chip { display: inline-block; padding: 5px 12px; border-radius: 999px; background: #e9f8fc; color: #1686ad; font-size: 14px; font-weight: 600; }
-.recommendation-mock-chip.ingredient { background: #e9f8fc; color: #1686ad; }
-.recommendation-mock-node em { display: inline-block; padding: 5px 12px; border-radius: 999px; background: #eef2f2; color: #6c807e; font-size: 14px; font-style: normal; }
-.recommendation-mock-node small { display: block; margin: 2px 0 8px; color: #1686ad; font-size: 11.5px; font-weight: 700; }
+.recommendation-mock-chip { display: inline-block; padding: 5px 12px; border: 1px solid #5ec6e8; border-radius: 999px; background: #ffffff; color: #1686ad; font-size: 13px; font-weight: 600; }
+.recommendation-mock-chip.ingredient { background: #ffffff; color: #1686ad; }
+.recommendation-mock-node em { display: inline-block; padding: 5px 12px; border: 1px solid #CDD6D6; border-radius: 999px; background: #ffffff; color: #6c807e; font-size: 14px; font-weight: 700; font-style: normal; }
+.recommendation-mock-node small { display: block; margin: 2px 0 8px; color: #1686ad; font-size: 12px; font-weight: 700; }
 .recommendation-mock-badge { display: inline-block; padding: 3px 9px; border-radius: 7px; font-size: 11.5px; font-weight: 700; }
 .recommendation-mock-badge.ok { background: #f0fbfe; color: #2aa6d1; }
-.recommendation-mock-badge.info { background: #eef2f2; color: #6c807e; }
+.recommendation-mock-badge.info { border: 1px solid #CDD6D6; background: #ffffff; color: #6c807e; }
+.recommendation-mock-chip,
+.recommendation-mock-node em,
+.recommendation-mock-badge.info { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 7px; }
+.recommendation-mock-node em,
+.recommendation-mock-badge.info { font-size: 11.5px; }
 .recommendation-mock-badge.warn { background: #f8ece2; color: #c0733f; }
 .recommendation-mock-evidence { flex-direction: column; align-items: flex-start; gap: 4px !important; font-size: 13.5px; }
 .recommendation-mock-evidence span { color: #4f5859; }
@@ -18666,7 +19253,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-mock-details summary span { color: #697273; transition: transform .2s; }
 .recommendation-mock-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 24px 24px; }
 .recommendation-mock-group { padding: 15px 16px; border: 1px solid #e4edec; border-radius: 12px; background: #fcfdfd; }
-.recommendation-mock-group > h3 { margin: 0 0 12px; color: #2aa6d1; font-size: 12px; letter-spacing: .02em; text-transform: uppercase; }
+.recommendation-mock-group > h3 { margin: 0 0 12px; color: #2aa6d1; font-size: 12px; font-weight:600; letter-spacing: .02em; text-transform: uppercase; }
 .recommendation-mock-group article { padding: 9px 0; border-top: 1px solid #e4edec; }
 .recommendation-mock-group article:first-of-type { padding-top: 0; border-top: 0; }
 .recommendation-mock-group article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
@@ -18815,14 +19402,15 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   font-weight: 600;
 }
 
-.recommendation-criteria-node b.ingredient { background: #f1f7f0; color: #3b6b45; }
-.recommendation-criteria-node em { background: #eef2f2; color: #6c807e; }
+.recommendation-criteria-node b.effect,
+.recommendation-criteria-node b.ingredient { border: 1px solid #5ec6e8; background: #ffffff; color: #0f7a73; }
+.recommendation-criteria-node em { border: 1px solid #eef2f2; background: #ffffff; color: #6c807e; }
 .recommendation-criteria-node em:not(:only-child) { display: block; border-radius: 8px; }
 .recommendation-criteria-node small { display: block; margin: 2px 0 8px; color: #1f9e92; font-size: 11.5px; font-weight: 600; }
 .recommendation-criteria-node a { display: inline-flex; align-items: center; color: #0f7a73; font-size: 12px; font-weight: 700; text-decoration: none; }
 .recommendation-criteria-inline-status { border-radius: 7px !important; }
 .recommendation-criteria-inline-status.positive { background: #e8f4ec !important; color: #2e7d46 !important; }
-.recommendation-criteria-inline-status.unknown { background: #eef2f2 !important; color: #6c807e !important; }
+.recommendation-criteria-inline-status.unknown { border: 1px solid #eef2f2 !important; background: #ffffff !important; color: #6c807e !important; }
 
 .recommendation-criteria-reason {
   display: flex;
@@ -19066,7 +19654,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-inventory-hero,
@@ -19075,29 +19663,49 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   min-width: 0;
 }
 
+/* 상품 목록/선택 상품 위젯을 각각 독립적으로 스크롤한다(페이지 전체 스크롤 대신, 마우스가
+   올라간 위젯만 스크롤). 두 위젯을 flex 세로열로 만들어 헤더·필터·페이지네이션은 고정하고,
+   실제 목록/상세 내용만 담긴 자식(.admin-inventory-table-scroll, .admin-inventory-detail-scroll)
+   에 overflow-y:auto 를 준다. */
 .admin-inventory-table-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
+/* 스크롤은 유지하되, 기본 노출 행은 정확히 10개가 되도록 높이를 고정한다
+   (thead 56px + tbody tr 56px x 10 = 616px). 헤더가 tbody 와 함께 스크롤되어도
+   10행이라는 기준은 항상 이 높이만큼 보이는 걸로 지킨다. */
+.admin-inventory-table-scroll {
+  height: 616px;
+  overflow-y: auto;
+}
+
 .admin-inventory-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+
+.admin-inventory-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.admin-inventory-table-panel > .admin-panel-header,
+.admin-inventory-table-panel > .admin-product-filters,
+.admin-inventory-table-panel > .admin-list-toolbar,
+.admin-inventory-table-panel > .admin-pagination-row,
+.admin-inventory-table-panel > .admin-state-banner,
+.admin-inventory-detail > .admin-panel-header {
+  flex-shrink: 0;
 }
 
 .admin-inventory-filter-header {
   align-items: flex-start;
 }
 
-.admin-inventory-filter-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.admin-inventory-filter-controls input,
-.admin-inventory-filter-controls select,
 .admin-inventory-action-card input,
 .admin-inventory-action-card textarea {
   min-height: 38px;
@@ -19106,17 +19714,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   background: var(--admin-white);
   color: var(--admin-text);
   font: inherit;
-}
-
-.admin-inventory-filter-controls input,
-.admin-inventory-filter-controls select {
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.admin-inventory-filter-controls input {
-  min-width: 180px;
 }
 
 .admin-inventory-product-button {
@@ -19132,8 +19729,6 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-product-button:focus-visible,
-.admin-inventory-filter-controls input:focus-visible,
-.admin-inventory-filter-controls select:focus-visible,
 .admin-inventory-action-card input:focus-visible,
 .admin-inventory-action-card textarea:focus-visible {
   outline: 2px solid var(--admin-accent-2);
@@ -19142,18 +19737,19 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-inventory-badges {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
 }
 
+/* 가격 저장/재고 저장/판매 중지는 각자 박스(테두리+배경+패딩)로 감싸여 있었는데, 내용에
+   비해 여백·테두리가 차지하는 비중이 커서 조밀하게 바꿨다. 판매 시작만 강조가 필요해
+   .admin-inventory-sale-card 에서 다시 박스 스타일을 되살린다. */
 .admin-inventory-action-card {
   display: grid;
-  gap: 10px;
-  margin: 14px 18px 0;
-  padding: 14px;
-  border: 1px solid var(--admin-line);
-  border-radius: 8px;
-  background: #fafafa;
+  gap: 6px;
+  margin: 10px 18px 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--admin-line);
 }
 
 .admin-inventory-action-card h3,
@@ -19163,13 +19759,11 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 
 .admin-inventory-action-card h3 {
   color: var(--admin-text);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .admin-inventory-action-card p,
 .admin-inventory-help,
-.admin-inventory-loading,
-.admin-inventory-notice,
 .admin-inventory-error {
   font-size: 12px;
   font-weight: 700;
@@ -19177,8 +19771,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-action-card p,
-.admin-inventory-help,
-.admin-inventory-loading {
+.admin-inventory-help {
   color: var(--admin-muted);
 }
 
@@ -19197,28 +19790,49 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 }
 
 .admin-inventory-action-card textarea {
-  min-height: 76px;
+  min-height: 56px;
   resize: vertical;
 }
 
 .admin-inventory-action-card .admin-secondary-button,
 .admin-inventory-action-card .admin-primary-button {
-  justify-self: start;
+  justify-self: end;
+}
+
+/* 판매가는 필드 하나뿐이라, 라벨+입력값과 저장 버튼을 한 줄에 붙여 "이 버튼은 이 입력값
+   것"이라는 게 바로 보이게 한다(재고 저장은 필드가 2개라 아래에 쌓고, 버튼은 끝에 오른쪽
+   정렬만 맞춘다 — 모양 자체가 달라서 두 저장 버튼이 헷갈리지 않는다). */
+.admin-inventory-inline-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-inventory-inline-row label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-inventory-inline-row .admin-primary-button {
+  flex: 0 0 auto;
+}
+
+.admin-inventory-required {
+  color: #c2402c;
 }
 
 .admin-inventory-sale-card {
-  border-color: rgba(245, 158, 11, 0.35);
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
   background: #fffaf0;
 }
 
 .admin-inventory-help,
-.admin-inventory-notice,
 .admin-inventory-error {
   margin: 14px 18px 0;
-}
-
-.admin-inventory-notice {
-  color: #2aa6d1;
 }
 
 .admin-inventory-error {
@@ -19229,85 +19843,13 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
   color: #9f392b;
 }
 
-.admin-inventory-more {
-  display: flex;
-  justify-content: center;
-  padding: 16px 18px 18px;
-}
-
-.admin-inventory-confirm-backdrop {
-  position: fixed;
-  z-index: 40;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(12, 17, 23, 0.45);
-}
-
-.admin-inventory-confirm-dialog {
-  display: grid;
-  width: min(100%, 440px);
-  gap: 12px;
-  padding: 24px;
-  border: 1px solid var(--admin-line);
-  border-radius: 12px;
-  background: var(--admin-white);
-  box-shadow: 0 18px 48px rgba(12, 17, 23, 0.24);
-}
-
-.admin-inventory-confirm-dialog p,
-.admin-inventory-confirm-dialog h2,
-.admin-inventory-confirm-dialog span {
-  margin: 0;
-}
-
-.admin-inventory-confirm-dialog p {
-  color: #b36b00;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.admin-inventory-confirm-dialog h2 {
-  color: var(--admin-text);
-  font-size: 18px;
-  line-height: 1.4;
-}
-
-.admin-inventory-confirm-dialog span {
-  color: var(--admin-muted);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.55;
-}
-
-.admin-inventory-confirm-dialog > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
 @media (max-width: 1180px) {
   .admin-inventory-layout {
     grid-template-columns: 1fr;
   }
-
-  .admin-inventory-detail {
-    position: static;
-  }
 }
 
 @media (max-width: 760px) {
-  .admin-inventory-filter-controls {
-    justify-content: flex-start;
-  }
-
-  .admin-inventory-filter-controls input,
-  .admin-inventory-filter-controls select {
-    width: 100%;
-  }
-
   .admin-inventory-action-card .admin-secondary-button,
   .admin-inventory-action-card .admin-primary-button {
     width: 100%;

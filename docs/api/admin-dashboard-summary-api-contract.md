@@ -1,6 +1,6 @@
 # 관리자 운영 대시보드 집계 API 계약
 
-상태: 구현 완료 (M5 Chunk 1, 2026-07-19)
+상태: 구현 완료 (M5 Chunk 1, 2026-07-19; `claim_summary` 필드 추가 2026-07-19)
 
 ## 엔드포인트
 
@@ -37,6 +37,9 @@
     "sold_out_count": 0,
     "hidden_count": 0,
     "unknown_count": 0
+  },
+  "claim_summary": {
+    "pending_count": 0
   }
 }
 ```
@@ -47,6 +50,8 @@
 - `image_missing_count`는 `ProductImage`가 하나도 없는 상품 수다.
 - 재고 상태는 M4 `build_product_availability`와 같은 우선순위로 계산한다.
   `UNKNOWN`은 재고 행이 없는 예외 상품을 위한 상태다.
+- `claim_summary.pending_count`는 `OrderClaim.status = 'REQUESTED'`인 건수다 —
+  아직 승인·거절·처리되지 않아 관리자 조치가 필요한 클레임 수.
 
 ## 제외
 

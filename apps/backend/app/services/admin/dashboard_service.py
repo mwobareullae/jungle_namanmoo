@@ -1,17 +1,20 @@
 """관리자 운영 대시보드 집계 서비스 (P1-M5, 조회 전용)."""
 
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Product, ProductImage
-from app.db.models.commerce import Inventory
+from app.db.models.commerce import Inventory, OrderClaim
 from app.schemas.admin.dashboard import (
+    AdminDashboardClaimSummary,
     AdminDashboardProductStats,
     AdminDashboardStockStatusBreakdown,
     AdminDashboardSummaryResponse,
 )
 from app.services.admin.ingredient_mapping_service import get_ingredient_mapping_summary
+from app.services.admin.order_claim_service import CLAIM_STATUS_REQUESTED
 from app.services.admin.order_service import get_admin_order_summary
+from app.services.product_availability import build_stock_status_sql_case
 
 
 _STOCK_STATUSES = ("IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN", "UNKNOWN")
@@ -36,16 +39,12 @@ def get_admin_dashboard_summary(session: Session) -> AdminDashboardSummaryRespon
         select(func.count(Product.id)).where(~has_image)
     ).scalar_one()
 
-    raw_available_quantity = (
-        Inventory.stock_quantity - Inventory.reserved_quantity - Inventory.safety_stock
-    )
-    available_quantity = case((raw_available_quantity < 0, 0), else_=raw_available_quantity)
-    stock_status = case(
-        (Inventory.id.is_(None), "UNKNOWN"),
-        (Inventory.sales_status == "HIDDEN", "HIDDEN"),
-        (or_(Inventory.sales_status == "SOLD_OUT", available_quantity <= 0), "SOLD_OUT"),
-        (available_quantity <= 5, "LOW_STOCK"),
-        else_="IN_STOCK",
+    stock_status = build_stock_status_sql_case(
+        inventory_id=Inventory.id,
+        sales_status=Inventory.sales_status,
+        stock_quantity=Inventory.stock_quantity,
+        reserved_quantity=Inventory.reserved_quantity,
+        safety_stock=Inventory.safety_stock,
     ).label("stock_status")
     stock_rows = session.execute(
         select(stock_status, func.count(Product.id))
@@ -56,6 +55,10 @@ def get_admin_dashboard_summary(session: Session) -> AdminDashboardSummaryRespon
     stock_counts = {status: 0 for status in _STOCK_STATUSES}
     for status, count in stock_rows:
         stock_counts[str(status)] = int(count)
+
+    claim_pending_count = session.execute(
+        select(func.count(OrderClaim.id)).where(OrderClaim.status == CLAIM_STATUS_REQUESTED)
+    ).scalar_one()
 
     return AdminDashboardSummaryResponse(
         order_summary=get_admin_order_summary(session),
@@ -72,4 +75,5 @@ def get_admin_dashboard_summary(session: Session) -> AdminDashboardSummaryRespon
             hidden_count=stock_counts["HIDDEN"],
             unknown_count=stock_counts["UNKNOWN"],
         ),
+        claim_summary=AdminDashboardClaimSummary(pending_count=int(claim_pending_count)),
     )

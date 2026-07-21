@@ -4,7 +4,7 @@
   - 관리자 목록은 고객 목록과 달리 비활성·HIDDEN 상품도 포함한다(핵심 차이).
   - 재고 행이 없는 상품은 가용성 UNKNOWN, UNKNOWN 필터로 조회된다.
   - 대표 이미지는 products.thumbnail_url 이 아니라 product_images.storage_key.
-  - 이름/브랜드/노출 필터, 상세 404, 라우트 401/403/200, 잘못된 sales_status 400.
+  - 이름/상품코드/브랜드/노출 필터, 상세 404, 라우트 401/403/200, 잘못된 sales_status 400.
 """
 
 from collections.abc import Generator
@@ -193,6 +193,35 @@ def test_filters_name_brand_active(db_engine: Engine) -> None:
     assert {i.product_code for i in inactive_only.items} == {"prod_mwbl_inactive"}
 
 
+def test_search_matches_product_code_not_only_name(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        by_code = list_admin_products(session, query="mwbl_hidden", page=1, page_size=50)
+        by_name_substring = list_admin_products(session, query="크림", page=1, page_size=50)
+    assert {i.product_code for i in by_code.items} == {"prod_mwbl_hidden"}
+    assert {i.product_code for i in by_name_substring.items} == {
+        "prod_mwbl_inactive",
+        "prod_mwbl_hidden",
+        "prod_mwbl_noinv",
+    }
+
+
+def test_filters_stock_status(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        hidden_only = list_admin_products(session, stock_status="HIDDEN", page=1, page_size=50)
+        unknown_only = list_admin_products(session, stock_status="UNKNOWN", page=1, page_size=50)
+        in_stock = list_admin_products(session, stock_status="IN_STOCK", page=1, page_size=50)
+    assert {i.product_code for i in hidden_only.items} == {"prod_mwbl_hidden"}
+    assert {i.product_code for i in unknown_only.items} == {"prod_mwbl_noinv"}
+    assert {i.product_code for i in in_stock.items} == {"prod_mwbl_active", "prod_mwbl_inactive"}
+
+
+def test_invalid_stock_status_raises_400(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        with pytest.raises(ApiError) as exc:
+            list_admin_products(session, stock_status="NOPE", page=1, page_size=50)
+    assert exc.value.status_code == 400
+
+
 def test_detail_not_found_raises(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         with pytest.raises(ApiError) as exc:
@@ -245,6 +274,21 @@ def test_route_rejects_invalid_sales_status(client: TestClient, db_engine: Engin
     response = client.get("/api/admin/products", params={"sales_status": "NOPE"})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_INPUT"
+
+
+def test_route_rejects_invalid_stock_status(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+    response = client.get("/api/admin/products", params={"stock_status": "NOPE"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
+
+
+def test_route_filters_by_stock_status(client: TestClient, db_engine: Engine) -> None:
+    _authed_admin(client, db_engine)
+    response = client.get("/api/admin/products", params={"stock_status": "HIDDEN"})
+    assert response.status_code == 200
+    body = response.json()
+    assert {item["product_code"] for item in body["items"]} == {"prod_mwbl_hidden"}
 
 
 def test_route_detail_404(client: TestClient, db_engine: Engine) -> None:

@@ -179,6 +179,42 @@ class IngredientMappingActionResponse(BaseModel):
     available_actions: list[IngredientMappingAction]
 
 
+class IngredientMappingBulkApprovalPreviewItem(BaseModel):
+    pending_code: str
+    normalized_source_name: str
+    raw_name: str
+    product_count: int
+    connection_count: int
+    target_ingredient_code: str
+    target_ingredient_name: str
+    alias_source: str
+    canonical_source_url: str
+
+
+class IngredientMappingBulkApprovalPreviewResponse(BaseModel):
+    criteria: Literal["KCIA_ALIAS_EXACT"]
+    maximum_count: int
+    eligible_count: int
+    items: list[IngredientMappingBulkApprovalPreviewItem]
+
+
+class IngredientMappingBulkApprovalItem(BaseModel):
+    pending_code: str = Field(min_length=1, max_length=64)
+    normalized_source_name: str = Field(min_length=1, max_length=255)
+    target_ingredient_code: str = Field(min_length=1, max_length=64)
+
+
+class IngredientMappingBulkApprovalRequest(BaseModel):
+    items: list[IngredientMappingBulkApprovalItem] = Field(min_length=1, max_length=100)
+    confirmed_count: int = Field(ge=1, le=100)
+
+
+class IngredientMappingBulkApprovalResponse(BaseModel):
+    batch_reference: str
+    approved_count: int
+    items: list[IngredientMappingActionResponse]
+
+
 # --- canonical 검색 (승인 target 선택용, §6) --------------------------------
 
 
