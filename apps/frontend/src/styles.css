@@ -3444,6 +3444,22 @@ body {
   border-color: #b9c0c7 !important;
 }
 
+.mypage-order-back-link {
+  color: #6b7280;
+}
+
+.mypage-order-back-link:hover {
+  color: #1a1a1a;
+}
+
+.mypage-order-primary-link {
+  background: #0c1117;
+}
+
+.mypage-order-primary-link:hover {
+  background: #1a1a1a;
+}
+
 .mypage-expand-button-expanded {
   position: relative;
   margin-top: 26px !important;
@@ -6557,7 +6573,7 @@ body.search-results-page .flow-tag.profile,
   position: fixed;
   left: 50%;
   bottom: 40px;
-  z-index: 300;
+  z-index: 2200;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -15101,13 +15117,6 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
 }
 
-.checkout-address-form > p[role="alert"] {
-  margin: 0;
-  color: var(--color-muted-text);
-  font-size: var(--fs-13, 13px);
-  font-weight: 700;
-}
-
 .checkout-address-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15148,9 +15157,9 @@ html[data-app-mode="community"] .search-results-shell {
 
 .checkout-phone-row {
   display: grid;
-  grid-template-columns: 88px auto 108px auto 108px;
+  grid-template-columns: minmax(0, 88px) auto minmax(0, 108px) auto minmax(0, 108px);
   align-items: center;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   gap: 6px;
 }
@@ -15182,6 +15191,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.checkout-postcode-row button:hover:not(:disabled) {
+  background: rgba(148, 224, 248, 0.28);
 }
 
 .checkout-postcode-row button:disabled {
@@ -15223,10 +15236,19 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
+.checkout-address-form-head button:hover:not(:disabled),
+.checkout-address-form-actions button:not([type="submit"]):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-address-form-actions button[type="submit"] {
   border-color: transparent;
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-form-actions button:disabled {
@@ -15648,6 +15670,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 700;
 }
 
+.checkout-page:not(.cart-page) .checkout-address-change-button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-page:not(.cart-page) .checkout-address-summary {
   display: grid;
   gap: 8px;
@@ -15658,9 +15684,6 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .checkout-page:not(.cart-page) .checkout-address-summary.muted {
-  padding: 16px;
-  border: 1px solid var(--color-edge);
-  border-radius: 12px;
   color: var(--color-muted-text);
 }
 
@@ -15668,7 +15691,11 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
 }
 
-.checkout-page:not(.cart-page) .checkout-address-summary select {
+.checkout-page:not(.cart-page) .checkout-address-summary select,
+/* .checkout-delivery-memo-select은 "배송지 관리" 모달(Radix Dialog)에서도 쓰이는데
+   그 모달은 document.body에 포털로 렌더링되어 .checkout-page 밖으로 빠지므로,
+   위 스코프에 기대지 않고 이 클래스 자체로도 매칭되게 별도로 둔다. */
+.checkout-delivery-memo-select {
   width: 100%;
   min-height: 44px;
   margin-top: 12px;
@@ -15790,6 +15817,10 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #fff;
+}
+
+.checkout-page:not(.cart-page) .checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-page:not(.cart-page) .payment-options {
@@ -16440,6 +16471,15 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #ffffff;
+}
+
+.checkout-address-manager-actions button:not(:first-child):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.checkout-address-manager-actions button:first-child:hover:not(:disabled),
+.checkout-address-create-button:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-manager-actions button:disabled {

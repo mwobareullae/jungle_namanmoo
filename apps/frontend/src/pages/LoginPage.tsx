@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import { buttonVariantClassName } from "../components/ui/button-variants";
 import { Input } from "../components/ui/input";
 import type { AuthUser } from "../contexts/authContextValue";
+import { consumeSessionExpiredFlag } from "../contexts/AuthContext";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { mergeCart } from "../lib/cartApi";
@@ -143,6 +144,12 @@ function LoginPage() {
   const emailErrorMessage =
     emailTouched && !isValidEmail(email) ? LOGIN_EMAIL_FORMAT_ERROR_MESSAGE : "";
   const passwordErrorMessage = passwordTouched && password.length === 0 ? "비밀번호를 입력해 주세요." : "";
+
+  useEffect(() => {
+    if (consumeSessionExpiredFlag()) {
+      showErrorToast("세션이 만료되었습니다. 다시 로그인해 주세요.");
+    }
+  }, [showErrorToast]);
 
   const completeLogin = useCallback(
     async (response: Response, fallbackUser?: AuthUser) => {

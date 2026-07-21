@@ -169,7 +169,7 @@ export default function OrderDetail() {
               새로고침
             </button>
             <Link
-              className="text-[#2aa6d1] hover:text-[#1A1A1A]"
+              className="mypage-order-back-link"
               style={styles.backLink}
               to="/mypage/orders"
             >
