@@ -23,6 +23,10 @@ def _default_data_dir() -> str:
     return "/data"
 
 
+def _default_agent_local_trace_dir() -> str:
+    return str(Path(__file__).resolve().parents[2] / ".local" / "agent-traces")
+
+
 def _normalize_search_backend_mode(value: str) -> str:
     normalized = value.strip().lower() or "auto"
     if normalized in {"auto", "postgres", "elasticsearch"}:
@@ -87,6 +91,13 @@ class Settings(BaseModel):
     agent_release: str = os.getenv("AGENT_RELEASE", "local")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
+    openai_agent_local_trace_enabled: bool = _parse_bool(
+        os.getenv("OPENAI_AGENT_LOCAL_TRACE_ENABLED", "false")
+    )
+    openai_agent_local_trace_dir: str = os.getenv(
+        "OPENAI_AGENT_LOCAL_TRACE_DIR",
+        _default_agent_local_trace_dir(),
+    )
     openai_agent_timeout_seconds: float = float(os.getenv("OPENAI_AGENT_TIMEOUT_SECONDS", "15"))
     openai_agent_max_retries: int = int(os.getenv("OPENAI_AGENT_MAX_RETRIES", "1"))
     # Three concurrent calls is the midpoint of the initial 2-4 safety range:
