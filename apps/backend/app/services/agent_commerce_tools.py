@@ -192,7 +192,7 @@ def prepare_agent_product_checkout(
             conversation_id=_conversation_id(conversation_id),
             message=(
                 "상품은 장바구니에 반영했어요. 받는 분 이름, 연락처, 우편번호, "
-                "기본 주소와 상세 주소를 알려주시면 주문서를 이어서 열어드릴게요."
+                "기본 주소를 알려주시면 주문서를 이어서 열어드릴게요."
             ),
             tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
             ui_action=action,

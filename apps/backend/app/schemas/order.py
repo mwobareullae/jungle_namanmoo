@@ -7,6 +7,7 @@ from app.schemas.shipping_address import (
     normalize_phone,
     normalize_postal_code,
     normalize_recipient_name,
+    normalize_optional_address,
     normalize_required_address,
 )
 
@@ -26,7 +27,7 @@ class DirectShippingAddressRequest(BaseModel):
     phone: str = Field(..., min_length=1, max_length=30)
     postal_code: str = Field(..., min_length=1, max_length=20)
     address1: str = Field(..., min_length=1, max_length=255)
-    address2: str = Field(..., min_length=1, max_length=255)
+    address2: str | None = Field(default=None, max_length=255)
     delivery_memo: str | None = Field(default=None, max_length=255)
     save_to_address_book: bool = False
     set_as_default: bool = False
@@ -46,10 +47,15 @@ class DirectShippingAddressRequest(BaseModel):
     def validate_postal_code(cls, value: str) -> str:
         return normalize_postal_code(value)
 
-    @field_validator("address1", "address2")
+    @field_validator("address1")
     @classmethod
     def validate_required_address(cls, value: str, info) -> str:
         return normalize_required_address(value, info.field_name)
+
+    @field_validator("address2")
+    @classmethod
+    def validate_optional_address(cls, value: str | None) -> str | None:
+        return normalize_optional_address(value)
 
 
 class OrderCreateRequest(BaseModel):
