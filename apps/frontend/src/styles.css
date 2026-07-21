@@ -14786,7 +14786,7 @@ html[data-app-mode="community"] .search-results-shell {
   border: 0;
   border-radius: 50%;
   background: #16c7e8;
-  color: #0b2a3a;
+  color: #ffffff;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
