@@ -123,6 +123,7 @@ class AdminOrderListItem(BaseModel):
 class AdminOrderSummary(BaseModel):
     pending_payment_count: int
     preparing_shipment_count: int
+    shipped_count: int
     cancel_requested_count: int
     reserved_quantity_total: int
 

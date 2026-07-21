@@ -18,12 +18,13 @@ from app.db.models.commerce import (
     OrderClaimItem,
     OrderItem,
     Payment,
+    PaymentEvent,
     PaymentRefund,
 )
 from app.schemas.claim import OrderClaimCreateRequest, OrderClaimItemRequest
 from app.schemas.common import ApiError
 from app.services.order_claim_service import create_claim
-from app.services.refund_service import process_mock_refund, recompute_order_item_status
+from app.services.refund_service import process_claim_refund, recompute_order_item_status
 
 
 @pytest.fixture()
@@ -112,9 +113,9 @@ def test_mock_refund_updates_payment_restock_and_is_idempotent(db_engine: Engine
         claim.status = "IN_PROGRESS"
         session.commit()
 
-        first = process_mock_refund(session, claim.claim_code, restock=True, now=now)
+        first = process_claim_refund(session, claim.claim_code, restock=True, now=now)
         session.commit()
-        second = process_mock_refund(session, claim.claim_code, restock=True, now=now)
+        second = process_claim_refund(session, claim.claim_code, restock=True, now=now)
         session.commit()
 
         saved_payment = session.execute(select(Payment)).scalar_one()
@@ -151,6 +152,7 @@ def _seed_order_with_item(
     item_quantity: int = 1,
     unit_price: int = 1000,
     payment_amount: int | None = None,
+    provider: str = "MOCK",
 ) -> tuple[datetime, User, Order, OrderItem, Payment]:
     global _seq
     _seq += 1
@@ -194,7 +196,7 @@ def _seed_order_with_item(
     payment = Payment(
         payment_code=f"pay_refundseed_{_seq}",
         order_id=order.id,
-        provider="MOCK",
+        provider=provider,
         status="APPROVED",
         amount=payment_amount if payment_amount is not None else order_amount,
         currency="KRW",
@@ -215,6 +217,91 @@ def _seed_order_with_item(
     return now, user, order, item, payment
 
 
+def test_toss_payment_refund_succeeds_via_admin_simulation_and_logs_event(db_engine: Engine) -> None:
+    # TOSS 로 결제된 배송완료 주문도 관리자 완료 처리(반품/환불)가 가능해야 한다 — 실제 PG 호출
+    # 없이 내부 상태만 정리하고, 그 사실을 PaymentEvent 로 남긴다(취소 승인의 TOSS 시뮬레이션과 동일 패턴).
+    with Session(db_engine) as session:
+        now, user, order, item, payment = _seed_order_with_item(session, provider="TOSS")
+        claim = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
+            ),
+            now=now,
+        )
+        claim.status = "IN_PROGRESS"
+        session.commit()
+
+        refund = process_claim_refund(session, claim.claim_code, restock=False, simulate_toss_refund=True, now=now)
+        session.commit()
+        refund_provider = refund.provider
+
+        saved_payment = session.execute(select(Payment).where(Payment.id == payment.id)).scalar_one()
+        events = session.execute(
+            select(PaymentEvent).where(PaymentEvent.payment_id == payment.id)
+        ).scalars().all()
+
+    assert refund_provider == "TOSS"
+    assert saved_payment.status == "REFUNDED"
+    assert len(events) == 1
+    assert events[0].event_type == "ADMIN_TOSS_REFUND_SIMULATED"
+    assert events[0].raw_payload_json["external_provider_called"] is False
+
+
+def test_toss_payment_refund_rejected_without_simulation_flag(db_engine: Engine) -> None:
+    with Session(db_engine) as session:
+        now, user, order, item, _payment = _seed_order_with_item(session, provider="TOSS")
+        claim = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
+            ),
+            now=now,
+        )
+        claim.status = "IN_PROGRESS"
+        session.commit()
+
+        with pytest.raises(ApiError) as exc_info:
+            process_claim_refund(session, claim.claim_code, restock=False, now=now)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "REFUND_PROVIDER_UNSUPPORTED"
+
+
+def test_unsupported_provider_refund_rejected_even_with_simulation_flag(db_engine: Engine) -> None:
+    # simulate_toss_refund 는 이름 그대로 TOSS 전용 예외다 — KAKAO_PAY 같은 다른 PG 는
+    # 플래그를 켜도 여전히 지원되지 않아야 한다(무분별하게 모든 PG 를 우회하지 않도록).
+    with Session(db_engine) as session:
+        now, user, order, item, _payment = _seed_order_with_item(session, provider="KAKAO_PAY")
+        claim = create_claim(
+            session,
+            user,
+            OrderClaimCreateRequest(
+                order_code=order.order_code,
+                claim_type="REFUND",
+                reason_code="DAMAGED",
+                items=[OrderClaimItemRequest(order_item_id=item.id, quantity=1)],
+            ),
+            now=now,
+        )
+        claim.status = "IN_PROGRESS"
+        session.commit()
+
+        with pytest.raises(ApiError) as exc_info:
+            process_claim_refund(session, claim.claim_code, restock=False, simulate_toss_refund=True, now=now)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "REFUND_PROVIDER_UNSUPPORTED"
+
+
 def test_partial_quantity_claim_keeps_order_item_delivered(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         now, user, order, item, _payment = _seed_order_with_item(session, item_quantity=2, unit_price=1000)
@@ -232,7 +319,7 @@ def test_partial_quantity_claim_keeps_order_item_delivered(db_engine: Engine) ->
         claim.status = "IN_PROGRESS"
         session.commit()
 
-        process_mock_refund(session, claim.claim_code, restock=False, now=now)
+        process_claim_refund(session, claim.claim_code, restock=False, now=now)
         session.commit()
 
         saved_item = session.execute(select(OrderItem).where(OrderItem.id == item.id)).scalar_one()
@@ -256,7 +343,7 @@ def test_full_quantity_via_split_claims_marks_order_item_returned(db_engine: Eng
         )
         first_claim.status = "IN_PROGRESS"
         session.commit()
-        process_mock_refund(session, first_claim.claim_code, restock=False, now=now)
+        process_claim_refund(session, first_claim.claim_code, restock=False, now=now)
         session.commit()
 
         second_claim = create_claim(
@@ -272,7 +359,7 @@ def test_full_quantity_via_split_claims_marks_order_item_returned(db_engine: Eng
         )
         second_claim.status = "IN_PROGRESS"
         session.commit()
-        process_mock_refund(session, second_claim.claim_code, restock=False, now=now)
+        process_claim_refund(session, second_claim.claim_code, restock=False, now=now)
         session.commit()
 
         saved_item = session.execute(select(OrderItem).where(OrderItem.id == item.id)).scalar_one()
@@ -316,7 +403,7 @@ def test_mixed_claim_types_keep_order_item_delivered(db_engine: Engine) -> None:
         )
         return_claim.status = "IN_PROGRESS"
         session.commit()
-        process_mock_refund(session, return_claim.claim_code, restock=False, now=now)
+        process_claim_refund(session, return_claim.claim_code, restock=False, now=now)
         session.commit()
 
         saved_item = session.execute(select(OrderItem).where(OrderItem.id == item.id)).scalar_one()
@@ -343,7 +430,7 @@ def test_cumulative_refund_exceeding_payment_amount_returns_409(db_engine: Engin
         )
         first_claim.status = "IN_PROGRESS"
         session.commit()
-        process_mock_refund(session, first_claim.claim_code, restock=False, now=now)
+        process_claim_refund(session, first_claim.claim_code, restock=False, now=now)
         session.commit()
 
         second_claim = create_claim(
@@ -361,7 +448,7 @@ def test_cumulative_refund_exceeding_payment_amount_returns_409(db_engine: Engin
         session.commit()
 
         with pytest.raises(ApiError) as exc_info:
-            process_mock_refund(session, second_claim.claim_code, restock=False, now=now)
+            process_claim_refund(session, second_claim.claim_code, restock=False, now=now)
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.code == "INVALID_REFUND_AMOUNT"
@@ -387,13 +474,13 @@ def test_refund_claim_type_rejects_restock(db_engine: Engine) -> None:
         session.commit()
 
         with pytest.raises(ApiError) as exc_info:
-            process_mock_refund(session, claim.claim_code, restock=True, now=now)
+            process_claim_refund(session, claim.claim_code, restock=True, now=now)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "RESTOCK_NOT_APPLICABLE"
 
 
-def test_process_mock_refund_rejects_approved_claim_not_yet_in_progress(db_engine: Engine) -> None:
+def test_process_claim_refund_rejects_approved_claim_not_yet_in_progress(db_engine: Engine) -> None:
     # 확정 계약은 APPROVED->IN_PROGRESS->COMPLETED 순서를 강제한다 — APPROVED 에서
     # 바로 완료 처리를 시도하면 거부해야 한다(이전에는 APPROVED 도 허용했던 버그).
     with Session(db_engine) as session:
@@ -413,7 +500,7 @@ def test_process_mock_refund_rejects_approved_claim_not_yet_in_progress(db_engin
         session.commit()
 
         with pytest.raises(ApiError) as exc_info:
-            process_mock_refund(session, claim.claim_code, restock=False, now=now)
+            process_claim_refund(session, claim.claim_code, restock=False, now=now)
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.code == "CLAIM_NOT_IN_PROGRESS"

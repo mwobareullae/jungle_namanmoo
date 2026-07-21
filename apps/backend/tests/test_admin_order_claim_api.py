@@ -316,6 +316,7 @@ def test_detail_returns_contract_for_admin(client: TestClient, db_engine: Engine
     body = response.json()
     assert body["claim_code"] == "clm_api_claim"
     assert body["order_status"] == "DELIVERED"
+    assert body["payment_provider"] is None  # 시드에 Payment 레코드를 만들지 않은 경우
     assert body["product_summary"] == "상품A"
     assert len(body["items"]) == 1
     assert body["items"][0]["resolution"] == "REFUND"
