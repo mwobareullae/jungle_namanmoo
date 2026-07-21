@@ -4792,7 +4792,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 22px 0;
+  padding: 12px 22px;
 }
 
 .search-interpretation__label {
@@ -4805,6 +4805,10 @@ body {
   border-color: #8edcf5;
   background: #effbff;
   color: #126d88;
+}
+
+.api-summary-chip.warning {
+  background: #ffffff;
 }
 
 .api-summary-chip.removable {
