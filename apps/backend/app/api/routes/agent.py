@@ -1,4 +1,6 @@
 import secrets
+import json
+import traceback
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -19,6 +21,7 @@ from app.schemas.common import ApiError, ErrorResponse
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.services.agent_order_tools import confirm_agent_tool_call
+from app.services.agent_local_trace import create_agent_local_trace
 from app.services.agent_openai_runner import AgentWorkflowTiming, run_openai_agent_chat
 from app.services.agent_idempotency import (
     claim_agent_request_execution,
@@ -84,13 +87,24 @@ async def post_agent_chat(
     request: Request,
     http_response: Response,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    local_model_override: str | None = Header(default=None, alias="X-Agent-Local-Model"),
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> AgentChatResponse:
     telemetry = _AgentRequestTelemetry()
     request_id = getattr(request.state, "request_id", None)
+    local_trace = create_agent_local_trace(
+        request_id=request_id,
+        route=request.url.path,
+        request_payload=body,
+        authenticated=current_user is not None,
+    )
+    if local_trace is not None:
+        http_response.headers["X-Agent-Local-Trace-Id"] = local_trace.trace_id
+        local_trace.set_route_value("requested_model", local_model_override)
     execution = None
+    agent_response: AgentChatResponse | None = None
     workflow_timing = AgentWorkflowTiming()
     idempotency_started_at: float | None = None
     rate_limit_started_at: float | None = None
@@ -107,10 +121,13 @@ async def post_agent_chat(
             path="/",
     )
     try:
+        safety_started_at = current_time()
         reject_sensitive_agent_input(
             body.message,
             *(message.content for message in body.recent_messages if message.role == "user"),
         )
+        if local_trace is not None:
+            local_trace.set_timing("agent_sensitive_input_check_ms", elapsed_ms(safety_started_at))
         idempotency_started_at = current_time()
         execution, replay_response = claim_agent_request_execution(
             session,
@@ -124,9 +141,12 @@ async def post_agent_chat(
             # another write-capable tool execution while this request is running.
             session.commit()
         telemetry.idempotency_ms = elapsed_ms(idempotency_started_at)
+        if local_trace is not None:
+            local_trace.set_timing("agent_idempotency_ms", telemetry.idempotency_ms)
         if replay_response is not None:
+            agent_response = replay_response
             telemetry.outcome = "idempotency_replay"
-            return replay_response
+            return agent_response
 
         runtime_control = get_default_agent_runtime_control()
         rate_limit_started_at = current_time()
@@ -139,6 +159,8 @@ async def post_agent_chat(
             actor_id=actor_id or "anonymous-cart-unavailable",
         )
         telemetry.rate_limit_ms = elapsed_ms(rate_limit_started_at)
+        if local_trace is not None:
+            local_trace.set_timing("agent_rate_limit_ms", telemetry.rate_limit_ms)
 
         agent_response = await run_openai_agent_chat(
             session,
@@ -156,13 +178,19 @@ async def post_agent_chat(
                 route=request.url.path,
                 authenticated=current_user is not None,
             ),
+            local_trace=local_trace,
+            model_override=local_model_override,
         )
         persist_started_at = current_time()
         complete_agent_request_execution(execution, agent_response)
         session.commit()
         telemetry.response_persist_ms = elapsed_ms(persist_started_at)
+        if local_trace is not None:
+            local_trace.set_timing("agent_response_persist_ms", telemetry.response_persist_ms)
         telemetry.outcome = "succeeded"
     except Exception as exc:
+        if local_trace is not None:
+            local_trace.capture_error(exc, traceback_text=traceback.format_exc())
         if isinstance(exc, ApiError):
             if exc.code == "AGENT_RATE_LIMITED":
                 telemetry.rate_limited = True
@@ -196,6 +224,46 @@ async def post_agent_chat(
         telemetry.global_slot_rejected = (
             telemetry.global_slot_rejected or workflow_timing.global_slot_rejected
         )
+        if local_trace is not None:
+            try:
+                local_trace.set_route_value("idempotency_key", idempotency_key)
+                local_trace.set_route_value("telemetry", telemetry.metadata())
+                local_trace.set_timing("agent_global_slot_wait_ms", telemetry.global_slot_wait_ms)
+                local_trace.set_timing("agent_global_slot_acquire_ms", telemetry.global_slot_acquire_ms)
+                local_trace.set_timing("agent_local_queue_wait_ms", workflow_timing.local_queue_wait_ms)
+                local_trace.set_timing("agent_llm_workflow_ms", telemetry.llm_workflow_ms)
+                local_trace.set_timing("agent_runner_ms", workflow_timing.agent_runner_ms)
+                local_trace.set_timing(
+                    "agent_model_and_orchestration_ms",
+                    workflow_timing.agent_model_and_orchestration_ms,
+                )
+                local_trace.set_timing("agent_tool_execution_ms", telemetry.tool_execution_ms)
+                local_trace.set_timing(
+                    "agent_tool_reference_resolve_ms",
+                    workflow_timing.tool_reference_resolve_ms,
+                )
+                local_trace.set_timing("agent_tool_dispatch_ms", workflow_timing.tool_dispatch_ms)
+                local_trace.set_timing(
+                    "agent_tool_response_serialize_ms",
+                    workflow_timing.tool_response_serialize_ms,
+                )
+                if agent_response is not None:
+                    response_dump_started_at = current_time()
+                    response_payload = agent_response.model_dump(mode="json")
+                    response_model_dump_ms = elapsed_ms(response_dump_started_at)
+                    response_json_started_at = current_time()
+                    json.dumps(response_payload, ensure_ascii=False, separators=(",", ":"))
+                    response_json_encode_ms = elapsed_ms(response_json_started_at)
+                    local_trace.capture_final_response(
+                        response_payload,
+                        model_dump_ms=response_model_dump_ms,
+                        json_encode_ms=response_json_encode_ms,
+                    )
+                local_trace.finish(outcome=telemetry.outcome)
+            except Exception:
+                # The local diagnostic file is deliberately best-effort and must
+                # never change the endpoint's response or failure behavior.
+                pass
         log_performance_event(
             "agent_request_completed",
             request_id=request_id,
