@@ -12,7 +12,7 @@ describe("categoryMenu", () => {
       { slug: "cleansing", name: "클렌징" },
       { slug: "suncare", name: "선케어" },
       { slug: "fragrance", name: "향수" },
-      { slug: "beauty-tools-nail", name: "뷰티소품, 네일" },
+      { slug: "beauty-tools-nail", name: "뷰티소품" },
     ]);
   });
 
