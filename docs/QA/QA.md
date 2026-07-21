@@ -54,6 +54,18 @@
 - ✅ **P2 — 세션 만료 시 재로그인 안내 없음 → 수정 완료 (2026-07-21, 배포 전):** 프로덕션(mubarelle.com)에서 세션 쿠키 삭제 후 `/mypage` 접근 시 안내 없이 홈으로 이동하는 문제를 확인. [AuthContext.tsx](apps/frontend/src/contexts/AuthContext.tsx)에 세션 만료 플래그(`consumeSessionExpiredFlag`)를 추가하고 [LoginPage.tsx](apps/frontend/src/pages/LoginPage.tsx)에서 "세션이 만료되었습니다. 다시 로그인해 주세요." 토스트를 띄우도록 수정. 로컬(localhost:5173)에서 재현 후 수정 확인 완료. **아직 커밋·배포 전이라 mubarelle.com에는 반영 안 됨 — 배포 후 재확인 필요.**
 - ❌ **P2 — 404 없음:** 존재하지 않는 URL에서도 잘못된 URL을 유지한 채 홈페이지가 표시됨.
 - ❌ **P2 — 접근성:** 닫힌 장바구니·카테고리 패널이 접근성 트리에 남아 있음.
+- ✅ **P3 — 체크아웃 배송지 미등록 상태 이중 테두리 → 수정 완료 (2026-07-21):** 주문서 페이지에서 "아직 등록된 배송지가 없어요" 영역에 자체 테두리(`.checkout-address-summary.muted`)가 있어 바깥 카드 테두리와 겹쳐 네모가 2개로 보이던 문제. [styles.css:15660](apps/frontend/src/styles.css:15660)에서 내부 테두리·padding 제거. 로컬에서 확인 완료.
+- ✅ **P3 — 배송지 추가 폼 연락처 입력이 박스 밖으로 넘침 → 수정 완료 (2026-07-21):** "배송지 관리" 모달의 연락처 입력 3칸(`.checkout-phone-row`)이 고정 픽셀 그리드(88px+108px+108px)라 컨테이너보다 좁아지면 줄어들지 못하고 파란 박스 경계를 넘어가던 문제. [styles.css:15149](apps/frontend/src/styles.css:15149)에서 `minmax(0, Npx)`로 변경해 칸이 줄어들 수 있게 수정. 로컬에서 확인 완료.
+- ✅ **P2 — 배송지 추가/수정 폼 필수값 미입력 시 안내가 안 보임 → 수정 완료 (2026-07-21):** 이름·연락처·우편번호·주소를 비우고 저장하면 검증은 막히는데 인라인 에러 문구 색이 muted 회색이라 사실상 안 보이던 문제. [LoginPage.tsx](apps/frontend/src/pages/LoginPage.tsx)의 세션만료 토스트와 동일한 `ActivityToast`로 통일해 "받는 분을 입력해주세요." 등이 토스트로 뜨도록 변경, 기존 인라인 빨간 박스는 제거. 서버 저장 실패 시에도 동일하게 토스트로 안내. 로컬에서 확인 완료.
+- ✅ **P1 — 배송지 관리 모달이 "주소 찾기" 사용 중 예기치 않게 닫힘 → 수정 완료 (2026-07-21):** 다음 우편번호 찾기가 팝업 창(`.open()`)으로 뜨면서 포커스가 이동하자, Radix Dialog가 이를 "바깥 클릭/포커스 이탈"로 감지해 배송지 관리 모달을 자동으로 닫아버리던 문제. 커스텀 배경 클릭 닫기 로직을 이미 자체 구현하고 있어 Radix 기본 outside-dismiss가 불필요하게 충돌한 것 — [CheckoutPage.tsx](apps/frontend/src/pages/CheckoutPage.tsx)의 배송지 관리 `DialogRawContent`에 `onPointerDownOutside`/`onInteractOutside` preventDefault 추가로 해소. 로컬에서 확인 완료.
+- ✅ **P3 — 배송지 추가/수정 폼의 "배송 요청사항"이 자유 텍스트 → 드롭다운으로 통일 (2026-07-21):** 메인 체크아웃 화면(선택된 배송지 카드)에는 이미 프리셋 드롭다운(`DELIVERY_MEMO_OPTIONS`)이 있었는데, "배송지 관리" 모달 안의 추가/수정 폼만 자유 텍스트 입력이라 UI가 불일치했음. 같은 옵션 목록을 재사용하는 드롭다운(+"직접 입력" 선택 시 텍스트 입력)으로 통일. 로컬에서 확인 완료.
+- ✅ **P3 — 배송 요청사항 드롭다운이 선택값에 따라 위로 열림 → 네이티브 select로 최종 정리 (2026-07-21):** 네이티브 `<select>`는 선택된 항목이 트리거 위치에 오도록 브라우저가 목록 위치를 재조정해서 열기 때문에, 기본값("부재 시 문 앞에 놓아주세요.")이 목록 중간이라 위로 열리는 것처럼 보였음.
+  - 시도 1: 커스텀 드롭다운을 `document.body`에 포털로 렌더링 — 작은 화면 잘림은 해결했지만 "배송지 관리" 모달(Radix Dialog)이 포털된 패널 클릭을 "모달 바깥 클릭"으로 오인해 옵션이 안 눌리는 회귀 발생 (지현 실기기 재현).
+  - 시도 2: 포털 제거, 같은 DOM 트리 안에서 `position: absolute`로 재작성 — 클릭은 격리 테스트로 확인했으나 실제 기기 재확인 전.
+  - **최종: 커스텀 구현을 접고 네이티브 `<select>`로 되돌림(지현 직접 수정)** — 메인 체크아웃 화면의 기존 select와 CSS(`.checkout-delivery-memo-select`)를 공유해 시각적으로 동일하게 통일. 네이티브 select라 클릭/선택 동작은 브라우저가 보장하므로 커스텀 구현의 회귀 위험이 사라짐. "위로 열리는" 원래 현상은 감수하기로 함(우선순위상 클릭 안정성이 더 중요).
+  - 되돌린 직후 "배송지 관리" 모달 안에서는 select가 테두리·패딩 없이 민무늬로 보이는 추가 문제 발견 — 스타일 규칙이 `.checkout-page:not(.cart-page) .checkout-delivery-memo-select`로 스코프돼 있었는데, 그 모달도 Radix Dialog라 `document.body`에 포털돼 `.checkout-page` 바깥으로 빠져 스코프 셀렉터가 매칭 안 됐던 것. [styles.css:15665](apps/frontend/src/styles.css:15665)에서 `.checkout-delivery-memo-select`를 스코프 없는 별도 규칙으로 분리해 해소. 격리 테스트로 스타일 적용 확인 완료.
+- ✅ **P3 — 동시 주문 요청 시 중복 주문 가능성 → 수정 완료 (2026-07-21):** `order_service.py`의 `_load_selected_cart_rows`가 `Inventory`는 `with_for_update`로 잠그지만 `CartItem` 조회에는 락이 없어, 진짜 동시 요청(네트워크 재시도, 멀티탭)이 겹치면 같은 장바구니 항목으로 주문이 2건 생성될 수 있던 좁은 레이스 컨디션. `CartItem` 조회에 `.with_for_update(of=CartItem)` 추가(다른 조인 테이블까지 잠그지 않도록 `of=`로 한정)해 동시 요청 중 하나는 대기 후 `CART_ITEM_NOT_FOUND`로 걸러지도록 수정. 기존 테스트 16건 통과.
+- ⚠️ **P3 후보 — 결제 실패 시 cancelOrder 실패하면 주문이 PENDING_PAYMENT로 잔류 (코드 리뷰, 2026-07-21):** 결제 실패 후 프론트가 호출하는 `cancelOrder` 자체가 네트워크 문제 등으로 실패하면 주문이 `PENDING_PAYMENT` 상태로 남을 수 있음. `expire_pending_orders` 배치가 추후 정리하므로 데이터 정합성 문제는 아니고 사용자 체감 지연 정도의 마이너 이슈.
 
 ---
 
@@ -235,16 +247,16 @@
 > 실제 결제 완료 버튼은 테스트 환경과 승인 후 누른다.
 
 - [x] 비회원 checkout 접근 시 로그인으로 이동한다. `✅ 통과`
-- [ ] 배송지 입력·선택·수정이 된다.
-- [ ] 필수 주문자 정보 누락을 막는다.
-- [ ] 상품 금액·할인·배송비·최종 금액이 모든 화면에서 일치한다.
-- [ ] 주문 생성 전에 재고와 구매 가능 상태를 다시 검증한다.
-- [ ] 결제 취소·뒤로가기 시 중복 주문이 생성되지 않는다.
-- [ ] 결제 성공 후 완료 화면과 주문번호가 표시된다.
-- [ ] 결제 실패 시 재시도 가능하고 장바구니가 보존된다.
-- [ ] 같은 결제 콜백이 반복돼도 중복 결제·중복 주문이 없다.
-- [ ] 결제 완료 후 재고가 정확히 차감된다.
-- [ ] 실제 결제 제공자가 Toss이며 환경별 키가 올바르게 분리된다.
+- [x] 배송지 입력·선택·수정이 된다. `✅ 통과 (2026-07-21) — 입력: 신규 주소 등록 확인. 선택: 두 번째 주소 "선택" 클릭 시 체크아웃 화면 배송지가 정상 교체됨. 수정: 기존 주소 값 프리필 후 수정 저장 시 목록에 반영됨.`
+- [x] 필수 주문자 정보 누락을 막는다. `✅ 코드 리뷰 확인 (2026-07-21) — isPaymentDisabled가 배송지 미선택(!selectedAddress)·결제 동의 미체크(!hasAgreedPayment)·결제수단별 필수값 미비 시 결제하기 버튼을 비활성화`
+- [x] 상품 금액·할인·배송비·최종 금액이 모든 화면에서 일치한다. `✅ 통과 (2026-07-21) — 장바구니 화면(21,000원)과 주문서 화면(21,000원) 금액 항목별(상품금액/할인/배송비/총액) 일치 확인`
+- [x] 주문 생성 전에 재고와 구매 가능 상태를 다시 검증한다. `✅ 코드 리뷰 확인 (2026-07-21) — order_service.py _load_selected_cart_rows가 Inventory에 with_for_update 락을 걸고 is_active·판매상태·재고수량을 독립 재검증함 (cart 상태를 그대로 신뢰하지 않음)`
+- [x] 결제 취소·뒤로가기 시 중복 주문이 생성되지 않는다. `✅ 수정 완료 (2026-07-21) — 더블클릭·뒤로가기 재시도는 기존에도 막혀 있었음. 발견된 동시 요청 race window(cart_item 조회에 락 없음)는 order_service.py _load_selected_cart_rows의 CartItem 조회에 .with_for_update(of=CartItem) 추가로 해소 — 동시 요청 중 하나는 대기 후 cart_id 변경을 보고 CART_ITEM_NOT_FOUND로 걸러짐. 기존 테스트(test_order_api.py, test_cart_checkout_api.py) 16건 통과, 회귀 없음. 다만 진짜 동시성(멀티스레드)을 재현하는 전용 테스트는 없음.`
+- [x] 결제 성공 후 완료 화면과 주문번호가 표시된다. `✅ 통과 (2026-07-21) — 테스트 결제(Toss test key) 실제 진행. 주문번호(ord_20260721_klcl6hJt), 배송지, 결제금액(21,000원), 결제수단(토스페이먼츠) 모두 정상 표시`
+- [x] 결제 실패 시 재시도 가능하고 장바구니가 보존된다. `✅ 코드 리뷰 확인 + 마이너 이슈 수정 완료 (2026-07-21) — 결제 실패 시 cancelOrder 호출로 재고 예약 해제 및 장바구니 복원, /cart로 이동해 재시도 가능. cancelOrder 요청 자체가 실패하면 에러 문구만 뜨고 재시도 수단이 없어 PENDING_PAYMENT로 방치되던 문제를 발견해 "주문 취소 다시 시도" 버튼 추가로 해소 (PaymentCompletePage.tsx). expire_pending_orders 배치는 최종 안전망으로 유지.`
+- [x] 같은 결제 콜백이 반복돼도 중복 결제·중복 주문이 없다. `✅ 코드 리뷰 확인 (2026-07-21) — confirm은 attempt_code(sha256) 유니크 제약으로 재시도 시 409 PAYMENT_CONFIRMATION_REPLAY, webhook은 event_id 중복 체크 후 duplicate:true 반환`
+- [x] 결제 완료 후 재고가 정확히 차감된다. `✅ 코드 리뷰 확인 (2026-07-21) — payment_service.py가 Inventory를 with_for_update로 잠근 뒤 reserved_quantity·stock_quantity 검증 후 차감하는 SELECT-FOR-UPDATE 패턴`
+- [x] 실제 결제 제공자가 Toss이며 환경별 키가 올바르게 분리된다. `✅ 코드 리뷰 확인 (2026-07-21) — 백엔드 TOSS_SECRET_KEY, 프론트 VITE_TOSS_CLIENT_KEY 모두 환경변수 기반, 하드코딩 없음. 현재 .env는 test_ck_/test_sk_ 테스트 키 사용 중. 배포 파이프라인이 운영 환경에 실제 라이브 키를 주입하는지는 리포 밖 설정이라 별도 확인 필요`
 
 ---
 
