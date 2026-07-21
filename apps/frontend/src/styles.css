@@ -4080,6 +4080,11 @@ body {
   isolation: isolate;
 }
 
+/* 홈 진입부는 헤더 아래의 강조선을 사용하지 않는다. */
+.home-hero {
+  border-top: 0 !important;
+}
+
 .hero-inner {
   position: relative;
   z-index: 1;
