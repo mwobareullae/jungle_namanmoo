@@ -33,6 +33,7 @@ type BackendAdminDashboardSummary = {
   order_summary: {
     pending_payment_count: number;
     preparing_shipment_count: number;
+    shipped_count: number;
     cancel_requested_count: number;
     reserved_quantity_total: number;
   };
@@ -68,6 +69,7 @@ export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary>
     orderSummary: {
       pendingPaymentCount: body.order_summary.pending_payment_count,
       preparingShipmentCount: body.order_summary.preparing_shipment_count,
+      shippedCount: body.order_summary.shipped_count,
       cancelRequestedCount: body.order_summary.cancel_requested_count,
       reservedQuantityTotal: body.order_summary.reserved_quantity_total
     },

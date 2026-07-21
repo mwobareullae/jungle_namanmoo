@@ -466,6 +466,7 @@ function AdminDashboardPage() {
     return [
       { label: "결제 대기", value: summary.pendingPaymentCount.toLocaleString("ko-KR") },
       { label: "배송 준비", value: summary.preparingShipmentCount.toLocaleString("ko-KR") },
+      { label: "배송 중", value: summary.shippedCount.toLocaleString("ko-KR") },
       { label: "취소 요청", value: summary.cancelRequestedCount.toLocaleString("ko-KR") },
       { label: "재고 예약", value: summary.reservedQuantityTotal.toLocaleString("ko-KR") }
     ];
@@ -1179,16 +1180,8 @@ function AdminDashboardPage() {
           onSaved={setEditingProductCode}
           onViewInventory={() => setActiveView("stockPrice")}
         />
-        <AdminOrderStatusSection
-          key="admin-order-status"
-          active={activeView === "orderStatus"}
-          onOperationLog={pushOperationLog}
-        />
-        <AdminCancelClaimSection
-          key="admin-cancel-claims"
-          active={activeView === "cancelClaims"}
-          onOperationLog={pushOperationLog}
-        />
+        <AdminOrderStatusSection key="admin-order-status" active={activeView === "orderStatus"} />
+        <AdminCancelClaimSection key="admin-cancel-claims" active={activeView === "cancelClaims"} />
       </section>
       <ConfirmModal
         compact

@@ -101,6 +101,7 @@ type BackendAdminOrderListItem = {
 type BackendAdminOrderSummary = {
   pending_payment_count: number;
   preparing_shipment_count: number;
+  shipped_count: number;
   cancel_requested_count: number;
   reserved_quantity_total: number;
 };
@@ -146,6 +147,7 @@ export type AdminOrderRow = {
 export type AdminOrderSummary = {
   pendingPaymentCount: number;
   preparingShipmentCount: number;
+  shippedCount: number;
   cancelRequestedCount: number;
   reservedQuantityTotal: number;
 };
@@ -235,6 +237,7 @@ export const getAdminOrders = async (query: AdminOrderQuery = {}): Promise<Admin
     summary: {
       pendingPaymentCount: body.summary.pending_payment_count,
       preparingShipmentCount: body.summary.preparing_shipment_count,
+      shippedCount: body.summary.shipped_count,
       cancelRequestedCount: body.summary.cancel_requested_count,
       reservedQuantityTotal: body.summary.reserved_quantity_total
     },

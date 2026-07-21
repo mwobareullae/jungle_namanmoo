@@ -66,6 +66,7 @@ type BackendAdminClaimEventDetail = {
 
 type BackendAdminClaimDetailResponse = BackendAdminClaimListItem & {
   order_status: string;
+  payment_provider: string | null;
   items: BackendAdminClaimItemDetail[];
   events: BackendAdminClaimEventDetail[];
 };
@@ -118,6 +119,7 @@ export type AdminClaimEventDetail = {
 
 export type AdminClaimDetail = AdminClaimRow & {
   orderStatus: string;
+  paymentProvider: string | null;
   items: AdminClaimItemDetail[];
   events: AdminClaimEventDetail[];
 };
@@ -211,6 +213,7 @@ export const getAdminClaimDetail = async (claimCode: string): Promise<AdminClaim
   return {
     ...adaptClaimRow(body),
     orderStatus: body.order_status,
+    paymentProvider: body.payment_provider,
     items: body.items.map((item) => ({
       orderItemId: item.order_item_id,
       productNameSnapshot: item.product_name_snapshot,
