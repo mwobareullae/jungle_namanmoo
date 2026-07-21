@@ -47,6 +47,7 @@ apps/frontend/public/image-assets/
 AGENTS.local.md
 AGENTS.*.md
 AGENTS.md
+apps/backend/.local/agent-traces/
 
 # Local implementation planning notes
 docs/skin-test-ui-milestones.local.md
