@@ -609,6 +609,36 @@ async def run_openai_agent_chat(
             )
         return _clarification_response(request.conversation_id, generic_clarification)
 
+    shipping_address_arguments = _get_shipping_address_arguments(request)
+    if shipping_address_arguments is not None:
+        if user is None:
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="shipping_address_auth_required",
+                    configured_model=settings.openai_agent_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            )
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_details",
+                configured_model=settings.openai_agent_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            arguments=shipping_address_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
     if simple_refinement_arguments is not None:
         if local_trace is not None:
@@ -1235,6 +1265,12 @@ _SIMPLE_REFINEMENT_CATEGORY_CODES = {
     "토너": "toner",
     "로션": "lotion",
 }
+_SHIPPING_ADDRESS_DETAILS_PATTERN = re.compile(
+    r"^\s*(?P<recipient_name>[^,\n]{1,100})\s*,\s*"
+    r"(?P<phone>(?:\+?82[-\s]?)?01\d[-\s]?\d{3,4}[-\s]?\d{4})\s*,\s*"
+    r"(?P<postal_code>\d{5})\s*,\s*"
+    r"(?P<address1>[^,\n]{1,255})(?:\s*,\s*(?P<address2>[^,\n]{1,255}))?\s*$"
+)
 
 
 def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
@@ -1265,6 +1301,28 @@ def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -
         "sensitivity": request.context.filters.get("sensitivity"),
         "effect_keywords": None,
         "required_ingredient_names": None,
+    }
+
+
+def _get_shipping_address_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
+    """Parse the address details requested immediately before checkout."""
+    if not request.context.cart_item_ids:
+        return None
+
+    match = _SHIPPING_ADDRESS_DETAILS_PATTERN.fullmatch(request.message)
+    if match is None:
+        return None
+
+    return {
+        "recipient_name": match.group("recipient_name").strip(),
+        "phone": re.sub(r"[-\s]", "", match.group("phone")),
+        "postal_code": match.group("postal_code"),
+        "address1": match.group("address1").strip(),
+        "address2": (match.group("address2") or "").strip() or None,
+        "delivery_memo": None,
+        "is_default": False,
+        "continue_checkout": True,
+        "cart_item_ids": request.context.cart_item_ids,
     }
 
 

@@ -679,6 +679,55 @@ async def test_simple_recommendation_refinement_uses_only_the_new_price_and_cate
     }
 
 
+@pytest.mark.anyio
+async def test_shipping_address_details_continue_checkout_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_execute_agent_tool(*_args, **kwargs):
+        captured.update(kwargs)
+        return AgentChatResponse(
+            conversation_id="conv_address",
+            message="배송지를 등록했어요.",
+            tool_name="register_shipping_address",
+            ui_action=AgentUiAction(type="show_checkout_preview", target="checkout_preview", payload={}),
+            items=[],
+        )
+
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.execute_agent_tool",
+        fake_execute_agent_tool,
+    )
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(
+            message="김원우, 01012345677, 12345, 우리집",
+            context=AgentContext(
+                page="product_detail",
+                cart_item_ids=[11],
+            ),
+        ),
+        user=SimpleNamespace(id=1),
+    )
+
+    assert response.tool_name == "register_shipping_address"
+    assert captured["tool_name"] == "register_shipping_address"
+    assert captured["arguments"] == {
+        "recipient_name": "김원우",
+        "phone": "01012345677",
+        "postal_code": "12345",
+        "address1": "우리집",
+        "address2": None,
+        "delivery_memo": None,
+        "is_default": False,
+        "continue_checkout": True,
+        "cart_item_ids": [11],
+    }
+
+
 def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
     tool_names = _select_agent_tool_names(
         user=None,
