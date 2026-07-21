@@ -949,12 +949,31 @@
   text-align: right;
 }
 
+/* 클레임 상세의 상품 목록·처리 이력 표: table-layout:fixed 인데 컬럼별 폭 지정이 없어
+   3칸이 균등폭으로 깨져 있었다(상품명이 잘리고 짧은 값 칸엔 빈 공간만 남음). 내용 길이에
+   맞춰 폭을 재배분하고, 텍스트 칸(처리 방식·사유)은 숫자 칸이 아니므로 왼쪽 정렬로 되돌린다. */
+.admin-claim-item-table th:nth-child(1), .admin-claim-item-table td:nth-child(1) { width: 60% !important; }
+.admin-claim-item-table th:nth-child(2), .admin-claim-item-table td:nth-child(2) { width: 15% !important; }
+.admin-claim-item-table th:nth-child(3), .admin-claim-item-table td:nth-child(3) { width: 25% !important; text-align: left !important; }
+
+.admin-claim-history-table th:nth-child(1), .admin-claim-history-table td:nth-child(1) { width: 30% !important; }
+.admin-claim-history-table th:nth-child(2), .admin-claim-history-table td:nth-child(2) { width: 20% !important; }
+.admin-claim-history-table th:nth-child(3), .admin-claim-history-table td:nth-child(3) { width: 50% !important; text-align: left !important; }
+
 .admin-file-name {
   max-width: 260px;
   overflow: hidden;
   color: #2aa6d1;
   font-weight: 800;
   text-overflow: ellipsis;
+}
+
+/* .admin-main 아래 표 셀에는 white-space:normal !important 전역 규칙이 걸려 있어(이 파일 뒤쪽),
+   .admin-file-name 의 ellipsis 가 적용되지 못하고 요청번호·주문번호 같은 코드값이 셀 폭에서
+   글자 단위로 줄바꿈됐다. 더 구체적인 선택자로 nowrap 을 되살려 한 줄 말줄임이 실제로 동작하게 한다. */
+.admin-main .admin-table-wrap td.admin-file-name {
+  overflow-wrap: normal !important;
+  white-space: nowrap !important;
 }
 
 .admin-product-code {
@@ -1079,7 +1098,8 @@
    달리 여기서는 더 가벼운 크기로 낮춘다. admin-main h2 전역 규칙(파일 뒤쪽, !important)을
    이기려면 이쪽도 !important 가 필요하다. */
 .admin-panel.admin-product-detail .admin-panel-header h2,
-.admin-panel.admin-inventory-detail .admin-panel-header h2 {
+.admin-panel.admin-inventory-detail .admin-panel-header h2,
+.admin-panel.admin-order-detail .admin-panel-header h2 {
   font-size: 16px !important;
   font-weight: 700 !important;
   line-height: 1.35 !important;
@@ -1600,6 +1620,22 @@
   border-left-color: var(--admin-accent-2);
 }
 
+/* 배너·토스트 박스 없이 액션 버튼 옆에 짧게만 안내하는 인라인 실패·경고 문구
+   (주문 상태 확인의 배송 액션 실패/동기화 경고 — 결과는 결제·재고 예외 표에도 별도 기록됨). */
+.admin-inline-message {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-inline-message.danger {
+  color: #ff6b52;
+}
+
+.admin-inline-message.warning {
+  color: #f59e0b;
+}
+
 /* 상세 패널이 표 높이에 맞춰 stretch 되어 있어(.admin-product-layout align-items:stretch),
    상품 미선택/로딩 안내 박스가 위쪽에 붙고 그 아래가 텅 비어 보인다. 남는 공간 안에서
    안내 박스 자체를 세로 가운데로 옮긴다(박스 크기·모양은 그대로 유지). */
@@ -1708,14 +1744,6 @@
 
 .admin-image-layout .admin-excel-failure-panel {
   grid-column: 1 / -1;
-}
-
-/* 이미지 대량 연결은 저장 방식이 확정되기 전까지 안내만 노출한다. */
-.admin-image-deferred > aside,
-.admin-image-deferred > section:not(:first-child),
-.admin-image-deferred .admin-excel-state-row,
-.admin-image-deferred .admin-filter-row {
-  display: none;
 }
 
 .admin-upload-zone {
@@ -1834,6 +1862,11 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 16px 18px 18px;
+}
+
+/* 주문 상태 확인 요약 카드는 5개(결제 대기/배송 준비/배송 중/취소 요청/재고 예약)라 5열로 배정한다. */
+.admin-order-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .admin-excel-summary {
@@ -2941,6 +2974,30 @@
   margin-top: 12px;
 }
 
+/* 반품·환불 완료 처리 확인 모달 안의 "수령 확인 — 재고 복구" 토글. 기본 체크박스 네모 대신
+   다른 관리자 버튼들과 같은 알약형 칩으로 켜짐/꺼짐을 색으로만 보여준다. */
+.admin-modal-toggle-chip {
+  padding: 10px 18px;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: var(--admin-white);
+  color: var(--admin-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-modal-toggle-chip.active {
+  border-color: var(--admin-accent-2);
+  background: #eaf9fd;
+  color: #1583a8;
+}
+
+.admin-modal-toggle-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .admin-order-action-grid .admin-secondary-button {
   width: 100%;
   min-width: 0;
@@ -3003,6 +3060,12 @@
 
 .admin-order-exception-table {
   min-width: 720px;
+}
+
+/* 재고/가격 확인의 "재고 이력 최근 20건" 위젯과 같이 목록·상세 두 칸을 합친 전체 너비로 표시한다. */
+.admin-order-exception-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .admin-empty-row {
@@ -3190,6 +3253,10 @@
   }
 
   .admin-excel-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-order-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -18871,6 +18938,11 @@ nav.admin-nav button { font-weight: 500 !important; }
   overflow-wrap: anywhere !important; min-width: 0 !important;
 }
 .admin-main .admin-panel, .admin-main [class*="grid"] { min-width: 0 !important; max-width: 100% !important; }
+
+/* 금액 칸: "16,000원"처럼 숫자와 "원" 사이에서 줄바꿈되던 것을 한 줄로 고정한다. */
+.admin-main .admin-table-wrap td.admin-order-amount {
+  white-space: nowrap !important;
+}
 
 @media (max-width: 760px) {
   /* 주문 상태 확인·취소·클레임 관리 표: 주문코드처럼 끊어지지 않는 문자열이

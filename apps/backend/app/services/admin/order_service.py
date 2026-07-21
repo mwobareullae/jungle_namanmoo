@@ -501,6 +501,7 @@ def get_admin_order_summary(session: Session) -> AdminOrderSummary:
     return AdminOrderSummary(
         pending_payment_count=int(status_counts.get(ORDER_STATUS_PENDING_PAYMENT, 0)),
         preparing_shipment_count=int(status_counts.get(ORDER_STATUS_PREPARING_SHIPMENT, 0)),
+        shipped_count=int(status_counts.get(ORDER_STATUS_SHIPPED, 0)),
         cancel_requested_count=int(status_counts.get(ORDER_STATUS_CANCEL_REQUESTED, 0)),
         reserved_quantity_total=int(reserved_total),
     )

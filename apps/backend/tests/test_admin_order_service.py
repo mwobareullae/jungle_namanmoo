@@ -230,6 +230,7 @@ def test_summary_independent_of_page_and_filter(session: Session) -> None:
     _make_order(session, order_status="PENDING_PAYMENT", payment_status="READY", total_quantity=2)
     _make_order(session, order_status="PENDING_PAYMENT", payment_status="READY", total_quantity=4)
     _make_order(session, order_status="PREPARING_SHIPMENT")
+    _make_order(session, order_status="SHIPPED")
     _make_order(session, order_status="CANCEL_REQUESTED")
     session.commit()
 
@@ -237,6 +238,7 @@ def test_summary_independent_of_page_and_filter(session: Session) -> None:
     resp = list_admin_orders(session, order_status="PAID", payment_status=None, page_size=1)
     assert resp.summary.pending_payment_count == 2
     assert resp.summary.preparing_shipment_count == 1
+    assert resp.summary.shipped_count == 1
     assert resp.summary.cancel_requested_count == 1
     assert resp.summary.reserved_quantity_total == 6  # 2 + 4
 

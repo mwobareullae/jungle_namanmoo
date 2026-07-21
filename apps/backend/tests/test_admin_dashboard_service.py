@@ -195,6 +195,7 @@ def test_dashboard_summary_returns_existing_summary_contract(
         "order_summary": {
             "pending_payment_count": 1,
             "preparing_shipment_count": 1,
+            "shipped_count": 0,
             "cancel_requested_count": 1,
             "reserved_quantity_total": 3,
         },
