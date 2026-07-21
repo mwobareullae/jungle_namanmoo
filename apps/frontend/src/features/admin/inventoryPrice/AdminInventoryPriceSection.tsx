@@ -455,7 +455,7 @@ export function AdminInventoryPriceSection() {
         <div className="admin-panel-header compact">
           <div>
             <p>선택 상품</p>
-            <h2>{selectedItem ? selectedItem.name : "-"}</h2>
+            <h2>{selectedItem ? selectedItem.name : "상세 정보"}</h2>
           </div>
           {selectedItem && (
             <div className="admin-inventory-badges">

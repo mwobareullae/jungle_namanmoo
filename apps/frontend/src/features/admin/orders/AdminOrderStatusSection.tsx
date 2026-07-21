@@ -12,7 +12,8 @@ import {
 import { ShipmentStep, useAdminOrders } from "./useAdminOrders";
 
 // 관리자 주문·결제 상태 화면.
-// 부모(AdminDashboardPage)와는 onOperationLog(공용 운영 로그)만 공유하고,
+// 배송 액션 성공·실패는 배너·토스트 없이 하단 "결제·재고 예외" 표와 액션 버튼 옆 인라인
+// 문구로만 안내한다 — 부모(AdminDashboardPage)의 공용 운영 로그(onOperationLog)는 쓰지 않는다.
 // 주문 데이터는 useAdminOrders 가 자체적으로 서버에서 조회한다.
 // M4 재고/M5 대시보드가 쓰는 mock(orders, adminOrderMock.ts)과는 완전히 분리되어 서로 영향을 주지 않는다.
 // 로그인/권한 확인은 AdminDashboardPage 가 페이지 진입 시점에 이미 게이트로 막으므로
@@ -27,7 +28,6 @@ import { ShipmentStep, useAdminOrders } from "./useAdminOrders";
 // 이 화면의 로컬 미리보기 버튼은 역할이 중복돼 제거했다.
 
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
-type OrderUiState = "idle" | "saved";
 
 type OrderExceptionRow = {
   id: number; // time(분 단위)+orderCode 조합만으로는 같은 주문에 1분 내 여러 액션 시 key 충돌
@@ -48,7 +48,6 @@ type PendingShipmentAction = {
 
 type AdminOrderStatusSectionProps = {
   active: boolean;
-  onOperationLog: (area: string, title: string, detail: string, tone?: BadgeTone) => void;
 };
 
 const ORDER_STATUS_TONE: Record<AdminOrderStatus, BadgeTone> = {
@@ -150,7 +149,7 @@ const getBlockPages = (current: number, total: number): number[] => {
   return pages;
 };
 
-export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderStatusSectionProps) {
+export function AdminOrderStatusSection({ active }: AdminOrderStatusSectionProps) {
   const {
     items,
     summary,
@@ -177,8 +176,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderExceptions, setOrderExceptions] = useState<OrderExceptionRow[]>([]);
   const nextExceptionIdRef = useRef(0);
-  const [orderRefreshState, setOrderRefreshState] = useState<OrderUiState>("idle");
-  const [shipmentActionState, setShipmentActionState] = useState<OrderUiState>("idle");
   const [confirmingAction, setConfirmingAction] = useState<PendingShipmentAction | null>(null);
 
   // 직접 선택하기 전까지는 아무 주문도 자동으로 보여주지 않는다. 이미 선택한 주문이 있는데
@@ -200,8 +197,16 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     if (shipmentActionInProgress) return;
     const succeeded = await refresh();
     if (!succeeded) {
-      setOrderRefreshState("idle");
-      onOperationLog("주문", "주문 상태 새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
+      setOrderExceptions((current) => [
+        {
+          id: ++nextExceptionIdRef.current,
+          time: formatCurrentTime(),
+          orderCode: selectedOrder?.orderCode ?? "-",
+          issue: "새로고침 실패",
+          action: "잠시 후 다시 시도해 주세요."
+        },
+        ...current
+      ]);
       return;
     }
     if (selectedOrder) {
@@ -216,8 +221,6 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
         ...current
       ]);
     }
-    setOrderRefreshState("saved");
-    setShipmentActionState("idle");
     setConfirmingAction(null);
     clearShipmentActionFeedback();
   };
@@ -225,21 +228,18 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
   // 주문 선택·필터 변경 시, 이전 주문에 대한 확인 대기·에러·동기화 경고가 새 화면에
   // 그대로 남아있지 않도록 배송 액션 관련 상태를 전부 초기화한다.
   const resetShipmentActionUiState = () => {
-    setShipmentActionState("idle");
     setConfirmingAction(null);
     clearShipmentActionFeedback();
   };
 
   const handleSelectOrder = (orderId: string) => {
     setSelectedOrderId(orderId);
-    setOrderRefreshState("idle");
     resetShipmentActionUiState();
   };
 
   const handleOrderFilterReset = () => {
     if (shipmentActionInProgress) return;
     resetFilters();
-    setOrderRefreshState("idle");
     resetShipmentActionUiState();
   };
 
@@ -278,8 +278,16 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
     const succeeded = await runShipmentAction(orderId, orderCode, config.step);
     setConfirmingAction(null);
     if (!succeeded) {
-      setShipmentActionState("idle");
-      onOperationLog("주문", `${config.logTitle} 실패`, "잠시 후 다시 시도해 주세요.", "danger");
+      setOrderExceptions((current) => [
+        {
+          id: ++nextExceptionIdRef.current,
+          time: formatCurrentTime(),
+          orderCode,
+          issue: `${config.logTitle} 실패`,
+          action: "잠시 후 다시 시도해 주세요."
+        },
+        ...current
+      ]);
       return;
     }
 
@@ -293,15 +301,13 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
       },
       ...current
     ]);
-    setOrderRefreshState("idle");
-    setShipmentActionState("saved");
-    onOperationLog("주문", config.logTitle, orderCode, "success");
   };
 
   const summaryCards = summary
     ? [
         { label: "결제 대기", value: summary.pendingPaymentCount.toLocaleString("ko-KR"), tone: "warning" as const },
         { label: "배송 준비", value: summary.preparingShipmentCount.toLocaleString("ko-KR"), tone: "success" as const },
+        { label: "배송 중", value: summary.shippedCount.toLocaleString("ko-KR"), tone: "success" as const },
         { label: "취소 요청", value: summary.cancelRequestedCount.toLocaleString("ko-KR"), tone: "danger" as const },
         { label: "재고 예약", value: summary.reservedQuantityTotal.toLocaleString("ko-KR"), tone: "neutral" as const }
       ]
@@ -327,7 +333,7 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
               </div>
             </div>
             {summary ? (
-              <div className="admin-excel-summary-grid">
+              <div className="admin-excel-summary-grid admin-order-summary-grid">
                 {summaryCards.map((item) => (
                   <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
                     <span>{item.label}</span>
@@ -466,7 +472,7 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                         </strong>
                         <small className="admin-product-code">{order.itemCount}개 상품</small>
                       </td>
-                      <td>{formatCurrency(order.totalAmount)}</td>
+                      <td className="admin-order-amount">{formatCurrency(order.totalAmount)}</td>
                       <td>
                         <span className={`admin-badge ${ORDER_STATUS_TONE[order.orderStatusRaw]}`}>{order.status}</span>
                       </td>
@@ -557,7 +563,7 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
             <div className="admin-panel-header compact">
               <div>
                 <p>선택 주문</p>
-                <h2>{selectedOrder ? selectedOrder.orderCode : "-"}</h2>
+                <h2>{selectedOrder ? selectedOrder.orderCode : "상세 정보"}</h2>
               </div>
               {selectedOrder && (
                 <span className={`admin-badge ${ORDER_STATUS_TONE[selectedOrder.orderStatusRaw]}`}>
@@ -573,96 +579,99 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                 </div>
               )}
               {!selectedOrder ? (
-                <dl className="admin-metric-list">
-                  <div>
-                    <dt>고객</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>상품</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>결제 상태</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>결제일</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>배송 시작일</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>배송완료일</dt>
-                    <dd>-</dd>
-                  </div>
-                  <div>
-                    <dt>추천 ID</dt>
-                    <dd>-</dd>
-                  </div>
-                </dl>
-              ) : (
-                <>
+                <div className="admin-detail-body">
+                  <p className="admin-metric-group-title">기본 정보</p>
                   <dl className="admin-metric-list">
                     <div>
                       <dt>고객</dt>
-                      <dd>{selectedOrder.customer}</dd>
+                      <dd>-</dd>
                     </div>
                     <div>
                       <dt>상품</dt>
-                      <dd>{selectedOrder.productSummary}</dd>
+                      <dd>-</dd>
                     </div>
+                  </dl>
+
+                  <p className="admin-metric-group-title">결제 정보</p>
+                  <dl className="admin-metric-list">
                     <div>
                       <dt>결제 상태</dt>
-                      <dd>{selectedOrder.paymentStatus}</dd>
+                      <dd>-</dd>
                     </div>
                     <div>
                       <dt>결제일</dt>
-                      <dd>{selectedOrder.paidAt ?? "결제 미완료"}</dd>
+                      <dd>-</dd>
                     </div>
+                  </dl>
+
+                  <p className="admin-metric-group-title">배송 정보</p>
+                  <dl className="admin-metric-list">
                     <div>
                       <dt>배송 시작일</dt>
-                      <dd>{selectedOrder.shippedAt ?? "배송 시작 전"}</dd>
+                      <dd>-</dd>
                     </div>
                     <div>
                       <dt>배송완료일</dt>
-                      <dd>{selectedOrder.deliveredAt ?? "배송완료 전"}</dd>
-                    </div>
-                    <div>
-                      <dt>추천 ID</dt>
-                      <dd>{selectedOrder.recommendationId}</dd>
+                      <dd>-</dd>
                     </div>
                   </dl>
-                  <div className={`admin-state-banner ${orderRefreshState === "saved" ? "success" : "neutral"}`}>
-                    <strong>{orderRefreshState === "saved" ? "상태 동기화 완료" : "자동 동기화 사용 중"}</strong>
-                    <span>
-                      {orderRefreshState === "saved"
-                        ? "선택 주문의 최신 상태 확인 기록을 예외 목록에 남겼습니다."
-                        : "주문 화면으로 돌아오면 즉시, 화면을 보는 동안에는 30초마다 결제·배송 상태를 자동 갱신합니다."}
-                    </span>
+
+                  <p className="admin-metric-group-title">추천 정보</p>
+                  <dl className="admin-metric-list">
+                    <div>
+                      <dt>추천 ID</dt>
+                      <dd>-</dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : (
+                <>
+                  <div className="admin-detail-body">
+                    <p className="admin-metric-group-title">기본 정보</p>
+                    <dl className="admin-metric-list">
+                      <div>
+                        <dt>고객</dt>
+                        <dd>{selectedOrder.customer}</dd>
+                      </div>
+                      <div>
+                        <dt>상품</dt>
+                        <dd>{selectedOrder.productSummary}</dd>
+                      </div>
+                    </dl>
+
+                    <p className="admin-metric-group-title">결제 정보</p>
+                    <dl className="admin-metric-list">
+                      <div>
+                        <dt>결제 상태</dt>
+                        <dd>{selectedOrder.paymentStatus}</dd>
+                      </div>
+                      <div>
+                        <dt>결제일</dt>
+                        <dd>{selectedOrder.paidAt ?? "결제 미완료"}</dd>
+                      </div>
+                    </dl>
+
+                    <p className="admin-metric-group-title">배송 정보</p>
+                    <dl className="admin-metric-list">
+                      <div>
+                        <dt>배송 시작일</dt>
+                        <dd>{selectedOrder.shippedAt ?? "배송 시작 전"}</dd>
+                      </div>
+                      <div>
+                        <dt>배송완료일</dt>
+                        <dd>{selectedOrder.deliveredAt ?? "배송완료 전"}</dd>
+                      </div>
+                    </dl>
+
+                    <p className="admin-metric-group-title">추천 정보</p>
+                    <dl className="admin-metric-list">
+                      <div>
+                        <dt>추천 ID</dt>
+                        <dd>{selectedOrder.recommendationId}</dd>
+                      </div>
+                    </dl>
                   </div>
 
-                  {/* 배송 액션: 서버가 계산한 availableActions 기준으로만 버튼 표시 — 프론트는 직접 계산하지 않는다 */}
-                  {actionError && (
-                    <div className="admin-state-banner danger">
-                      <strong>배송 상태 변경 실패</strong>
-                      <span>{actionError}</span>
-                    </div>
-                  )}
-                  {syncWarning && (
-                    <div className="admin-state-banner warning">
-                      <strong>목록 동기화 필요</strong>
-                      <span>{syncWarning}</span>
-                    </div>
-                  )}
-                  {shipmentActionState === "saved" && (
-                    <div className="admin-state-banner success">
-                      <strong>배송 상태 반영 완료</strong>
-                      <span>서버에 실제로 반영됐고, 새로고침해도 유지됩니다.</span>
-                    </div>
-                  )}
                   {selectedOrder.orderStatusRaw === "CANCEL_REQUESTED" && (
                     <div className="admin-state-banner review">
                       <strong>취소 요청 처리 안내</strong>
@@ -672,6 +681,10 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
                       </span>
                     </div>
                   )}
+                  {/* 배송 액션: 서버가 계산한 availableActions 기준으로만 버튼 표시 — 프론트는 직접 계산하지 않는다.
+                      실패·동기화 경고는 배너·토스트 대신 버튼 옆 짧은 문구로만 안내한다(하단 예외 표에도 기록됨). */}
+                  {actionError && <p className="admin-inline-message danger">{actionError}</p>}
+                  {syncWarning && <p className="admin-inline-message warning">{syncWarning}</p>}
                   <div className="admin-order-action-grid" aria-label="주문 운영 액션">
                     {selectedOrder.availableActions.map((action) => (
                       <button
@@ -710,13 +723,12 @@ export function AdminOrderStatusSection({ active, onOperationLog }: AdminOrderSt
             />
           </aside>
 
-          <section className="admin-panel">
+          <section className="admin-panel admin-order-exception-panel">
             <div className="admin-panel-header compact">
               <div>
                 <p>확인 필요</p>
                 <h2>결제·재고 예외</h2>
               </div>
-              <span className="admin-badge warning">운영 확인</span>
             </div>
             <div className="admin-table-wrap">
               <table className="admin-table compact admin-order-exception-table">
