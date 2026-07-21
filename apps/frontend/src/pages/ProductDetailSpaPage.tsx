@@ -265,6 +265,7 @@ const scrollToDetailTabs = (behavior: ScrollBehavior = "smooth") => {
 const AGENT_PRODUCT_COMPARISON_EVENT = "mwobareullae:show-product-comparison";
 
 type ProductComparisonRequest = {
+  candidateMatchReasons: Record<string, string[]>;
   compareProductIds: string[];
   differences: ProductComparisonDifference[];
   recommendationReason: string;
@@ -310,6 +311,21 @@ const getComparisonAction = (detail: unknown) =>
 
 const getComparisonItems = (detail: unknown) =>
   isRecord(detail) && Array.isArray(detail.items) ? detail.items : [];
+
+const readStringValues = (value: unknown) =>
+  Array.isArray(value)
+    ? value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : [])
+    : [];
+
+const getCandidateMatchReasons = (detail: unknown) => Object.fromEntries(
+  getComparisonItems(detail).flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const productId = readProductId(item);
+    const metadata = isRecord(item.metadata) ? item.metadata : {};
+    const matchReasons = readStringValues(metadata.match_reasons);
+    return productId && matchReasons.length > 0 ? [[productId, matchReasons]] : [];
+  }),
+);
 
 const getAgentMessage = (detail: unknown) =>
   isRecord(detail) ? readString(detail, ["agentMessage", "message", "summary"]) : null;
@@ -431,6 +447,7 @@ const createComparisonRequest = (
     readString(comparison, ["summary", "comparison_summary", "description", "reason"]);
 
   return {
+    candidateMatchReasons: getCandidateMatchReasons(detail),
     compareProductIds,
     differences: readComparisonDifferences(payload, comparison),
     recommendationReason:
@@ -1208,6 +1225,11 @@ function ProductDetailSpaPage() {
 
         {product && comparisonRequest ? (
           <ProductComparisonPanel
+            candidateMatchReasons={comparisonRequest.candidateMatchReasons}
+            comparisonProfile={{
+              expectedEffects: recommendationSummary?.expected_effects ?? [],
+              matchedConcerns: recommendationSummary?.matched_concerns ?? [],
+            }}
             differences={comparisonRequest.differences}
             errorMessage={comparisonErrorMessage}
             expectedProductCount={comparisonRequest.compareProductIds.length + 1}

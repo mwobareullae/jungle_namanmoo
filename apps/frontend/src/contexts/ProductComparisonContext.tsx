@@ -13,6 +13,7 @@ export type ProductComparisonCandidatePreview = {
   evidenceTags: string[];
   keyIngredients: string[];
   lowestPrice: number | null;
+  matchReasons: string[];
   name: string;
   productId: string;
   riskFlags: string[];

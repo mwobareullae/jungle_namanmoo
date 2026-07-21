@@ -1265,6 +1265,7 @@ const createCandidatePreview = (
       ? readStringValues(payload.key_ingredients)
       : readStringValues(metadata.ingredients),
     lowestPrice: readNumber(payload.price) ?? item?.price ?? null,
+    matchReasons: readStringValues(metadata.match_reasons),
     name: readString(payload.name) ?? item?.title ?? "상품 정보 확인 중",
     productId,
     riskFlags: readStringValues(payload.caution_flags).length > 0
