@@ -3,12 +3,11 @@ import { callOriginal } from "./originalRuntime";
 import type { AgentChatResponse } from "../types/agent";
 import type { RecommendationProfile } from "../types/recommendation";
 
-export const buildAgentPendingSearchUrl = (
+export const buildRecommendationSearchUrl = (
   message: string,
   profile: RecommendationProfile,
 ) => {
   const params = new URLSearchParams({
-    agent_pending: "1",
     keyword: message.trim(),
     page_size: "10",
     search_mode: "ai",
@@ -16,6 +15,15 @@ export const buildAgentPendingSearchUrl = (
     skin_type: profile.skin,
   });
   return `/search?${params.toString()}`;
+};
+
+export const buildAgentPendingSearchUrl = (
+  message: string,
+  profile: RecommendationProfile,
+) => {
+  const url = new URL(buildRecommendationSearchUrl(message, profile), window.location.origin);
+  url.searchParams.set("agent_pending", "1");
+  return `${url.pathname}${url.search}`;
 };
 
 export const buildAgentPendingEntryUrl = (

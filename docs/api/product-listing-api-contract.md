@@ -104,14 +104,16 @@ GET /api/categories
 | `group_name` | 화면에 표시할 대분류명이다. URL이나 필터 식별자로 사용하지 않는다. |
 | `product_count` | 목록 노출 기준을 만족하는 상품 수다. |
 
-### Frontend category URL convention
+### Customer frontend category menu URL convention
 
-카테고리 화면은 `/api/categories` 응답을 단일 기준으로 사용하며, 프론트에 표시명-코드 정적 매핑을 두지 않습니다.
+`GET /api/categories`는 유지하지만, 고객 프론트의 카테고리 패널과 목록 화면은 이 응답을 호출하거나 메뉴 기준으로 사용하지 않습니다. 고객 화면의 메뉴 문구·순서·URL·상품 코드 매핑의 단일 기준은 `apps/frontend/src/constants/categoryMenu.ts`입니다.
 
-- 대분류 전체: `/category/{group}` — 예: `/category/skincare`
-- 하위 카테고리: `/category/{group}?subcategory={code}` — 예: `/category/mask_pack?subcategory=mask`
-- URL의 `subcategory` 값은 API 요청 시 `category_code` 필터로 변환한다. 값은 반드시 해당 `group`에 속한 응답 항목이어야 하며, 일치하지 않거나 존재하지 않는 값은 카테고리를 찾을 수 없는 상태로 처리한다.
-- `group`과 `code`는 URL·링크·분석 식별자로 사용되므로, 값 변경이나 삭제가 필요하면 프론트 링크와 관련 분석 설정의 교체·폐기 계획을 함께 수립합니다.
+- 대분류 전체: `/category/{group}` — 예: `/category/skincare`, `/category/focus-care`, `/category/body-hair`
+- 하위 카테고리: `/category/{group}?subcategory={screen-slug}` — 예: `/category/skincare?subcategory=mask-pack`, `/category/focus-care?subcategory=eye-neck-care`
+- 화면 URL의 `group`, `subcategory`는 실제 상품 코드와 다를 수 있습니다. 프론트는 고정 설정으로 이를 하나 이상의 반복 `category_code` 필터로 변환해 `GET /api/products`를 호출합니다. 예를 들어 `mask-pack`은 `mask`, `mask_pack`을 함께 조회합니다.
+- `hair_body`는 메뉴에서 제외하며, 상품 데이터나 API 필터 값은 삭제하지 않습니다.
+- 기존 분류 URL의 리다이렉트·호환 처리는 제공하지 않습니다. 고정 설정과 일치하지 않는 URL은 카테고리를 찾을 수 없는 상태로 처리합니다.
+- 메뉴 URL 값 변경·삭제는 고객 링크와 관련 분석 설정에 영향을 주므로, 프론트 설정과 관련 문서를 함께 갱신합니다.
 
 ## Brand metadata
 
