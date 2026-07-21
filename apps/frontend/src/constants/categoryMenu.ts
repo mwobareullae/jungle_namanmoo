@@ -94,7 +94,7 @@ export const categoryMenu: readonly CategoryMenuGroup[] = [
   },
   {
     slug: "beauty-tools-nail",
-    name: "뷰티소품, 네일",
+    name: "뷰티소품",
     productCodes: ["beauty_tool", "nail"],
     items: [
       { slug: "beauty-tools", name: "뷰티 도구", productCodes: ["beauty_tool"] },
