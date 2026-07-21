@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type ConfirmModalProps = {
   open: boolean;
@@ -7,6 +7,7 @@ type ConfirmModalProps = {
   cancelLabel?: string;
   confirmLabel?: string;
   compact?: boolean;
+  children?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -18,6 +19,7 @@ export default function ConfirmModal({
   cancelLabel = "취소",
   confirmLabel = "확인",
   compact = false,
+  children,
   onCancel,
   onConfirm
 }: ConfirmModalProps) {
@@ -28,6 +30,7 @@ export default function ConfirmModal({
       <div aria-labelledby={title ? "confirm-modal-title" : undefined} style={{ ...styles.modal, ...(compact ? styles.modalCompact : {}) }}>
         {title ? <h2 id="confirm-modal-title" style={styles.title}>{title}</h2> : null}
         <p style={{ ...styles.message, ...(compact ? styles.messageCompact : {}) }}>{message}</p>
+        {children ? <div style={styles.extra}>{children}</div> : null}
         <div style={styles.actions}>
           <button className="bg-white hover:bg-[#FAFAFA]" onClick={onCancel} style={styles.cancelButton} type="button">
             {cancelLabel}
@@ -78,6 +81,11 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     lineHeight: 1.5,
     textAlign: "center"
+  },
+  extra: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "0 28px 28px"
   },
   messageCompact: {
     padding: "28px 24px",

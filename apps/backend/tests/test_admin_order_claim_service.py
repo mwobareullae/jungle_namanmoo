@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
+from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem, Payment
 from app.schemas.common import ApiError
 from app.services.admin.order_claim_service import get_admin_claim, list_admin_claims
 
@@ -45,6 +45,7 @@ def _make_claim(
     completed_at: datetime | None = None,
     item_count: int = 1,
     with_events: bool = True,
+    provider: str | None = "MOCK",
 ) -> OrderClaim:
     global _seq
     _seq += 1
@@ -90,6 +91,19 @@ def _make_claim(
         )
         session.add(order_item)
         order_items.append(order_item)
+    if provider is not None:
+        session.add(
+            Payment(
+                payment_code=f"pay_claimadmin_{_seq}",
+                order_id=order.id,
+                provider=provider,
+                status="APPROVED",
+                amount=10000 * item_count,
+                currency="KRW",
+                created_at=now,
+                updated_at=now,
+            )
+        )
     session.flush()
 
     claim = OrderClaim(
@@ -241,12 +255,31 @@ def test_get_detail_returns_items_and_events(session: Session) -> None:
 
     assert detail.claim_code == claim.claim_code
     assert detail.order_status == "DELIVERED"
+    assert detail.payment_provider == "MOCK"
     assert detail.product_summary == "상품A 외 1개"
     assert len(detail.items) == 2
     assert detail.items[0].resolution == "REFUND"
     assert len(detail.events) == 1
     assert detail.events[0].to_status == "REQUESTED"
     assert detail.events[0].actor_type == "USER"
+
+
+def test_get_detail_returns_toss_payment_provider(session: Session) -> None:
+    claim = _make_claim(session, provider="TOSS")
+    session.commit()
+
+    detail = get_admin_claim(session, claim.claim_code)
+
+    assert detail.payment_provider == "TOSS"
+
+
+def test_get_detail_payment_provider_is_none_when_payment_missing(session: Session) -> None:
+    claim = _make_claim(session, provider=None)
+    session.commit()
+
+    detail = get_admin_claim(session, claim.claim_code)
+
+    assert detail.payment_provider is None
 
 
 def test_get_detail_not_found_raises_404(session: Session) -> None:

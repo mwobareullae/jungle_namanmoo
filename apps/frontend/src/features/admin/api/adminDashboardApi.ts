@@ -17,17 +17,23 @@ export type AdminDashboardStockStatusBreakdown = {
   unknownCount: number;
 };
 
+export type AdminDashboardClaimSummary = {
+  pendingCount: number;
+};
+
 export type AdminDashboardSummary = {
   orderSummary: AdminOrderSummary;
   ingredientReviewSummary: IngredientMappingSummary;
   productStats: AdminDashboardProductStats;
   stockStatusBreakdown: AdminDashboardStockStatusBreakdown;
+  claimSummary: AdminDashboardClaimSummary;
 };
 
 type BackendAdminDashboardSummary = {
   order_summary: {
     pending_payment_count: number;
     preparing_shipment_count: number;
+    shipped_count: number;
     cancel_requested_count: number;
     reserved_quantity_total: number;
   };
@@ -51,6 +57,9 @@ type BackendAdminDashboardSummary = {
     hidden_count: number;
     unknown_count: number;
   };
+  claim_summary: {
+    pending_count: number;
+  };
 };
 
 export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary> => {
@@ -60,6 +69,7 @@ export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary>
     orderSummary: {
       pendingPaymentCount: body.order_summary.pending_payment_count,
       preparingShipmentCount: body.order_summary.preparing_shipment_count,
+      shippedCount: body.order_summary.shipped_count,
       cancelRequestedCount: body.order_summary.cancel_requested_count,
       reservedQuantityTotal: body.order_summary.reserved_quantity_total
     },
@@ -82,6 +92,9 @@ export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary>
       soldOutCount: body.stock_status_breakdown.sold_out_count,
       hiddenCount: body.stock_status_breakdown.hidden_count,
       unknownCount: body.stock_status_breakdown.unknown_count
+    },
+    claimSummary: {
+      pendingCount: body.claim_summary.pending_count
     }
   };
 };

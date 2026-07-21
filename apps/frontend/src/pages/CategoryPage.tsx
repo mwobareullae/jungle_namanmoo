@@ -7,6 +7,7 @@ import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
 import ProductThumbnail from "../components/ProductThumbnail";
 import ActivityToast from "../components/ui/ActivityToast";
 import HeartIcon from "../components/ui/HeartIcon";
+import { resolveCategoryMenuRoute } from "../constants/categoryMenu";
 import { useAuth } from "../contexts/useAuth";
 import { useActivityToast, wishlistToastMessage } from "../hooks/useActivityToast";
 import { addMyWishlistItem, deleteMyWishlistItem, getMyWishlist } from "../lib/activityApi";
@@ -16,9 +17,10 @@ import { navigateWithinApp } from "../lib/navigation";
 import { isProductSoldOut } from "../lib/productAvailability";
 import { useListHistoryRestoration } from "../hooks/useListHistoryRestoration";
 import type { ProductCardItem } from "../types/recommendation";
-import type { CategoryListItem, ProductListingItem } from "../types/product";
+import type { ProductListingItem } from "../types/product";
 
 const PAGE_SIZE = 20;
+const EMPTY_CATEGORY_CODES: readonly string[] = [];
 
 const mapListingItemToCard = (item: ProductListingItem, rank: number): ProductCardItem => ({
   product_id: item.product_id,
@@ -48,25 +50,13 @@ function CategoryPage() {
   const { message: toastMessage, showToast } = useActivityToast();
   const selectedCategoryCode = searchParams.get("subcategory") ?? "";
   const { restoration, restoreListPosition, saveListRestoration } = useListHistoryRestoration();
-  const [categories, setCategories] = useState<CategoryListItem[]>([]);
-  const [isCategoryMetadataLoading, setIsCategoryMetadataLoading] = useState(true);
-  const [categoryMetadataError, setCategoryMetadataError] = useState("");
-  const categoryItems = useMemo(
-    () => categories.filter((category) => category.group === groupCode),
-    [categories, groupCode]
+  const categoryRoute = useMemo(
+    () => resolveCategoryMenuRoute(groupCode, selectedCategoryCode || null),
+    [groupCode, selectedCategoryCode],
   );
-  const categoryCodes = useMemo(
-    () => categoryItems.map((category) => category.code),
-    [categoryItems]
-  );
-  const categoryTitle = categoryItems[0]?.group_name ?? "카테고리";
-  const hasInvalidCategoryCode = Boolean(
-    selectedCategoryCode && !categoryCodes.includes(selectedCategoryCode)
-  );
-  const effectiveCategoryCodes = useMemo(
-    () => selectedCategoryCode && !hasInvalidCategoryCode ? [selectedCategoryCode] : categoryCodes,
-    [categoryCodes, hasInvalidCategoryCode, selectedCategoryCode]
-  );
+  const categoryItems = categoryRoute?.group.items ?? [];
+  const categoryTitle = categoryRoute?.group.name ?? "카테고리";
+  const effectiveCategoryCodes = categoryRoute?.productCodes ?? EMPTY_CATEGORY_CODES;
 
   const [products, setProducts] = useState<ProductCardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,27 +134,6 @@ function CategoryPage() {
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
-
-    void api.getCategories()
-      .then((response) => {
-        if (!isMounted) return;
-        setCategories(response.items);
-        setCategoryMetadataError("");
-      })
-      .catch(() => {
-        if (isMounted) setCategoryMetadataError("카테고리 정보를 불러오지 못했습니다.");
-      })
-      .finally(() => {
-        if (isMounted) setIsCategoryMetadataLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const fetchProductPage = useCallback(async (page: number) => {
     const response = await api.getProductListing({
       page,
@@ -221,20 +190,7 @@ function CategoryPage() {
   }, [fetchProductPage]);
 
   useEffect(() => {
-    if (isCategoryMetadataLoading) return;
-
-    if (categoryMetadataError) {
-      queueMicrotask(() => {
-        setProducts([]);
-        setNextPage(null);
-        setLoadedPageCount(0);
-        setIsLoading(false);
-        setErrorMessage(categoryMetadataError);
-      });
-      return;
-    }
-
-    if (!groupCode || categoryCodes.length === 0 || hasInvalidCategoryCode) {
+    if (!categoryRoute) {
       queueMicrotask(() => {
         setProducts([]);
         setNextPage(null);
@@ -252,7 +208,7 @@ function CategoryPage() {
       setErrorMessage("");
       void loadInitialProducts(restoration?.loadedPageCount ?? 1);
     });
-  }, [categoryCodes, categoryMetadataError, groupCode, hasInvalidCategoryCode, isCategoryMetadataLoading, loadInitialProducts, restoration?.loadedPageCount]);
+  }, [categoryRoute, loadInitialProducts, restoration?.loadedPageCount]);
 
   useEffect(() => {
     if (!restoration || isLoading || loadedPageCount < restoration.loadedPageCount) return;
@@ -284,12 +240,12 @@ function CategoryPage() {
         <p className="new-products-page__description">{categoryTitle} 상품을 확인해 보세요.</p>
         {categoryItems.length > 1 ? (
           <div className="category-page__filters" aria-label={`${categoryTitle} 세부 카테고리`} role="group">
-            {[{ code: "", name: "전체" }, ...categoryItems].map((filter) => (
+            {[{ slug: "", name: "전체" }, ...categoryItems].map((filter) => (
               <button
-                aria-pressed={selectedCategoryCode === filter.code}
-                className={selectedCategoryCode === filter.code ? "is-active" : ""}
-                key={filter.code || "all"}
-                onClick={() => handleCategoryFilterChange(filter.code)}
+                aria-pressed={selectedCategoryCode === filter.slug}
+                className={selectedCategoryCode === filter.slug ? "is-active" : ""}
+                key={filter.slug || "all"}
+                onClick={() => handleCategoryFilterChange(filter.slug)}
                 type="button"
               >
                 {filter.name}

@@ -211,6 +211,7 @@ Request:
 Behavior:
 
 - Requires login.
+- `address2` is optional. When omitted, null, or blank, the saved address has no detail address.
 - If this is the user's first saved address, the backend sets it as default even when `is_default = false`.
 - If `is_default = true`, unset the previous default address.
 
@@ -358,6 +359,7 @@ Request using direct shipping address:
 Behavior:
 
 - Validates ownership of selected cart items.
+- `shipping_address.address2` is optional. When omitted, null, or blank, the order shipping snapshot has no detail address.
 - Revalidates product, seller, price, sales status, and stock.
 - Locks inventory rows for selected products.
 - Increases `inventories.reserved_quantity`.

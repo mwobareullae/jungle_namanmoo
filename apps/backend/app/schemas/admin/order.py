@@ -123,14 +123,24 @@ class AdminOrderListItem(BaseModel):
 class AdminOrderSummary(BaseModel):
     pending_payment_count: int
     preparing_shipment_count: int
+    shipped_count: int
     cancel_requested_count: int
     reserved_quantity_total: int
+
+
+class AdminOrderPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 
 
 class AdminOrderListResponse(BaseModel):
     items: list[AdminOrderListItem]
     summary: AdminOrderSummary
-    next_cursor: str | None
+    pagination: AdminOrderPagination
 
 
 class AdminOrderShipmentActionResponse(BaseModel):

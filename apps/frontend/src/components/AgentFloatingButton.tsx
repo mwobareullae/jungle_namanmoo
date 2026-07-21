@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
@@ -11,6 +11,7 @@ import { getProductImageUrl } from "../lib/imageUrls";
 import { getSensitiveAgentInputMessage } from "../lib/agentInputSafety";
 import { getAgentChatStorageKeys, type AgentChatStorageScope } from "../lib/agentChatStorage";
 import { getOrderDetail } from "../lib/orderApi";
+import { clearAllWishlistCache } from "../lib/activityApi";
 import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
 import {
   useProductComparison,
@@ -52,6 +53,7 @@ type QuickQuestionContext =
   | "productDetail"
   | "productList"
   | "recent"
+  | "searchResults"
   | "skinProfile"
   | "wishlist";
 
@@ -198,6 +200,11 @@ const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
     "최근 본 상품 중 5만원 이하만 보여줘",
     "최근 본 상품을 내 피부 타입 기준으로 추려줘",
   ],
+  searchResults: [
+    "2만원대 상품만 보여줘",
+    "3만원 이하 세럼만 보여줘",
+    "추천 결과 상위 2개 비교해줘",
+  ],
   skinProfile: [
     "내 피부 타입에 맞는 토너, 세럼, 크림을 추천해줘",
     "민감도에 맞는 진정 제품 3개 추천해줘",
@@ -220,6 +227,7 @@ const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
   productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
   productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
   recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
   wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
 };
@@ -240,11 +248,17 @@ const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[
     "민감 피부 진정 제품 추천해줘",
     "피부 프로필 설정 방법 알려줘",
   ],
+  searchResults: [
+    "2만원대 상품만 보여줘",
+    "3만원 이하 세럼만 보여줘",
+    "장바구니 상품과 총금액 보여줘",
+  ],
 };
 
 const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
   home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
   cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
+  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
   skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
 };
 
@@ -1105,7 +1119,17 @@ const normalizeInternalResultUrl = (value: unknown) => {
   }
 };
 
-const buildProductsResultUrl = (action: AgentUiAction) => {
+const overrideSearchResultKeyword = (resultUrl: string, queryOverride?: string) => {
+  const normalizedQuery = queryOverride?.trim();
+  if (!normalizedQuery || typeof window === "undefined") return resultUrl;
+
+  const url = new URL(resultUrl, window.location.origin);
+  if (url.pathname !== "/search") return resultUrl;
+  url.searchParams.set("keyword", normalizedQuery);
+  return `${url.pathname}${url.search}${url.hash}`;
+};
+
+const buildProductsResultUrl = (action: AgentUiAction, queryOverride?: string) => {
   if (action.type !== "show_products") {
     return null;
   }
@@ -1116,7 +1140,7 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
     normalizeInternalResultUrl(action.payload.url) ??
     normalizeInternalResultUrl(action.payload.href);
   if (directUrl) {
-    return directUrl;
+    return overrideSearchResultKeyword(directUrl, queryOverride);
   }
 
   const filters = isRecord(action.payload.filters) ? action.payload.filters : {};
@@ -1146,7 +1170,8 @@ const buildProductsResultUrl = (action: AgentUiAction) => {
   if (recommendationId) params.set("recommendation_id", recommendationId);
   params.set("page_size", String(pageSize));
 
-  return params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
+  const resultUrl = params.size > 1 || recommendationId || keyword ? `/search?${params.toString()}` : null;
+  return resultUrl ? overrideSearchResultKeyword(resultUrl, queryOverride) : null;
 };
 
 const resolveAgentSearchProfile = (
@@ -1240,6 +1265,7 @@ const createCandidatePreview = (
       ? readStringValues(payload.key_ingredients)
       : readStringValues(metadata.ingredients),
     lowestPrice: readNumber(payload.price) ?? item?.price ?? null,
+    matchReasons: readStringValues(metadata.match_reasons),
     name: readString(payload.name) ?? item?.title ?? "상품 정보 확인 중",
     productId,
     riskFlags: readStringValues(payload.caution_flags).length > 0
@@ -1326,13 +1352,7 @@ function createResultMessage(
 
   const title = getResultTitle(action);
   const emptyProducts = action.type === "show_products" && resultItems.length === 0;
-  const rawActionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action);
-  let actionUrl = rawActionUrl;
-  if (rawActionUrl && action.type === "show_products" && queryOverride?.trim()) {
-    const resultUrl = new URL(rawActionUrl, window.location.origin);
-    resultUrl.searchParams.set("keyword", queryOverride.trim());
-    actionUrl = `${resultUrl.pathname}${resultUrl.search}${resultUrl.hash}`;
-  }
+  const actionUrl = action.type === "show_cart" ? "/cart" : buildProductsResultUrl(action, queryOverride);
 
   return {
     id,
@@ -1557,6 +1577,7 @@ const applyAgentUiAction = async (
   message = "",
   currentProductId: string | null,
   openComparison: (intent: ProductComparisonIntent) => void,
+  searchQueryOverride?: string,
 ) => {
   if (
     action.type === "open_modal"
@@ -1634,7 +1655,7 @@ const applyAgentUiAction = async (
     && (action.target === "product_results" || action.target === "refined_products")
     && readPayloadString(action.payload, ["recommendation_id", "recommendationId"])
   ) {
-    const resultUrl = buildProductsResultUrl(action);
+    const resultUrl = buildProductsResultUrl(action, searchQueryOverride);
     if (resultUrl) {
       if (window.location.pathname === "/search") {
         window.history.replaceState(null, "", resultUrl);
@@ -1794,16 +1815,16 @@ function AgentFloatingButton({
     void sendMessage(question);
   };
 
-  const updateTeaserVisibility = () => {
+  const updateTeaserVisibility = useCallback(() => {
     if (isOpen || hasDismissedTeaserRef.current) {
       setIsTeaserVisible(false);
       return;
     }
 
     setIsTeaserVisible(true);
-  };
+  }, [isOpen]);
 
-  const scheduleTeaserVisibilityCheck = () => {
+  const scheduleTeaserVisibilityCheck = useCallback(() => {
     if (typeof window === "undefined" || teaserVisibilityFrameRef.current !== null) {
       return;
     }
@@ -1812,7 +1833,7 @@ function AgentFloatingButton({
       teaserVisibilityFrameRef.current = null;
       updateTeaserVisibility();
     });
-  };
+  }, [updateTeaserVisibility]);
 
   useEffect(() => {
     if (previousSurfaceRef.current !== surface) {
@@ -1860,7 +1881,7 @@ function AgentFloatingButton({
         teaserVisibilityFrameRef.current = null;
       }
     };
-  }, [isOpen, surface]);
+  }, [isOpen, scheduleTeaserVisibilityCheck, surface]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2171,17 +2192,16 @@ function AgentFloatingButton({
         && response.ui_action.target === "product_results"
         && window.location.pathname === "/search"
       ) {
-        const resultUrl = buildProductsResultUrl(response.ui_action);
+        const resultUrl = buildProductsResultUrl(response.ui_action, nextMessage);
         const resultParams = resultUrl
           ? new URL(resultUrl, window.location.origin).searchParams
           : null;
         const recommendationId = resultParams?.get("recommendation_id") ?? undefined;
-        const resultQuery = resultParams?.get("keyword")?.trim() || nextMessage;
 
         window.dispatchEvent(new CustomEvent("home-search-request", {
           detail: {
             profile: resolveAgentSearchProfile(contextProfile, resultParams),
-            query: resultQuery,
+            query: nextMessage,
             recommendationId,
             scope: requestScope,
           },
@@ -2226,12 +2246,23 @@ function AgentFloatingButton({
         await playAgentClickInteraction(cartTarget);
         await navigateWithinApp("/cart");
       } else {
+        const currentSearchQuery = window.location.pathname === "/search"
+          ? new URLSearchParams(window.location.search).get("keyword")?.trim()
+          : undefined;
+        const searchQueryOverride = response.ui_action.type === "show_products"
+          ? response.ui_action.target === "product_results"
+            ? nextMessage
+            : response.ui_action.target === "refined_products"
+              ? currentSearchQuery
+              : undefined
+          : undefined;
         await applyAgentUiAction(
           response.ui_action,
           response.items,
           response.message,
-            buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
+          buildAgentContext(contextProfile, comparisonIntent?.compareProductIds).current_product_id ?? null,
           openComparison,
+          searchQueryOverride,
         );
       }
       return response;
@@ -2355,6 +2386,13 @@ function AgentFloatingButton({
           ...createMessagesFromConfirmResponse(response, timestamp),
         ].slice(-MAX_STORED_AGENT_MESSAGES),
       );
+      const shouldCloseAfterBulkWishlist = action === "confirm"
+        && approvalMessage.toolName === "bulk_wishlist_by_popular_ingredient";
+      if (shouldCloseAfterBulkWishlist) {
+        clearAllWishlistCache();
+        setIsOpen(false);
+        await waitForAgentInteraction(260);
+      }
       await applyAgentUiAction(
         response.ui_action,
         [],

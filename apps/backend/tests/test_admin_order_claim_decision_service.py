@@ -57,6 +57,7 @@ def _make_claim(
     status: str = "REQUESTED",
     claim_type: str = "REFUND",
     with_inventory: bool = True,
+    provider: str = "MOCK",
 ) -> OrderClaim:
     global _seq
     _seq += 1
@@ -115,7 +116,7 @@ def _make_claim(
         Payment(
             payment_code=f"pay_claimdecision_{_seq}",
             order_id=order.id,
-            provider="MOCK",
+            provider=provider,
             status="APPROVED",
             amount=10000,
             currency="KRW",
@@ -407,6 +408,22 @@ def test_complete_refund_claim_creates_refund_and_logs_event(session: Session) -
     assert len(events) == 2
     assert events[1].to_status == "COMPLETED"
     assert events[1].actor_type == "ADMIN"
+
+
+def test_complete_refund_claim_with_toss_payment_succeeds(session: Session) -> None:
+    # TOSS 로 결제된 배송완료 주문도 관리자가 환불/반품 완료 처리를 할 수 있어야 한다 —
+    # 이전에는 MOCK 결제만 허용해 TOSS 주문은 완료 처리 자체가 불가능했다.
+    claim = _make_claim(session, status="IN_PROGRESS", claim_type="REFUND", provider="TOSS")
+    session.commit()
+
+    response = complete_admin_claim(session, claim.claim_code, restock=False)
+    session.commit()
+
+    assert response.status == "COMPLETED"
+    payment = session.execute(select(Payment).where(Payment.order_id == claim.order_id)).scalar_one()
+    assert payment.status == "REFUNDED"
+    refund = session.execute(select(PaymentRefund).where(PaymentRefund.claim_id == claim.id)).scalar_one()
+    assert refund.provider == "TOSS"
 
 
 def test_complete_return_claim_with_restock_updates_inventory(session: Session) -> None:

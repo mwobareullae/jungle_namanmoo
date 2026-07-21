@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import HomeHeader from "../components/HomeHeader";
 import HomeMainContent from "../components/HomeMainContent";
 import HomeOverlays from "../components/HomeOverlays";
@@ -36,8 +37,8 @@ const normalizeOptionalNonNegativeNumber = (value: string | null) => {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : undefined;
 };
 
-const getSearchParams = () => {
-  const params = new URLSearchParams(window.location.search);
+const getSearchParams = (search: string) => {
+  const params = new URLSearchParams(search);
   const skinType = params.get("skin_type");
   const sensitivity = params.get("sensitivity");
   const hasSkinType = skinTypes.includes(skinType as SkinType);
@@ -69,11 +70,12 @@ const getSearchParams = () => {
 };
 
 function SearchPage() {
+  const location = useLocation();
   const { isAuthLoading, user } = useAuth();
   const skinProfileQuery = useSkinProfileQuery(user?.id ?? null, !isAuthLoading && Boolean(user));
   const { keyword, skin, sensitivity, page, pageSize, recommendationId, refinementFilters, searchMode, agentPending } = useMemo(
-    () => getSearchParams(),
-    []
+    () => getSearchParams(location.search),
+    [location.search]
   );
   const [savedProfile, setSavedProfile] = useState<RecommendationProfile | null>(null);
   const [isProfileResolved, setIsProfileResolved] = useState(false);
@@ -119,7 +121,7 @@ function SearchPage() {
       <HomeOverlays />
       <HomeHeader />
       <SearchBarPanel
-        key={`${profile.skin}-${profile.sensitivity}-${profile.avoidIngredients.join("|")}`}
+        key={`${keyword}-${searchMode}-${profile.skin}-${profile.sensitivity}-${profile.avoidIngredients.join("|")}`}
         hasSavedProfile={Boolean(savedProfile)}
         initialProfile={profile}
         initialQuery={keyword}

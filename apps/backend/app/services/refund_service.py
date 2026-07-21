@@ -13,6 +13,7 @@ from app.db.models.commerce import (
     OrderClaimItem,
     OrderItem,
     Payment,
+    PaymentEvent,
     PaymentRefund,
 )
 from app.schemas.common import ApiError
@@ -24,18 +25,27 @@ ORDER_ITEM_TERMINAL_STATUS_BY_CLAIM_TYPE = {
     "EXCHANGE": "EXCHANGED",
 }
 
+PAYMENT_PROVIDER_MOCK = "MOCK"
+PAYMENT_PROVIDER_TOSS = "TOSS"
 
-def process_mock_refund(
+
+def process_claim_refund(
     session: Session,
     claim_code: str,
     *,
     restock: bool,
+    simulate_toss_refund: bool = False,
     now: datetime | None = None,
 ) -> PaymentRefund:
     """REFUND/RETURN 클레임을 완료 처리한다. 잠금 순서는 Order→Payment→Claim→Inventory —
 
     claim_code 로 order_id 만 잠금 없이 먼저 확인한 뒤 Order·Payment 를 잠그고, Claim 은
     그 다음에 잠근다(계약에 명시된 순서와 일치시켜 다른 경로와의 교착을 피한다).
+
+    TOSS 결제는 기본적으로 외부 PG 환불 호출 없이는 처리하지 않는다. payment_cancel_service.
+    cancel_paid_order() 의 simulate_toss_cancel 과 동일하게, simulate_toss_refund=True 를
+    명시했을 때만 내부 상태(결제·재고·클레임)를 MOCK 과 같은 방식으로 정리하고, 외부 PG를
+    호출하지 않았다는 PaymentEvent 를 남긴다.
     """
     processed_at = now or datetime.now(UTC)
     normalized_code = claim_code.strip()
@@ -70,8 +80,9 @@ def process_mock_refund(
     if claim.claim_type != "RETURN" and restock:
         raise ApiError(400, "RESTOCK_NOT_APPLICABLE", "Restock only applies to RETURN claims.")
 
-    if payment.provider != "MOCK":
-        raise ApiError(409, "MOCK_REFUND_PROVIDER_MISMATCH", "Only MOCK payments can use this refund flow.")
+    is_toss_simulation = payment.provider == PAYMENT_PROVIDER_TOSS and simulate_toss_refund
+    if payment.provider != PAYMENT_PROVIDER_MOCK and not is_toss_simulation:
+        raise ApiError(409, "REFUND_PROVIDER_UNSUPPORTED", "This payment provider cannot use this refund flow.")
     if payment.status not in {"APPROVED", "PARTIALLY_REFUNDED"}:
         raise ApiError(409, "PAYMENT_NOT_REFUNDABLE", "Payment is not refundable in its current status.")
     amount = claim.refund_amount or 0
@@ -101,15 +112,38 @@ def process_mock_refund(
         currency=payment.currency,
         reason=claim.reason_code,
         restocked=restock,
-        provider_refund_key=f"mock_refund:{claim.claim_code}",
+        provider_refund_key=f"admin_refund:{claim.claim_code}",
         requested_at=processed_at,
         completed_at=processed_at,
         created_at=processed_at,
         updated_at=processed_at,
     )
     session.add(refund)
+    status_before = payment.status
     payment.status = "REFUNDED" if cumulative_total == payment.amount else "PARTIALLY_REFUNDED"
     payment.updated_at = processed_at
+
+    if is_toss_simulation:
+        session.add(
+            PaymentEvent(
+                payment_id=payment.id,
+                order_id=order.id,
+                event_type="ADMIN_TOSS_REFUND_SIMULATED",
+                event_id=f"admin-toss-refund:{claim.claim_code}",
+                provider=payment.provider,
+                provider_payment_key=payment.provider_payment_key,
+                provider_order_id=payment.provider_order_id,
+                amount=amount,
+                currency=payment.currency,
+                status_before=status_before,
+                status_after=payment.status,
+                raw_payload_json={
+                    "mode": "INTERNAL_SIMULATION",
+                    "external_provider_called": False,
+                },
+                created_at=processed_at,
+            )
+        )
 
     from_status = claim.status
     claim.status = "COMPLETED"

@@ -22,6 +22,7 @@ from app.db.models.commerce import Order, OrderFulfillmentEvent, OrderItem, Paym
 from app.schemas.admin.order import (
     AdminOrderListItem,
     AdminOrderListResponse,
+    AdminOrderPagination,
     AdminOrderShipmentActionResponse,
     AdminOrderSummary,
 )
@@ -78,8 +79,9 @@ PAYMENT_STATUSES = {
 
 PAYMENT_ISSUE_NOT_FOUND = "PAYMENT_NOT_FOUND"
 
-DEFAULT_LIMIT = 20
-MAX_LIMIT = 50
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
 
 
 def list_admin_orders(
@@ -87,13 +89,13 @@ def list_admin_orders(
     *,
     order_status: str | None,
     payment_status: str | None,
-    limit: int,
-    cursor: str | None,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> AdminOrderListResponse:
     normalized_order_status = _normalize_order_status(order_status)
     normalized_payment_status = _normalize_payment_status(payment_status)
-    normalized_limit = _normalize_limit(limit)
-    cursor_order = _load_cursor_order(session, cursor)
+    normalized_page = page if page >= 1 else DEFAULT_PAGE
+    normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
 
     conditions = []
     if normalized_order_status is not None:
@@ -101,24 +103,27 @@ def list_admin_orders(
     if normalized_payment_status is not None:
         # outer join + 이 조건 → 결제 레코드 없는 주문(NULL)은 자연히 제외됨
         conditions.append(Payment.status == normalized_payment_status)
-    if cursor_order is not None:
-        conditions.append(
-            (Order.ordered_at < cursor_order.ordered_at)
-            | ((Order.ordered_at == cursor_order.ordered_at) & (Order.id < cursor_order.id))
-        )
+
+    total_items = session.execute(
+        select(func.count())
+        .select_from(Order)
+        .outerjoin(Payment, Payment.order_id == Order.id)
+        .where(*conditions)
+    ).scalar_one()
+    total_pages = max((total_items + normalized_page_size - 1) // normalized_page_size, 1)
 
     rows = session.execute(
         select(Order, Payment)
         .outerjoin(Payment, Payment.order_id == Order.id)
         .where(*conditions)
         .order_by(Order.ordered_at.desc(), Order.id.desc())
-        .limit(normalized_limit + 1)
+        .limit(normalized_page_size)
+        .offset((normalized_page - 1) * normalized_page_size)
     ).all()
-    visible_rows = list(rows[:normalized_limit])
 
-    order_ids = [int(order.id) for order, _payment in visible_rows]
+    order_ids = [int(order.id) for order, _payment in rows]
     items_by_order = _load_items_by_order(session, order_ids)
-    users_by_id = _load_users_by_id(session, [int(order.user_id) for order, _payment in visible_rows])
+    users_by_id = _load_users_by_id(session, [int(order.user_id) for order, _payment in rows])
 
     items = [
         _to_list_item(
@@ -127,17 +132,19 @@ def list_admin_orders(
             items=items_by_order.get(int(order.id), []),
             user=users_by_id.get(int(order.user_id)),
         )
-        for order, payment in visible_rows
+        for order, payment in rows
     ]
-    next_cursor = (
-        str(visible_rows[-1][0].id)
-        if len(rows) > normalized_limit and visible_rows
-        else None
-    )
     return AdminOrderListResponse(
         items=items,
         summary=get_admin_order_summary(session),
-        next_cursor=next_cursor,
+        pagination=AdminOrderPagination(
+            page=normalized_page,
+            page_size=normalized_page_size,
+            total_items=total_items,
+            total_pages=total_pages,
+            has_next=normalized_page < total_pages,
+            has_prev=normalized_page > 1,
+        ),
     )
 
 
@@ -161,29 +168,6 @@ def _normalize_payment_status(payment_status: str | None) -> str | None:
     if normalized not in PAYMENT_STATUSES:
         raise ApiError(400, "INVALID_PAYMENT_STATUS", "Invalid payment status.")
     return normalized
-
-
-def _normalize_limit(limit: int) -> int:
-    if limit < 1:
-        raise ApiError(400, "INVALID_LIMIT", "limit must be at least 1.")
-    return min(limit, MAX_LIMIT)
-
-
-def _load_cursor_order(session: Session, cursor: str | None) -> Order | None:
-    if cursor is None or not cursor.strip():
-        return None
-    try:
-        cursor_id = int(cursor)
-    except ValueError as exc:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.") from exc
-    if cursor_id <= 0:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
-    order = session.execute(
-        select(Order).where(Order.id == cursor_id)
-    ).scalar_one_or_none()
-    if order is None:
-        raise ApiError(400, "INVALID_CURSOR", "Invalid cursor.")
-    return order
 
 
 def _load_items_by_order(session: Session, order_ids: list[int]) -> dict[int, list[OrderItem]]:
@@ -517,6 +501,7 @@ def get_admin_order_summary(session: Session) -> AdminOrderSummary:
     return AdminOrderSummary(
         pending_payment_count=int(status_counts.get(ORDER_STATUS_PENDING_PAYMENT, 0)),
         preparing_shipment_count=int(status_counts.get(ORDER_STATUS_PREPARING_SHIPMENT, 0)),
+        shipped_count=int(status_counts.get(ORDER_STATUS_SHIPPED, 0)),
         cancel_requested_count=int(status_counts.get(ORDER_STATUS_CANCEL_REQUESTED, 0)),
         reserved_quantity_total=int(reserved_total),
     )

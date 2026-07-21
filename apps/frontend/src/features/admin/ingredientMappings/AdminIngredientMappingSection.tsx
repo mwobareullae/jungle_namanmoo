@@ -150,6 +150,12 @@ export function AdminIngredientMappingSection({
     hold,
     reject,
     reopen,
+    bulkPreview,
+    bulkPreviewLoading,
+    bulkSubmitting,
+    bulkError,
+    loadKciaBulkApprovalPreview,
+    approveKciaBulk,
     canonicalResults,
     canonicalSearching,
     canonicalError,
@@ -168,6 +174,58 @@ export function AdminIngredientMappingSection({
   const [finalDisposition, setFinalDisposition] = useState<IngredientMappingNonMappingFinalDisposition | null>(null);
   const [evidenceSourceUrl, setEvidenceSourceUrl] = useState("");
   const [sourceReference, setSourceReference] = useState("");
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkSelectedKeys, setBulkSelectedKeys] = useState<string[]>([]);
+  const [bulkConfirmation, setBulkConfirmation] = useState("");
+
+  const bulkKey = (pendingCode: string, normalizedSourceName: string) =>
+    `${pendingCode}::${normalizedSourceName}`;
+  const selectedBulkItems =
+    bulkPreview?.items.filter((item) =>
+      bulkSelectedKeys.includes(bulkKey(item.pendingCode, item.normalizedSourceName))
+    ) ?? [];
+  const bulkConfirmationPhrase = `승인 ${selectedBulkItems.length}`;
+
+  const openBulkApproval = async () => {
+    const preview = await loadKciaBulkApprovalPreview();
+    if (preview === null) return;
+    setBulkSelectedKeys(preview.items.map((item) => bulkKey(item.pendingCode, item.normalizedSourceName)));
+    setBulkConfirmation("");
+    setBulkModalOpen(true);
+  };
+
+  const closeBulkApproval = () => {
+    if (bulkSubmitting) return;
+    setBulkModalOpen(false);
+    setBulkConfirmation("");
+  };
+
+  const toggleBulkItem = (pendingCode: string, normalizedSourceName: string) => {
+    const key = bulkKey(pendingCode, normalizedSourceName);
+    setBulkSelectedKeys((previous) =>
+      previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key]
+    );
+  };
+
+  const submitBulkApproval = async () => {
+    if (
+      bulkSubmitting ||
+      selectedBulkItems.length === 0 ||
+      bulkConfirmation.trim() !== bulkConfirmationPhrase
+    ) {
+      return;
+    }
+    const result = await approveKciaBulk(selectedBulkItems);
+    if (result === null) return;
+    onOperationLog(
+      "성분",
+      "KCIA 별칭 후보 일괄 승인",
+      `${result.approvedCount}개 pending 그룹을 승인했습니다. ${result.batchReference}`,
+      "success"
+    );
+    setBulkModalOpen(false);
+    setBulkConfirmation("");
+  };
 
   const openAction = (action: IngredientMappingAction) => {
     clearDecisionError();
@@ -267,12 +325,8 @@ export function AdminIngredientMappingSection({
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
-    onOperationLog(
-      "성분",
-      succeeded ? "성분 매핑 목록 새로고침" : "성분 매핑 목록 새로고침 실패",
-      succeeded ? "검수 대기 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
+    if (succeeded) return;
+    onOperationLog("성분", "성분 매핑 목록 새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
   const summaryCards = summary
@@ -297,6 +351,14 @@ export function AdminIngredientMappingSection({
             <h2>pending 성분을 내부 canonical 성분에 연결</h2>
           </div>
           <div className="admin-filter-row">
+            <button
+              className="admin-secondary-button"
+              disabled={loading || bulkPreviewLoading || bulkSubmitting}
+              onClick={() => void openBulkApproval()}
+              type="button"
+            >
+              {bulkPreviewLoading ? "KCIA 후보 조회 중…" : "KCIA 후보 일괄 승인"}
+            </button>
             <button className="admin-primary-button" disabled={loading} onClick={handleRefresh} type="button">
               새로고침
             </button>
@@ -312,6 +374,12 @@ export function AdminIngredientMappingSection({
           ))}
         </div>
       </section>
+
+      {bulkError && !bulkModalOpen && (
+        <div className="admin-state-banner danger">
+          <span>{bulkError}</span>
+        </div>
+      )}
 
       <section className="admin-panel admin-ingredient-queue">
         <div className="admin-panel-header compact">
@@ -863,6 +931,126 @@ export function AdminIngredientMappingSection({
                 type="button"
               >
                 {decisionSubmitting ? "처리 중…" : `${ACTION_LABELS[activeAction]} 확정`}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {bulkModalOpen && bulkPreview && (
+        <div className="admin-ingredient-modal-overlay">
+          <section
+            aria-describedby="ingredient-mapping-bulk-guide"
+            aria-labelledby="ingredient-mapping-bulk-title"
+            aria-modal="true"
+            className="admin-panel admin-ingredient-modal"
+            role="dialog"
+          >
+            <div className="admin-ingredient-modal-heading">
+              <div>
+                <p className="admin-ingredient-action-kicker approve">KCIA 근거 일괄 승인</p>
+                <h2 id="ingredient-mapping-bulk-title">승인 전 미리보기</h2>
+              </div>
+              <button
+                aria-label="일괄 승인 모달 닫기"
+                className="admin-ingredient-modal-close"
+                disabled={bulkSubmitting}
+                onClick={closeBulkApproval}
+                type="button"
+              >
+                닫기
+              </button>
+            </div>
+
+            <p className="admin-ingredient-action-guide" id="ingredient-mapping-bulk-guide">
+              별칭 출처와 canonical 근거가 모두 KCIA인 정확 일치 후보만 표시합니다. 저장 직전에
+              서버가 다시 검증하며, 하나라도 바뀌면 전체 승인은 저장되지 않습니다.
+            </p>
+            <div className="admin-state-banner neutral">
+              <span>
+                현재 조건 충족 후보 {formatCount(bulkPreview.eligibleCount)}개 중 최대
+                {formatCount(bulkPreview.maximumCount)}개를 표시합니다. 선택: {formatCount(selectedBulkItems.length)}개
+              </span>
+            </div>
+
+            <div className="admin-table-wrap">
+              <table className="admin-table admin-ingredient-table">
+                <thead>
+                  <tr>
+                    <th scope="col">선택</th>
+                    <th scope="col">pending 성분</th>
+                    <th scope="col">연결 canonical</th>
+                    <th scope="col">연결</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkPreview.items.map((item) => {
+                    const key = bulkKey(item.pendingCode, item.normalizedSourceName);
+                    return (
+                      <tr key={key}>
+                        <td>
+                          <input
+                            aria-label={`${item.rawName} 일괄 승인 선택`}
+                            checked={bulkSelectedKeys.includes(key)}
+                            disabled={bulkSubmitting}
+                            onChange={() => toggleBulkItem(item.pendingCode, item.normalizedSourceName)}
+                            type="checkbox"
+                          />
+                        </td>
+                        <td>
+                          <strong className="admin-product-name">{item.rawName}</strong>
+                          <small className="admin-product-code">{item.pendingCode}</small>
+                        </td>
+                        <td>
+                          {item.targetIngredientName}
+                          <small className="admin-product-code">{item.targetIngredientCode}</small>
+                        </td>
+                        <td>{formatCount(item.connectionCount)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {bulkError && (
+              <div className="admin-state-banner danger">
+                <span>{bulkError}</span>
+              </div>
+            )}
+
+            <label className="admin-ingredient-reason">
+              <span className="admin-ingredient-reason-label">
+                확인 문구 <em>필수</em>
+              </span>
+              <input
+                aria-label="일괄 승인 확인 문구"
+                disabled={bulkSubmitting}
+                onChange={(event) => setBulkConfirmation(event.target.value)}
+                placeholder={`"${bulkConfirmationPhrase}" 입력`}
+                type="text"
+                value={bulkConfirmation}
+              />
+              <small className="admin-ingredient-reason-help">
+                정확히 {bulkConfirmationPhrase}을 입력하면 승인할 수 있습니다.
+              </small>
+            </label>
+
+            <div className="admin-ingredient-modal-actions">
+              <button className="admin-secondary-button" disabled={bulkSubmitting} onClick={closeBulkApproval} type="button">
+                취소
+              </button>
+              <button
+                className="admin-ingredient-confirm-button approve"
+                disabled={
+                  bulkSubmitting ||
+                  selectedBulkItems.length === 0 ||
+                  bulkConfirmation.trim() !== bulkConfirmationPhrase
+                }
+                onClick={() => void submitBulkApproval()}
+                type="button"
+              >
+                {bulkSubmitting ? "일괄 승인 중…" : `${selectedBulkItems.length}개 승인 확정`}
               </button>
             </div>
           </section>

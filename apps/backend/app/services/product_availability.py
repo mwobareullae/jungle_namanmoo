@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from sqlalchemy import case, or_
+from sqlalchemy.sql.elements import ColumnElement
+
 
 @dataclass(frozen=True)
 class ProductAvailability:
@@ -46,4 +49,28 @@ def build_product_availability(
         stock_status=stock_status,
         available_quantity=available_quantity,
         in_stock=normalized_sales_status == "ON_SALE" and available_quantity > 0,
+    )
+
+
+def build_stock_status_sql_case(
+    *,
+    inventory_id: ColumnElement,
+    sales_status: ColumnElement,
+    stock_quantity: ColumnElement,
+    reserved_quantity: ColumnElement,
+    safety_stock: ColumnElement,
+) -> ColumnElement:
+    """SQL 집계·필터용 재고 상태 CASE. build_product_availability와 같은 우선순위·기준이다.
+
+    두 곳(Python 값 계산, SQL 집계·필터)이 갈라지지 않도록 이 함수가 유일한 SQL 표현이다.
+    """
+
+    raw_available_quantity = stock_quantity - reserved_quantity - safety_stock
+    available_quantity = case((raw_available_quantity < 0, 0), else_=raw_available_quantity)
+    return case(
+        (inventory_id.is_(None), "UNKNOWN"),
+        (sales_status == "HIDDEN", "HIDDEN"),
+        (or_(sales_status == "SOLD_OUT", available_quantity <= 0), "SOLD_OUT"),
+        (available_quantity <= 5, "LOW_STOCK"),
+        else_="IN_STOCK",
     )

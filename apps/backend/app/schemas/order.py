@@ -1,8 +1,15 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.shipping_address import (
+    normalize_phone,
+    normalize_postal_code,
+    normalize_recipient_name,
+    normalize_optional_address,
+    normalize_required_address,
+)
 
 PaymentProvider = Literal["MOCK", "TOSS", "KAKAO_PAY", "NAVER_PAY"]
 OrderCancelReasonCode = Literal[
@@ -24,6 +31,31 @@ class DirectShippingAddressRequest(BaseModel):
     delivery_memo: str | None = Field(default=None, max_length=255)
     save_to_address_book: bool = False
     set_as_default: bool = False
+
+    @field_validator("recipient_name")
+    @classmethod
+    def validate_recipient_name(cls, value: str) -> str:
+        return normalize_recipient_name(value)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("postal_code")
+    @classmethod
+    def validate_postal_code(cls, value: str) -> str:
+        return normalize_postal_code(value)
+
+    @field_validator("address1")
+    @classmethod
+    def validate_required_address(cls, value: str, info) -> str:
+        return normalize_required_address(value, info.field_name)
+
+    @field_validator("address2")
+    @classmethod
+    def validate_optional_address(cls, value: str | None) -> str | None:
+        return normalize_optional_address(value)
 
 
 class OrderCreateRequest(BaseModel):

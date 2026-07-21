@@ -200,6 +200,20 @@ def _normalize_candidate_type(candidate_type: str | None) -> str | None:
     return normalized
 
 
+def _list_sql_for_candidate_type(candidate_type: str | None):
+    """후보 필터별 목록 SQL을 선택한다.
+
+    별칭 정확 일치는 alias 인덱스부터 타는 전용 SQL을 사용해 전체 pending 그룹에 대한
+    반복 lateral 조회를 피한다.
+    """
+
+    if candidate_type == "ALIAS_EXACT_MATCH":
+        return _LIST_ALIAS_EXACT_MATCH_SQL
+    if candidate_type is not None:
+        return _LIST_CANDIDATE_SQL
+    return _LIST_SQL
+
+
 def _normalize_q(q: str | None) -> str:
     return (q or "").strip()
 
@@ -349,6 +363,78 @@ def _load_page_suggestions(
 
 
 # --- 목록 -----------------------------------------------------------------
+
+# 별칭 정확 일치 필터는 전체 pending 그룹마다 canonical 후보를 lateral 조회하지 않는다.
+# alias 인덱스로 후보를 먼저 좁힌 뒤, 같은 정규화명에 다른 canonical 이 있는지만
+# 확인한다. 다른 canonical 이 있으면 EXACT_MATCH_CONFLICT 이므로 이 목록에서 제외한다.
+_LIST_ALIAS_EXACT_MATCH_SQL = text(
+    """
+    select g.pending_code, g.normalized_source_name as nsn, g.connection_count,
+           g.raw_name,
+           rev.id as review_id, rev.status as review_status,
+           rev.target_ingredient_id, rev.final_disposition, rev.decision_reason,
+           rev.reviewed_by_user_id, rev.reviewed_at,
+           tgt.ingredient_code as target_ingredient_code, tgt.name_ko as target_ingredient_name
+    from ingredient_mapping_pending_groups g
+    join ingredient_aliases a
+      on a.normalized_alias = g.normalized_source_name
+    join ingredients alias_target
+      on alias_target.id = a.ingredient_id
+     and alias_target.is_active = true
+     and alias_target.ingredient_code not like 'ing_pending_%'
+     and alias_target.ingredient_code not like 'foreign_pending_%'
+    left join ingredient_mapping_reviews rev
+           on rev.source_ingredient_id = g.source_ingredient_id
+          and rev.normalized_source_name = g.normalized_source_name
+    left join ingredients tgt on tgt.id = rev.target_ingredient_id
+    where
+        not exists (
+            select 1
+            from ingredients canonical
+            where canonical.normalized_name = g.normalized_source_name
+              and canonical.is_active = true
+              and canonical.ingredient_code not like 'ing_pending_%'
+              and canonical.ingredient_code not like 'foreign_pending_%'
+              and canonical.id <> alias_target.id
+        )
+        and (cast(:status as text) is null
+             or (cast(:status as text) = 'PENDING' and rev.id is null)
+             or (cast(:status as text) <> 'PENDING' and rev.status = cast(:status as text)))
+        and (cast(:final_disposition as text) is null
+             or rev.final_disposition = cast(:final_disposition as text))
+        and (cast(:status as text) is not null
+             or cast(:final_disposition as text) is not null
+             or rev.id is null
+             or rev.status in ('HELD', 'NEEDS_REVIEW'))
+        and (cast(:q as text) = ''
+             or g.pending_code ilike cast(:q_like as text)
+             or g.normalized_source_name ilike cast(:q_like as text)
+             or g.raw_name ilike cast(:q_like as text))
+        and (cast(:cursor_pc as text) is null
+             or (
+                 (:sort = 'CODE_ASC' and (g.pending_code, g.normalized_source_name) > (
+                     cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                 ))
+                 or (
+                     :sort = 'CONNECTION_DESC'
+                     and (
+                         g.connection_count < cast(:cursor_connection_count as integer)
+                         or (
+                             g.connection_count = cast(:cursor_connection_count as integer)
+                             and (g.pending_code, g.normalized_source_name) > (
+                                 cast(:cursor_pc as text), cast(:cursor_nsn as text)
+                             )
+                         )
+                     )
+                 )
+             ))
+    order by
+        case when :sort = 'CONNECTION_DESC' then g.connection_count end desc,
+        g.pending_code asc,
+        g.normalized_source_name asc
+    limit :limit_plus_one
+    """
+)
 
 _LIST_CANDIDATE_SQL = text(
     """
@@ -537,7 +623,7 @@ def list_ingredient_mappings(
         )
 
     q_like = f"%{_escape_like(normalized_q)}%" if normalized_q else ""
-    list_sql = _LIST_CANDIDATE_SQL if normalized_candidate_type is not None else _LIST_SQL
+    list_sql = _list_sql_for_candidate_type(normalized_candidate_type)
     rows = list(
         session.execute(
             list_sql,

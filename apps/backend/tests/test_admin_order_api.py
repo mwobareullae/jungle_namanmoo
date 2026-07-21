@@ -82,12 +82,21 @@ def test_admin_orders_returns_contract_for_admin(client: TestClient, db_engine: 
     response = client.get("/api/admin/orders")
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"items", "summary", "next_cursor"}
+    assert set(body.keys()) == {"items", "summary", "pagination"}
     assert set(body["summary"].keys()) == {
         "pending_payment_count",
         "preparing_shipment_count",
+        "shipped_count",
         "cancel_requested_count",
         "reserved_quantity_total",
+    }
+    assert set(body["pagination"].keys()) == {
+        "page",
+        "page_size",
+        "total_items",
+        "total_pages",
+        "has_next",
+        "has_prev",
     }
     assert body["items"] == []  # 빈 DB
 

@@ -594,6 +594,22 @@ type RefinementChip = {
 
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
 
+const refinementCategoryLabels: Record<string, string> = {
+  ampoule: "앰플",
+  cream: "크림",
+  lotion: "로션",
+  serum: "세럼",
+  toner: "토너",
+};
+
+const getRefinementCategoryLabel = (categoryCode: string) =>
+  refinementCategoryLabels[categoryCode] ?? categoryCode;
+
+const getRefinementChipDisplayLabel = (chip: RefinementChip) => {
+  if (chip.key !== "category_code") return chip.label;
+  return getRefinementCategoryLabel(chip.value ?? chip.label);
+};
+
 const refinementChipsFromFilters = (filters?: RecommendationRefinementFilters | null): RefinementChip[] => {
   if (!filters) return [];
   const chips: RefinementChip[] = [];
@@ -605,7 +621,14 @@ const refinementChipsFromFilters = (filters?: RecommendationRefinementFilters | 
         : `${formatWon(filters.min_price ?? 0)} 이상`;
     chips.push({ id: "price", key: "min_price", label });
   }
-  if (filters.category_code) chips.push({ id: "category", key: "category_code", label: filters.category_code });
+  if (filters.category_code) {
+    chips.push({
+      id: "category",
+      key: "category_code",
+      value: filters.category_code,
+      label: getRefinementCategoryLabel(filters.category_code),
+    });
+  }
   if (filters.skin_type) chips.push({ id: "skin_type", key: "skin_type", label: `피부 ${filters.skin_type}` });
   if (filters.sensitivity) chips.push({ id: "sensitivity", key: "sensitivity", label: `민감도 ${filters.sensitivity}` });
   filters.effect_keywords?.forEach((value, index) => {
@@ -633,6 +656,26 @@ const mergeRefinementFilters = (
   }
   return merged;
 };
+
+const createSearchRequestKey = (
+  query: string,
+  page: number,
+  recommendationId?: string,
+  refinementFilters?: RecommendationRefinementFilters,
+) => JSON.stringify({
+  page,
+  query: query.trim(),
+  recommendationId: recommendationId ?? null,
+  refinementFilters: refinementFilters ? {
+    category_code: refinementFilters.category_code ?? null,
+    effect_keywords: [...(refinementFilters.effect_keywords ?? [])].sort(),
+    max_price: refinementFilters.max_price ?? null,
+    min_price: refinementFilters.min_price ?? null,
+    required_ingredient_names: [...(refinementFilters.required_ingredient_names ?? [])].sort(),
+    sensitivity: refinementFilters.sensitivity ?? null,
+    skin_type: refinementFilters.skin_type ?? null,
+  } : null,
+});
 
 type HomeMainContentProps = {
   deferInitialSearch?: boolean;
@@ -701,6 +744,7 @@ function HomeMainContent({
   );
   const [errorMessage, setErrorMessage] = useState("");
   const activeSearchRequestRef = useRef(0);
+  const activeSearchStateKeyRef = useRef<string | null>(null);
   const pendingSearchQueryRef = useRef<string | null>(null);
   const isGeneralSearch = initialSearchMode === "general";
 
@@ -752,6 +796,12 @@ function HomeMainContent({
     ) => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery) return;
+      activeSearchStateKeyRef.current = createSearchRequestKey(
+        trimmedQuery,
+        page,
+        recommendationId,
+        refinementFilters,
+      );
       const requestId = activeSearchRequestRef.current + 1;
       activeSearchRequestRef.current = requestId;
       pendingSearchQueryRef.current = null;
@@ -1024,10 +1074,19 @@ function HomeMainContent({
   }, [mode]);
 
   useEffect(() => {
+    const initialSearchKey = createSearchRequestKey(
+      initialQuery,
+      initialPage,
+      initialRecommendationId,
+      initialRefinementFilters,
+    );
+    if (activeSearchStateKeyRef.current === initialSearchKey) return;
+
     if (deferInitialSearch && mode === "search" && initialQuery) {
       let isActive = true;
       queueMicrotask(() => {
         if (!isActive) return;
+        activeSearchStateKeyRef.current = initialSearchKey;
         pendingSearchQueryRef.current = initialQuery.trim();
         setQuery(initialQuery);
         setIsLoading(true);
@@ -1270,10 +1329,10 @@ function HomeMainContent({
                       className="api-summary-chip filter removable"
                       key={chip.id}
                       onClick={() => removeRefinementChip(chip)}
-                      title={`${chip.label} 조건 제거`}
+                      title={`${getRefinementChipDisplayLabel(chip)} 조건 제거`}
                       type="button"
                     >
-                      {chip.label} <span aria-hidden="true">×</span>
+                      {getRefinementChipDisplayLabel(chip)} <span aria-hidden="true">×</span>
                     </button>
                   ))}
                 </div>
@@ -1285,10 +1344,10 @@ function HomeMainContent({
                       className="api-summary-chip filter removable"
                       key={chip.id}
                       onClick={() => removeRefinementChip(chip)}
-                      title={`${chip.label} 조건 제거`}
+                      title={`${getRefinementChipDisplayLabel(chip)} 조건 제거`}
                       type="button"
                     >
-                      {chip.label} <span aria-hidden="true">×</span>
+                      {getRefinementChipDisplayLabel(chip)} <span aria-hidden="true">×</span>
                     </button>
                   ))}
                 </div>

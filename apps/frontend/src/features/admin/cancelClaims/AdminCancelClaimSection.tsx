@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import ConfirmModal from "../../../components/ui/ConfirmModal";
+import InfoModal from "../../../components/ui/InfoModal";
 import type { ApiError } from "../../../types/recommendation";
 import {
   AdminCancelRequestAction,
@@ -40,7 +41,6 @@ type CancelClaimTab = "cancelRequests" | "claims";
 
 type AdminCancelClaimSectionProps = {
   active: boolean;
-  onOperationLog: (area: string, title: string, detail: string, tone?: BadgeTone) => void;
 };
 
 const CANCEL_REQUEST_STATUS_TONE: Record<AdminCancelRequestStatus, BadgeTone> = {
@@ -70,11 +70,130 @@ const CLAIM_ACTION_LABELS: Record<AdminClaimAction, string> = {
   COMPLETE: "완료 처리"
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+// 재고/가격 확인·주문 상태 확인과 같은 네이버식 블록 페이지네이션(10개씩 묶어서 이동).
+const PAGE_BLOCK_SIZE = 10;
+
+const getBlockPages = (current: number, total: number): number[] => {
+  const blockIndex = Math.floor((current - 1) / PAGE_BLOCK_SIZE);
+  const start = blockIndex * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, total);
+  const pages: number[] = [];
+  for (let page = start; page <= end; page += 1) pages.push(page);
+  return pages;
+};
+
 function formatCurrency(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
-export function AdminCancelClaimSection({ active, onOperationLog }: AdminCancelClaimSectionProps) {
+function formatCurrentTime() {
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date());
+}
+
+type ClaimCompletionFailureRow = {
+  id: number;
+  time: string;
+  claimCode: string;
+  orderCode: string;
+  claimTypeLabel: string;
+};
+
+// 처음/이전/숫자/다음/맨끝 + 페이지당 개수 — 재고/가격 확인·주문 상태 확인과 같은 페이지네이션 UI.
+function PaginationRow({
+  page,
+  totalPages,
+  disabled,
+  onGoToPage
+}: {
+  page: number;
+  totalPages: number;
+  disabled: boolean;
+  onGoToPage: (page: number) => void;
+}) {
+  const blockPages = getBlockPages(page, totalPages);
+  const blockStart = blockPages[0] ?? 1;
+  const blockEnd = blockPages[blockPages.length - 1] ?? 1;
+  const hasPrevBlock = blockStart > 1;
+  const hasNextBlock = blockEnd < totalPages;
+
+  return (
+    <div className="admin-pagination-row">
+      <div className="admin-pagination">
+        <button className="admin-pagination-jump" disabled={page <= 1 || disabled} onClick={() => onGoToPage(1)} type="button">
+          처음
+        </button>
+        <button
+          className="admin-pagination-jump"
+          disabled={!hasPrevBlock || disabled}
+          onClick={() => onGoToPage(blockStart - 1)}
+          type="button"
+        >
+          이전
+        </button>
+        {blockPages.map((entry) => (
+          <button
+            className={`admin-pagination-page${entry === page ? " active" : ""}`}
+            disabled={disabled}
+            key={entry}
+            onClick={() => onGoToPage(entry)}
+            type="button"
+          >
+            {entry}
+          </button>
+        ))}
+        <button
+          className="admin-pagination-jump"
+          disabled={!hasNextBlock || disabled}
+          onClick={() => onGoToPage(blockEnd + 1)}
+          type="button"
+        >
+          다음
+        </button>
+        <button
+          className="admin-pagination-jump"
+          disabled={page >= totalPages || disabled}
+          onClick={() => onGoToPage(totalPages)}
+          type="button"
+        >
+          맨끝
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PageSizeSelect({
+  id,
+  value,
+  onChange
+}: {
+  id: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="admin-list-toolbar">
+      <div className="admin-page-size">
+        <label htmlFor={id}>페이지당</label>
+        <select id={id} onChange={(event) => onChange(Number(event.target.value))} value={value}>
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size}개
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+export function AdminCancelClaimSection({ active }: AdminCancelClaimSectionProps) {
   const [tab, setTab] = useState<CancelClaimTab>("cancelRequests");
 
   return (
@@ -83,18 +202,18 @@ export function AdminCancelClaimSection({ active, onOperationLog }: AdminCancelC
         <div className="admin-panel-header admin-product-header">
           <div>
             <p>취소·클레임 관리</p>
-            <h2>취소 요청과 반품·교환·환불 클레임을 조회하고 처리</h2>
+            <h2>취소·반품·교환·환불 처리 현황</h2>
           </div>
           <div className="admin-filter-row">
             <button
-              className={tab === "cancelRequests" ? "admin-primary-button" : "admin-secondary-button"}
+              className={tab === "cancelRequests" ? "admin-primary-button" : "admin-secondary-button admin-light-button"}
               onClick={() => setTab("cancelRequests")}
               type="button"
             >
               취소 요청
             </button>
             <button
-              className={tab === "claims" ? "admin-primary-button" : "admin-secondary-button"}
+              className={tab === "claims" ? "admin-primary-button" : "admin-secondary-button admin-light-button"}
               onClick={() => setTab("claims")}
               type="button"
             >
@@ -103,36 +222,26 @@ export function AdminCancelClaimSection({ active, onOperationLog }: AdminCancelC
           </div>
         </div>
       </section>
-      {tab === "cancelRequests" ? (
-        <CancelRequestsTab active={active} onOperationLog={onOperationLog} />
-      ) : (
-        <ClaimsTab active={active} onOperationLog={onOperationLog} />
-      )}
+      {tab === "cancelRequests" ? <CancelRequestsTab active={active} /> : <ClaimsTab active={active} />}
     </section>
   );
 }
 
-function CancelRequestsTab({
-  active,
-  onOperationLog
-}: {
-  active: boolean;
-  onOperationLog: AdminCancelClaimSectionProps["onOperationLog"];
-}) {
+function CancelRequestsTab({ active }: { active: boolean }) {
   const {
     items,
-    hasMore,
+    pagination,
     loading,
-    loadingMore,
     error,
+    page,
+    pageSize,
     statusFilter,
     setStatusFilter,
+    setPageSize,
     resetFilters,
     refresh,
-    loadMore,
+    goToPage,
     actionRequestCode,
-    actionError,
-    syncWarning,
     runCancelRequestAction,
     clearActionError
   } = useAdminCancelRequests({ enabled: active });
@@ -150,6 +259,7 @@ function CancelRequestsTab({
   } | null>(null);
 
   const selectedRow = items.find((item) => item.requestCode === selectedRequestCode) ?? null;
+  const totalPages = pagination?.totalPages ?? 1;
 
   const loadDetail = useCallback(async (requestCode: string) => {
     const requestId = ++detailRequestIdRef.current;
@@ -177,40 +287,14 @@ function CancelRequestsTab({
     void loadDetail(requestCode);
   };
 
-  // 목록이 갱신될 때마다(최초 조회·필터 변경·새로고침) 현재 선택된 행의 상세도 함께 재조회한다.
-  // 선택 코드가 새 목록에 없으면(필터링으로 사라짐 포함) 첫 행으로 다시 맞추고, 있으면 같은 코드로
-  // 그대로 재조회한다 — 그렇지 않으면 새로고침으로 목록의 상태는 바뀌었는데 상세 패널은 이전 값을
-  // 계속 보여주는 불일치가 생긴다.
-  useEffect(() => {
-    void Promise.resolve().then(() => {
-      if (items.length === 0) {
-        if (selectedRequestCode !== null) {
-          detailRequestIdRef.current += 1;
-          setSelectedRequestCode(null);
-          setDetail(null);
-          setDetailError(null);
-        }
-        return;
-      }
-      const stillPresent = items.some((item) => item.requestCode === selectedRequestCode);
-      const targetCode = stillPresent ? (selectedRequestCode as string) : items[0].requestCode;
-      if (!stillPresent) {
-        setSelectedRequestCode(targetCode);
-      }
-      void loadDetail(targetCode);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
+  // 직접 선택하기 전까지는 아무 요청도 자동으로 보여주지 않는다(재고/가격 확인·주문 상태
+  // 확인과 동일한 원칙). 이미 선택한 요청이 있는데 새로고침·필터 변경으로 목록에서 사라지면,
+  // 다른 행으로 조용히 바꿔치기하지 않고 "선택한 요청을 찾을 수 없음"으로 안내한다.
+  const selectedRequestMissing = selectedRequestCode !== null && selectedRow === null && items.length > 0;
 
   const handleRefresh = async () => {
     const succeeded = await refresh();
     if (succeeded) clearActionError();
-    onOperationLog(
-      "취소 요청",
-      succeeded ? "목록 새로고침" : "새로고침 실패",
-      succeeded ? "취소 요청 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
   };
 
   // 승인·거절 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
@@ -229,26 +313,12 @@ function CancelRequestsTab({
 
   const executeAction = async () => {
     if (!pendingAction || actionRequestCode !== null) return;
-    const { action, requestCode, orderCode, rejectionReason } = pendingAction;
+    const { action, requestCode, rejectionReason } = pendingAction;
     const succeeded = await runCancelRequestAction(requestCode, action, rejectionReason);
     setPendingAction(null);
-    if (!succeeded) {
-      onOperationLog(
-        "취소 요청",
-        action === "APPROVE" ? "승인 실패" : "거절 실패",
-        "잠시 후 다시 시도해 주세요.",
-        "danger"
-      );
-      return;
-    }
+    if (!succeeded) return;
     if (action === "REJECT") setRejectReason("");
     if (selectedRequestCode === requestCode) void loadDetail(requestCode);
-    onOperationLog(
-      "취소 요청",
-      action === "APPROVE" ? "취소 승인" : "취소 거절",
-      orderCode,
-      action === "APPROVE" ? "success" : "danger"
-    );
   };
 
   const actionInProgress = actionRequestCode !== null;
@@ -277,11 +347,16 @@ function CancelRequestsTab({
                 </option>
               ))}
             </select>
-            <button className="admin-secondary-button" disabled={actionInProgress} onClick={resetFilters} type="button">
+            <button
+              className="admin-secondary-button admin-light-button"
+              disabled={actionInProgress}
+              onClick={resetFilters}
+              type="button"
+            >
               초기화
             </button>
             <button
-              className="admin-primary-button"
+              className="admin-secondary-button admin-light-button"
               disabled={loading || actionInProgress}
               onClick={handleRefresh}
               type="button"
@@ -296,8 +371,9 @@ function CancelRequestsTab({
             <span>{error}</span>
           </div>
         )}
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-order-table">
+        <PageSizeSelect id="admin-cancel-request-page-size" onChange={setPageSize} value={pageSize} />
+        <div className="admin-table-wrap admin-order-table-scroll">
+          <table className="admin-table admin-cancelrequest-table">
             <thead>
               <tr>
                 <th scope="col">요청번호</th>
@@ -315,8 +391,12 @@ function CancelRequestsTab({
                   key={row.requestCode}
                   onClick={() => selectRow(row.requestCode)}
                 >
-                  <td className="admin-file-name">{row.requestCode}</td>
-                  <td>{row.orderCode}</td>
+                  <td className="admin-file-name" title={row.requestCode}>
+                    {row.requestCode}
+                  </td>
+                  <td className="admin-file-name" title={row.orderCode}>
+                    {row.orderCode}
+                  </td>
                   <td>{row.customerDisplay}</td>
                   <td>
                     <span className={`admin-badge ${CANCEL_REQUEST_STATUS_TONE[row.status]}`}>{row.statusLabel}</span>
@@ -346,23 +426,14 @@ function CancelRequestsTab({
             </tbody>
           </table>
         </div>
-        {hasMore && (
-          <button
-            className="admin-secondary-button"
-            disabled={loadingMore || actionInProgress}
-            onClick={loadMore}
-            type="button"
-          >
-            {loadingMore ? "불러오는 중..." : "더 보기"}
-          </button>
-        )}
+        <PaginationRow disabled={actionInProgress || loading} onGoToPage={goToPage} page={page} totalPages={totalPages} />
       </section>
 
       <aside className="admin-panel admin-order-detail">
         <div className="admin-panel-header compact">
           <div>
             <p>선택 취소 요청</p>
-            <h2>{selectedRow ? selectedRow.requestCode : "선택된 요청 없음"}</h2>
+            <h2>{selectedRow ? selectedRow.requestCode : "상세 정보"}</h2>
           </div>
           {selectedRow && (
             <span className={`admin-badge ${CANCEL_REQUEST_STATUS_TONE[selectedRow.status]}`}>
@@ -370,161 +441,234 @@ function CancelRequestsTab({
             </span>
           )}
         </div>
-        {!selectedRow ? (
-          <div className="admin-state-banner neutral">
-            <strong>선택된 요청 없음</strong>
-            <span>표에서 취소 요청을 선택하면 상세 정보가 표시됩니다.</span>
-          </div>
-        ) : detailLoading ? (
-          <div className="admin-state-banner neutral">
-            <strong>상세 정보를 불러오는 중입니다</strong>
-          </div>
-        ) : detailError ? (
-          <div className="admin-state-banner danger">
-            <strong>상세 정보를 불러오지 못했습니다</strong>
-            <span>{detailError}</span>
-          </div>
-        ) : detail ? (
-          <dl className="admin-metric-list">
-            <div>
-              <dt>주문번호</dt>
-              <dd>{detail.orderCode}</dd>
+        <div className="admin-order-detail-scroll">
+          {selectedRequestMissing && (
+            <div className="admin-state-banner neutral">
+              <strong>선택한 요청을 찾을 수 없음</strong>
+              <span>목록이 갱신되며 선택했던 요청이 현재 페이지에 보이지 않습니다. 표에서 다시 선택해 주세요.</span>
             </div>
-            <div>
-              <dt>고객</dt>
-              <dd>{detail.customerDisplay}</dd>
+          )}
+          {!selectedRow ? (
+            <div className="admin-detail-body">
+              <p className="admin-metric-group-title">기본 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>주문번호</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>고객</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>주문 상태</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">결제 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>결제 상태</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>결제 수단</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>금액</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">상품 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>상품</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">취소 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>취소 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>고객 상세 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>관리자 처리 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>신청일시</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>처리일시</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>가능한 액션</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt>주문 상태</dt>
-              <dd>{detail.orderStatus}</dd>
+          ) : detailLoading ? (
+            <div className="admin-state-banner neutral">
+              <strong>상세 정보를 불러오는 중입니다</strong>
             </div>
-            <div>
-              <dt>결제 상태</dt>
-              <dd>{detail.paymentStatus ?? "결제정보 없음"}</dd>
+          ) : detailError ? (
+            <div className="admin-state-banner danger">
+              <strong>상세 정보를 불러오지 못했습니다</strong>
+              <span>{detailError}</span>
             </div>
-            <div>
-              <dt>결제 수단</dt>
-              <dd>{detail.paymentProvider ?? "-"}</dd>
-            </div>
-            <div>
-              <dt>상품</dt>
-              <dd>{detail.productSummary}</dd>
-            </div>
-            <div>
-              <dt>금액</dt>
-              <dd>{formatCurrency(detail.totalAmount)}</dd>
-            </div>
-            <div>
-              <dt>취소 사유</dt>
-              <dd>{detail.reasonCode ?? "-"}</dd>
-            </div>
-            <div>
-              <dt>고객 상세 사유</dt>
-              <dd>{detail.reasonDetail ?? "-"}</dd>
-            </div>
-            <div>
-              <dt>관리자 처리 사유</dt>
-              <dd>{detail.decisionReason ?? "-"}</dd>
-            </div>
-            <div>
-              <dt>신청일시</dt>
-              <dd>{detail.requestedAt}</dd>
-            </div>
-            <div>
-              <dt>처리일시</dt>
-              <dd>{detail.processedAt ?? "미처리"}</dd>
-            </div>
-            <div>
-              <dt>가능한 액션</dt>
-              <dd>
-                {detail.availableActions.length === 0
-                  ? "없음"
-                  : detail.availableActions.map((action) => CANCEL_ACTION_LABELS[action]).join(", ")}
-              </dd>
-            </div>
-          </dl>
-        ) : null}
-        {actionError && (
-          <div className="admin-state-banner danger">
-            <strong>처리 실패</strong>
-            <span>{actionError}</span>
-          </div>
-        )}
-        {syncWarning && (
-          <div className="admin-state-banner warning">
-            <strong>목록 동기화 필요</strong>
-            <span>{syncWarning}</span>
-          </div>
-        )}
-        {/* 승인·거절 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
-        {detail && detail.availableActions.length > 0 && (
-          <div className="admin-order-action-grid" aria-label="취소 요청 운영 액션">
-            {detail.availableActions.includes("REJECT") && (
-              <textarea
-                aria-label="거절 사유"
-                className="admin-cancel-rejection-reason"
-                disabled={actionInProgress}
-                onChange={(event) => setRejectReason(event.target.value)}
-                placeholder="거절 사유를 입력하세요 (필수)"
-                rows={2}
-                value={rejectReason}
-              />
-            )}
-            {detail.availableActions.includes("APPROVE") && (
-              <button
-                className="admin-primary-button"
-                disabled={actionInProgress}
-                onClick={() => handleActionButtonClick("APPROVE", detail.requestCode, detail.orderCode)}
-                type="button"
-              >
-                {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "승인"}
-              </button>
-            )}
-            {detail.availableActions.includes("REJECT") && (
-              <button
-                className="admin-secondary-button"
-                disabled={actionInProgress || rejectReason.trim().length === 0}
-                onClick={() => handleActionButtonClick("REJECT", detail.requestCode, detail.orderCode)}
-                type="button"
-              >
-                {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "거절"}
-              </button>
-            )}
-          </div>
-        )}
+          ) : detail ? (
+            <>
+              <div className="admin-detail-body">
+                <p className="admin-metric-group-title">기본 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>주문번호</dt>
+                    <dd>{detail.orderCode}</dd>
+                  </div>
+                  <div>
+                    <dt>고객</dt>
+                    <dd>{detail.customerDisplay}</dd>
+                  </div>
+                  <div>
+                    <dt>주문 상태</dt>
+                    <dd>{detail.orderStatus}</dd>
+                  </div>
+                </dl>
+
+                <p className="admin-metric-group-title">결제 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>결제 상태</dt>
+                    <dd>{detail.paymentStatus ?? "결제정보 없음"}</dd>
+                  </div>
+                  <div>
+                    <dt>결제 수단</dt>
+                    <dd>{detail.paymentProvider ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>금액</dt>
+                    <dd>{formatCurrency(detail.totalAmount)}</dd>
+                  </div>
+                </dl>
+
+                <p className="admin-metric-group-title">상품 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>상품</dt>
+                    <dd>{detail.productSummary}</dd>
+                  </div>
+                </dl>
+
+                <p className="admin-metric-group-title">취소 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>취소 사유</dt>
+                    <dd>{detail.reasonCode ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>고객 상세 사유</dt>
+                    <dd>{detail.reasonDetail ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>관리자 처리 사유</dt>
+                    <dd>{detail.decisionReason ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>신청일시</dt>
+                    <dd>{detail.requestedAt}</dd>
+                  </div>
+                  <div>
+                    <dt>처리일시</dt>
+                    <dd>{detail.processedAt ?? "미처리"}</dd>
+                  </div>
+                  <div>
+                    <dt>가능한 액션</dt>
+                    <dd>
+                      {detail.availableActions.length === 0
+                        ? "없음"
+                        : detail.availableActions.map((action) => CANCEL_ACTION_LABELS[action]).join(", ")}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              {/* 승인·거절 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
+              {detail.availableActions.length > 0 && (
+                <div className="admin-order-action-grid" aria-label="취소 요청 운영 액션">
+                  {detail.availableActions.includes("REJECT") && (
+                    <textarea
+                      aria-label="거절 사유"
+                      className="admin-cancel-rejection-reason"
+                      disabled={actionInProgress}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      placeholder="거절 사유를 입력하세요 (필수)"
+                      rows={2}
+                      value={rejectReason}
+                    />
+                  )}
+                  {detail.availableActions.includes("APPROVE") && (
+                    <button
+                      className="admin-primary-button"
+                      disabled={actionInProgress}
+                      onClick={() => handleActionButtonClick("APPROVE", detail.requestCode, detail.orderCode)}
+                      type="button"
+                    >
+                      {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "승인"}
+                    </button>
+                  )}
+                  {detail.availableActions.includes("REJECT") && (
+                    <button
+                      className="admin-secondary-button"
+                      disabled={actionInProgress || rejectReason.trim().length === 0}
+                      onClick={() => handleActionButtonClick("REJECT", detail.requestCode, detail.orderCode)}
+                      type="button"
+                    >
+                      {actionInProgress && actionRequestCode === detail.requestCode ? "처리 중..." : "거절"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+        <ConfirmModal
+          cancelLabel="취소"
+          confirmLabel={actionInProgress ? "처리 중..." : "확인"}
+          message={
+            pendingAction
+              ? pendingAction.action === "APPROVE"
+                ? `${pendingAction.orderCode} 취소 요청을 승인할까요? 승인하면 주문이 취소되고 결제가 취소 처리되며, 되돌릴 수 없습니다.`
+                : `${pendingAction.orderCode} 취소 요청을 거절할까요? 주문은 결제완료 상태로 복구되며, 되돌릴 수 없습니다.`
+              : ""
+          }
+          onCancel={() => {
+            if (actionInProgress) return;
+            setPendingAction(null);
+          }}
+          onConfirm={() => void executeAction()}
+          open={pendingAction !== null}
+          title="취소 요청 처리 확인"
+        />
       </aside>
-      <ConfirmModal
-        cancelLabel="취소"
-        confirmLabel={actionInProgress ? "처리 중..." : "확인"}
-        message={
-          pendingAction
-            ? pendingAction.action === "APPROVE"
-              ? `${pendingAction.orderCode} 취소 요청을 승인할까요? 승인하면 주문이 취소되고 결제가 취소 처리되며, 되돌릴 수 없습니다.`
-              : `${pendingAction.orderCode} 취소 요청을 거절할까요? 주문은 결제완료 상태로 복구되며, 되돌릴 수 없습니다.`
-            : ""
-        }
-        onCancel={() => {
-          if (actionInProgress) return;
-          setPendingAction(null);
-        }}
-        onConfirm={() => void executeAction()}
-        open={pendingAction !== null}
-        title="취소 요청 처리 확인"
-      />
     </>
   );
 }
 
-function ClaimsTab({
-  active,
-  onOperationLog
-}: {
-  active: boolean;
-  onOperationLog: AdminCancelClaimSectionProps["onOperationLog"];
-}) {
+function ClaimsTab({ active }: { active: boolean }) {
   const {
     items,
     page,
+    pageSize,
     totalPages,
     totalCount,
     loading,
@@ -533,12 +677,11 @@ function ClaimsTab({
     claimTypeFilter,
     setStatusFilter,
     setClaimTypeFilter,
+    setPageSize,
     resetFilters,
     refresh,
     goToPage,
     actionClaimCode,
-    actionError,
-    syncWarning,
     runClaimAction,
     clearActionError
   } = useAdminClaims({ enabled: active });
@@ -555,10 +698,16 @@ function ClaimsTab({
     orderCode: string;
     claimType: AdminClaimType;
     rejectionReason?: string;
-    restock?: boolean;
   } | null>(null);
+  const [completionFailures, setCompletionFailures] = useState<ClaimCompletionFailureRow[]>([]);
+  const nextCompletionFailureIdRef = useRef(0);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   const selectedRow = items.find((item) => item.claimCode === selectedClaimCode) ?? null;
+  const selectedClaimMissing = selectedClaimCode !== null && selectedRow === null && items.length > 0;
+  // 관리자 처리 사유는 별도 필드로 저장되지 않고 거절(REJECTED) 전이 이벤트에만 실려 온다 —
+  // 승인·처리시작·완료는 사유를 남기지 않으므로(reject_admin_claim 만 reason 필수) 여기서 찾는다.
+  const decisionReason = detail?.events.find((event) => event.toStatus === "REJECTED")?.reason ?? null;
 
   const loadDetail = useCallback(async (claimCode: string) => {
     const requestId = ++detailRequestIdRef.current;
@@ -583,43 +732,14 @@ function ClaimsTab({
     setSelectedClaimCode(claimCode);
     setRejectReason("");
     setRestockOnComplete(false);
+    setHistoryModalOpen(false);
     clearActionError();
     void loadDetail(claimCode);
   };
 
-  // 목록이 갱신될 때마다(최초 조회·필터 변경·새로고침) 현재 선택된 클레임의 상세도 함께 재조회한다.
-  // 선택 코드가 새 목록에 없으면 첫 행으로 다시 맞추고, 있으면 같은 코드로 그대로 재조회한다 —
-  // 그렇지 않으면 새로고침으로 목록의 상태는 바뀌었는데 상세 패널은 이전 값을 계속 보여주게 된다.
-  useEffect(() => {
-    void Promise.resolve().then(() => {
-      if (items.length === 0) {
-        if (selectedClaimCode !== null) {
-          detailRequestIdRef.current += 1;
-          setSelectedClaimCode(null);
-          setDetail(null);
-          setDetailError(null);
-        }
-        return;
-      }
-      const stillPresent = items.some((item) => item.claimCode === selectedClaimCode);
-      const targetCode = stillPresent ? (selectedClaimCode as string) : items[0].claimCode;
-      if (!stillPresent) {
-        setSelectedClaimCode(targetCode);
-      }
-      void loadDetail(targetCode);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
   const handleRefresh = async () => {
     const succeeded = await refresh();
     if (succeeded) clearActionError();
-    onOperationLog(
-      "클레임",
-      succeeded ? "목록 새로고침" : "새로고침 실패",
-      succeeded ? "클레임 목록을 다시 불러왔습니다." : "잠시 후 다시 시도해 주세요.",
-      succeeded ? "success" : "danger"
-    );
   };
 
   // 승인·거절·처리시작·완료 버튼 클릭: 바로 실행하지 않고 ConfirmModal 로 먼저 확인받는다.
@@ -633,34 +753,44 @@ function ClaimsTab({
   ) => {
     if (actionClaimCode !== null) return;
     clearActionError();
+    // 재고 복구 여부는 체크박스를 버튼 밖에 미리 놓지 않고, 확인 모달 안에서 그때그때
+    // 고르게 한다 — 그래서 클릭 시점엔 초기화만 하고, 실제 값은 executeAction 에서 읽는다.
+    if (action === "COMPLETE") setRestockOnComplete(false);
     setPendingAction({
       action,
       claimCode,
       orderCode,
       claimType,
-      rejectionReason: action === "REJECT" ? rejectReason.trim() : undefined,
-      restock: action === "COMPLETE" ? (claimType === "RETURN" ? restockOnComplete : false) : undefined
+      rejectionReason: action === "REJECT" ? rejectReason.trim() : undefined
     });
   };
 
   const executeAction = async () => {
     if (!pendingAction || actionClaimCode !== null) return;
-    const { action, claimCode, orderCode, rejectionReason, restock } = pendingAction;
-    const succeeded = await runClaimAction(claimCode, action, { rejectionReason, restock: restock ?? false });
+    const { action, claimCode, orderCode, claimType, rejectionReason } = pendingAction;
+    const restock = action === "COMPLETE" && claimType !== "EXCHANGE" ? restockOnComplete : false;
+    const succeeded = await runClaimAction(claimCode, action, { rejectionReason, restock });
     setPendingAction(null);
     if (!succeeded) {
-      onOperationLog("클레임", `${CLAIM_ACTION_LABELS[action]} 실패`, "잠시 후 다시 시도해 주세요.", "danger");
+      // 완료 처리(반품/교환/환불 확정) 실패는 환불 실행·재고 복구가 걸린 마지막 단계라 배너·토스트
+      // 대신 재고 이력처럼 누적되는 별도 위젯에 남겨 나중에도 놓치지 않게 한다.
+      if (action === "COMPLETE") {
+        setCompletionFailures((current) => [
+          {
+            id: ++nextCompletionFailureIdRef.current,
+            time: formatCurrentTime(),
+            claimCode,
+            orderCode,
+            claimTypeLabel: CLAIM_TYPE_LABELS[claimType]
+          },
+          ...current
+        ]);
+      }
       return;
     }
     if (action === "REJECT") setRejectReason("");
     if (action === "COMPLETE") setRestockOnComplete(false);
     if (selectedClaimCode === claimCode) void loadDetail(claimCode);
-    onOperationLog(
-      "클레임",
-      CLAIM_ACTION_LABELS[action],
-      orderCode,
-      action === "REJECT" ? "danger" : "success"
-    );
   };
 
   const actionInProgress = actionClaimCode !== null;
@@ -704,11 +834,16 @@ function ClaimsTab({
                 </option>
               ))}
             </select>
-            <button className="admin-secondary-button" disabled={actionInProgress} onClick={resetFilters} type="button">
+            <button
+              className="admin-secondary-button admin-light-button"
+              disabled={actionInProgress}
+              onClick={resetFilters}
+              type="button"
+            >
               초기화
             </button>
             <button
-              className="admin-primary-button"
+              className="admin-secondary-button admin-light-button"
               disabled={loading || actionInProgress}
               onClick={handleRefresh}
               type="button"
@@ -723,8 +858,9 @@ function ClaimsTab({
             <span>{error}</span>
           </div>
         )}
-        <div className="admin-table-wrap">
-          <table className="admin-table admin-order-table">
+        <PageSizeSelect id="admin-claim-page-size" onChange={setPageSize} value={pageSize} />
+        <div className="admin-table-wrap admin-order-table-scroll">
+          <table className="admin-table admin-claim-table">
             <thead>
               <tr>
                 <th scope="col">클레임번호</th>
@@ -743,8 +879,12 @@ function ClaimsTab({
                   key={row.claimCode}
                   onClick={() => selectRow(row.claimCode)}
                 >
-                  <td className="admin-file-name">{row.claimCode}</td>
-                  <td>{row.orderCode}</td>
+                  <td className="admin-file-name" title={row.claimCode}>
+                    {row.claimCode}
+                  </td>
+                  <td className="admin-file-name" title={row.orderCode}>
+                    {row.orderCode}
+                  </td>
                   <td>{row.customerDisplay}</td>
                   <td>{row.claimTypeLabel}</td>
                   <td>
@@ -775,111 +915,292 @@ function ClaimsTab({
             </tbody>
           </table>
         </div>
-        <div className="admin-filter-row">
-          <button
-            className="admin-secondary-button"
-            disabled={page <= 1 || actionInProgress}
-            onClick={() => goToPage(page - 1)}
-            type="button"
-          >
-            이전
-          </button>
-          <span>
-            {page} / {totalPages} 페이지
-          </span>
-          <button
-            className="admin-secondary-button"
-            disabled={page >= totalPages || actionInProgress}
-            onClick={() => goToPage(page + 1)}
-            type="button"
-          >
-            다음
-          </button>
-        </div>
+        <PaginationRow disabled={actionInProgress || loading} onGoToPage={goToPage} page={page} totalPages={totalPages} />
       </section>
 
       <aside className="admin-panel admin-order-detail">
         <div className="admin-panel-header compact">
           <div>
             <p>선택 클레임</p>
-            <h2>{selectedRow ? selectedRow.claimCode : "선택된 클레임 없음"}</h2>
+            <h2>{selectedRow ? selectedRow.claimCode : "상세 정보"}</h2>
           </div>
           {selectedRow && (
             <span className={`admin-badge ${CLAIM_STATUS_TONE[selectedRow.status]}`}>{selectedRow.statusLabel}</span>
           )}
         </div>
-        {!selectedRow ? (
-          <div className="admin-state-banner neutral">
-            <strong>선택된 클레임 없음</strong>
-            <span>표에서 클레임을 선택하면 상세 정보가 표시됩니다.</span>
-          </div>
-        ) : detailLoading ? (
-          <div className="admin-state-banner neutral">
-            <strong>상세 정보를 불러오는 중입니다</strong>
-          </div>
-        ) : detailError ? (
-          <div className="admin-state-banner danger">
-            <strong>상세 정보를 불러오지 못했습니다</strong>
-            <span>{detailError}</span>
-          </div>
-        ) : detail ? (
-          <>
-            <dl className="admin-metric-list">
-              <div>
-                <dt>주문번호</dt>
-                <dd>{detail.orderCode}</dd>
+        <div className="admin-order-detail-scroll">
+          {selectedClaimMissing && (
+            <div className="admin-state-banner neutral">
+              <strong>선택한 클레임을 찾을 수 없음</strong>
+              <span>목록이 갱신되며 선택했던 클레임이 현재 페이지에 보이지 않습니다. 표에서 다시 선택해 주세요.</span>
+            </div>
+          )}
+          {!selectedRow ? (
+            <div className="admin-detail-body">
+              <p className="admin-metric-group-title">기본 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>주문번호</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>고객</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>주문 상태</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>유형</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>결제 수단</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">상품 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>상품</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>환불 예정액</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">클레임 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>신청 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>고객 상세 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>관리자 처리 사유</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>신청일시</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>처리일시</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>완료일시</dt>
+                  <dd>-</dd>
+                </div>
+                <div>
+                  <dt>가능한 액션</dt>
+                  <dd>-</dd>
+                </div>
+              </dl>
+            </div>
+          ) : detailLoading ? (
+            <div className="admin-state-banner neutral">
+              <strong>상세 정보를 불러오는 중입니다</strong>
+            </div>
+          ) : detailError ? (
+            <div className="admin-state-banner danger">
+              <strong>상세 정보를 불러오지 못했습니다</strong>
+              <span>{detailError}</span>
+            </div>
+          ) : detail ? (
+            <>
+              <div className="admin-detail-body">
+                <p className="admin-metric-group-title">기본 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>주문번호</dt>
+                    <dd>{detail.orderCode}</dd>
+                  </div>
+                  <div>
+                    <dt>고객</dt>
+                    <dd>{detail.customerDisplay}</dd>
+                  </div>
+                  <div>
+                    <dt>주문 상태</dt>
+                    <dd>{detail.orderStatus}</dd>
+                  </div>
+                  <div>
+                    <dt>유형</dt>
+                    <dd>{detail.claimTypeLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>결제 수단</dt>
+                    <dd>{detail.paymentProvider ?? "-"}</dd>
+                  </div>
+                </dl>
+
+                <p className="admin-metric-group-title">상품 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>상품</dt>
+                    <dd>{detail.productSummary}</dd>
+                  </div>
+                  <div>
+                    <dt>환불 예정액</dt>
+                    <dd>{detail.refundAmount === null ? "해당 없음" : formatCurrency(detail.refundAmount)}</dd>
+                  </div>
+                </dl>
+
+                <p className="admin-metric-group-title">클레임 정보</p>
+                <dl className="admin-metric-list">
+                  <div>
+                    <dt>신청 사유</dt>
+                    <dd>{detail.reasonCode}</dd>
+                  </div>
+                  <div>
+                    <dt>고객 상세 사유</dt>
+                    <dd>{detail.reasonDetail ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>관리자 처리 사유</dt>
+                    <dd>
+                      <button className="admin-text-button" onClick={() => setHistoryModalOpen(true)} type="button">
+                        {decisionReason ?? "상품·이력 보기"}
+                      </button>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>신청일시</dt>
+                    <dd>{detail.requestedAt}</dd>
+                  </div>
+                  <div>
+                    <dt>처리일시</dt>
+                    <dd>{detail.processedAt ?? "미처리"}</dd>
+                  </div>
+                  <div>
+                    <dt>완료일시</dt>
+                    <dd>{detail.completedAt ?? "미완료"}</dd>
+                  </div>
+                  <div>
+                    <dt>가능한 액션</dt>
+                    <dd>
+                      {detail.availableActions.length === 0
+                        ? "없음"
+                        : detail.availableActions.map((action) => CLAIM_ACTION_LABELS[action]).join(", ")}
+                    </dd>
+                  </div>
+                </dl>
               </div>
-              <div>
-                <dt>고객</dt>
-                <dd>{detail.customerDisplay}</dd>
-              </div>
-              <div>
-                <dt>주문 상태</dt>
-                <dd>{detail.orderStatus}</dd>
-              </div>
-              <div>
-                <dt>유형</dt>
-                <dd>{detail.claimTypeLabel}</dd>
-              </div>
-              <div>
-                <dt>상품</dt>
-                <dd>{detail.productSummary}</dd>
-              </div>
-              <div>
-                <dt>환불 예정액</dt>
-                <dd>{detail.refundAmount === null ? "해당 없음" : formatCurrency(detail.refundAmount)}</dd>
-              </div>
-              <div>
-                <dt>신청 사유</dt>
-                <dd>{detail.reasonCode}</dd>
-              </div>
-              <div>
-                <dt>고객 상세 사유</dt>
-                <dd>{detail.reasonDetail ?? "-"}</dd>
-              </div>
-              <div>
-                <dt>신청일시</dt>
-                <dd>{detail.requestedAt}</dd>
-              </div>
-              <div>
-                <dt>처리일시</dt>
-                <dd>{detail.processedAt ?? "미처리"}</dd>
-              </div>
-              <div>
-                <dt>완료일시</dt>
-                <dd>{detail.completedAt ?? "미완료"}</dd>
-              </div>
-              <div>
-                <dt>가능한 액션</dt>
-                <dd>
-                  {detail.availableActions.length === 0
-                    ? "없음"
-                    : detail.availableActions.map((action) => CLAIM_ACTION_LABELS[action]).join(", ")}
-                </dd>
-              </div>
-            </dl>
+              {/* 승인·거절·처리시작·완료 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
+              {detail.availableActions.length > 0 && (
+                <div className="admin-order-action-grid" aria-label="클레임 운영 액션">
+                  {detail.availableActions.includes("APPROVE") && (
+                    <button
+                      className="admin-primary-button"
+                      disabled={actionInProgress}
+                      onClick={() => handleActionButtonClick("APPROVE", detail.claimCode, detail.orderCode, detail.claimType)}
+                      type="button"
+                    >
+                      {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "승인"}
+                    </button>
+                  )}
+                  {detail.availableActions.includes("START") && (
+                    <button
+                      className="admin-primary-button"
+                      disabled={actionInProgress}
+                      onClick={() => handleActionButtonClick("START", detail.claimCode, detail.orderCode, detail.claimType)}
+                      type="button"
+                    >
+                      {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "처리 시작"}
+                    </button>
+                  )}
+                  {detail.availableActions.includes("COMPLETE") && (
+                    <button
+                      className="admin-primary-button"
+                      disabled={actionInProgress}
+                      onClick={() => handleActionButtonClick("COMPLETE", detail.claimCode, detail.orderCode, detail.claimType)}
+                      type="button"
+                    >
+                      {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "완료 처리"}
+                    </button>
+                  )}
+                  {detail.availableActions.includes("REJECT") && (
+                    <>
+                      <textarea
+                        aria-label="거절 사유"
+                        className="admin-cancel-rejection-reason"
+                        disabled={actionInProgress}
+                        onChange={(event) => setRejectReason(event.target.value)}
+                        placeholder="거절 사유를 입력하세요 (필수)"
+                        rows={2}
+                        value={rejectReason}
+                      />
+                      <button
+                        className="admin-secondary-button"
+                        disabled={actionInProgress || rejectReason.trim().length === 0}
+                        onClick={() => handleActionButtonClick("REJECT", detail.claimCode, detail.orderCode, detail.claimType)}
+                        type="button"
+                      >
+                        {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "거절"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+        <ConfirmModal
+          cancelLabel="취소"
+          confirmLabel={actionInProgress ? "처리 중..." : "확인"}
+          message={
+            pendingAction
+              ? pendingAction.action === "APPROVE"
+                ? `${pendingAction.orderCode} 클레임을 승인할까요? 되돌릴 수 없습니다.`
+                : pendingAction.action === "REJECT"
+                  ? `${pendingAction.orderCode} 클레임을 거절할까요? 되돌릴 수 없습니다.`
+                  : pendingAction.action === "START"
+                    ? `${pendingAction.orderCode} 클레임 처리를 시작할까요? 되돌릴 수 없습니다.`
+                    : pendingAction.claimType === "EXCHANGE"
+                      ? `${pendingAction.orderCode} 클레임을 완료 처리할까요? 교환 처리로 종료되며, 되돌릴 수 없습니다.`
+                      : `${pendingAction.orderCode} 클레임을 완료 처리할까요? 환불이 실행되며, 되돌릴 수 없습니다.`
+              : ""
+          }
+          onCancel={() => {
+            if (actionInProgress) return;
+            setPendingAction(null);
+          }}
+          onConfirm={() => void executeAction()}
+          open={pendingAction !== null}
+          title="클레임 처리 확인"
+        >
+          {/* 반품·환불 완료 처리 시 재고 복구 여부는 체크박스를 따로 두지 않고 이 확인 모달
+              안에서만 고르게 한다 — 실행 직전에 한 번 더 확인받는 화면에 함께 두는 게 더 명확하다. */}
+          {pendingAction?.action === "COMPLETE" && pendingAction.claimType !== "EXCHANGE" && (
+            <button
+              aria-checked={restockOnComplete}
+              className={`admin-modal-toggle-chip${restockOnComplete ? " active" : ""}`}
+              disabled={actionInProgress}
+              onClick={() => setRestockOnComplete((current) => !current)}
+              role="checkbox"
+              type="button"
+            >
+              {pendingAction.claimType === "RETURN" ? "반품 수령 확인 — 재고 복구" : "환불 수령 확인 — 재고 복구"}
+            </button>
+          )}
+        </ConfirmModal>
+        {detail && (
+          <InfoModal
+            onClose={() => setHistoryModalOpen(false)}
+            open={historyModalOpen}
+            title={`${detail.claimCode} 처리 내역`}
+          >
+            <div className="admin-detail-body">
+            <p className="admin-metric-group-title">상품 목록</p>
             <div className="admin-table-wrap">
-              <table className="admin-table compact">
+              <table className="admin-table compact admin-claim-item-table">
                 <thead>
                   <tr>
                     <th scope="col">상품</th>
@@ -890,7 +1211,9 @@ function ClaimsTab({
                 <tbody>
                   {detail.items.map((item) => (
                     <tr key={item.orderItemId}>
-                      <td>{item.productNameSnapshot}</td>
+                      <td className="admin-file-name" title={item.productNameSnapshot}>
+                        {item.productNameSnapshot}
+                      </td>
                       <td>{item.quantity}개</td>
                       <td>{item.resolution === "REFUND" ? "환불" : "교환"}</td>
                     </tr>
@@ -898,8 +1221,10 @@ function ClaimsTab({
                 </tbody>
               </table>
             </div>
+
+            <p className="admin-metric-group-title">처리 이력</p>
             <div className="admin-table-wrap">
-              <table className="admin-table compact">
+              <table className="admin-table compact admin-claim-history-table">
                 <thead>
                   <tr>
                     <th scope="col">처리 이력</th>
@@ -916,7 +1241,7 @@ function ClaimsTab({
                           CLAIM_STATUS_LABELS[event.toStatus]}
                       </td>
                       <td>{event.createdAt}</td>
-                      <td>{event.reason ?? "-"}</td>
+                      <td title={event.reason ?? undefined}>{event.reason ?? "-"}</td>
                     </tr>
                   ))}
                   {detail.events.length === 0 && (
@@ -929,113 +1254,50 @@ function ClaimsTab({
                 </tbody>
               </table>
             </div>
-          </>
-        ) : null}
-        {actionError && (
-          <div className="admin-state-banner danger">
-            <strong>처리 실패</strong>
-            <span>{actionError}</span>
-          </div>
-        )}
-        {syncWarning && (
-          <div className="admin-state-banner warning">
-            <strong>목록 동기화 필요</strong>
-            <span>{syncWarning}</span>
-          </div>
-        )}
-        {/* 승인·거절·처리시작·완료 버튼은 서버가 계산한 available_actions 기준으로만 표시한다 — 프론트는 직접 계산하지 않는다 */}
-        {detail && detail.availableActions.length > 0 && (
-          <div className="admin-order-action-grid" aria-label="클레임 운영 액션">
-            {detail.availableActions.includes("APPROVE") && (
-              <button
-                className="admin-primary-button"
-                disabled={actionInProgress}
-                onClick={() => handleActionButtonClick("APPROVE", detail.claimCode, detail.orderCode, detail.claimType)}
-                type="button"
-              >
-                {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "승인"}
-              </button>
-            )}
-            {detail.availableActions.includes("START") && (
-              <button
-                className="admin-primary-button"
-                disabled={actionInProgress}
-                onClick={() => handleActionButtonClick("START", detail.claimCode, detail.orderCode, detail.claimType)}
-                type="button"
-              >
-                {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "처리 시작"}
-              </button>
-            )}
-            {detail.availableActions.includes("COMPLETE") && (
-              <>
-                {detail.claimType === "RETURN" && (
-                  <label>
-                    <input
-                      checked={restockOnComplete}
-                      disabled={actionInProgress}
-                      onChange={(event) => setRestockOnComplete(event.target.checked)}
-                      type="checkbox"
-                    />
-                    반품 수령 확인 — 재고 복구
-                  </label>
-                )}
-                <button
-                  className="admin-primary-button"
-                  disabled={actionInProgress}
-                  onClick={() => handleActionButtonClick("COMPLETE", detail.claimCode, detail.orderCode, detail.claimType)}
-                  type="button"
-                >
-                  {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "완료 처리"}
-                </button>
-              </>
-            )}
-            {detail.availableActions.includes("REJECT") && (
-              <>
-                <textarea
-                  aria-label="거절 사유"
-                  disabled={actionInProgress}
-                  onChange={(event) => setRejectReason(event.target.value)}
-                  placeholder="거절 사유를 입력하세요 (필수)"
-                  rows={2}
-                  value={rejectReason}
-                />
-                <button
-                  className="admin-secondary-button"
-                  disabled={actionInProgress || rejectReason.trim().length === 0}
-                  onClick={() => handleActionButtonClick("REJECT", detail.claimCode, detail.orderCode, detail.claimType)}
-                  type="button"
-                >
-                  {actionInProgress && actionClaimCode === detail.claimCode ? "처리 중..." : "거절"}
-                </button>
-              </>
-            )}
-          </div>
+            </div>
+          </InfoModal>
         )}
       </aside>
-      <ConfirmModal
-        cancelLabel="취소"
-        confirmLabel={actionInProgress ? "처리 중..." : "확인"}
-        message={
-          pendingAction
-            ? pendingAction.action === "APPROVE"
-              ? `${pendingAction.orderCode} 클레임을 승인할까요? 되돌릴 수 없습니다.`
-              : pendingAction.action === "REJECT"
-                ? `${pendingAction.orderCode} 클레임을 거절할까요? 되돌릴 수 없습니다.`
-                : pendingAction.action === "START"
-                  ? `${pendingAction.orderCode} 클레임 처리를 시작할까요? 되돌릴 수 없습니다.`
-                  : pendingAction.claimType === "EXCHANGE"
-                    ? `${pendingAction.orderCode} 클레임을 완료 처리할까요? 교환 처리로 종료되며, 되돌릴 수 없습니다.`
-                    : `${pendingAction.orderCode} 클레임을 완료 처리할까요? 환불이 실행되며${pendingAction.restock ? " (재고 복구 포함)" : ""}, 되돌릴 수 없습니다.`
-            : ""
-        }
-        onCancel={() => {
-          if (actionInProgress) return;
-          setPendingAction(null);
-        }}
-        onConfirm={() => void executeAction()}
-        open={pendingAction !== null}
-        title="클레임 처리 확인"
-      />
+
+      <section className="admin-panel admin-order-exception-panel">
+        <div className="admin-panel-header compact">
+          <div>
+            <p>확인 필요</p>
+            <h2>반품·교환·환불 처리 실패</h2>
+          </div>
+        </div>
+        <div className="admin-table-wrap">
+          <table className="admin-table compact">
+            <thead>
+              <tr>
+                <th scope="col">시간</th>
+                <th scope="col">클레임</th>
+                <th scope="col">주문</th>
+                <th scope="col">유형</th>
+              </tr>
+            </thead>
+            <tbody>
+              {completionFailures.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.time}</td>
+                  <td className="admin-file-name" title={row.claimCode}>
+                    {row.claimCode}
+                  </td>
+                  <td title={row.orderCode}>{row.orderCode}</td>
+                  <td>{row.claimTypeLabel}</td>
+                </tr>
+              ))}
+              {completionFailures.length === 0 && (
+                <tr>
+                  <td className="admin-empty-row" colSpan={4}>
+                    아직 기록된 완료 처리 실패가 없습니다.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }

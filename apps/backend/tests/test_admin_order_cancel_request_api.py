@@ -237,7 +237,15 @@ def test_list_returns_contract_for_admin(client: TestClient, db_engine: Engine) 
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"items", "next_cursor"}
+    assert set(body.keys()) == {"items", "pagination"}
+    assert set(body["pagination"].keys()) == {
+        "page",
+        "page_size",
+        "total_items",
+        "total_pages",
+        "has_next",
+        "has_prev",
+    }
     assert len(body["items"]) == 1
     item = body["items"][0]
     assert item["request_code"] == "ocr_api_cancelreq"
@@ -254,26 +262,6 @@ def test_list_rejects_invalid_status_query(client: TestClient, db_engine: Engine
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_CANCEL_REQUEST_STATUS"
-
-
-def test_list_rejects_invalid_cursor_query(client: TestClient, db_engine: Engine) -> None:
-    _signup(client)
-    _promote_to_admin(db_engine)
-
-    response = client.get("/api/admin/order-cancel-requests", params={"cursor": "not-a-number"})
-
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "INVALID_CURSOR"
-
-
-def test_list_rejects_invalid_limit_query(client: TestClient, db_engine: Engine) -> None:
-    _signup(client)
-    _promote_to_admin(db_engine)
-
-    response = client.get("/api/admin/order-cancel-requests", params={"limit": 0})
-
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "INVALID_LIMIT"
 
 
 def test_detail_requires_authentication(client: TestClient) -> None:

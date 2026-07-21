@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import CommercePageHeader from "../components/CommercePageHeader";
 import HomeHeader from "../components/HomeHeader";
@@ -164,6 +164,12 @@ function PaymentCompletePage() {
   );
   const [tossConfirmErrorMessage, setTossConfirmErrorMessage] = useState("");
   const [failedPaymentCancelMessage, setFailedPaymentCancelMessage] = useState("");
+  // 실패한 결제의 주문 취소는 마운트 시 자동으로 한 번 시도되므로, 그 첫 시도의
+  // 로딩 상태를 이펙트 안에서 동기적으로 setState하지 않도록 초기값으로 반영해둔다.
+  const [isCancellingFailedOrder, setIsCancellingFailedOrder] = useState(
+    () => Boolean(paymentFailed && (orderCode || tossOrderId))
+  );
+  const [hasCancelFailed, setHasCancelFailed] = useState(false);
 
   useEffect(() => {
     if (!detailOrderCode || paymentFailed) {
@@ -244,34 +250,60 @@ function PaymentCompletePage() {
     };
   }, [tossAmount, tossOrderId, tossPaymentKey]);
 
+  const failedOrderCode = orderCode || tossOrderId;
+
+  // cancelOrder 요청 자체가 실패하면(네트워크 등) 주문이 PENDING_PAYMENT로 남고
+  // 장바구니 항목도 복원되지 않은 채 사용자가 에러 문구만 보고 멈춰있었음 — 재시도
+  // 가능하도록 버튼에서도 같은 로직을 다시 호출할 수 있게 뺀다. setState는 전부
+  // then/catch/finally 안에서만 하고, 이펙트 본문에서 동기적으로 호출하지 않는다.
+  const performCancelFailedOrder = useCallback(
+    (isMountedRef: { current: boolean }) => {
+      if (!failedOrderCode) return;
+      cancelOrder(failedOrderCode)
+        .then(() => {
+          if (!isMountedRef.current) return;
+          sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
+          window.dispatchEvent(new Event("cart:updated"));
+          setFailedPaymentCancelMessage("주문을 취소하고 장바구니로 되돌렸습니다.");
+          navigateWithinApp("/cart");
+        })
+        .catch((error) => {
+          if (!isMountedRef.current) return;
+          setHasCancelFailed(true);
+          setFailedPaymentCancelMessage(
+            error instanceof Error
+              ? error.message
+              : "주문 취소 상태를 확인하지 못했습니다. 다시 시도해주세요.",
+          );
+        })
+        .finally(() => {
+          if (isMountedRef.current) {
+            setIsCancellingFailedOrder(false);
+          }
+        });
+    },
+    [failedOrderCode]
+  );
+
+  const handleRetryCancelFailedOrder = () => {
+    setIsCancellingFailedOrder(true);
+    setFailedPaymentCancelMessage("");
+    setHasCancelFailed(false);
+    performCancelFailedOrder({ current: true });
+  };
+
   useEffect(() => {
-    const failedOrderCode = orderCode || tossOrderId;
     if (!paymentFailed || !failedOrderCode) {
       return;
     }
 
-    let isMounted = true;
-    cancelOrder(failedOrderCode)
-      .then(() => {
-        if (!isMounted) return;
-        sessionStorage.removeItem(PAYMENT_COMPLETE_SNAPSHOT_KEY);
-        window.dispatchEvent(new Event("cart:updated"));
-        setFailedPaymentCancelMessage("주문을 취소하고 장바구니로 되돌렸습니다.");
-        navigateWithinApp("/cart");
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setFailedPaymentCancelMessage(
-          error instanceof Error
-            ? error.message
-            : "주문 취소 상태를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.",
-        );
-      });
+    const isMountedRef = { current: true };
+    performCancelFailedOrder(isMountedRef);
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
-  }, [orderCode, paymentFailed, tossOrderId]);
+  }, [paymentFailed, failedOrderCode, performCancelFailedOrder]);
 
   if (paymentFailed) {
     return (
@@ -290,6 +322,16 @@ function PaymentCompletePage() {
               <p>{paymentFailMessage || "결제창에서 결제가 취소되었거나 실패했습니다."}</p>
               {paymentFailCode ? <p>오류 코드: {paymentFailCode}</p> : null}
               {failedPaymentCancelMessage ? <p>{failedPaymentCancelMessage}</p> : null}
+              {hasCancelFailed ? (
+                <button
+                  className="complete-btn primary"
+                  disabled={isCancellingFailedOrder}
+                  onClick={handleRetryCancelFailedOrder}
+                  type="button"
+                >
+                  {isCancellingFailedOrder ? "재시도 중..." : "주문 취소 다시 시도"}
+                </button>
+              ) : null}
             </div>
 
             <div className="complete-actions">

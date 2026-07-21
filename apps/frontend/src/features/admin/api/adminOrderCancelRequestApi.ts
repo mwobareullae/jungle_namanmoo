@@ -27,9 +27,18 @@ type BackendAdminCancelRequestItem = {
   available_actions: AdminCancelRequestAction[];
 };
 
+type BackendAdminCancelRequestPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
 type BackendAdminCancelRequestListResponse = {
   items: BackendAdminCancelRequestItem[];
-  next_cursor: string | null;
+  pagination: BackendAdminCancelRequestPagination;
 };
 
 type BackendAdminCancelRequestDetailResponse = BackendAdminCancelRequestItem & {
@@ -76,9 +85,18 @@ export type AdminCancelRequestDetail = AdminCancelRequestRow & {
   currency: string;
 };
 
+export type AdminCancelRequestPagination = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
 export type AdminCancelRequestListResult = {
   items: AdminCancelRequestRow[];
-  nextCursor: string | null;
+  pagination: AdminCancelRequestPagination;
 };
 
 export type AdminCancelRequestActionResult = {
@@ -94,8 +112,8 @@ export type AdminCancelRequestActionResult = {
 
 export type AdminCancelRequestQuery = {
   status?: AdminCancelRequestStatus | null;
-  limit?: number;
-  cursor?: string | null;
+  page?: number;
+  pageSize?: number;
 };
 
 // 백엔드가 UTC(예: ...Z)를 반환하므로 KST(Asia/Seoul)로 변환해 "YYYY-MM-DD HH:mm" 표기.
@@ -140,8 +158,8 @@ export const getAdminCancelRequests = async (
 ): Promise<AdminCancelRequestListResult> => {
   const params = new URLSearchParams();
   if (query.status) params.set("status", query.status);
-  if (query.limit) params.set("limit", String(query.limit));
-  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("page_size", String(query.pageSize));
 
   const queryString = params.toString();
   const response = await fetchWithTimeout(
@@ -150,7 +168,14 @@ export const getAdminCancelRequests = async (
   const body = await parseJson<BackendAdminCancelRequestListResponse>(response);
   return {
     items: body.items.map(adaptCancelRequestRow),
-    nextCursor: body.next_cursor
+    pagination: {
+      page: body.pagination.page,
+      pageSize: body.pagination.page_size,
+      totalItems: body.pagination.total_items,
+      totalPages: body.pagination.total_pages,
+      hasNext: body.pagination.has_next,
+      hasPrev: body.pagination.has_prev
+    }
   };
 };
 

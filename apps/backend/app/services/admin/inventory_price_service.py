@@ -1,20 +1,17 @@
 """관리자 재고·가격 조회 서비스 (P1-M4, Chunk 1).
 
-상품 기본 CRUD의 page 방식 목록과 분리해, 재고 운영에 필요한 cursor·파생 재고
-상태·재고 이력만 제공한다. 읽기 전용 서비스이므로 transaction commit은 호출자가
-필요로 하지 않는다.
+상품 기본 CRUD 목록(product_service.list_admin_products)과 같은 page 방식으로
+브랜드·카테고리·노출 필터, 파생 재고 상태, 재고 이력을 제공한다. 읽기 전용
+서비스이므로 transaction commit은 호출자가 필요로 하지 않는다.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import case, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
@@ -26,9 +23,10 @@ from app.schemas.admin.inventory_price import (
     AdminInventoryPriceListItem,
     AdminInventoryPriceListResponse,
     AdminInventoryPriceUpdateResponse,
+    AdminInventorySummaryResponse,
     AdminProductSaleStartResponse,
 )
-from app.schemas.admin.product import AdminProductAvailability
+from app.schemas.admin.product import AdminProductAvailability, AdminProductPagination
 from app.schemas.common import ApiError
 from app.services.product_availability import build_product_availability
 from app.services.product_pricing import (
@@ -39,14 +37,14 @@ from app.services.product_pricing import (
 )
 
 
-DEFAULT_LIMIT = 50
-MAX_LIMIT = 100
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 100
 HISTORY_LIMIT = 20
 INVENTORY_STOCK_MAX = 1_000_000
 
 VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN"})
 VALID_STOCK_STATUS_FILTERS = frozenset({"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN"})
-CURSOR_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -61,12 +59,15 @@ def list_admin_inventory_prices(
     session: Session,
     *,
     query: str | None,
+    brand_code: str | None = None,
+    category_code: str | None = None,
+    is_active: bool | None = None,
     sales_status: str | None,
     stock_status: str | None,
-    limit: int,
-    cursor: str | None,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> AdminInventoryPriceListResponse:
-    """재고·가격 운영 목록을 cursor 방식으로 반환한다.
+    """재고·가격 운영 목록을 상품 조회 화면과 같은 page 방식으로 반환한다.
 
     재고 행이 없는 기존 예외 상품은 목록에 ``UNKNOWN``으로 남긴다. 이는 운영자가
     데이터 이상을 확인할 수 있게 하기 위한 것이며, ``UNKNOWN`` 전용 필터는 제공하지
@@ -76,49 +77,92 @@ def list_admin_inventory_prices(
     normalized_query = _normalize_query(query)
     normalized_sales_status = _normalize_sales_status(sales_status)
     normalized_stock_status = _normalize_stock_status(stock_status)
-    normalized_limit = _normalize_limit(limit)
-    cursor_timestamp, cursor_product_id = _decode_cursor(
-        cursor,
-        query=normalized_query,
-        sales_status=normalized_sales_status,
-        stock_status=normalized_stock_status,
-    )
+    normalized_page = page if page >= 1 else DEFAULT_PAGE
+    normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
 
     statement, stock_status_sql = _base_statement()
     if normalized_query:
         statement = statement.where(Product.product_name.ilike(f"%{normalized_query}%"))
+    if brand_code:
+        statement = statement.where(Brand.brand_code == brand_code)
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    if is_active is not None:
+        statement = statement.where(Product.is_active.is_(is_active))
     if normalized_sales_status:
         statement = statement.where(Inventory.sales_status == normalized_sales_status)
     if normalized_stock_status:
         statement = statement.where(stock_status_sql == normalized_stock_status)
-    if cursor_timestamp is not None and cursor_product_id is not None:
-        statement = statement.where(
-            or_(
-                Product.updated_at < cursor_timestamp,
-                (Product.updated_at == cursor_timestamp) & (Product.id < cursor_product_id),
-            )
-        )
+
+    total_items = session.execute(select(func.count()).select_from(statement.subquery())).scalar_one()
 
     rows = session.execute(
-        statement.order_by(Product.updated_at.desc(), Product.id.desc()).limit(normalized_limit + 1)
+        statement.order_by(Product.updated_at.desc(), Product.id.desc())
+        .limit(normalized_page_size)
+        .offset((normalized_page - 1) * normalized_page_size)
     ).all()
-    visible_rows = list(rows[:normalized_limit])
-    prices_by_product_id = _load_first_party_prices(session, visible_rows)
+    prices_by_product_id = _load_first_party_prices(session, rows)
     items = [
-        _to_list_item(row, price=prices_by_product_id.get(int(row.product_db_id)))
-        for row in visible_rows
+        _to_list_item(row, price=prices_by_product_id.get(int(row.product_db_id))) for row in rows
     ]
-    next_cursor = (
-        _encode_cursor(
-            visible_rows[-1],
-            query=normalized_query,
-            sales_status=normalized_sales_status,
-            stock_status=normalized_stock_status,
-        )
-        if len(rows) > normalized_limit and visible_rows
-        else None
+
+    total_pages = max((total_items + normalized_page_size - 1) // normalized_page_size, 1)
+    return AdminInventoryPriceListResponse(
+        items=items,
+        pagination=AdminProductPagination(
+            page=normalized_page,
+            page_size=normalized_page_size,
+            total_items=total_items,
+            total_pages=total_pages,
+            has_next=normalized_page < total_pages,
+            has_prev=normalized_page > 1,
+        ),
     )
-    return AdminInventoryPriceListResponse(items=items, next_cursor=next_cursor)
+
+
+def get_admin_inventory_summary(
+    session: Session,
+    *,
+    query: str | None,
+    brand_code: str | None = None,
+    category_code: str | None = None,
+    is_active: bool | None = None,
+) -> AdminInventorySummaryResponse:
+    """운영 현황 요약 카드(품절임박/판매 시작 전/재고 정보 없음)용 전체 집계.
+
+    목록 화면의 판매·재고 상태 드롭다운은 일부러 반영하지 않는다 — 그 두 필터가 바로 이
+    집계가 나누는 축이라, 반영하면 필터링할수록 나머지 카드가 0에 가까워져 상시 운영
+    현황판 역할을 못 한다. 검색어·카테고리·브랜드·노출 필터만 반영해 "지금 이 범위 안에서
+    전체적으로 뭐가 몇 건인지"를 보여준다.
+    """
+
+    normalized_query = _normalize_query(query)
+    statement, stock_status_sql = _base_statement()
+    if normalized_query:
+        statement = statement.where(Product.product_name.ilike(f"%{normalized_query}%"))
+    if brand_code:
+        statement = statement.where(Brand.brand_code == brand_code)
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    if is_active is not None:
+        statement = statement.where(Product.is_active.is_(is_active))
+
+    statement = statement.add_columns(stock_status_sql.label("computed_stock_status"))
+    inner = statement.subquery()
+
+    row = session.execute(
+        select(
+            func.sum(case((inner.c.computed_stock_status == "LOW_STOCK", 1), else_=0)).label("low_stock"),
+            func.sum(case((inner.c.sales_status == "HIDDEN", 1), else_=0)).label("hidden"),
+            func.sum(case((inner.c.computed_stock_status == "UNKNOWN", 1), else_=0)).label("unknown"),
+        ).select_from(inner)
+    ).one()
+
+    return AdminInventorySummaryResponse(
+        low_stock_count=int(row.low_stock or 0),
+        hidden_count=int(row.hidden or 0),
+        unknown_count=int(row.unknown or 0),
+    )
 
 
 def get_admin_inventory_history(session: Session, *, product_code: str) -> AdminInventoryHistoryResponse:
@@ -559,55 +603,3 @@ def _normalize_stock_status(stock_status: str | None) -> str | None:
     return normalized
 
 
-def _normalize_limit(limit: int) -> int:
-    if limit < 1 or limit > MAX_LIMIT:
-        raise ApiError(400, "INVALID_LIMIT", "limit은 1 이상 100 이하여야 합니다.")
-    return limit
-
-
-def _encode_cursor(
-    row: Any,
-    *,
-    query: str,
-    sales_status: str | None,
-    stock_status: str | None,
-) -> str:
-    payload = {
-        "v": CURSOR_VERSION,
-        "u": row.updated_at.isoformat(),
-        "id": int(row.product_db_id),
-        "q": query,
-        "ss": sales_status or "",
-        "ts": stock_status or "",
-    }
-    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-
-
-def _decode_cursor(
-    cursor: str | None,
-    *,
-    query: str,
-    sales_status: str | None,
-    stock_status: str | None,
-) -> tuple[datetime | None, int | None]:
-    if cursor is None or not cursor.strip():
-        return None, None
-    try:
-        padding = "=" * (-len(cursor) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(f"{cursor}{padding}".encode("ascii")))
-        timestamp = datetime.fromisoformat(payload["u"])
-        product_id = int(payload["id"])
-    except (binascii.Error, KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ApiError(400, "INVALID_CURSOR", "유효하지 않은 cursor입니다.") from exc
-
-    if (
-        not isinstance(payload, dict)
-        or payload.get("v") != CURSOR_VERSION
-        or product_id <= 0
-        or payload.get("q") != query
-        or payload.get("ss") != (sales_status or "")
-        or payload.get("ts") != (stock_status or "")
-    ):
-        raise ApiError(400, "INVALID_CURSOR", "유효하지 않은 cursor입니다.")
-    return timestamp, product_id
