@@ -65,7 +65,9 @@
   - **최종: 커스텀 구현을 접고 네이티브 `<select>`로 되돌림(지현 직접 수정)** — 메인 체크아웃 화면의 기존 select와 CSS(`.checkout-delivery-memo-select`)를 공유해 시각적으로 동일하게 통일. 네이티브 select라 클릭/선택 동작은 브라우저가 보장하므로 커스텀 구현의 회귀 위험이 사라짐. "위로 열리는" 원래 현상은 감수하기로 함(우선순위상 클릭 안정성이 더 중요).
   - 되돌린 직후 "배송지 관리" 모달 안에서는 select가 테두리·패딩 없이 민무늬로 보이는 추가 문제 발견 — 스타일 규칙이 `.checkout-page:not(.cart-page) .checkout-delivery-memo-select`로 스코프돼 있었는데, 그 모달도 Radix Dialog라 `document.body`에 포털돼 `.checkout-page` 바깥으로 빠져 스코프 셀렉터가 매칭 안 됐던 것. [styles.css:15665](apps/frontend/src/styles.css:15665)에서 `.checkout-delivery-memo-select`를 스코프 없는 별도 규칙으로 분리해 해소. 격리 테스트로 스타일 적용 확인 완료.
 - ✅ **P3 — 동시 주문 요청 시 중복 주문 가능성 → 수정 완료 (2026-07-21):** `order_service.py`의 `_load_selected_cart_rows`가 `Inventory`는 `with_for_update`로 잠그지만 `CartItem` 조회에는 락이 없어, 진짜 동시 요청(네트워크 재시도, 멀티탭)이 겹치면 같은 장바구니 항목으로 주문이 2건 생성될 수 있던 좁은 레이스 컨디션. `CartItem` 조회에 `.with_for_update(of=CartItem)` 추가(다른 조인 테이블까지 잠그지 않도록 `of=`로 한정)해 동시 요청 중 하나는 대기 후 `CART_ITEM_NOT_FOUND`로 걸러지도록 수정. 기존 테스트 16건 통과.
-- ⚠️ **P3 후보 — 결제 실패 시 cancelOrder 실패하면 주문이 PENDING_PAYMENT로 잔류 (코드 리뷰, 2026-07-21):** 결제 실패 후 프론트가 호출하는 `cancelOrder` 자체가 네트워크 문제 등으로 실패하면 주문이 `PENDING_PAYMENT` 상태로 남을 수 있음. `expire_pending_orders` 배치가 추후 정리하므로 데이터 정합성 문제는 아니고 사용자 체감 지연 정도의 마이너 이슈.
+- ✅ **P3 — 결제 실패 시 cancelOrder 실패하면 주문이 PENDING_PAYMENT로 잔류 → 수정 완료 (2026-07-21):** 결제 실패 후 프론트가 호출하는 `cancelOrder` 자체가 네트워크 문제 등으로 실패하면 재시도 수단이 없어 주문이 `PENDING_PAYMENT`로 방치되던 문제. [PaymentCompletePage.tsx](apps/frontend/src/pages/PaymentCompletePage.tsx)에 "주문 취소 다시 시도" 버튼 추가.
+- ✅ **P1 — 마이페이지 주문 취소 완료 안내에 개발 중 자리표시자 문구 노출 → 수정 완료 (지현 실사용 발견, 2026-07-21):** 주문/배송내역에서 "주문 취소"를 실제로 진행하면(`cancelOrder` API가 정상 호출되어 주문 상태가 실제로 "취소요청"으로 바뀜에도) 완료 안내에 "취소 사유를 확인했습니다. 백엔드 계약이 확정되면 취소 요청 API와 연결됩니다."라는, 연동 전 개발 단계에 써두고 지우지 않은 문구가 그대로 노출됨. 실제 사용자에게 "취소가 아직 처리 안 된 것"처럼 오해를 주는 문구. [OrderList.tsx](apps/frontend/src/pages/mypage/OrderList.tsx)에서 주문 상태(PAID/PENDING_PAYMENT)에 맞는 정확한 안내로 교체하고, 페이지 하단에 조용히 박혀 눈에 잘 안 띄던 인라인 문구 대신 기존 `ActivityToast`(세션만료 토스트와 동일 컴포넌트)로 통일. 실사용 검증 완료 — 주문 상세 페이지의 "취소 요청 처리 현황"(처리상태/취소사유/요청일)도 정상 표시 확인됨.
+- ✅ **P3 — 마이페이지 주문 관련 버튼 hover 스타일 3곳 미적용 → 수정 완료 (2026-07-21):** 주문 상세의 "목록으로", 주문 내역 빈 상태의 "추천 상품 보러가기" — Tailwind 임의값 hover 클래스(`hover:text-[...]`, `hover:bg-[...]`)가 이 파일에서는 적용되지 않는 현상 확인. 전용 CSS 클래스(`mypage-order-back-link`, `mypage-order-primary-link`)로 교체해 해소.
 
 ---
 
@@ -262,14 +264,14 @@
 
 ## 12. 주문 내역·취소·반품
 
-- [ ] 본인 주문만 조회할 수 있다.
-- [ ] 주문 상세의 상품·금액·배송지가 주문 시점과 일치한다.
-- [ ] 주문 상태 전이가 허용된 순서대로만 진행된다.
-- [ ] 취소 가능 상태에서만 취소할 수 있다.
-- [ ] 취소 후 재고·금액·결제 상태가 일치한다.
-- [ ] 반품·교환 요청의 필수 정보가 검증된다.
-- [ ] 동일 요청을 반복해도 중복 처리되지 않는다.
-- [ ] 다른 사용자의 주문 URL에 접근할 수 없다.
+- [x] 본인 주문만 조회할 수 있다. `✅ 코드 리뷰 확인 (2026-07-21) — order_query_service.py _load_user_order가 order_code+user_id 둘 다로 필터링, 불일치 시 404 ORDER_NOT_FOUND. 주문 상세/취소/클레임(claims) 전부 동일 패턴`
+- [x] 주문 상세의 상품·금액·배송지가 주문 시점과 일치한다. `✅ 통과 (2026-07-21) — ord_20260721_klcl6hJt 주문 상세: 상품금액 18,000원/배송비 3,000원/총 21,000원/결제수단 토스페이먼츠/결제상태 APPROVED/배송지 전부 결제완료 화면과 정확히 일치`
+- [x] 주문 상태 전이가 허용된 순서대로만 진행된다. `✅ 코드 리뷰 확인 (2026-07-21) — order_cancel_service.py: PENDING_PAYMENT(즉시 취소)·PAID(관리자 승인 필요한 CANCEL_REQUESTED)만 허용, 배송중·배송완료 등은 409 ORDER_NOT_CANCELABLE로 차단`
+- [x] 취소 가능 상태에서만 취소할 수 있다. `✅ 코드 리뷰 확인 (2026-07-21) — 위 상태 전이 검증과 동일 로직`
+- [x] 취소 후 재고·금액·결제 상태가 일치한다. `✅ 코드 리뷰 + 실사용 확인 (2026-07-21) — PENDING_PAYMENT 취소 시 Inventory with_for_update 락 후 reserved_quantity 정상 감소. PAID 주문은 취소요청만 CANCEL_REQUESTED로 바뀌고 재고는 관리자 승인 후 처리되는 구조(의도된 설계). 실제 PAID 주문(ord_20260721_klcl6hJt) 취소 요청 진행 후 주문 상세의 "취소 요청 처리 현황"(처리상태: 취소 요청 접수, 취소 사유: 단순 변심, 요청일 표시)이 정확히 반영되는 것 확인`
+- [x] 반품·교환 요청의 필수 정보가 검증된다. `✅ 코드 리뷰 확인 (2026-07-21) — schemas/claim.py에서 order_code·claim_type·reason_code·items(수량≥1) 검증, 배송완료 후 7일 이내만 신청 가능`
+- [x] 동일 요청을 반복해도 중복 처리되지 않는다. `✅ 코드 리뷰 확인 (2026-07-21) — 취소는 DB 락+상태 체크로 멱등 처리(이미 취소된 주문 재취소해도 에러 없이 동일 응답), 반품/교환은 주문 row 락+이미 청구된 수량 합산 검증으로 초과 신청 차단`
+- [x] 다른 사용자의 주문 URL에 접근할 수 없다. `✅ 코드 리뷰 확인 (2026-07-21) — 본인 주문만 조회 항목과 동일 근거 (user_id 필터링, 불일치 시 404)`
 
 ---
 
