@@ -716,7 +716,6 @@ def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engin
                 "phone": raw_phone,
                 "postal_code": "04524",
                 "address1": raw_address,
-                "address2": "3층",
                 "continue_checkout": True,
             },
             user=user,
@@ -732,11 +731,13 @@ def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engin
     assert address.is_default is True
     assert address.phone == "01098765432"
     assert address.address1 == raw_address
+    assert address.address2 is None
     assert response.tool_name == "register_shipping_address"
     assert response.ui_action.type == "show_checkout_preview"
     assert response.ui_action.payload["address_id"] == address.id
     assert tool_call is not None
     assert tool_call.input_json["pii_redacted"] is True
+    assert tool_call.input_json["address2_provided"] is False
     serialized_input = json.dumps(tool_call.input_json, ensure_ascii=False)
     assert raw_phone not in serialized_input
     assert raw_address not in serialized_input

@@ -126,8 +126,8 @@ Routing:
   under a total budget -> compose_cart (toner/serum/cream); cart mutation requires
   confirmation. Checkout/order/payment before checkout -> prepare_checkout. Only on
   checkout and after explicit review -> prepare_order; payment remains user-completed.
-- Missing shipping address -> ask once for recipient, phone, postal code, address1, and
-  address2. Register only after all shipping details are supplied -> register_shipping_address; continue_checkout
+- Missing shipping address -> ask once for recipient, phone, postal code, and address1.
+  address2 is optional. Register after the required shipping details are supplied -> register_shipping_address; continue_checkout
   when resuming checkout and copy context.cart_item_ids so the interrupted selection is
   preserved. Never repeat the full address or phone in chat.
 - Review help -> prepare_review_draft only with a real rating/experience. Improve flow
@@ -1112,7 +1112,7 @@ def _execute_tool(
                 conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
                 message=(
                     "등록된 배송지가 없어요. 받는 분 이름, 연락처, 우편번호, "
-                    "기본 주소와 상세 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
+                    "기본 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
                 ),
                 tool_name=tool_name,
                 ui_action=AgentUiAction(),
@@ -1434,7 +1434,7 @@ async def register_shipping_address(
     ctx: RunContextWrapper[CommerceAgentContext],
     postal_code: str,
     address1: str,
-    address2: str,
+    address2: str | None = None,
     recipient_name: str | None = None,
     phone: str | None = None,
     delivery_memo: str | None = None,

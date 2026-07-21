@@ -92,7 +92,6 @@ export default function Addresses() {
     if (!isCompletePhone({ first: form.phone_first, middle: form.phone_middle, last: form.phone_last })) return setErrorMessage("연락처를 입력해주세요.");
     if (!hasText(form.postal_code)) return setErrorMessage("우편번호를 입력해주세요.");
     if (!hasText(form.address1)) return setErrorMessage("주소를 입력해주세요.");
-    if (!hasText(form.address2)) return setErrorMessage("상세 주소를 입력해주세요.");
     setIsSaving(true);
     setErrorMessage("");
     const payload: UserAddressCreateRequest = {
@@ -100,7 +99,7 @@ export default function Addresses() {
       phone: joinPhone({ first: form.phone_first, middle: form.phone_middle, last: form.phone_last }),
       postal_code: form.postal_code.trim(),
       address1: form.address1.trim(),
-      address2: form.address2.trim(),
+      address2: form.address2.trim() || null,
       delivery_memo: form.delivery_memo?.trim() || null, is_default: form.is_default
     };
     try {
@@ -211,7 +210,7 @@ export default function Addresses() {
             />
           </label>
           <label style={styles.field}>
-            상세 주소
+            상세 주소 (선택)
             <input
               value={form.address2}
               onChange={(event) => setForm((current) => ({ ...current, address2: event.target.value }))}

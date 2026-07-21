@@ -901,7 +901,7 @@ function CheckoutPage() {
     }),
     postal_code: addressForm.postal_code.trim(),
     address1: addressForm.address1.trim(),
-    address2: addressForm.address2.trim(),
+    address2: addressForm.address2.trim() || null,
     delivery_memo: addressForm.delivery_memo.trim() || null,
     is_default: addressForm.is_default,
   });
@@ -915,7 +915,6 @@ function CheckoutPage() {
     })) return "연락처를 입력해주세요.";
     if (!hasText(addressForm.postal_code)) return "우편번호를 입력해주세요.";
     if (!hasText(addressForm.address1)) return "주소를 입력해주세요.";
-    if (!hasText(addressForm.address2)) return "상세 주소를 입력해주세요.";
     return "";
   };
 
@@ -1571,7 +1570,7 @@ function CheckoutPage() {
                       />
                     </label>
                     <label className="full">
-                      상세주소
+                      상세 주소 (선택)
                       <input
                         id="addressFormDetail"
                         value={addressForm.address2}
