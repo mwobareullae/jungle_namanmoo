@@ -322,6 +322,12 @@ def _load_selected_cart_rows(
             CartItem.id.in_(selected_item_ids),
         )
         .order_by(CartItem.created_at.asc(), CartItem.id.asc())
+        # 같은 장바구니 항목으로 동시에 두 번 주문이 들어오면(네트워크 재시도, 멀티탭)
+        # 재고 잠금만으로는 막히지 않아 두 주문이 모두 생성될 수 있었음. cart_item 행만
+        # 잠가서(다른 테이블까지 잠그면 무관한 상품 수정과 불필요하게 충돌하므로 of= 로 한정)
+        # 동시 요청 중 하나는 여기서 대기했다가 먼저 커밋된 주문이 옮겨놓은 상태를 보고
+        # CART_ITEM_NOT_FOUND로 걸러지게 한다.
+        .with_for_update(of=CartItem)
     ).all()
     if len(rows) != len(selected_item_ids):
         raise ApiError(404, "CART_ITEM_NOT_FOUND", "Selected cart item was not found.")
