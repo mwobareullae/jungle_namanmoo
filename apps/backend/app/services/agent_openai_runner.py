@@ -173,6 +173,17 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
+EXPLICIT_BULK_WISHLIST_INSTRUCTIONS = """
+Handle exactly one request type: preview a bulk wishlist action for products within a
+popular-rank range that contain a named ingredient. Call
+bulk_wishlist_by_popular_ingredient exactly once. Extract ingredient_name and
+rank_limit from the user's Korean request. Use window_days=7 unless the user states a
+different period. Do not call another tool, infer product IDs, or perform the write;
+the backend resolves current products and requires confirmation before any wishlist
+change.
+"""
+
+
 _EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
     "EMPTY_CART": ("AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요."),
     "EMPTY_CHECKOUT_SELECTION": ("AGENT_CART_EMPTY", "주문할 상품을 장바구니에서 선택해주세요."),
@@ -211,6 +222,13 @@ _POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
     r".{0,20}?(?:들어|포함)"
     r".{0,40}?(?:찜|위시)",
 )
+
+_EXPLICIT_POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
+    r"(?=.*(?:인기|베스트|상위).{0,32}(?:\d+\s*위(?:\s*(?:안|이내))?|\d+\s*개))"
+    r"(?=.*(?:들어간|함유|포함).{0,48}(?:찜|위시리스트))",
+    re.IGNORECASE,
+)
+
 
 _AGENT_TOOL_ORDER: tuple[AgentToolName, ...] = (
     CREATE_RECOMMENDATION_TOOL,
@@ -570,6 +588,18 @@ async def run_openai_agent_chat(
     local_trace: AgentLocalTrace | None = None,
     model_override: str | None = None,
 ) -> AgentChatResponse:
+    explicit_bulk_wishlist = _is_explicit_popular_ingredient_wishlist_request(request.message)
+    if explicit_bulk_wishlist and user is None:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="bulk_wishlist_auth_required",
+                configured_model=settings.openai_agent_model,
+            )
+        return _authentication_required_response(
+            request.conversation_id,
+            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        )
+
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
         if local_trace is not None:
@@ -578,6 +608,26 @@ async def run_openai_agent_chat(
                 configured_model=settings.openai_agent_model,
             )
         return _clarification_response(request.conversation_id, generic_clarification)
+
+    simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
+    if simple_refinement_arguments is not None:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="simple_recommendation_refinement",
+                configured_model=settings.openai_agent_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REFINE_PRODUCT_RESULTS_TOOL,
+            arguments=simple_refinement_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
 
     deterministic_bulk_wishlist_arguments = _get_popular_ingredient_wishlist_arguments(request.message)
     if deterministic_bulk_wishlist_arguments is not None:
@@ -636,12 +686,23 @@ async def run_openai_agent_chat(
         last_tool_result=request.last_tool_result,
         local_trace=local_trace,
     )
-    selected_tool_names = _select_agent_tool_names(
-        user=user,
-        context=request.context,
-        last_tool_result=request.last_tool_result,
+    selected_tool_names = (
+        (BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,)
+        if explicit_bulk_wishlist
+        else _select_agent_tool_names(
+            user=user,
+            context=request.context,
+            last_tool_result=request.last_tool_result,
+        )
     )
-    selected_tools = [_AGENT_TOOLS_BY_NAME[tool_name] for tool_name in selected_tool_names]
+    selected_tools = (
+        [_EXPLICIT_BULK_WISHLIST_TOOL]
+        if explicit_bulk_wishlist
+        else [_AGENT_TOOLS_BY_NAME[tool_name] for tool_name in selected_tool_names]
+    )
+    agent_instructions = (
+        EXPLICIT_BULK_WISHLIST_INSTRUCTIONS if explicit_bulk_wishlist else AGENT_INSTRUCTIONS
+    )
     input_build_started_at = current_time()
     agent_input = _build_agent_input(request)
     agent_input_build_ms = elapsed_ms(input_build_started_at)
@@ -653,13 +714,15 @@ async def run_openai_agent_chat(
         metadata={
             "authenticated": user is not None,
             "page": request.context.page,
+            "route": "explicit_bulk_wishlist" if explicit_bulk_wishlist else "general",
             "tool_count": len(selected_tool_names),
             "tool_names": list(selected_tool_names),
+            "instructions_bytes": len(agent_instructions.encode("utf-8")),
         },
     )
     agent = Agent[CommerceAgentContext](
         name="mwobareullae_action_agent",
-        instructions=AGENT_INSTRUCTIONS,
+        instructions=agent_instructions,
         model=agent_model,
         model_settings=ModelSettings(tool_choice="auto"),
         tool_use_behavior="stop_on_first_tool",
@@ -675,7 +738,7 @@ async def run_openai_agent_chat(
             model=agent_model,
             configured_model=settings.openai_agent_model,
             model_source=model_source,
-            instructions=AGENT_INSTRUCTIONS,
+            instructions=agent_instructions,
             model_settings={"tool_choice": "auto"},
             tool_use_behavior="stop_on_first_tool",
             selected_tools=selected_tools,
@@ -1158,6 +1221,53 @@ def _get_bulk_cart_clarification(message: str) -> str | None:
     return "여러 상품을 한 번에 담는 기능은 아직 지원하지 않아요. 담을 상품 한 개의 순위나 상품명을 알려주세요."
 
 
+def _is_explicit_popular_ingredient_wishlist_request(message: str) -> bool:
+    return bool(_EXPLICIT_POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message))
+
+
+_SIMPLE_REFINEMENT_PATTERN = re.compile(
+    r"^\s*(?P<price>\d+(?:\.\d+)?)\s*(?P<unit>만\s*원?|원)\s*(?:이하|미만|까지)\s*"
+    r"(?P<category>세럼|크림|토너|로션)\s*(?:만\s*)?(?:보여줘|보여\s*주세요|찾아줘|추천해줘|골라줘)?\s*[.!?]*\s*$"
+)
+_SIMPLE_REFINEMENT_CATEGORY_CODES = {
+    "세럼": "serum",
+    "크림": "cream",
+    "토너": "toner",
+    "로션": "lotion",
+}
+
+
+def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
+    """Route an explicit price/category refinement without retaining stale concern filters."""
+    recommendation_id = request.context.recommendation_id
+    if not recommendation_id:
+        return None
+
+    match = _SIMPLE_REFINEMENT_PATTERN.fullmatch(request.message)
+    if match is None:
+        return None
+
+    price_value = float(match.group("price"))
+    unit = match.group("unit")
+    max_price = int(round(price_value * 10_000)) if "만" in unit else int(round(price_value))
+    page_size = request.context.filters.get("page_size", 10)
+    limit = page_size if isinstance(page_size, int) and 1 <= page_size <= 10 else 10
+
+    return {
+        "recommendation_id": recommendation_id,
+        "base_product_ids": [],
+        "limit": limit,
+        "page": 1,
+        "min_price": None,
+        "max_price": max_price,
+        "category_code": _SIMPLE_REFINEMENT_CATEGORY_CODES[match.group("category")],
+        "skin_type": request.context.filters.get("skin_type"),
+        "sensitivity": request.context.filters.get("sensitivity"),
+        "effect_keywords": None,
+        "required_ingredient_names": None,
+    }
+
+
 def _get_generic_clarification(message: str) -> str | None:
     if _BARE_SKIN_CONCERN_PATTERN.search(message):
         return "어떤 피부 고민이 가장 신경 쓰이세요? 예: 여드름, 피지, 모공, 속건조, 홍조, 잡티, 피부결"
@@ -1226,6 +1336,25 @@ def _clarification_response(conversation_id: str | None, message: str, *, tool_n
         error=AgentError(
             code="AGENT_CLARIFICATION_REQUIRED",
             message=message,
+            retryable=False,
+        ),
+    )
+
+
+def _authentication_required_response(
+    conversation_id: str | None,
+    *,
+    tool_name: str,
+) -> AgentChatResponse:
+    message = "로그인 후 요청을 이어서 처리할 수 있어요."
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=tool_name,
+        ui_action=AgentUiAction(),
+        error=AgentError(
+            code="AGENT_AUTH_REQUIRED",
+            message="로그인이 필요한 기능이에요.",
             retryable=False,
         ),
     )
@@ -1689,6 +1818,27 @@ async def compose_cart(
 
 
 @function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
+async def explicit_bulk_wishlist_by_popular_ingredient(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    ingredient_name: str,
+    rank_limit: int = 20,
+    window_days: Literal[1, 7, 30] = 7,
+) -> str:
+    """Preview popular products containing one named ingredient before adding a wishlist batch."""
+    return _execute_tool(
+        ctx,
+        tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        arguments={
+            "ingredient_name": ingredient_name,
+            "rank_limit": rank_limit,
+            "window_days": window_days,
+            "skin_type": None,
+            "sensitivity": None,
+        },
+    )
+
+
+@function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
 async def bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
     ingredient_name: str | None = None,
@@ -1769,6 +1919,9 @@ async def prepare_claim_draft(
             "reason_detail": reason_detail,
         },
     )
+
+
+_EXPLICIT_BULK_WISHLIST_TOOL = explicit_bulk_wishlist_by_popular_ingredient
 
 
 _AGENT_TOOLS_BY_NAME: dict[AgentToolName, Any] = {
