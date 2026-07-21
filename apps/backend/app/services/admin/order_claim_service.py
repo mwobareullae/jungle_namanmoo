@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.auth import User
-from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem
+from app.db.models.commerce import Order, OrderClaim, OrderClaimEvent, OrderClaimItem, OrderItem, Payment
 from app.schemas.admin.order_claim import (
     AdminOrderClaimActionResponse,
     AdminOrderClaimDetailResponse,
@@ -20,7 +20,7 @@ from app.schemas.admin.order_claim import (
     AdminOrderClaimListResponse,
 )
 from app.schemas.common import ApiError
-from app.services.refund_service import process_mock_refund, recompute_order_item_status
+from app.services.refund_service import process_claim_refund, recompute_order_item_status
 
 
 CLAIM_STATUS_REQUESTED = "REQUESTED"
@@ -99,11 +99,13 @@ def get_admin_claim(session: Session, claim_code: str) -> AdminOrderClaimDetailR
     user = _load_users_by_id(session, [int(order.user_id)]).get(int(order.user_id))
     claim_items = _load_claim_items(session, claim.id)
     events = _load_claim_events(session, claim.id)
+    payment = session.execute(select(Payment).where(Payment.order_id == order.id)).scalar_one_or_none()
 
     list_item = _to_list_item(claim, order=order, claim_items=claim_items, user=user)
     return AdminOrderClaimDetailResponse(
         **list_item.model_dump(),
         order_status=order.status,
+        payment_provider=payment.provider if payment is not None else None,
         items=[
             AdminOrderClaimItemDetail(
                 order_item_id=claim_item.order_item_id,
@@ -184,10 +186,15 @@ def complete_admin_claim(
 ) -> AdminOrderClaimActionResponse:
     """클레임 완료. IN_PROGRESS→COMPLETED.
 
-    REFUND/RETURN 은 refund_service.process_mock_refund() 를 재사용해 누적 환불 한도·재고
+    REFUND/RETURN 은 refund_service.process_claim_refund() 를 재사용해 누적 환불 한도·재고
     복구·OrderItem 상태 확정까지 처리한다(그 함수 내부가 Order→Payment→Claim→Inventory 순서로
     잠근다 — 여기서 Claim 을 먼저 잠그면 순서가 뒤집히므로 claim_type 만 잠금 없이 미리 확인한다).
     EXCHANGE 는 결제·재고 변화 없이 Claim 만 잠그고 상태만 완료 처리한다.
+
+    TOSS 결제는 실제 PG 환불 호출 없이는 처리하지 않는 게 원칙이지만, 관리자 승인 취소
+    (payment_cancel_service.cancel_paid_order)와 동일하게 simulate_toss_refund=True 로 내부
+    시뮬레이션을 허용한다 — 그렇지 않으면 TOSS 로 결제된 배송완료 주문은 반품·교환·환불
+    완료 처리 자체가 불가능해진다.
     """
     claim_type = _peek_claim_type(session, claim_code)
 
@@ -200,7 +207,7 @@ def complete_admin_claim(
         _complete_exchange_claim(session, claim, now=datetime.now(UTC))
         return _to_action_response(claim, order_code=order_code)
 
-    process_mock_refund(session, claim_code, restock=restock)
+    process_claim_refund(session, claim_code, restock=restock, simulate_toss_refund=True)
     claim, order_code = _load_claim_for_update(session, claim_code)
     return _to_action_response(claim, order_code=order_code)
 

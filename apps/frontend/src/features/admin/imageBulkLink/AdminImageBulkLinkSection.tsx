@@ -21,6 +21,16 @@ const REQUIRED_HEADERS = ["import_sku", "image_type", "display_order", "storage_
 const IMPORT_SKU_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,63}$/;
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i;
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const PAGE_BLOCK_SIZE = 10;
+
+const getBlockPages = (current: number, total: number): number[] => {
+  const blockIndex = Math.floor((current - 1) / PAGE_BLOCK_SIZE);
+  const start = blockIndex * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, total);
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+};
+
 const templateColumns = [
   { name: "import_sku", note: "M3-B 대량등록 상품 식별자" },
   { name: "image_type", note: "thumbnail 또는 detail" },
@@ -74,6 +84,8 @@ export function AdminImageBulkLinkSection({
   const [clientIssues, setClientIssues] = useState<ClientIssue[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "preview" | "submitting" | "done">("idle");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     if (imageBulkLink.result) {
@@ -114,6 +126,15 @@ export function AdminImageBulkLinkSection({
       };
     });
   }, [clientIssues, imageBulkLink.result, previewRows]);
+
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const blockPages = getBlockPages(currentPage, totalPages);
+  const blockStart = blockPages[0] ?? 1;
+  const blockEnd = blockPages[blockPages.length - 1] ?? 1;
+  const hasPrevBlock = blockStart > 1;
+  const hasNextBlock = blockEnd < totalPages;
+  const currentRows = displayRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const previewFile = async () => {
     const file = fileRef.current;
@@ -214,6 +235,7 @@ export function AdminImageBulkLinkSection({
     setFormError(null);
     imageBulkLink.reset();
     setPhase("preview");
+    setPage(1);
   };
 
   const submit = async () => {
@@ -230,6 +252,7 @@ export function AdminImageBulkLinkSection({
     setPhase("submitting");
     const result = await imageBulkLink.submit(previewRows);
     setPhase(result ? "done" : "preview");
+    if (result) setPage(1);
   };
 
   const errorMessage = formError ?? imageBulkLink.error;
@@ -244,11 +267,11 @@ export function AdminImageBulkLinkSection({
             <h2>파일 미리보기 후 이미지 storage_key를 연결합니다</h2>
           </div>
           <div className="admin-filter-row">
-            <button className="admin-secondary-button" onClick={downloadTemplate} type="button">
+            <button className="admin-secondary-button admin-light-button" onClick={downloadTemplate} type="button">
               템플릿
             </button>
             <button
-              className="admin-secondary-button"
+              className="admin-secondary-button admin-light-button"
               disabled={phase === "submitting"}
               onClick={() => void previewFile()}
               type="button"
@@ -290,6 +313,7 @@ export function AdminImageBulkLinkSection({
                 setFormError(null);
                 imageBulkLink.reset();
                 setPhase("idle");
+                setPage(1);
               }}
               type="file"
             />
@@ -377,6 +401,27 @@ export function AdminImageBulkLinkSection({
           </div>
           <span className="admin-badge neutral">최대 1,000행</span>
         </div>
+
+        <div className="admin-list-toolbar">
+          <div className="admin-page-size">
+            <label htmlFor="admin-image-bulk-page-size">페이지당</label>
+            <select
+              id="admin-image-bulk-page-size"
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+              value={pageSize}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}개
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="admin-table-wrap">
           <table className="admin-table admin-excel-table">
             <thead>
@@ -390,8 +435,8 @@ export function AdminImageBulkLinkSection({
               </tr>
             </thead>
             <tbody>
-              {displayRows.length > 0 ? (
-                displayRows.map((row) => (
+              {currentRows.length > 0 ? (
+                currentRows.map((row) => (
                   <tr key={row.rowNumber}>
                     <td>{row.rowNumber}</td>
                     <td>{row.importSku}</td>
@@ -401,7 +446,9 @@ export function AdminImageBulkLinkSection({
                       </span>
                     </td>
                     <td>{row.field}</td>
-                    <td className="admin-file-name">{row.value}</td>
+                    <td className="admin-file-name" title={row.value}>
+                      {row.value}
+                    </td>
                     <td>{row.message}</td>
                   </tr>
                 ))
@@ -420,6 +467,55 @@ export function AdminImageBulkLinkSection({
             </tbody>
           </table>
         </div>
+
+        {displayRows.length > 0 && (
+          <div className="admin-pagination-row">
+            <div className="admin-pagination">
+              <button
+                className="admin-pagination-jump"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(1)}
+                type="button"
+              >
+                처음
+              </button>
+              <button
+                className="admin-pagination-jump"
+                disabled={!hasPrevBlock}
+                onClick={() => setPage(blockStart - 1)}
+                type="button"
+              >
+                이전
+              </button>
+              {blockPages.map((entry) => (
+                <button
+                  className={`admin-pagination-page${entry === currentPage ? " active" : ""}`}
+                  key={entry}
+                  onClick={() => setPage(entry)}
+                  type="button"
+                >
+                  {entry}
+                </button>
+              ))}
+              <button
+                className="admin-pagination-jump"
+                disabled={!hasNextBlock}
+                onClick={() => setPage(blockEnd + 1)}
+                type="button"
+              >
+                다음
+              </button>
+              <button
+                className="admin-pagination-jump"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(totalPages)}
+                type="button"
+              >
+                맨끝
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </section>
   );

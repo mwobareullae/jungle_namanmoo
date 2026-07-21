@@ -86,6 +86,7 @@ def test_admin_orders_returns_contract_for_admin(client: TestClient, db_engine: 
     assert set(body["summary"].keys()) == {
         "pending_payment_count",
         "preparing_shipment_count",
+        "shipped_count",
         "cancel_requested_count",
         "reserved_quantity_total",
     }
