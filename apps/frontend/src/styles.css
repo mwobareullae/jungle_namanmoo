@@ -4312,6 +4312,10 @@ body {
   justify-content: flex-start !important;
 }
 
+.home-hero .search-examples .example-chip:hover {
+  border-color: #94e0f8 !important;
+}
+
 .recommendation-guide-link {
   display: inline-flex;
   align-items: center;
