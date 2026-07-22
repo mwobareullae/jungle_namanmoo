@@ -2,7 +2,7 @@
 
 - 대상: https://www.mubarelle.com/
 - 작성일: 2026-07-20
-- 최종 업데이트: 2026-07-21 (10번 회원가입·로그인 항목 일부 검증)
+- 최종 업데이트: 2026-07-22 (14번 마이페이지 검증)
 - 범위: 고객 화면, 추천, 검색, 상품, 피부검사, 회원, 장바구니, 주문·결제, 마이페이지, 관리자, 모바일·접근성
 - 상태 표기: `✅ 통과` · `❌ 실패` · `⚠️ 확인 필요` · `⬜ 미실행`
 
@@ -68,6 +68,8 @@
 - ✅ **P3 — 결제 실패 시 cancelOrder 실패하면 주문이 PENDING_PAYMENT로 잔류 → 수정 완료 (2026-07-21):** 결제 실패 후 프론트가 호출하는 `cancelOrder` 자체가 네트워크 문제 등으로 실패하면 재시도 수단이 없어 주문이 `PENDING_PAYMENT`로 방치되던 문제. [PaymentCompletePage.tsx](apps/frontend/src/pages/PaymentCompletePage.tsx)에 "주문 취소 다시 시도" 버튼 추가.
 - ✅ **P1 — 마이페이지 주문 취소 완료 안내에 개발 중 자리표시자 문구 노출 → 수정 완료 (지현 실사용 발견, 2026-07-21):** 주문/배송내역에서 "주문 취소"를 실제로 진행하면(`cancelOrder` API가 정상 호출되어 주문 상태가 실제로 "취소요청"으로 바뀜에도) 완료 안내에 "취소 사유를 확인했습니다. 백엔드 계약이 확정되면 취소 요청 API와 연결됩니다."라는, 연동 전 개발 단계에 써두고 지우지 않은 문구가 그대로 노출됨. 실제 사용자에게 "취소가 아직 처리 안 된 것"처럼 오해를 주는 문구. [OrderList.tsx](apps/frontend/src/pages/mypage/OrderList.tsx)에서 주문 상태(PAID/PENDING_PAYMENT)에 맞는 정확한 안내로 교체하고, 페이지 하단에 조용히 박혀 눈에 잘 안 띄던 인라인 문구 대신 기존 `ActivityToast`(세션만료 토스트와 동일 컴포넌트)로 통일. 실사용 검증 완료 — 주문 상세 페이지의 "취소 요청 처리 현황"(처리상태/취소사유/요청일)도 정상 표시 확인됨.
 - ✅ **P3 — 마이페이지 주문 관련 버튼 hover 스타일 3곳 미적용 → 수정 완료 (2026-07-21):** 주문 상세의 "목록으로", 주문 내역 빈 상태의 "추천 상품 보러가기" — Tailwind 임의값 hover 클래스(`hover:text-[...]`, `hover:bg-[...]`)가 이 파일에서는 적용되지 않는 현상 확인. 전용 CSS 클래스(`mypage-order-back-link`, `mypage-order-primary-link`)로 교체해 해소.
+- ✅ **P0 후보 — 피부검사 결과 조회 API에 소유자 검증 없음 (IDOR) → 수정 완료 (2026-07-22, 배포 전):** `GET /skin-test/results/{result_id}` 엔드포인트([skin.py:103](apps/backend/app/api/routes/skin.py:103))에 `current_user` 의존성 자체가 없고, 내부 함수 `get_skin_test_result_data`도 결과의 소유자를 확인하지 않아 `result_id`(순차 정수)만 알면 로그인 없이도 다른 사용자의 피부 타입·민감도·고민을 조회할 수 있던 문제. 같은 파일의 `apply_skin_test_result_to_profile`은 이미 `result.user_id != user.id`면 403으로 막고 있었는데 조회 쪽만 빠져 있었음. [skin.py:103](apps/backend/app/api/routes/skin.py:103)에 `get_optional_current_user` 의존성을 추가하고, [skin_test_service.py:393](apps/backend/app/services/skin_test_service.py:393) `get_skin_test_result_data`에 동일한 소유자 검증(`result.user_id is not None and (current_user is None or result.user_id != current_user.id)` → 403 `SKIN_TEST_RESULT_FORBIDDEN`)을 추가해 해소. 비회원이 방금 본인이 응시한 테스트 결과(비로그인 응시라 `user_id`가 없는 경우)를 보는 정상 흐름은 그대로 유지됨. 회귀 테스트 `test_skin_test_result_owned_by_other_user_is_forbidden` 추가(본인 200 / 비로그인 403 / 다른 로그인 사용자 403) — `test_skin_api.py` 9건 전체 통과. **배포 후 mubarelle.com 재확인 필요.**
+- ✅ **P1 — 마이페이지 주문 상세, 상품별 상태가 영어 원문 그대로 노출 → 수정 완료 (2026-07-22, 배포 전):** 주문/배송내역에서 "총 N건 펼쳐보기"로 펼치면 상품별 상태가 "결제완료" 대신 `ORDERED` 영어 원문으로 표시되던 문제. [OrderList.tsx:17](apps/frontend/src/pages/mypage/OrderList.tsx:17)의 `statusLabelMap`이 주문(Order) 단위 상태값만 담고 있어, 상품(OrderItem) 단위 상태값인 `ORDERED`([commerce.py:512](apps/backend/app/db/models/commerce.py:512) 기본값)가 매핑에 없어 원본 값이 그대로 노출된 것. `ORDERED: "결제완료"` 매핑 추가로 해소(주문 단위 PAID와 동일 시점을 가리키므로 같은 라벨 사용). 타입체크(`tsc --noEmit`) 통과. **배포 후 mubarelle.com 재확인 필요.**
 
 ---
 
@@ -297,11 +299,11 @@
 ## 14. 마이페이지
 
 - [x] 비회원 접근 시 로그인으로 이동한다. `✅ 통과`
-- [ ] 프로필 조회·수정이 된다.
-- [ ] 피부 정보 조회·수정이 된다.
-- [ ] 주문·찜·리뷰 내역이 정확하다.
-- [ ] 회원 탈퇴 전 확인을 받고 결과가 명확하다.
-- [ ] 다른 사용자의 데이터가 보이지 않는다.
+- [x] 프로필 조회·수정이 된다. `✅ 통과 (2026-07-22) — 개인정보 설정에서 닉네임 변경(aa→aa_qa) 즉시 헤더·사이드바 반영, 원복까지 확인`
+- [x] 피부 정보 조회·수정이 된다. `✅ 통과 (2026-07-22) — 피부 프로필 관리 조회값이 마이페이지 홈 요약과 일치(모공/여드름/피지유분/홍조/흔적관리, 보존제/향료/착색제). 미백 태그 추가→저장→반영→원복까지 확인`
+- [x] 주문·찜·리뷰 내역이 정확하다. `✅ 수정 완료(배포 전) (2026-07-22) — 결제완료 필터 건수(1)가 홈 요약과 일치, 상품금액+배송비 합산도 정확(26,690+22,900+3,000=52,590). 찜 추가/삭제 정상 반영. 리뷰 0건은 배송완료 주문 없어 정상. 주문 상세 펼침 시 상품별 상태가 "ORDERED" 영어 원문으로 노출되던 버그는 statusLabelMap에 ORDERED 매핑 추가로 해소(0번 섹션 참고). mubarelle.com 배포 후 재확인 필요`
+- [x] 회원 탈퇴 전 확인을 받고 결과가 명확하다. `✅ 통과 (2026-07-22) — "탈퇴하면 개인정보와 맞춤 정보가 삭제되며 복구할 수 없습니다" 경고 문구와 계속 이용하기/탈퇴하기 확인 모달 노출 확인. 실제 탈퇴는 진행하지 않음`
+- [x] 다른 사용자의 데이터가 보이지 않는다. `✅ 수정 완료(배포 전) (2026-07-22) — 찜/최근본상품/피부프로필은 /me/ 경로+세션 기반이라 안전(코드 리뷰). 피부검사 결과 조회 API(GET /skin-test/results/{result_id})에 소유자 검증이 없어 다른 사용자 결과를 열람할 수 있던 IDOR을 발견해 즉시 수정(0번 섹션 참고). mubarelle.com 배포 후 재확인 필요`
 
 ---
 
