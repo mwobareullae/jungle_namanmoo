@@ -273,6 +273,11 @@ def prepare_bulk_wishlist_by_popular_ingredient(
         ingredient = _resolve_canonical_ingredient(session, raw_name)
         ingredients_by_id.setdefault(int(ingredient.id), ingredient)
     ingredients = list(ingredients_by_id.values())
+    # Once aliases have been resolved and duplicates removed, all/any have the
+    # same meaning for one ingredient. Persist one canonical shape so previews,
+    # confirmations, and downstream evaluation do not depend on model wording.
+    if len(ingredients) <= 1:
+        ingredient_match_mode = "all"
     resolved_category = _resolve_canonical_category(session, category) if category else None
     criteria = _build_compound_criteria(
         ingredients=ingredients,
