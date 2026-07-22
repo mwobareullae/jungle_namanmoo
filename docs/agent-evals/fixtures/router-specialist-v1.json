@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "name": "router-specialist-v1",
+  "extends": "single-agent-baseline-v1.json",
+  "description": "Router/Specialist evaluation extends the 17-case single-Agent baseline with five natural address cases and eight bounded bulk-wishlist cases.",
+  "cases": [
+    {
+      "id": "address-labelled-normal",
+      "group": "address-routing",
+      "message": "\ubc1b\ub294 \ubd84: \ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790, \uc5f0\ub77d\ucc98: 010-5555-0101, \uc6b0\ud3b8\ubc88\ud638: 04524, \uc8fc\uc18c: \uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uc138\uc885\ub300\ub85c 110, \ubc30\uc1a1 \uba54\ubaa8: \ubb38 \uc55e\uc5d0 \ub193\uc544\uc8fc\uc138\uc694",
+      "auth_mode": "guest",
+      "context_mode": "checkout",
+      "expect": {
+        "route": "cart_checkout",
+        "tool_name": "register_shipping_address",
+        "error_code": "AGENT_AUTH_REQUIRED",
+        "requires_confirmation": false,
+        "validation": "guest address details are blocked by the server authentication gate"
+      }
+    },
+    {
+      "id": "address-field-order-changed",
+      "group": "address-routing",
+      "message": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uc138\uc885\ub300\ub85c 110 3\uce35 / 04524 / \uc218\ub839\uc778 \ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790 / 010 5555 0101",
+      "auth_mode": "guest",
+      "context_mode": "checkout",
+      "expect": {
+        "route": "cart_checkout",
+        "tool_name": "register_shipping_address",
+        "error_code": "AGENT_AUTH_REQUIRED",
+        "requires_confirmation": false,
+        "validation": "free-form address field order is parsed before the authentication gate"
+      }
+    },
+    {
+      "id": "address-natural-unlabelled",
+      "group": "address-routing",
+      "message": "\ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790, 010-5555-0101, \uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uc138\uc885\ub300\ub85c 110 3\uce35, 04524",
+      "auth_mode": "guest",
+      "context_mode": "checkout",
+      "expect": {
+        "route": "cart_checkout",
+        "tool_name": "register_shipping_address",
+        "error_code": "AGENT_AUTH_REQUIRED",
+        "requires_confirmation": false,
+        "validation": "unlabelled address input is parsed before the authentication gate"
+      }
+    },
+    {
+      "id": "address-missing-phone",
+      "group": "address-routing",
+      "message": "\ubc1b\ub294 \ubd84: \ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790, \uc6b0\ud3b8\ubc88\ud638: 04524, \uc8fc\uc18c: \uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uc138\uc885\ub300\ub85c 110",
+      "auth_mode": "guest",
+      "context_mode": "checkout",
+      "expect": {
+        "route": "cart_checkout",
+        "allow_clarification": true,
+        "validation": "incomplete address details are clarified instead of executed"
+      }
+    },
+    {
+      "id": "address-invalid-postal-code",
+      "group": "address-routing",
+      "message": "\ubc1b\ub294 \ubd84: \ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790, \uc5f0\ub77d\ucc98: 010-5555-0101, \uc6b0\ud3b8\ubc88\ud638: 0452, \uc8fc\uc18c: \uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uc138\uc885\ub300\ub85c 110",
+      "auth_mode": "guest",
+      "context_mode": "checkout",
+      "expect": {
+        "route": "cart_checkout",
+        "allow_clarification": true,
+        "validation": "an invalid postal code must not create an address mutation"
+      }
+    },
+    {
+      "id": "bulk-wishlist-single-ingredient-rank20",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 20\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "rank_limit": 20
+        },
+        "validation": "a bounded ingredient wishlist stays confirmation-gated"
+      }
+    },
+    {
+      "id": "bulk-wishlist-single-ingredient-rank50",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 50\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "rank_limit": 50
+        },
+        "validation": "the maximum supported rank remains a preview-only mutation"
+      }
+    },
+    {
+      "id": "bulk-wishlist-multi-ingredient-all",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 50\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uc640 \ud310\ud14c\ub180\uc774 \ubaa8\ub450 \ub4e4\uc5b4\uac04 \uc138\ub7fc\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_match_mode": "all",
+          "category": "\uc138\ub7fc",
+          "rank_limit": 50
+        },
+        "argument_includes": {
+          "ingredient_names": [
+            "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+            "\ud310\ud14c\ub180"
+          ]
+        },
+        "validation": "all named ingredients and category are preserved before confirmation"
+      }
+    },
+    {
+      "id": "bulk-wishlist-multi-ingredient-any",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 50\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc \ub610\ub294 \ud310\ud14c\ub180 \uc911 \ud558\ub098\ub77c\ub3c4 \ub4e4\uc5b4\uac04 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_match_mode": "any",
+          "rank_limit": 50
+        },
+        "argument_includes": {
+          "ingredient_names": [
+            "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+            "\ud310\ud14c\ub180"
+          ]
+        },
+        "validation": "any-ingredient semantics are preserved before confirmation"
+      }
+    },
+    {
+      "id": "bulk-wishlist-category",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 30\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \ud1a0\ub108\ub97c \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "category": "\ud1a0\ub108",
+          "rank_limit": 30
+        },
+        "validation": "category is retained in the bulk wishlist preview"
+      }
+    },
+    {
+      "id": "bulk-wishlist-price-cap",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 30\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \uc138\ub7fc \uc911 2\ub9cc\uc6d0 \uc774\ud558 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "category": "\uc138\ub7fc",
+          "price_max": 20000,
+          "rank_limit": 30
+        },
+        "validation": "price and category constraints are retained in the preview"
+      }
+    },
+    {
+      "id": "bulk-wishlist-empty-price-window",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 20\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \uc138\ub7fc \uc911 1\uc6d0 \uc774\ud558 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": false,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "category": "\uc138\ub7fc",
+          "price_max": 1,
+          "rank_limit": 20
+        },
+        "validation": "an empty criteria match must not create a confirmation mutation"
+      }
+    },
+    {
+      "id": "bulk-wishlist-rank-limit",
+      "group": "bulk-wishlist",
+      "message": "\uc778\uae30 \uc0c1\ud488 51\uc704 \uc548\uc5d0\uc11c \ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc\uac00 \ub4e4\uc5b4\uac04 \uc81c\ud488\uc744 \uc804\ubd80 \ucc1c\ud574\uc918",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "route": "bulk_wishlist",
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "error_code": "AGENT_BULK_WISHLIST_RANK_LIMIT",
+        "requires_confirmation": false,
+        "argument_equals": {
+          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+          "rank_limit": 51
+        },
+        "validation": "rank 51 is rejected explicitly rather than silently truncated"
+      }
+    }
+  ]
+}

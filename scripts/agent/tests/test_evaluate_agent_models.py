@@ -7,6 +7,7 @@ from pathlib import Path
 from scripts.agent.evaluate_agent_models import (
     AgentEvaluationProfile,
     DEFAULT_CASES_PATH,
+    ROUTER_SPECIALIST_CASES_PATH,
     build_execution_plan,
     build_profile_execution_plan,
     evaluate_case_response,
@@ -28,6 +29,24 @@ class AgentModelEvaluationTests(unittest.TestCase):
         self.assertEqual(
             fixture["cases"][-1]["id"],
             "demo-bulk-wishlist",
+        )
+
+    def test_router_specialist_fixture_extends_baseline_to_thirty_cases(self) -> None:
+        fixture = load_fixture(ROUTER_SPECIALIST_CASES_PATH)
+        case_ids = {case["id"] for case in fixture["cases"]}
+
+        self.assertEqual(len(fixture["cases"]), 30)
+        self.assertEqual(len(case_ids), 30)
+        self.assertTrue(
+            {
+                "pore-oily-01",
+                "address-labelled-normal",
+                "bulk-wishlist-rank-limit",
+            }.issubset(case_ids)
+        )
+        self.assertEqual(
+            fixture["bootstrap_request"]["concern_text"],
+            "피지가 많고 모공이 넓어 고민이야",
         )
 
     def test_execution_plan_alternates_model_order_between_repeats(self) -> None:
@@ -55,16 +74,17 @@ class AgentModelEvaluationTests(unittest.TestCase):
     def test_profile_execution_plan_keeps_router_models_separate(self) -> None:
         profiles = resolve_evaluation_profiles(
             [],
-            ["single-gpt55", "router-nano", "router-nano-fallback"],
+            ["single-gpt55", "single-nano", "router-nano", "router-nano-fallback"],
         )
         plan = build_profile_execution_plan([{"id": "one"}], profiles, repeat=1)
 
         self.assertEqual([item["profile_id"] for item in plan], [
             "single-gpt55",
+            "single-nano",
             "router-nano",
             "router-nano-fallback",
         ])
-        router_headers = plan[1]["headers"]
+        router_headers = plan[2]["headers"]
         self.assertEqual(router_headers["X-Agent-Local-Execution-Mode"], "router_specialist")
         self.assertNotIn("X-Agent-Local-Model", router_headers)
         self.assertEqual(
@@ -218,6 +238,58 @@ class AgentModelEvaluationTests(unittest.TestCase):
         self.assertEqual(metrics["output_tokens"], 5)
         self.assertEqual(metrics["total_tokens"], 39)
         self.assertEqual(metrics["estimated_cost_usd"], 0.003)
+        self.assertEqual(metrics["provider_model_call_count"], 2)
+
+    def test_response_validation_accepts_expected_tool_error_and_route(self) -> None:
+        case = {
+            "expect": {
+                "route": "bulk_wishlist",
+                "tool_name": "bulk_wishlist_by_popular_ingredient",
+                "error_code": "AGENT_BULK_WISHLIST_RANK_LIMIT",
+                "requires_confirmation": False,
+                "argument_equals": {"rank_limit": 51},
+            }
+        }
+        response = {
+            "tool_name": "bulk_wishlist_by_popular_ingredient",
+            "requires_confirmation": False,
+            "error": {"code": "AGENT_BULK_WISHLIST_RANK_LIMIT"},
+        }
+        trace = {
+            "tool_calls": [
+                {
+                    "tool_name": "bulk_wishlist_by_popular_ingredient",
+                    "resolved_arguments": {"rank_limit": 51},
+                }
+            ]
+        }
+
+        result = evaluate_case_response(case, response=response, trace=trace, status_code=200)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["route_pass"])
+        self.assertTrue(result["tool_pass"])
+        self.assertTrue(result["safety_pass"])
+
+    def test_response_validation_allows_expected_clarification(self) -> None:
+        case = {
+            "expect": {
+                "route": "cart_checkout",
+                "tool_name": "register_shipping_address",
+                "allow_clarification": True,
+            }
+        }
+        response = {
+            "error": {"code": "AGENT_CLARIFICATION_REQUIRED"},
+            "requires_confirmation": False,
+        }
+
+        result = evaluate_case_response(case, response=response, trace={}, status_code=200)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["clarification_used"])
+        self.assertTrue(result["route_pass"])
+        self.assertTrue(result["tool_pass"])
 
     def test_trace_metrics_marks_successful_direct_tool_path_as_not_called(self) -> None:
         metrics = extract_trace_metrics({"route": {"outcome": "succeeded"}, "agent": {}})
@@ -252,9 +324,13 @@ class AgentModelEvaluationTests(unittest.TestCase):
                 "group": "recommendation",
                 "http_status": 200,
                 "model_called": True,
+                "provider_model_call_count": 1,
                 "model_source": "local_header_override",
                 "structural_pass": True,
                 "constraint_pass": True,
+                "route_pass": True,
+                "tool_pass": True,
+                "safety_pass": True,
                 "client_roundtrip_ms": 100.0,
                 "route_total_ms": 90.0,
                 "agent_model_and_orchestration_ms": 70.0,
@@ -279,7 +355,9 @@ class AgentModelEvaluationTests(unittest.TestCase):
         )
 
         self.assertEqual(summaries[0]["model_called_count"], 1)
+        self.assertEqual(summaries[0]["provider_model_call_count"], 1)
         self.assertIn("gpt-5.5", report)
+        self.assertIn("Provider model calls: 1", report)
         self.assertIn("model-summary.csv", report)
 
 
