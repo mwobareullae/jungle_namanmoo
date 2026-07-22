@@ -183,6 +183,16 @@ const getHeaderBottom = () => {
   return typeof headerBottom === "number" ? Math.max(0, headerBottom - 1) : 64;
 };
 
+const setPanelHiddenState = (panel: HTMLElement | null, hidden: boolean) => {
+  if (!panel) return;
+  panel.toggleAttribute("inert", hidden);
+  if (hidden) {
+    panel.setAttribute("aria-hidden", "true");
+  } else {
+    panel.removeAttribute("aria-hidden");
+  }
+};
+
 const CATEGORY_PANEL_MIN_HEIGHT = 160;
 const CATEGORY_PANEL_MAX_HEIGHT = 520;
 let categoryMenuScrollY = 0;
@@ -230,17 +240,15 @@ const installFunctions = () => {
     renderRecentConcerns("ai");
   };
 
-  runtime.toggleCart = () => {
-    document.getElementById("cartSidebar")?.classList.toggle("active");
-    document.getElementById("cartOverlay")?.classList.toggle("active");
-  };
   runtime.closeCategoryMenu = () => {
     const wasOpen = document.body.classList.contains("category-menu-open");
-    document.getElementById("categoryPanel")?.classList.remove("active");
+    const panel = document.getElementById("categoryPanel");
+    panel?.classList.remove("active");
     document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
     document.body.classList.remove("category-menu-open");
     if (wasOpen) unlockCategoryMenuScroll();
     document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
+    setPanelHiddenState(panel, true);
   };
   runtime.openCategoryMenu = () => {
     const panel = document.getElementById("categoryPanel");
@@ -254,6 +262,7 @@ const installFunctions = () => {
     backdrop?.classList.add("active");
     document.body.classList.add("category-menu-open");
     button?.setAttribute("aria-expanded", "true");
+    setPanelHiddenState(panel, false);
   };
   runtime.toggleCategoryMenu = () => {
     const panel = document.getElementById("categoryPanel");
@@ -272,6 +281,7 @@ const installFunctions = () => {
     document.body.classList.remove("category-menu-open");
     if (wasOpen) unlockCategoryMenuScroll();
     button?.setAttribute("aria-expanded", "false");
+    setPanelHiddenState(panel, true);
   };
   runtime.showToast = (message) => showToast(String(message));
   runtime.openSearchSuggestions = openSearchSuggestions;
