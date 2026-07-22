@@ -115,7 +115,6 @@ export default function OrderList() {
   const [cancelReasonDraft, setCancelReasonDraft] = useState<CancelReasonDraft | null>(null);
   const [isCancelReasonFormOpen, setIsCancelReasonFormOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
-  const [cancelSubmittedOrderCode, setCancelSubmittedOrderCode] = useState<string | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelErrorMessage, setCancelErrorMessage] = useState("");
   const filteredOrders = useMemo(() => {
@@ -232,7 +231,6 @@ export default function OrderList() {
   const openCancelForm = (order: OrderListItem) => {
     setCancelTargetOrder(order);
     setCancelReasonDraft(null);
-    setCancelSubmittedOrderCode(null);
     setCancelErrorMessage("");
     if (order.status === "PENDING_PAYMENT") {
       setIsCancelConfirmOpen(true);
@@ -260,7 +258,11 @@ export default function OrderList() {
           : undefined
       );
       setIsCancelConfirmOpen(false);
-      setCancelSubmittedOrderCode(cancelTargetOrder.order_code);
+      showToast(
+        cancelTargetOrder.status === "PAID"
+          ? "취소 요청이 접수되었습니다. 관리자 승인 후 처리됩니다."
+          : "주문이 취소되었습니다."
+      );
       await loadOrders();
     } catch (error) {
       setCancelErrorMessage(error instanceof Error ? error.message : "주문 취소에 실패했습니다.");
@@ -385,7 +387,7 @@ export default function OrderList() {
           <div style={styles.stateBox}>
             <strong style={styles.stateTitle}>아직 주문/배송내역이 없어요</strong>
             <p style={styles.stateText}>추천받은 상품을 장바구니에 담고 첫 주문을 진행해보세요.</p>
-            <Link className="bg-[#0C1117] hover:bg-[#1A1A1A]" style={styles.primaryLink} to="/">
+            <Link className="mypage-order-primary-link" style={styles.primaryLink} to="/">
               추천 상품 보러가기
             </Link>
           </div>
@@ -711,11 +713,6 @@ export default function OrderList() {
         open={isCancelConfirmOpen}
         title="최종 확인"
       />
-      {cancelSubmittedOrderCode ? (
-        <p role="status" style={styles.cancelNotice}>
-          취소 사유를 확인했습니다. 백엔드 계약이 확정되면 취소 요청 API와 연결됩니다.
-        </p>
-      ) : null}
       {cancelErrorMessage ? <p role="alert" style={styles.cancelError}>{cancelErrorMessage}</p> : null}
       <ActivityToast message={toastMessage} />
       <ConfirmModal
@@ -1119,15 +1116,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     fontWeight: 400,
     cursor: "pointer"
-  },
-  cancelNotice: {
-    margin: "14px 0 0",
-    padding: "12px 14px",
-    borderRadius: 10,
-    background: "#f1fbfe",
-    color: "#2f7188",
-    fontSize: 14,
-    lineHeight: 1.5
   },
   cancelError: {
     margin: "14px 0 0",

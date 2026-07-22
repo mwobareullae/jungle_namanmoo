@@ -51,5 +51,9 @@ const searchResultSummaryVisibilityCss = `<style>
 body.search-results-page .api-result-summary:not(:empty) {
   display: flex;
 }
+
+body.search-results-page .api-summary-chip.warning {
+  background: #ffffff;
+}
 </style>`;
 originalPages.search.headHtml += searchResultSummaryVisibilityCss;

@@ -1005,7 +1005,14 @@ function App() {
           {appMode !== "community" && <Route path="/signup" element={<SignupTermsPage />} />}
           {appMode !== "community" && <Route path="/signup/info" element={<SignupInfoPage />} />}
           {appMode !== "community" && (
-            <Route path="/signup/skin-profile" element={<SignupSkinProfilePage />} />
+            <Route
+              path="/signup/skin-profile"
+              element={
+                <ProtectedRoute>
+                  <SignupSkinProfilePage />
+                </ProtectedRoute>
+              }
+            />
           )}
           {appMode !== "community" && (
             <Route

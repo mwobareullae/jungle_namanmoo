@@ -118,7 +118,6 @@ def test_create_address_normalizes_formatted_phone(
         ("recipient_name", "Kim123"),
         ("phone", "010-1234-56"),
         ("postal_code", "1234a"),
-        ("address2", "   "),
     ],
 )
 def test_create_address_rejects_invalid_required_values(client: TestClient, field: str, value: str) -> None:
@@ -183,13 +182,49 @@ def test_update_address_can_clear_delivery_memo_and_change_default(client: TestC
     assert items_by_id[first_id]["is_default"] is False
 
 
-def test_update_address_rejects_empty_detail_address(client: TestClient) -> None:
-    _signup(client, email="address-detail-required@example.com", nickname="address-detail-required")
+def test_create_address_allows_missing_detail_address(client: TestClient) -> None:
+    _signup(client, email="address-detail-optional@example.com", nickname="address-detail-optional")
+
+    response = client.post(
+        "/api/me/addresses",
+        json={
+            "recipient_name": "Recipient",
+            "phone": "01012345678",
+            "postal_code": "12345",
+            "address1": "Seoul",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["address2"] is None
+
+
+def test_create_address_normalizes_blank_detail_address_to_none(client: TestClient) -> None:
+    _signup(client, email="address-detail-blank@example.com", nickname="address-detail-blank")
+
+    response = client.post(
+        "/api/me/addresses",
+        json={
+            "recipient_name": "Recipient",
+            "phone": "01012345678",
+            "postal_code": "12345",
+            "address1": "Seoul",
+            "address2": "   ",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["address2"] is None
+
+
+def test_update_address_can_clear_detail_address(client: TestClient) -> None:
+    _signup(client, email="address-detail-optional@example.com", nickname="address-detail-optional")
     address_id = _create_address(client, recipient_name="Recipient")["id"]
 
     response = client.patch(f"/api/me/addresses/{address_id}", json={"address2": None})
 
-    assert response.status_code == 400
+    assert response.status_code == 200
+    assert response.json()["address2"] is None
 
 
 def test_update_default_false_keeps_one_default_address(client: TestClient) -> None:

@@ -14,7 +14,12 @@ from typing import Any, AsyncIterator, Literal, Mapping
 
 from sqlalchemy.orm import Session
 
-from app.core.ai_logging import extract_agents_usage, log_ai_call
+from app.core.ai_logging import (
+    estimate_ai_cost_breakdown,
+    extract_agents_usage,
+    extract_agents_usage_breakdown,
+    log_ai_call,
+)
 from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.db.models.auth import User
@@ -57,6 +62,7 @@ from app.services.agent_product_reference import apply_last_tool_result_referenc
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
+from app.services.agent_local_trace import AgentLocalTrace
 from app.services.agent_tool_dispatcher import execute_agent_tool
 from app.services.agent_policy import get_tool_policy
 from app.services.agent_runtime_control import AgentRuntimeControl
@@ -126,8 +132,8 @@ Routing:
   under a total budget -> compose_cart (toner/serum/cream); cart mutation requires
   confirmation. Checkout/order/payment before checkout -> prepare_checkout. Only on
   checkout and after explicit review -> prepare_order; payment remains user-completed.
-- Missing shipping address -> ask once for recipient, phone, postal code, address1, and
-  address2. Register only after all shipping details are supplied -> register_shipping_address; continue_checkout
+- Missing shipping address -> ask once for recipient, phone, postal code, and address1.
+  address2 is optional. Register after the required shipping details are supplied -> register_shipping_address; continue_checkout
   when resuming checkout and copy context.cart_item_ids so the interrupted selection is
   preserved. Never repeat the full address or phone in chat.
 - Review help -> prepare_review_draft only with a real rating/experience. Improve flow
@@ -167,6 +173,17 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_POPULAR_PRODUCTS_NOT_FOUND": "현재 인기 순위를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
+EXPLICIT_BULK_WISHLIST_INSTRUCTIONS = """
+Handle exactly one request type: preview a bulk wishlist action for products within a
+popular-rank range that contain a named ingredient. Call
+bulk_wishlist_by_popular_ingredient exactly once. Extract ingredient_name and
+rank_limit from the user's Korean request. Use window_days=7 unless the user states a
+different period. Do not call another tool, infer product IDs, or perform the write;
+the backend resolves current products and requires confirmation before any wishlist
+change.
+"""
+
+
 _EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
     "EMPTY_CART": ("AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요."),
     "EMPTY_CHECKOUT_SELECTION": ("AGENT_CART_EMPTY", "주문할 상품을 장바구니에서 선택해주세요."),
@@ -205,6 +222,13 @@ _POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
     r".{0,20}?(?:들어|포함)"
     r".{0,40}?(?:찜|위시)",
 )
+
+_EXPLICIT_POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
+    r"(?=.*(?:인기|베스트|상위).{0,32}(?:\d+\s*위(?:\s*(?:안|이내))?|\d+\s*개))"
+    r"(?=.*(?:들어간|함유|포함).{0,48}(?:찜|위시리스트))",
+    re.IGNORECASE,
+)
+
 
 _AGENT_TOOL_ORDER: tuple[AgentToolName, ...] = (
     CREATE_RECOMMENDATION_TOOL,
@@ -379,7 +403,11 @@ class CommerceAgentContext:
     user_message: str = ""
     last_tool_result: AgentLastToolResult | None = None
     last_tool_response: AgentChatResponse | None = None
+    local_trace: AgentLocalTrace | None = None
     tool_execution_ms: float = 0.0
+    tool_reference_resolve_ms: float = 0.0
+    tool_dispatch_ms: float = 0.0
+    tool_response_serialize_ms: float = 0.0
 
 
 class _OpenAICircuitBreaker:
@@ -453,19 +481,29 @@ class _OpenAIConcurrencyLimiter:
         )
 
     @asynccontextmanager
-    async def limit(self) -> AsyncIterator[None]:
+    async def limit(
+        self,
+        *,
+        workflow_timing: AgentWorkflowTiming | None = None,
+    ) -> AsyncIterator[None]:
+        queue_wait_started_at = current_time()
         try:
             await asyncio.wait_for(
                 self._semaphore.acquire(),
                 timeout=self._queue_timeout_seconds,
             )
         except TimeoutError as exc:
+            if workflow_timing is not None:
+                workflow_timing.local_queue_wait_ms += elapsed_ms(queue_wait_started_at)
             raise ApiError(
                 429,
                 "AGENT_OPENAI_BUSY",
                 "AI 요청이 잠시 많아요. 잠시 후 다시 시도해주세요.",
                 headers={"Retry-After": str(self._retry_after_seconds)},
             ) from exc
+
+        if workflow_timing is not None:
+            workflow_timing.local_queue_wait_ms += elapsed_ms(queue_wait_started_at)
 
         try:
             yield
@@ -482,8 +520,17 @@ class AgentWorkflowTiming:
 
     global_slot_wait_ms: float = 0.0
     global_slot_acquire_ms: float = 0.0
+    local_queue_wait_ms: float = 0.0
+    agent_input_build_ms: float = 0.0
+    agent_setup_ms: float = 0.0
+    agent_runner_ms: float = 0.0
+    agent_retry_backoff_ms: float = 0.0
+    agent_model_and_orchestration_ms: float = 0.0
     llm_workflow_ms: float = 0.0
     tool_execution_ms: float = 0.0
+    tool_reference_resolve_ms: float = 0.0
+    tool_dispatch_ms: float = 0.0
+    tool_response_serialize_ms: float = 0.0
     global_slot_acquired: bool = False
     global_slot_rejected: bool = False
 
@@ -499,6 +546,33 @@ async def _global_slot_context(
         yield lease
 
 
+_LOCAL_MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _resolve_agent_model(model_override: str | None) -> tuple[str, str]:
+    """Resolve a model override that is deliberately available only for local traces."""
+    if model_override is None or not model_override.strip():
+        return settings.openai_agent_model, "configured_default"
+
+    normalized_model = model_override.strip()
+    if (
+        settings.app_env.strip().lower() != "local"
+        or not settings.openai_agent_local_trace_enabled
+    ):
+        raise ApiError(
+            400,
+            "LOCAL_MODEL_OVERRIDE_NOT_AVAILABLE",
+            "Local model override is available only with local raw trace enabled.",
+        )
+    if not _LOCAL_MODEL_NAME_PATTERN.fullmatch(normalized_model):
+        raise ApiError(
+            400,
+            "INVALID_LOCAL_MODEL_OVERRIDE",
+            "Local model override must be a valid model identifier.",
+        )
+    return normalized_model, "local_header_override"
+
+
 async def run_openai_agent_chat(
     session: Session,
     request: AgentChatRequest,
@@ -511,10 +585,79 @@ async def run_openai_agent_chat(
     runtime_control: AgentRuntimeControl | None = None,
     workflow_timing: AgentWorkflowTiming | None = None,
     trace_metadata: Mapping[str, Any] | None = None,
+    local_trace: AgentLocalTrace | None = None,
+    model_override: str | None = None,
 ) -> AgentChatResponse:
+    explicit_bulk_wishlist = _is_explicit_popular_ingredient_wishlist_request(request.message)
+    if explicit_bulk_wishlist and user is None:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="bulk_wishlist_auth_required",
+                configured_model=settings.openai_agent_model,
+            )
+        return _authentication_required_response(
+            request.conversation_id,
+            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        )
+
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="generic_clarification",
+                configured_model=settings.openai_agent_model,
+            )
         return _clarification_response(request.conversation_id, generic_clarification)
+
+    shipping_address_arguments = _get_shipping_address_arguments(request)
+    if shipping_address_arguments is not None:
+        if user is None:
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="shipping_address_auth_required",
+                    configured_model=settings.openai_agent_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            )
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_details",
+                configured_model=settings.openai_agent_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            arguments=shipping_address_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
+    simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
+    if simple_refinement_arguments is not None:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="simple_recommendation_refinement",
+                configured_model=settings.openai_agent_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REFINE_PRODUCT_RESULTS_TOOL,
+            arguments=simple_refinement_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
 
     deterministic_bulk_wishlist_arguments = _get_popular_ingredient_wishlist_arguments(request.message)
     if deterministic_bulk_wishlist_arguments is not None:
@@ -533,15 +676,26 @@ async def run_openai_agent_chat(
 
     multi_action_clarification = _get_multi_action_clarification(request.message)
     if multi_action_clarification:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="multi_action_clarification",
+                configured_model=settings.openai_agent_model,
+            )
         return _clarification_response(request.conversation_id, multi_action_clarification)
 
     clarification_message = _get_bulk_cart_clarification(request.message)
     if clarification_message:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="bulk_cart_clarification",
+                configured_model=settings.openai_agent_model,
+            )
         return _clarification_response(request.conversation_id, clarification_message)
 
+    agent_model, model_source = _resolve_agent_model(model_override)
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "에이전트 대화 설정을 확인해 주세요.")
-    if not settings.openai_agent_model:
+    if not agent_model:
         raise ApiError(503, "AGENT_OPENAI_MODEL_NOT_CONFIGURED", "에이전트 모델 설정을 확인해 주세요.")
 
     try:
@@ -560,13 +714,29 @@ async def run_openai_agent_chat(
         agent_context=request.context,
         user_message=request.message,
         last_tool_result=request.last_tool_result,
+        local_trace=local_trace,
     )
-    selected_tool_names = _select_agent_tool_names(
-        user=user,
-        context=request.context,
-        last_tool_result=request.last_tool_result,
+    selected_tool_names = (
+        (BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,)
+        if explicit_bulk_wishlist
+        else _select_agent_tool_names(
+            user=user,
+            context=request.context,
+            last_tool_result=request.last_tool_result,
+        )
     )
-    selected_tools = [_AGENT_TOOLS_BY_NAME[tool_name] for tool_name in selected_tool_names]
+    selected_tools = (
+        [_EXPLICIT_BULK_WISHLIST_TOOL]
+        if explicit_bulk_wishlist
+        else [_AGENT_TOOLS_BY_NAME[tool_name] for tool_name in selected_tool_names]
+    )
+    agent_instructions = (
+        EXPLICIT_BULK_WISHLIST_INSTRUCTIONS if explicit_bulk_wishlist else AGENT_INSTRUCTIONS
+    )
+    input_build_started_at = current_time()
+    agent_input = _build_agent_input(request)
+    agent_input_build_ms = elapsed_ms(input_build_started_at)
+    agent_setup_started_at = current_time()
     log_performance_event(
         "agent_tools_selected",
         request_id=request_id,
@@ -574,18 +744,38 @@ async def run_openai_agent_chat(
         metadata={
             "authenticated": user is not None,
             "page": request.context.page,
+            "route": "explicit_bulk_wishlist" if explicit_bulk_wishlist else "general",
             "tool_count": len(selected_tool_names),
             "tool_names": list(selected_tool_names),
+            "instructions_bytes": len(agent_instructions.encode("utf-8")),
         },
     )
     agent = Agent[CommerceAgentContext](
         name="mwobareullae_action_agent",
-        instructions=AGENT_INSTRUCTIONS,
-        model=settings.openai_agent_model,
+        instructions=agent_instructions,
+        model=agent_model,
         model_settings=ModelSettings(tool_choice="auto"),
         tool_use_behavior="stop_on_first_tool",
         tools=selected_tools,
     )
+
+    agent_setup_ms = elapsed_ms(agent_setup_started_at)
+    if workflow_timing is not None:
+        workflow_timing.agent_input_build_ms = agent_input_build_ms
+        workflow_timing.agent_setup_ms = agent_setup_ms
+    if local_trace is not None:
+        local_trace.capture_agent_configuration(
+            model=agent_model,
+            configured_model=settings.openai_agent_model,
+            model_source=model_source,
+            instructions=agent_instructions,
+            model_settings={"tool_choice": "auto"},
+            tool_use_behavior="stop_on_first_tool",
+            selected_tools=selected_tools,
+            agent_input=agent_input,
+        )
+        local_trace.set_timing("agent_input_build_ms", agent_input_build_ms)
+        local_trace.set_timing("agent_setup_ms", agent_setup_ms)
 
     started_at = current_time()
     retry_count = 0
@@ -611,12 +801,16 @@ async def run_openai_agent_chat(
                 _OPENAI_CIRCUIT_BREAKER.before_call()
                 max_retries = max(0, min(settings.openai_agent_max_retries, 1))
                 while True:
+                    runner_attempt_started_at = current_time()
+                    runner_attempt_started_timestamp = datetime.now(UTC)
                     try:
                         remaining_seconds = deadline - time.monotonic()
                         if remaining_seconds <= 0:
                             raise TimeoutError("OpenAI request timeout budget exhausted")
                         async with asyncio.timeout(remaining_seconds):
-                            async with _OPENAI_CONCURRENCY_LIMITER.limit():
+                            async with _OPENAI_CONCURRENCY_LIMITER.limit(
+                                workflow_timing=workflow_timing
+                            ):
                                 with trace(
                                     "mwobarellae_action_agent",
                                     group_id=_trace_group_id(trace_metadata),
@@ -624,16 +818,40 @@ async def run_openai_agent_chat(
                                 ):
                                     result = await Runner.run(
                                         agent,
-                                        input=_build_agent_input(request),
+                                        input=agent_input,
                                         context=context,
                                         max_turns=4,
                                     )
+                        runner_attempt_ms = elapsed_ms(runner_attempt_started_at)
+                        if workflow_timing is not None:
+                            workflow_timing.agent_runner_ms += runner_attempt_ms
+                        if local_trace is not None:
+                            local_trace.record_runner_attempt(
+                                attempt=retry_count + 1,
+                                duration_ms=runner_attempt_ms,
+                                model=agent_model,
+                                started_at=runner_attempt_started_timestamp,
+                                completed_at=datetime.now(UTC),
+                            )
                         break
                     except Exception as exc:
+                        runner_attempt_ms = elapsed_ms(runner_attempt_started_at)
+                        if workflow_timing is not None:
+                            workflow_timing.agent_runner_ms += runner_attempt_ms
+                        if local_trace is not None:
+                            local_trace.record_runner_attempt(
+                                attempt=retry_count + 1,
+                                duration_ms=runner_attempt_ms,
+                                model=agent_model,
+                                started_at=runner_attempt_started_timestamp,
+                                completed_at=datetime.now(UTC),
+                                error=exc,
+                            )
                         _log_openai_failure_counter(
                             exc,
                             request_id=request_id,
                             duration_ms=elapsed_ms(workflow_started_at),
+                            model=agent_model,
                         )
                         # Never retry after a commerce tool has run: retrying could duplicate
                         # a state-changing action such as add-to-cart or address registration.
@@ -657,19 +875,35 @@ async def run_openai_agent_chat(
                             request_id=request_id,
                             duration_ms=elapsed_ms(workflow_started_at),
                             metadata={
-                                "model": settings.openai_agent_model,
+                                "model": agent_model,
                                 "attempt": retry_count + 1,
                                 "exception_type": type(exc).__name__,
                                 "delay_ms": round(retry_delay_seconds * 1000, 2),
                             },
                             level=30,
                         )
+                        retry_sleep_started_at = current_time()
                         await asyncio.sleep(retry_delay_seconds)
+                        if workflow_timing is not None:
+                            workflow_timing.agent_retry_backoff_ms += elapsed_ms(
+                                retry_sleep_started_at
+                            )
                 _OPENAI_CIRCUIT_BREAKER.record_success()
             finally:
                 if workflow_timing is not None:
                     workflow_timing.llm_workflow_ms = elapsed_ms(workflow_started_at)
                     workflow_timing.tool_execution_ms = context.tool_execution_ms
+                    workflow_timing.tool_reference_resolve_ms = context.tool_reference_resolve_ms
+                    workflow_timing.tool_dispatch_ms = context.tool_dispatch_ms
+                    workflow_timing.tool_response_serialize_ms = context.tool_response_serialize_ms
+                    workflow_timing.agent_model_and_orchestration_ms = max(
+                        workflow_timing.agent_runner_ms
+                        - workflow_timing.local_queue_wait_ms
+                        - context.tool_reference_resolve_ms
+                        - context.tool_dispatch_ms
+                        - context.tool_response_serialize_ms,
+                        0.0,
+                    )
     except Exception as exc:
         if workflow_timing is not None and not workflow_timing.global_slot_acquired:
             workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
@@ -679,6 +913,7 @@ async def run_openai_agent_chat(
                 exc,
                 request_id=request_id,
                 duration_ms=elapsed_ms(started_at),
+                model=agent_model,
             )
         failure_kind = _classify_openai_failure(exc)
         opened = _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
@@ -688,7 +923,7 @@ async def run_openai_agent_chat(
                 request_id=request_id,
                 duration_ms=elapsed_ms(started_at),
                 metadata={
-                    "model": settings.openai_agent_model,
+                    "model": agent_model,
                     "cooldown_seconds": settings.openai_agent_circuit_cooldown_seconds,
                     "failure_kind": failure_kind,
                 },
@@ -696,7 +931,7 @@ async def run_openai_agent_chat(
             )
         log_ai_call(
             "agent_chat",
-            model=settings.openai_agent_model,
+            model=agent_model,
             duration_ms=elapsed_ms(started_at),
             request_id=request_id,
             success=False,
@@ -711,16 +946,57 @@ async def run_openai_agent_chat(
         if isinstance(exc, ApiError):
             raise
         raise _to_agent_execution_error(exc) from exc
+    usage_breakdown = extract_agents_usage_breakdown(result)
+    usage = extract_agents_usage(result)
+    cost_estimate = estimate_ai_cost_breakdown(agent_model, usage_breakdown)
+    if local_trace is not None:
+        local_trace.capture_runner_result(
+            result,
+            usage=usage,
+            usage_breakdown=usage_breakdown,
+            cost_estimate=cost_estimate,
+        )
+        if workflow_timing is not None:
+            local_trace.set_timing("global_slot_wait_ms", workflow_timing.global_slot_wait_ms)
+            local_trace.set_timing("global_slot_acquire_ms", workflow_timing.global_slot_acquire_ms)
+            local_trace.set_timing("local_queue_wait_ms", workflow_timing.local_queue_wait_ms)
+            local_trace.set_timing("agent_runner_ms", workflow_timing.agent_runner_ms)
+            local_trace.set_timing(
+                "agent_retry_backoff_ms",
+                workflow_timing.agent_retry_backoff_ms,
+            )
+            local_trace.set_timing(
+                "agent_model_and_orchestration_ms",
+                workflow_timing.agent_model_and_orchestration_ms,
+            )
+            local_trace.set_timing("agent_workflow_ms", workflow_timing.llm_workflow_ms)
+            local_trace.set_timing("tool_execution_ms", workflow_timing.tool_execution_ms)
+            local_trace.set_timing(
+                "tool_reference_resolve_ms",
+                workflow_timing.tool_reference_resolve_ms,
+            )
+            local_trace.set_timing("tool_dispatch_ms", workflow_timing.tool_dispatch_ms)
+            local_trace.set_timing(
+                "tool_response_serialize_ms",
+                workflow_timing.tool_response_serialize_ms,
+            )
+            local_trace.set_timing(
+                "tool_total_ms",
+                workflow_timing.tool_reference_resolve_ms
+                + workflow_timing.tool_dispatch_ms
+                + workflow_timing.tool_response_serialize_ms,
+            )
+
     if context.last_tool_response is not None:
         # Every commerce tool already returns a user-facing message and authoritative
         # UI payload. Stopping at the first tool avoids a redundant second model call.
         response = context.last_tool_response
         log_ai_call(
             "agent_chat",
-            model=settings.openai_agent_model,
+            model=agent_model,
             duration_ms=elapsed_ms(started_at),
             request_id=request_id,
-            usage=extract_agents_usage(result),
+            usage=usage_breakdown,
             metadata={
                 "conversation_id": response.conversation_id,
                 "max_turns": 4,
@@ -743,10 +1019,10 @@ async def run_openai_agent_chat(
     )
     log_ai_call(
         "agent_chat",
-        model=settings.openai_agent_model,
+        model=agent_model,
         duration_ms=elapsed_ms(started_at),
         request_id=request_id,
-        usage=extract_agents_usage(result),
+        usage=usage_breakdown,
         metadata={
             "conversation_id": response.conversation_id,
             "max_turns": 4,
@@ -810,6 +1086,7 @@ def _log_openai_failure_counter(
     *,
     request_id: str | None,
     duration_ms: float,
+    model: str | None = None,
 ) -> None:
     error_code: str | None = exc.code if isinstance(exc, ApiError) else None
     failure_kind = _classify_openai_failure(exc)
@@ -831,7 +1108,7 @@ def _log_openai_failure_counter(
         request_id=request_id,
         duration_ms=duration_ms,
         metadata={
-            "model": settings.openai_agent_model,
+            "model": model or settings.openai_agent_model,
             "failure_kind": failure_kind,
             "exception_type": type(exc).__name__,
         },
@@ -974,6 +1251,81 @@ def _get_bulk_cart_clarification(message: str) -> str | None:
     return "여러 상품을 한 번에 담는 기능은 아직 지원하지 않아요. 담을 상품 한 개의 순위나 상품명을 알려주세요."
 
 
+def _is_explicit_popular_ingredient_wishlist_request(message: str) -> bool:
+    return bool(_EXPLICIT_POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message))
+
+
+_SIMPLE_REFINEMENT_PATTERN = re.compile(
+    r"^\s*(?P<price>\d+(?:\.\d+)?)\s*(?P<unit>만\s*원?|원)\s*(?:이하|미만|까지)\s*"
+    r"(?P<category>세럼|크림|토너|로션)\s*(?:만\s*)?(?:보여줘|보여\s*주세요|찾아줘|추천해줘|골라줘)?\s*[.!?]*\s*$"
+)
+_SIMPLE_REFINEMENT_CATEGORY_CODES = {
+    "세럼": "serum",
+    "크림": "cream",
+    "토너": "toner",
+    "로션": "lotion",
+}
+_SHIPPING_ADDRESS_DETAILS_PATTERN = re.compile(
+    r"^\s*(?P<recipient_name>[^,\n]{1,100})\s*,\s*"
+    r"(?P<phone>(?:\+?82[-\s]?)?01\d[-\s]?\d{3,4}[-\s]?\d{4})\s*,\s*"
+    r"(?P<postal_code>\d{5})\s*,\s*"
+    r"(?P<address1>[^,\n]{1,255})(?:\s*,\s*(?P<address2>[^,\n]{1,255}))?\s*$"
+)
+
+
+def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
+    """Route an explicit price/category refinement without retaining stale concern filters."""
+    recommendation_id = request.context.recommendation_id
+    if not recommendation_id:
+        return None
+
+    match = _SIMPLE_REFINEMENT_PATTERN.fullmatch(request.message)
+    if match is None:
+        return None
+
+    price_value = float(match.group("price"))
+    unit = match.group("unit")
+    max_price = int(round(price_value * 10_000)) if "만" in unit else int(round(price_value))
+    page_size = request.context.filters.get("page_size", 10)
+    limit = page_size if isinstance(page_size, int) and 1 <= page_size <= 10 else 10
+
+    return {
+        "recommendation_id": recommendation_id,
+        "base_product_ids": [],
+        "limit": limit,
+        "page": 1,
+        "min_price": None,
+        "max_price": max_price,
+        "category_code": _SIMPLE_REFINEMENT_CATEGORY_CODES[match.group("category")],
+        "skin_type": request.context.filters.get("skin_type"),
+        "sensitivity": request.context.filters.get("sensitivity"),
+        "effect_keywords": None,
+        "required_ingredient_names": None,
+    }
+
+
+def _get_shipping_address_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
+    """Parse the address details requested immediately before checkout."""
+    if not request.context.cart_item_ids:
+        return None
+
+    match = _SHIPPING_ADDRESS_DETAILS_PATTERN.fullmatch(request.message)
+    if match is None:
+        return None
+
+    return {
+        "recipient_name": match.group("recipient_name").strip(),
+        "phone": re.sub(r"[-\s]", "", match.group("phone")),
+        "postal_code": match.group("postal_code"),
+        "address1": match.group("address1").strip(),
+        "address2": (match.group("address2") or "").strip() or None,
+        "delivery_memo": None,
+        "is_default": False,
+        "continue_checkout": True,
+        "cart_item_ids": request.context.cart_item_ids,
+    }
+
+
 def _get_generic_clarification(message: str) -> str | None:
     if _BARE_SKIN_CONCERN_PATTERN.search(message):
         return "어떤 피부 고민이 가장 신경 쓰이세요? 예: 여드름, 피지, 모공, 속건조, 홍조, 잡티, 피부결"
@@ -1047,6 +1399,25 @@ def _clarification_response(conversation_id: str | None, message: str, *, tool_n
     )
 
 
+def _authentication_required_response(
+    conversation_id: str | None,
+    *,
+    tool_name: str,
+) -> AgentChatResponse:
+    message = "로그인 후 요청을 이어서 처리할 수 있어요."
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=tool_name,
+        ui_action=AgentUiAction(),
+        error=AgentError(
+            code="AGENT_AUTH_REQUIRED",
+            message="로그인이 필요한 기능이에요.",
+            retryable=False,
+        ),
+    )
+
+
 def _expected_tool_error_response(
     conversation_id: str | None,
     *,
@@ -1078,12 +1449,16 @@ def _execute_tool(
 ) -> str:
     runtime_context: CommerceAgentContext = ctx.context
     started_at = current_time()
+    reference_resolve_started_at = current_time()
     resolved_arguments = apply_last_tool_result_reference(
         tool_name=tool_name,
         arguments=arguments,
         user_message=runtime_context.user_message,
         last_tool_result=runtime_context.last_tool_result,
     )
+    reference_resolve_ms = elapsed_ms(reference_resolve_started_at)
+    runtime_context.tool_reference_resolve_ms += reference_resolve_ms
+    dispatch_started_at = current_time()
     try:
         response = execute_agent_tool(
             runtime_context.session,
@@ -1112,7 +1487,7 @@ def _execute_tool(
                 conversation_id=_resolve_conversation_id(runtime_context.conversation_id),
                 message=(
                     "등록된 배송지가 없어요. 받는 분 이름, 연락처, 우편번호, "
-                    "기본 주소와 상세 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
+                    "기본 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
                 ),
                 tool_name=tool_name,
                 ui_action=AgentUiAction(),
@@ -1170,10 +1545,13 @@ def _execute_tool(
             ),
         )
     finally:
+        dispatch_ms = elapsed_ms(dispatch_started_at)
+        runtime_context.tool_dispatch_ms += dispatch_ms
         runtime_context.tool_execution_ms += elapsed_ms(started_at)
     runtime_context.last_tool_response = response
+    response_serialize_started_at = current_time()
     if tool_name == CREATE_RECOMMENDATION_TOOL and response.error is None:
-        return json.dumps(
+        sdk_return_value = json.dumps(
             {
                 "message": response.message,
                 "tool_name": response.tool_name,
@@ -1183,7 +1561,23 @@ def _execute_tool(
             },
             ensure_ascii=False,
         )
-    return json.dumps(dump_model(response), ensure_ascii=False)
+    else:
+        sdk_return_value = json.dumps(dump_model(response), ensure_ascii=False)
+    response_serialize_ms = elapsed_ms(response_serialize_started_at)
+    runtime_context.tool_response_serialize_ms += response_serialize_ms
+    if runtime_context.local_trace is not None:
+        runtime_context.local_trace.record_tool_call(
+            tool_name=tool_name,
+            model_arguments=arguments,
+            resolved_arguments=resolved_arguments,
+            response=response,
+            sdk_return_value=sdk_return_value,
+            reference_resolve_ms=reference_resolve_ms,
+            dispatch_ms=dispatch_ms,
+            response_serialize_ms=response_serialize_ms,
+            total_ms=elapsed_ms(started_at),
+        )
+    return sdk_return_value
 
 
 try:
@@ -1434,7 +1828,7 @@ async def register_shipping_address(
     ctx: RunContextWrapper[CommerceAgentContext],
     postal_code: str,
     address1: str,
-    address2: str,
+    address2: str | None = None,
     recipient_name: str | None = None,
     phone: str | None = None,
     delivery_memo: str | None = None,
@@ -1477,6 +1871,27 @@ async def compose_cart(
             "max_budget": max_budget,
             "skin_type": skin_type,
             "sensitivity": sensitivity,
+        },
+    )
+
+
+@function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
+async def explicit_bulk_wishlist_by_popular_ingredient(
+    ctx: RunContextWrapper[CommerceAgentContext],
+    ingredient_name: str,
+    rank_limit: int = 20,
+    window_days: Literal[1, 7, 30] = 7,
+) -> str:
+    """Preview popular products containing one named ingredient before adding a wishlist batch."""
+    return _execute_tool(
+        ctx,
+        tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        arguments={
+            "ingredient_name": ingredient_name,
+            "rank_limit": rank_limit,
+            "window_days": window_days,
+            "skin_type": None,
+            "sensitivity": None,
         },
     )
 
@@ -1562,6 +1977,9 @@ async def prepare_claim_draft(
             "reason_detail": reason_detail,
         },
     )
+
+
+_EXPLICIT_BULK_WISHLIST_TOOL = explicit_bulk_wishlist_by_popular_ingredient
 
 
 _AGENT_TOOLS_BY_NAME: dict[AgentToolName, Any] = {
