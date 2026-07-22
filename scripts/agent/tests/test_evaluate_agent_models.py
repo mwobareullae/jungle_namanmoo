@@ -215,6 +215,38 @@ class AgentModelEvaluationTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertTrue(result["constraint_pass"])
 
+    def test_response_validation_normalizes_legacy_and_compound_bulk_criteria(self) -> None:
+        case = {
+            "expect": {
+                "tool_name": "bulk_wishlist_by_popular_ingredient",
+                "argument_equals": {"ingredient_name": "나이아신아마이드"},
+                "criteria_equals": {"ingredient_match_mode": "all"},
+                "criteria_includes": {"ingredient_names": ["나이아신아마이드"]},
+            }
+        }
+        response = {
+            "tool_name": "bulk_wishlist_by_popular_ingredient",
+            "requires_confirmation": True,
+            "ui_action": {"payload": {"criteria": None}},
+        }
+        trace = {
+            "tool_calls": [
+                {
+                    "tool_name": "bulk_wishlist_by_popular_ingredient",
+                    "resolved_arguments": {
+                        "ingredient_name": None,
+                        "ingredient_names": ["나이아신아마이드"],
+                        "ingredient_match_mode": "all",
+                    },
+                }
+            ]
+        }
+
+        result = evaluate_case_response(case, response=response, trace=trace, status_code=200)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["constraint_pass"])
+
     def test_trace_metrics_extracts_model_cost_and_timing(self) -> None:
         metrics = extract_trace_metrics(
             {
