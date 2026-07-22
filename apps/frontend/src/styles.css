@@ -4096,6 +4096,11 @@ body {
   isolation: isolate;
 }
 
+/* 홈 진입부는 헤더 아래의 강조선을 사용하지 않는다. */
+.home-hero {
+  border-top: 0 !important;
+}
+
 .hero-inner {
   position: relative;
   z-index: 1;
@@ -4321,6 +4326,10 @@ body {
 .search-examples.search-examples--with-guide {
   align-items: center !important;
   justify-content: flex-start !important;
+}
+
+.home-hero .search-examples .example-chip:hover {
+  border-color: #94e0f8 !important;
 }
 
 .recommendation-guide-link {
@@ -4808,7 +4817,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 22px 0;
+  padding: 12px 22px;
 }
 
 .search-interpretation__label {
@@ -4821,6 +4830,10 @@ body {
   border-color: #8edcf5;
   background: #effbff;
   color: #126d88;
+}
+
+.api-summary-chip.warning {
+  background: #ffffff;
 }
 
 .api-summary-chip.removable {
@@ -13159,10 +13172,10 @@ html[data-app-mode="community"] .search-results-shell {
   align-items: center;
   min-height: 26px;
   padding: 0 8px;
-  border: 1px solid #F4B6C8;
+  border: 1px solid #F2B39D;
   border-radius: 999px;
-  background: #FFF0F5;
-  color: #B8476A;
+  background: #FFF1EB;
+  color: #E07852;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
