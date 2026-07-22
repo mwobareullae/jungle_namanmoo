@@ -1,4 +1,7 @@
-from app.services.agent_address_tools import parse_shipping_address_details
+from app.services.agent_address_tools import (
+    get_shipping_address_clarification,
+    parse_shipping_address_details,
+)
 
 
 def test_parse_shipping_address_accepts_labelled_fields_in_any_order() -> None:
@@ -48,3 +51,12 @@ def test_parse_shipping_address_allows_profile_name_and_phone_fallbacks() -> Non
 def test_parse_shipping_address_requires_postal_code_and_address() -> None:
     assert parse_shipping_address_details("김원우, 010-1234-5678, 서울특별시 중구 세종대로 110") is None
     assert parse_shipping_address_details("김원우, 010-1234-5678, 04524") is None
+
+
+def test_shipping_address_clarification_handles_only_labelled_invalid_postal_code() -> None:
+    assert get_shipping_address_clarification(
+        "받는 분: 김원우, 연락처: 010-1234-5678, 우편번호: 0452, 주소: 서울특별시 중구 세종대로 110"
+    ) == "우편번호는 숫자 5자리로 알려주세요."
+    assert get_shipping_address_clarification(
+        "받는 분: 김원우, 연락처: 010-1234-5678, 우편번호: 04524, 주소: 서울특별시 중구 세종대로 110"
+    ) is None

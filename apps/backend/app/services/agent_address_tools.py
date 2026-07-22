@@ -81,6 +81,25 @@ def parse_shipping_address_details(message: str) -> dict[str, Any] | None:
     }
 
 
+def get_shipping_address_clarification(message: str) -> str | None:
+    """Return a deterministic prompt for an explicitly malformed postal code.
+
+    This intentionally handles only a labelled postal-code field paired with an
+    address field. Other incomplete checkout messages stay with the Specialist,
+    avoiding false positives for ordinary product or order messages.
+    """
+
+    text = message.strip()
+    if not text or parse_shipping_address_details(text) is not None:
+        return None
+
+    labelled = _parse_labelled_address_fields(text)
+    postal_code = labelled.get("postal_code")
+    if postal_code and labelled.get("address1") and _normalize_postal_code(postal_code) is None:
+        return "우편번호는 숫자 5자리로 알려주세요."
+    return None
+
+
 def _parse_labelled_address_fields(text: str) -> dict[str, str]:
     matches = list(_ADDRESS_LABEL_PATTERN.finditer(text))
     fields: dict[str, str] = {}

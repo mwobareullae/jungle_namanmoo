@@ -46,7 +46,11 @@ from app.services.agent_commerce_tools import (
     PREPARE_PRODUCT_CHECKOUT_TOOL,
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL
-from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, parse_shipping_address_details
+from app.services.agent_address_tools import (
+    REGISTER_SHIPPING_ADDRESS_TOOL,
+    get_shipping_address_clarification,
+    parse_shipping_address_details,
+)
 from app.services.agent_recommendation_tools import (
     AgentCategoryCode,
     AgentConcernId,
@@ -937,6 +941,19 @@ async def _run_single_agent_chat(
             last_tool_result=request.last_tool_result,
         )
 
+    shipping_address_clarification = get_shipping_address_clarification(request.message)
+    if shipping_address_clarification:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_invalid_postal_code",
+                configured_model=settings.openai_agent_model,
+            )
+        return _clarification_response(
+            request.conversation_id,
+            shipping_address_clarification,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+        )
+
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
     if simple_refinement_arguments is not None:
         if local_trace is not None:
@@ -1790,6 +1807,20 @@ def _try_router_specialist_fast_path(
             anonymous_user_id=anonymous_user_id,
             anonymous_cart_id=anonymous_cart_id,
             last_tool_result=request.last_tool_result,
+        )
+
+    shipping_address_clarification = get_shipping_address_clarification(request.message)
+    if shipping_address_clarification:
+        _record_fast_path(workflow_timing, "shipping_address_invalid_postal_code")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_invalid_postal_code",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return _clarification_response(
+            request.conversation_id,
+            shipping_address_clarification,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
         )
 
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
