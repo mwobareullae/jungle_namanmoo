@@ -63,6 +63,15 @@ from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
 from app.services.agent_local_trace import AgentLocalTrace
+from app.services.agent_orchestration import (
+    ROUTER_INSTRUCTIONS,
+    SPECIALIST_PROFILES,
+    RouteDecision,
+    build_router_input,
+    build_specialist_input,
+    select_specialist_tool_names,
+    validate_route_decision,
+)
 from app.services.agent_tool_dispatcher import execute_agent_tool
 from app.services.agent_policy import get_tool_policy
 from app.services.agent_runtime_control import AgentRuntimeControl
@@ -588,6 +597,59 @@ async def run_openai_agent_chat(
     local_trace: AgentLocalTrace | None = None,
     model_override: str | None = None,
 ) -> AgentChatResponse:
+    """Run the configured action-Agent execution path.
+
+    ``single`` is intentionally the default and preserves the original Agent
+    behavior. ``router_specialist`` is opt-in until its quality evaluation is
+    accepted, so changing the feature flag is sufficient to roll it back.
+    """
+
+    if settings.openai_agent_execution_mode == "router_specialist":
+        return await _run_router_specialist_agent_chat(
+            session,
+            request,
+            user=user,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            runtime_control=runtime_control,
+            workflow_timing=workflow_timing,
+            trace_metadata=trace_metadata,
+            local_trace=local_trace,
+            model_override=model_override,
+        )
+    return await _run_single_agent_chat(
+        session,
+        request,
+        user=user,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        runtime_control=runtime_control,
+        workflow_timing=workflow_timing,
+        trace_metadata=trace_metadata,
+        local_trace=local_trace,
+        model_override=model_override,
+    )
+
+
+async def _run_single_agent_chat(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None = None,
+    request_id: str | None = None,
+    session_id: str | None = None,
+    anonymous_user_id: str | None = None,
+    anonymous_cart_id: str | None = None,
+    runtime_control: AgentRuntimeControl | None = None,
+    workflow_timing: AgentWorkflowTiming | None = None,
+    trace_metadata: Mapping[str, Any] | None = None,
+    local_trace: AgentLocalTrace | None = None,
+    model_override: str | None = None,
+) -> AgentChatResponse:
     explicit_bulk_wishlist = _is_explicit_popular_ingredient_wishlist_request(request.message)
     if explicit_bulk_wishlist and user is None:
         if local_trace is not None:
@@ -1033,6 +1095,507 @@ async def run_openai_agent_chat(
         },
     )
     return response
+
+
+async def _run_router_specialist_agent_chat(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    request_id: str | None,
+    session_id: str | None,
+    anonymous_user_id: str | None,
+    anonymous_cart_id: str | None,
+    runtime_control: AgentRuntimeControl | None,
+    workflow_timing: AgentWorkflowTiming | None,
+    trace_metadata: Mapping[str, Any] | None,
+    local_trace: AgentLocalTrace | None,
+    model_override: str | None,
+) -> AgentChatResponse:
+    """Run a tool-free route decision followed by one narrow Specialist Agent.
+
+    The Redis lease, process-local queue slot, and timeout deadline cover the
+    entire workflow.  A Router or Specialist failure is never redirected to the
+    legacy single-Agent path, which keeps a rollback explicit and observable.
+    """
+
+    fast_response = _try_router_specialist_fast_path(
+        session,
+        request,
+        user=user,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        local_trace=local_trace,
+    )
+    if fast_response is not None:
+        return fast_response
+
+    router_model, specialist_model, model_source = _resolve_router_specialist_models(model_override)
+    if not settings.openai_api_key:
+        raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "AI 에이전트 설정을 확인해 주세요.")
+    if not router_model or not specialist_model:
+        raise ApiError(503, "AGENT_OPENAI_MODEL_NOT_CONFIGURED", "AI 에이전트 모델 설정을 확인해 주세요.")
+
+    try:
+        from agents import Agent, ModelSettings, Runner, trace
+    except ImportError as exc:
+        raise ApiError(503, "AGENT_SDK_NOT_INSTALLED", "AI 에이전트 실행 환경을 사용할 수 없어요.") from exc
+
+    context = CommerceAgentContext(
+        session=session,
+        user=user,
+        conversation_id=request.conversation_id,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        agent_context=request.context,
+        user_message=request.message,
+        last_tool_result=request.last_tool_result,
+        local_trace=local_trace,
+    )
+    allowed_tool_names = _select_agent_tool_names(
+        user=user,
+        context=request.context,
+        last_tool_result=request.last_tool_result,
+    )
+    router_input = build_router_input(request, user=user)
+    router_agent = Agent[CommerceAgentContext](
+        name="mwobarellae_action_router",
+        instructions=ROUTER_INSTRUCTIONS,
+        model=router_model,
+        model_settings=ModelSettings(),
+        output_type=RouteDecision,
+    )
+    started_at = current_time()
+    slot_wait_started_at = current_time()
+    stage_results: list[tuple[str, str, Any]] = []
+    fallback_reason: str | None = None
+    decision: RouteDecision | None = None
+    response: AgentChatResponse | None = None
+
+    if local_trace is not None:
+        local_trace.set_route_value("agent_execution_mode", "router_specialist")
+        local_trace.set_route_value("router_model", router_model)
+        local_trace.set_route_value("router_input", router_input)
+
+    try:
+        async with _global_slot_context(runtime_control) as lease:
+            if workflow_timing is not None:
+                workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+                if lease is not None:
+                    workflow_timing.global_slot_acquire_ms = round(
+                        float(getattr(lease, "acquire_ms", 0.0)),
+                        2,
+                    )
+                    workflow_timing.global_slot_acquired = True
+
+            workflow_started_at = current_time()
+            deadline = time.monotonic() + max(float(settings.openai_agent_timeout_seconds), 0.1)
+            try:
+                # Router, Specialist, and the optional fallback occupy one local
+                # slot. Releasing it between the calls would let one workflow
+                # exceed the configured local admission budget under concurrency.
+                async with _OPENAI_CONCURRENCY_LIMITER.limit(workflow_timing=workflow_timing):
+                    router_result = await _run_router_specialist_stage(
+                        runner=Runner,
+                        trace_factory=trace,
+                        agent=router_agent,
+                        agent_input=router_input,
+                        context=context,
+                        deadline=deadline,
+                        stage="router",
+                        model=router_model,
+                        request_id=request_id,
+                        trace_metadata=trace_metadata,
+                        workflow_timing=workflow_timing,
+                    )
+                    stage_results.append(("router", router_model, router_result))
+                    try:
+                        decision = RouteDecision.model_validate(router_result.final_output)
+                    except Exception as exc:
+                        raise ApiError(
+                            503,
+                            "AGENT_ROUTER_INVALID_OUTPUT",
+                            "요청을 처리할 경로를 결정하지 못했어요. 잠시 후 다시 시도해 주세요.",
+                        ) from exc
+
+                    route_error = validate_route_decision(
+                        decision,
+                        request=request,
+                        user=user,
+                        allowed_tool_names=allowed_tool_names,
+                    )
+                    if decision.route in {"bulk_wishlist", "order_after_sales"} and user is None:
+                        profile = SPECIALIST_PROFILES[decision.route]
+                        response = _authentication_required_response(
+                            request.conversation_id,
+                            tool_name=profile.tool_names[0],
+                        )
+                    elif decision.route == "clarification":
+                        response = _clarification_response(
+                            request.conversation_id,
+                            "요청하신 작업을 조금 더 구체적으로 알려주세요.",
+                        )
+                    elif route_error is not None:
+                        response = _clarification_response(request.conversation_id, route_error)
+                    else:
+                        profile = SPECIALIST_PROFILES[decision.route]
+                        specialist_tool_names = select_specialist_tool_names(
+                            decision,
+                            request=request,
+                            allowed_tool_names=allowed_tool_names,
+                        )
+                        selected_tools = [_AGENT_TOOLS_BY_NAME[name] for name in specialist_tool_names]
+                        specialist_input = build_specialist_input(request, decision)
+                        specialist_agent = Agent[CommerceAgentContext](
+                            name=f"mwobarellae_{profile.name}_specialist",
+                            instructions=profile.instructions,
+                            model=specialist_model,
+                            model_settings=ModelSettings(tool_choice="auto"),
+                            tool_use_behavior="stop_on_first_tool",
+                            tools=selected_tools,
+                        )
+                        if local_trace is not None:
+                            local_trace.capture_agent_configuration(
+                                model=specialist_model,
+                                configured_model=settings.openai_agent_specialist_model,
+                                model_source=model_source,
+                                instructions=profile.instructions,
+                                model_settings={"tool_choice": "auto"},
+                                tool_use_behavior="stop_on_first_tool",
+                                selected_tools=selected_tools,
+                                agent_input=specialist_input,
+                            )
+                            local_trace.set_route_value("router_route", decision.route)
+                            local_trace.set_route_value("router_confidence", decision.confidence)
+                            local_trace.set_route_value("specialist_name", profile.name)
+
+                        specialist_result: Any | None = None
+                        specialist_error: Exception | None = None
+                        try:
+                            specialist_result = await _run_router_specialist_stage(
+                                runner=Runner,
+                                trace_factory=trace,
+                                agent=specialist_agent,
+                                agent_input=specialist_input,
+                                context=context,
+                                deadline=deadline,
+                                stage="specialist",
+                                model=specialist_model,
+                                request_id=request_id,
+                                trace_metadata=trace_metadata,
+                                workflow_timing=workflow_timing,
+                            )
+                            stage_results.append(("specialist", specialist_model, specialist_result))
+                        except Exception as exc:
+                            specialist_error = exc
+
+                        fallback_reason = _specialist_fallback_reason(
+                            enabled=settings.openai_agent_specialist_fallback_enabled,
+                            decision=decision,
+                            context=context,
+                            specialist_result=specialist_result,
+                            specialist_error=specialist_error,
+                            deadline=deadline,
+                        )
+                        if fallback_reason is not None:
+                            # An invalid tool request did not perform a domain mutation;
+                            # clearing the local response lets the fallback attempt the
+                            # same Specialist once with the server-selected tool subset.
+                            context.last_tool_response = None
+                            fallback_model = settings.openai_agent_specialist_fallback_model
+                            fallback_agent = Agent[CommerceAgentContext](
+                                name=f"mwobarellae_{profile.name}_specialist_fallback",
+                                instructions=profile.instructions,
+                                model=fallback_model,
+                                model_settings=ModelSettings(tool_choice="auto"),
+                                tool_use_behavior="stop_on_first_tool",
+                                tools=selected_tools,
+                            )
+                            fallback_result = await _run_router_specialist_stage(
+                                runner=Runner,
+                                trace_factory=trace,
+                                agent=fallback_agent,
+                                agent_input=specialist_input,
+                                context=context,
+                                deadline=deadline,
+                                stage="fallback",
+                                model=fallback_model,
+                                request_id=request_id,
+                                trace_metadata=trace_metadata,
+                                workflow_timing=workflow_timing,
+                            )
+                            stage_results.append(("fallback", fallback_model, fallback_result))
+                            specialist_result = fallback_result
+                            specialist_error = None
+
+                        if specialist_error is not None:
+                            raise specialist_error
+
+                        if context.last_tool_response is not None:
+                            response = context.last_tool_response
+                        else:
+                            response = AgentChatResponse(
+                                conversation_id=_resolve_conversation_id(request.conversation_id),
+                                message=_normalize_agent_text(
+                                    getattr(specialist_result, "final_output", None)
+                                )
+                                or "요청에 맞는 실행 방법을 찾지 못했어요. 조건을 조금 더 알려주세요.",
+                                ui_action=AgentUiAction(),
+                                items=[],
+                            )
+                    _OPENAI_CIRCUIT_BREAKER.record_success()
+            finally:
+                if workflow_timing is not None:
+                    workflow_timing.llm_workflow_ms = elapsed_ms(workflow_started_at)
+                    workflow_timing.tool_execution_ms = context.tool_execution_ms
+                    workflow_timing.tool_reference_resolve_ms = context.tool_reference_resolve_ms
+                    workflow_timing.tool_dispatch_ms = context.tool_dispatch_ms
+                    workflow_timing.tool_response_serialize_ms = context.tool_response_serialize_ms
+                    workflow_timing.agent_model_and_orchestration_ms = max(
+                        workflow_timing.agent_runner_ms
+                        - workflow_timing.local_queue_wait_ms
+                        - context.tool_reference_resolve_ms
+                        - context.tool_dispatch_ms
+                        - context.tool_response_serialize_ms,
+                        0.0,
+                    )
+    except Exception as exc:
+        if workflow_timing is not None and not workflow_timing.global_slot_acquired:
+            workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+            workflow_timing.global_slot_rejected = isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_BUSY"
+        failure_kind = _classify_openai_failure(exc)
+        _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
+        _log_openai_failure_counter(
+            exc,
+            request_id=request_id,
+            duration_ms=elapsed_ms(started_at),
+            model=router_model,
+        )
+        if isinstance(exc, ApiError):
+            raise
+        raise _to_agent_execution_error(exc) from exc
+
+    if decision is None or response is None:  # pragma: no cover - defensive invariant
+        raise RuntimeError("Router/Specialist workflow completed without a route response")
+
+    usage = _combine_agent_stage_usage(stage_results)
+    log_ai_call(
+        "agent_chat",
+        model="router_specialist",
+        duration_ms=elapsed_ms(started_at),
+        request_id=request_id,
+        usage=usage,
+        metadata={
+            "conversation_id": response.conversation_id,
+            "execution_mode": "router_specialist",
+            "router_model": router_model,
+            "router_route": decision.route,
+            "router_confidence": decision.confidence,
+            "specialist_model": specialist_model,
+            "specialist_name": decision.route,
+            "fallback_used": fallback_reason is not None,
+            "fallback_reason": fallback_reason,
+            "tool_called": response.tool_name is not None,
+            "tool_name": response.tool_name,
+            "item_count": len(response.items),
+            "ui_action_type": response.ui_action.type,
+            "tool_execution_ms": round(context.tool_execution_ms, 2),
+        },
+    )
+    return response
+
+
+def _try_router_specialist_fast_path(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    request_id: str | None,
+    session_id: str | None,
+    anonymous_user_id: str | None,
+    anonymous_cart_id: str | None,
+    local_trace: AgentLocalTrace | None,
+) -> AgentChatResponse | None:
+    """Run only exact, deterministic fast paths before the Router.
+
+    Broad bulk-wishlist and multi-action regexes stay out of this path because
+    they can discard valid natural-language constraints.  Those requests are
+    intentionally routed through the Specialist.
+    """
+
+    generic_clarification = _get_generic_clarification(request.message)
+    if generic_clarification:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="generic_clarification",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return _clarification_response(request.conversation_id, generic_clarification)
+
+    shipping_address_arguments = _get_shipping_address_arguments(request)
+    if shipping_address_arguments is not None:
+        if user is None:
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="shipping_address_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            )
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_details",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            arguments=shipping_address_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
+    simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
+    if simple_refinement_arguments is not None:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="simple_recommendation_refinement",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REFINE_PRODUCT_RESULTS_TOOL,
+            arguments=simple_refinement_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+    return None
+
+
+def _resolve_router_specialist_models(model_override: str | None) -> tuple[str, str, str]:
+    if model_override is not None and model_override.strip():
+        model, source = _resolve_agent_model(model_override)
+        return model, model, source
+    return (
+        settings.openai_agent_router_model,
+        settings.openai_agent_specialist_model,
+        "configured_router_specialist",
+    )
+
+
+async def _run_router_specialist_stage(
+    *,
+    runner: Any,
+    trace_factory: Any,
+    agent: Any,
+    agent_input: str,
+    context: CommerceAgentContext,
+    deadline: float,
+    stage: Literal["router", "specialist", "fallback"],
+    model: str,
+    request_id: str | None,
+    trace_metadata: Mapping[str, Any] | None,
+    workflow_timing: AgentWorkflowTiming | None,
+) -> Any:
+    remaining_seconds = deadline - time.monotonic()
+    if remaining_seconds <= 0:
+        raise TimeoutError("OpenAI request timeout budget exhausted")
+    _OPENAI_CIRCUIT_BREAKER.before_call()
+    started_at = current_time()
+    started_timestamp = datetime.now(UTC)
+    try:
+        async with asyncio.timeout(remaining_seconds):
+            with trace_factory(
+                f"mwobarellae_action_{stage}",
+                group_id=_trace_group_id(trace_metadata),
+                metadata={**dict(trace_metadata or {}), "agent_stage": stage},
+            ):
+                result = await runner.run(
+                    agent,
+                    input=agent_input,
+                    context=context,
+                    max_turns=1,
+                )
+    except Exception as exc:
+        if context.local_trace is not None:
+            context.local_trace.record_runner_attempt(
+                attempt=1,
+                duration_ms=elapsed_ms(started_at),
+                model=model,
+                started_at=started_timestamp,
+                completed_at=datetime.now(UTC),
+                error=exc,
+            )
+        raise
+
+    duration_ms = elapsed_ms(started_at)
+    if workflow_timing is not None:
+        workflow_timing.agent_runner_ms += duration_ms
+    if context.local_trace is not None:
+        context.local_trace.record_runner_attempt(
+            attempt=1,
+            duration_ms=duration_ms,
+            model=model,
+            started_at=started_timestamp,
+            completed_at=datetime.now(UTC),
+        )
+        context.local_trace.set_timing(f"agent_{stage}_ms", duration_ms)
+    return result
+
+
+def _specialist_fallback_reason(
+    *,
+    enabled: bool,
+    decision: RouteDecision,
+    context: CommerceAgentContext,
+    specialist_result: Any | None,
+    specialist_error: Exception | None,
+    deadline: float,
+) -> str | None:
+    if not enabled or decision.route == "clarification" or time.monotonic() >= deadline:
+        return None
+    if specialist_error is not None:
+        return "transient_model_error" if _is_retryable_openai_exception(specialist_error) else None
+    response = context.last_tool_response
+    if response is not None:
+        if response.error is not None and response.error.code == "AGENT_TOOL_ARGUMENT_INVALID":
+            return "tool_argument_validation_failed"
+        return None
+    if specialist_result is not None and SPECIALIST_PROFILES[decision.route].tool_names:
+        return "action_route_without_tool_call"
+    return None
+
+
+def _combine_agent_stage_usage(
+    stage_results: list[tuple[str, str, Any]],
+) -> dict[str, int | None]:
+    keys = ("input_tokens", "output_tokens", "total_tokens", "cached_input_tokens", "reasoning_tokens")
+    totals = {key: 0 for key in keys}
+    seen = {key: False for key in keys}
+    for _stage, _model, result in stage_results:
+        usage = extract_agents_usage_breakdown(result)
+        for key in keys:
+            value = usage.get(key)
+            if value is not None:
+                totals[key] += int(value)
+                seen[key] = True
+    return {key: totals[key] if seen[key] else None for key in keys}
 
 
 def _is_retryable_openai_exception(exc: Exception) -> bool:
