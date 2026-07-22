@@ -3444,6 +3444,20 @@ body {
   border-color: #b9c0c7 !important;
 }
 
+.mypage-address-action-button {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.mypage-address-action-button--neutral:hover {
+  background: #fafafa !important;
+  border-color: #b9c0c7 !important;
+}
+
+.mypage-address-action-button--danger:hover {
+  background: #ffe4e1 !important;
+  color: #93150c !important;
+}
+
 .mypage-order-back-link {
   color: #6b7280;
 }

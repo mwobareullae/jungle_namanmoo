@@ -184,6 +184,41 @@ def test_skin_test_result_can_be_loaded_by_result_id(client: TestClient) -> None
     assert result["title"] == "속부터 채우는 게 답인 타입"
 
 
+def test_skin_test_result_owned_by_other_user_is_forbidden(
+    client: TestClient,
+    db_engine: Engine,
+) -> None:
+    _signup(client, email="skin-result-owner@example.com", nickname="owner")
+    question_set = _question_set(client)
+    submit_response = client.post(
+        "/api/skin-test/submit",
+        json={
+            "version": question_set["version"],
+            "answers": _answers_for_type(question_set["questions"], od="D", sr="R", pn="P", wt="W"),
+        },
+    )
+    result_id = submit_response.json()["result_id"]
+
+    owner_response = client.get(f"/api/skin-test/results/{result_id}")
+    assert owner_response.status_code == 200
+    assert owner_response.json()["result"]["result_id"] == result_id
+
+    def override_get_db():
+        with Session(db_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as anonymous_client:
+        anonymous_response = anonymous_client.get(f"/api/skin-test/results/{result_id}")
+    assert anonymous_response.status_code == 403
+    assert anonymous_response.json()["error"]["code"] == "SKIN_TEST_RESULT_FORBIDDEN"
+
+    _signup(client, email="skin-result-stranger@example.com", nickname="stranger")
+    stranger_response = client.get(f"/api/skin-test/results/{result_id}")
+    assert stranger_response.status_code == 403
+    assert stranger_response.json()["error"]["code"] == "SKIN_TEST_RESULT_FORBIDDEN"
+
+
 def test_skin_test_rejects_option_from_other_question(client: TestClient) -> None:
     question_set = _question_set(client)
     questions = question_set["questions"]
