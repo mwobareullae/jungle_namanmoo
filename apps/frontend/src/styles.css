@@ -12895,9 +12895,9 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-panel__head h2 {
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: clamp(22px, 1.9vw, 26px);
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.35;
   letter-spacing: 0;
 }
@@ -13022,6 +13022,7 @@ html[data-app-mode="community"] .search-results-shell {
   flex-direction: column;
   min-width: 0;
   min-height: 440px;
+  height: 100%;
   overflow: hidden;
   border: 1px solid #dfe5e8;
   border-radius: 18px;
@@ -13100,7 +13101,7 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-card__brand {
   min-height: 18px;
   color: var(--muted);
-  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -13112,7 +13113,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 450;
   line-height: 1.35;
@@ -13153,15 +13154,14 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-card__recommendation {
   display: grid;
+  align-content: start;
   gap: 8px;
-  margin: 0 18px 18px;
+  min-height: 74px;
+  box-sizing: border-box;
+  margin: auto 18px 18px;
   padding: 14px 0 0;
   border-top: 1px solid #e6eef1;
   text-align: left;
-}
-
-.product-comparison-card__recommendation.current {
-  min-height: 52px;
 }
 
 .product-comparison-card__reasons,
@@ -19227,7 +19227,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-mock-trigger-robot { flex: 0 0 auto; width: 34px; height: 34px; object-fit: contain; }
 .recommendation-mock-trigger-copy strong { color: #0c1117; font-family: "GmarketSans", sans-serif; font-size: 16px; font-weight: 500; }
 .recommendation-mock-trigger-score { grid-area: score; align-self: center; color: #1686ad; font-family: "GmarketSans", sans-serif; font-size: 28px; font-weight: 500; text-align: right; white-space: nowrap; }
-.recommendation-mock-trigger-question { grid-area: question; align-self: center; color: #0c1117; font-size: 15px; font-weight: 600; }
+.recommendation-mock-trigger-question { grid-area: question; align-self: center; padding-left: 9px; color: #0c1117; font-size: 15px; font-weight: 600; }
 .recommendation-mock-trigger-button { align-self: center; }
 .recommendation-mock-trigger-button { grid-area: action; min-width: 100px; padding: 10px 16px; border: 1px solid #aeb8bb; border-radius: 9px; background: #fff; color: #0c1117; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .recommendation-mock-trigger-button:hover, .recommendation-mock-trigger-button:focus-visible { border-color: #2aa6d1; outline: 2px solid rgba(148,224,248,.35); outline-offset: 2px; }
