@@ -39,6 +39,63 @@ SUPPORTED_AUTH_MODES = {"guest", "authenticated"}
 
 
 @dataclass(frozen=True)
+class AgentEvaluationProfile:
+    """A reproducible local-only Agent execution configuration."""
+
+    profile_id: str
+    execution_mode: str
+    requested_model: str
+    router_model: str | None = None
+    specialist_model: str | None = None
+    specialist_fallback_enabled: bool | None = None
+    specialist_fallback_model: str | None = None
+
+    def request_headers(self) -> dict[str, str]:
+        headers = {"X-Agent-Local-Execution-Mode": self.execution_mode}
+        if self.execution_mode == "single":
+            headers["X-Agent-Local-Model"] = self.requested_model
+        if self.router_model:
+            headers["X-Agent-Local-Router-Model"] = self.router_model
+        if self.specialist_model:
+            headers["X-Agent-Local-Specialist-Model"] = self.specialist_model
+        if self.specialist_fallback_enabled is not None:
+            headers["X-Agent-Local-Specialist-Fallback-Enabled"] = str(
+                self.specialist_fallback_enabled
+            ).lower()
+        if self.specialist_fallback_model:
+            headers["X-Agent-Local-Specialist-Fallback-Model"] = (
+                self.specialist_fallback_model
+            )
+        return headers
+
+
+NAMED_EVALUATION_PROFILES: dict[str, AgentEvaluationProfile] = {
+    "single-gpt55": AgentEvaluationProfile(
+        profile_id="single-gpt55",
+        execution_mode="single",
+        requested_model="gpt-5.5",
+    ),
+    "router-nano": AgentEvaluationProfile(
+        profile_id="router-nano",
+        execution_mode="router_specialist",
+        requested_model="gpt-5.4-nano-2026-03-17",
+        router_model="gpt-5.4-nano-2026-03-17",
+        specialist_model="gpt-5.4-nano-2026-03-17",
+        specialist_fallback_enabled=False,
+    ),
+    "router-nano-fallback": AgentEvaluationProfile(
+        profile_id="router-nano-fallback",
+        execution_mode="router_specialist",
+        requested_model="gpt-5.4-nano-2026-03-17",
+        router_model="gpt-5.4-nano-2026-03-17",
+        specialist_model="gpt-5.4-nano-2026-03-17",
+        specialist_fallback_enabled=True,
+        specialist_fallback_model="gpt-5.5",
+    ),
+}
+
+
+@dataclass(frozen=True)
 class HttpJsonResponse:
     status_code: int | None
     body: Any
@@ -113,6 +170,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=["gpt-5.5", "gpt-5.4-nano-2026-03-17"],
         help="Models sent through the local-only X-Agent-Local-Model header.",
     )
+    parser.add_argument(
+        "--profiles",
+        nargs="+",
+        default=[],
+        help=(
+            "Named execution profiles: single-gpt55, router-nano, "
+            "router-nano-fallback. Overrides --models for this run."
+        ),
+    )
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--output", type=Path, default=None)
@@ -138,6 +204,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--list-cases", action="store_true")
+    parser.add_argument("--list-profiles", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -204,10 +271,89 @@ def build_execution_plan(
     return plan
 
 
+def build_profile_execution_plan(
+    cases: Iterable[Mapping[str, Any]],
+    profiles: Iterable[AgentEvaluationProfile],
+    repeat: int,
+) -> list[dict[str, Any]]:
+    """Build a balanced plan while preserving the legacy model-plan helper."""
+
+    if repeat < 1:
+        raise ValueError("--repeat must be at least 1.")
+    normalized_profiles = list(profiles)
+    if not normalized_profiles:
+        raise ValueError("At least one Agent evaluation profile is required.")
+    plan: list[dict[str, Any]] = []
+    cases_list = list(cases)
+    for repeat_index in range(1, repeat + 1):
+        for case_index, case in enumerate(cases_list):
+            ordered_profiles = (
+                normalized_profiles
+                if (repeat_index + case_index) % 2
+                else list(reversed(normalized_profiles))
+            )
+            for profile in ordered_profiles:
+                plan.append(
+                    {
+                        "case_id": str(case["id"]),
+                        "profile_id": profile.profile_id,
+                        "model": profile.requested_model,
+                        "execution_mode": profile.execution_mode,
+                        "headers": profile.request_headers(),
+                        "repeat": repeat_index,
+                    }
+                )
+    return plan
+
+
+def resolve_evaluation_profiles(
+    models: Iterable[str],
+    profile_ids: Iterable[str],
+) -> list[AgentEvaluationProfile]:
+    requested_profile_ids = [profile_id.strip() for profile_id in profile_ids if profile_id.strip()]
+    if requested_profile_ids:
+        unknown = sorted(set(requested_profile_ids) - set(NAMED_EVALUATION_PROFILES))
+        if unknown:
+            raise ValueError(f"Unknown Agent evaluation profile(s): {', '.join(unknown)}")
+        return [NAMED_EVALUATION_PROFILES[profile_id] for profile_id in requested_profile_ids]
+
+    normalized_models = [model.strip() for model in models if model.strip()]
+    if not normalized_models:
+        raise ValueError("At least one non-empty model is required.")
+    return [
+        AgentEvaluationProfile(
+            profile_id=f"single-{_profile_id_fragment(model)}",
+            execution_mode="single",
+            requested_model=model,
+        )
+        for model in normalized_models
+    ]
+
+
+def _profile_id_fragment(value: str) -> str:
+    return "".join(character.lower() if character.isalnum() else "-" for character in value).strip("-")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     fixture = load_fixture(args.cases)
     cases = _select_cases(fixture["cases"], args.only)
+    try:
+        profiles = resolve_evaluation_profiles(args.models, args.profiles)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if args.list_profiles:
+        for profile in NAMED_EVALUATION_PROFILES.values():
+            fallback = (
+                f", fallback={profile.specialist_fallback_model}"
+                if profile.specialist_fallback_enabled
+                else ", fallback=off"
+            )
+            print(
+                f"{profile.profile_id}\tmode={profile.execution_mode}\t"
+                f"model={profile.requested_model}{fallback}"
+            )
+        return 0
     if args.list_cases:
         for case in cases:
             print(f"{case['id']}\t{case['group']}\t{case['auth_mode']}\t{case['message']}")
@@ -219,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run_id = args.run_id or _default_run_id(fixture["name"])
     output_dir = args.output or DEFAULT_RESULTS_ROOT / run_id
-    plan = build_execution_plan(cases, args.models, args.repeat)
+    plan = build_profile_execution_plan(cases, profiles, args.repeat)
     skipped_write_preview_count = sum(
         1
         for item in plan
@@ -253,6 +399,7 @@ def main(argv: list[str] | None = None) -> int:
         fixture_path=args.cases,
         fixture_sha256=fixture_sha256,
         args=args,
+        profiles=profiles,
         planned_samples=len(plan),
     )
     _write_json(output_dir / "manifest.json", manifest)
@@ -294,7 +441,11 @@ def main(argv: list[str] | None = None) -> int:
     jsonl_path = output_dir / "samples.jsonl"
     for position, plan_item in enumerate(plan, start=1):
         case = cases_by_id[plan_item["case_id"]]
-        sample_key = _sample_key(plan_item["case_id"], plan_item["model"], plan_item["repeat"])
+        sample_key = _sample_key(
+            plan_item["case_id"],
+            str(plan_item.get("profile_id") or plan_item["model"]),
+            plan_item["repeat"],
+        )
         if sample_key in completed_keys:
             print(f"[{position}/{len(plan)}] resume_skip={sample_key}")
             continue
@@ -370,6 +521,7 @@ def _initial_manifest(
     fixture_path: Path,
     fixture_sha256: str,
     args: argparse.Namespace,
+    profiles: Iterable[AgentEvaluationProfile],
     planned_samples: int,
 ) -> dict[str, Any]:
     return {
@@ -385,6 +537,18 @@ def _initial_manifest(
         "configuration": {
             "base_url": args.base_url.rstrip("/"),
             "models": list(args.models),
+            "profiles": [
+                {
+                    "id": profile.profile_id,
+                    "execution_mode": profile.execution_mode,
+                    "requested_model": profile.requested_model,
+                    "router_model": profile.router_model,
+                    "specialist_model": profile.specialist_model,
+                    "specialist_fallback_enabled": profile.specialist_fallback_enabled,
+                    "specialist_fallback_model": profile.specialist_fallback_model,
+                }
+                for profile in profiles
+            ],
             "repeat": args.repeat,
             "planned_samples": planned_samples,
             "trace_root": _display_path(args.trace_root),
@@ -490,14 +654,23 @@ def _run_sample(
         "conversation_id": conversation_id,
         **_build_case_context(case, bootstrap),
     }
+    request_headers = {
+        "Idempotency-Key": str(uuid.uuid4()),
+        **dict(plan_item.get("headers", {})),
+    }
+    if (
+        plan_item.get("execution_mode", "single") == "single"
+        and not request_headers.get("X-Agent-Local-Model")
+        and plan_item.get("model")
+    ):
+        # Legacy plans created by build_execution_plan still exercise the
+        # single-Agent model override path without needing profile metadata.
+        request_headers["X-Agent-Local-Model"] = str(plan_item["model"])
     response = client.request(
         "POST",
         _api_url(api_base_url, "/agent/chat"),
         payload=payload,
-        headers={
-            "Idempotency-Key": str(uuid.uuid4()),
-            "X-Agent-Local-Model": str(plan_item["model"]),
-        },
+        headers=request_headers,
     )
     trace_id = _header_value(response.headers, "X-Agent-Local-Trace-Id")
     trace_path = _wait_for_trace(trace_root, trace_id, trace_wait_seconds) if trace_id else None
@@ -512,6 +685,8 @@ def _run_sample(
         "group": case.get("group", "ungrouped"),
         "auth_mode": case["auth_mode"],
         "context_mode": case["context_mode"],
+        "requested_profile": plan_item.get("profile_id"),
+        "requested_execution_mode": plan_item.get("execution_mode", "single"),
         "requested_model": plan_item["model"],
         "repeat": plan_item["repeat"],
         "http_status": response.status_code,
@@ -657,6 +832,7 @@ def evaluate_case_response(
 
 def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
     metrics: dict[str, Any] = {
+        "execution_mode": None,
         "actual_model": None,
         "model_source": None,
         "model_called": None,
@@ -681,25 +857,80 @@ def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
         "estimated_cost_usd": None,
         "cost_estimate_status": None,
         "tool_call_count": 0,
+        "router_model": None,
+        "router_ms": None,
+        "router_route": None,
+        "router_confidence": None,
+        "router_instructions_bytes": None,
+        "router_input_bytes": None,
+        "router_input_tokens": None,
+        "router_output_tokens": None,
+        "router_estimated_cost_usd": None,
+        "specialist_name": None,
+        "specialist_model": None,
+        "specialist_ms": None,
+        "specialist_tool_count": None,
+        "specialist_instructions_bytes": None,
+        "specialist_input_bytes": None,
+        "specialist_input_tokens": None,
+        "specialist_output_tokens": None,
+        "specialist_estimated_cost_usd": None,
+        "fallback_enabled": None,
+        "fallback_used": False,
+        "fallback_reason": None,
+        "fallback_model": None,
+        "fallback_ms": None,
+        "fallback_input_tokens": None,
+        "fallback_output_tokens": None,
+        "fallback_estimated_cost_usd": None,
+        "tool_validation_failed": False,
+        "final_response_ms": None,
     }
     if not isinstance(trace, Mapping):
         return metrics
     agent = trace.get("agent") if isinstance(trace.get("agent"), Mapping) else {}
     route = trace.get("route") if isinstance(trace.get("route"), Mapping) else {}
     timing = trace.get("timings_ms") if isinstance(trace.get("timings_ms"), Mapping) else {}
+    route_telemetry = route.get("telemetry") if isinstance(route.get("telemetry"), Mapping) else {}
+    stages = trace.get("agent_stages") if isinstance(trace.get("agent_stages"), Mapping) else {}
+    router = _trace_stage(stages, "router")
+    specialist = _trace_stage(stages, "specialist")
+    fallback = _trace_stage(stages, "fallback")
+    stage_payloads = [stage for stage in (router, specialist, fallback) if stage]
     runner_result = agent.get("runner_result") if isinstance(agent.get("runner_result"), Mapping) else {}
-    usage = runner_result.get("usage_breakdown") or runner_result.get("usage")
-    cost = runner_result.get("cost_estimate")
+    usage = _aggregate_trace_usage(stage_payloads) if stage_payloads else _trace_usage(agent)
+    cost = _aggregate_trace_cost(stage_payloads) if stage_payloads else _trace_cost(agent)
+    instructions_bytes = (
+        _sum_optional(stage.get("instructions_bytes") for stage in stage_payloads)
+        if stage_payloads
+        else agent.get("instructions_bytes")
+    )
+    selected_tool_schema_bytes = (
+        _sum_optional(stage.get("selected_tool_schema_bytes") for stage in stage_payloads)
+        if stage_payloads
+        else agent.get("selected_tool_schema_bytes")
+    )
+    selected_tool_count = (
+        _sum_optional(stage.get("selected_tool_count") for stage in stage_payloads)
+        if stage_payloads
+        else agent.get("selected_tool_count")
+    )
     metrics.update(
         {
+            "execution_mode": _first_present(
+                route_telemetry.get("agent_execution_mode"),
+                route.get("agent_execution_mode"),
+                "router_specialist" if router else None,
+                "single" if agent else None,
+            ),
             "actual_model": agent.get("model"),
             "model_source": agent.get("model_source")
             or ("not_called" if not agent and route.get("outcome") == "succeeded" else None),
-            "model_called": bool(agent.get("model")),
+            "model_called": bool(agent.get("model") or router.get("model") or specialist.get("model")),
             "short_circuit_reason": agent.get("short_circuit_reason"),
-            "instructions_bytes": agent.get("instructions_bytes"),
-            "selected_tool_count": agent.get("selected_tool_count"),
-            "selected_tool_schema_bytes": agent.get("selected_tool_schema_bytes"),
+            "instructions_bytes": instructions_bytes,
+            "selected_tool_count": selected_tool_count,
+            "selected_tool_schema_bytes": selected_tool_schema_bytes,
             "agent_input_bytes": agent.get("input_bytes"),
             "route_total_ms": timing.get("route_total_ms"),
             "agent_workflow_ms": timing.get("agent_workflow_ms"),
@@ -710,6 +941,63 @@ def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
             "agent_tool_dispatch_ms": timing.get("tool_dispatch_ms"),
             "agent_tool_response_serialize_ms": timing.get("tool_response_serialize_ms"),
             "tool_call_count": len(trace.get("tool_calls", [])) if isinstance(trace.get("tool_calls"), list) else 0,
+            "router_model": router.get("model"),
+            "router_ms": _first_present(
+                timing.get("agent_router_ms"),
+                route_telemetry.get("agent_router_ms"),
+                _stage_duration_ms(router),
+            ),
+            "router_route": _first_present(
+                router.get("route"),
+                route_telemetry.get("agent_router_route"),
+            ),
+            "router_confidence": _first_present(
+                router.get("confidence"),
+                route_telemetry.get("agent_router_confidence"),
+            ),
+            "router_instructions_bytes": router.get("instructions_bytes"),
+            "router_input_bytes": router.get("input_bytes"),
+            "router_input_tokens": _trace_usage(router).get("input_tokens"),
+            "router_output_tokens": _trace_usage(router).get("output_tokens"),
+            "router_estimated_cost_usd": _trace_cost(router).get("estimated_cost_usd"),
+            "specialist_name": _first_present(
+                specialist.get("name"),
+                route_telemetry.get("agent_specialist_name"),
+            ),
+            "specialist_model": specialist.get("model"),
+            "specialist_ms": _first_present(
+                timing.get("agent_specialist_ms"),
+                route_telemetry.get("agent_specialist_ms"),
+                _stage_duration_ms(specialist),
+            ),
+            "specialist_tool_count": specialist.get("selected_tool_count"),
+            "specialist_instructions_bytes": specialist.get("instructions_bytes"),
+            "specialist_input_bytes": specialist.get("input_bytes"),
+            "specialist_input_tokens": _trace_usage(specialist).get("input_tokens"),
+            "specialist_output_tokens": _trace_usage(specialist).get("output_tokens"),
+            "specialist_estimated_cost_usd": _trace_cost(specialist).get("estimated_cost_usd"),
+            "fallback_enabled": route_telemetry.get("agent_fallback_enabled"),
+            "fallback_used": bool(route_telemetry.get("agent_fallback_used") or fallback),
+            "fallback_reason": route_telemetry.get("agent_fallback_reason"),
+            "fallback_model": _first_present(
+                fallback.get("model"),
+                route_telemetry.get("agent_fallback_model"),
+            ),
+            "fallback_ms": _first_present(
+                timing.get("agent_fallback_ms"),
+                route_telemetry.get("agent_fallback_ms"),
+                _stage_duration_ms(fallback),
+            ),
+            "fallback_input_tokens": _trace_usage(fallback).get("input_tokens"),
+            "fallback_output_tokens": _trace_usage(fallback).get("output_tokens"),
+            "fallback_estimated_cost_usd": _trace_cost(fallback).get("estimated_cost_usd"),
+            "tool_validation_failed": bool(
+                route_telemetry.get("agent_tool_validation_failed")
+            ),
+            "final_response_ms": _first_present(
+                timing.get("agent_final_response_ms"),
+                route_telemetry.get("agent_final_response_ms"),
+            ),
         }
     )
     if isinstance(usage, Mapping):
@@ -719,6 +1007,69 @@ def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
         metrics["estimated_cost_usd"] = cost.get("estimated_cost_usd")
         metrics["cost_estimate_status"] = cost.get("estimate_status")
     return metrics
+
+
+def _trace_stage(stages: Mapping[str, Any], name: str) -> Mapping[str, Any]:
+    value = stages.get(name)
+    return value if isinstance(value, Mapping) else {}
+
+
+def _trace_usage(stage: Mapping[str, Any]) -> Mapping[str, Any]:
+    runner_result = stage.get("runner_result")
+    if not isinstance(runner_result, Mapping):
+        return {}
+    usage = runner_result.get("usage_breakdown") or runner_result.get("usage")
+    return usage if isinstance(usage, Mapping) else {}
+
+
+def _trace_cost(stage: Mapping[str, Any]) -> Mapping[str, Any]:
+    runner_result = stage.get("runner_result")
+    if not isinstance(runner_result, Mapping):
+        return {}
+    cost = runner_result.get("cost_estimate")
+    return cost if isinstance(cost, Mapping) else {}
+
+
+def _aggregate_trace_usage(stages: Iterable[Mapping[str, Any]]) -> dict[str, int | None]:
+    keys = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+    totals: dict[str, int | None] = {}
+    for key in keys:
+        values = [usage.get(key) for usage in (_trace_usage(stage) for stage in stages)]
+        totals[key] = _sum_optional(values)
+    return totals
+
+
+def _aggregate_trace_cost(stages: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    costs = [_trace_cost(stage) for stage in stages]
+    estimated_cost_usd = _sum_optional(cost.get("estimated_cost_usd") for cost in costs)
+    statuses = {str(cost.get("estimate_status")) for cost in costs if cost.get("estimate_status")}
+    return {
+        "estimated_cost_usd": estimated_cost_usd,
+        "estimate_status": next(iter(statuses)) if len(statuses) == 1 else "mixed",
+    }
+
+
+def _stage_duration_ms(stage: Mapping[str, Any]) -> float | None:
+    attempts = stage.get("runner_attempts")
+    if not isinstance(attempts, list):
+        return None
+    return _sum_optional(
+        attempt.get("duration_ms")
+        for attempt in attempts
+        if isinstance(attempt, Mapping)
+    )
+
+
+def _sum_optional(values: Iterable[Any]) -> int | float | None:
+    numeric_values = [value for value in values if isinstance(value, (int, float))]
+    if not numeric_values:
+        return None
+    total = sum(numeric_values)
+    return int(total) if all(isinstance(value, int) for value in numeric_values) else total
+
+
+def _first_present(*values: Any) -> Any:
+    return next((value for value in values if value is not None), None)
 
 
 def _tool_arguments(trace: Mapping[str, Any] | None, expected_tool_name: Any) -> dict[str, Any]:
@@ -807,6 +1158,8 @@ def _skipped_preview_row(
         "group": case.get("group", "ungrouped"),
         "auth_mode": case["auth_mode"],
         "context_mode": case["context_mode"],
+        "requested_profile": plan_item.get("profile_id"),
+        "requested_execution_mode": plan_item.get("execution_mode", "single"),
         "requested_model": plan_item["model"],
         "repeat": plan_item["repeat"],
         "http_status": None,
@@ -838,6 +1191,8 @@ def _write_reports(*, output_dir: Path, rows: list[dict[str, Any]], manifest: Ma
         {
             "sample_key": row.get("sample_key"),
             "scenario_id": row.get("scenario_id"),
+            "requested_profile": row.get("requested_profile"),
+            "requested_execution_mode": row.get("requested_execution_mode"),
             "requested_model": row.get("requested_model"),
             "repeat": row.get("repeat"),
             "validation_status": row.get("validation_status"),
@@ -852,7 +1207,19 @@ def _write_reports(*, output_dir: Path, rows: list[dict[str, Any]], manifest: Ma
     _write_csv(
         output_dir / "manual-review.csv",
         manual_rows,
-        ["sample_key", "scenario_id", "requested_model", "repeat", "validation_status", "tool_name", "trace_file", "reviewer_result", "reviewer_notes"],
+        [
+            "sample_key",
+            "scenario_id",
+            "requested_profile",
+            "requested_execution_mode",
+            "requested_model",
+            "repeat",
+            "validation_status",
+            "tool_name",
+            "trace_file",
+            "reviewer_result",
+            "reviewer_notes",
+        ],
     )
     (output_dir / "report.md").write_text(
         render_report(rows=rows, summaries=summary_rows, manifest=manifest),
@@ -861,9 +1228,10 @@ def _write_reports(*, output_dir: Path, rows: list[dict[str, Any]], manifest: Ma
 
 
 SCENARIO_CSV_FIELDS = [
-    "sample_key", "scenario_id", "group", "auth_mode", "context_mode", "requested_model", "repeat",
+    "sample_key", "scenario_id", "group", "auth_mode", "context_mode", "requested_profile",
+    "requested_execution_mode", "requested_model", "repeat",
     "http_status", "client_roundtrip_ms", "http_error", "error_code", "trace_id", "trace_file", "trace_available",
-    "actual_model", "model_source", "model_called", "short_circuit_reason", "tool_name", "tool_call_count",
+    "execution_mode", "actual_model", "model_source", "model_called", "short_circuit_reason", "tool_name", "tool_call_count",
     "requires_confirmation", "ui_action_type", "ui_action_target", "item_count", "validation_status",
     "structural_pass", "constraint_pass", "validation_errors", "manual_review_required", "instructions_bytes",
     "selected_tool_count", "selected_tool_schema_bytes", "agent_input_bytes", "route_total_ms", "agent_workflow_ms",
@@ -871,36 +1239,50 @@ SCENARIO_CSV_FIELDS = [
     "agent_tool_reference_resolve_ms", "agent_tool_dispatch_ms", "agent_tool_response_serialize_ms",
     "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens",
     "estimated_cost_usd", "cost_estimate_status",
+    "router_model", "router_ms", "router_route", "router_confidence", "router_instructions_bytes",
+    "router_input_bytes", "router_input_tokens", "router_output_tokens", "router_estimated_cost_usd",
+    "specialist_name", "specialist_model", "specialist_ms", "specialist_tool_count",
+    "specialist_instructions_bytes", "specialist_input_bytes", "specialist_input_tokens",
+    "specialist_output_tokens", "specialist_estimated_cost_usd", "fallback_enabled", "fallback_used",
+    "fallback_reason", "fallback_model", "fallback_ms", "fallback_input_tokens",
+    "fallback_output_tokens", "fallback_estimated_cost_usd", "tool_validation_failed", "final_response_ms",
 ]
 
 SUMMARY_CSV_FIELDS = [
-    "requested_model", "group", "sample_count", "http_success_count", "model_called_count", "short_circuit_count",
+    "requested_profile", "requested_execution_mode", "requested_model", "group", "sample_count",
+    "http_success_count", "model_called_count", "short_circuit_count", "fallback_used_count",
     "structural_pass_rate", "constraint_pass_rate", "client_roundtrip_p50_ms", "client_roundtrip_p95_ms",
     "route_total_p50_ms", "route_total_p95_ms", "model_phase_p50_ms", "model_phase_p95_ms",
-    "tool_execution_p50_ms", "tool_execution_p95_ms", "mean_input_tokens", "mean_output_tokens",
-    "mean_total_tokens", "total_estimated_cost_usd", "mean_estimated_cost_usd",
+    "router_p50_ms", "router_p95_ms", "specialist_p50_ms", "specialist_p95_ms",
+    "fallback_p50_ms", "fallback_p95_ms", "tool_execution_p50_ms", "tool_execution_p95_ms",
+    "mean_input_tokens", "mean_output_tokens", "mean_total_tokens", "total_estimated_cost_usd",
+    "mean_estimated_cost_usd",
 ]
 
 
 def summarize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in rows:
-        model = row.get("requested_model")
+        profile = row.get("requested_profile") or row.get("requested_model")
         group = row.get("group")
-        if model and group and row.get("validation_status") != "skipped_write_preview":
-            grouped[(str(model), str(group))].append(row)
+        if profile and group and row.get("validation_status") != "skipped_write_preview":
+            grouped[(str(profile), str(group))].append(row)
     summary: list[dict[str, Any]] = []
-    for (model, group), sample_rows in sorted(grouped.items()):
+    for (profile, group), sample_rows in sorted(grouped.items()):
         successful = [row for row in sample_rows if row.get("http_status") == 200]
         model_called = [row for row in successful if row.get("model_called") is True]
+        representative = sample_rows[0]
         summary.append(
             {
-                "requested_model": model,
+                "requested_profile": profile,
+                "requested_execution_mode": representative.get("requested_execution_mode", "single"),
+                "requested_model": representative.get("requested_model"),
                 "group": group,
                 "sample_count": len(sample_rows),
                 "http_success_count": len(successful),
                 "model_called_count": len(model_called),
                 "short_circuit_count": sum(row.get("model_called") is False for row in successful),
+                "fallback_used_count": sum(row.get("fallback_used") is True for row in successful),
                 "structural_pass_rate": _rate(successful, "structural_pass"),
                 "constraint_pass_rate": _rate(successful, "constraint_pass"),
                 "client_roundtrip_p50_ms": _percentile(_numeric(successful, "client_roundtrip_ms"), 50),
@@ -909,6 +1291,12 @@ def summarize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "route_total_p95_ms": _percentile(_numeric(successful, "route_total_ms"), 95),
                 "model_phase_p50_ms": _percentile(_numeric(model_called, "agent_model_and_orchestration_ms"), 50),
                 "model_phase_p95_ms": _percentile(_numeric(model_called, "agent_model_and_orchestration_ms"), 95),
+                "router_p50_ms": _percentile(_numeric(model_called, "router_ms"), 50),
+                "router_p95_ms": _percentile(_numeric(model_called, "router_ms"), 95),
+                "specialist_p50_ms": _percentile(_numeric(model_called, "specialist_ms"), 50),
+                "specialist_p95_ms": _percentile(_numeric(model_called, "specialist_ms"), 95),
+                "fallback_p50_ms": _percentile(_numeric(model_called, "fallback_ms"), 50),
+                "fallback_p95_ms": _percentile(_numeric(model_called, "fallback_ms"), 95),
                 "tool_execution_p50_ms": _percentile(_numeric(successful, "agent_tool_execution_ms"), 50),
                 "tool_execution_p95_ms": _percentile(_numeric(successful, "agent_tool_execution_ms"), 95),
                 "mean_input_tokens": _mean(_numeric(model_called, "input_tokens")),
@@ -978,6 +1366,34 @@ def render_report(
         for row in failed:
             lines.append(
                 f"- `{row.get('sample_key')}`: {row.get('validation_errors') or row.get('error_code') or row.get('http_error')}"
+            )
+    configured_profiles = manifest.get("configuration", {}).get("profiles", [])
+    lines.extend(
+        [
+            "",
+            "## Execution Profiles And Stage Timings",
+            "",
+            "| Profile | Mode | Model | Group | Router p50/p95 (ms) | Specialist p50/p95 (ms) | Fallback uses | Response p50/p95 (ms) | Cost (USD) |",
+            "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for summary in summaries:
+        lines.append(
+            "| {requested_profile} | {requested_execution_mode} | {requested_model} | {group} | "
+            "{router_p50_ms}/{router_p95_ms} | {specialist_p50_ms}/{specialist_p95_ms} | "
+            "{fallback_used_count} | {client_roundtrip_p50_ms}/{client_roundtrip_p95_ms} | "
+            "{total_estimated_cost_usd} |".format(**summary)
+        )
+    if configured_profiles:
+        lines.extend(["", "Configured profiles:"])
+        for profile in configured_profiles:
+            if not isinstance(profile, Mapping):
+                continue
+            lines.append(
+                "- `{id}`: mode=`{execution_mode}`, model=`{requested_model}`, "
+                "router=`{router_model}`, specialist=`{specialist_model}`, "
+                "fallback_enabled=`{specialist_fallback_enabled}`, "
+                "fallback_model=`{specialist_fallback_model}`".format(**profile)
             )
     return "\n".join(lines) + "\n"
 
