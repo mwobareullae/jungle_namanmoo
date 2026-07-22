@@ -4332,42 +4332,6 @@ body {
   border-color: #94e0f8 !important;
 }
 
-/* 홈 검색 버튼은 레거시 전역 .search-btn 스타일과 분리한다. */
-.home-hero .home-search-submit {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 24px;
-  border: 0;
-  border-radius: 8px;
-  background: #94e0f8;
-  color: #063445;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.home-hero .home-search-submit:hover:not(:disabled) {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.home-hero .home-search-submit svg {
-  stroke: currentColor;
-}
-
-@media (max-width: 640px) {
-  .home-hero .home-search-submit {
-    flex: 0 0 100%;
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 .recommendation-guide-link {
   display: inline-flex;
   align-items: center;
