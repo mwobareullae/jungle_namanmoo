@@ -164,7 +164,7 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         requires_auth=True,
         requires_confirmation=True,
         allowed_ui_actions=frozenset({"open_modal", "show_products"}),
-        max_result_items=20,
+        max_result_items=50,
         timeout_ms=3000,
     ),
     "prepare_review_draft": AgentToolPolicy(

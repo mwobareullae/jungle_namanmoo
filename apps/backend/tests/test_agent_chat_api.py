@@ -929,7 +929,7 @@ async def test_explicit_bulk_wishlist_requires_auth_without_openai(
     response = await run_openai_agent_chat(
         Session(),
         AgentChatRequest(
-            message="인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            message="인기 상품 상위 50위 안에서 나이아신아마이드와 판테놀을 모두 포함한 2만원 이하 세럼을 전부 찜해줘",
             context=AgentContext(page="home"),
         ),
     )
@@ -978,7 +978,12 @@ async def test_explicit_bulk_wishlist_uses_one_tool_and_short_instructions(
     assert captured["instructions"] == EXPLICIT_BULK_WISHLIST_INSTRUCTIONS
     assert len(EXPLICIT_BULK_WISHLIST_INSTRUCTIONS) < len(AGENT_INSTRUCTIONS)
     assert set(captured["tool_schema"]["properties"]) == {
+        "category",
+        "ingredient_match_mode",
         "ingredient_name",
+        "ingredient_names",
+        "price_max",
+        "price_min",
         "rank_limit",
         "window_days",
     }

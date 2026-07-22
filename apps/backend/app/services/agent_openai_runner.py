@@ -183,13 +183,13 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
 EXPLICIT_BULK_WISHLIST_INSTRUCTIONS = """
-Handle exactly one request type: preview a bulk wishlist action for products within a
-popular-rank range that contain a named ingredient. Call
-bulk_wishlist_by_popular_ingredient exactly once. Extract ingredient_name and
-rank_limit from the user's Korean request. Use window_days=7 unless the user states a
-different period. Do not call another tool, infer product IDs, or perform the write;
-the backend resolves current products and requires confirmation before any wishlist
-change.
+Handle exactly one popular-rank based wishlist batch request. Call
+bulk_wishlist_by_popular_ingredient exactly once. Extract a rank_limit from 1 through
+50; one or more named ingredients; all/any ingredient semantics when stated; category;
+and min/max price when stated. Use window_days=7 unless the user states a different
+period. Do not silently shrink a requested rank. Do not call another tool, infer
+product IDs, or perform the write; the backend resolves current products and requires
+confirmation before any wishlist change.
 """
 
 
@@ -2280,6 +2280,8 @@ def _get_generic_clarification(message: str) -> str | None:
 
 
 def _get_multi_action_clarification(message: str) -> str | None:
+    if _is_explicit_popular_ingredient_wishlist_request(message):
+        return None
     if not _COMPLEX_MULTI_ACTION_PATTERN.search(message):
         return None
     return (
@@ -2289,6 +2291,8 @@ def _get_multi_action_clarification(message: str) -> str | None:
 
 
 def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] | None:
+    if _has_compound_popular_wishlist_criteria(message):
+        return None
     match = _POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message)
     if match is None:
         return None
@@ -2297,7 +2301,6 @@ def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] |
         return None
     raw_rank = match.group("rank") or match.group("top")
     rank_limit = int(raw_rank) if raw_rank else 20
-    rank_limit = max(1, min(rank_limit, 20))
     window_days = 7
     if re.search(r"1\s*(?:일|day)", message):
         window_days = 1
@@ -2308,6 +2311,19 @@ def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] |
         "rank_limit": rank_limit,
         "window_days": window_days,
     }
+
+
+def _has_compound_popular_wishlist_criteria(message: str) -> bool:
+    """Keep only truly single-ingredient requests on the deterministic fast path."""
+    return bool(
+        re.search(
+            r"(?:그리고|\s와\s|\s및\s|,|카테고리|세럼|크림|토너|로션|클렌저|선크림|"
+            r"마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)"
+            r".{0,80}(?:찜|위시)|(?:찜|위시).{0,80}(?:그리고|\s와\s|\s및\s|,|카테고리|"
+            r"세럼|크림|토너|로션|클렌저|선크림|마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)",
+            message,
+        )
+    )
 
 
 def _normalize_popular_ingredient_query(value: str) -> str:
@@ -2820,16 +2836,26 @@ async def compose_cart(
 @function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
 async def explicit_bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
-    ingredient_name: str,
+    ingredient_name: str | None = None,
+    ingredient_names: list[str] | None = None,
+    ingredient_match_mode: Literal["all", "any"] = "all",
+    category: str | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
 ) -> str:
-    """Preview popular products containing one named ingredient before adding a wishlist batch."""
+    """Preview a 1-50 rank wishlist batch; the backend always asks for confirmation."""
     return _execute_tool(
         ctx,
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "ingredient_names": ingredient_names,
+            "ingredient_match_mode": ingredient_match_mode,
+            "category": category,
+            "price_min": price_min,
+            "price_max": price_max,
             "rank_limit": rank_limit,
             "window_days": window_days,
             "skin_type": None,
@@ -2842,6 +2868,11 @@ async def explicit_bulk_wishlist_by_popular_ingredient(
 async def bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
     ingredient_name: str | None = None,
+    ingredient_names: list[str] | None = None,
+    ingredient_match_mode: Literal["all", "any"] = "all",
+    category: str | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
@@ -2853,6 +2884,11 @@ async def bulk_wishlist_by_popular_ingredient(
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "ingredient_names": ingredient_names,
+            "ingredient_match_mode": ingredient_match_mode,
+            "category": category,
+            "price_min": price_min,
+            "price_max": price_max,
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "rank_limit": rank_limit,

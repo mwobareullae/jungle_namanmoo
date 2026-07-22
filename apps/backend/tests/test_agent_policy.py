@@ -59,7 +59,7 @@ def test_bulk_popular_ingredient_wishlist_requires_auth_and_confirmation() -> No
     assert policy.risk_level == "WRITE"
     assert policy.requires_auth is True
     assert policy.requires_confirmation is True
-    assert policy.max_result_items == 20
+    assert policy.max_result_items == 50
 
 
 def test_product_read_tools_allow_anonymous_access() -> None:

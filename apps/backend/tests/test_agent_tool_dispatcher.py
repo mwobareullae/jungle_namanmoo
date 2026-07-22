@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.models.agent import AgentToolCall
 from app.db.models.auth import User
-from app.db.models.catalog import Product, ProductIngredient, ProductSkinProfile
+from app.db.models.catalog import Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Inventory, Order, OrderClaim, OrderItem, ProductPopularityMetric, UserAddress, Wishlist
 from app.db.models.events import EventLog
 from app.db.models.taxonomy import Ingredient, IngredientAlias
@@ -636,6 +636,89 @@ def test_bulk_popular_ingredient_wishlist_does_not_inspect_beyond_rank_limit(db_
     assert response.ui_action.payload["inspected_count"] == 1
     assert response.ui_action.payload["matched_count"] == 0
     assert "찾지 못했어요" in response.message
+
+
+def test_bulk_popular_wishlist_combines_rank_ingredients_category_and_price(db_engine: Engine) -> None:
+    now = datetime.now(UTC)
+    with Session(db_engine) as session:
+        user = User(email="bulk-compound@example.com", display_name="bulk-compound-user")
+        products = session.scalars(select(Product).order_by(Product.product_code.asc()).limit(2)).all()
+        ingredients = session.scalars(select(Ingredient).where(Ingredient.is_active.is_(True)).limit(2)).all()
+        assert len(products) == 2
+        assert len(ingredients) == 2
+        category = session.get(ProductCategory, products[0].category_id)
+        assert category is not None
+
+        session.add(user)
+        for product in products:
+            product.category_id = category.id
+        session.execute(delete(ProductPopularityMetric).where(ProductPopularityMetric.window_days == 7))
+        session.execute(delete(ProductIngredient).where(ProductIngredient.product_id.in_([product.id for product in products])))
+        session.execute(delete(ProductPrice).where(ProductPrice.product_id.in_([product.id for product in products])))
+        session.add_all(
+            [
+                ProductPopularityMetric(product_id=products[0].id, window_days=7, popularity_score=100, score_version="behavior_rollup_v1", computed_at=now),
+                ProductPopularityMetric(product_id=products[1].id, window_days=7, popularity_score=90, score_version="behavior_rollup_v1", computed_at=now),
+                ProductIngredient(product_id=products[0].id, ingredient_id=ingredients[0].id, ingredient_name=ingredients[0].name_ko),
+                ProductIngredient(product_id=products[1].id, ingredient_id=ingredients[0].id, ingredient_name=ingredients[0].name_ko),
+                ProductIngredient(product_id=products[1].id, ingredient_id=ingredients[1].id, ingredient_name=ingredients[1].name_ko),
+                ProductPrice(product_id=products[0].id, mall_name="test", price=10_000, product_url="/products/first", is_lowest=True),
+                ProductPrice(product_id=products[1].id, mall_name="test", price=20_000, product_url="/products/second", is_lowest=True),
+            ]
+        )
+        session.commit()
+        session.refresh(user)
+
+        all_response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={
+                "ingredient_names": [ingredients[0].name_ko, ingredients[1].name_ko],
+                "ingredient_match_mode": "all",
+                "category": category.category_code,
+                "price_max": 25_000,
+                "rank_limit": 50,
+                "window_days": 7,
+            },
+            user=user,
+        )
+
+        assert all_response.requires_confirmation is True
+        assert [item.id for item in all_response.items] == [products[1].product_code]
+        assert all_response.items[0].metadata["rank"] == 2
+        assert all_response.ui_action.payload["criteria"] == {
+            "ingredient_names": [ingredients[0].name_ko, ingredients[1].name_ko],
+            "ingredient_match_mode": "all",
+            "category": {"category_code": category.category_code, "name": category.name},
+            "price_min": None,
+            "price_max": 25_000,
+            "skin_type": None,
+            "sensitivity": None,
+        }
+
+        any_response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={
+                "ingredient_names": [ingredients[0].name_ko, ingredients[1].name_ko],
+                "ingredient_match_mode": "any",
+                "category": category.category_code,
+                "price_max": 25_000,
+                "rank_limit": 50,
+                "window_days": 7,
+            },
+            user=user,
+        )
+        assert [item.id for item in any_response.items] == [products[0].product_code, products[1].product_code]
+
+        with pytest.raises(ApiError) as exc_info:
+            execute_agent_tool(
+                session,
+                tool_name="bulk_wishlist_by_popular_ingredient",
+                arguments={"ingredient_name": ingredients[0].name_ko, "rank_limit": 51, "window_days": 7},
+                user=user,
+            )
+        assert exc_info.value.code == "AGENT_BULK_WISHLIST_RANK_LIMIT"
 
 
 def test_bulk_popular_ingredient_wishlist_rolls_back_all_items_on_save_failure(
