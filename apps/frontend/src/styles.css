@@ -1738,6 +1738,7 @@
   min-width: 0;
 }
 
+.admin-excel-summary-panel,
 .admin-excel-failure-panel {
   grid-column: 1 / -1;
 }
@@ -1772,6 +1773,11 @@
   font-size: 17px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  transition: color 0.15s ease;
+}
+
+.admin-upload-zone strong:hover {
+  color: #1a1a1a;
 }
 
 .admin-upload-zone p {
@@ -2112,7 +2118,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-ingredient-hero,
@@ -2127,6 +2133,30 @@
 
 .admin-ingredient-summary-grid {
   padding-top: 18px;
+}
+
+/* 검수 대기열/선택 성분 위젯을 각각 독립적으로 스크롤한다(재고/가격 확인·주문 상태 확인과
+   동일 패턴) — 페이지 전체 스크롤 대신, 마우스가 올라간 위젯만 스크롤한다. 두 위젯을 flex
+   세로열로 만들어 헤더·필터·페이지네이션은 고정하고, 실제 목록/상세 내용만 담긴 자식
+   (.admin-ingredient-table-scroll, .admin-ingredient-detail-scroll)에 overflow-y:auto 를 준다. */
+.admin-ingredient-queue {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-ingredient-queue > .admin-panel-header,
+.admin-ingredient-queue > .admin-list-toolbar,
+.admin-ingredient-queue > .admin-pagination-row,
+.admin-ingredient-queue > .admin-state-banner,
+.admin-ingredient-detail > .admin-panel-header {
+  flex-shrink: 0;
+}
+
+/* 표 헤더 56px + tbody tr 56px x 10 = 616px — 재고/가격 확인·주문 상태 확인과 같은 기준으로
+   기본 10행이 보이는 높이를 고정하고, 그 이상은 내부 스크롤로 처리한다. */
+.admin-ingredient-table-scroll {
+  height: 616px;
+  overflow-y: auto;
 }
 
 .admin-ingredient-table {
@@ -2166,8 +2196,15 @@
 }
 
 .admin-ingredient-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-ingredient-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-ingredient-detail .admin-metric-list dd {

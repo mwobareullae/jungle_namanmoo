@@ -5,9 +5,9 @@
 없다. 그 SQL 정합성(그룹핑·review JOIN·페이지네이션·suggestion 매칭)은 실
 PostgreSQL로 수동 검증했다. 여기서는 SQL 실행 전에 결정되는 순수 로직과
 인가/검증 계약만 자동 검증한다:
-  - 정규화(`normalize_source_name`)와 커서 왕복·위변조·필터 불일치 거부
+  - 정규화(`normalize_source_name`)
   - suggestion 병합 규칙(alias 우선, 충돌 시 None, 없으면 None)
-  - status/limit 검증 400, 라우트 401/403.
+  - status/page_size 검증 400, 라우트 401/403.
 """
 
 from collections.abc import Generator
@@ -38,96 +38,6 @@ def test_normalize_source_name_lower_and_strip_whitespace() -> None:
     assert svc.normalize_source_name(" A\tB\nC ") == "abc"
     assert svc.normalize_source_name(None) == ""
     assert svc.normalize_source_name("") == ""
-
-
-def test_cursor_round_trip_preserves_keys() -> None:
-    token = svc._encode_cursor(
-        "ing_pending_ab",
-        "nsn1",
-        status="PENDING",
-        final_disposition=None,
-        q="foo",
-        sort="CONNECTION_DESC",
-        connection_count=12,
-    )
-    pc, nsn, connection_count = svc._decode_cursor(
-        token,
-        status="PENDING",
-        final_disposition=None,
-        q="foo",
-        sort="CONNECTION_DESC",
-    )
-    assert (pc, nsn, connection_count) == ("ing_pending_ab", "nsn1", 12)
-
-
-def test_cursor_rejects_filter_mismatch() -> None:
-    token = svc._encode_cursor(
-        "ing_pending_ab", "nsn1", status="PENDING", final_disposition="MAPPED", q="foo"
-    )
-    with pytest.raises(ApiError) as exc:
-        svc._decode_cursor(token, status="APPROVED", final_disposition="MAPPED", q="foo")
-    assert exc.value.code == "INVALID_CURSOR"
-    with pytest.raises(ApiError) as exc2:
-        svc._decode_cursor(token, status="PENDING", final_disposition="MAPPED", q="bar")
-    assert exc2.value.code == "INVALID_CURSOR"
-    with pytest.raises(ApiError) as exc3:
-        svc._decode_cursor(token, status="PENDING", final_disposition=None, q="foo")
-    assert exc3.value.code == "INVALID_CURSOR"
-    with pytest.raises(ApiError) as exc4:
-        svc._decode_cursor(
-            token,
-            status="PENDING",
-            final_disposition="MAPPED",
-            q="foo",
-            sort="CONNECTION_DESC",
-        )
-    assert exc4.value.code == "INVALID_CURSOR"
-
-
-def test_cursor_rejects_sort_mismatch() -> None:
-    token = svc._encode_cursor(
-        "ing_pending_ab",
-        "nsn1",
-        status="PENDING",
-        final_disposition=None,
-        q="",
-        sort="CODE_ASC",
-    )
-    with pytest.raises(ApiError) as exc:
-        svc._decode_cursor(
-            token,
-            status="PENDING",
-            final_disposition=None,
-            q="",
-            sort="CONNECTION_DESC",
-        )
-    assert exc.value.code == "INVALID_CURSOR"
-
-
-def test_cursor_rejects_candidate_type_mismatch() -> None:
-    token = svc._encode_cursor(
-        "ing_pending_ab",
-        "nsn1",
-        status="PENDING",
-        final_disposition=None,
-        q="",
-        candidate_type="ALIAS_EXACT_MATCH",
-    )
-    with pytest.raises(ApiError) as exc:
-        svc._decode_cursor(
-            token,
-            status="PENDING",
-            final_disposition=None,
-            q="",
-            candidate_type="NO_EXACT_MATCH",
-        )
-    assert exc.value.code == "INVALID_CURSOR"
-
-
-def test_cursor_rejects_malformed_token() -> None:
-    with pytest.raises(ApiError) as exc:
-        svc._decode_cursor("!!!not-base64!!!", status=None, final_disposition=None, q="")
-    assert exc.value.code == "INVALID_CURSOR"
 
 
 def test_effective_status_derives_pending_when_no_review() -> None:
@@ -211,12 +121,12 @@ def test_normalize_final_disposition_filter_rejects_unknown() -> None:
     assert exc.value.code == "INVALID_INGREDIENT_MAPPING_FINAL_DISPOSITION"
 
 
-def test_normalize_limit_bounds() -> None:
-    assert svc._normalize_limit(50) == 50
-    for bad in (0, svc.MAX_LIMIT + 1):
+def test_normalize_page_size_bounds() -> None:
+    assert svc._normalize_page_size(50) == 50
+    for bad in (0, svc.MAX_PAGE_SIZE + 1):
         with pytest.raises(ApiError) as exc:
-            svc._normalize_limit(bad)
-        assert exc.value.code == "INVALID_LIMIT"
+            svc._normalize_page_size(bad)
+        assert exc.value.code == "INVALID_PAGE_SIZE"
 
 
 def test_normalize_sort_rejects_unknown() -> None:
@@ -335,12 +245,12 @@ def test_list_rejects_invalid_candidate_type_before_query(client: TestClient, db
     assert response.json()["error"]["code"] == "INVALID_INGREDIENT_MAPPING_CANDIDATE"
 
 
-def test_list_rejects_invalid_limit_before_query(client: TestClient, db_engine: Engine) -> None:
+def test_list_rejects_invalid_page_size_before_query(client: TestClient, db_engine: Engine) -> None:
     _signup(client, ADMIN_EMAIL, "admin-mapping")
     _promote_admin(db_engine, ADMIN_EMAIL)
-    response = client.get("/api/admin/ingredient-mappings", params={"limit": 0})
+    response = client.get("/api/admin/ingredient-mappings", params={"page_size": 0})
     assert response.status_code == 400
-    assert response.json()["error"]["code"] == "INVALID_LIMIT"
+    assert response.json()["error"]["code"] == "INVALID_PAGE_SIZE"
 
 
 def test_detail_requires_normalized_source_name(client: TestClient, db_engine: Engine) -> None:
