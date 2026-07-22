@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AdminImageBulkLinkRowInput } from "../api/adminImageBulkLinkApi";
 import { useAdminImageBulkLink } from "./useAdminImageBulkLink";
@@ -86,6 +86,15 @@ export function AdminImageBulkLinkSection({
   const [phase, setPhase] = useState<"idle" | "preview" | "submitting" | "done">("idle");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const isFirstPageRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstPageRenderRef.current) {
+      isFirstPageRenderRef.current = false;
+      return;
+    }
+    tableWrapRef.current?.scrollIntoView({ block: "start" });
+  }, [page]);
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     if (imageBulkLink.result) {
@@ -264,7 +273,7 @@ export function AdminImageBulkLinkSection({
         <div className="admin-panel-header admin-product-header">
           <div>
             <p>상품 이미지 운영</p>
-            <h2>파일 미리보기 후 이미지 storage_key를 연결합니다</h2>
+            <h2>이미지 storage_key 일괄 연결</h2>
           </div>
           <div className="admin-filter-row">
             <button className="admin-secondary-button admin-light-button" onClick={downloadTemplate} type="button">
@@ -334,11 +343,37 @@ export function AdminImageBulkLinkSection({
             </span>
           </div>
         )}
-        <div className="admin-state-banner neutral">
-          <strong>운영 전제</strong>
+
+        <div className="admin-excel-state-row">
+          <span
+            className={`admin-badge ${
+              phase === "done"
+                ? summary && summary.failed > 0
+                  ? "warning"
+                  : "success"
+                : phase === "submitting" || clientIssues.length > 0
+                  ? "warning"
+                  : phase === "preview"
+                    ? "success"
+                    : "neutral"
+            }`}
+          >
+            {phase === "done"
+              ? "연결 완료"
+              : phase === "submitting"
+                ? "연결 중"
+                : phase === "preview"
+                  ? "미리보기 완료"
+                  : "파일 선택 전"}
+          </span>
           <span>
-            S3에 원본과 resized/w400·resized/w1200 파일을 먼저 올린 뒤, 원본 storage_key만 입력해
-            주세요.
+            {phase === "done"
+              ? "연결 결과를 아래 표에서 확인하세요."
+              : phase === "preview"
+                ? clientIssues.length > 0
+                  ? "형식 오류를 수정한 뒤 파일을 다시 선택해 미리보기를 실행해 주세요."
+                  : "형식이 확인되었습니다. 연결 실행 시 서버가 상품·슬롯을 다시 확인합니다."
+                : "파일을 선택한 뒤 미리보기로 형식을 확인하고 연결을 실행하세요."}
           </span>
         </div>
       </section>
@@ -357,7 +392,6 @@ export function AdminImageBulkLinkSection({
                 <strong>{column.name}</strong>
                 <small>{column.note}</small>
               </span>
-              <b>필수</b>
             </div>
           ))}
         </div>
@@ -422,7 +456,7 @@ export function AdminImageBulkLinkSection({
           </div>
         </div>
 
-        <div className="admin-table-wrap">
+        <div className="admin-table-wrap" ref={tableWrapRef}>
           <table className="admin-table admin-excel-table">
             <thead>
               <tr>
