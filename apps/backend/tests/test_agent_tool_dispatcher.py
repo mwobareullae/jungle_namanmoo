@@ -711,6 +711,21 @@ def test_bulk_popular_wishlist_combines_rank_ingredients_category_and_price(db_e
         )
         assert [item.id for item in any_response.items] == [products[0].product_code, products[1].product_code]
 
+        single_ingredient_response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={
+                "ingredient_names": [ingredients[0].name_ko],
+                "ingredient_match_mode": "any",
+                "category": category.category_code,
+                "price_max": 25_000,
+                "rank_limit": 50,
+                "window_days": 7,
+            },
+            user=user,
+        )
+        assert single_ingredient_response.ui_action.payload["criteria"]["ingredient_match_mode"] == "all"
+
         with pytest.raises(ApiError) as exc_info:
             execute_agent_tool(
                 session,
