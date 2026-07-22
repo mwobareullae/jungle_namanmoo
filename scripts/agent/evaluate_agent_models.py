@@ -32,9 +32,19 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CASES_PATH = REPO_ROOT / "docs" / "agent-evals" / "fixtures" / "single-agent-baseline-v1.json"
+ROUTER_SPECIALIST_CASES_PATH = (
+    REPO_ROOT / "docs" / "agent-evals" / "fixtures" / "router-specialist-v1.json"
+)
 DEFAULT_TRACE_ROOT = REPO_ROOT / "apps" / "backend" / ".local" / "agent-traces"
 DEFAULT_RESULTS_ROOT = REPO_ROOT / "docs" / "agent-evals" / "results"
-SUPPORTED_CONTEXT_MODES = {"home", "search_results", "product_detail", "similar_result", "cart"}
+SUPPORTED_CONTEXT_MODES = {
+    "home",
+    "search_results",
+    "product_detail",
+    "similar_result",
+    "cart",
+    "checkout",
+}
 SUPPORTED_AUTH_MODES = {"guest", "authenticated"}
 
 
@@ -74,6 +84,11 @@ NAMED_EVALUATION_PROFILES: dict[str, AgentEvaluationProfile] = {
         profile_id="single-gpt55",
         execution_mode="single",
         requested_model="gpt-5.5",
+    ),
+    "single-nano": AgentEvaluationProfile(
+        profile_id="single-nano",
+        execution_mode="single",
+        requested_model="gpt-5.4-nano-2026-03-17",
     ),
     "router-nano": AgentEvaluationProfile(
         profile_id="router-nano",
@@ -175,7 +190,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=[],
         help=(
-            "Named execution profiles: single-gpt55, router-nano, "
+            "Named execution profiles: single-gpt55, single-nano, router-nano, "
             "router-nano-fallback. Overrides --models for this run."
         ),
     )
@@ -209,16 +224,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def load_fixture(path: Path) -> dict[str, Any]:
+    """Load a fixture, optionally extending one sibling fixture's cases."""
+
+    return _load_fixture(path.resolve(), ancestors=())
+
+
+def _load_fixture(path: Path, *, ancestors: tuple[Path, ...]) -> dict[str, Any]:
+    if path in ancestors:
+        chain = " -> ".join(str(item) for item in (*ancestors, path))
+        raise ValueError(f"Fixture extends cycle: {chain}")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"Fixture must be an object: {path}")
     cases = payload.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("Fixture must contain a non-empty cases array.")
+    inherited_payload: dict[str, Any] = {}
+    inherited_cases: list[Any] = []
+    extends = payload.get("extends")
+    if extends is not None:
+        if not isinstance(extends, str) or not extends.strip():
+            raise ValueError("Fixture extends must be a non-empty relative filename.")
+        relative_path = Path(extends)
+        if relative_path.is_absolute() or relative_path.parent != Path("."):
+            raise ValueError("Fixture extends must reference a sibling fixture filename.")
+        base_path = (path.parent / relative_path).resolve()
+        inherited_payload = _load_fixture(base_path, ancestors=(*ancestors, path))
+        inherited_cases = list(inherited_payload["cases"])
+    # A derived fixture changes only the scenario delta by default.  Preserve
+    # bootstrap and other execution defaults from the base fixture unless the
+    # child explicitly replaces them.
+    resolved_payload = {**inherited_payload, **payload}
+    resolved_payload["cases"] = [*inherited_cases, *cases]
     seen_ids: set[str] = set()
-    for case in cases:
+    for case in resolved_payload["cases"]:
         validate_case(case, seen_ids)
-    return payload
+    return resolved_payload
 
 
 def validate_case(case: Any, seen_ids: set[str] | None = None) -> None:
@@ -237,8 +278,21 @@ def validate_case(case: Any, seen_ids: set[str] | None = None) -> None:
         raise ValueError(f"Fixture case {case_id} has unsupported auth_mode.")
     if case.get("context_mode") not in SUPPORTED_CONTEXT_MODES:
         raise ValueError(f"Fixture case {case_id} has unsupported context_mode.")
-    if not isinstance(case.get("expect"), dict):
+    expect = case.get("expect")
+    if not isinstance(expect, dict):
         raise ValueError(f"Fixture case {case_id} requires an expect object.")
+    for field_name in ("route", "tool_name", "error_code", "validation"):
+        value = expect.get(field_name)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError(f"Fixture case {case_id} expect.{field_name} must be a non-empty string.")
+    for field_name in ("allow_clarification", "requires_confirmation"):
+        value = expect.get(field_name)
+        if value is not None and not isinstance(value, bool):
+            raise ValueError(f"Fixture case {case_id} expect.{field_name} must be boolean.")
+    statuses = expect.get("http_statuses")
+    if statuses is not None:
+        if not isinstance(statuses, list) or not statuses or not all(isinstance(item, int) for item in statuses):
+            raise ValueError(f"Fixture case {case_id} expect.http_statuses must be a non-empty int list.")
 
 
 def build_execution_plan(
@@ -709,6 +763,12 @@ def _run_sample(
         "validation_status": validation["status"],
         "structural_pass": validation["structural_pass"],
         "constraint_pass": validation["constraint_pass"],
+        "route_pass": validation["route_pass"],
+        "tool_pass": validation["tool_pass"],
+        "safety_pass": validation["safety_pass"],
+        "clarification_used": validation["clarification_used"],
+        "expected_route": validation["expected_route"],
+        "actual_route": validation["actual_route"],
         "validation_errors": validation["errors"],
         "manual_review_required": bool(case.get("expect", {}).get("manual_review")),
         **metrics,
@@ -762,6 +822,16 @@ def _build_case_context(case: Mapping[str, Any], bootstrap: Mapping[str, Any]) -
         }
     if context_mode == "cart":
         return {"context": {"page": "cart", "route": "/cart"}}
+    if context_mode == "checkout":
+        return {
+            "context": {
+                "page": "checkout",
+                "route": "/checkout",
+                "cart_item_ids": [1],
+                "current_product_id": product_ids[0],
+                "visible_product_ids": product_ids[:2],
+            }
+        }
     raise ValueError(f"Unsupported context mode: {context_mode}")
 
 
@@ -775,46 +845,69 @@ def evaluate_case_response(
     expect = case["expect"]
     structural_errors: list[str] = []
     constraint_errors: list[str] = []
-    if status_code != 200:
-        structural_errors.append(f"expected HTTP 200, got {status_code}")
+    safety_errors: list[str] = []
+    expected_statuses = expect.get("http_statuses", [200])
+    if status_code not in expected_statuses:
+        structural_errors.append(f"expected HTTP {expected_statuses}, got {status_code}")
+    actual_error_code = _response_error_code(response)
+    expected_error_code = expect.get("error_code")
+    if expected_error_code and actual_error_code != expected_error_code:
+        structural_errors.append(
+            f"error.code expected={expected_error_code}, actual={actual_error_code}"
+        )
+    clarification_used = actual_error_code == "AGENT_CLARIFICATION_REQUIRED"
+    clarification_allowed = clarification_used and bool(expect.get("allow_clarification"))
     expected_tool = expect.get("tool_name")
     actual_tool = response.get("tool_name")
-    if expected_tool and actual_tool != expected_tool:
+    expected_route = expect.get("route")
+    actual_route = _actual_route(trace, actual_tool)
+    route_pass = not expected_route or actual_route == expected_route or clarification_allowed
+    tool_pass = not expected_tool or actual_tool == expected_tool or clarification_allowed
+    if not route_pass:
+        structural_errors.append(f"route expected={expected_route}, actual={actual_route}")
+    if not tool_pass:
         structural_errors.append(f"tool_name expected={expected_tool}, actual={actual_tool}")
-    if "requires_confirmation" in expect and response.get("requires_confirmation") != expect["requires_confirmation"]:
-        structural_errors.append(
-            "requires_confirmation "
-            f"expected={expect['requires_confirmation']}, actual={response.get('requires_confirmation')}"
-        )
+    if not clarification_allowed:
+        if "requires_confirmation" in expect and response.get("requires_confirmation") != expect["requires_confirmation"]:
+            safety_errors.append(
+                "requires_confirmation "
+                f"expected={expect['requires_confirmation']}, actual={response.get('requires_confirmation')}"
+            )
     expected_ui_type = expect.get("ui_action_type")
     actual_ui_type = _nested_value(response, "ui_action", "type")
-    if expected_ui_type and actual_ui_type != expected_ui_type:
+    if expected_ui_type and actual_ui_type != expected_ui_type and not clarification_allowed:
         structural_errors.append(f"ui_action.type expected={expected_ui_type}, actual={actual_ui_type}")
     expected_ui_target = expect.get("ui_action_target")
     actual_ui_target = _nested_value(response, "ui_action", "target")
-    if expected_ui_target and actual_ui_target != expected_ui_target:
+    if expected_ui_target and actual_ui_target != expected_ui_target and not clarification_allowed:
         structural_errors.append(
             f"ui_action.target expected={expected_ui_target}, actual={actual_ui_target}"
         )
     minimum_items = expect.get("min_items")
     actual_items = response.get("items")
-    if minimum_items is not None and (not isinstance(actual_items, list) or len(actual_items) < minimum_items):
+    if (
+        minimum_items is not None
+        and not clarification_allowed
+        and (not isinstance(actual_items, list) or len(actual_items) < minimum_items)
+    ):
         structural_errors.append(f"item_count expected>={minimum_items}, actual={len(actual_items or [])}")
 
     arguments = _tool_arguments(trace, expected_tool) or _response_tool_arguments(
         response,
         expected_tool,
     )
-    for field, expected_value in dict(expect.get("argument_equals", {})).items():
-        actual_value = arguments.get(field)
-        if actual_value != expected_value:
-            constraint_errors.append(f"{field} expected={expected_value!r}, actual={actual_value!r}")
-    for field, expected_values in dict(expect.get("argument_includes", {})).items():
-        actual_values = arguments.get(field)
-        if not isinstance(actual_values, list) or not set(expected_values).issubset(set(actual_values)):
-            constraint_errors.append(f"{field} must include {expected_values!r}, actual={actual_values!r}")
+    if not clarification_allowed:
+        for field, expected_value in dict(expect.get("argument_equals", {})).items():
+            actual_value = arguments.get(field)
+            if actual_value != expected_value:
+                constraint_errors.append(f"{field} expected={expected_value!r}, actual={actual_value!r}")
+        for field, expected_values in dict(expect.get("argument_includes", {})).items():
+            actual_values = arguments.get(field)
+            if not isinstance(actual_values, list) or not set(expected_values).issubset(set(actual_values)):
+                constraint_errors.append(f"{field} must include {expected_values!r}, actual={actual_values!r}")
 
-    structural_pass = not structural_errors
+    safety_pass = not safety_errors
+    structural_pass = not structural_errors and safety_pass
     constraint_pass = not constraint_errors
     if not structural_pass or not constraint_pass:
         status = "failed"
@@ -826,8 +919,50 @@ def evaluate_case_response(
         "status": status,
         "structural_pass": structural_pass,
         "constraint_pass": constraint_pass,
-        "errors": " | ".join([*structural_errors, *constraint_errors]),
+        "route_pass": route_pass,
+        "tool_pass": tool_pass,
+        "safety_pass": safety_pass,
+        "clarification_used": clarification_used,
+        "expected_route": expected_route,
+        "actual_route": actual_route,
+        "errors": " | ".join([*structural_errors, *safety_errors, *constraint_errors]),
     }
+
+
+_TOOL_ROUTE_MAP = {
+    "create_recommendation": "recommendation",
+    "refine_product_results": "recommendation_refinement",
+    "find_similar_products": "product_reference",
+    "compare_products": "product_reference",
+    "add_to_cart": "cart_checkout",
+    "get_cart": "cart_checkout",
+    "compose_cart": "cart_checkout",
+    "prepare_product_checkout": "cart_checkout",
+    "prepare_checkout": "cart_checkout",
+    "prepare_order": "cart_checkout",
+    "register_shipping_address": "cart_checkout",
+    "filter_order_history": "order_after_sales",
+    "order_status_lookup": "order_after_sales",
+    "cancel_recent_order": "order_after_sales",
+    "prepare_review_draft": "order_after_sales",
+    "prepare_claim_draft": "order_after_sales",
+    "bulk_wishlist_by_popular_ingredient": "bulk_wishlist",
+}
+
+
+def _actual_route(trace: Mapping[str, Any] | None, actual_tool: Any) -> str | None:
+    if isinstance(trace, Mapping):
+        stages = trace.get("agent_stages")
+        if isinstance(stages, Mapping):
+            router = stages.get("router")
+            if isinstance(router, Mapping) and isinstance(router.get("route"), str):
+                return str(router["route"])
+        route = trace.get("route")
+        if isinstance(route, Mapping):
+            telemetry = route.get("telemetry")
+            if isinstance(telemetry, Mapping) and isinstance(telemetry.get("agent_router_route"), str):
+                return str(telemetry["agent_router_route"])
+    return _TOOL_ROUTE_MAP.get(str(actual_tool)) if actual_tool else None
 
 
 def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -836,6 +971,7 @@ def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
         "actual_model": None,
         "model_source": None,
         "model_called": None,
+        "provider_model_call_count": 0,
         "short_circuit_reason": None,
         "instructions_bytes": None,
         "selected_tool_count": None,
@@ -926,7 +1062,16 @@ def extract_trace_metrics(trace: Mapping[str, Any] | None) -> dict[str, Any]:
             "actual_model": agent.get("model"),
             "model_source": agent.get("model_source")
             or ("not_called" if not agent and route.get("outcome") == "succeeded" else None),
-            "model_called": bool(agent.get("model") or router.get("model") or specialist.get("model")),
+            "model_called": bool(
+                agent.get("model")
+                or router.get("model")
+                or specialist.get("model")
+                or fallback.get("model")
+            ),
+            "provider_model_call_count": _provider_model_call_count(
+                stages=stage_payloads,
+                agent=agent,
+            ),
             "short_circuit_reason": agent.get("short_circuit_reason"),
             "instructions_bytes": instructions_bytes,
             "selected_tool_count": selected_tool_count,
@@ -1058,6 +1203,28 @@ def _stage_duration_ms(stage: Mapping[str, Any]) -> float | None:
         for attempt in attempts
         if isinstance(attempt, Mapping)
     )
+
+
+def _provider_model_call_count(
+    *,
+    stages: Iterable[Mapping[str, Any]],
+    agent: Mapping[str, Any],
+) -> int:
+    """Count actual runner attempts rather than assuming one call per workflow."""
+
+    stage_list = list(stages)
+    targets = stage_list if stage_list else [agent]
+    count = sum(_stage_provider_model_call_count(stage) for stage in targets)
+    return count
+
+
+def _stage_provider_model_call_count(stage: Mapping[str, Any]) -> int:
+    attempts = stage.get("runner_attempts")
+    if isinstance(attempts, list):
+        attempt_count = sum(isinstance(item, Mapping) for item in attempts)
+        if attempt_count:
+            return attempt_count
+    return int(bool(stage.get("model")))
 
 
 def _sum_optional(values: Iterable[Any]) -> int | float | None:
@@ -1231,9 +1398,10 @@ SCENARIO_CSV_FIELDS = [
     "sample_key", "scenario_id", "group", "auth_mode", "context_mode", "requested_profile",
     "requested_execution_mode", "requested_model", "repeat",
     "http_status", "client_roundtrip_ms", "http_error", "error_code", "trace_id", "trace_file", "trace_available",
-    "execution_mode", "actual_model", "model_source", "model_called", "short_circuit_reason", "tool_name", "tool_call_count",
+    "execution_mode", "actual_model", "model_source", "model_called", "provider_model_call_count", "short_circuit_reason", "tool_name", "tool_call_count",
     "requires_confirmation", "ui_action_type", "ui_action_target", "item_count", "validation_status",
-    "structural_pass", "constraint_pass", "validation_errors", "manual_review_required", "instructions_bytes",
+    "structural_pass", "constraint_pass", "route_pass", "tool_pass", "safety_pass", "clarification_used",
+    "expected_route", "actual_route", "validation_errors", "manual_review_required", "instructions_bytes",
     "selected_tool_count", "selected_tool_schema_bytes", "agent_input_bytes", "route_total_ms", "agent_workflow_ms",
     "agent_runner_ms", "agent_model_and_orchestration_ms", "agent_tool_execution_ms",
     "agent_tool_reference_resolve_ms", "agent_tool_dispatch_ms", "agent_tool_response_serialize_ms",
@@ -1250,8 +1418,9 @@ SCENARIO_CSV_FIELDS = [
 
 SUMMARY_CSV_FIELDS = [
     "requested_profile", "requested_execution_mode", "requested_model", "group", "sample_count",
-    "http_success_count", "model_called_count", "short_circuit_count", "fallback_used_count",
-    "structural_pass_rate", "constraint_pass_rate", "client_roundtrip_p50_ms", "client_roundtrip_p95_ms",
+    "http_success_count", "model_called_count", "provider_model_call_count", "short_circuit_count", "fallback_used_count",
+    "structural_pass_rate", "constraint_pass_rate", "route_pass_rate", "tool_pass_rate", "safety_pass_rate", "fallback_success_rate",
+    "client_roundtrip_p50_ms", "client_roundtrip_p95_ms",
     "route_total_p50_ms", "route_total_p95_ms", "model_phase_p50_ms", "model_phase_p95_ms",
     "router_p50_ms", "router_p95_ms", "specialist_p50_ms", "specialist_p95_ms",
     "fallback_p50_ms", "fallback_p95_ms", "tool_execution_p50_ms", "tool_execution_p95_ms",
@@ -1271,6 +1440,7 @@ def summarize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     for (profile, group), sample_rows in sorted(grouped.items()):
         successful = [row for row in sample_rows if row.get("http_status") == 200]
         model_called = [row for row in successful if row.get("model_called") is True]
+        fallback_rows = [row for row in sample_rows if row.get("fallback_used") is True]
         representative = sample_rows[0]
         summary.append(
             {
@@ -1281,10 +1451,17 @@ def summarize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "sample_count": len(sample_rows),
                 "http_success_count": len(successful),
                 "model_called_count": len(model_called),
+                "provider_model_call_count": _sum(
+                    _numeric(sample_rows, "provider_model_call_count")
+                ),
                 "short_circuit_count": sum(row.get("model_called") is False for row in successful),
                 "fallback_used_count": sum(row.get("fallback_used") is True for row in successful),
                 "structural_pass_rate": _rate(successful, "structural_pass"),
                 "constraint_pass_rate": _rate(successful, "constraint_pass"),
+                "route_pass_rate": _rate(successful, "route_pass"),
+                "tool_pass_rate": _rate(successful, "tool_pass"),
+                "safety_pass_rate": _rate(successful, "safety_pass"),
+                "fallback_success_rate": _rate(fallback_rows, "structural_pass") if fallback_rows else None,
                 "client_roundtrip_p50_ms": _percentile(_numeric(successful, "client_roundtrip_ms"), 50),
                 "client_roundtrip_p95_ms": _percentile(_numeric(successful, "client_roundtrip_ms"), 95),
                 "route_total_p50_ms": _percentile(_numeric(successful, "route_total_ms"), 50),
@@ -1318,6 +1495,13 @@ def render_report(
     completed = [row for row in rows if row.get("validation_status") != "skipped_write_preview"]
     failed = [row for row in completed if row.get("validation_status") == "failed"]
     short_circuits = [row for row in completed if row.get("model_source") == "not_called"]
+    successful = [row for row in completed if row.get("http_status") == 200]
+    model_rows = [row for row in successful if row.get("model_called") is True]
+    provider_model_calls = sum(
+        int(value)
+        for row in completed
+        if isinstance((value := row.get("provider_model_call_count")), (int, float))
+    )
     lines = [
         f"# Agent 모델 비교: {manifest['run_id']}",
         "",
@@ -1342,6 +1526,35 @@ def render_report(
             "{model_phase_p50_ms}/{model_phase_p95_ms} | {mean_total_tokens} | "
             "{total_estimated_cost_usd} | {structural_pass_rate} | {constraint_pass_rate} |".format(**summary)
         )
+    lines.extend(
+        [
+            "",
+            "## Overall Execution Metrics",
+            "",
+            f"- Provider model calls: {provider_model_calls}",
+            (
+                "- Overall response p50/p95 (ms): "
+                f"{_percentile(_numeric(successful, 'client_roundtrip_ms'), 50)}/"
+                f"{_percentile(_numeric(successful, 'client_roundtrip_ms'), 95)}"
+            ),
+            (
+                "- Overall Router p50/p95 (ms): "
+                f"{_percentile(_numeric(model_rows, 'router_ms'), 50)}/"
+                f"{_percentile(_numeric(model_rows, 'router_ms'), 95)}"
+            ),
+            (
+                "- Overall Specialist p50/p95 (ms): "
+                f"{_percentile(_numeric(model_rows, 'specialist_ms'), 50)}/"
+                f"{_percentile(_numeric(model_rows, 'specialist_ms'), 95)}"
+            ),
+            (
+                "- Route/tool/safety pass rates: "
+                f"{_rate(successful, 'route_pass')}/"
+                f"{_rate(successful, 'tool_pass')}/"
+                f"{_rate(successful, 'safety_pass')}"
+            ),
+        ]
+    )
     lines.extend(
         [
             "",
