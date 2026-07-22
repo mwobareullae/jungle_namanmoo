@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import {
@@ -177,6 +177,10 @@ export function AdminOrderStatusSection({ active }: AdminOrderStatusSectionProps
   const [orderExceptions, setOrderExceptions] = useState<OrderExceptionRow[]>([]);
   const nextExceptionIdRef = useRef(0);
   const [confirmingAction, setConfirmingAction] = useState<PendingShipmentAction | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [page]);
 
   // 직접 선택하기 전까지는 아무 주문도 자동으로 보여주지 않는다. 이미 선택한 주문이 있는데
   // (예: 30초 자동 새로고침으로 목록이 갱신되며) 그 주문이 현재 items 에서 사라졌다면,
@@ -438,7 +442,7 @@ export function AdminOrderStatusSection({ active }: AdminOrderStatusSectionProps
                 </select>
               </div>
             </div>
-            <div className="admin-table-wrap admin-order-table-scroll">
+            <div className="admin-table-wrap admin-order-table-scroll" ref={tableScrollRef}>
               <table className="admin-table admin-order-table">
                 <thead>
                   <tr>
@@ -672,15 +676,6 @@ export function AdminOrderStatusSection({ active }: AdminOrderStatusSectionProps
                     </dl>
                   </div>
 
-                  {selectedOrder.orderStatusRaw === "CANCEL_REQUESTED" && (
-                    <div className="admin-state-banner review">
-                      <strong>취소 요청 처리 안내</strong>
-                      <span>
-                        이 주문의 취소 승인·거절은 사이드바의 &quot;취소·클레임 관리&quot; 화면 &gt; 취소 요청 탭에서
-                        처리합니다.
-                      </span>
-                    </div>
-                  )}
                   {/* 배송 액션: 서버가 계산한 availableActions 기준으로만 버튼 표시 — 프론트는 직접 계산하지 않는다.
                       실패·동기화 경고는 배너·토스트 대신 버튼 옆 짧은 문구로만 안내한다(하단 예외 표에도 기록됨). */}
                   {actionError && <p className="admin-inline-message danger">{actionError}</p>}

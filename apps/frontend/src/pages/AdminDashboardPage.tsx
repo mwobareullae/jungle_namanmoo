@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
@@ -79,16 +79,26 @@ const todayLabel = `${todayIso} ${["일", "월", "화", "수", "목", "금", "�
 const DONUT_CIRC = 2 * Math.PI * 52;
 
 const excelTemplateColumns = [
-  { label: "import_sku", required: "필수", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
-  { label: "product_name", required: "필수", note: "상품명" },
-  { label: "brand_name", required: "필수", note: "등록된 브랜드명 또는 별칭" },
-  { label: "category_name", required: "필수", note: "등록된 카테고리명 또는 별칭" },
-  { label: "price", required: "필수", note: "양의 정수 판매가" },
-  { label: "stock_quantity", required: "필수", note: "0 이상의 정수 초기 재고" },
-  { label: "ingredients_raw", required: "필수", note: "전성분을 | 기호로 구분" }
+  { label: "import_sku", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
+  { label: "product_name", note: "상품명" },
+  { label: "brand_name", note: "등록된 브랜드명 또는 별칭" },
+  { label: "category_name", note: "등록된 카테고리명 또는 별칭" },
+  { label: "price", note: "양의 정수 판매가" },
+  { label: "stock_quantity", note: "0 이상의 정수 초기 재고" },
+  { label: "ingredients_raw", note: "전성분을 | 기호로 구분" }
 ];
 const BULK_IMPORT_REQUIRED_HEADERS = excelTemplateColumns.map((column) => column.label);
 const IMPORT_SKU_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,63}$/;
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const PAGE_BLOCK_SIZE = 10;
+
+const getBlockPages = (current: number, total: number): number[] => {
+  const blockIndex = Math.floor((current - 1) / PAGE_BLOCK_SIZE);
+  const start = blockIndex * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, total);
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+};
 
 const getBulkImportFieldValue = (row: AdminBulkImportRowInput, field: string | null): string => {
   if (field === "import_sku") return row.importSku;
@@ -286,6 +296,17 @@ function AdminDashboardPage() {
   const [excelPreviewRows, setExcelPreviewRows] = useState<AdminBulkImportRowInput[]>([]);
   const [excelClientIssues, setExcelClientIssues] = useState<ExcelClientIssue[]>([]);
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
+  const [excelPage, setExcelPage] = useState(1);
+  const [excelPageSize, setExcelPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const excelTableWrapRef = useRef<HTMLDivElement>(null);
+  const isFirstExcelPageRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstExcelPageRenderRef.current) {
+      isFirstExcelPageRenderRef.current = false;
+      return;
+    }
+    excelTableWrapRef.current?.scrollIntoView({ block: "start" });
+  }, [excelPage]);
   const dashboardSummary = useAdminDashboardSummary({ enabled: activeView === "dashboard" });
   const [toast, setToast] = useState<AdminToast>(null);
 
@@ -341,6 +362,18 @@ function AdminDashboardPage() {
           };
     });
   }, [bulkImport.result, excelClientIssues, excelPreviewRows]);
+
+  const excelTotalPages = Math.max(1, Math.ceil(excelDisplayRows.length / excelPageSize));
+  const excelCurrentPage = Math.min(excelPage, excelTotalPages);
+  const excelBlockPages = getBlockPages(excelCurrentPage, excelTotalPages);
+  const excelBlockStart = excelBlockPages[0] ?? 1;
+  const excelBlockEnd = excelBlockPages[excelBlockPages.length - 1] ?? 1;
+  const excelHasPrevBlock = excelBlockStart > 1;
+  const excelHasNextBlock = excelBlockEnd < excelTotalPages;
+  const excelCurrentRows = excelDisplayRows.slice(
+    (excelCurrentPage - 1) * excelPageSize,
+    excelCurrentPage * excelPageSize,
+  );
 
   const excelSummaryRows = useMemo<ExcelSummaryRow[]>(() => {
     if (bulkImport.result) {
@@ -560,6 +593,7 @@ function AdminDashboardPage() {
     setExcelFormError(null);
     bulkImport.reset();
     setExcelImportState("preview");
+    setExcelPage(1);
     pushOperationLog(
       "엑셀",
       "상품 엑셀 미리보기 완료",
@@ -587,6 +621,7 @@ function AdminDashboardPage() {
     }
 
     setExcelImportState("done");
+    setExcelPage(1);
     const tone: BadgeTone = result.summary.failed > 0 || result.reviewRefresh === "FAILED" ? "warning" : "success";
     pushOperationLog(
       "엑셀",
@@ -688,7 +723,7 @@ function AdminDashboardPage() {
         <section
           className="admin-dashboard-charts"
           aria-label="상품 구성과 처리 대기"
-          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "16px", margin: "0 0 18px" }}
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", margin: "0 0 18px" }}
         >
           <article className="admin-panel">
             <div className="admin-panel-header">
@@ -698,8 +733,8 @@ function AdminDashboardPage() {
               </div>
             </div>
             {summary ? (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "22px" }}>
-                <svg viewBox="0 0 140 140" role="img" aria-label="재고 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "36px" }}>
+                <svg viewBox="0 0 140 140" role="img" aria-label="재고 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible", marginLeft: "-20px" }}>
                   {stockStatusSegments.map((seg) => (
                     <circle
                       key={seg.label}
@@ -857,14 +892,18 @@ function AdminDashboardPage() {
         <div className="admin-panel-header admin-product-header">
           <div>
             <p>엑셀 기반 상품 대량 등록</p>
-            <h2>파일 미리보기 후 상품·재고·전성분을 등록합니다</h2>
+            <h2>상품·재고·전성분 일괄 등록</h2>
           </div>
           <div className="admin-filter-row">
-            <button className="admin-secondary-button" onClick={handleExcelTemplateDownload} type="button">
+            <button
+              className="admin-secondary-button admin-light-button"
+              onClick={handleExcelTemplateDownload}
+              type="button"
+            >
               템플릿
             </button>
             <button
-              className="admin-secondary-button"
+              className="admin-secondary-button admin-light-button"
               disabled={bulkImport.submitting}
               onClick={() => void handleExcelPreview()}
               type="button"
@@ -909,6 +948,7 @@ function AdminDashboardPage() {
                 setExcelFormError(null);
                 bulkImport.reset();
                 setExcelImportState("idle");
+                setExcelPage(1);
               }}
               type="file"
             />
@@ -979,7 +1019,6 @@ function AdminDashboardPage() {
                 <strong>{column.label}</strong>
                 <small>{column.note}</small>
               </span>
-              <b className="admin-badge warning">{column.required}</b>
             </div>
           ))}
         </div>
@@ -992,7 +1031,7 @@ function AdminDashboardPage() {
             <h2>{bulkImport.result ? "부분 성공 요약" : "파일 형식 요약"}</h2>
           </div>
           <button
-            className="admin-secondary-button"
+            className="admin-secondary-button admin-light-button"
             disabled={excelDisplayRows.length === 0}
             onClick={() => handleFailureFile()}
             type="button"
@@ -1000,7 +1039,10 @@ function AdminDashboardPage() {
             결과 파일
           </button>
         </div>
-        <div className="admin-excel-summary-grid">
+        <div
+          className="admin-excel-summary-grid"
+          style={{ gridTemplateColumns: `repeat(${excelSummaryRows.length}, minmax(0, 1fr))` }}
+        >
           {excelSummaryRows.map((item) => (
             <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
               <span>{item.label}</span>
@@ -1020,7 +1062,28 @@ function AdminDashboardPage() {
             {bulkImport.result ? "서버 결과" : "형식 확인"}
           </span>
         </div>
-        <div className="admin-table-wrap">
+
+        <div className="admin-list-toolbar">
+          <div className="admin-page-size">
+            <label htmlFor="admin-excel-upload-page-size">페이지당</label>
+            <select
+              id="admin-excel-upload-page-size"
+              onChange={(event) => {
+                setExcelPageSize(Number(event.target.value));
+                setExcelPage(1);
+              }}
+              value={excelPageSize}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}개
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="admin-table-wrap" ref={excelTableWrapRef}>
           <table className="admin-table admin-excel-table">
             <thead>
               <tr>
@@ -1033,11 +1096,13 @@ function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {excelDisplayRows.length > 0 ? (
-                excelDisplayRows.map((row) => (
+              {excelCurrentRows.length > 0 ? (
+                excelCurrentRows.map((row) => (
                   <tr key={`${row.row}-${row.status}-${row.field}`}>
                     <td>{row.row}</td>
-                    <td className="admin-file-name">{row.importSku}</td>
+                    <td className="admin-file-name" title={row.importSku}>
+                      {row.importSku}
+                    </td>
                     <td>
                       <span
                         className={`admin-badge ${
@@ -1069,6 +1134,55 @@ function AdminDashboardPage() {
             </tbody>
           </table>
         </div>
+
+        {excelDisplayRows.length > 0 && (
+          <div className="admin-pagination-row">
+            <div className="admin-pagination">
+              <button
+                className="admin-pagination-jump"
+                disabled={excelCurrentPage <= 1}
+                onClick={() => setExcelPage(1)}
+                type="button"
+              >
+                처음
+              </button>
+              <button
+                className="admin-pagination-jump"
+                disabled={!excelHasPrevBlock}
+                onClick={() => setExcelPage(excelBlockStart - 1)}
+                type="button"
+              >
+                이전
+              </button>
+              {excelBlockPages.map((entry) => (
+                <button
+                  className={`admin-pagination-page${entry === excelCurrentPage ? " active" : ""}`}
+                  key={entry}
+                  onClick={() => setExcelPage(entry)}
+                  type="button"
+                >
+                  {entry}
+                </button>
+              ))}
+              <button
+                className="admin-pagination-jump"
+                disabled={!excelHasNextBlock}
+                onClick={() => setExcelPage(excelBlockEnd + 1)}
+                type="button"
+              >
+                다음
+              </button>
+              <button
+                className="admin-pagination-jump"
+                disabled={excelCurrentPage >= excelTotalPages}
+                onClick={() => setExcelPage(excelTotalPages)}
+                type="button"
+              >
+                맨끝
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </section>
   );

@@ -75,10 +75,19 @@ export type IngredientMappingSummary = {
   rejectedCount: number;
 };
 
+export type IngredientMappingPagination = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
 export type IngredientMappingListResult = {
   items: IngredientMappingRow[];
   summary: IngredientMappingSummary;
-  nextCursor: string | null;
+  pagination: IngredientMappingPagination;
 };
 
 export type IngredientMappingBulkApprovalPreviewItem = {
@@ -141,8 +150,8 @@ export type IngredientMappingQuery = {
   sort?: IngredientMappingSort;
   candidateType?: IngredientMappingCandidateType | null;
   q?: string | null;
-  limit?: number;
-  cursor?: string | null;
+  page?: number;
+  pageSize?: number;
 };
 
 type BackendSuggestion = {
@@ -189,10 +198,19 @@ type BackendSummary = {
   rejected_count: number;
 };
 
+type BackendPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
 type BackendListResponse = {
   items: BackendRow[];
   summary: BackendSummary;
-  next_cursor: string | null;
+  pagination: BackendPagination;
 };
 
 type BackendBulkApprovalPreviewItem = {
@@ -350,8 +368,8 @@ export const getIngredientMappings = async (
   if (query.sort && query.sort !== "CODE_ASC") params.set("sort", query.sort);
   if (query.candidateType) params.set("candidate_type", query.candidateType);
   if (query.q) params.set("q", query.q);
-  if (query.limit) params.set("limit", String(query.limit));
-  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("page_size", String(query.pageSize));
 
   const queryString = params.toString();
   const response = await fetchWithTimeout(
@@ -368,7 +386,14 @@ export const getIngredientMappings = async (
       approvedCount: body.summary.approved_count,
       rejectedCount: body.summary.rejected_count
     },
-    nextCursor: body.next_cursor
+    pagination: {
+      page: body.pagination.page,
+      pageSize: body.pagination.page_size,
+      totalItems: body.pagination.total_items,
+      totalPages: body.pagination.total_pages,
+      hasNext: body.pagination.has_next,
+      hasPrev: body.pagination.has_prev
+    }
   };
 };
 

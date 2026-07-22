@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import InfoModal from "../../../components/ui/InfoModal";
@@ -245,6 +245,10 @@ function CancelRequestsTab({ active }: { active: boolean }) {
     runCancelRequestAction,
     clearActionError
   } = useAdminCancelRequests({ enabled: active });
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [page]);
   const [selectedRequestCode, setSelectedRequestCode] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminCancelRequestDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -372,7 +376,7 @@ function CancelRequestsTab({ active }: { active: boolean }) {
           </div>
         )}
         <PageSizeSelect id="admin-cancel-request-page-size" onChange={setPageSize} value={pageSize} />
-        <div className="admin-table-wrap admin-order-table-scroll">
+        <div className="admin-table-wrap admin-order-table-scroll" ref={tableScrollRef}>
           <table className="admin-table admin-cancelrequest-table">
             <thead>
               <tr>
@@ -685,6 +689,10 @@ function ClaimsTab({ active }: { active: boolean }) {
     runClaimAction,
     clearActionError
   } = useAdminClaims({ enabled: active });
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [page]);
   const [selectedClaimCode, setSelectedClaimCode] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminClaimDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -859,7 +867,7 @@ function ClaimsTab({ active }: { active: boolean }) {
           </div>
         )}
         <PageSizeSelect id="admin-claim-page-size" onChange={setPageSize} value={pageSize} />
-        <div className="admin-table-wrap admin-order-table-scroll">
+        <div className="admin-table-wrap admin-order-table-scroll" ref={tableScrollRef}>
           <table className="admin-table admin-claim-table">
             <thead>
               <tr>
@@ -1118,7 +1126,7 @@ function ClaimsTab({ active }: { active: boolean }) {
                   )}
                   {detail.availableActions.includes("COMPLETE") && (
                     <button
-                      className="admin-primary-button"
+                      className="admin-primary-button admin-claim-complete-button"
                       disabled={actionInProgress}
                       onClick={() => handleActionButtonClick("COMPLETE", detail.claimCode, detail.orderCode, detail.claimType)}
                       type="button"

@@ -698,7 +698,7 @@
 
 .admin-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -1463,6 +1463,10 @@
   font-weight: 800;
 }
 
+.admin-required-mark {
+  color: #d64a34;
+}
+
 .admin-form-grid input,
 .admin-form-grid select,
 .admin-form-grid textarea {
@@ -1738,6 +1742,7 @@
   min-width: 0;
 }
 
+.admin-excel-summary-panel,
 .admin-excel-failure-panel {
   grid-column: 1 / -1;
 }
@@ -1772,6 +1777,11 @@
   font-size: 17px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  transition: color 0.15s ease;
+}
+
+.admin-upload-zone strong:hover {
+  color: #1a1a1a;
 }
 
 .admin-upload-zone p {
@@ -1920,7 +1930,7 @@
 }
 
 .admin-excel-table td {
-  vertical-align: top;
+  vertical-align: middle;
   line-height: 1.45;
 }
 
@@ -2112,7 +2122,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-ingredient-hero,
@@ -2127,6 +2137,30 @@
 
 .admin-ingredient-summary-grid {
   padding-top: 18px;
+}
+
+/* 검수 대기열/선택 성분 위젯을 각각 독립적으로 스크롤한다(재고/가격 확인·주문 상태 확인과
+   동일 패턴) — 페이지 전체 스크롤 대신, 마우스가 올라간 위젯만 스크롤한다. 두 위젯을 flex
+   세로열로 만들어 헤더·필터·페이지네이션은 고정하고, 실제 목록/상세 내용만 담긴 자식
+   (.admin-ingredient-table-scroll, .admin-ingredient-detail-scroll)에 overflow-y:auto 를 준다. */
+.admin-ingredient-queue {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-ingredient-queue > .admin-panel-header,
+.admin-ingredient-queue > .admin-list-toolbar,
+.admin-ingredient-queue > .admin-pagination-row,
+.admin-ingredient-queue > .admin-state-banner,
+.admin-ingredient-detail > .admin-panel-header {
+  flex-shrink: 0;
+}
+
+/* 표 헤더 56px + tbody tr 56px x 10 = 616px — 재고/가격 확인·주문 상태 확인과 같은 기준으로
+   기본 10행이 보이는 높이를 고정하고, 그 이상은 내부 스크롤로 처리한다. */
+.admin-ingredient-table-scroll {
+  height: 616px;
+  overflow-y: auto;
 }
 
 .admin-ingredient-table {
@@ -2166,8 +2200,15 @@
 }
 
 .admin-ingredient-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-ingredient-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-ingredient-detail .admin-metric-list dd {
@@ -2204,6 +2245,14 @@
   padding: 0 18px 14px;
 }
 
+/* .admin-metric-group-title 는 좌우 margin 18px 를 자체적으로 갖고 있는데, 이 컨테이너들은
+   이미 padding 18px 를 갖고 있어 그대로 두면 제목만 36px 밀려 아래 목록과 어긋난다. */
+.admin-ingredient-variants > .admin-metric-group-title,
+.admin-ingredient-samples > .admin-metric-group-title {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .admin-ingredient-variants ul,
 .admin-ingredient-samples ul,
 .admin-ingredient-events ul {
@@ -2215,7 +2264,6 @@
 }
 
 .admin-ingredient-variants li,
-.admin-ingredient-samples li,
 .admin-ingredient-events li {
   display: flex;
   justify-content: space-between;
@@ -2223,14 +2271,54 @@
   align-items: baseline;
 }
 
-.admin-ingredient-variants li > span,
-.admin-ingredient-samples li > span,
 .admin-ingredient-events li > span {
   overflow-wrap: anywhere;
 }
 
+/* 원문 표기 목록은 이름(admin-product-name)이 길면 한 줄 말줄임으로 자르고, 뒤에 붙는
+   연결 수(admin-product-code)는 항상 제 너비를 유지한다. flex 자식은 기본 min-width:auto 라
+   이걸 0으로 낮춰야 overflow:hidden 말줄임이 실제로 동작한다. */
+.admin-ingredient-variants li > .admin-product-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.admin-ingredient-variants li > .admin-product-code {
+  flex: 0 0 auto;
+  margin-top: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* 대표 상품은 pending 성분명이 기본 정보에 이미 나와 있어 원문명을 다시 쓰지 않고 상품명만
+   보여준다. 옆 목록(원문 표기)의 값 폰트와 크기를 맞춘다(14px) — admin-product-name 은
+   다른 화면(표 셀 등)에서 더 큰 글자로도 쓰여서 공용 클래스를 그대로 쓰면 이 위젯만 커 보였다. */
+.admin-ingredient-sample-name {
+  display: block;
+  overflow: hidden;
+  color: var(--admin-text);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-ingredient-sample-toggle {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .admin-ingredient-events button {
   width: 100%;
+}
+
+.admin-ingredient-bulk-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-ingredient-action-panel {
@@ -2538,6 +2626,30 @@
 .admin-ingredient-canonical-search input {
   min-height: 40px;
   padding: 0 12px;
+}
+
+/* .admin-ingredient-reason textarea 는 이미 width:100% 인데, 같은 라벨 아래 쓰이는 일반
+   text/url input(확인 문구, 근거 출처 URL, 원본 파일 식별자)은 규칙이 없어 브라우저 기본
+   크기(~20자)로 어정쩡하게 좁게 나온다. textarea 와 같은 톤으로 너비를 꽉 채운다. */
+.admin-ingredient-reason input[type="text"],
+.admin-ingredient-reason input[type="url"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.admin-ingredient-reason input[type="text"]:focus,
+.admin-ingredient-reason input[type="url"]:focus {
+  border-color: var(--admin-accent-2);
+  outline: 2px solid rgba(94, 198, 232, 0.2);
+  outline-offset: 1px;
 }
 
 .admin-ingredient-canonical-search input:focus,
@@ -3014,6 +3126,14 @@
   grid-column: 1 / -1;
   width: 100%;
   min-width: 0;
+}
+
+/* 완료 처리는 다른 액션(승인 등)과 달리 이 그리드에서 단독으로 뜰 때가 많은데, 그러면 왼쪽
+   칸에만 걸려 왼쪽으로 치우쳐 보였다. 전체 폭을 차지하되 버튼 자체는 오른쪽 끝에 붙인다. */
+.admin-order-action-grid .admin-claim-complete-button {
+  grid-column: 1 / -1;
+  width: auto;
+  margin-left: auto;
 }
 
 .admin-order-timeline {

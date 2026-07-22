@@ -96,6 +96,15 @@ export function AdminProductFormSection({
   const previewPriceLabel =
     previewValues.price && Number.isFinite(previewPrice) ? `${previewPrice.toLocaleString("ko-KR")}원` : "-";
 
+  // 새 상품 등록 시 필수 항목(상품명·브랜드·카테고리·판매가)이 하나라도 비어 있으면
+  // 등록 버튼을 비활성 상태로 시작한다 — useAdminProductForm.submit() 의 검증 규칙과 동일하다.
+  const canCreate =
+    Boolean(values.name.trim()) &&
+    Boolean(values.brandCode) &&
+    Boolean(values.categoryCode) &&
+    Number.isInteger(Number(values.price)) &&
+    Number(values.price) > 0;
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const result = await submit();
@@ -128,7 +137,14 @@ export function AdminProductFormSection({
             </button>
             <button
               className="admin-primary-button"
-              disabled={loading || optionsLoading || submitting || Boolean(optionsError) || (isEdit && !dirty)}
+              disabled={
+                loading ||
+                optionsLoading ||
+                submitting ||
+                Boolean(optionsError) ||
+                (isEdit && !dirty) ||
+                (!isEdit && !canCreate)
+              }
               type="submit"
             >
               {submitting ? "저장 중..." : isEdit ? "수정 저장" : "상품 등록"}
@@ -163,7 +179,9 @@ export function AdminProductFormSection({
             </label>
           )}
           <label>
-            상품명
+            <span className="admin-form-label-text">
+              상품명 <span className="admin-required-mark">*</span>
+            </span>
             <input
               disabled={loading || submitting}
               onBlur={commitPreview}
@@ -173,7 +191,9 @@ export function AdminProductFormSection({
             />
           </label>
           <label>
-            브랜드
+            <span className="admin-form-label-text">
+              브랜드 <span className="admin-required-mark">*</span>
+            </span>
             <SearchableSelect
               ariaLabel="브랜드"
               disabled={optionsLoading || submitting}
@@ -185,7 +205,9 @@ export function AdminProductFormSection({
             />
           </label>
           <label>
-            카테고리
+            <span className="admin-form-label-text">
+              카테고리 <span className="admin-required-mark">*</span>
+            </span>
             <SearchableSelect
               ariaLabel="카테고리"
               disabled={optionsLoading || submitting}
@@ -197,7 +219,9 @@ export function AdminProductFormSection({
             />
           </label>
           <label>
-            판매가
+            <span className="admin-form-label-text">
+              판매가 <span className="admin-required-mark">*</span>
+            </span>
             <input
               disabled={loading || submitting}
               min="1"
