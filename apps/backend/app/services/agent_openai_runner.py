@@ -46,7 +46,7 @@ from app.services.agent_commerce_tools import (
     PREPARE_PRODUCT_CHECKOUT_TOOL,
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL
-from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL
+from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL, parse_shipping_address_details
 from app.services.agent_recommendation_tools import (
     AgentCategoryCode,
     AgentConcernId,
@@ -2217,12 +2217,6 @@ _SIMPLE_REFINEMENT_CATEGORY_CODES = {
     "토너": "toner",
     "로션": "lotion",
 }
-_SHIPPING_ADDRESS_DETAILS_PATTERN = re.compile(
-    r"^\s*(?P<recipient_name>[^,\n]{1,100})\s*,\s*"
-    r"(?P<phone>(?:\+?82[-\s]?)?01\d[-\s]?\d{3,4}[-\s]?\d{4})\s*,\s*"
-    r"(?P<postal_code>\d{5})\s*,\s*"
-    r"(?P<address1>[^,\n]{1,255})(?:\s*,\s*(?P<address2>[^,\n]{1,255}))?\s*$"
-)
 
 
 def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
@@ -2261,17 +2255,12 @@ def _get_shipping_address_arguments(request: AgentChatRequest) -> dict[str, Any]
     if not request.context.cart_item_ids:
         return None
 
-    match = _SHIPPING_ADDRESS_DETAILS_PATTERN.fullmatch(request.message)
-    if match is None:
+    parsed = parse_shipping_address_details(request.message)
+    if parsed is None:
         return None
 
     return {
-        "recipient_name": match.group("recipient_name").strip(),
-        "phone": re.sub(r"[-\s]", "", match.group("phone")),
-        "postal_code": match.group("postal_code"),
-        "address1": match.group("address1").strip(),
-        "address2": (match.group("address2") or "").strip() or None,
-        "delivery_memo": None,
+        **parsed,
         "is_default": False,
         "continue_checkout": True,
         "cart_item_ids": request.context.cart_item_ids,
