@@ -6,7 +6,14 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import settings
-from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentContext, AgentUiAction
+from app.schemas.agent import (
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentContext,
+    AgentContextResultItem,
+    AgentLastToolResult,
+    AgentUiAction,
+)
 from app.schemas.common import ApiError
 from app.services.agent_orchestration import (
     RouteDecision,
@@ -281,6 +288,59 @@ async def test_router_specialist_fast_path_runs_before_router(
 
     assert calls == 0
     assert response.tool_name == "refine_product_results"
+
+
+@pytest.mark.anyio
+async def test_router_specialist_fast_path_prepares_last_tool_result_product_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_execute_agent_tool(*_args, **kwargs) -> AgentChatResponse:
+        captured.update(kwargs)
+        return AgentChatResponse(
+            conversation_id="conv_last_product_checkout",
+            message="주문서를 열었어요.",
+            tool_name="prepare_product_checkout",
+            ui_action=AgentUiAction(type="show_checkout_preview", target="checkout_preview"),
+        )
+
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "openai_agent_execution_mode", "router_specialist")
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.execute_agent_tool",
+        fake_execute_agent_tool,
+    )
+    workflow_timing = AgentWorkflowTiming()
+
+    response = await run_openai_agent_chat(
+        SimpleNamespace(),
+        AgentChatRequest(
+            message="마지막 상품 주문해줘",
+            context=AgentContext(page="product_detail"),
+            last_tool_result=AgentLastToolResult(
+                action_type="show_products",
+                target="similar_products",
+                items=[
+                    AgentContextResultItem(item_type="product", id="prod_001", title="첫 번째"),
+                    AgentContextResultItem(item_type="product", id="prod_002", title="마지막"),
+                ],
+            ),
+        ),
+        user=SimpleNamespace(id=1),
+        workflow_timing=workflow_timing,
+    )
+
+    assert response.tool_name == "prepare_product_checkout"
+    assert workflow_timing.fast_path_name == "last_tool_result_product_checkout"
+    assert captured["tool_name"] == "prepare_product_checkout"
+    assert captured["arguments"] == {
+        "product_id": None,
+        "quantity": 1,
+        "reference_source": "last_tool_result",
+        "reference_rank": None,
+        "reference_position": "last",
+    }
 
 
 @pytest.mark.anyio
