@@ -1066,11 +1066,13 @@ def test_agent_chat_route_writes_local_raw_trace(
     monkeypatch.setattr(settings, "openai_agent_local_trace_dir", str(tmp_path))
 
     captured_model_overrides: list[str | None] = []
+    captured_execution_overrides: list[object] = []
 
     async def fake_run_openai_agent_chat(*_args, **kwargs) -> AgentChatResponse:
         trace = kwargs["local_trace"]
         assert trace is not None
         captured_model_overrides.append(kwargs["model_override"])
+        captured_execution_overrides.append(kwargs["execution_override"])
         kwargs["workflow_timing"].agent_runner_ms = 123.4
         return AgentChatResponse(
             conversation_id="conv-local-trace-route",
@@ -1087,7 +1089,14 @@ def test_agent_chat_route_writes_local_raw_trace(
 
     response = client.post(
         "/api/agent/chat",
-        headers={"X-Agent-Local-Model": "gpt-5.4-mini"},
+        headers={
+            "X-Agent-Local-Model": "gpt-5.4-mini",
+            "X-Agent-Local-Execution-Mode": "router_specialist",
+            "X-Agent-Local-Router-Model": "router-nano",
+            "X-Agent-Local-Specialist-Model": "specialist-nano",
+            "X-Agent-Local-Specialist-Fallback-Enabled": "true",
+            "X-Agent-Local-Specialist-Fallback-Model": "gpt-5.5",
+        },
         json={
             "message": "Trace the exact local request values.",
             "conversation_id": "conv-local-trace-route",
@@ -1105,7 +1114,15 @@ def test_agent_chat_route_writes_local_raw_trace(
     assert trace_payload["route"]["outcome"] == "succeeded"
     assert trace_payload["timings_ms"]["agent_runner_ms"] == 123.4
     assert trace_payload["route"]["requested_model"] == "gpt-5.4-mini"
+    assert trace_payload["route"]["requested_execution_mode"] == "router_specialist"
+    assert trace_payload["route"]["requested_router_model"] == "router-nano"
+    assert trace_payload["route"]["requested_specialist_model"] == "specialist-nano"
     assert captured_model_overrides == ["gpt-5.4-mini"]
+    override = captured_execution_overrides[0]
+    assert getattr(override, "execution_mode") == "router_specialist"
+    assert getattr(override, "router_model") == "router-nano"
+    assert getattr(override, "specialist_model") == "specialist-nano"
+    assert getattr(override, "specialist_fallback_enabled") is True
 
 
 def test_agent_chat_replays_completed_response_for_same_idempotency_key(
