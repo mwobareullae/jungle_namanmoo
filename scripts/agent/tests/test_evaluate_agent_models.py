@@ -17,6 +17,7 @@ from scripts.agent.evaluate_agent_models import (
     _missing_trace_is_fatal,
     render_report,
     summarize_rows,
+    validate_case,
 )
 
 
@@ -48,6 +49,18 @@ class AgentModelEvaluationTests(unittest.TestCase):
             fixture["bootstrap_request"]["concern_text"],
             "피지가 많고 모공이 넓어 고민이야",
         )
+
+    def test_fixture_validation_rejects_invalid_criteria_contract(self) -> None:
+        with self.assertRaisesRegex(ValueError, "criteria_includes"):
+            validate_case(
+                {
+                    "id": "invalid-criteria",
+                    "message": "테스트",
+                    "auth_mode": "guest",
+                    "context_mode": "home",
+                    "expect": {"criteria_includes": {"ingredient_names": "판테놀"}},
+                }
+            )
 
     def test_execution_plan_alternates_model_order_between_repeats(self) -> None:
         cases = [
@@ -151,6 +164,57 @@ class AgentModelEvaluationTests(unittest.TestCase):
         self.assertTrue(result["constraint_pass"])
         self.assertEqual(result["status"], "passed")
 
+    def test_response_validation_checks_server_resolved_bulk_criteria(self) -> None:
+        case = {
+            "expect": {
+                "route": "bulk_wishlist",
+                "tool_name": "bulk_wishlist_by_popular_ingredient",
+                "requires_confirmation": True,
+                "argument_equals": {"rank_limit": 50},
+                "criteria_equals": {
+                    "ingredient_match_mode": "all",
+                    "category_code": "serum",
+                    "price_max": 20000,
+                },
+                "criteria_includes": {
+                    "ingredient_names": ["나이아신아마이드", "판테놀"],
+                },
+            }
+        }
+        response = {
+            "tool_name": "bulk_wishlist_by_popular_ingredient",
+            "requires_confirmation": True,
+            "ui_action": {"payload": {"criteria": {"ingredient_names": ["나이아신아마이드", "판테놀"]}}},
+        }
+        trace = {
+            "tool_calls": [
+                {
+                    "tool_name": "bulk_wishlist_by_popular_ingredient",
+                    "resolved_arguments": {
+                        "ingredient_names": ["나이아신아마이드", "판테놀이"],
+                        "rank_limit": 50,
+                    },
+                    "response": {
+                        "ui_action": {
+                            "payload": {
+                                "criteria": {
+                                    "ingredient_names": ["나이아신아마이드", "판테놀"],
+                                    "ingredient_match_mode": "all",
+                                    "category": {"category_code": "serum"},
+                                    "price_max": 20000,
+                                }
+                            }
+                        }
+                    },
+                }
+            ]
+        }
+
+        result = evaluate_case_response(case, response=response, trace=trace, status_code=200)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["constraint_pass"])
+
     def test_trace_metrics_extracts_model_cost_and_timing(self) -> None:
         metrics = extract_trace_metrics(
             {
@@ -247,7 +311,6 @@ class AgentModelEvaluationTests(unittest.TestCase):
                 "tool_name": "bulk_wishlist_by_popular_ingredient",
                 "error_code": "AGENT_BULK_WISHLIST_RANK_LIMIT",
                 "requires_confirmation": False,
-                "argument_equals": {"rank_limit": 51},
             }
         }
         response = {
@@ -255,14 +318,7 @@ class AgentModelEvaluationTests(unittest.TestCase):
             "requires_confirmation": False,
             "error": {"code": "AGENT_BULK_WISHLIST_RANK_LIMIT"},
         }
-        trace = {
-            "tool_calls": [
-                {
-                    "tool_name": "bulk_wishlist_by_popular_ingredient",
-                    "resolved_arguments": {"rank_limit": 51},
-                }
-            ]
-        }
+        trace = {"tool_calls": []}
 
         result = evaluate_case_response(case, response=response, trace=trace, status_code=200)
 

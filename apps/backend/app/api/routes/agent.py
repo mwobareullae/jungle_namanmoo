@@ -343,7 +343,7 @@ def _build_trace_metadata(
     conversation_id: str | None,
     route: str,
     authenticated: bool,
-) -> dict[str, str | bool]:
+) -> dict[str, str]:
     """Return only correlation metadata that is safe for OpenAI trace export."""
 
     return {
@@ -351,7 +351,7 @@ def _build_trace_metadata(
         "conversation_id": conversation_id or "conversation-new",
         "environment": settings.app_env,
         "route": route,
-        "authenticated": authenticated,
+        "authenticated": "true" if authenticated else "false",
         "agent_release": settings.agent_release,
     }
 

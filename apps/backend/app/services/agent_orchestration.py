@@ -146,6 +146,13 @@ stated. Do not silently shrink the requested rank. The server resolves real popu
 ingredient relations, products, and confirmation; never invent IDs or perform the
 wishlist write yourself. Ask a clarification only when the requested condition is
 actually unsupported or missing.
+
+Preserve every explicit supported condition in the tool arguments. When a product type
+is named, always set category to that exact Korean product type: 세럼, 토너, 크림, or
+로션. Keep category even when the request also has ingredient, rank, or price
+conditions. Put every named ingredient in ingredient_names. Use all by default; use
+any only when the user says 또는, 하나라도, or an equivalent alternative. Do not put a
+Korean postposition on an ingredient name when ingredient_names is available.
 """.strip()
 
 

@@ -721,6 +721,60 @@ def test_bulk_popular_wishlist_combines_rank_ingredients_category_and_price(db_e
         assert exc_info.value.code == "AGENT_BULK_WISHLIST_RANK_LIMIT"
 
 
+def test_bulk_popular_wishlist_resolves_korean_category_and_ingredient_particle(db_engine: Engine) -> None:
+    now = datetime.now(UTC)
+    with Session(db_engine) as session:
+        user = User(email="bulk-korean-query@example.com", display_name="bulk-korean-query-user")
+        product = session.scalar(select(Product).order_by(Product.product_code.asc()))
+        ingredient = session.scalar(select(Ingredient).where(Ingredient.is_active.is_(True)))
+        category = session.scalar(select(ProductCategory).where(ProductCategory.category_code == "serum"))
+        assert product is not None
+        assert ingredient is not None
+        assert category is not None
+        product_code = product.product_code
+        ingredient_name = ingredient.name_ko
+
+        product.category_id = category.id
+        session.execute(delete(ProductPopularityMetric).where(ProductPopularityMetric.window_days == 7))
+        session.execute(delete(ProductIngredient).where(ProductIngredient.product_id == product.id))
+        session.add_all(
+            [
+                user,
+                ProductPopularityMetric(
+                    product_id=product.id,
+                    window_days=7,
+                    popularity_score=100,
+                    score_version="behavior_rollup_v1",
+                    computed_at=now,
+                ),
+                ProductIngredient(
+                    product_id=product.id,
+                    ingredient_id=ingredient.id,
+                    ingredient_name=ingredient.name_ko,
+                ),
+            ]
+        )
+        session.commit()
+        session.refresh(user)
+
+        response = execute_agent_tool(
+            session,
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            arguments={
+                "ingredient_name": f"{ingredient.name_ko}이",
+                "category": "세럼",
+                "rank_limit": 20,
+                "window_days": 7,
+            },
+            user=user,
+        )
+
+    assert response.requires_confirmation is True
+    assert [item.id for item in response.items] == [product_code]
+    assert response.ui_action.payload["criteria"]["ingredient_names"] == [ingredient_name]
+    assert response.ui_action.payload["criteria"]["category"]["category_code"] == "serum"
+
+
 def test_bulk_popular_ingredient_wishlist_rolls_back_all_items_on_save_failure(
     db_engine: Engine,
     monkeypatch: pytest.MonkeyPatch,

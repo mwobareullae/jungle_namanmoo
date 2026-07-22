@@ -80,11 +80,16 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "rank_limit": 20
-        },
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 20
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all"
+          },
+          "criteria_includes": {
+            "ingredient_names": ["\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc"]
+          },
         "validation": "a bounded ingredient wishlist stays confirmation-gated"
       }
     },
@@ -98,11 +103,16 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "rank_limit": 50
-        },
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 50
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all"
+          },
+          "criteria_includes": {
+            "ingredient_names": ["\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc"]
+          },
         "validation": "the maximum supported rank remains a preview-only mutation"
       }
     },
@@ -116,16 +126,18 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_match_mode": "all",
-          "category": "\uc138\ub7fc",
-          "rank_limit": 50
-        },
-        "argument_includes": {
-          "ingredient_names": [
-            "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-            "\ud310\ud14c\ub180"
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 50
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all",
+            "category_code": "serum"
+          },
+          "criteria_includes": {
+            "ingredient_names": [
+              "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+              "\ud310\ud14c\ub180"
           ]
         },
         "validation": "all named ingredients and category are preserved before confirmation"
@@ -141,15 +153,17 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_match_mode": "any",
-          "rank_limit": 50
-        },
-        "argument_includes": {
-          "ingredient_names": [
-            "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-            "\ud310\ud14c\ub180"
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 50
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "any"
+          },
+          "criteria_includes": {
+            "ingredient_names": [
+              "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
+              "\ud310\ud14c\ub180"
           ]
         },
         "validation": "any-ingredient semantics are preserved before confirmation"
@@ -165,12 +179,17 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "category": "\ud1a0\ub108",
-          "rank_limit": 30
-        },
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 30
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all",
+            "category_code": "toner"
+          },
+          "criteria_includes": {
+            "ingredient_names": ["\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc"]
+          },
         "validation": "category is retained in the bulk wishlist preview"
       }
     },
@@ -184,13 +203,18 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": true,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "category": "\uc138\ub7fc",
-          "price_max": 20000,
-          "rank_limit": 30
-        },
+          "requires_confirmation": true,
+          "argument_equals": {
+            "rank_limit": 30
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all",
+            "category_code": "serum",
+            "price_max": 20000
+          },
+          "criteria_includes": {
+            "ingredient_names": ["\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc"]
+          },
         "validation": "price and category constraints are retained in the preview"
       }
     },
@@ -204,13 +228,18 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "requires_confirmation": false,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "category": "\uc138\ub7fc",
-          "price_max": 1,
-          "rank_limit": 20
-        },
+          "requires_confirmation": false,
+          "argument_equals": {
+            "rank_limit": 20
+          },
+          "criteria_equals": {
+            "ingredient_match_mode": "all",
+            "category_code": "serum",
+            "price_max": 1
+          },
+          "criteria_includes": {
+            "ingredient_names": ["\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc"]
+          },
         "validation": "an empty criteria match must not create a confirmation mutation"
       }
     },
@@ -224,13 +253,9 @@
       "expect": {
         "route": "bulk_wishlist",
         "tool_name": "bulk_wishlist_by_popular_ingredient",
-        "error_code": "AGENT_BULK_WISHLIST_RANK_LIMIT",
-        "requires_confirmation": false,
-        "argument_equals": {
-          "ingredient_name": "\ub098\uc774\uc544\uc2e0\uc544\ub9c8\uc774\ub4dc",
-          "rank_limit": 51
-        },
-        "validation": "rank 51 is rejected explicitly rather than silently truncated"
+          "error_code": "AGENT_BULK_WISHLIST_RANK_LIMIT",
+          "requires_confirmation": false,
+          "validation": "rank 51 is rejected explicitly rather than silently truncated"
       }
     }
   ]
