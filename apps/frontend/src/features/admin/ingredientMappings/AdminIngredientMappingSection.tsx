@@ -15,7 +15,7 @@ import { useAdminIngredientMappings } from "./useAdminIngredientMappings";
 
 // 관리자 성분 매핑 검수 조회 화면 (P1-M2-A Chunk 4, 조회 전용).
 // 승인/보류/반려/재검토(쓰기)는 다음 Chunk. 부모와는 onOperationLog 만 공유한다.
-// 로딩 UX: 최초 진입 skeleton, 필터·검색·더 보기 중에는 기존 목록 유지 + 갱신 표시.
+// 로딩 UX: 최초 진입 skeleton, 필터·검색·페이지 이동 중에는 기존 목록 유지 + 갱신 표시.
 
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 
@@ -101,6 +101,16 @@ STATUS_FILTER_OPTIONS[0] = { value: "ALL", label: "미분류 전체" };
 
 const SKELETON_ROWS = Array.from({ length: 6 });
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const PAGE_BLOCK_SIZE = 10;
+
+const getBlockPages = (current: number, total: number): number[] => {
+  const blockIndex = Math.floor((current - 1) / PAGE_BLOCK_SIZE);
+  const start = blockIndex * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, total);
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+};
+
 const formatCount = (value: number): string => value.toLocaleString("ko-KR");
 
 const formatEventState = (
@@ -125,9 +135,10 @@ export function AdminIngredientMappingSection({
     setQueryInput,
     items,
     summary,
-    nextCursor,
+    pagination,
+    page,
+    pageSize,
     loading,
-    loadingMore,
     error,
     hasLoaded,
     applySearch,
@@ -135,9 +146,10 @@ export function AdminIngredientMappingSection({
     setFinalDispositionFilter,
     setSort,
     setCandidateFilter,
+    setPageSize,
     resetFilters,
     refresh,
-    loadMore,
+    goToPage,
     selectedKey,
     detail,
     detailLoading,
@@ -163,6 +175,13 @@ export function AdminIngredientMappingSection({
     resetCanonicalSearch
   } = useAdminIngredientMappings({ enabled: active });
 
+  const totalPages = pagination?.totalPages ?? 1;
+  const blockPages = getBlockPages(page, totalPages);
+  const blockStart = blockPages[0] ?? 1;
+  const blockEnd = blockPages[blockPages.length - 1] ?? 1;
+  const hasPrevBlock = blockStart > 1;
+  const hasNextBlock = blockEnd < totalPages;
+
   const [expandedEvents, setExpandedEvents] = useState(false);
 
   // 판정 모달 로컬 상태
@@ -185,6 +204,20 @@ export function AdminIngredientMappingSection({
       bulkSelectedKeys.includes(bulkKey(item.pendingCode, item.normalizedSourceName))
     ) ?? [];
   const bulkConfirmationPhrase = `승인 ${selectedBulkItems.length}`;
+  const allBulkItemsSelected =
+    (bulkPreview?.items.length ?? 0) > 0 &&
+    (bulkPreview?.items.every((item) =>
+      bulkSelectedKeys.includes(bulkKey(item.pendingCode, item.normalizedSourceName))
+    ) ?? false);
+
+  const toggleSelectAllBulkItems = () => {
+    if (!bulkPreview) return;
+    setBulkSelectedKeys(
+      allBulkItemsSelected
+        ? []
+        : bulkPreview.items.map((item) => bulkKey(item.pendingCode, item.normalizedSourceName))
+    );
+  };
 
   const openBulkApproval = async () => {
     const preview = await loadKciaBulkApprovalPreview();
@@ -352,7 +385,7 @@ export function AdminIngredientMappingSection({
           </div>
           <div className="admin-filter-row">
             <button
-              className="admin-secondary-button"
+              className="admin-secondary-button admin-light-button"
               disabled={loading || bulkPreviewLoading || bulkSubmitting}
               onClick={() => void openBulkApproval()}
               type="button"
@@ -446,10 +479,10 @@ export function AdminIngredientMappingSection({
               type="search"
               value={queryInput}
             />
-            <button className="admin-secondary-button" disabled={loading} type="submit">
+            <button className="admin-secondary-button admin-light-button" disabled={loading} type="submit">
               검색
             </button>
-            <button className="admin-secondary-button" onClick={resetFilters} type="button">
+            <button className="admin-secondary-button admin-light-button" onClick={resetFilters} type="button">
               초기화
             </button>
           </form>
@@ -468,7 +501,24 @@ export function AdminIngredientMappingSection({
           </div>
         )}
 
-        <div className="admin-table-wrap">
+        <div className="admin-list-toolbar">
+          <div className="admin-page-size">
+            <label htmlFor="admin-ingredient-page-size">페이지당</label>
+            <select
+              id="admin-ingredient-page-size"
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              value={pageSize}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}개
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="admin-table-wrap admin-ingredient-table-scroll">
           <table className="admin-table admin-ingredient-table">
             <thead>
               <tr>
@@ -508,8 +558,12 @@ export function AdminIngredientMappingSection({
                           }}
                           type="button"
                         >
-                          <strong className="admin-product-name">{row.rawName}</strong>
-                          <small className="admin-product-code">{row.pendingCode}</small>
+                          <strong className="admin-product-name" title={row.rawName}>
+                            {row.rawName}
+                          </strong>
+                          <small className="admin-product-code" title={row.pendingCode}>
+                            {row.pendingCode}
+                          </small>
                         </button>
                       </td>
                       <td>
@@ -549,15 +603,52 @@ export function AdminIngredientMappingSection({
           </table>
         </div>
 
-        <div className="admin-filter-row">
-          <button
-            className="admin-secondary-button"
-            disabled={nextCursor === null || loadingMore || loading}
-            onClick={() => void loadMore()}
-            type="button"
-          >
-            {loadingMore ? "불러오는 중…" : nextCursor === null ? "마지막 페이지" : "더 보기"}
-          </button>
+        <div className="admin-pagination-row">
+          <div className="admin-pagination">
+            <button
+              className="admin-pagination-jump"
+              disabled={page <= 1 || loading}
+              onClick={() => goToPage(1)}
+              type="button"
+            >
+              처음
+            </button>
+            <button
+              className="admin-pagination-jump"
+              disabled={!hasPrevBlock || loading}
+              onClick={() => goToPage(blockStart - 1)}
+              type="button"
+            >
+              이전
+            </button>
+            {blockPages.map((entry) => (
+              <button
+                className={`admin-pagination-page${entry === page ? " active" : ""}`}
+                disabled={loading}
+                key={entry}
+                onClick={() => goToPage(entry)}
+                type="button"
+              >
+                {entry}
+              </button>
+            ))}
+            <button
+              className="admin-pagination-jump"
+              disabled={!hasNextBlock || loading}
+              onClick={() => goToPage(blockEnd + 1)}
+              type="button"
+            >
+              다음
+            </button>
+            <button
+              className="admin-pagination-jump"
+              disabled={page >= totalPages || loading}
+              onClick={() => goToPage(totalPages)}
+              type="button"
+            >
+              맨끝
+            </button>
+          </div>
         </div>
       </section>
 
@@ -565,7 +656,7 @@ export function AdminIngredientMappingSection({
         <div className="admin-panel-header compact">
           <div>
             <p>선택 성분</p>
-            <h2>{detail ? detail.rawName : "선택된 성분 없음"}</h2>
+            <h2>{detail ? detail.rawName : "상세 정보"}</h2>
           </div>
           {detail && (
             <span className={`admin-badge ${STATUS_TONES[detail.status]}`}>
@@ -574,6 +665,7 @@ export function AdminIngredientMappingSection({
           )}
         </div>
 
+        <div className="admin-ingredient-detail-scroll">
         {detailError && (
           <div className="admin-state-banner danger">
             <strong>성분 상세 오류</strong>
@@ -588,66 +680,77 @@ export function AdminIngredientMappingSection({
           </div>
         ) : detail ? (
           <>
-            <dl className="admin-metric-list">
-              <div>
-                <dt>pending code</dt>
-                <dd>{detail.pendingCode}</dd>
-              </div>
-              <div>
-                <dt>pending 성분명</dt>
-                <dd>{detail.pendingIngredientName}</dd>
-              </div>
-              <div>
-                <dt>정규화명</dt>
-                <dd>{detail.normalizedSourceName}</dd>
-              </div>
-              <div>
-                <dt>연결</dt>
-                <dd>
-                  {formatCount(detail.connectionCount)} (상품 {formatCount(detail.productCount)})
-                </dd>
-              </div>
-              <div>
-                <dt>추천 canonical</dt>
-                <dd>
-                  {detail.suggestion
-                    ? `${detail.suggestion.targetIngredientName} (${MATCH_SOURCE_LABELS[detail.suggestion.matchSource]})`
-                    : "없음 — canonical 직접 검색 필요"}
-                </dd>
-              </div>
-              <div>
-                <dt>처리 후보</dt>
-                <dd>
-                  {CANDIDATE_TYPE_LABELS[detail.candidate.candidateType]}
-                  {` · ${detail.candidate.evidence}`}
-                </dd>
-              </div>
+            <div className="admin-detail-body">
+              <p className="admin-metric-group-title">기본 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>pending code</dt>
+                  <dd>{detail.pendingCode}</dd>
+                </div>
+                <div>
+                  <dt>pending 성분명</dt>
+                  <dd>{detail.pendingIngredientName}</dd>
+                </div>
+                <div>
+                  <dt>정규화명</dt>
+                  <dd>{detail.normalizedSourceName}</dd>
+                </div>
+                <div>
+                  <dt>연결</dt>
+                  <dd>
+                    {formatCount(detail.connectionCount)} (상품 {formatCount(detail.productCount)})
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="admin-metric-group-title">추천 정보</p>
+              <dl className="admin-metric-list">
+                <div>
+                  <dt>추천 canonical</dt>
+                  <dd>
+                    {detail.suggestion
+                      ? `${detail.suggestion.targetIngredientName} (${MATCH_SOURCE_LABELS[detail.suggestion.matchSource]})`
+                      : "없음 — canonical 직접 검색 필요"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>처리 후보</dt>
+                  <dd>
+                    {CANDIDATE_TYPE_LABELS[detail.candidate.candidateType]}
+                    {` · ${detail.candidate.evidence}`}
+                  </dd>
+                </div>
+              </dl>
+
               {detail.decision && (
                 <>
-                  <div>
-                    <dt>관리자 판정</dt>
-                    <dd>
-                      {STATUS_LABELS[detail.decision.status]}
-                      {detail.decision.finalDisposition
-                        ? ` · ${FINAL_DISPOSITION_LABELS[detail.decision.finalDisposition]}`
-                        : ""}
-                      {detail.decision.targetIngredientName
-                        ? ` → ${detail.decision.targetIngredientName}`
-                        : ""}
-                      {detail.decision.decisionReason ? ` · ${detail.decision.decisionReason}` : ""}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>판정자</dt>
-                    <dd>관리자 #{detail.decision.reviewedByUserId}</dd>
-                  </div>
-                  <div>
-                    <dt>판정 시각</dt>
-                    <dd>{detail.decision.reviewedAt}</dd>
-                  </div>
+                  <p className="admin-metric-group-title">관리자 판정</p>
+                  <dl className="admin-metric-list">
+                    <div>
+                      <dt>판정 결과</dt>
+                      <dd>
+                        {STATUS_LABELS[detail.decision.status]}
+                        {detail.decision.finalDisposition
+                          ? ` · ${FINAL_DISPOSITION_LABELS[detail.decision.finalDisposition]}`
+                          : ""}
+                        {detail.decision.targetIngredientName
+                          ? ` → ${detail.decision.targetIngredientName}`
+                          : ""}
+                        {detail.decision.decisionReason ? ` · ${detail.decision.decisionReason}` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>판정자</dt>
+                      <dd>관리자 #{detail.decision.reviewedByUserId}</dd>
+                    </div>
+                    <div>
+                      <dt>판정 시각</dt>
+                      <dd>{detail.decision.reviewedAt}</dd>
+                    </div>
+                  </dl>
                 </>
               )}
-            </dl>
+            </div>
 
             {detail.rawNameVariants.length > 0 && (
               <div className="admin-ingredient-variants">
@@ -744,11 +847,41 @@ export function AdminIngredientMappingSection({
             </div>
           </>
         ) : (
-          <div className="admin-state-banner neutral">
-            <strong>선택된 성분 없음</strong>
-            <span>대기열에서 성분을 선택하면 상세와 추천이 표시됩니다.</span>
+          <div className="admin-detail-body">
+            <p className="admin-metric-group-title">기본 정보</p>
+            <dl className="admin-metric-list">
+              <div>
+                <dt>pending code</dt>
+                <dd>-</dd>
+              </div>
+              <div>
+                <dt>pending 성분명</dt>
+                <dd>-</dd>
+              </div>
+              <div>
+                <dt>정규화명</dt>
+                <dd>-</dd>
+              </div>
+              <div>
+                <dt>연결</dt>
+                <dd>-</dd>
+              </div>
+            </dl>
+
+            <p className="admin-metric-group-title">추천 정보</p>
+            <dl className="admin-metric-list">
+              <div>
+                <dt>추천 canonical</dt>
+                <dd>-</dd>
+              </div>
+              <div>
+                <dt>처리 후보</dt>
+                <dd>-</dd>
+              </div>
+            </dl>
           </div>
         )}
+        </div>
       </aside>
 
       {activeAction && detail && (
@@ -973,6 +1106,17 @@ export function AdminIngredientMappingSection({
               </span>
             </div>
 
+            <div className="admin-filter-row">
+              <button
+                className="admin-secondary-button admin-light-button"
+                disabled={bulkSubmitting}
+                onClick={toggleSelectAllBulkItems}
+                type="button"
+              >
+                {allBulkItemsSelected ? "전체 취소" : "전체 선택"}
+              </button>
+            </div>
+
             <div className="admin-table-wrap">
               <table className="admin-table admin-ingredient-table">
                 <thead>
@@ -998,12 +1142,18 @@ export function AdminIngredientMappingSection({
                           />
                         </td>
                         <td>
-                          <strong className="admin-product-name">{item.rawName}</strong>
-                          <small className="admin-product-code">{item.pendingCode}</small>
+                          <strong className="admin-product-name" title={item.rawName}>
+                            {item.rawName}
+                          </strong>
+                          <small className="admin-product-code" title={item.pendingCode}>
+                            {item.pendingCode}
+                          </small>
                         </td>
                         <td>
-                          {item.targetIngredientName}
-                          <small className="admin-product-code">{item.targetIngredientCode}</small>
+                          <span title={item.targetIngredientName}>{item.targetIngredientName}</span>
+                          <small className="admin-product-code" title={item.targetIngredientCode}>
+                            {item.targetIngredientCode}
+                          </small>
                         </td>
                         <td>{formatCount(item.connectionCount)}</td>
                       </tr>

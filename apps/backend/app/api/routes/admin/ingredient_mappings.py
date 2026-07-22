@@ -39,7 +39,7 @@ from app.services.admin.ingredient_mapping_bulk_approval_service import (
 )
 from app.services.admin.ingredient_mapping_service import (
     CANONICAL_SEARCH_DEFAULT_LIMIT,
-    DEFAULT_LIMIT,
+    DEFAULT_PAGE_SIZE,
     get_ingredient_mapping_detail,
     list_ingredient_mappings,
     search_canonical_ingredients,
@@ -76,8 +76,8 @@ def list_mappings(
         default=None,
         description="CANONICAL_EXACT_MATCH/ALIAS_EXACT_MATCH/EXACT_MATCH_CONFLICT/NO_EXACT_MATCH.",
     ),
-    limit: int = Query(default=DEFAULT_LIMIT),
-    cursor: str | None = Query(default=None, description="서버 발급 opaque cursor. 프론트 해석 금지"),
+    page: int = Query(default=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE),
     session: Session = Depends(get_db),
 ) -> IngredientMappingListResponse:
     """pending 성분 원문 그룹 목록. review 를 붙여 상태를 계산하고 추천을 함께 반환한다."""
@@ -89,8 +89,8 @@ def list_mappings(
         sort=sort,
         candidate_type=candidate_type,
         q=q,
-        limit=limit,
-        cursor=cursor,
+        page=page,
+        page_size=page_size,
     )
 
 
