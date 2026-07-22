@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { AdminOrderStatusSection } from "../features/admin/orders/AdminOrderStatusSection";
 import { AdminCancelClaimSection } from "../features/admin/cancelClaims/AdminCancelClaimSection";
@@ -79,13 +79,13 @@ const todayLabel = `${todayIso} ${["일", "월", "화", "수", "목", "금", "�
 const DONUT_CIRC = 2 * Math.PI * 52;
 
 const excelTemplateColumns = [
-  { label: "import_sku", required: "필수", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
-  { label: "product_name", required: "필수", note: "상품명" },
-  { label: "brand_name", required: "필수", note: "등록된 브랜드명 또는 별칭" },
-  { label: "category_name", required: "필수", note: "등록된 카테고리명 또는 별칭" },
-  { label: "price", required: "필수", note: "양의 정수 판매가" },
-  { label: "stock_quantity", required: "필수", note: "0 이상의 정수 초기 재고" },
-  { label: "ingredients_raw", required: "필수", note: "전성분을 | 기호로 구분" }
+  { label: "import_sku", note: "대문자 영문·숫자·._- 1~64자, 재업로드 식별값" },
+  { label: "product_name", note: "상품명" },
+  { label: "brand_name", note: "등록된 브랜드명 또는 별칭" },
+  { label: "category_name", note: "등록된 카테고리명 또는 별칭" },
+  { label: "price", note: "양의 정수 판매가" },
+  { label: "stock_quantity", note: "0 이상의 정수 초기 재고" },
+  { label: "ingredients_raw", note: "전성분을 | 기호로 구분" }
 ];
 const BULK_IMPORT_REQUIRED_HEADERS = excelTemplateColumns.map((column) => column.label);
 const IMPORT_SKU_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,63}$/;
@@ -298,6 +298,15 @@ function AdminDashboardPage() {
   const [excelFormError, setExcelFormError] = useState<string | null>(null);
   const [excelPage, setExcelPage] = useState(1);
   const [excelPageSize, setExcelPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const excelTableWrapRef = useRef<HTMLDivElement>(null);
+  const isFirstExcelPageRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstExcelPageRenderRef.current) {
+      isFirstExcelPageRenderRef.current = false;
+      return;
+    }
+    excelTableWrapRef.current?.scrollIntoView({ block: "start" });
+  }, [excelPage]);
   const dashboardSummary = useAdminDashboardSummary({ enabled: activeView === "dashboard" });
   const [toast, setToast] = useState<AdminToast>(null);
 
@@ -714,7 +723,7 @@ function AdminDashboardPage() {
         <section
           className="admin-dashboard-charts"
           aria-label="상품 구성과 처리 대기"
-          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "16px", margin: "0 0 18px" }}
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", margin: "0 0 18px" }}
         >
           <article className="admin-panel">
             <div className="admin-panel-header">
@@ -724,8 +733,8 @@ function AdminDashboardPage() {
               </div>
             </div>
             {summary ? (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "22px" }}>
-                <svg viewBox="0 0 140 140" role="img" aria-label="재고 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "36px" }}>
+                <svg viewBox="0 0 140 140" role="img" aria-label="재고 상태 구성비 도넛 차트" style={{ width: "126px", height: "126px", flex: "0 0 auto", overflow: "visible", marginLeft: "-20px" }}>
                   {stockStatusSegments.map((seg) => (
                     <circle
                       key={seg.label}
@@ -1010,7 +1019,6 @@ function AdminDashboardPage() {
                 <strong>{column.label}</strong>
                 <small>{column.note}</small>
               </span>
-              <b className="admin-badge warning">{column.required}</b>
             </div>
           ))}
         </div>
@@ -1031,7 +1039,10 @@ function AdminDashboardPage() {
             결과 파일
           </button>
         </div>
-        <div className="admin-excel-summary-grid">
+        <div
+          className="admin-excel-summary-grid"
+          style={{ gridTemplateColumns: `repeat(${excelSummaryRows.length}, minmax(0, 1fr))` }}
+        >
           {excelSummaryRows.map((item) => (
             <article className={`admin-excel-summary ${item.tone}`} key={item.label}>
               <span>{item.label}</span>
@@ -1072,7 +1083,7 @@ function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="admin-table-wrap">
+        <div className="admin-table-wrap" ref={excelTableWrapRef}>
           <table className="admin-table admin-excel-table">
             <thead>
               <tr>
