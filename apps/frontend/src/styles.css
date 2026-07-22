@@ -3481,6 +3481,20 @@ body {
   border-color: #b9c0c7 !important;
 }
 
+.mypage-address-action-button {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.mypage-address-action-button--neutral:hover {
+  background: #fafafa !important;
+  border-color: #b9c0c7 !important;
+}
+
+.mypage-address-action-button--danger:hover {
+  background: #ffe4e1 !important;
+  color: #93150c !important;
+}
+
 .mypage-order-back-link {
   color: #6b7280;
 }
@@ -8287,17 +8301,22 @@ header.site-header .header-brand .logo {
 }
 
 header.site-header .category-menu-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--rm);
   background: transparent;
   color: #000000;
   cursor: pointer;
+  transition: background 0.2s;
+}
+
+header.site-header .category-menu-btn:hover {
+  background: var(--bg);
 }
 
 header.site-header .category-menu-btn svg {
@@ -18041,6 +18060,16 @@ html[data-app-mode="community"] .search-results-shell {
   }
 }
 
+/* header.site-header nav의 실제 콘텐츠 폭(로고/카테고리 버튼/아이콘 제외 여유 공간)이
+   760~860px 구간에서는 부족해 마지막 링크("맞춤 추천")가 검색 아이콘과 겹친다.
+   760px 이하에서는 아래 블록이 nav 자체를 숨기므로, 겹침이 사라지는 폭까지 별도로 숨김. */
+@media (max-width: 900px) {
+  header nav,
+  header.site-header nav {
+    display: none;
+  }
+}
+
 @media (max-width: 760px) {
   footer.app-footer {
     padding: 0 24px;
@@ -18068,10 +18097,6 @@ html[data-app-mode="community"] .search-results-shell {
     justify-content: space-between;
   }
 
-  header nav {
-    display: none;
-  }
-
   header .header-actions {
     gap: 6px;
   }
@@ -18092,12 +18117,9 @@ html[data-app-mode="community"] .search-results-shell {
     gap: 2px;
   }
 
-  header.site-header nav {
-    display: none;
-  }
-
   header.site-header .icon-btn,
-  header.site-header .header-user-link {
+  header.site-header .header-user-link,
+  header.site-header .category-menu-btn {
     width: 36px;
     height: 36px;
     flex: 0 0 36px;

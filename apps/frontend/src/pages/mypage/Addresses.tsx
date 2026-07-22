@@ -10,6 +10,7 @@ import {
   sanitizeRecipientName,
   splitPhone
 } from "../../lib/addressValidation";
+import { DELIVERY_MEMO_OPTIONS } from "../../lib/deliveryMemoOptions";
 import type { UserAddress, UserAddressCreateRequest } from "../../types/address";
 import { MyPageLayout, PageTitle } from "./MyPageShell";
 
@@ -52,6 +53,7 @@ export default function Addresses() {
   const [formMode, setFormMode] = useState<"closed" | "create" | "edit">("closed");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<AddressForm>(emptyForm);
+  const [isMemoCustom, setIsMemoCustom] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
 
@@ -75,13 +77,16 @@ export default function Addresses() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setIsMemoCustom(false);
     setErrorMessage("");
     setFormMode("create");
   };
 
   const openEdit = (address: UserAddress) => {
+    const nextForm = toForm(address);
     setEditingId(address.id);
-    setForm(toForm(address));
+    setForm(nextForm);
+    setIsMemoCustom(hasText(nextForm.delivery_memo ?? "") && !DELIVERY_MEMO_OPTIONS.includes(nextForm.delivery_memo ?? ""));
     setErrorMessage("");
     setFormMode("edit");
   };
@@ -140,7 +145,7 @@ export default function Addresses() {
             {addresses.map((address) => (
               <article key={address.id} style={styles.item}>
                 <div><div style={styles.itemTitle}>{address.recipient_name} {address.is_default ? <span style={styles.badge}>기본 배송지</span> : null}</div><p style={styles.text}>{address.phone}</p><p style={styles.text}>[{address.postal_code}] {address.address1} {address.address2 ?? ""}</p></div>
-                <div style={styles.actions}><button onClick={() => openEdit(address)} style={styles.secondaryButton} type="button">수정</button>{!address.is_default ? <button disabled={actionId === address.id} onClick={() => void setDefault(address)} style={styles.secondaryButton} type="button">기본 설정</button> : null}<button disabled={actionId === address.id} onClick={() => void remove(address)} style={styles.deleteButton} type="button">삭제</button></div>
+                <div style={styles.actions}><button className="mypage-address-action-button mypage-address-action-button--neutral" onClick={() => openEdit(address)} style={styles.secondaryButton} type="button">수정</button>{!address.is_default ? <button className="mypage-address-action-button mypage-address-action-button--neutral" disabled={actionId === address.id} onClick={() => void setDefault(address)} style={styles.secondaryButton} type="button">기본 설정</button> : null}<button className="mypage-address-action-button mypage-address-action-button--danger" disabled={actionId === address.id} onClick={() => void remove(address)} style={styles.deleteButton} type="button">삭제</button></div>
               </article>
             ))}
           </div>
@@ -219,11 +224,42 @@ export default function Addresses() {
           </label>
           <label style={styles.field}>
             배송 메모
-            <input
-              value={form.delivery_memo ?? ""}
-              onChange={(event) => setForm((current) => ({ ...current, delivery_memo: event.target.value }))}
+            <select
+              value={
+                isMemoCustom
+                  ? "직접 입력"
+                  : DELIVERY_MEMO_OPTIONS.includes(form.delivery_memo ?? "")
+                    ? (form.delivery_memo as string)
+                    : DELIVERY_MEMO_OPTIONS[0]
+              }
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === "직접 입력") {
+                  setIsMemoCustom(true);
+                  setForm((current) => ({ ...current, delivery_memo: "" }));
+                  return;
+                }
+                setIsMemoCustom(false);
+                setForm((current) => ({
+                  ...current,
+                  delivery_memo: next === DELIVERY_MEMO_OPTIONS[0] ? "" : next
+                }));
+              }}
               style={styles.input}
-            />
+            >
+              {DELIVERY_MEMO_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            {isMemoCustom ? (
+              <input
+                value={form.delivery_memo ?? ""}
+                onChange={(event) => setForm((current) => ({ ...current, delivery_memo: event.target.value.slice(0, 50) }))}
+                maxLength={50}
+                placeholder="부재 시 문 앞에 놓아주세요."
+                style={styles.input}
+              />
+            ) : null}
           </label>
           <label style={styles.checkbox}>
             <input checked={form.is_default} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} type="checkbox" />
@@ -244,7 +280,7 @@ const styles: Record<string, CSSProperties> = {
   list: { display: "grid", gap: 12 },
   item: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: 18, border: "1px solid #edf0f2", borderRadius: 10 },
   itemTitle: { color: "#222", fontSize: 15, fontWeight: 700 },
-  text: { margin: "6px 0 0", color: "#6b7280", fontSize: 13 },
+  text: { margin: "6px 0 0", color: "#4b5563", fontSize: 14 },
   badge: { marginLeft: 8, padding: "4px 8px", borderRadius: 999, background: "rgba(148,224,248,.2)", color: "#12617a", fontSize: 11 },
   actions: { display: "flex", flexWrap: "wrap" as const, justifyContent: "flex-end", gap: 6 },
   field: { display: "grid", gap: 7, color: "#444", fontSize: 13, fontWeight: 600 },
