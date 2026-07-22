@@ -206,6 +206,10 @@ _EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
     "AGENT_CANCELABLE_ORDER_NOT_FOUND": ("AGENT_ORDER_NOT_CANCELABLE", "취소할 수 있는 최근 주문을 찾지 못했어요."),
     "AGENT_CART_COMPOSITION_NOT_FOUND": ("AGENT_CART_COMPOSITION_NOT_FOUND", "조건에 맞는 상품 조합을 찾지 못했어요."),
     "AGENT_CART_BUDGET_NOT_FOUND": ("AGENT_CART_BUDGET_NOT_FOUND", "예산 안에서 요청한 상품 조합을 찾지 못했어요."),
+    "AGENT_BULK_WISHLIST_RANK_LIMIT": (
+        "AGENT_BULK_WISHLIST_RANK_LIMIT",
+        "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요.",
+    ),
     "AGENT_REVIEW_NOT_AVAILABLE": ("AGENT_REVIEW_NOT_AVAILABLE", "작성할 수 있는 구매 리뷰 상품을 찾지 못했어요."),
     "AGENT_CLAIM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
     "AGENT_CLAIM_ITEM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),

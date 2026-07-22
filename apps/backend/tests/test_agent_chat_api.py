@@ -156,6 +156,12 @@ def test_agent_execution_errors_are_classified_without_leaking_details(
     ("error", "code", "message", "retryable"),
     [
         (ApiError(400, "EMPTY_CART", "Cart is empty."), "AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요.", False),
+        (
+            ApiError(400, "AGENT_BULK_WISHLIST_RANK_LIMIT", "Rank limit is 50."),
+            "AGENT_BULK_WISHLIST_RANK_LIMIT",
+            "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요.",
+            False,
+        ),
         (ApiError(409, "OUT_OF_STOCK", "Product is out of stock."), "AGENT_OUT_OF_STOCK", "해당 상품은 일시품절이에요.", False),
         (ApiError(409, "INSUFFICIENT_STOCK", "Requested quantity exceeds stock."), "AGENT_INSUFFICIENT_STOCK", "요청한 수량만큼 재고가 없어요.", False),
         (ApiError(500, "DATABASE_FAILURE", "relation internal_table does not exist"), "AGENT_TOOL_EXECUTION_FAILED", "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.", True),
