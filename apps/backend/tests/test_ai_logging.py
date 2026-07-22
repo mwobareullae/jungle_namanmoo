@@ -144,6 +144,21 @@ def test_cost_breakdown_exposes_local_estimate_assumptions() -> None:
     }
 
 
+def test_cost_breakdown_supports_gpt_54_nano_snapshot() -> None:
+    breakdown = estimate_ai_cost_breakdown(
+        "gpt-5.4-nano-2026-03-17",
+        {"input_tokens": 1_000, "output_tokens": 100, "total_tokens": 1_100},
+    )
+
+    assert breakdown["estimate_status"] == "estimated_without_cache_detail"
+    assert breakdown["estimated_cost_usd"] == 0.000325
+    assert breakdown["rates_usd_per_1m_tokens"] == {
+        "input": 0.2,
+        "cached_input": 0.02,
+        "output": 1.25,
+    }
+
+
 class _PerformanceLogCaptureHandler(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
