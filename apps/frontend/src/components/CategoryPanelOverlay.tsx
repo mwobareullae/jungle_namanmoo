@@ -2,6 +2,10 @@ import { Link } from "react-router-dom";
 import { categoryMenu, getCategoryMenuPath } from "../constants/categoryMenu";
 import { callOriginal } from "../lib/originalRuntime";
 
+const setInitialInert = (node: HTMLElement | null) => {
+  if (node) node.inert = true;
+};
+
 const isCategoryHoverArea = (target: EventTarget | null) => {
   if (!(target instanceof Node)) return false;
 
@@ -29,9 +33,11 @@ function CategoryPanelOverlay({ onOpenChange }: CategoryPanelOverlayProps) {
         onClick={handleClose}
       />
       <aside
+        aria-hidden="true"
         aria-label="카테고리 메뉴"
         className="category-panel"
         id="categoryPanel"
+        ref={setInitialInert}
         onMouseEnter={() => {
           callOriginal("openCategoryMenu");
           onOpenChange(true);

@@ -80,6 +80,20 @@ function HomeHeader() {
   }, [isProductDetailPreviewPage]);
 
   useEffect(() => {
+    if (!isCategoryMenuOpen) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        callOriginal("closeCategoryMenu");
+        setIsCategoryMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isCategoryMenuOpen]);
+
+  useEffect(() => {
     const handleCartUpdated = () => {
       void queryClient.invalidateQueries({ queryKey: cartQueryKey(user?.id ?? null) });
     };
@@ -134,8 +148,8 @@ function HomeHeader() {
               aria-label="카테고리 메뉴 열기"
               className="category-menu-btn"
               onClick={() => {
-                callOriginal("openCategoryMenu");
-                setIsCategoryMenuOpen(true);
+                callOriginal("toggleCategoryMenu");
+                setIsCategoryMenuOpen((isOpen) => !isOpen);
               }}
               onMouseEnter={isProductDetailPreviewPage ? undefined : () => {
                 callOriginal("openCategoryMenu");

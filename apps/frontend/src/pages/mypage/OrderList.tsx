@@ -17,6 +17,7 @@ import { MyPageLayout, PageTitle } from "./MyPageShell";
 const statusLabelMap: Record<string, string> = {
   PENDING_PAYMENT: "주문접수",
   PAID: "결제완료",
+  ORDERED: "결제완료",
   PAYMENT_FAILED: "결제실패",
   EXPIRED: "결제만료",
   CANCELED: "주문취소",

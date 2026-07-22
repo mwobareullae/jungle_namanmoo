@@ -390,8 +390,12 @@ def submit_skin_test(
     return to_skin_test_result_data(session, result)
 
 
-def get_skin_test_result_data(session: Session, result_id: int) -> SkinTestResultData:
+def get_skin_test_result_data(
+    session: Session, result_id: int, current_user: User | None = None
+) -> SkinTestResultData:
     result = _load_skin_test_result(session, result_id)
+    if result.user_id is not None and (current_user is None or result.user_id != current_user.id):
+        raise SkinServiceError(403, "SKIN_TEST_RESULT_FORBIDDEN", "다른 사용자의 피부 테스트 결과입니다.")
     return to_skin_test_result_data(session, result)
 
 

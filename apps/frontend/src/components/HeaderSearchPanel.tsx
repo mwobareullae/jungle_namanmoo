@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { runAgentEntryMessage } from "../lib/agentRecommendationSearch";
 import type { RecommendationProfile, SearchMode } from "../types/recommendation";
@@ -69,13 +69,23 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submitActiveMode = () => {
     if (searchMode === "general") {
       runGeneralSearch();
       return;
     }
     void runAiSearch();
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    submitActiveMode();
+  };
+
+  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    submitActiveMode();
   };
 
   return (
@@ -108,6 +118,7 @@ function HeaderSearchPanel({ onClose, profile }: HeaderSearchPanelProps) {
             setQuery(event.target.value);
             setErrorMessage("");
           }}
+          onKeyDown={handleInputKeyDown}
           placeholder={searchMode === "general" ? "상품명, 브랜드, 성분을 검색하세요" : "민감하고 붉은기가 자주 올라와요"}
           ref={inputRef}
           type="search"

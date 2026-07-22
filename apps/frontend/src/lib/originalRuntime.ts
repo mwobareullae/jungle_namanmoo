@@ -13,6 +13,16 @@ const unlockCategoryMenuScroll = () => {
   window.scrollTo(0, categoryMenuScrollY);
 };
 
+const setPanelHiddenState = (panel: HTMLElement | null, hidden: boolean) => {
+  if (!panel) return;
+  panel.toggleAttribute("inert", hidden);
+  if (hidden) {
+    panel.setAttribute("aria-hidden", "true");
+  } else {
+    panel.removeAttribute("aria-hidden");
+  }
+};
+
 const getHeaderBottom = () => {
   const header = document.querySelector(
     "header.site-header, .home-header, .auth-site-header, header"
@@ -50,15 +60,18 @@ const openCategoryMenuFallback = () => {
   lockCategoryMenuScroll();
   document.body.classList.add("category-menu-open");
   button?.setAttribute("aria-expanded", "true");
+  setPanelHiddenState(panel, false);
 };
 
 const closeCategoryMenuFallback = () => {
   const wasOpen = document.body.classList.contains("category-menu-open");
-  document.getElementById("categoryPanel")?.classList.remove("active");
+  const panel = document.getElementById("categoryPanel");
+  panel?.classList.remove("active");
   document.getElementById("categoryPanelBackdrop")?.classList.remove("active");
   document.body.classList.remove("category-menu-open");
   if (wasOpen) unlockCategoryMenuScroll();
   document.querySelector(".category-menu-btn")?.setAttribute("aria-expanded", "false");
+  setPanelHiddenState(panel, true);
 };
 
 const fallbackHandlers: OriginalRuntime = {

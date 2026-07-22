@@ -20,6 +20,7 @@ import {
   splitPhone
 } from "../lib/addressValidation";
 import { previewCheckout } from "../lib/cartApi";
+import { DELIVERY_MEMO_OPTIONS } from "../lib/deliveryMemoOptions";
 import { getProductImageUrl } from "../lib/imageUrls";
 import { navigateWithinApp } from "../lib/navigation";
 import { cancelOrder, createOrder } from "../lib/orderApi";
@@ -138,15 +139,6 @@ const BANK_OPTIONS = [
 ];
 const CASH_RECEIPT_PERSONAL_METHODS = ["휴대폰 번호로 발급", "현금영수증 카드로 발급"];
 const CASH_RECEIPT_BUSINESS_METHODS = ["사업자등록번호로 발급"];
-const DELIVERY_MEMO_OPTIONS = [
-  "배송시 요청사항을 선택해 주세요.",
-  "직접 수령하겠습니다.",
-  "배송 전 연락바랍니다.",
-  "부재 시 경비실에 맡겨주세요.",
-  "부재 시 문 앞에 놓아주세요.",
-  "부재 시 택배함에 넣어주세요.",
-  "직접 입력",
-];
 const FREE_SHIPPING_THRESHOLD = 30000;
 const DEFAULT_SHIPPING_FEE = 3000;
 const REMOTE_SHIPPING_SURCHARGE = 1500;
