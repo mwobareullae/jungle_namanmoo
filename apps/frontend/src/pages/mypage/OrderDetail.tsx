@@ -12,6 +12,7 @@ import { MyPageLayout, PageTitle } from "./MyPageShell";
 const statusLabelMap: Record<string, string> = {
   PENDING_PAYMENT: "주문접수",
   PAID: "결제완료",
+  ORDERED: "결제완료",
   PAYMENT_FAILED: "결제실패",
   EXPIRED: "결제만료",
   CANCELED: "주문취소",
@@ -52,6 +53,19 @@ const paymentProviderLabelMap: Record<string, string> = {
   TOSS: "토스페이먼츠",
   KAKAO_PAY: "카카오페이",
   NAVER_PAY: "네이버페이"
+};
+
+const paymentStatusLabelMap: Record<string, string> = {
+  READY: "결제준비",
+  CONFIRMING: "승인처리중",
+  UNKNOWN: "상태확인필요",
+  APPROVED: "승인완료",
+  FAILED: "승인실패",
+  CANCELED: "결제취소완료",
+  EXPIRED: "결제만료",
+  REFUND_REQUESTED: "환불처리중",
+  REFUNDED: "환불완료",
+  PARTIALLY_REFUNDED: "부분환불완료"
 };
 
 const formatWon = (value: number) => `${value.toLocaleString("ko-KR")}원`;
@@ -248,7 +262,7 @@ export default function OrderDetail() {
                   label="결제수단"
                   value={paymentProviderLabelMap[order.payment.provider] ?? order.payment.provider}
                 />
-                <InfoRow label="결제상태" value={order.payment.status} />
+                <InfoRow label="결제상태" value={paymentStatusLabelMap[order.payment.status] ?? order.payment.status} />
               </div>
             </section>
 

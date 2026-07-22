@@ -95,6 +95,7 @@ function ProductDetailPreviewPage() {
   const [reviewSkinType, setReviewSkinType] = useState("");
   const [reviewCursor, setReviewCursor] = useState<string | null>(null);
   const [isPurchasePending, setIsPurchasePending] = useState(false);
+  const [isBackToTopVisible, setIsBackToTopVisible] = useState(false);
   const { user } = useAuth();
   const { clearComparison, comparisonIntent } = useProductComparison();
   const { message: toastMessage, showToast } = useActivityToast();
@@ -261,6 +262,13 @@ function ProductDetailPreviewPage() {
 
     return () => window.cancelAnimationFrame(frame);
   }, [activeComparisonCreatedAt, product]);
+
+  useEffect(() => {
+    const handleScroll = () => setIsBackToTopVisible(window.scrollY > 400);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -518,7 +526,9 @@ function ProductDetailPreviewPage() {
         </div>
         <aside className="naver-preview-sticky-buy"><div className={`naver-preview-quantity${isSoldOut ? " is-sold-out" : ""}`}><b>수량 선택</b><div><button disabled={isSoldOut || quantity <= 1} type="button" aria-label="수량 줄이기" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><MinusIcon size={20} /></button><span>{quantity}</span><button className={isQuantityAtMaximum && !isSoldOut ? "is-limit-reached" : ""} disabled={isSoldOut} type="button" aria-label="수량 늘리기" onClick={handleIncreaseQuantity}><PlusIcon size={20} /></button></div></div><div className="naver-preview-total"><span>총 {quantity}개</span><b>총 금액 <strong className={isSoldOut ? "product-price--sold-out" : ""}>{((product?.lowest_price ?? 0) * quantity).toLocaleString()}원</strong></b></div><div className="naver-preview-buy-grid"><button className="buy" disabled={isPurchasePending || isSoldOut} type="button" onClick={() => void handlePurchase()}>{isSoldOut ? "일시품절" : isPurchasePending ? "주문서 준비 중" : "구매하기"}</button><button className={product && wishedProductIds.has(product.product_id) ? "is-wished" : ""} type="button" onClick={() => product && void toggleWishlist(product.product_id)}><HeartIcon size={20} />찜</button><button data-agent-cart-target disabled={isSoldOut} type="button" onClick={() => void handleAddToCart()}><ShoppingBagIcon size={20} />장바구니</button></div></aside>
       </section>
-      <div className="naver-preview-floating"><button type="button" aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><CaretUpIcon size={22} /></button></div>
+      {isBackToTopVisible ? (
+        <div className="naver-preview-floating"><button type="button" aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><CaretUpIcon size={22} /></button></div>
+      ) : null}
       <LoginRequiredDialog onOpenChange={setIsLoginDialogOpen} open={isLoginDialogOpen} redirectTo={`${window.location.pathname}${window.location.search}`} />
       <ActivityToast message={toastMessage} />
       </main>
