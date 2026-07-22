@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -91,6 +92,27 @@ class Settings(BaseModel):
     agent_release: str = os.getenv("AGENT_RELEASE", "local")
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
+    openai_agent_execution_mode: Literal["single", "router_specialist"] = os.getenv(
+        "OPENAI_AGENT_EXECUTION_MODE", "single"
+    )  # type: ignore[assignment]
+    openai_agent_router_model: str = (
+        os.getenv("OPENAI_AGENT_ROUTER_MODEL")
+        or os.getenv("OPENAI_AGENT_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or "gpt-5.4-nano-2026-03-17"
+    )
+    openai_agent_specialist_model: str = (
+        os.getenv("OPENAI_AGENT_SPECIALIST_MODEL")
+        or os.getenv("OPENAI_AGENT_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or "gpt-5.4-nano-2026-03-17"
+    )
+    openai_agent_specialist_fallback_enabled: bool = _parse_bool(
+        os.getenv("OPENAI_AGENT_SPECIALIST_FALLBACK_ENABLED", "false")
+    )
+    openai_agent_specialist_fallback_model: str = (
+        os.getenv("OPENAI_AGENT_SPECIALIST_FALLBACK_MODEL") or "gpt-5.5"
+    )
     openai_agent_local_trace_enabled: bool = _parse_bool(
         os.getenv("OPENAI_AGENT_LOCAL_TRACE_ENABLED", "false")
     )
