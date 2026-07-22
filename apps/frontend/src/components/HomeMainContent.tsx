@@ -1212,6 +1212,9 @@ function HomeMainContent({
     ];
     return [...new Set(values.filter(Boolean))].slice(0, 8);
   }, [recommendation]);
+  const unmatchedTerms = recommendation?.unmatched_terms ?? [];
+  const hasResultSummaryChips =
+    interpretationChips.length > 0 || refinementChips.length > 0 || unmatchedTerms.length > 0;
   const showPagination = mode === "search" && !isLoading && pagination.total_pages > 1;
   const goToPage = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), pagination.total_pages || 1);
@@ -1313,12 +1316,16 @@ function HomeMainContent({
               ) : null}
             </div>
             <div
-              className={`api-result-summary${recommendation?.unmatched_terms.length ? " active" : ""}`}
+              className={`api-result-summary${hasResultSummaryChips ? " active" : ""}`}
               id="apiResultSummary"
             >
-              {interpretationChips.length > 0 ? (
+              {hasResultSummaryChips ? (
                 <div className="search-interpretation" aria-label="AI가 이해한 검색 조건">
-                  <span className="search-interpretation__label">이렇게 이해했어요</span>
+                  {interpretationChips.length > 0 ? (
+                    <span className="search-interpretation__label">이렇게 이해했어요</span>
+                  ) : refinementChips.length > 0 ? (
+                    <span className="search-interpretation__label">추가 조건</span>
+                  ) : null}
                   {interpretationChips.map((chip) => (
                     <span className="api-summary-chip" key={chip}>
                       {chip}
@@ -1335,28 +1342,13 @@ function HomeMainContent({
                       {getRefinementChipDisplayLabel(chip)} <span aria-hidden="true">×</span>
                     </button>
                   ))}
-                </div>
-              ) : refinementChips.length > 0 ? (
-                <div className="search-interpretation" aria-label="추가 검색 조건">
-                  <span className="search-interpretation__label">추가 조건</span>
-                  {refinementChips.map((chip) => (
-                    <button
-                      className="api-summary-chip filter removable"
-                      key={chip.id}
-                      onClick={() => removeRefinementChip(chip)}
-                      title={`${getRefinementChipDisplayLabel(chip)} 조건 제거`}
-                      type="button"
-                    >
-                      {getRefinementChipDisplayLabel(chip)} <span aria-hidden="true">×</span>
-                    </button>
+                  {unmatchedTerms.map((term) => (
+                    <span className="api-summary-chip warning" key={term}>
+                      추가 확인 필요: {term}
+                    </span>
                   ))}
                 </div>
               ) : null}
-              {recommendation?.unmatched_terms.map((term) => (
-                <span className="api-summary-chip warning" key={term}>
-                  추가 확인 필요: {term}
-                </span>
-              ))}
             </div>
             <div className="product-grid" id="searchResultsGrid">
               {isLoading ? <ProductSkeletonList count={10} variant="search" /> : errorMessage ? (

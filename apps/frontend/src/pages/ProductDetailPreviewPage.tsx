@@ -425,24 +425,6 @@ function ProductDetailPreviewPage() {
     window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
   };
 
-  const handleShowAllReviews = () => {
-    const reviewSection = document.getElementById("preview-2");
-    if (!reviewSection) return;
-    setActiveTab(2);
-    window.history.replaceState(null, "", "#preview-2");
-    window.scrollTo({
-      top: reviewSection.getBoundingClientRect().top + window.scrollY - 88,
-      behavior: "smooth",
-    });
-  };
-
-  const reviewSummary = product?.review_summary;
-  const highRatingCount = reviewSummary
-    ? (reviewSummary.rating_distribution[4] ?? 0) + (reviewSummary.rating_distribution[5] ?? 0)
-    : 0;
-  const highRatingPercent = reviewSummary && reviewSummary.review_count > 0
-    ? Math.round((highRatingCount / reviewSummary.review_count) * 100)
-    : null;
   const ingredientEvidenceGroups = product?.evidence.reduce<Array<{ effect: string; items: ProductDetail["evidence"] }>>(
     (groups, evidence) => {
       const effect = evidence.effect_name.trim();
@@ -522,8 +504,6 @@ function ProductDetailPreviewPage() {
           summary={activeComparison.summary}
         />
       ) : null}
-
-      {!recommendationId && hasProductReviews ? <section className="naver-preview-review-strip"><h2>4점 이상 리뷰가 <strong>{highRatingPercent === null ? "-" : `${highRatingPercent}%`}</strong>예요 ⓘ</h2><div>{reviewSummary ? Object.entries(reviewSummary.rating_distribution).slice(0, 3).map(([rating, count]) => <article key={rating}><b><StarIcon size={14} /> {rating}점</b><p>실제 리뷰 {count.toLocaleString()}건</p></article>) : null}</div><button type="button" onClick={handleShowAllReviews}>리뷰 전체보기 ›</button></section> : null}
 
       <nav className="naver-preview-tabs">{visibleTabs.map((tab) => <a className={tab.index === activeTab ? "active" : ""} href={`#preview-${tab.index}`} key={tab.label} onClick={(event) => handleTabClick(event, tab.index)}>{tab.label}</a>)}</nav>
       <section className="naver-preview-detail-layout">
