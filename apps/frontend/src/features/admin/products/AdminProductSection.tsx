@@ -134,8 +134,8 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
   };
 
   const handleRefresh = async () => {
-    const succeeded = await refresh();
-    if (succeeded) return;
+    const outcome = await refresh();
+    if (outcome !== "error") return; // "stale"은 이후 요청이 대신 처리 중이라는 뜻이라 실패가 아니다.
     onOperationLog("상품", "상품 목록 새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
@@ -234,13 +234,6 @@ export function AdminProductSection({ active, onEditProduct, onOperationLog }: A
             </button>
           </div>
         </div>
-
-        {error && (
-          <div className="admin-state-banner danger">
-            <strong>상품 목록을 불러오지 못했습니다</strong>
-            <span>{error}</span>
-          </div>
-        )}
 
         <div className="admin-list-toolbar">
           <div className="admin-page-size">

@@ -199,8 +199,9 @@ export function AdminOrderStatusSection({ active }: AdminOrderStatusSectionProps
 
   const handleOrderRefresh = async () => {
     if (shipmentActionInProgress) return;
-    const succeeded = await refresh();
-    if (!succeeded) {
+    const outcome = await refresh();
+    if (outcome === "stale") return; // 이후 요청이 대신 처리 중 — 실패가 아니므로 조용히 넘어간다.
+    if (outcome === "error") {
       setOrderExceptions((current) => [
         {
           id: ++nextExceptionIdRef.current,

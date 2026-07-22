@@ -379,8 +379,8 @@ export function AdminIngredientMappingSection({
   };
 
   const handleRefresh = async () => {
-    const succeeded = await refresh();
-    if (succeeded) return;
+    const outcome = await refresh();
+    if (outcome !== "error") return; // "stale"은 이후 요청이 대신 처리 중이라는 뜻이라 실패가 아니다.
     onOperationLog("성분", "성분 매핑 목록 새로고침 실패", "잠시 후 다시 시도해 주세요.", "danger");
   };
 
