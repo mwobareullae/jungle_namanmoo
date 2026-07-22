@@ -1440,7 +1440,7 @@ async def test_agent_trace_adds_only_safe_correlation_metadata(
     assert response.message == "처리했어요."
     assert captured_trace["workflow_name"] == "mwobarellae_action_agent"
     assert captured_trace["group_id"] == "conv-trace-1"
-    assert captured_trace["metadata"] == metadata
+    assert captured_trace["metadata"] == {**metadata, "authenticated": "true"}
     rendered_metadata = str(captured_trace["metadata"])
     assert "private@example.com" not in rendered_metadata
     assert "ord-private" not in rendered_metadata

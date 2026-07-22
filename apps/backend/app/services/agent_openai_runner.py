@@ -61,7 +61,10 @@ from app.services.agent_product_tools import (
 from app.services.agent_product_reference import apply_last_tool_result_reference
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
-from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
+from app.services.agent_bulk_wishlist import (
+    BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+    MAX_BULK_WISHLIST_RANK,
+)
 from app.services.agent_local_trace import AgentLocalTrace
 from app.services.agent_orchestration import (
     ROUTER_INSTRUCTIONS,
@@ -817,6 +820,7 @@ async def run_openai_agent_chat(
     accepted, so changing the feature flag is sufficient to roll it back.
     """
 
+    trace_metadata = _normalize_trace_metadata(trace_metadata)
     execution_mode = (
         execution_override.execution_mode
         if execution_override is not None and execution_override.execution_mode is not None
@@ -824,6 +828,26 @@ async def run_openai_agent_chat(
     )
     if workflow_timing is not None:
         workflow_timing.execution_mode = execution_mode
+
+    single_model_override = model_override
+    if single_model_override is None and execution_override is not None:
+        single_model_override = (
+            execution_override.specialist_model or execution_override.router_model
+        )
+    preflight_model = (
+        _resolve_router_specialist_models(model_override, execution_override)[1]
+        if execution_mode == "router_specialist"
+        else _resolve_agent_model(single_model_override)[0]
+    )
+    preflight_response = _try_bulk_wishlist_preflight(
+        request,
+        user=user,
+        workflow_timing=workflow_timing,
+        local_trace=local_trace,
+        configured_model=preflight_model,
+    )
+    if preflight_response is not None:
+        return preflight_response
 
     if execution_mode == "router_specialist":
         return await _run_router_specialist_agent_chat(
@@ -840,11 +864,6 @@ async def run_openai_agent_chat(
             local_trace=local_trace,
             model_override=model_override,
             execution_override=execution_override,
-        )
-    single_model_override = model_override
-    if single_model_override is None and execution_override is not None:
-        single_model_override = (
-            execution_override.specialist_model or execution_override.router_model
         )
     return await _run_single_agent_chat(
         session,
@@ -878,16 +897,6 @@ async def _run_single_agent_chat(
     model_override: str | None = None,
 ) -> AgentChatResponse:
     explicit_bulk_wishlist = _is_explicit_popular_ingredient_wishlist_request(request.message)
-    if explicit_bulk_wishlist and user is None:
-        if local_trace is not None:
-            local_trace.capture_short_circuit(
-                reason="bulk_wishlist_auth_required",
-                configured_model=settings.openai_agent_model,
-            )
-        return _authentication_required_response(
-            request.conversation_id,
-            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
-        )
 
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
@@ -2037,6 +2046,22 @@ def _trace_group_id(trace_metadata: Mapping[str, Any] | None) -> str | None:
     return str(conversation_id) if conversation_id else None
 
 
+def _normalize_trace_metadata(metadata: Mapping[str, Any] | None) -> dict[str, str]:
+    """Convert trace metadata to the OpenAI Agents SDK string-only contract."""
+
+    normalized: dict[str, str] = {}
+    for key, value in (metadata or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            normalized[str(key)] = "true" if value else "false"
+        elif isinstance(value, (str, int, float)):
+            normalized[str(key)] = str(value)
+        else:
+            normalized[str(key)] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return normalized
+
+
 def _log_openai_failure_counter(
     exc: Exception,
     *,
@@ -2344,6 +2369,74 @@ def _normalize_popular_ingredient_query(value: str) -> str:
             break
     normalized = re.sub(r"\s*(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의)$", "", normalized)
     return normalized.strip()
+
+
+def _get_explicit_bulk_wishlist_rank_limit(message: str) -> int | None:
+    if not _is_explicit_popular_ingredient_wishlist_request(message):
+        return None
+
+    match = re.search(r"(?:인기|베스트|상위).{0,32}?(?P<rank>\d+)\s*(?:위|개)", message)
+    if match is None:
+        return None
+    return int(match.group("rank"))
+
+
+def _try_bulk_wishlist_preflight(
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    workflow_timing: AgentWorkflowTiming | None,
+    local_trace: AgentLocalTrace | None,
+    configured_model: str | None,
+) -> AgentChatResponse | None:
+    """Apply invariant bulk-wishlist policy before either Agent execution mode.
+
+    The rank boundary is a server policy, not a model decision.  Running it here
+    prevents a model from silently replacing an explicit rank above 50 with the
+    tool default and keeps ``single`` and ``router_specialist`` behavior aligned.
+    """
+
+    if not _is_explicit_popular_ingredient_wishlist_request(request.message):
+        return None
+
+    if user is None:
+        _record_fast_path(workflow_timing, "bulk_wishlist_auth_required")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="bulk_wishlist_auth_required",
+                configured_model=configured_model,
+            )
+        return _authentication_required_response(
+            request.conversation_id,
+            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        )
+
+    rank_limit = _get_explicit_bulk_wishlist_rank_limit(request.message)
+    if rank_limit is None or rank_limit <= MAX_BULK_WISHLIST_RANK:
+        return None
+
+    _record_fast_path(workflow_timing, "bulk_wishlist_rank_limit")
+    if local_trace is not None:
+        local_trace.capture_short_circuit(
+            reason="bulk_wishlist_rank_limit",
+            configured_model=configured_model,
+        )
+    return _bulk_wishlist_rank_limit_response(request.conversation_id)
+
+
+def _bulk_wishlist_rank_limit_response(conversation_id: str | None) -> AgentChatResponse:
+    message = "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요."
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        ui_action=AgentUiAction(),
+        error=AgentError(
+            code="AGENT_BULK_WISHLIST_RANK_LIMIT",
+            message=message,
+            retryable=False,
+        ),
+    )
 
 
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:

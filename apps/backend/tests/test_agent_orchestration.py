@@ -284,6 +284,32 @@ async def test_router_specialist_fast_path_runs_before_router(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("execution_mode", ["single", "router_specialist"])
+async def test_all_execution_modes_reject_bulk_wishlist_rank_above_fifty_without_llm(
+    monkeypatch: pytest.MonkeyPatch,
+    execution_mode: str,
+) -> None:
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "openai_agent_execution_mode", execution_mode)
+    workflow_timing = AgentWorkflowTiming()
+
+    response = await run_openai_agent_chat(
+        SimpleNamespace(),
+        AgentChatRequest(
+            message="인기 상품 51위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            context=AgentContext(page="cart"),
+        ),
+        user=SimpleNamespace(id=1),
+        workflow_timing=workflow_timing,
+    )
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_BULK_WISHLIST_RANK_LIMIT"
+    assert response.tool_name == "bulk_wishlist_by_popular_ingredient"
+    assert workflow_timing.fast_path_name == "bulk_wishlist_rank_limit"
+
+
+@pytest.mark.anyio
 async def test_specialist_fallback_is_once_and_keeps_same_tool_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

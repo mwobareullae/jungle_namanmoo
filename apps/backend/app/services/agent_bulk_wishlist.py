@@ -26,6 +26,13 @@ from app.services.skin_profile_service import load_skin_profile_for_user
 BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL = "bulk_wishlist_by_popular_ingredient"
 BULK_WISHLIST_CONFIRMATION_TTL_MINUTES = 10
 MAX_BULK_WISHLIST_RANK = 50
+_CATEGORY_QUERY_ALIASES = {
+    "세럼": "serum",
+    "토너": "toner",
+    "크림": "cream",
+    "로션": "lotion",
+}
+_KOREAN_INGREDIENT_PARTICLE_SUFFIXES = ("은", "는", "이", "가", "을", "를", "와", "과")
 
 
 def _prepare_legacy_bulk_wishlist_by_popular_ingredient(
@@ -261,7 +268,11 @@ def prepare_bulk_wishlist_by_popular_ingredient(
         skin_type = profile.explicit_skin_type or profile.skin_type
         sensitivity = profile.explicit_sensitivity or profile.sensitivity
 
-    ingredients = [_resolve_canonical_ingredient(session, name) for name in raw_ingredient_names]
+    ingredients_by_id: dict[int, Ingredient] = {}
+    for raw_name in raw_ingredient_names:
+        ingredient = _resolve_canonical_ingredient(session, raw_name)
+        ingredients_by_id.setdefault(int(ingredient.id), ingredient)
+    ingredients = list(ingredients_by_id.values())
     resolved_category = _resolve_canonical_category(session, category) if category else None
     criteria = _build_compound_criteria(
         ingredients=ingredients,
@@ -470,6 +481,7 @@ def _resolve_canonical_category(session: Session, raw_category: str) -> ProductC
     normalized = _normalize_ingredient_name(raw_category)
     if not normalized:
         raise ApiError(400, "AGENT_CATEGORY_REQUIRED", "카테고리 조건을 알려주세요.")
+    normalized = _CATEGORY_QUERY_ALIASES.get(normalized, normalized)
     categories = session.execute(select(ProductCategory).where(ProductCategory.is_active.is_(True))).scalars().all()
     direct_matches = [
         category
@@ -690,18 +702,22 @@ def confirm_bulk_wishlist_by_popular_ingredient(
 
 
 def _resolve_canonical_ingredient(session: Session, raw_name: str) -> Ingredient:
-    normalized = _normalize_ingredient_name(raw_name)
-    if not normalized:
+    normalized_variants = _normalized_ingredient_variants(raw_name)
+    if not normalized_variants:
         raise ApiError(400, "AGENT_INGREDIENT_REQUIRED", "확인할 성분명을 알려주세요.")
     ingredients = session.execute(select(Ingredient).where(Ingredient.is_active.is_(True))).scalars().all()
-    by_code = [item for item in ingredients if _normalize_ingredient_name(item.ingredient_code) == normalized]
+    by_code = [
+        item
+        for item in ingredients
+        if _normalize_ingredient_name(item.ingredient_code) in normalized_variants
+    ]
     if by_code:
         return by_code[0]
     alias_rows = session.execute(select(IngredientAlias)).scalars().all()
     alias_ids = {
         int(alias.ingredient_id)
         for alias in alias_rows
-        if _normalize_ingredient_name(alias.normalized_alias or alias.alias) == normalized
+        if _normalize_ingredient_name(alias.normalized_alias or alias.alias) in normalized_variants
     }
     by_alias = [item for item in ingredients if int(item.id) in alias_ids]
     if len(by_alias) == 1:
@@ -709,7 +725,13 @@ def _resolve_canonical_ingredient(session: Session, raw_name: str) -> Ingredient
     by_name = [
         item
         for item in ingredients
-        if normalized in {_normalize_ingredient_name(item.name_ko), _normalize_ingredient_name(item.name_en or ""), _normalize_ingredient_name(item.normalized_name or "")}
+        if normalized_variants.intersection(
+            {
+                _normalize_ingredient_name(item.name_ko),
+                _normalize_ingredient_name(item.name_en or ""),
+                _normalize_ingredient_name(item.normalized_name or ""),
+            }
+        )
     ]
     if len(by_name) == 1:
         return by_name[0]
@@ -719,6 +741,22 @@ def _resolve_canonical_ingredient(session: Session, raw_name: str) -> Ingredient
 def _normalize_ingredient_name(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold().strip()
     return "".join(character for character in normalized if character.isalnum())
+
+
+def _normalized_ingredient_variants(value: str) -> set[str]:
+    normalized = _normalize_ingredient_name(value)
+    if not normalized:
+        return set()
+
+    variants = {normalized}
+    source = unicodedata.normalize("NFKC", value).casefold().strip(" \t\n\r,，.。!?！？·ㆍ-")
+    for suffix in _KOREAN_INGREDIENT_PARTICLE_SUFFIXES:
+        if source.endswith(suffix) and len(source) > len(suffix) + 1:
+            stripped = _normalize_ingredient_name(source[: -len(suffix)])
+            if stripped:
+                variants.add(stripped)
+            break
+    return variants
 
 
 def _skin_criterion_name(skin_type: str | None, sensitivity: str | None) -> str:

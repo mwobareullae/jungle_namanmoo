@@ -293,6 +293,18 @@ def validate_case(case: Any, seen_ids: set[str] | None = None) -> None:
     if statuses is not None:
         if not isinstance(statuses, list) or not statuses or not all(isinstance(item, int) for item in statuses):
             raise ValueError(f"Fixture case {case_id} expect.http_statuses must be a non-empty int list.")
+    for field_name in ("argument_equals", "criteria_equals"):
+        value = expect.get(field_name)
+        if value is not None and not isinstance(value, dict):
+            raise ValueError(f"Fixture case {case_id} expect.{field_name} must be an object.")
+    for field_name in ("argument_includes", "criteria_includes"):
+        value = expect.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, dict) or not all(isinstance(items, list) for items in value.values()):
+            raise ValueError(
+                f"Fixture case {case_id} expect.{field_name} must map fields to value lists."
+            )
 
 
 def build_execution_plan(
@@ -896,6 +908,7 @@ def evaluate_case_response(
         response,
         expected_tool,
     )
+    resolved_criteria = _tool_result_criteria(trace, response, expected_tool)
     if not clarification_allowed:
         for field, expected_value in dict(expect.get("argument_equals", {})).items():
             actual_value = arguments.get(field)
@@ -905,6 +918,18 @@ def evaluate_case_response(
             actual_values = arguments.get(field)
             if not isinstance(actual_values, list) or not set(expected_values).issubset(set(actual_values)):
                 constraint_errors.append(f"{field} must include {expected_values!r}, actual={actual_values!r}")
+        for field, expected_value in dict(expect.get("criteria_equals", {})).items():
+            actual_value = _criteria_value(resolved_criteria, field)
+            if actual_value != expected_value:
+                constraint_errors.append(
+                    f"criteria.{field} expected={expected_value!r}, actual={actual_value!r}"
+                )
+        for field, expected_values in dict(expect.get("criteria_includes", {})).items():
+            actual_values = _criteria_value(resolved_criteria, field)
+            if not isinstance(actual_values, list) or not set(expected_values).issubset(set(actual_values)):
+                constraint_errors.append(
+                    f"criteria.{field} must include {expected_values!r}, actual={actual_values!r}"
+                )
 
     safety_pass = not safety_errors
     structural_pass = not structural_errors and safety_pass
@@ -1273,6 +1298,57 @@ def _response_tool_arguments(
         return {}
     filters = payload.get("filters")
     return dict(filters) if isinstance(filters, Mapping) else {}
+
+
+def _tool_result_criteria(
+    trace: Mapping[str, Any] | None,
+    response: Mapping[str, Any],
+    expected_tool_name: Any,
+) -> dict[str, Any]:
+    """Read criteria after the server has normalized model tool arguments.
+
+    Bulk wishlist input can accept Korean category labels and particle-suffixed
+    ingredient names.  The quality contract must validate the server-resolved
+    criteria rather than report a correct normalization as a model failure.
+    """
+
+    if isinstance(trace, Mapping):
+        tool_calls = trace.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for tool_call in reversed(tool_calls):
+                if not isinstance(tool_call, Mapping):
+                    continue
+                if expected_tool_name and tool_call.get("tool_name") != expected_tool_name:
+                    continue
+                criteria = _criteria_from_agent_response(tool_call.get("response"))
+                if criteria:
+                    return criteria
+    return _criteria_from_agent_response(response)
+
+
+def _criteria_from_agent_response(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    if not isinstance(value, Mapping):
+        return {}
+    ui_action = value.get("ui_action")
+    if not isinstance(ui_action, Mapping):
+        return {}
+    payload = ui_action.get("payload")
+    if not isinstance(payload, Mapping):
+        return {}
+    criteria = payload.get("criteria")
+    return dict(criteria) if isinstance(criteria, Mapping) else {}
+
+
+def _criteria_value(criteria: Mapping[str, Any], field: str) -> Any:
+    if field == "category_code":
+        category = criteria.get("category")
+        return category.get("category_code") if isinstance(category, Mapping) else None
+    return criteria.get(field)
 
 
 def _wait_for_trace(trace_root: Path, trace_id: str | None, wait_seconds: float) -> Path | None:

@@ -2,7 +2,7 @@ from typing import get_args
 
 import pytest
 
-from app.schemas.agent import AgentContext, AgentToolName, AgentUiAction
+from app.schemas.agent import AgentChatResponse, AgentContext, AgentResponseItem, AgentToolName, AgentUiAction
 from app.schemas.common import ApiError
 from app.services.agent_policy import (
     AGENT_TOOL_POLICIES,
@@ -60,6 +60,19 @@ def test_bulk_popular_ingredient_wishlist_requires_auth_and_confirmation() -> No
     assert policy.requires_auth is True
     assert policy.requires_confirmation is True
     assert policy.max_result_items == 50
+
+
+def test_agent_response_supports_full_bulk_wishlist_preview() -> None:
+    response = AgentChatResponse(
+        conversation_id="conv_bulk_preview",
+        message="찜할 상품을 확인했어요.",
+        items=[
+            AgentResponseItem(item_type="product", id=f"prod_{index}", title=f"상품 {index}")
+            for index in range(50)
+        ],
+    )
+
+    assert len(response.items) == 50
 
 
 def test_product_read_tools_allow_anonymous_access() -> None:
