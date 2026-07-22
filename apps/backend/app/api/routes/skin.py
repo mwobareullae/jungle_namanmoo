@@ -103,10 +103,11 @@ def post_skin_test_submit(
 @router.get("/skin-test/results/{result_id}", response_model=SkinTestResultResponse)
 def get_skin_test_result(
     result_id: int,
+    current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> SkinTestResultResponse | JSONResponse:
     try:
-        return SkinTestResultResponse(result=get_skin_test_result_data(session, result_id))
+        return SkinTestResultResponse(result=get_skin_test_result_data(session, result_id, current_user))
     except SkinServiceError as exc:
         return _skin_error(exc)
 
