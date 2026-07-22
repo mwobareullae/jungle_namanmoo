@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import { SearchableSelect } from "../../../components/ui/SearchableSelect";
@@ -77,6 +77,10 @@ const getBlockPages = (current: number, total: number): number[] => {
 
 export function AdminInventoryPriceSection() {
   const inventory = useAdminInventoryPrice({ enabled: true });
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [inventory.page]);
   const [searchInput, setSearchInput] = useState("");
   const [draftProductCode, setDraftProductCode] = useState<string | null>(null);
   const [stockDraft, setStockDraft] = useState("");
@@ -333,7 +337,7 @@ export function AdminInventoryPriceSection() {
           </div>
         </div>
 
-        <div className="admin-table-wrap admin-inventory-table-scroll">
+        <div className="admin-table-wrap admin-inventory-table-scroll" ref={tableScrollRef}>
           <table className="admin-table admin-stock-table">
             <thead>
               <tr>
