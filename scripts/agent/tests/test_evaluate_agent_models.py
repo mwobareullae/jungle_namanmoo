@@ -5,11 +5,14 @@ import unittest
 from pathlib import Path
 
 from scripts.agent.evaluate_agent_models import (
+    AgentEvaluationProfile,
     DEFAULT_CASES_PATH,
     build_execution_plan,
+    build_profile_execution_plan,
     evaluate_case_response,
     extract_trace_metrics,
     load_fixture,
+    resolve_evaluation_profiles,
     _missing_trace_is_fatal,
     render_report,
     summarize_rows,
@@ -48,6 +51,33 @@ class AgentModelEvaluationTests(unittest.TestCase):
                 ("two", "model-b", 2),
             ],
         )
+
+    def test_profile_execution_plan_keeps_router_models_separate(self) -> None:
+        profiles = resolve_evaluation_profiles(
+            [],
+            ["single-gpt55", "router-nano", "router-nano-fallback"],
+        )
+        plan = build_profile_execution_plan([{"id": "one"}], profiles, repeat=1)
+
+        self.assertEqual([item["profile_id"] for item in plan], [
+            "single-gpt55",
+            "router-nano",
+            "router-nano-fallback",
+        ])
+        router_headers = plan[1]["headers"]
+        self.assertEqual(router_headers["X-Agent-Local-Execution-Mode"], "router_specialist")
+        self.assertNotIn("X-Agent-Local-Model", router_headers)
+        self.assertEqual(
+            router_headers["X-Agent-Local-Router-Model"],
+            "gpt-5.4-nano-2026-03-17",
+        )
+
+        custom = AgentEvaluationProfile(
+            profile_id="custom-single",
+            execution_mode="single",
+            requested_model="test-model",
+        )
+        self.assertEqual(custom.request_headers()["X-Agent-Local-Model"], "test-model")
 
     def test_response_validation_checks_tool_and_resolved_arguments(self) -> None:
         case = {
@@ -132,6 +162,62 @@ class AgentModelEvaluationTests(unittest.TestCase):
         self.assertEqual(metrics["route_total_ms"], 123.4)
         self.assertEqual(metrics["estimated_cost_usd"], 0.00001)
         self.assertEqual(metrics["tool_call_count"], 1)
+
+    def test_trace_metrics_aggregates_router_specialist_stages(self) -> None:
+        metrics = extract_trace_metrics(
+            {
+                "route": {
+                    "outcome": "succeeded",
+                    "telemetry": {
+                        "agent_execution_mode": "router_specialist",
+                        "agent_router_route": "recommendation",
+                        "agent_router_confidence": "high",
+                        "agent_fallback_enabled": True,
+                        "agent_fallback_used": False,
+                    },
+                },
+                "agent": {"model": "router-nano", "model_source": "local_execution_override"},
+                "agent_stages": {
+                    "router": {
+                        "model": "router-nano",
+                        "instructions_bytes": 100,
+                        "input_bytes": 200,
+                        "selected_tool_count": 0,
+                        "selected_tool_schema_bytes": 0,
+                        "runner_attempts": [{"duration_ms": 125.0}],
+                        "runner_result": {
+                            "usage_breakdown": {"input_tokens": 11, "output_tokens": 2, "total_tokens": 13},
+                            "cost_estimate": {"estimated_cost_usd": 0.001, "estimate_status": "estimated"},
+                        },
+                    },
+                    "specialist": {
+                        "name": "mwobarellae_recommendation_specialist",
+                        "model": "specialist-nano",
+                        "instructions_bytes": 300,
+                        "input_bytes": 400,
+                        "selected_tool_count": 1,
+                        "selected_tool_schema_bytes": 500,
+                        "runner_attempts": [{"duration_ms": 250.0}],
+                        "runner_result": {
+                            "usage_breakdown": {"input_tokens": 23, "output_tokens": 3, "total_tokens": 26},
+                            "cost_estimate": {"estimated_cost_usd": 0.002, "estimate_status": "estimated"},
+                        },
+                    },
+                },
+                "timings_ms": {"route_total_ms": 500.0},
+                "tool_calls": [{"tool_name": "create_recommendation"}],
+            }
+        )
+
+        self.assertEqual(metrics["execution_mode"], "router_specialist")
+        self.assertEqual(metrics["router_ms"], 125.0)
+        self.assertEqual(metrics["specialist_ms"], 250.0)
+        self.assertEqual(metrics["router_route"], "recommendation")
+        self.assertEqual(metrics["specialist_tool_count"], 1)
+        self.assertEqual(metrics["input_tokens"], 34)
+        self.assertEqual(metrics["output_tokens"], 5)
+        self.assertEqual(metrics["total_tokens"], 39)
+        self.assertEqual(metrics["estimated_cost_usd"], 0.003)
 
     def test_trace_metrics_marks_successful_direct_tool_path_as_not_called(self) -> None:
         metrics = extract_trace_metrics({"route": {"outcome": "succeeded"}, "agent": {}})
