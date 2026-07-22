@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   IngredientMappingAction,
@@ -100,6 +100,7 @@ STATUS_FILTER_OPTIONS.splice(3, 0, { value: "NEEDS_REVIEW", label: "재검토 �
 STATUS_FILTER_OPTIONS[0] = { value: "ALL", label: "미분류 전체" };
 
 const SKELETON_ROWS = Array.from({ length: 6 });
+const SAMPLE_PREVIEW_COUNT = 5;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const PAGE_BLOCK_SIZE = 10;
@@ -112,6 +113,12 @@ const getBlockPages = (current: number, total: number): number[] => {
 };
 
 const formatCount = (value: number): string => value.toLocaleString("ko-KR");
+
+// pending 성분 코드는 전부 ing_pending_ 또는 foreign_pending_ 접두어로 시작한다(백엔드
+// _PENDING_PREDICATE). 어차피 pending 목록에서만 보이는 값이라 접두어는 항상 같아 굳이
+// 반복해서 보여줄 필요가 없다 — 실제로 구분되는 뒤쪽 코드만 남긴다.
+const stripPendingPrefix = (pendingCode: string): string =>
+  pendingCode.replace(/^(ing|foreign)_pending_/, "");
 
 const formatEventState = (
   status: IngredientMappingStatus,
@@ -152,7 +159,6 @@ export function AdminIngredientMappingSection({
     goToPage,
     selectedKey,
     detail,
-    detailLoading,
     detailError,
     selectMapping,
     decisionSubmitting,
@@ -175,6 +181,11 @@ export function AdminIngredientMappingSection({
     resetCanonicalSearch
   } = useAdminIngredientMappings({ enabled: active });
 
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [page]);
+
   const totalPages = pagination?.totalPages ?? 1;
   const blockPages = getBlockPages(page, totalPages);
   const blockStart = blockPages[0] ?? 1;
@@ -183,6 +194,7 @@ export function AdminIngredientMappingSection({
   const hasNextBlock = blockEnd < totalPages;
 
   const [expandedEvents, setExpandedEvents] = useState(false);
+  const [visibleSampleCount, setVisibleSampleCount] = useState(SAMPLE_PREVIEW_COUNT);
 
   // 판정 모달 로컬 상태
   const [activeAction, setActiveAction] = useState<IngredientMappingAction | null>(null);
@@ -194,6 +206,7 @@ export function AdminIngredientMappingSection({
   const [evidenceSourceUrl, setEvidenceSourceUrl] = useState("");
   const [sourceReference, setSourceReference] = useState("");
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkConfirmModalOpen, setBulkConfirmModalOpen] = useState(false);
   const [bulkSelectedKeys, setBulkSelectedKeys] = useState<string[]>([]);
   const [bulkConfirmation, setBulkConfirmation] = useState("");
 
@@ -203,7 +216,7 @@ export function AdminIngredientMappingSection({
     bulkPreview?.items.filter((item) =>
       bulkSelectedKeys.includes(bulkKey(item.pendingCode, item.normalizedSourceName))
     ) ?? [];
-  const bulkConfirmationPhrase = `승인 ${selectedBulkItems.length}`;
+  const bulkConfirmationPhrase = `${selectedBulkItems.length}건 승인`;
   const allBulkItemsSelected =
     (bulkPreview?.items.length ?? 0) > 0 &&
     (bulkPreview?.items.every((item) =>
@@ -230,6 +243,19 @@ export function AdminIngredientMappingSection({
   const closeBulkApproval = () => {
     if (bulkSubmitting) return;
     setBulkModalOpen(false);
+    setBulkConfirmModalOpen(false);
+    setBulkConfirmation("");
+  };
+
+  const openBulkConfirmModal = () => {
+    if (bulkSubmitting || selectedBulkItems.length === 0) return;
+    setBulkConfirmation("");
+    setBulkConfirmModalOpen(true);
+  };
+
+  const closeBulkConfirmModal = () => {
+    if (bulkSubmitting) return;
+    setBulkConfirmModalOpen(false);
     setBulkConfirmation("");
   };
 
@@ -250,13 +276,8 @@ export function AdminIngredientMappingSection({
     }
     const result = await approveKciaBulk(selectedBulkItems);
     if (result === null) return;
-    onOperationLog(
-      "성분",
-      "KCIA 별칭 후보 일괄 승인",
-      `${result.approvedCount}개 pending 그룹을 승인했습니다. ${result.batchReference}`,
-      "success"
-    );
     setBulkModalOpen(false);
+    setBulkConfirmModalOpen(false);
     setBulkConfirmation("");
   };
 
@@ -353,6 +374,7 @@ export function AdminIngredientMappingSection({
 
   const handleRowSelect = (pendingCode: string, normalizedSourceName: string) => {
     setExpandedEvents(false);
+    setVisibleSampleCount(SAMPLE_PREVIEW_COUNT);
     void selectMapping(pendingCode, normalizedSourceName);
   };
 
@@ -518,7 +540,7 @@ export function AdminIngredientMappingSection({
           </div>
         </div>
 
-        <div className="admin-table-wrap admin-ingredient-table-scroll">
+        <div className="admin-table-wrap admin-ingredient-table-scroll" ref={tableScrollRef}>
           <table className="admin-table admin-ingredient-table">
             <thead>
               <tr>
@@ -573,10 +595,7 @@ export function AdminIngredientMappingSection({
                           <small className="admin-product-code">직접 검색 필요</small>
                         )}
                       </td>
-                      <td>
-                        <strong>{formatCount(row.connectionCount)}</strong>
-                        <small className="admin-product-code">상품 {formatCount(row.productCount)}</small>
-                      </td>
+                      <td>상품 {formatCount(row.connectionCount)}개</td>
                       <td>
                         <small className="admin-product-code">
                           {CANDIDATE_TYPE_LABELS[row.candidate.candidateType]}
@@ -673,33 +692,22 @@ export function AdminIngredientMappingSection({
           </div>
         )}
 
-        {detailLoading && !detail ? (
-          <div className="admin-state-banner neutral">
-            <strong>상세 정보를 불러오는 중입니다</strong>
-            <span>잠시만 기다려 주세요.</span>
-          </div>
-        ) : detail ? (
+        {detail ? (
           <>
             <div className="admin-detail-body">
               <p className="admin-metric-group-title">기본 정보</p>
               <dl className="admin-metric-list">
                 <div>
                   <dt>pending code</dt>
-                  <dd>{detail.pendingCode}</dd>
-                </div>
-                <div>
-                  <dt>pending 성분명</dt>
-                  <dd>{detail.pendingIngredientName}</dd>
+                  <dd title={detail.pendingCode}>{stripPendingPrefix(detail.pendingCode)}</dd>
                 </div>
                 <div>
                   <dt>정규화명</dt>
-                  <dd>{detail.normalizedSourceName}</dd>
+                  <dd title={detail.normalizedSourceName}>{detail.normalizedSourceName}</dd>
                 </div>
                 <div>
                   <dt>연결</dt>
-                  <dd>
-                    {formatCount(detail.connectionCount)} (상품 {formatCount(detail.productCount)})
-                  </dd>
+                  <dd>{formatCount(detail.connectionCount)}개 상품</dd>
                 </div>
               </dl>
 
@@ -707,18 +715,13 @@ export function AdminIngredientMappingSection({
               <dl className="admin-metric-list">
                 <div>
                   <dt>추천 canonical</dt>
-                  <dd>
-                    {detail.suggestion
-                      ? `${detail.suggestion.targetIngredientName} (${MATCH_SOURCE_LABELS[detail.suggestion.matchSource]})`
-                      : "없음 — canonical 직접 검색 필요"}
+                  <dd title={detail.suggestion ? detail.suggestion.targetIngredientName : undefined}>
+                    {detail.suggestion ? detail.suggestion.targetIngredientName : "직접 검색 필요"}
                   </dd>
                 </div>
                 <div>
                   <dt>처리 후보</dt>
-                  <dd>
-                    {CANDIDATE_TYPE_LABELS[detail.candidate.candidateType]}
-                    {` · ${detail.candidate.evidence}`}
-                  </dd>
+                  <dd>{CANDIDATE_TYPE_LABELS[detail.candidate.candidateType]}</dd>
                 </div>
               </dl>
 
@@ -752,14 +755,20 @@ export function AdminIngredientMappingSection({
               )}
             </div>
 
-            {detail.rawNameVariants.length > 0 && (
+            {/* 변형이 1개뿐이면 위 pending 성분명·제목과 완전히 같은 텍스트라 중복이라 숨긴다.
+                실제로 표기가 여러 개 갈릴 때만(오탈자·띄어쓰기 차이 등) 보여줄 가치가 있다. */}
+            {detail.rawNameVariants.length > 1 && (
               <div className="admin-ingredient-variants">
-                <p className="admin-product-code">원문 표기 ({detail.rawNameVariants.length})</p>
+                <p className="admin-metric-group-title">원문 표기 ({detail.rawNameVariants.length})</p>
                 <ul>
                   {detail.rawNameVariants.map((variant) => (
                     <li key={variant.rawName}>
-                      <span>{variant.rawName}</span>
-                      <small className="admin-product-code">{formatCount(variant.connectionCount)}</small>
+                      <span className="admin-product-name" title={variant.rawName}>
+                        {variant.rawName}
+                      </span>
+                      <small className="admin-product-code">
+                        {formatCount(variant.connectionCount)}개 상품
+                      </small>
                     </li>
                   ))}
                 </ul>
@@ -768,15 +777,31 @@ export function AdminIngredientMappingSection({
 
             {detail.sampleProducts.length > 0 && (
               <div className="admin-ingredient-samples">
-                <p className="admin-product-code">대표 상품 ({detail.sampleProducts.length})</p>
+                <p className="admin-metric-group-title">대표 상품 ({detail.sampleProducts.length})</p>
                 <ul>
-                  {detail.sampleProducts.map((product) => (
+                  {detail.sampleProducts.slice(0, visibleSampleCount).map((product) => (
                     <li key={product.productCode}>
-                      <span>{product.productName}</span>
-                      <small className="admin-product-code">{product.rawName}</small>
+                      <span className="admin-ingredient-sample-name" title={product.productName}>
+                        {product.productName}
+                      </span>
                     </li>
                   ))}
                 </ul>
+                {visibleSampleCount < detail.sampleProducts.length && (
+                  <button
+                    className="admin-secondary-button admin-ingredient-sample-toggle"
+                    onClick={() =>
+                      setVisibleSampleCount((prev) =>
+                        Math.min(prev + SAMPLE_PREVIEW_COUNT, detail.sampleProducts.length)
+                      )
+                    }
+                    type="button"
+                  >
+                    {`더 보기 (${formatCount(
+                      Math.min(SAMPLE_PREVIEW_COUNT, detail.sampleProducts.length - visibleSampleCount)
+                    )})`}
+                  </button>
+                )}
               </div>
             )}
 
@@ -855,10 +880,6 @@ export function AdminIngredientMappingSection({
                 <dd>-</dd>
               </div>
               <div>
-                <dt>pending 성분명</dt>
-                <dd>-</dd>
-              </div>
-              <div>
                 <dt>정규화명</dt>
                 <dd>-</dd>
               </div>
@@ -900,15 +921,6 @@ export function AdminIngredientMappingSection({
                 </p>
                 <h2 id="ingredient-mapping-action-title">{ACTION_LABELS[activeAction]}</h2>
               </div>
-              <button
-                aria-label="판정 모달 닫기"
-                className="admin-ingredient-modal-close"
-                disabled={decisionSubmitting}
-                onClick={closeAction}
-                type="button"
-              >
-                닫기
-              </button>
             </div>
 
             <div className="admin-ingredient-action-context">
@@ -1084,29 +1096,14 @@ export function AdminIngredientMappingSection({
                 <p className="admin-ingredient-action-kicker approve">KCIA 근거 일괄 승인</p>
                 <h2 id="ingredient-mapping-bulk-title">승인 전 미리보기</h2>
               </div>
-              <button
-                aria-label="일괄 승인 모달 닫기"
-                className="admin-ingredient-modal-close"
-                disabled={bulkSubmitting}
-                onClick={closeBulkApproval}
-                type="button"
-              >
-                닫기
-              </button>
             </div>
 
             <p className="admin-ingredient-action-guide" id="ingredient-mapping-bulk-guide">
-              별칭 출처와 canonical 근거가 모두 KCIA인 정확 일치 후보만 표시합니다. 저장 직전에
-              서버가 다시 검증하며, 하나라도 바뀌면 전체 승인은 저장되지 않습니다.
+              KCIA 근거로 일괄 승인할 수 있는 pending 성분-canonical 성분 연결은 총{" "}
+              {formatCount(bulkPreview.eligibleCount)}개입니다.
             </p>
-            <div className="admin-state-banner neutral">
-              <span>
-                현재 조건 충족 후보 {formatCount(bulkPreview.eligibleCount)}개 중 최대
-                {formatCount(bulkPreview.maximumCount)}개를 표시합니다. 선택: {formatCount(selectedBulkItems.length)}개
-              </span>
-            </div>
 
-            <div className="admin-filter-row">
+            <div className="admin-ingredient-bulk-toolbar">
               <button
                 className="admin-secondary-button admin-light-button"
                 disabled={bulkSubmitting}
@@ -1169,12 +1166,48 @@ export function AdminIngredientMappingSection({
               </div>
             )}
 
+            <div className="admin-ingredient-modal-actions">
+              <button className="admin-secondary-button" disabled={bulkSubmitting} onClick={closeBulkApproval} type="button">
+                취소
+              </button>
+              <button
+                className="admin-ingredient-confirm-button approve"
+                disabled={bulkSubmitting || selectedBulkItems.length === 0}
+                onClick={openBulkConfirmModal}
+                type="button"
+              >
+                {bulkSubmitting ? "일괄 승인 중…" : `${selectedBulkItems.length}개 승인 확정`}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {bulkConfirmModalOpen && bulkPreview && (
+        <div className="admin-ingredient-modal-overlay">
+          <section
+            aria-describedby="ingredient-mapping-bulk-confirm-guide"
+            aria-labelledby="ingredient-mapping-bulk-confirm-title"
+            aria-modal="true"
+            className="admin-panel admin-ingredient-modal"
+            role="dialog"
+          >
+            <div className="admin-ingredient-modal-heading">
+              <div>
+                <h2 id="ingredient-mapping-bulk-confirm-title">승인 확인</h2>
+              </div>
+            </div>
+
+            <p className="admin-ingredient-action-guide" id="ingredient-mapping-bulk-confirm-guide">
+              선택한 {formatCount(selectedBulkItems.length)}개 후보를 일괄 승인합니다. 되돌리려면
+              각 성분을 재검토해야 하니, 확인 문구를 입력해 진행해 주세요.
+            </p>
+
             <label className="admin-ingredient-reason">
-              <span className="admin-ingredient-reason-label">
-                확인 문구 <em>필수</em>
-              </span>
+              <span className="admin-ingredient-reason-label">확인 문구</span>
               <input
                 aria-label="일괄 승인 확인 문구"
+                autoFocus
                 disabled={bulkSubmitting}
                 onChange={(event) => setBulkConfirmation(event.target.value)}
                 placeholder={`"${bulkConfirmationPhrase}" 입력`}
@@ -1186,8 +1219,14 @@ export function AdminIngredientMappingSection({
               </small>
             </label>
 
+            {bulkError && (
+              <div className="admin-state-banner danger">
+                <span>{bulkError}</span>
+              </div>
+            )}
+
             <div className="admin-ingredient-modal-actions">
-              <button className="admin-secondary-button" disabled={bulkSubmitting} onClick={closeBulkApproval} type="button">
+              <button className="admin-secondary-button" disabled={bulkSubmitting} onClick={closeBulkConfirmModal} type="button">
                 취소
               </button>
               <button
