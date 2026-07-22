@@ -264,7 +264,7 @@ export function AdminImageBulkLinkSection({
         <div className="admin-panel-header admin-product-header">
           <div>
             <p>상품 이미지 운영</p>
-            <h2>파일 미리보기 후 이미지 storage_key를 연결합니다</h2>
+            <h2>이미지 storage_key 일괄 연결</h2>
           </div>
           <div className="admin-filter-row">
             <button className="admin-secondary-button admin-light-button" onClick={downloadTemplate} type="button">
@@ -334,13 +334,6 @@ export function AdminImageBulkLinkSection({
             </span>
           </div>
         )}
-        <div className="admin-state-banner neutral">
-          <strong>운영 전제</strong>
-          <span>
-            S3에 원본과 resized/w400·resized/w1200 파일을 먼저 올린 뒤, 원본 storage_key만 입력해
-            주세요.
-          </span>
-        </div>
       </section>
 
       <aside className="admin-panel admin-template-panel">
