@@ -251,16 +251,33 @@ class BulkWishlistByPopularIngredientArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ingredient_name: str | None = Field(default=None, min_length=1, max_length=160)
+    ingredient_names: list[str] | None = Field(default=None, min_length=1, max_length=5)
+    ingredient_match_mode: Literal["all", "any"] = "all"
+    category: str | None = Field(default=None, min_length=1, max_length=80)
+    price_min: int | None = Field(default=None, ge=0, le=10_000_000)
+    price_max: int | None = Field(default=None, ge=0, le=10_000_000)
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None
     sensitivity: Literal["낮음", "보통", "높음"] | None = None
-    rank_limit: int = Field(default=20, ge=1, le=20)
+    # The service emits a user-facing explanation for rank 51+ instead of
+    # silently shrinking it. The wider schema ceiling only rejects nonsense.
+    rank_limit: int = Field(default=20, ge=1, le=1000, description="Use ranks 1 through 50.")
     window_days: Literal[1, 7, 30] = 7
 
     @model_validator(mode="after")
     def validate_criteria(self) -> "BulkWishlistByPopularIngredientArgs":
-        if self.ingredient_name and (self.skin_type or self.sensitivity):
-            raise ValueError("ingredient and skin profile criteria cannot be combined")
-        if not self.ingredient_name and not self.skin_type and not self.sensitivity:
+        if self.price_min is not None and self.price_max is not None and self.price_min > self.price_max:
+            raise ValueError("price_min must not exceed price_max")
+        if not any(
+            (
+                self.ingredient_name,
+                self.ingredient_names,
+                self.skin_type,
+                self.sensitivity,
+                self.category,
+                self.price_min is not None,
+                self.price_max is not None,
+            )
+        ):
             raise ValueError("one wishlist criterion is required")
         return self
 
@@ -719,6 +736,11 @@ def _execute_parsed_tool(
             user,
             conversation_id=conversation_id,
             ingredient_name=args.ingredient_name,
+            ingredient_names=args.ingredient_names,
+            ingredient_match_mode=args.ingredient_match_mode,
+            category=args.category,
+            price_min=args.price_min,
+            price_max=args.price_max,
             skin_type=args.skin_type,
             sensitivity=args.sensitivity,
             rank_limit=args.rank_limit,
