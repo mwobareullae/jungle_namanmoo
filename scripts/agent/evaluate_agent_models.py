@@ -908,7 +908,10 @@ def evaluate_case_response(
         response,
         expected_tool,
     )
+    arguments = _normalize_tool_arguments(expected_tool, arguments)
     resolved_criteria = _tool_result_criteria(trace, response, expected_tool)
+    if not resolved_criteria:
+        resolved_criteria = _criteria_from_tool_arguments(expected_tool, arguments)
     if not clarification_allowed:
         for field, expected_value in dict(expect.get("argument_equals", {})).items():
             actual_value = arguments.get(field)
@@ -1349,6 +1352,54 @@ def _criteria_value(criteria: Mapping[str, Any], field: str) -> Any:
         category = criteria.get("category")
         return category.get("category_code") if isinstance(category, Mapping) else None
     return criteria.get(field)
+
+
+def _normalize_tool_arguments(tool_name: Any, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize equivalent legacy and compound bulk-wishlist input shapes for evaluation."""
+
+    normalized = dict(arguments)
+    if tool_name != "bulk_wishlist_by_popular_ingredient":
+        return normalized
+
+    ingredient_name = normalized.get("ingredient_name")
+    ingredient_names = normalized.get("ingredient_names")
+    valid_names = [
+        name.strip()
+        for name in ingredient_names
+        if isinstance(name, str) and name.strip()
+    ] if isinstance(ingredient_names, list) else []
+    if not isinstance(ingredient_name, str) or not ingredient_name.strip():
+        if len(valid_names) == 1:
+            normalized["ingredient_name"] = valid_names[0]
+    elif not valid_names:
+        normalized["ingredient_names"] = [ingredient_name.strip()]
+
+    if normalized.get("ingredient_match_mode") is None and (
+        normalized.get("ingredient_name") or normalized.get("ingredient_names")
+    ):
+        normalized["ingredient_match_mode"] = "all"
+    return normalized
+
+
+def _criteria_from_tool_arguments(tool_name: Any, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Recover a legacy bulk-wishlist criterion when its response predates criteria payloads."""
+
+    if tool_name != "bulk_wishlist_by_popular_ingredient":
+        return {}
+    normalized = _normalize_tool_arguments(tool_name, arguments)
+    ingredient_names = normalized.get("ingredient_names")
+    if not isinstance(ingredient_names, list) or not ingredient_names:
+        return {}
+    category = normalized.get("category")
+    return {
+        "ingredient_names": ingredient_names,
+        "ingredient_match_mode": normalized.get("ingredient_match_mode") or "all",
+        "category": {"category_code": category} if isinstance(category, str) and category else None,
+        "price_min": normalized.get("price_min"),
+        "price_max": normalized.get("price_max"),
+        "skin_type": normalized.get("skin_type"),
+        "sensitivity": normalized.get("sensitivity"),
+    }
 
 
 def _wait_for_trace(trace_root: Path, trace_id: str | None, wait_seconds: float) -> Path | None:
