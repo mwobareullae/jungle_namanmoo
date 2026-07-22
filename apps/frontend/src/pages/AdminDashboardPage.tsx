@@ -1255,7 +1255,12 @@ function AdminDashboardPage() {
         <header className="admin-topbar">
           <div />
           {toast && (
-            <div className={`admin-toast ${toast.tone}`} role="status">
+            <div
+              aria-live={toast.tone === "danger" ? "assertive" : "polite"}
+              className={`admin-toast ${toast.tone}`}
+              role={toast.tone === "danger" ? "alert" : "status"}
+            >
+              <span className="admin-toast__dot" />
               <span>{toast.message}</span>
               <button aria-label="알림 닫기" onClick={() => setToast(null)} type="button">
                 닫기

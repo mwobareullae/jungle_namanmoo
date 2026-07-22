@@ -182,55 +182,92 @@
 }
 
 .admin-toast {
-  display: flex;
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  z-index: 2200;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  max-width: 460px;
-  min-height: 42px;
-  padding: 9px 10px 9px 14px;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  min-height: 48px;
+  padding: 0 14px 0 18px;
   border: 1px solid var(--admin-line);
-  border-left-width: 4px;
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--admin-white);
-  box-shadow: 0 10px 30px rgba(11, 42, 58, 0.08);
+  box-shadow: 0 12px 32px rgba(16, 28, 42, 0.12);
+  color: var(--admin-text);
+  transform: translateX(-50%);
+}
+
+.admin-toast__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--admin-accent-2);
+  flex: 0 0 auto;
 }
 
 .admin-toast.success {
-  border-left-color: #26a269;
+  border-color: rgba(38, 162, 105, 0.42);
+  background: #eefaf3;
+  color: #1a7a4f;
+}
+
+.admin-toast.success .admin-toast__dot {
+  background: #26a269;
 }
 
 .admin-toast.warning {
-  border-left-color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.42);
+  background: #fff8ea;
+  color: #92620a;
+}
+
+.admin-toast.warning .admin-toast__dot {
+  background: #f59e0b;
 }
 
 .admin-toast.danger {
-  border-left-color: #ff6b52;
+  border-color: rgba(239, 111, 94, 0.42);
+  background: #fff6f4;
+  color: #d92d20;
+}
+
+.admin-toast.danger .admin-toast__dot {
+  background: #ef6f5e;
 }
 
 .admin-toast.neutral,
 .admin-toast.review {
-  border-left-color: var(--admin-accent-2);
+  border-color: rgba(94, 198, 232, 0.42);
+  background: #eef9fd;
+  color: #0b6f8f;
 }
 
 .admin-toast span {
   min-width: 0;
-  color: var(--admin-text);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .admin-toast button {
   flex: 0 0 auto;
   min-height: 28px;
   border: 0;
-  border-radius: 6px;
-  background: #eef7fa;
-  color: var(--admin-ink-navy);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
+  opacity: 0.7;
+}
+
+.admin-toast button:hover {
+  opacity: 1;
 }
 
 .admin-panel-header h2 {
@@ -3290,8 +3327,7 @@
   }
 
   .admin-toast {
-    width: 100%;
-    max-width: none;
+    max-width: calc(100vw - 32px);
   }
 
   .admin-panel-header > div:first-child p,
