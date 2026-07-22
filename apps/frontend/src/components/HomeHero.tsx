@@ -307,7 +307,7 @@ function HomeHero({
                 type="text"
                 value={query}
               />
-              <button className="search-btn" disabled={isAgentSubmitting} onClick={() => void handleSearch()} type="button">
+              <button className="home-search-submit" disabled={isAgentSubmitting} onClick={() => void handleSearch()} type="button">
                 {!isAgentSubmitting ? (
                   <svg
                     fill="none"
