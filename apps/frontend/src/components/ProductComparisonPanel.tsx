@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ProductDetail } from "../types/recommendation";
 import {
   getSimilarityReasonLabels,
-  type ProductComparisonProfile,
+  type ProductComparisonProfile
 } from "../lib/productComparisonPresentation";
 
 export type ProductComparisonDifference = {
@@ -37,52 +37,72 @@ const MAX_SIMILAR_PRODUCTS = 2;
 const formatPrice = (price: number | null) =>
   price === null ? "가격 확인 중이에요" : `${price.toLocaleString("ko-KR")}원`;
 
-const uniqueValues = (values: readonly string[]) => Array.from(new Set(
-  values.map((value) => value.trim()).filter(Boolean),
-));
+const uniqueValues = (values: readonly string[]) =>
+  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 
-const getLowestPriceProductId = (products: readonly ProductDetail[]) => {
-  let lowestProduct: ProductDetail | null = null;
+const getLowestPriceProductIds = (products: readonly ProductDetail[]) => {
+  const productsWithPrice = products.filter((product) => product.lowest_price !== null);
+  if (productsWithPrice.length === 0) return new Set<string>();
 
-  for (const product of products) {
-    if (product.lowest_price === null) continue;
-    if (lowestProduct === null || product.lowest_price < (lowestProduct.lowest_price ?? Infinity)) {
-      lowestProduct = product;
-    }
-  }
-
-  return lowestProduct?.product_id ?? null;
+  const lowestPrice = Math.min(
+    ...productsWithPrice.map((product) => product.lowest_price ?? Infinity)
+  );
+  return new Set(
+    productsWithPrice
+      .filter((product) => product.lowest_price === lowestPrice)
+      .map((product) => product.product_id)
+  );
 };
 
-const getMostReviewedProductId = (products: readonly ProductDetail[]) => {
-  let mostReviewedProduct: ProductDetail | null = null;
+const getMostReviewedProductIds = (products: readonly ProductDetail[]) => {
+  const productsWithReviews = products.filter(
+    (product) => (product.review_summary?.review_count ?? 0) > 0
+  );
+  if (productsWithReviews.length === 0) return new Set<string>();
 
-  for (const product of products) {
-    const reviewCount = product.review_summary?.review_count ?? 0;
-    const mostReviewedCount = mostReviewedProduct?.review_summary?.review_count ?? 0;
-    if (reviewCount > mostReviewedCount) mostReviewedProduct = product;
-  }
-
-  return mostReviewedProduct?.product_id ?? null;
+  const mostReviewedCount = Math.max(
+    ...productsWithReviews.map((product) => product.review_summary?.review_count ?? 0)
+  );
+  return new Set(
+    productsWithReviews
+      .filter((product) => (product.review_summary?.review_count ?? 0) === mostReviewedCount)
+      .map((product) => product.product_id)
+  );
 };
 
-const getCardLabel = (index: number) => index === 0 ? "현재 보는 상품" : `추천 ${index}`;
+export const getComparisonHighlightProductIds = (products: readonly ProductDetail[]) => {
+  const candidateProducts = products.slice(1, MAX_SIMILAR_PRODUCTS + 1);
+  if (candidateProducts.length !== MAX_SIMILAR_PRODUCTS) {
+    return {
+      lowestPriceProductIds: new Set<string>(),
+      mostReviewedProductIds: new Set<string>()
+    };
+  }
+
+  return {
+    lowestPriceProductIds: getLowestPriceProductIds(candidateProducts),
+    mostReviewedProductIds: getMostReviewedProductIds(candidateProducts)
+  };
+};
+
+const getCardLabel = (index: number) => (index === 0 ? "현재 상품" : `비교 상품 ${index}`);
 
 const getProfileDescription = (
   profile: ProductComparisonProfile | undefined,
   skinType?: string,
-  sensitivity?: string,
+  sensitivity?: string
 ) => {
   const values = uniqueValues([
     ...(profile?.matchedConcerns ?? []),
-    ...(profile?.expectedEffects ?? []),
+    ...(profile?.expectedEffects ?? [])
   ]).slice(0, 3);
   const skinProfile = uniqueValues([
     skinType ? `${skinType} 피부` : "",
-    sensitivity ? `민감도 ${sensitivity}` : "",
+    sensitivity ? `민감도 ${sensitivity}` : ""
   ]).join(" · ");
 
-  if (values.length > 0 && skinProfile) return `${values.join(" · ")} 고민과 ${skinProfile} 기준으로 비교해요.`;
+  if (values.length > 0 && skinProfile)
+    return `${values.join(" · ")} 고민과 ${skinProfile} 기준으로 비교해요.`;
   if (values.length > 0) return `${values.join(" · ")} 고민 기준으로 비교해요.`;
   if (skinProfile) return `${skinProfile} 기준으로 비슷한 후보를 비교해요.`;
   return "가격, 핵심 성분, 리뷰 수를 기준으로 비교해요.";
@@ -94,7 +114,7 @@ function ProductComparisonCard({
   isLowestPrice,
   label,
   product,
-  variant,
+  variant
 }: {
   candidateMatchReasons: readonly string[];
   hasMostReviews: boolean;
@@ -106,16 +126,19 @@ function ProductComparisonCard({
   const [hasImageError, setHasImageError] = useState(false);
   const detailPath = `/product-detail?id=${encodeURIComponent(product.product_id)}`;
   const tags = uniqueValues(
-    product.evidence_tags.length > 0 ? product.evidence_tags : product.key_ingredients,
+    product.evidence_tags.length > 0 ? product.evidence_tags : product.key_ingredients
   ).slice(0, 3);
   const similarityLabels = getSimilarityReasonLabels(candidateMatchReasons);
-  const hasHighlights = similarityLabels.length > 0 || isLowestPrice || hasMostReviews;
 
   const productContent = (
     <>
       <div className="product-comparison-card__image">
         {product.thumbnail_url && !hasImageError ? (
-          <img alt={product.name} onError={() => setHasImageError(true)} src={product.thumbnail_url} />
+          <img
+            alt={product.name}
+            onError={() => setHasImageError(true)}
+            src={product.thumbnail_url}
+          />
         ) : (
           <span>이미지 준비 중이에요</span>
         )}
@@ -126,7 +149,9 @@ function ProductComparisonCard({
         <div className="product-comparison-card__price">{formatPrice(product.lowest_price)}</div>
         {tags.length > 0 ? (
           <div className="product-comparison-card__tags">
-            {tags.map((tag) => <span key={tag}>{tag}</span>)}
+            {tags.map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
           </div>
         ) : null}
       </div>
@@ -137,26 +162,34 @@ function ProductComparisonCard({
     <article className={`product-comparison-card ${variant}`}>
       <div className="product-comparison-card__label">{label}</div>
       {variant === "candidate" ? (
-        <Link className="product-comparison-card__link" to={detailPath}>{productContent}</Link>
-      ) : productContent}
-      {variant === "current" || hasHighlights ? (
-        <div
-          aria-hidden={variant === "current" && !hasHighlights ? true : undefined}
-          className={`product-comparison-card__recommendation${variant === "current" ? " current" : ""}`}
-        >
-          {variant === "candidate" && similarityLabels.length > 0 ? (
-            <div className="product-comparison-card__reasons">
-              {similarityLabels.map((reason) => <span key={reason}>{reason}</span>)}
-            </div>
-          ) : null}
-          {isLowestPrice || hasMostReviews ? (
-            <div className="product-comparison-card__info">
-              {isLowestPrice ? <span className="product-comparison-card__info-chip">최저가</span> : null}
-              {hasMostReviews ? <span className="product-comparison-card__info-chip">리뷰 많음</span> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+        <Link className="product-comparison-card__link" to={detailPath}>
+          {productContent}
+        </Link>
+      ) : (
+        productContent
+      )}
+      <div
+        aria-hidden={variant === "current" ? true : undefined}
+        className={`product-comparison-card__recommendation${variant === "current" ? " current" : ""}`}
+      >
+        {variant === "candidate" && similarityLabels.length > 0 ? (
+          <div className="product-comparison-card__reasons">
+            {similarityLabels.map((reason) => (
+              <span key={reason}>{reason}</span>
+            ))}
+          </div>
+        ) : null}
+        {isLowestPrice || hasMostReviews ? (
+          <div className="product-comparison-card__info">
+            {isLowestPrice ? (
+              <span className="product-comparison-card__info-chip">최저가</span>
+            ) : null}
+            {hasMostReviews ? (
+              <span className="product-comparison-card__info-chip">리뷰 많음</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -165,12 +198,15 @@ function ProductComparisonLoadingCard({ label }: { label: string }) {
   return (
     <article aria-busy="true" className="product-comparison-card loading">
       <div className="product-comparison-card__label">{label}</div>
-      <div className="product-comparison-card__image"><span>상품을 불러오고 있어요</span></div>
+      <div className="product-comparison-card__image">
+        <span>상품을 불러오고 있어요</span>
+      </div>
       <div className="product-comparison-card__body">
         <div className="product-comparison-skeleton short" />
         <div className="product-comparison-skeleton long" />
         <div className="product-comparison-skeleton price" />
       </div>
+      <div aria-hidden="true" className="product-comparison-card__recommendation" />
     </article>
   );
 }
@@ -180,6 +216,7 @@ function ProductComparisonEmptyCard({ label, message }: { label: string; message
     <article className="product-comparison-card empty">
       <div className="product-comparison-card__label">{label}</div>
       <div className="product-comparison-card__empty">{message}</div>
+      <div aria-hidden="true" className="product-comparison-card__recommendation" />
     </article>
   );
 }
@@ -194,16 +231,17 @@ function ProductComparisonPanel({
   onClose,
   products,
   sensitivity,
-  skinType,
+  skinType
 }: ProductComparisonPanelProps) {
   const visibleProducts = products.slice(0, MAX_SIMILAR_PRODUCTS + 1);
   const candidateProducts = visibleProducts.slice(1);
-  const expectedCandidateCount = Math.min(Math.max(expectedProductCount - 1, 1), MAX_SIMILAR_PRODUCTS);
+  const expectedCandidateCount = Math.min(
+    Math.max(expectedProductCount - 1, 1),
+    MAX_SIMILAR_PRODUCTS
+  );
   const missingCandidateCount = Math.max(expectedCandidateCount - candidateProducts.length, 0);
-  const displayedCandidateCount = candidateProducts.length || expectedCandidateCount;
-  const hasAllComparisonProducts = visibleProducts.length === expectedCandidateCount + 1;
-  const lowestPriceProductId = hasAllComparisonProducts ? getLowestPriceProductId(visibleProducts) : null;
-  const mostReviewedProductId = hasAllComparisonProducts ? getMostReviewedProductId(visibleProducts) : null;
+  const { lowestPriceProductIds, mostReviewedProductIds } =
+    getComparisonHighlightProductIds(visibleProducts);
 
   if (visibleProducts.length === 0) return null;
 
@@ -211,9 +249,11 @@ function ProductComparisonPanel({
     <>
       {visibleProducts.map((product, index) => (
         <ProductComparisonCard
-          candidateMatchReasons={index === 0 ? [] : candidateMatchReasons[product.product_id] ?? []}
-          hasMostReviews={product.product_id === mostReviewedProductId}
-          isLowestPrice={product.product_id === lowestPriceProductId}
+          candidateMatchReasons={
+            index === 0 ? [] : (candidateMatchReasons[product.product_id] ?? [])
+          }
+          hasMostReviews={index > 0 && mostReviewedProductIds.has(product.product_id)}
+          isLowestPrice={index > 0 && lowestPriceProductIds.has(product.product_id)}
           key={product.product_id}
           label={getCardLabel(index)}
           product={product}
@@ -221,11 +261,14 @@ function ProductComparisonPanel({
         />
       ))}
       {Array.from({ length: isLoading ? missingCandidateCount : 0 }).map((_, index) => (
-        <ProductComparisonLoadingCard key={`loading-${index}`} label={`추천 ${candidateProducts.length + index + 1}`} />
+        <ProductComparisonLoadingCard
+          key={`loading-${index}`}
+          label={getCardLabel(candidateProducts.length + index + 1)}
+        />
       ))}
       {!isLoading && missingCandidateCount > 0 ? (
         <ProductComparisonEmptyCard
-          label={`추천 ${candidateProducts.length + 1}`}
+          label={getCardLabel(candidateProducts.length + 1)}
           message={errorMessage || "비교 상품 정보를 불러오지 못했습니다."}
         />
       ) : null}
@@ -233,16 +276,26 @@ function ProductComparisonPanel({
   );
 
   return (
-    <section className={`product-comparison-panel${initiallyPriceOnly ? " product-comparison-panel--inline" : ""}`} id="productComparisonPanel" aria-labelledby="productComparisonTitle">
+    <section
+      className={`product-comparison-panel${initiallyPriceOnly ? " product-comparison-panel--inline" : ""}`}
+      id="productComparisonPanel"
+      aria-labelledby="productComparisonTitle"
+    >
       <div className="product-comparison-panel__head">
         <div>
           <p>{getProfileDescription(comparisonProfile, skinType, sensitivity)}</p>
-          <h2 id="productComparisonTitle">이 상품과 비슷한 추천 {displayedCandidateCount}개</h2>
+          <h2 id="productComparisonTitle">추천 상품 비교</h2>
         </div>
-        {!initiallyPriceOnly ? <button type="button" onClick={onClose} aria-label="상품 비교 닫기">×</button> : null}
+        {!initiallyPriceOnly ? (
+          <button type="button" onClick={onClose} aria-label="상품 비교 닫기">
+            ×
+          </button>
+        ) : null}
       </div>
 
-      <div className={`product-comparison-grid count-${Math.max(visibleProducts.length, expectedCandidateCount + 1)}`}>
+      <div
+        className={`product-comparison-grid count-${Math.max(visibleProducts.length, expectedCandidateCount + 1)}`}
+      >
         {cards}
       </div>
     </section>
