@@ -7,6 +7,7 @@ import pytest
 
 from app.core.config import settings
 from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentContext, AgentUiAction
+from app.schemas.common import ApiError
 from app.services.agent_orchestration import (
     RouteDecision,
     build_router_input,
@@ -14,9 +15,12 @@ from app.services.agent_orchestration import (
     validate_route_decision,
 )
 from app.services.agent_openai_runner import (
+    AgentWorkflowTiming,
+    LocalAgentExecutionOverride,
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     _specialist_fallback_reason,
+    build_local_agent_execution_override,
     run_openai_agent_chat,
 )
 
@@ -45,6 +49,40 @@ def test_router_input_keeps_auth_boolean_and_excludes_identifier_context() -> No
     assert "current_product_id" not in payload
     assert "prod_private" not in json.dumps(payload, ensure_ascii=False)
     assert "rec_private" not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_local_execution_override_requires_local_raw_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "app_env", "local")
+    monkeypatch.setattr(settings, "openai_agent_local_trace_enabled", True)
+
+    override = build_local_agent_execution_override(
+        execution_mode="router_specialist",
+        router_model="gpt-5.4-nano-2026-03-17",
+        specialist_model="gpt-5.4-nano-2026-03-17",
+        specialist_fallback_enabled="true",
+        specialist_fallback_model="gpt-5.5",
+    )
+
+    assert override == LocalAgentExecutionOverride(
+        execution_mode="router_specialist",
+        router_model="gpt-5.4-nano-2026-03-17",
+        specialist_model="gpt-5.4-nano-2026-03-17",
+        specialist_fallback_enabled=True,
+        specialist_fallback_model="gpt-5.5",
+    )
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    with pytest.raises(ApiError) as exc_info:
+        build_local_agent_execution_override(
+            execution_mode="router_specialist",
+            router_model=None,
+            specialist_model=None,
+            specialist_fallback_enabled=None,
+            specialist_fallback_model=None,
+        )
+    assert exc_info.value.code == "LOCAL_AGENT_EXECUTION_OVERRIDE_NOT_AVAILABLE"
 
 
 def test_route_validation_blocks_missing_reference_and_guest_bulk_wishlist() -> None:
@@ -147,6 +185,69 @@ async def test_router_specialist_runs_tool_free_router_then_narrow_specialist(
     ]
     assert calls[1]["tools"] == ("create_recommendation",)
     assert calls[1]["model"] == "specialist-nano"
+
+
+@pytest.mark.anyio
+async def test_local_execution_override_selects_router_and_specialist_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agents
+    from agents import Runner
+
+    calls: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_trace(*_args, **_kwargs):
+        yield SimpleNamespace()
+
+    async def fake_run(agent, *, input, context, **_kwargs):
+        calls.append({"name": agent.name, "model": agent.model, "input": input})
+        if len(calls) == 1:
+            return SimpleNamespace(
+                final_output=RouteDecision(route="recommendation", confidence="high")
+            )
+        context.last_tool_response = AgentChatResponse(
+            conversation_id="conv_local_override",
+            message="Recommendation is ready.",
+            tool_name="create_recommendation",
+            ui_action=AgentUiAction(type="show_products", target="product_list"),
+        )
+        return SimpleNamespace(final_output="unused")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_execution_mode", "single")
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(agents, "trace", fake_trace)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=2, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+    workflow_timing = AgentWorkflowTiming()
+
+    response = await run_openai_agent_chat(
+        SimpleNamespace(),
+        AgentChatRequest(message="Recommend products for oily pores."),
+        workflow_timing=workflow_timing,
+        model_override="legacy-model-should-not-win",
+        execution_override=LocalAgentExecutionOverride(
+            execution_mode="router_specialist",
+            router_model="router-local-nano",
+            specialist_model="specialist-local-nano",
+            specialist_fallback_enabled=False,
+        ),
+    )
+
+    assert response.tool_name == "create_recommendation"
+    assert workflow_timing.execution_mode == "router_specialist"
+    assert workflow_timing.fallback_enabled is False
+    assert [call["model"] for call in calls] == [
+        "router-local-nano",
+        "specialist-local-nano",
+    ]
 
 
 @pytest.mark.anyio

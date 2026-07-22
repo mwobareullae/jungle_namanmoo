@@ -413,6 +413,7 @@ class CommerceAgentContext:
     last_tool_result: AgentLastToolResult | None = None
     last_tool_response: AgentChatResponse | None = None
     local_trace: AgentLocalTrace | None = None
+    active_agent_stage: Literal["single", "specialist", "fallback"] = "single"
     tool_execution_ms: float = 0.0
     tool_reference_resolve_ms: float = 0.0
     tool_dispatch_ms: float = 0.0
@@ -540,8 +541,116 @@ class AgentWorkflowTiming:
     tool_reference_resolve_ms: float = 0.0
     tool_dispatch_ms: float = 0.0
     tool_response_serialize_ms: float = 0.0
+    final_response_ms: float = 0.0
+    execution_mode: Literal["single", "router_specialist"] = "single"
+    fast_path_name: str | None = None
+    router_model: str | None = None
+    router_ms: float = 0.0
+    router_route: str | None = None
+    router_confidence: str | None = None
+    router_input_bytes: int | None = None
+    router_input_tokens: int | None = None
+    router_output_tokens: int | None = None
+    router_estimated_cost: float | None = None
+    specialist_name: str | None = None
+    specialist_model: str | None = None
+    specialist_ms: float = 0.0
+    specialist_tool_count: int | None = None
+    specialist_input_bytes: int | None = None
+    specialist_input_tokens: int | None = None
+    specialist_output_tokens: int | None = None
+    specialist_estimated_cost: float | None = None
+    fallback_enabled: bool = False
+    fallback_configured_model: str | None = None
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+    fallback_model: str | None = None
+    fallback_ms: float = 0.0
+    fallback_input_tokens: int | None = None
+    fallback_output_tokens: int | None = None
+    fallback_estimated_cost: float | None = None
+    tool_validation_failed: bool = False
     global_slot_acquired: bool = False
     global_slot_rejected: bool = False
+
+    def record_stage(
+        self,
+        *,
+        stage: Literal["router", "specialist", "fallback"],
+        model: str,
+        duration_ms: float,
+        input_bytes: int,
+        tool_count: int,
+        usage: Mapping[str, Any],
+        estimated_cost: Mapping[str, Any],
+        specialist_name: str | None = None,
+    ) -> None:
+        input_tokens = _usage_int(usage, "input_tokens")
+        output_tokens = _usage_int(usage, "output_tokens")
+        cost = estimated_cost.get("estimated_cost_usd")
+        estimated_cost_usd = float(cost) if isinstance(cost, (int, float)) else None
+        if stage == "router":
+            self.router_model = model
+            self.router_ms += duration_ms
+            self.router_input_bytes = input_bytes
+            self.router_input_tokens = input_tokens
+            self.router_output_tokens = output_tokens
+            self.router_estimated_cost = estimated_cost_usd
+            return
+        if stage == "specialist":
+            self.specialist_name = specialist_name
+            self.specialist_model = model
+            self.specialist_ms += duration_ms
+            self.specialist_tool_count = tool_count
+            self.specialist_input_bytes = input_bytes
+            self.specialist_input_tokens = input_tokens
+            self.specialist_output_tokens = output_tokens
+            self.specialist_estimated_cost = estimated_cost_usd
+            return
+        self.fallback_used = True
+        self.fallback_model = model
+        self.fallback_ms += duration_ms
+        self.fallback_input_tokens = input_tokens
+        self.fallback_output_tokens = output_tokens
+        self.fallback_estimated_cost = estimated_cost_usd
+
+    def telemetry_metadata(self) -> dict[str, str | int | float | bool | None]:
+        return {
+            "agent_execution_mode": self.execution_mode,
+            "agent_fast_path_name": self.fast_path_name,
+            "agent_router_model": self.router_model,
+            "agent_router_ms": round(self.router_ms, 2),
+            "agent_router_route": self.router_route,
+            "agent_router_confidence": self.router_confidence,
+            "agent_router_input_bytes": self.router_input_bytes,
+            "agent_router_input_tokens": self.router_input_tokens,
+            "agent_router_output_tokens": self.router_output_tokens,
+            "agent_router_estimated_cost": self.router_estimated_cost,
+            "agent_specialist_name": self.specialist_name,
+            "agent_specialist_model": self.specialist_model,
+            "agent_specialist_ms": round(self.specialist_ms, 2),
+            "agent_specialist_tool_count": self.specialist_tool_count,
+            "agent_specialist_input_bytes": self.specialist_input_bytes,
+            "agent_specialist_input_tokens": self.specialist_input_tokens,
+            "agent_specialist_output_tokens": self.specialist_output_tokens,
+            "agent_specialist_estimated_cost": self.specialist_estimated_cost,
+            "agent_fallback_enabled": self.fallback_enabled,
+            "agent_fallback_configured_model": self.fallback_configured_model,
+            "agent_fallback_used": self.fallback_used,
+            "agent_fallback_reason": self.fallback_reason,
+            "agent_fallback_model": self.fallback_model,
+            "agent_fallback_ms": round(self.fallback_ms, 2),
+            "agent_fallback_input_tokens": self.fallback_input_tokens,
+            "agent_fallback_output_tokens": self.fallback_output_tokens,
+            "agent_fallback_estimated_cost": self.fallback_estimated_cost,
+            "agent_tool_validation_failed": self.tool_validation_failed,
+            "agent_final_response_ms": round(self.final_response_ms, 2),
+        }
+
+
+def _usage_int(usage: Mapping[str, Any], key: str) -> int | None:
+    value = usage.get(key)
+    return int(value) if isinstance(value, (int, float)) else None
 
 
 @asynccontextmanager
@@ -556,6 +665,105 @@ async def _global_slot_context(
 
 
 _LOCAL_MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+@dataclass(frozen=True)
+class LocalAgentExecutionOverride:
+    """Local trace-only mode and model overrides used by the evaluation harness."""
+
+    execution_mode: Literal["single", "router_specialist"] | None = None
+    router_model: str | None = None
+    specialist_model: str | None = None
+    specialist_fallback_enabled: bool | None = None
+    specialist_fallback_model: str | None = None
+
+
+def build_local_agent_execution_override(
+    *,
+    execution_mode: str | None,
+    router_model: str | None,
+    specialist_model: str | None,
+    specialist_fallback_enabled: str | None,
+    specialist_fallback_model: str | None,
+) -> LocalAgentExecutionOverride | None:
+    """Validate local-only evaluator controls without mutating app settings."""
+
+    provided = (
+        execution_mode,
+        router_model,
+        specialist_model,
+        specialist_fallback_enabled,
+        specialist_fallback_model,
+    )
+    if not any(value is not None and value.strip() for value in provided):
+        return None
+    if (
+        settings.app_env.strip().lower() != "local"
+        or not settings.openai_agent_local_trace_enabled
+    ):
+        raise ApiError(
+            400,
+            "LOCAL_AGENT_EXECUTION_OVERRIDE_NOT_AVAILABLE",
+            "Local Agent execution overrides are available only with local raw trace enabled.",
+        )
+
+    normalized_mode = _normalize_local_execution_mode(execution_mode)
+    return LocalAgentExecutionOverride(
+        execution_mode=normalized_mode,
+        router_model=_normalize_local_model_name(router_model, "router model"),
+        specialist_model=_normalize_local_model_name(specialist_model, "specialist model"),
+        specialist_fallback_enabled=_normalize_local_bool(
+            specialist_fallback_enabled,
+            "specialist fallback enabled",
+        ),
+        specialist_fallback_model=_normalize_local_model_name(
+            specialist_fallback_model,
+            "specialist fallback model",
+        ),
+    )
+
+
+def _normalize_local_execution_mode(
+    value: str | None,
+) -> Literal["single", "router_specialist"] | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip().lower()
+    if normalized not in {"single", "router_specialist"}:
+        raise ApiError(
+            400,
+            "INVALID_LOCAL_AGENT_EXECUTION_MODE",
+            "Local Agent execution mode must be single or router_specialist.",
+        )
+    return normalized  # type: ignore[return-value]
+
+
+def _normalize_local_model_name(value: str | None, label: str) -> str | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip()
+    if not _LOCAL_MODEL_NAME_PATTERN.fullmatch(normalized):
+        raise ApiError(
+            400,
+            "INVALID_LOCAL_MODEL_OVERRIDE",
+            f"Local {label} must be a valid model identifier.",
+        )
+    return normalized
+
+
+def _normalize_local_bool(value: str | None, label: str) -> bool | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ApiError(
+        400,
+        "INVALID_LOCAL_AGENT_EXECUTION_OVERRIDE",
+        f"Local {label} must be true or false.",
+    )
 
 
 def _resolve_agent_model(model_override: str | None) -> tuple[str, str]:
@@ -596,6 +804,7 @@ async def run_openai_agent_chat(
     trace_metadata: Mapping[str, Any] | None = None,
     local_trace: AgentLocalTrace | None = None,
     model_override: str | None = None,
+    execution_override: LocalAgentExecutionOverride | None = None,
 ) -> AgentChatResponse:
     """Run the configured action-Agent execution path.
 
@@ -604,7 +813,15 @@ async def run_openai_agent_chat(
     accepted, so changing the feature flag is sufficient to roll it back.
     """
 
-    if settings.openai_agent_execution_mode == "router_specialist":
+    execution_mode = (
+        execution_override.execution_mode
+        if execution_override is not None and execution_override.execution_mode is not None
+        else settings.openai_agent_execution_mode
+    )
+    if workflow_timing is not None:
+        workflow_timing.execution_mode = execution_mode
+
+    if execution_mode == "router_specialist":
         return await _run_router_specialist_agent_chat(
             session,
             request,
@@ -618,6 +835,12 @@ async def run_openai_agent_chat(
             trace_metadata=trace_metadata,
             local_trace=local_trace,
             model_override=model_override,
+            execution_override=execution_override,
+        )
+    single_model_override = model_override
+    if single_model_override is None and execution_override is not None:
+        single_model_override = (
+            execution_override.specialist_model or execution_override.router_model
         )
     return await _run_single_agent_chat(
         session,
@@ -631,7 +854,7 @@ async def run_openai_agent_chat(
         workflow_timing=workflow_timing,
         trace_metadata=trace_metadata,
         local_trace=local_trace,
-        model_override=model_override,
+        model_override=single_model_override,
     )
 
 
@@ -1111,6 +1334,7 @@ async def _run_router_specialist_agent_chat(
     trace_metadata: Mapping[str, Any] | None,
     local_trace: AgentLocalTrace | None,
     model_override: str | None,
+    execution_override: LocalAgentExecutionOverride | None,
 ) -> AgentChatResponse:
     """Run a tool-free route decision followed by one narrow Specialist Agent.
 
@@ -1128,11 +1352,33 @@ async def _run_router_specialist_agent_chat(
         anonymous_user_id=anonymous_user_id,
         anonymous_cart_id=anonymous_cart_id,
         local_trace=local_trace,
+        workflow_timing=workflow_timing,
     )
     if fast_response is not None:
         return fast_response
 
-    router_model, specialist_model, model_source = _resolve_router_specialist_models(model_override)
+    router_model, specialist_model, model_source = _resolve_router_specialist_models(
+        model_override,
+        execution_override,
+    )
+    fallback_enabled = (
+        execution_override.specialist_fallback_enabled
+        if execution_override is not None
+        and execution_override.specialist_fallback_enabled is not None
+        else settings.openai_agent_specialist_fallback_enabled
+    )
+    fallback_model = (
+        execution_override.specialist_fallback_model
+        if execution_override is not None
+        and execution_override.specialist_fallback_model is not None
+        else settings.openai_agent_specialist_fallback_model
+    )
+    fallback_model_source = (
+        "local_execution_override"
+        if execution_override is not None
+        and execution_override.specialist_fallback_model is not None
+        else "configured_fallback"
+    )
     if not settings.openai_api_key:
         raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "AI 에이전트 설정을 확인해 주세요.")
     if not router_model or not specialist_model:
@@ -1176,10 +1422,26 @@ async def _run_router_specialist_agent_chat(
     decision: RouteDecision | None = None
     response: AgentChatResponse | None = None
 
+    if workflow_timing is not None:
+        workflow_timing.execution_mode = "router_specialist"
+        workflow_timing.fallback_enabled = fallback_enabled
+        workflow_timing.fallback_configured_model = fallback_model if fallback_enabled else None
+
     if local_trace is not None:
+        local_trace.capture_agent_configuration(
+            stage="router",
+            agent_name=router_agent.name,
+            model=router_model,
+            configured_model=settings.openai_agent_router_model,
+            model_source=model_source,
+            instructions=ROUTER_INSTRUCTIONS,
+            model_settings={},
+            tool_use_behavior="none",
+            selected_tools=(),
+            agent_input=router_input,
+        )
         local_trace.set_route_value("agent_execution_mode", "router_specialist")
         local_trace.set_route_value("router_model", router_model)
-        local_trace.set_route_value("router_input", router_input)
 
     try:
         async with _global_slot_context(runtime_control) as lease:
@@ -1211,6 +1473,8 @@ async def _run_router_specialist_agent_chat(
                         request_id=request_id,
                         trace_metadata=trace_metadata,
                         workflow_timing=workflow_timing,
+                        input_bytes=len(router_input.encode("utf-8")),
+                        tool_count=0,
                     )
                     stage_results.append(("router", router_model, router_result))
                     try:
@@ -1221,6 +1485,13 @@ async def _run_router_specialist_agent_chat(
                             "AGENT_ROUTER_INVALID_OUTPUT",
                             "요청을 처리할 경로를 결정하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         ) from exc
+
+                    if workflow_timing is not None:
+                        workflow_timing.router_route = decision.route
+                        workflow_timing.router_confidence = decision.confidence
+                    if local_trace is not None:
+                        local_trace.set_stage_value("router", "route", decision.route)
+                        local_trace.set_stage_value("router", "confidence", decision.confidence)
 
                     route_error = validate_route_decision(
                         decision,
@@ -1260,6 +1531,8 @@ async def _run_router_specialist_agent_chat(
                         )
                         if local_trace is not None:
                             local_trace.capture_agent_configuration(
+                                stage="specialist",
+                                agent_name=specialist_agent.name,
                                 model=specialist_model,
                                 configured_model=settings.openai_agent_specialist_model,
                                 model_source=model_source,
@@ -1276,6 +1549,7 @@ async def _run_router_specialist_agent_chat(
                         specialist_result: Any | None = None
                         specialist_error: Exception | None = None
                         try:
+                            context.active_agent_stage = "specialist"
                             specialist_result = await _run_router_specialist_stage(
                                 runner=Runner,
                                 trace_factory=trace,
@@ -1288,13 +1562,25 @@ async def _run_router_specialist_agent_chat(
                                 request_id=request_id,
                                 trace_metadata=trace_metadata,
                                 workflow_timing=workflow_timing,
+                                input_bytes=len(specialist_input.encode("utf-8")),
+                                tool_count=len(selected_tools),
+                                specialist_name=profile.name,
                             )
                             stage_results.append(("specialist", specialist_model, specialist_result))
                         except Exception as exc:
                             specialist_error = exc
 
+                        if (
+                            workflow_timing is not None
+                            and context.last_tool_response is not None
+                            and context.last_tool_response.error is not None
+                            and context.last_tool_response.error.code
+                            == "AGENT_TOOL_ARGUMENT_INVALID"
+                        ):
+                            workflow_timing.tool_validation_failed = True
+
                         fallback_reason = _specialist_fallback_reason(
-                            enabled=settings.openai_agent_specialist_fallback_enabled,
+                            enabled=fallback_enabled,
                             decision=decision,
                             context=context,
                             specialist_result=specialist_result,
@@ -1306,7 +1592,6 @@ async def _run_router_specialist_agent_chat(
                             # clearing the local response lets the fallback attempt the
                             # same Specialist once with the server-selected tool subset.
                             context.last_tool_response = None
-                            fallback_model = settings.openai_agent_specialist_fallback_model
                             fallback_agent = Agent[CommerceAgentContext](
                                 name=f"mwobarellae_{profile.name}_specialist_fallback",
                                 instructions=profile.instructions,
@@ -1315,6 +1600,22 @@ async def _run_router_specialist_agent_chat(
                                 tool_use_behavior="stop_on_first_tool",
                                 tools=selected_tools,
                             )
+                            context.active_agent_stage = "fallback"
+                            if workflow_timing is not None:
+                                workflow_timing.fallback_reason = fallback_reason
+                            if local_trace is not None:
+                                local_trace.capture_agent_configuration(
+                                    stage="fallback",
+                                    agent_name=fallback_agent.name,
+                                    model=fallback_model,
+                                    configured_model=settings.openai_agent_specialist_fallback_model,
+                                    model_source=fallback_model_source,
+                                    instructions=profile.instructions,
+                                    model_settings={"tool_choice": "auto"},
+                                    tool_use_behavior="stop_on_first_tool",
+                                    selected_tools=selected_tools,
+                                    agent_input=specialist_input,
+                                )
                             fallback_result = await _run_router_specialist_stage(
                                 runner=Runner,
                                 trace_factory=trace,
@@ -1327,6 +1628,9 @@ async def _run_router_specialist_agent_chat(
                                 request_id=request_id,
                                 trace_metadata=trace_metadata,
                                 workflow_timing=workflow_timing,
+                                input_bytes=len(specialist_input.encode("utf-8")),
+                                tool_count=len(selected_tools),
+                                specialist_name=profile.name,
                             )
                             stage_results.append(("fallback", fallback_model, fallback_result))
                             specialist_result = fallback_result
@@ -1335,6 +1639,7 @@ async def _run_router_specialist_agent_chat(
                         if specialist_error is not None:
                             raise specialist_error
 
+                        response_started_at = current_time()
                         if context.last_tool_response is not None:
                             response = context.last_tool_response
                         else:
@@ -1347,6 +1652,8 @@ async def _run_router_specialist_agent_chat(
                                 ui_action=AgentUiAction(),
                                 items=[],
                             )
+                        if workflow_timing is not None:
+                            workflow_timing.final_response_ms = elapsed_ms(response_started_at)
                     _OPENAI_CIRCUIT_BREAKER.record_success()
             finally:
                 if workflow_timing is not None:
@@ -1383,6 +1690,7 @@ async def _run_router_specialist_agent_chat(
         raise RuntimeError("Router/Specialist workflow completed without a route response")
 
     usage = _combine_agent_stage_usage(stage_results)
+    workflow_metadata = workflow_timing.telemetry_metadata() if workflow_timing is not None else {}
     log_ai_call(
         "agent_chat",
         model="router_specialist",
@@ -1404,6 +1712,7 @@ async def _run_router_specialist_agent_chat(
             "item_count": len(response.items),
             "ui_action_type": response.ui_action.type,
             "tool_execution_ms": round(context.tool_execution_ms, 2),
+            **workflow_metadata,
         },
     )
     return response
@@ -1419,6 +1728,7 @@ def _try_router_specialist_fast_path(
     anonymous_user_id: str | None,
     anonymous_cart_id: str | None,
     local_trace: AgentLocalTrace | None,
+    workflow_timing: AgentWorkflowTiming | None,
 ) -> AgentChatResponse | None:
     """Run only exact, deterministic fast paths before the Router.
 
@@ -1429,6 +1739,7 @@ def _try_router_specialist_fast_path(
 
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
+        _record_fast_path(workflow_timing, "generic_clarification")
         if local_trace is not None:
             local_trace.capture_short_circuit(
                 reason="generic_clarification",
@@ -1439,6 +1750,7 @@ def _try_router_specialist_fast_path(
     shipping_address_arguments = _get_shipping_address_arguments(request)
     if shipping_address_arguments is not None:
         if user is None:
+            _record_fast_path(workflow_timing, "shipping_address_auth_required")
             if local_trace is not None:
                 local_trace.capture_short_circuit(
                     reason="shipping_address_auth_required",
@@ -1453,6 +1765,7 @@ def _try_router_specialist_fast_path(
                 reason="shipping_address_details",
                 configured_model=settings.openai_agent_specialist_model,
             )
+        _record_fast_path(workflow_timing, "shipping_address_details")
         return execute_agent_tool(
             session,
             tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
@@ -1468,6 +1781,7 @@ def _try_router_specialist_fast_path(
 
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
     if simple_refinement_arguments is not None:
+        _record_fast_path(workflow_timing, "simple_recommendation_refinement")
         if local_trace is not None:
             local_trace.capture_short_circuit(
                 reason="simple_recommendation_refinement",
@@ -1488,7 +1802,28 @@ def _try_router_specialist_fast_path(
     return None
 
 
-def _resolve_router_specialist_models(model_override: str | None) -> tuple[str, str, str]:
+def _record_fast_path(
+    workflow_timing: AgentWorkflowTiming | None,
+    fast_path_name: str,
+) -> None:
+    if workflow_timing is not None:
+        workflow_timing.fast_path_name = fast_path_name
+
+
+def _resolve_router_specialist_models(
+    model_override: str | None,
+    execution_override: LocalAgentExecutionOverride | None,
+) -> tuple[str, str, str]:
+    if execution_override is not None:
+        router_model = execution_override.router_model or settings.openai_agent_router_model
+        specialist_model = (
+            execution_override.specialist_model or settings.openai_agent_specialist_model
+        )
+        if (
+            execution_override.router_model is not None
+            or execution_override.specialist_model is not None
+        ):
+            return router_model, specialist_model, "local_execution_override"
     if model_override is not None and model_override.strip():
         model, source = _resolve_agent_model(model_override)
         return model, model, source
@@ -1512,6 +1847,9 @@ async def _run_router_specialist_stage(
     request_id: str | None,
     trace_metadata: Mapping[str, Any] | None,
     workflow_timing: AgentWorkflowTiming | None,
+    input_bytes: int,
+    tool_count: int,
+    specialist_name: str | None = None,
 ) -> Any:
     remaining_seconds = deadline - time.monotonic()
     if remaining_seconds <= 0:
@@ -1533,29 +1871,80 @@ async def _run_router_specialist_stage(
                     max_turns=1,
                 )
     except Exception as exc:
+        duration_ms = elapsed_ms(started_at)
         if context.local_trace is not None:
             context.local_trace.record_runner_attempt(
+                stage=stage,
                 attempt=1,
-                duration_ms=elapsed_ms(started_at),
+                duration_ms=duration_ms,
                 model=model,
                 started_at=started_timestamp,
                 completed_at=datetime.now(UTC),
                 error=exc,
             )
+        log_ai_call(
+            f"agent_{stage}",
+            model=model,
+            duration_ms=duration_ms,
+            request_id=request_id,
+            success=False,
+            error=type(exc).__name__,
+            metadata={
+                "execution_mode": "router_specialist",
+                "agent_stage": stage,
+                "specialist_name": specialist_name,
+                "tool_count": tool_count,
+                "input_bytes": input_bytes,
+            },
+        )
         raise
 
     duration_ms = elapsed_ms(started_at)
+    usage_breakdown = extract_agents_usage_breakdown(result)
+    cost_estimate = estimate_ai_cost_breakdown(model, usage_breakdown)
     if workflow_timing is not None:
         workflow_timing.agent_runner_ms += duration_ms
+        workflow_timing.record_stage(
+            stage=stage,
+            model=model,
+            duration_ms=duration_ms,
+            input_bytes=input_bytes,
+            tool_count=tool_count,
+            usage=usage_breakdown,
+            estimated_cost=cost_estimate,
+            specialist_name=specialist_name,
+        )
     if context.local_trace is not None:
         context.local_trace.record_runner_attempt(
+            stage=stage,
             attempt=1,
             duration_ms=duration_ms,
             model=model,
             started_at=started_timestamp,
             completed_at=datetime.now(UTC),
         )
+        context.local_trace.capture_runner_result(
+            result,
+            stage=stage,
+            usage=getattr(result, "usage", None),
+            usage_breakdown=usage_breakdown,
+            cost_estimate=cost_estimate,
+        )
         context.local_trace.set_timing(f"agent_{stage}_ms", duration_ms)
+    log_ai_call(
+        f"agent_{stage}",
+        model=model,
+        duration_ms=duration_ms,
+        request_id=request_id,
+        usage=usage_breakdown,
+        metadata={
+            "execution_mode": "router_specialist",
+            "agent_stage": stage,
+            "specialist_name": specialist_name,
+            "tool_count": tool_count,
+            "input_bytes": input_bytes,
+        },
+    )
     return result
 
 
@@ -2130,6 +2519,7 @@ def _execute_tool(
     runtime_context.tool_response_serialize_ms += response_serialize_ms
     if runtime_context.local_trace is not None:
         runtime_context.local_trace.record_tool_call(
+            agent_stage=runtime_context.active_agent_stage,
             tool_name=tool_name,
             model_arguments=arguments,
             resolved_arguments=resolved_arguments,
