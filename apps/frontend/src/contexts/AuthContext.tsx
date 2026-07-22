@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL, clearRecommendationCache } from "../lib/api";
@@ -17,6 +17,27 @@ import { AuthContext, type AuthUser } from "./authContextValue";
 const AUTH_USER_STORAGE_KEY = "mwobareullae.auth.user";
 const AUTH_SYNC_CHANNEL_NAME = "mwobareullae.auth.sync";
 const AUTH_USER_UPDATED_MESSAGE = "auth-user-updated";
+const SESSION_EXPIRED_STORAGE_KEY = "mwobareullae.auth.session-expired";
+
+export const consumeSessionExpiredFlag = (): boolean => {
+  try {
+    const hadFlag = window.sessionStorage.getItem(SESSION_EXPIRED_STORAGE_KEY) !== null;
+    if (hadFlag) {
+      window.sessionStorage.removeItem(SESSION_EXPIRED_STORAGE_KEY);
+    }
+    return hadFlag;
+  } catch {
+    return false;
+  }
+};
+
+const markSessionExpired = () => {
+  try {
+    window.sessionStorage.setItem(SESSION_EXPIRED_STORAGE_KEY, "1");
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+};
 
 const isAuthUser = (value: unknown): value is AuthUser => {
   return (
@@ -74,34 +95,74 @@ const broadcastAuthUserUpdated = () => {
   channel.close();
 };
 
-const requestAuthenticatedUser = async (): Promise<AuthUser | null> => {
-  const response = await fetch(`${API_BASE_URL}/me`, {
-    credentials: "include"
-  });
+let inFlightMeRequest: Promise<AuthUser | null> | null = null;
 
-  if (!response.ok) {
-    clearStoredAuthUser();
-    return null;
+// 동시에 여러 트리거(초기 마운트, 탭 포커스 복귀, 다른 탭 로그인 알림)가 겹치면
+// /api/me가 중복 호출되던 문제 — 진행 중인 요청이 있으면 그 결과를 공유한다.
+const requestAuthenticatedUser = (): Promise<AuthUser | null> => {
+  if (inFlightMeRequest) {
+    return inFlightMeRequest;
   }
 
-  return parseUserResponse(response);
+  inFlightMeRequest = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/me`, {
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        clearStoredAuthUser();
+        return null;
+      }
+
+      return await parseUserResponse(response);
+    } finally {
+      inFlightMeRequest = null;
+    }
+  })();
+
+  return inFlightMeRequest;
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(() => readStoredAuthUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const userRef = useRef<AuthUser | null>(user);
+  // 로그인/로그아웃처럼 확실한 상태 변경이 있을 때마다 올라간다.
+  // /api/me 조회가 여러 군데서 겹쳐 나갔다가 뒤늦게 응답이 와도, 그 사이
+  // 더 최신 상태 변경이 있었다면(generation 불일치) 오래된 응답은 버린다.
+  const authGenerationRef = useRef(0);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const applyAuthResult = useCallback(
+    (nextUser: AuthUser | null, generation: number, hadUserBefore: boolean) => {
+      if (generation !== authGenerationRef.current) {
+        return;
+      }
+      setUser(nextUser);
+      if (nextUser) {
+        storeAuthUser(nextUser);
+      } else {
+        clearStoredAuthUser();
+        if (hadUserBefore) {
+          markSessionExpired();
+        }
+      }
+    },
+    []
+  );
 
   const refreshAuthenticatedUser = useCallback(async () => {
+    const hadUser = userRef.current !== null;
+    const generation = authGenerationRef.current;
     const nextUser = await requestAuthenticatedUser();
-    setUser(nextUser);
-    if (nextUser) {
-      storeAuthUser(nextUser);
-    } else {
-      clearStoredAuthUser();
-    }
+    applyAuthResult(nextUser, generation, hadUser);
     return nextUser;
-  }, []);
+  }, [applyAuthResult]);
 
   useEffect(() => {
     clearLegacyAgentChatStorage();
@@ -109,22 +170,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    const hadStoredUser = readStoredAuthUser() !== null;
+    const generation = authGenerationRef.current;
 
     requestAuthenticatedUser()
       .then((nextUser) => {
         if (!isMounted) {
           return;
         }
-
-        setUser(nextUser);
-        if (nextUser) {
-          storeAuthUser(nextUser);
-        } else {
-          clearStoredAuthUser();
-        }
+        applyAuthResult(nextUser, generation, hadStoredUser);
       })
       .catch(() => {
-        if (!isMounted) {
+        if (!isMounted || generation !== authGenerationRef.current) {
           return;
         }
         setUser(null);
@@ -139,9 +196,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [applyAuthResult]);
 
   const setAuthenticatedUser = useCallback((nextUser: AuthUser) => {
+    authGenerationRef.current += 1;
     storeAuthUser(nextUser);
     setUser(nextUser);
     broadcastAuthUserUpdated();
@@ -189,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("logout failed");
     }
 
+    authGenerationRef.current += 1;
     const previousUserId = user?.id ?? null;
     if (previousUserId !== null) {
       clearAgentChatStorageScope(getUserAgentChatStorageScope(previousUserId));

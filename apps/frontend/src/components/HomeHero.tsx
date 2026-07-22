@@ -248,7 +248,7 @@ function HomeHero({
   };
 
   return (
-    <section className="hero">
+    <section className="hero home-hero">
       <div className="hero-inner">
         <h1>
           내 피부 고민에 맞는

@@ -3481,6 +3481,22 @@ body {
   border-color: #b9c0c7 !important;
 }
 
+.mypage-order-back-link {
+  color: #6b7280;
+}
+
+.mypage-order-back-link:hover {
+  color: #1a1a1a;
+}
+
+.mypage-order-primary-link {
+  background: #0c1117;
+}
+
+.mypage-order-primary-link:hover {
+  background: #1a1a1a;
+}
+
 .mypage-expand-button-expanded {
   position: relative;
   margin-top: 26px !important;
@@ -4117,6 +4133,11 @@ body {
   isolation: isolate;
 }
 
+/* 홈 진입부는 헤더 아래의 강조선을 사용하지 않는다. */
+.home-hero {
+  border-top: 0 !important;
+}
+
 .hero-inner {
   position: relative;
   z-index: 1;
@@ -4342,6 +4363,10 @@ body {
 .search-examples.search-examples--with-guide {
   align-items: center !important;
   justify-content: flex-start !important;
+}
+
+.home-hero .search-examples .example-chip:hover {
+  border-color: #94e0f8 !important;
 }
 
 .recommendation-guide-link {
@@ -4829,7 +4854,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 22px 0;
+  padding: 12px 22px;
 }
 
 .search-interpretation__label {
@@ -4842,6 +4867,10 @@ body {
   border-color: #8edcf5;
   background: #effbff;
   color: #126d88;
+}
+
+.api-summary-chip.warning {
+  background: #ffffff;
 }
 
 .api-summary-chip.removable {
@@ -6594,7 +6623,7 @@ body.search-results-page .flow-tag.profile,
   position: fixed;
   left: 50%;
   bottom: 40px;
-  z-index: 300;
+  z-index: 2200;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -12884,9 +12913,9 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-panel__head h2 {
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: clamp(22px, 1.9vw, 26px);
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.35;
   letter-spacing: 0;
 }
@@ -13011,6 +13040,7 @@ html[data-app-mode="community"] .search-results-shell {
   flex-direction: column;
   min-width: 0;
   min-height: 440px;
+  height: 100%;
   overflow: hidden;
   border: 1px solid #dfe5e8;
   border-radius: 18px;
@@ -13089,7 +13119,7 @@ html[data-app-mode="community"] .search-results-shell {
 .product-comparison-card__brand {
   min-height: 18px;
   color: var(--muted);
-  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -13101,7 +13131,7 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-family: "GmarketSans", "Pretendard Variable", "Noto Sans KR", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 450;
   line-height: 1.35;
@@ -13142,15 +13172,14 @@ html[data-app-mode="community"] .search-results-shell {
 
 .product-comparison-card__recommendation {
   display: grid;
+  align-content: start;
   gap: 8px;
-  margin: 0 18px 18px;
+  min-height: 74px;
+  box-sizing: border-box;
+  margin: auto 18px 18px;
   padding: 14px 0 0;
   border-top: 1px solid #e6eef1;
   text-align: left;
-}
-
-.product-comparison-card__recommendation.current {
-  min-height: 52px;
 }
 
 .product-comparison-card__reasons,
@@ -13180,10 +13209,10 @@ html[data-app-mode="community"] .search-results-shell {
   align-items: center;
   min-height: 26px;
   padding: 0 8px;
-  border: 1px solid #F4B6C8;
+  border: 1px solid #F2B39D;
   border-radius: 999px;
-  background: #FFF0F5;
-  color: #B8476A;
+  background: #FFF1EB;
+  color: #E07852;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
@@ -14890,7 +14919,7 @@ html[data-app-mode="community"] .search-results-shell {
   border: 0;
   border-radius: 50%;
   background: #16c7e8;
-  color: #0b2a3a;
+  color: #ffffff;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(22, 199, 232, 0.3);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -15138,13 +15167,6 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
 }
 
-.checkout-address-form > p[role="alert"] {
-  margin: 0;
-  color: var(--color-muted-text);
-  font-size: var(--fs-13, 13px);
-  font-weight: 700;
-}
-
 .checkout-address-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15185,9 +15207,9 @@ html[data-app-mode="community"] .search-results-shell {
 
 .checkout-phone-row {
   display: grid;
-  grid-template-columns: 88px auto 108px auto 108px;
+  grid-template-columns: minmax(0, 88px) auto minmax(0, 108px) auto minmax(0, 108px);
   align-items: center;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   gap: 6px;
 }
@@ -15219,6 +15241,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.checkout-postcode-row button:hover:not(:disabled) {
+  background: rgba(148, 224, 248, 0.28);
 }
 
 .checkout-postcode-row button:disabled {
@@ -15260,10 +15286,19 @@ html[data-app-mode="community"] .search-results-shell {
   cursor: pointer;
 }
 
+.checkout-address-form-head button:hover:not(:disabled),
+.checkout-address-form-actions button:not([type="submit"]):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-address-form-actions button[type="submit"] {
   border-color: transparent;
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-form-actions button:disabled {
@@ -15685,6 +15720,10 @@ html[data-app-mode="community"] .search-results-shell {
   font-weight: 700;
 }
 
+.checkout-page:not(.cart-page) .checkout-address-change-button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .checkout-page:not(.cart-page) .checkout-address-summary {
   display: grid;
   gap: 8px;
@@ -15695,9 +15734,6 @@ html[data-app-mode="community"] .search-results-shell {
 }
 
 .checkout-page:not(.cart-page) .checkout-address-summary.muted {
-  padding: 16px;
-  border: 1px solid var(--color-edge);
-  border-radius: 12px;
   color: var(--color-muted-text);
 }
 
@@ -15705,7 +15741,11 @@ html[data-app-mode="community"] .search-results-shell {
   margin: 0;
 }
 
-.checkout-page:not(.cart-page) .checkout-address-summary select {
+.checkout-page:not(.cart-page) .checkout-address-summary select,
+/* .checkout-delivery-memo-select은 "배송지 관리" 모달(Radix Dialog)에서도 쓰이는데
+   그 모달은 document.body에 포털로 렌더링되어 .checkout-page 밖으로 빠지므로,
+   위 스코프에 기대지 않고 이 클래스 자체로도 매칭되게 별도로 둔다. */
+.checkout-delivery-memo-select {
   width: 100%;
   min-height: 44px;
   margin-top: 12px;
@@ -15827,6 +15867,10 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #fff;
+}
+
+.checkout-page:not(.cart-page) .checkout-address-form-actions button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-page:not(.cart-page) .payment-options {
@@ -16477,6 +16521,15 @@ html[data-app-mode="community"] .search-results-shell {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #ffffff;
+}
+
+.checkout-address-manager-actions button:not(:first-child):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.checkout-address-manager-actions button:first-child:hover:not(:disabled),
+.checkout-address-create-button:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .checkout-address-manager-actions button:disabled {
@@ -19189,7 +19242,7 @@ nav.admin-nav [class*="group"], nav.admin-nav [class*="label"] { white-space: no
 .recommendation-mock-trigger-robot { flex: 0 0 auto; width: 34px; height: 34px; object-fit: contain; }
 .recommendation-mock-trigger-copy strong { color: #0c1117; font-family: "GmarketSans", sans-serif; font-size: 16px; font-weight: 500; }
 .recommendation-mock-trigger-score { grid-area: score; align-self: center; color: #1686ad; font-family: "GmarketSans", sans-serif; font-size: 28px; font-weight: 500; text-align: right; white-space: nowrap; }
-.recommendation-mock-trigger-question { grid-area: question; align-self: center; color: #0c1117; font-size: 15px; font-weight: 600; }
+.recommendation-mock-trigger-question { grid-area: question; align-self: center; padding-left: 9px; color: #0c1117; font-size: 15px; font-weight: 600; }
 .recommendation-mock-trigger-button { align-self: center; }
 .recommendation-mock-trigger-button { grid-area: action; min-width: 100px; padding: 10px 16px; border: 1px solid #aeb8bb; border-radius: 9px; background: #fff; color: #0c1117; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .recommendation-mock-trigger-button:hover, .recommendation-mock-trigger-button:focus-visible { border-color: #2aa6d1; outline: 2px solid rgba(148,224,248,.35); outline-offset: 2px; }

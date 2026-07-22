@@ -3,8 +3,10 @@ import logging
 from types import SimpleNamespace
 
 from app.core.ai_logging import (
+    estimate_ai_cost_breakdown,
     estimate_ai_cost_usd,
     extract_agents_usage,
+    extract_agents_usage_breakdown,
     extract_chat_completion_usage_from_body,
     log_ai_call,
 )
@@ -42,6 +44,30 @@ def test_extract_agents_usage_sums_nested_response_usage() -> None:
         "input_tokens": 13,
         "output_tokens": 7,
         "total_tokens": 20,
+    }
+
+
+def test_extract_agents_usage_breakdown_keeps_cached_and_reasoning_tokens() -> None:
+    result = SimpleNamespace(
+        raw_responses=[
+            SimpleNamespace(
+                usage=SimpleNamespace(
+                    input_tokens=100,
+                    output_tokens=20,
+                    total_tokens=120,
+                    input_tokens_details=SimpleNamespace(cached_tokens=40),
+                    output_tokens_details=SimpleNamespace(reasoning_tokens=7),
+                )
+            )
+        ]
+    )
+
+    assert extract_agents_usage_breakdown(result) == {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "total_tokens": 120,
+        "cached_input_tokens": 40,
+        "reasoning_tokens": 7,
     }
 
 
@@ -87,6 +113,35 @@ def test_estimate_ai_cost_uses_model_prefix_and_token_usage() -> None:
         "private-model-alias",
         {"input_tokens": 10, "output_tokens": 5},
     ) is None
+
+
+def test_cost_breakdown_exposes_local_estimate_assumptions() -> None:
+    breakdown = estimate_ai_cost_breakdown(
+        "gpt-5.5",
+        {
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "total_tokens": 110,
+            "input_tokens_details": {"cached_tokens": 40},
+            "output_tokens_details": {"reasoning_tokens": 4},
+        },
+    )
+
+    assert breakdown["estimate_status"] == "estimated_with_cache_detail"
+    assert breakdown["usage"] == {
+        "input_tokens": 100,
+        "output_tokens": 10,
+        "total_tokens": 110,
+        "cached_input_tokens": 40,
+        "reasoning_tokens": 4,
+        "uncached_input_tokens": 60,
+    }
+    assert breakdown["estimated_cost_usd"] == 0.00062
+    assert breakdown["rates_usd_per_1m_tokens"] == {
+        "input": 5.0,
+        "cached_input": 0.5,
+        "output": 30.0,
+    }
 
 
 class _PerformanceLogCaptureHandler(logging.Handler):

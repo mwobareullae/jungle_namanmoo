@@ -29,6 +29,7 @@ from app.schemas.agent import (
 from app.schemas.common import ApiError
 from app.services.agent_openai_runner import (
     AGENT_INSTRUCTIONS,
+    EXPLICIT_BULK_WISHLIST_INSTRUCTIONS,
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     AgentWorkflowTiming,
@@ -38,6 +39,7 @@ from app.services.agent_openai_runner import (
     _extract_retry_after_seconds,
     _get_openai_retry_delay_seconds,
     _log_openai_failure_counter,
+    _resolve_agent_model,
     _is_retryable_openai_exception,
     _select_agent_tool_names,
     _to_agent_execution_error,
@@ -193,6 +195,22 @@ def test_agent_retry_policy_only_retries_transient_provider_failures() -> None:
     assert _is_retryable_openai_exception(
         ApiError(429, "AGENT_OPENAI_BUSY", "busy")
     ) is False
+
+
+def test_local_model_override_is_disabled_outside_explicit_local_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "app_env", "dev")
+    monkeypatch.setattr(settings, "openai_agent_local_trace_enabled", True)
+
+    with pytest.raises(ApiError) as captured:
+        _resolve_agent_model("gpt-5.4-mini")
+
+    assert captured.value.code == "LOCAL_MODEL_OVERRIDE_NOT_AVAILABLE"
+
+    monkeypatch.setattr(settings, "app_env", "local")
+    model, source = _resolve_agent_model("gpt-5.4-mini")
+    assert (model, source) == ("gpt-5.4-mini", "local_header_override")
 
 
 def test_agent_retry_prefers_provider_retry_after_header() -> None:
@@ -606,6 +624,110 @@ async def test_popular_ingredient_wishlist_routes_deterministically_before_llm(
     }
 
 
+@pytest.mark.anyio
+async def test_simple_recommendation_refinement_uses_only_the_new_price_and_category_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_execute_agent_tool(*_args, **kwargs):
+        captured.update(kwargs)
+        return AgentChatResponse(
+            conversation_id="conv_refine",
+            message="조건에 맞는 상품을 찾았어요.",
+            tool_name="refine_product_results",
+            ui_action=AgentUiAction(type="show_products", target="product_list", payload={}),
+            items=[],
+        )
+
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.execute_agent_tool",
+        fake_execute_agent_tool,
+    )
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(
+            message="3만원 이하 세럼만 보여줘",
+            context=AgentContext(
+                page="search_results",
+                recommendation_id="rec_001",
+                filters={
+                    "page_size": 10,
+                    "skin_type": "수부지",
+                    "sensitivity": "보통",
+                },
+            ),
+        ),
+    )
+
+    assert response.tool_name == "refine_product_results"
+    assert captured["tool_name"] == "refine_product_results"
+    assert captured["arguments"] == {
+        "recommendation_id": "rec_001",
+        "base_product_ids": [],
+        "limit": 10,
+        "page": 1,
+        "min_price": None,
+        "max_price": 30_000,
+        "category_code": "serum",
+        "skin_type": "수부지",
+        "sensitivity": "보통",
+        "effect_keywords": None,
+        "required_ingredient_names": None,
+    }
+
+
+@pytest.mark.anyio
+async def test_shipping_address_details_continue_checkout_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_execute_agent_tool(*_args, **kwargs):
+        captured.update(kwargs)
+        return AgentChatResponse(
+            conversation_id="conv_address",
+            message="배송지를 등록했어요.",
+            tool_name="register_shipping_address",
+            ui_action=AgentUiAction(type="show_checkout_preview", target="checkout_preview", payload={}),
+            items=[],
+        )
+
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner.execute_agent_tool",
+        fake_execute_agent_tool,
+    )
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(
+            message="김원우, 01012345677, 12345, 우리집",
+            context=AgentContext(
+                page="product_detail",
+                cart_item_ids=[11],
+            ),
+        ),
+        user=SimpleNamespace(id=1),
+    )
+
+    assert response.tool_name == "register_shipping_address"
+    assert captured["tool_name"] == "register_shipping_address"
+    assert captured["arguments"] == {
+        "recipient_name": "김원우",
+        "phone": "01012345677",
+        "postal_code": "12345",
+        "address1": "우리집",
+        "address2": None,
+        "delivery_memo": None,
+        "is_default": False,
+        "continue_checkout": True,
+        "cart_item_ids": [11],
+    }
+
+
 def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
     tool_names = _select_agent_tool_names(
         user=None,
@@ -785,10 +907,81 @@ async def test_runner_passes_only_selected_guest_tools_and_logs_the_list(
         {
             "authenticated": False,
             "page": "product_detail",
+            "route": "general",
             "tool_count": 6,
             "tool_names": captured_tool_names,
+            "instructions_bytes": len(AGENT_INSTRUCTIONS.encode("utf-8")),
         }
     ]
+
+
+@pytest.mark.anyio
+async def test_explicit_bulk_wishlist_requires_auth_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("The runner must not be called before login.")
+
+    monkeypatch.setattr(Runner, "run", fail_if_called)
+
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(
+            message="인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            context=AgentContext(page="home"),
+        ),
+    )
+
+    assert response.error is not None
+    assert response.error.code == "AGENT_AUTH_REQUIRED"
+    assert response.tool_name == "bulk_wishlist_by_popular_ingredient"
+
+
+@pytest.mark.anyio
+async def test_explicit_bulk_wishlist_uses_one_tool_and_short_instructions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    captured: dict[str, object] = {}
+
+    async def fake_run(agent, *_args, **_kwargs):
+        captured["tool_names"] = [tool.name for tool in agent.tools]
+        captured["instructions"] = agent.instructions
+        captured["tool_schema"] = agent.tools[0].params_json_schema
+        return SimpleNamespace(final_output="찜할 상품을 확인할게요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(
+            message="인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            context=AgentContext(page="home"),
+        ),
+        user=SimpleNamespace(id=1),
+    )
+
+    assert captured["tool_names"] == ["bulk_wishlist_by_popular_ingredient"]
+    assert captured["instructions"] == EXPLICIT_BULK_WISHLIST_INSTRUCTIONS
+    assert len(EXPLICIT_BULK_WISHLIST_INSTRUCTIONS) < len(AGENT_INSTRUCTIONS)
+    assert set(captured["tool_schema"]["properties"]) == {
+        "ingredient_name",
+        "rank_limit",
+        "window_days",
+    }
 
 
 @pytest.mark.anyio
@@ -861,6 +1054,58 @@ def test_agent_chat_route_returns_runner_response(client: TestClient, monkeypatc
     assert "mwbl_cart=" in response.headers["set-cookie"]
     assert isinstance(runner_arguments["anonymous_cart_id"], str)
     assert runner_arguments["session_id"] == "sess_agent_route"
+
+
+def test_agent_chat_route_writes_local_raw_trace(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(settings, "app_env", "local")
+    monkeypatch.setattr(settings, "openai_agent_local_trace_enabled", True)
+    monkeypatch.setattr(settings, "openai_agent_local_trace_dir", str(tmp_path))
+
+    captured_model_overrides: list[str | None] = []
+
+    async def fake_run_openai_agent_chat(*_args, **kwargs) -> AgentChatResponse:
+        trace = kwargs["local_trace"]
+        assert trace is not None
+        captured_model_overrides.append(kwargs["model_override"])
+        kwargs["workflow_timing"].agent_runner_ms = 123.4
+        return AgentChatResponse(
+            conversation_id="conv-local-trace-route",
+            message="Raw local trace response.",
+            tool_name="create_recommendation",
+            ui_action=AgentUiAction(
+                type="show_products",
+                target="product_results",
+                payload={"recommendation_id": "rec_local_trace"},
+            ),
+        )
+
+    monkeypatch.setattr("app.api.routes.agent.run_openai_agent_chat", fake_run_openai_agent_chat)
+
+    response = client.post(
+        "/api/agent/chat",
+        headers={"X-Agent-Local-Model": "gpt-5.4-mini"},
+        json={
+            "message": "Trace the exact local request values.",
+            "conversation_id": "conv-local-trace-route",
+            "context": {"page": "home", "filters": {"skin_type": "dry"}},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-agent-local-trace-id"]
+    trace_files = list(tmp_path.glob("*.json"))
+    assert len(trace_files) == 1
+    trace_payload = json.loads(trace_files[0].read_text(encoding="utf-8"))
+    assert trace_payload["request"]["message"] == "Trace the exact local request values."
+    assert trace_payload["final_response"]["payload"]["tool_name"] == "create_recommendation"
+    assert trace_payload["route"]["outcome"] == "succeeded"
+    assert trace_payload["timings_ms"]["agent_runner_ms"] == 123.4
+    assert trace_payload["route"]["requested_model"] == "gpt-5.4-mini"
+    assert captured_model_overrides == ["gpt-5.4-mini"]
 
 
 def test_agent_chat_replays_completed_response_for_same_idempotency_key(
@@ -1172,6 +1417,90 @@ async def test_agent_trace_adds_only_safe_correlation_metadata(
     assert "private@example.com" not in rendered_metadata
     assert "ord-private" not in rendered_metadata
     assert "사용자 메시지" not in rendered_metadata
+
+
+@pytest.mark.anyio
+async def test_agent_runner_writes_local_raw_input_schema_and_output(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agents
+    from agents import Runner
+
+    from app.services.agent_local_trace import create_agent_local_trace
+
+    @contextmanager
+    def fake_trace(*_args, **_kwargs):
+        yield SimpleNamespace()
+
+    async def fake_run(*_args, **_kwargs):
+        return SimpleNamespace(
+            final_output="Raw runner output.",
+            new_items=[],
+            raw_responses=[
+                SimpleNamespace(
+                    usage=SimpleNamespace(
+                        input_tokens=100,
+                        output_tokens=10,
+                        total_tokens=110,
+                        input_tokens_details=SimpleNamespace(cached_tokens=20),
+                        output_tokens_details=SimpleNamespace(reasoning_tokens=4),
+                    )
+                )
+            ],
+            input_guardrail_results=[],
+            output_guardrail_results=[],
+        )
+
+    monkeypatch.setattr(settings, "app_env", "local")
+    monkeypatch.setattr(settings, "openai_agent_local_trace_enabled", True)
+    monkeypatch.setattr(settings, "openai_agent_local_trace_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(agents, "trace", fake_trace)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    request = AgentChatRequest(
+        message="Show a moisturizing serum for dry skin.",
+        context=AgentContext(page="home", filters={"skin_type": "dry"}),
+    )
+    trace = create_agent_local_trace(
+        request_id="req-local-runner",
+        route="/api/agent/chat",
+        request_payload=request,
+        authenticated=False,
+    )
+    assert trace is not None
+
+    response = await run_openai_agent_chat(
+        Session(),
+        request,
+        local_trace=trace,
+        workflow_timing=AgentWorkflowTiming(),
+        model_override="gpt-5.4-mini",
+    )
+    trace.capture_final_response(response.model_dump(mode="json"), model_dump_ms=0.0, json_encode_ms=0.0)
+    written_path = trace.finish(outcome="succeeded")
+
+    assert written_path is not None
+    payload = json.loads(written_path.read_text(encoding="utf-8"))
+    assert json.loads(payload["agent"]["input"])["message"] == request.message
+    assert payload["agent"]["selected_tool_count"] > 0
+    assert payload["agent"]["runner_attempts"][0]["outcome"] == "succeeded"
+    assert payload["agent"]["runner_result"]["final_output"] == "Raw runner output."
+    assert payload["timings_ms"]["agent_model_and_orchestration_ms"] >= 0
+    assert payload["agent"]["model"] == "gpt-5.4-mini"
+    assert payload["agent"]["model_source"] == "local_header_override"
+    assert payload["agent"]["runner_result"]["usage_breakdown"]["cached_input_tokens"] == 20
+    assert payload["agent"]["runner_result"]["cost_estimate"]["estimated_cost_usd"] == 0.0001065
 
 
 @pytest.mark.anyio
