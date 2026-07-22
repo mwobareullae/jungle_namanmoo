@@ -1823,6 +1823,38 @@ def _try_router_specialist_fast_path(
             tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
         )
 
+    last_tool_result_checkout_arguments = _get_last_tool_result_product_checkout_arguments(request)
+    if last_tool_result_checkout_arguments is not None:
+        if user is None:
+            _record_fast_path(workflow_timing, "last_tool_result_product_checkout_auth_required")
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="last_tool_result_product_checkout_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            )
+        _record_fast_path(workflow_timing, "last_tool_result_product_checkout")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="last_tool_result_product_checkout",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            arguments=last_tool_result_checkout_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
     if simple_refinement_arguments is not None:
         _record_fast_path(workflow_timing, "simple_recommendation_refinement")
@@ -2278,6 +2310,11 @@ _SIMPLE_REFINEMENT_CATEGORY_CODES = {
     "로션": "lotion",
 }
 
+_LAST_TOOL_RESULT_PRODUCT_CHECKOUT_PATTERN = re.compile(
+    r"^\s*(?:이\s*중(?:에서)?\s*)?마지막(?:\s*(?:상품|제품|거|것))?"
+    r"(?:\s*(?:을|를))?\s*(?:주문|구매|결제)(?:\s*(?:해주세요|해줘|할게|할래|해))?\s*[.!?]*\s*$"
+)
+
 
 def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
     """Route an explicit price/category refinement without retaining stale concern filters."""
@@ -2370,6 +2407,27 @@ def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] |
         "ingredient_name": ingredient_name,
         "rank_limit": rank_limit,
         "window_days": window_days,
+    }
+
+
+def _get_last_tool_result_product_checkout_arguments(
+    request: AgentChatRequest,
+) -> dict[str, Any] | None:
+    """Resolve only an unambiguous final item from the immediately previous tool result."""
+
+    if not _LAST_TOOL_RESULT_PRODUCT_CHECKOUT_PATTERN.fullmatch(request.message):
+        return None
+    last_tool_result = request.last_tool_result
+    if last_tool_result is None or not any(
+        item.item_type == "product" for item in last_tool_result.items
+    ):
+        return None
+    return {
+        "product_id": None,
+        "quantity": 1,
+        "reference_source": "last_tool_result",
+        "reference_rank": None,
+        "reference_position": "last",
     }
 
 
