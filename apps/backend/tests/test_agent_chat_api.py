@@ -33,6 +33,7 @@ from app.services.agent_openai_runner import (
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     AgentWorkflowTiming,
+    LocalAgentExecutionOverride,
     _build_agent_input,
     _classify_openai_failure,
     _expected_tool_error_response,
@@ -732,6 +733,32 @@ async def test_shipping_address_details_continue_checkout_without_openai(
         "continue_checkout": True,
         "cart_item_ids": [11],
     }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("execution_mode", ["single", "router_specialist"])
+async def test_invalid_shipping_postal_code_clarifies_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+    execution_mode: str,
+) -> None:
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(
+            message=(
+                "받는 분: 김원우, 연락처: 010-1234-5678, 우편번호: 0452, "
+                "주소: 서울특별시 중구 세종대로 110"
+            ),
+            context=AgentContext(page="checkout", cart_item_ids=[11]),
+        ),
+        execution_override=LocalAgentExecutionOverride(execution_mode=execution_mode),
+    )
+
+    assert response.tool_name == "register_shipping_address"
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.message == "우편번호는 숫자 5자리로 알려주세요."
 
 
 def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
