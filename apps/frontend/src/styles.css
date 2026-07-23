@@ -1504,6 +1504,17 @@
   color: #d64a34;
 }
 
+.admin-field-error {
+  color: var(--color-brand-danger);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-form-grid input[aria-invalid="true"] {
+  border-color: var(--color-brand-danger);
+}
+
 .admin-form-grid input,
 .admin-form-grid select,
 .admin-form-grid textarea {
