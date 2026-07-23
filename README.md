@@ -304,23 +304,8 @@ jungle_namanmoo/
 | Storage / Delivery | AWS S3, CloudFront |
 | Infra / DevOps | AWS EC2·RDS, Docker Compose, GitHub Actions, Vercel, CloudWatch |
 
-## 팀 구성
-
-| 이름 | 담당 영역 |
-| --- | --- |
-| 김현옥 | PM/UX — 범위, 사용자 시나리오, UX 흐름, 계약·QA 기준 |
-| 강지현 | Frontend — 고객 화면, 상태 관리, API 연동, 이벤트 emit |
-| 김원우 | Backend — 인증, 프로필, 장바구니, 주문·결제, 재고·트랜잭션 |
-| 김규태 | AI 추천·검색·에이전트 — 후보 탐색, 스코어링, tool schema, guardrail |
-| 김세민 | Data — 상품, 성분, 이미지, CSV, seed, 데이터 QA |
-| 나지운 | Infra/Log — Docker, 배포, 이벤트·로그, 관측, Redis |
-
 ## 프로젝트 포스터
 
 <p align="center">
   <img src="docs/images/project-poster.png" alt="뭐바를래 프로젝트 포스터" width="100%" />
 </p>
-
-## License
-
-현재 저장소에는 별도의 오픈소스 라이선스가 명시되어 있지 않습니다.
