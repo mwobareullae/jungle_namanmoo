@@ -52,6 +52,17 @@ AgentRouteName = Literal[
     "bulk_wishlist",
     "clarification",
 ]
+AgentRouterAction = AgentToolName | Literal["clarify"]
+AgentTargetScope = Literal[
+    "none",
+    "current_product",
+    "selected_products",
+    "cart_selection",
+    "last_tool_result",
+    "recommendation_result",
+    "visible_products",
+    "ambiguous",
+]
 
 
 class RouteDecision(BaseModel):
@@ -60,6 +71,10 @@ class RouteDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     route: AgentRouteName
+    action: AgentRouterAction
+    target_scope: AgentTargetScope
+    reference_position: Literal["last"] | None = None
+    reference_rank: int | None = None
     confidence: Literal["high", "medium", "low"]
 
 
@@ -72,7 +87,8 @@ class SpecialistProfile:
 
 ROUTER_INSTRUCTIONS = """
 You classify one Korean commerce request for the 뭐바를래 service.
-Return only the structured route and confidence. You have no tools.
+Return only the structured route, action, target_scope, optional reference selector,
+and confidence. You have no tools and must not produce a user-facing answer.
 
 Routes:
 - recommendation: new skin concern or product discovery.
@@ -83,19 +99,72 @@ Routes:
 - bulk_wishlist: preview a popular-rank based wishlist batch.
 - clarification: only when the requested action itself is genuinely ambiguous.
 
-Do not create product IDs, ingredient IDs, order IDs, shipping fields, tool arguments,
-or any user-facing answer. Missing skin type or sensitivity is not an ambiguity for
-recommendations. Prefer the most specific supported route when the user gives a
-natural-language request.
+Action must be exactly one tool name that belongs to the selected route, or "clarify".
+Target scope is one of: none, current_product, cart_selection, last_tool_result,
+recommendation_result, visible_products, ambiguous.
+Use current_product for phrases such as "this product" on a product page. On a
+product-detail page with a current product, a generic singular product action such as
+"order it", "buy it", "add it to cart", or "show similar products" always means the
+current product. Do not infer last_tool_result merely because a prior result exists.
+Use last_tool_result only for an explicit ordinal reference to the immediately previous
+result. Use cart_selection for checkout/order actions that act on selected cart items.
+Use ambiguous when no safe target can be determined. Set reference_position to "last"
+only when the user explicitly refers to the final item; otherwise use reference_rank
+only for an explicit positive ordinal. Never create IDs, ingredient IDs, order IDs,
+shipping fields, tool arguments, or a user-facing answer. Missing skin type or
+sensitivity is not an ambiguity for recommendations.
+
+Korean reference rules:
+- When has_recent_result=true, "마지막 상품 주문해줘", "마지막 거 구매할래", or
+  "마지막 상품 담아줘" explicitly refers to the final product in that immediately
+  previous result. Set target_scope=last_tool_result and reference_position="last".
+- For "마지막 상품 주문해줘", set route=product_reference and
+  action=prepare_product_checkout. The request is a purchase preparation, not an
+  order-history request, and is not ambiguous.
+- Use order_after_sales only for an already-created order's history, status,
+  cancellation, review, return, exchange, or refund. Do not use it merely because a
+  user says "주문" or "구매" for a product.
+- A request such as "인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘"
+  is complete when it names a rank from 1 through 50 and at least one ingredient.
+  Set route=bulk_wishlist, action=bulk_wishlist_by_popular_ingredient, and
+  target_scope=none. It does not refer to a current product, cart item, or prior result,
+  and must not be treated as ambiguous merely because the user asks for every match.
+- A natural delivery-address entry such as
+  "김원우 / 01012345678 / 12345 / 서울특별시 강남구 테헤란로 1" is a complete
+  address-registration request when it contains a recipient, phone, postal code, and
+  address. Set route=cart_checkout, action=register_shipping_address, and
+  target_scope=none. It is independent of the current product and must not be blocked
+  by a missing product reference.
 """.strip()
 
 
 _RECOMMENDATION_INSTRUCTIONS = """
 Handle only a new Korean cosmetics recommendation request.
 Call create_recommendation exactly once for a concrete skin concern or product search.
-Use the user's original wording as concern_text. Extract only representable structured
-constraints: skin type, sensitivity, avoid ingredients, required ingredients, category,
-and price range. Omit unknown fields rather than inventing values or IDs.
+Use the user's original wording as concern_text. Extract every representable structured
+constraint: concern IDs, effect IDs, excluded concerns, priority effects, skin type,
+sensitivity, avoid ingredients, required ingredients, category, and price range. The
+recommendation backend treats these structured fields as authoritative and does not
+re-parse concern_text. Omit a field only when the user did not express a matching
+concept; do not invent values outside the controlled vocabulary below.
+
+Controlled Korean concern vocabulary:
+- 여드름/뾰루지=concern_acne; 잡티/기미=concern_brightening_spots;
+  모공/피지/번들거림=concern_pore; 속건조/당김/화장 들뜸=concern_dry_barrier;
+  주름/탄력=concern_wrinkle_elasticity; 홍조/자극=concern_redness_irritation;
+  민감/예민=concern_sensitive; 각질/거친 피부결=concern_dead_skin_texture;
+  흉터/트러블 자국=concern_blemish_mark; 칙칙함/안색=concern_dull_uneven_tone;
+  모낭염=concern_folliculitis; 다크서클=concern_dark_circle.
+- Put a negated concern in excluded_concern_ids instead of concern_ids.
+
+Controlled Korean effect vocabulary:
+- 여드름/피지/번들거림=effect_acne_sebum; 진정/붉음/열감=effect_calming;
+  각질=effect_exfoliation; 미백/톤/색소침착=effect_brightening;
+  보습/장벽/속건조=effect_moisture_barrier; 주름/탄력=effect_wrinkle.
+- When a stated concern maps to a directly relevant effect, include that effect in
+  effect_ids and priority_effect_ids. For example, "피지가 많고 모공이 넓어" must
+  include concern_ids=["concern_pore"] and
+  effect_ids=priority_effect_ids=["effect_acne_sebum"].
 
 Copy each user-named ingredient into an ingredient field verbatim. Do not translate,
 shorten, spell-correct, or substitute an ingredient name. The backend resolves the
@@ -109,9 +178,12 @@ truly empty or contradictory, reply with one short Korean clarification question
 _REFINEMENT_INSTRUCTIONS = """
 Handle only a filter/refinement request for an existing product or recommendation result.
 Call refine_product_results exactly once when a result reference is available. Extract
-category, price, ingredient, skin type, and sensitivity filters from the request. Use
-only context identifiers supplied by the server; never invent IDs. Ask one brief Korean
-clarification only when there is no saved or visible result to filter.
+every stated category, price, ingredient, skin type, and sensitivity filter; never drop
+one constraint when another is present. Product type must be sent as category_code using
+this exact mapping: 세럼=serum, 크림=cream, 토너=toner, 로션=lotion. For example,
+"3만원 이하 세럼만 보여줘" requires both max_price=30000 and category_code="serum".
+Use only context identifiers supplied by the server; never invent IDs. Ask one brief
+Korean clarification only when there is no saved or visible result to filter.
 """.strip()
 
 _PRODUCT_REFERENCE_INSTRUCTIONS = """
@@ -121,6 +193,10 @@ explicit comparison, add_to_cart for a cart action, and prepare_product_checkout
 order intent. Use server-provided references or reference_source/reference_rank fields;
 never invent a product ID, rank, price, or stock fact. A purchase tool only prepares the
 next confirmation/checkout step and must not claim that payment was completed.
+
+When target_scope=last_tool_result and reference_position="last", the user has already
+selected the final product in the immediately previous result. Call
+prepare_product_checkout directly; do not ask them to name that product again.
 """.strip()
 
 _CART_CHECKOUT_INSTRUCTIONS = """
@@ -218,6 +294,86 @@ SPECIALIST_PROFILES: dict[AgentRouteName, SpecialistProfile] = {
 }
 
 
+_CURRENT_PRODUCT_ACTIONS = frozenset(
+    {
+        ADD_TO_CART_TOOL,
+        FIND_SIMILAR_PRODUCTS_TOOL,
+        PREPARE_PRODUCT_CHECKOUT_TOOL,
+    }
+)
+_EXPLICIT_PREVIOUS_RESULT_REFERENCE_RE = re.compile(
+    r"(?:\\b(?:last|final|first|second|third)\\b|마지막|최종|끝(?:의)?\\s*(?:상품|제품)?|"
+    r"(?:첫|두|세|네|다섯)\\s*번째|\\d+\\s*번째|그\\s*중)"
+)
+_SELECTED_PRODUCT_ORDINAL_RE = re.compile(
+    r"(?:\b(?P<english>first|second|third|fourth|fifth)\b|"
+    r"(?P<numeric>[1-9][0-9]?)\s*(?:번째|번)|"
+    r"(?P<korean>첫|두|세|네|다섯)\s*(?:번째|째))",
+    re.IGNORECASE,
+)
+_ENGLISH_ORDINAL_RANKS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+_KOREAN_ORDINAL_RANKS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
+
+
+def _selected_product_ordinal_rank(message: str, *, selected_count: int) -> int | None:
+    """Return an explicit comparison-card ordinal when it is in range."""
+
+    match = _SELECTED_PRODUCT_ORDINAL_RE.search(message)
+    if match is None:
+        return None
+
+    if english := match.group("english"):
+        rank = _ENGLISH_ORDINAL_RANKS[english.lower()]
+    elif numeric := match.group("numeric"):
+        rank = int(numeric)
+    else:
+        rank = _KOREAN_ORDINAL_RANKS[match.group("korean")]
+    return rank if rank <= selected_count else None
+
+
+def normalize_route_decision(
+    decision: RouteDecision,
+    *,
+    request: AgentChatRequest,
+) -> RouteDecision:
+    """Keep a generic product-detail action bound to the visible current product.
+
+    This is not a natural-language fast path. The Router still selects the route and
+    action. It only prevents an erroneous ``last_tool_result`` selector from overriding
+    a product explicitly present on the current page. A user can still select a prior
+    result with an explicit ordinal such as "last product" or "second product".
+    """
+
+    selected_rank = _selected_product_ordinal_rank(
+        request.message,
+        selected_count=len(request.context.selected_product_ids),
+    )
+    if decision.action in _CURRENT_PRODUCT_ACTIONS and selected_rank is not None:
+        return decision.model_copy(
+            update={
+                "target_scope": "selected_products",
+                "reference_position": None,
+                "reference_rank": selected_rank,
+            }
+        )
+
+    if (
+        decision.action not in _CURRENT_PRODUCT_ACTIONS
+        or decision.target_scope != "last_tool_result"
+        or request.context.current_product_id is None
+        or _EXPLICIT_PREVIOUS_RESULT_REFERENCE_RE.search(request.message) is not None
+    ):
+        return decision
+
+    return decision.model_copy(
+        update={
+            "target_scope": "current_product",
+            "reference_position": None,
+            "reference_rank": None,
+        }
+    )
+
+
 def build_router_input(request: AgentChatRequest, *, user: User | None) -> str:
     """Build the Router payload without identifiers, tool schemas, or sensitive fields."""
 
@@ -251,6 +407,10 @@ def build_specialist_input(request: AgentChatRequest, decision: RouteDecision) -
     payload = {
         "message": request.message,
         "route": decision.route,
+        "action": decision.action,
+        "target_scope": decision.target_scope,
+        "reference_position": decision.reference_position,
+        "reference_rank": decision.reference_rank,
         "page": context.page,
         "context": {
             "current_product_id": context.current_product_id,
@@ -274,22 +434,19 @@ def select_specialist_tool_names(
     request: AgentChatRequest,
     allowed_tool_names: tuple[AgentToolName, ...],
 ) -> tuple[AgentToolName, ...]:
-    """Select the smallest safe tool subset for the selected route.
+    """Expose only the Router-selected operation to the Specialist.
 
-    A route can still contain several operations (for example, ``cart_checkout``),
-    but the Specialist should not have to choose among the entire route registry.
-    These cues only narrow tool exposure; dispatcher validation remains the final
-    source of truth for all references, authorization, and confirmation.
+    Natural-language interpretation belongs to the Router.  The server only checks
+    that the selected action is valid for this route and currently available.
     """
 
     profile = SPECIALIST_PROFILES[decision.route]
     allowed = set(allowed_tool_names)
-    candidates = _select_route_operation_tools(decision.route, request.message)
-    return tuple(
-        name
-        for name in candidates
-        if name in profile.tool_names and name in allowed
-    )
+    if decision.action == "clarify":
+        return ()
+    if decision.action in profile.tool_names and decision.action in allowed:
+        return (decision.action,)
+    return ()
 
 
 def validate_route_decision(
@@ -301,8 +458,73 @@ def validate_route_decision(
 ) -> str | None:
     """Return a safe clarification reason when a route cannot execute here."""
 
-    if decision.route == "clarification":
+    if decision.route == "clarification" or decision.action == "clarify":
         return None
+
+    profile = SPECIALIST_PROFILES[decision.route]
+    if decision.action not in profile.tool_names:
+        return "요청 작업을 안전하게 결정하지 못했어요. 조금 더 구체적으로 알려주세요."
+
+    if decision.reference_position is not None and decision.reference_rank is not None:
+        return "상품 선택 기준을 하나만 알려주세요."
+
+    target_scope = decision.target_scope
+    is_target_independent_operation = decision.action in {
+        BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        REGISTER_SHIPPING_ADDRESS_TOOL,
+    }
+    if target_scope == "ambiguous" and not is_target_independent_operation:
+        return "어떤 상품이나 항목을 뜻하는지 조금 더 구체적으로 알려주세요."
+    if target_scope == "current_product" and request.context.current_product_id is None:
+        return "현재 보고 있는 상품을 먼저 확인해주세요."
+    if target_scope == "selected_products" and not request.context.selected_product_ids:
+        return "비교 상품을 먼저 확인해주세요."
+    if target_scope == "selected_products" and (
+        decision.reference_rank is None
+        or decision.reference_rank < 1
+        or decision.reference_rank > len(request.context.selected_product_ids)
+    ):
+        return "비교 상품 중 몇 번째 상품인지 알려주세요."
+    if target_scope == "cart_selection" and not request.context.cart_item_ids:
+        return "주문할 장바구니 상품을 먼저 선택해주세요."
+    if target_scope == "last_tool_result" and not any(
+        item.item_type == "product"
+        for item in (request.last_tool_result.items if request.last_tool_result else [])
+    ):
+        return "직전 결과에서 선택할 상품을 찾지 못했어요."
+    if target_scope == "last_tool_result" and (
+        decision.reference_position is None and decision.reference_rank is None
+    ):
+        return "직전 결과 중 몇 번째 상품인지 알려주세요."
+    if target_scope == "recommendation_result" and request.context.recommendation_id is None:
+        return "추천 결과를 먼저 확인한 뒤 원하는 조건을 말씀해 주세요."
+    if (
+        target_scope == "recommendation_result"
+        and decision.action == PREPARE_PRODUCT_CHECKOUT_TOOL
+        and decision.reference_rank is None
+    ):
+        return "추천 결과 중 몇 번째 상품인지 알려주세요."
+    if target_scope == "visible_products" and not request.context.visible_product_ids:
+        return "현재 화면의 상품 목록을 먼저 확인해주세요."
+    if (
+        target_scope == "visible_products"
+        and decision.action
+        in {ADD_TO_CART_TOOL, FIND_SIMILAR_PRODUCTS_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}
+        and len(request.context.visible_product_ids) > 1
+        and decision.reference_rank is None
+    ):
+        return "현재 목록 중 몇 번째 상품인지 알려주세요."
+
+    if decision.action == PREPARE_PRODUCT_CHECKOUT_TOOL and target_scope not in {
+        "current_product",
+        "selected_products",
+        "last_tool_result",
+        "recommendation_result",
+        "visible_products",
+    }:
+        return "주문할 상품을 먼저 선택해주세요."
+    if decision.action in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL} and target_scope != "cart_selection":
+        return "주문할 장바구니 상품을 먼저 선택해주세요."
 
     if decision.route == "recommendation_refinement" and not (
         request.context.recommendation_id or request.context.visible_product_ids
@@ -337,58 +559,6 @@ def _omit_empty(value: object) -> object:
     if isinstance(value, list):
         return [_omit_empty(item) for item in value]
     return value
-
-
-def _select_route_operation_tools(
-    route: AgentRouteName,
-    message: str,
-) -> tuple[AgentToolName, ...]:
-    """Return one operation-focused tool subset before page/auth filtering."""
-
-    normalized = re.sub(r"\s+", " ", message).strip().lower()
-    if route == "recommendation":
-        return (CREATE_RECOMMENDATION_TOOL,)
-    if route == "recommendation_refinement":
-        return (REFINE_PRODUCT_RESULTS_TOOL,)
-    if route == "bulk_wishlist":
-        return (BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,)
-    if route == "product_reference":
-        if _contains_any(normalized, ("비교", "차이", "vs")):
-            return (COMPARE_PRODUCTS_TOOL,)
-        if _contains_any(normalized, ("비슷", "유사", "대체")):
-            return (FIND_SIMILAR_PRODUCTS_TOOL,)
-        if _contains_any(normalized, ("장바구니", "담아", "카트")):
-            return (ADD_TO_CART_TOOL,)
-        if _contains_any(normalized, ("주문", "구매", "결제")):
-            return (PREPARE_PRODUCT_CHECKOUT_TOOL,)
-        return ()
-    if route == "cart_checkout":
-        if _contains_any(normalized, ("배송", "주소", "우편번호", "받는 분", "수령")):
-            return (REGISTER_SHIPPING_ADDRESS_TOOL,)
-        if _contains_any(normalized, ("루틴", "구성", "토너", "세럼", "크림")):
-            return (COMPOSE_CART_TOOL,)
-        if _contains_any(normalized, ("장바구니", "카트")):
-            return (GET_CART_TOOL,)
-        if _contains_any(normalized, ("주문", "구매", "결제", "주문서")):
-            return (PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL)
-        return ()
-    if route == "order_after_sales":
-        if _contains_any(normalized, ("취소",)):
-            return (CANCEL_RECENT_ORDER_TOOL,)
-        if _contains_any(normalized, ("배송", "도착", "상태")):
-            return (ORDER_STATUS_LOOKUP_TOOL,)
-        if _contains_any(normalized, ("주문 내역", "구매 내역", "주문 목록")):
-            return (FILTER_ORDER_HISTORY_TOOL,)
-        if _contains_any(normalized, ("리뷰", "후기")):
-            return (PREPARE_REVIEW_DRAFT_TOOL,)
-        if _contains_any(normalized, ("반품", "교환", "환불", "클레임")):
-            return (PREPARE_CLAIM_DRAFT_TOOL,)
-        return ()
-    return ()
-
-
-def _contains_any(message: str, tokens: tuple[str, ...]) -> bool:
-    return any(token in message for token in tokens)
 
 
 def _safe_route_path(value: str | None) -> str | None:

@@ -93,7 +93,7 @@ class Settings(BaseModel):
     openai_model: str = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     openai_agent_model: str = os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
     openai_agent_execution_mode: Literal["single", "router_specialist"] = os.getenv(
-        "OPENAI_AGENT_EXECUTION_MODE", "single"
+        "OPENAI_AGENT_EXECUTION_MODE", "router_specialist"
     )  # type: ignore[assignment]
     openai_agent_router_model: str = (
         os.getenv("OPENAI_AGENT_ROUTER_MODEL")
