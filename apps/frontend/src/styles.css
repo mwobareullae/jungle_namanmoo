@@ -13178,8 +13178,8 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 999px;
   background: #f5f9fe;
   color: #238ca1;
-  font-size: 14px;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -13192,8 +13192,8 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 999px;
   background: #FFF1EB;
   color: #E07852;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.3;
 }
 
