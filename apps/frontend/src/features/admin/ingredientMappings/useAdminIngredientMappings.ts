@@ -70,8 +70,11 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
   // 빠른 필터·페이지 변경 시 오래된 응답이 최신 결과를 덮지 않도록 순번을 관리한다.
   const requestIdRef = useRef(0);
 
+  // superseded(다른 요청에 새치기당함)와 실제 오류를 구분해야 호출부가 "새로고침 실패"를
+  // 오발생시키지 않는다 — 둘 다 false로 뭉뚱그리면 새로고침 도중 필터를 바꾸는 정상적인
+  // 조작에도 실패 토스트가 잘못 뜬다.
   const fetchList = useCallback(
-    async (targetPage: number): Promise<boolean> => {
+    async (targetPage: number): Promise<"success" | "stale" | "error"> => {
       const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(null);
@@ -85,17 +88,17 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
           page: targetPage,
           pageSize
         });
-        if (requestId !== requestIdRef.current) return false; // 이후 요청 진행 중 — 이 응답 버림
+        if (requestId !== requestIdRef.current) return "stale"; // 이후 요청 진행 중 — 이 응답 버림
         setItems(result.items);
         setSummary(result.summary);
         setPagination(result.pagination);
         setHasLoaded(true);
-        return true;
+        return "success";
       } catch (caughtError: unknown) {
-        if (requestId !== requestIdRef.current) return false;
+        if (requestId !== requestIdRef.current) return "stale";
         // 갱신 실패 시 기존 목록은 유지하고 오류 배너만 표시(사용자 확정 UX).
         setError(describeApiError(caughtError, "성분 매핑 목록을 불러오지 못했습니다."));
-        return false;
+        return "error";
       } finally {
         if (requestId === requestIdRef.current) setLoading(false);
       }
@@ -110,8 +113,8 @@ export function useAdminIngredientMappings({ enabled }: UseAdminIngredientMappin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, statusFilter, finalDispositionFilter, sort, candidateFilter, submittedQuery, pageSize, page]);
 
-  const refresh = useCallback((): Promise<boolean> => {
-    if (!enabled) return Promise.resolve(false);
+  const refresh = useCallback((): Promise<"success" | "stale" | "error"> => {
+    if (!enabled) return Promise.resolve("stale");
     return fetchList(page);
   }, [enabled, fetchList, page]);
 

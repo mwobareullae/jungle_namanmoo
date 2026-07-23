@@ -56,8 +56,11 @@ export function useAdminProducts({ enabled }: UseAdminProductsOptions) {
 
   const isActiveValue = activeFilter === "all" ? null : activeFilter === "active";
 
+  // superseded(다른 요청에 새치기당함)와 실제 오류를 구분해야 호출부가 "새로고침 실패"를
+  // 오발생시키지 않는다 — 둘 다 false로 뭉뚱그리면 새로고침 도중 필터를 바꾸는 정상적인
+  // 조작에도 실패 토스트가 잘못 뜬다.
   const fetchPage = useCallback(
-    async (targetPage: number): Promise<boolean> => {
+    async (targetPage: number): Promise<"success" | "stale" | "error"> => {
       const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(null);
@@ -72,16 +75,16 @@ export function useAdminProducts({ enabled }: UseAdminProductsOptions) {
           page: targetPage,
           pageSize
         });
-        if (requestId !== requestIdRef.current) return false; // 이후 요청이 이미 진행 중 — 이 응답은 버림
+        if (requestId !== requestIdRef.current) return "stale"; // 이후 요청이 이미 진행 중 — 이 응답은 버림
         setItems(result.items);
         setPagination(result.pagination);
-        return true;
+        return "success";
       } catch (caughtError: unknown) {
-        if (requestId !== requestIdRef.current) return false;
+        if (requestId !== requestIdRef.current) return "stale";
         setError(describeApiError(caughtError, "상품 목록을 불러오지 못했습니다."));
         setItems([]);
         setPagination(null);
-        return false;
+        return "error";
       } finally {
         if (requestId === requestIdRef.current) setLoading(false);
       }
@@ -169,8 +172,8 @@ export function useAdminProducts({ enabled }: UseAdminProductsOptions) {
     setPage(1);
   }, []);
 
-  const refresh = useCallback((): Promise<boolean> => {
-    if (!enabled) return Promise.resolve(false);
+  const refresh = useCallback((): Promise<"success" | "stale" | "error"> => {
+    if (!enabled) return Promise.resolve("stale");
     return fetchPage(page);
   }, [enabled, fetchPage, page]);
 
