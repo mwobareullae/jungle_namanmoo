@@ -288,6 +288,7 @@ function AdminDashboardPage() {
   const bulkImport = useAdminBulkImport();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [editingProductCode, setEditingProductCode] = useState<string | null>(null);
+  const [inventoryProductCode, setInventoryProductCode] = useState<string | null>(null);
   const [productFormDirty, setProductFormDirty] = useState(false);
   const [pendingNavView, setPendingNavView] = useState<AdminView | null>(null);
   const [excelImportState, setExcelImportState] = useState<ExcelImportState>("idle");
@@ -664,6 +665,7 @@ function AdminDashboardPage() {
 
   const navigateTo = (view: AdminView) => {
     if (view === "productForm") setEditingProductCode(null);
+    if (view === "stockPrice") setInventoryProductCode(null);
     setActiveView(view);
   };
 
@@ -1189,7 +1191,7 @@ function AdminDashboardPage() {
 
   const renderImageUpload = () => <AdminImageBulkLinkSection parseSpreadsheet={parseExcelUpload} />;
 
-  const renderStockPrice = () => <AdminInventoryPriceSection />;
+  const renderStockPrice = () => <AdminInventoryPriceSection initialProductCode={inventoryProductCode} />;
 
   if (access.status !== "authenticated") {
     return <AdminAccessNotice status={access.status} retry={access.retry} />;
@@ -1297,7 +1299,10 @@ function AdminDashboardPage() {
           onDirtyChange={setProductFormDirty}
           onOperationLog={pushOperationLog}
           onSaved={setEditingProductCode}
-          onViewInventory={() => setActiveView("stockPrice")}
+          onViewInventory={() => {
+            setInventoryProductCode(editingProductCode);
+            setActiveView("stockPrice");
+          }}
         />
         <AdminOrderStatusSection key="admin-order-status" active={activeView === "orderStatus"} />
         <AdminCancelClaimSection key="admin-cancel-claims" active={activeView === "cancelClaims"} />
