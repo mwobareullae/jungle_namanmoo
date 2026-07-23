@@ -4282,6 +4282,14 @@ body {
   border-top: 0 !important;
 }
 
+.spa-origin-shell .home-hero .search-btn {
+  color: #063445 !important;
+}
+
+.spa-origin-shell .home-hero .search-btn svg {
+  stroke: currentColor !important;
+}
+
 .hero-inner {
   position: relative;
   z-index: 1;
