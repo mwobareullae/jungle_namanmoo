@@ -20,9 +20,7 @@
 - [Quick Start](#quick-start)
 - [API 및 프로젝트 구조](#api-및-프로젝트-구조)
 - [기술 스택](#기술-스택)
-- [팀 구성](#팀-구성)
 - [프로젝트 포스터](#프로젝트-포스터)
-- [License](#license)
 
 ## 프로젝트 소개
 
@@ -50,25 +48,19 @@
 | 자연어 피부 고민 이해 | 일상적인 표현을 표준 고민과 필요한 효능으로 구조화합니다. |
 | 12축 추천 점수 | 성분·효능·근거·피부 적합도·검색 및 구매 맥락·리뷰 신호를 함께 계산합니다. |
 | 추천 근거 확인 | 추천 총점뿐 아니라 성분, 기대 효능, 함량 상태, 근거 출처와 주의 정보를 구분해 보여줍니다. |
-| 하이브리드 후보 탐색 | Elasticsearch, 벡터 검색과 DB 경로를 이용해 전체 상품에서 점수 계산 대상 후보를 만듭니다. |
+| 검색 후보 생성·재매칭 | Elasticsearch로 추천 후보를 생성하고, 사용할 수 없을 때는 DB 인기순 후보로 전환합니다. 생성된 후보 안에서 keyword·pgvector 매칭 점수를 다시 계산합니다. |
 | AI 쇼핑 에이전트 | 자연어 요청으로 추천, 결과 좁히기, 비교, 장바구니, 주문 준비를 이어갑니다. |
-| 안전한 실행 정책 | 인증·입력 스키마·허용 화면 동작을 서버에서 재검증하고 영향이 큰 변경은 사용자 확인을 거칩니다. |
+| 안전한 실행 정책 | 서버가 인증·입력 스키마·화면 동작을 재검증하고, 주문 생성·주문 취소·다중 카테고리 장바구니 구성·대량 찜은 사용자 확인 후 실행합니다. |
 
 ## 서비스 흐름
 
 ### 추천
 
-```mermaid
-flowchart LR
-    A["피부 고민 입력"] --> B["고민·효능·구매 조건 구조화"]
-    B --> C["검색 후보 생성"]
-    C --> D["회피 성분 필터링"]
-    D --> E["검색 매칭 재계산"]
-    E --> F["12축 점수 계산·정렬"]
-    F --> G["추천 결과와 근거 제공"]
-```
+<p align="center">
+  <img src="docs/images/recommendation-pipeline.svg" alt="자연어 구조화부터 추천 결과와 설명 생성까지의 추천 파이프라인" width="100%" />
+</p>
 
-추천 파이프라인은 후보를 먼저 좁힌 뒤 해당 후보 안에서 성분, 개인화, 검색·구매 맥락과 리뷰 신호를 결합해 순위를 계산합니다. LLM은 자연어 구조화를 보조하지만 최종 점수와 정렬을 직접 생성하지 않습니다.
+추천 파이프라인은 Elasticsearch로 후보를 먼저 좁히고, 사용할 수 없을 때는 DB 인기순 후보로 전환합니다. 이후 해당 후보 안에서 keyword·pgvector 매칭과 성분, 개인화, 구매 맥락, 리뷰 신호를 결합해 순위를 계산합니다. LLM은 애매한 자연어 구조화와 최종 설명 생성을 보조하지만 점수와 정렬을 직접 생성하지 않습니다.
 
 ### AI 쇼핑 에이전트
 
@@ -109,17 +101,11 @@ flowchart LR
 
 ### 1. 검색 후보 생성과 추천 순위 계산의 분리
 
-```text
-자연어 구조화
-→ Elasticsearch + pgvector + legacy 경로로 후보 생성
-→ 회피 성분 hard filter
-→ 후보의 keyword/vector 검색 매칭 재계산
-→ 12축 점수 계산
-→ 위험 성분 감점
-→ 최종 정렬
-```
+<p align="center">
+  <img src="docs/images/search-structure.svg" alt="일반 상품 검색과 추천 검색의 후보 생성 및 재매칭 구조 비교" width="100%" />
+</p>
 
-검색은 전체 상품에서 계산 대상을 찾는 역할을 하고, 추천 스코어링은 검색으로 좁혀진 후보의 순위를 정합니다. 후보 생성과 순위 계산의 책임을 분리해 LLM의 자유 생성 결과가 추천 점수를 바꾸지 않도록 구성했습니다.
+일반 상품 검색과 추천 검색은 서로 다른 경로입니다. 추천 후보 생성은 Elasticsearch를 우선 사용하고 실패·비활성 시 DB 인기순 fallback을 사용합니다. pgvector는 후보 생성 소스가 아니며, 생성된 후보 안에서 검색 매칭 점수를 다시 계산할 때 임베딩과 입력 조건이 갖춰진 경우에만 사용합니다. 이후 12축 점수와 위험 성분 감점으로 최종 순위를 정합니다.
 
 관련 문서:
 
@@ -300,7 +286,7 @@ jungle_namanmoo/
 | Database | PostgreSQL 16, pgvector |
 | Search / Cache | Elasticsearch 8.15, nori, Redis 7.2 |
 | AI | OpenAI API, OpenAI Agents SDK, `text-embedding-3-small` |
-| Commerce | Toss Payments SDK·API, mock payment flow |
+| Commerce | Toss Payments SDK, Confirm API, Webhook |
 | Storage / Delivery | AWS S3, CloudFront |
 | Infra / DevOps | AWS EC2·RDS, Docker Compose, GitHub Actions, Vercel, CloudWatch |
 
