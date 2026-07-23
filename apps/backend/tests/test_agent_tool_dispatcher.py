@@ -885,8 +885,8 @@ def test_register_shipping_address_resumes_checkout_without_logging_pii(db_engin
     assert address.address1 == raw_address
     assert address.address2 is None
     assert response.tool_name == "register_shipping_address"
-    assert response.ui_action.type == "show_checkout_preview"
-    assert response.ui_action.payload["address_id"] == address.id
+    assert response.ui_action.type == "noop"
+    assert response.ui_action.payload["continuation"] == "select_cart_items"
     assert tool_call is not None
     assert tool_call.input_json["pii_redacted"] is True
     assert tool_call.input_json["address2_provided"] is False
@@ -999,6 +999,7 @@ def test_openai_tool_returns_structured_address_request(db_engine: Engine) -> No
             recommendation_id=None,
             recommendation_rank=None,
         )
+        cart_item_id = get_cart_response(session, user, None).items[0].id
         context = CommerceAgentContext(
             session=session,
             user=user,
@@ -1010,13 +1011,60 @@ def test_openai_tool_returns_structured_address_request(db_engine: Engine) -> No
         result = _execute_tool(
             type("RunContext", (), {"context": context})(),
             tool_name="prepare_checkout",
-            arguments={"cart_item_ids": None, "address_id": None},
+            arguments={"cart_item_ids": [cart_item_id], "address_id": None},
         )
 
     payload = json.loads(result)
     assert payload["error"]["code"] == "AGENT_ADDRESS_REQUIRED"
     assert "받는 분 이름" in payload["message"]
+    assert payload["ui_action"] == {
+        "type": "noop",
+        "target": None,
+        "payload": {
+            "agent_flow": "checkout",
+            "cart_item_ids": [cart_item_id],
+            "continuation": "register_shipping_address",
+        },
+    }
     assert context.last_tool_response is not None
+
+
+def test_openai_tool_rejects_checkout_without_explicit_cart_selection(db_engine: Engine) -> None:
+    _set_inventory(db_engine, "prod_001", stock_quantity=10)
+    with Session(db_engine) as session:
+        user = User(email="agent-checkout-selection@example.com")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        add_agent_cart_item(
+            session,
+            user,
+            conversation_id="conv_checkout_selection",
+            product_id="prod_001",
+            quantity=1,
+            recommendation_id=None,
+            recommendation_rank=None,
+        )
+        context = CommerceAgentContext(
+            session=session,
+            user=user,
+            conversation_id="conv_checkout_selection",
+            request_id="req_checkout_selection",
+            session_id=None,
+            anonymous_user_id=None,
+        )
+        result = _execute_tool(
+            type("RunContext", (), {"context": context})(),
+            tool_name="prepare_checkout",
+            arguments={"cart_item_ids": None, "address_id": None},
+        )
+
+    payload = json.loads(result)
+    assert payload["error"]["code"] == "AGENT_CHECKOUT_SELECTION_REQUIRED"
+    assert payload["ui_action"]["payload"] == {
+        "agent_flow": "checkout",
+        "continuation": "select_cart_items",
+    }
 
 
 def test_openai_tool_adds_to_anonymous_cart(db_engine: Engine) -> None:

@@ -127,7 +127,7 @@ AGENT_TOOL_POLICIES: dict[AgentToolName, AgentToolPolicy] = {
         risk_level="READ",
         requires_auth=True,
         requires_confirmation=False,
-        allowed_ui_actions=frozenset({"show_checkout_preview", "navigate"}),
+        allowed_ui_actions=frozenset({"noop", "show_checkout_preview", "navigate"}),
         max_result_items=0,
         timeout_ms=2000,
     ),

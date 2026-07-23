@@ -136,7 +136,7 @@ class RefineProductResultsArgs(BaseModel):
     page: int = Field(default=1, ge=1)
     min_price: int | None = Field(default=None, ge=0)
     max_price: int | None = Field(default=None, ge=0)
-    category_code: str | None = Field(default=None, max_length=80)
+    category_code: AgentCategoryCode | None = None
     skin_type: str | None = Field(default=None, max_length=40)
     sensitivity: str | None = Field(default=None, max_length=40)
     effect_keywords: list[str] | None = Field(default=None, max_length=20)
