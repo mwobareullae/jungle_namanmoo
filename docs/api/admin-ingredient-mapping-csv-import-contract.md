@@ -22,7 +22,9 @@
 - 입력: 2026-07-23 운영 DB 미판정 그룹 export 70,442건
 - 생성기: `data/scripts/generate_production_ingredient_mapping_csv.py`
 - 완성 파일: `data/reconciliation/ingredient_mapping_ready_20260723.csv`
-- 완성 행: 70,422건 (`MAP_EXISTING` 6,861건, `CREATE_AND_MAP` 63,561건)
+- 완성 행: 70,422건 (`MAP_EXISTING` 133건, `CREATE_AND_MAP` 70,289건)
+- 기존 성분 연결 기준: 로컬 seed가 아니라 같은 시점 운영 목록 API의 canonical 정확 일치 추천 스냅샷
+- 검증: 운영 API 71개 배치 dry-run 결과 `VALID` 70,422건, `INVALID` 0건, `ALREADY_APPLIED` 0건
 - 제외: 자동 판정 위험 점수가 높은 20건. 운영 DB에서는 계속 미판정으로 유지
 - 적용: 관리자 화면에서 파일 선택 → 1,000행 단위 dry-run → 오류 0건 확인 → 적용
 - 주의: export 이후 운영 연결 수가 달라지면 `CONNECTION_COUNT_CHANGED`로 차단되므로 파일을 임의 수정해 우회하지 않고 운영 export부터 다시 생성한다.
@@ -32,10 +34,14 @@
 ```powershell
 python data/scripts/generate_production_ingredient_mapping_csv.py `
   --pending-csv <운영-export.csv> `
+  --suggestions-csv <운영-추천-snapshot.csv> `
+  --ingredients-csv data/ingredients.csv `
   --output data/reconciliation/ingredient_mapping_ready_20260723.csv `
   --excluded-count 20 `
   --report <검수-report.json>
 ```
+
+`--suggestions-csv`는 운영 목록 API에서 같은 시점에 수집한 `(pending_code, normalized_source_name)`별 추천 결과입니다. 생성기는 운영 export와 추천 스냅샷의 복합키가 1:1로 일치하지 않으면 중단합니다. `--ingredients-csv`는 신규 canonical 표시명 후보에만 사용하며 기존 canonical 연결 여부를 판단하지 않습니다. `normalized_source_name`은 운영 export 값을 정규화하거나 복구하지 않고 그대로 보존합니다.
 
 ## CSV 컬럼
 
