@@ -17,6 +17,7 @@
 - [서비스 흐름](#서비스-흐름)
 - [시스템 아키텍처](#시스템-아키텍처)
 - [핵심 기술 설계](#핵심-기술-설계)
+- [성능 최적화](#성능-최적화)
 - [Quick Start](#quick-start)
 - [API 및 프로젝트 구조](#api-및-프로젝트-구조)
 - [기술 스택](#기술-스택)
@@ -174,6 +175,42 @@ flowchart LR
 - [데이터 디렉터리 안내](data/README.md)
 - [성분 seed 가이드](docs/data/ingredient-seed-guide.md)
 - [리뷰 적재 운영](docs/operations/review-import-operations.md)
+
+## 성능 최적화
+
+79,952개 상품에서 저장 피부 프로필, 스킨 테스트, 행동 이력과 리뷰 신호를 함께 계산하는 개인화 추천 요청을 단계별로 계측했습니다. 최종 결과만 캐시하기보다 병목 구간을 분리하고, 후보 탐색과 점수 입력 데이터 조회 구조를 순서대로 변경했습니다.
+
+### 측정 조건
+
+- 데이터: 실제 상품 `79,952개`
+- 시나리오: `full-personalized`
+- 부하: `VUS 10`, `3분`
+- 캐시: `cold`
+- 주요 지표: End-to-end p95, Scoring p95, 처리량, 오류율
+- 오류 gate: `1% 이하`
+
+<p align="center">
+  <img src="docs/performance/results/recommendation/overview/03-optimization-timeline.png" alt="개인화 추천 파이프라인 최적화 단계별 p95 변화" width="100%" />
+</p>
+
+### 병목과 개선 단계
+
+| 단계 | 확인한 병목 | 적용한 변경 | End-to-end p95 | 오류율 |
+| --- | --- | --- | ---: | ---: |
+| Baseline | 후보 추출 전 브랜드 alias 전수 매칭과 온라인 점수 입력 계산 | 문제 재현 및 단계별 계측 추가 | 52.01초 | 2.00% |
+| Opt1 | Python 파서와 Elasticsearch에 중복된 검색 책임 | 브랜드 전수 매칭 제거, ES 중심 후보 추출 | 12.80초 | 0.00% |
+| Opt2 | 변하지 않는 상품 특징과 사용자 선호를 요청마다 반복 계산 | feature·preference rollup/read model 사전 계산 | 7.77초 | 0.00% |
+| Opt3 | 후보 점수 데이터를 여러 쿼리와 Python 조립으로 조회 | 후보 ID 기준 단일 bulk JOIN prefetch | 7.38초 | 0.00% |
+
+Baseline은 오류 gate를 초과했기 때문에 문제 재현 자료로만 사용하며, `52.01초 → 7.38초`를 확정 개선율로 계산하지 않습니다. 같은 성공 조건끼리 비교하면 Opt1→Opt2에서 End-to-end p95가 `39.3%`, Scoring p95가 `51.8%` 개선됐고, Opt2→Opt3에서는 각각 `5.0%`, `14.1%` 개선됐습니다.
+
+현재 README 수치는 비교 조건과 원본 run이 연결된 Baseline~Opt3 생성 리포트를 기준으로 합니다. 후속 단계는 같은 조건과 provenance가 확인된 뒤 이 표에 추가합니다.
+
+관련 문서:
+
+- [추천 성능 최적화 Case Study](docs/performance/recommendation-performance-case-study.md)
+- [추천 성능 측정 결과](docs/performance/results/recommendation/README.md)
+- [성능 테스트 실행·재생성 방법](docs/performance/README.md)
 
 ## Quick Start
 
