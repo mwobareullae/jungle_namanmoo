@@ -72,6 +72,7 @@ export function AdminIngredientMappingCsvPanel({
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [resultOpen, setResultOpen] = useState(false);
 
   const summary = useMemo(
     () =>
@@ -103,6 +104,7 @@ export function AdminIngredientMappingCsvPanel({
     setConfirmation("");
     setResultMessage(null);
     setProgress(0);
+    setResultOpen(false);
   };
 
   const parseRows = async (): Promise<IngredientMappingCsvRowInput[] | null> => {
@@ -123,6 +125,7 @@ export function AdminIngredientMappingCsvPanel({
     }
     const column = (name: string) => headers.indexOf(name);
     const issues: string[] = [];
+    const missingRequiredRows: number[] = [];
     const rows: IngredientMappingCsvRowInput[] = [];
     grid.slice(1).forEach((cells, index) => {
       const value = (name: string) => String(cells[column(name)] ?? "").trim();
@@ -135,7 +138,7 @@ export function AdminIngredientMappingCsvPanel({
         issues.push(`${rowNumber}행 action은 MAP_EXISTING 또는 CREATE_AND_MAP이어야 합니다.`);
       }
       if (!value("pending_code") || !value("normalized_source_name") || !value("target_ingredient_code")) {
-        issues.push(`${rowNumber}행의 pending/원문/target 코드가 비어 있습니다.`);
+        missingRequiredRows.push(rowNumber);
       }
       if (!Number.isInteger(expectedConnectionCount) || expectedConnectionCount < 1) {
         issues.push(`${rowNumber}행 expected_connection_count는 1 이상의 정수여야 합니다.`);
@@ -153,8 +156,19 @@ export function AdminIngredientMappingCsvPanel({
         sourceReference: value("source_reference") || null
       });
     });
-    if (issues.length > 0) {
-      setError(`${issues.slice(0, 5).join(" ")}${issues.length > 5 ? ` 외 ${issues.length - 5}건` : ""}`);
+    if (missingRequiredRows.length > 0 || issues.length > 0) {
+      const summaries: string[] = [];
+      if (missingRequiredRows.length > 0) {
+        const visibleRows = missingRequiredRows.slice(0, 5).map((rowNumber) => `${rowNumber}행`).join("/");
+        const remainingCount = missingRequiredRows.length - 5;
+        summaries.push(
+          `pending/원문/target 코드가 비어 있습니다.\n${visibleRows}${remainingCount > 0 ? ` 외 ${remainingCount}건` : ""}`
+        );
+      }
+      if (issues.length > 0) {
+        summaries.push(`${issues.slice(0, 5).join(" ")}${issues.length > 5 ? ` 외 ${issues.length - 5}건` : ""}`);
+      }
+      setError(summaries.join("\n"));
       return null;
     }
     if (rows.length === 0) {
@@ -171,6 +185,7 @@ export function AdminIngredientMappingCsvPanel({
       saveBlob(await downloadPendingIngredientMappingCsv(), "mwbl_ingredient_mapping_pending.csv");
     } catch (caught) {
       setError(describeError(caught, "서버 미판정 CSV를 내려받지 못했습니다."));
+      setResultOpen(true);
     } finally {
       setBusy(null);
     }
@@ -182,7 +197,10 @@ export function AdminIngredientMappingCsvPanel({
     resetPreview();
     try {
       const rows = await parseRows();
-      if (!rows) return;
+      if (!rows) {
+        setResultOpen(true);
+        return;
+      }
       const chunks = chunkRows(rows);
       const batches: PreviewBatch[] = [];
       for (let index = 0; index < chunks.length; index += 1) {
@@ -191,8 +209,10 @@ export function AdminIngredientMappingCsvPanel({
         setProgress(Math.round(((index + 1) / chunks.length) * 100));
       }
       setPreviewBatches(batches);
+      setResultOpen(true);
     } catch (caught) {
       setError(describeError(caught, "CSV dry-run을 완료하지 못했습니다."));
+      setResultOpen(true);
     } finally {
       setBusy(null);
     }
@@ -238,6 +258,7 @@ export function AdminIngredientMappingCsvPanel({
       onOperationLog("성분", "CSV 일괄 매핑 완료", detail, "success");
       resetPreview();
       setResultMessage(`${detail} 완료.${refreshWarning} 고객 검색 색인은 배포 환경에서 재색인이 필요합니다.`);
+      setResultOpen(true);
       await onApplied();
     } catch (caught) {
       let recoveryMessage = "";
@@ -253,82 +274,156 @@ export function AdminIngredientMappingCsvPanel({
       setError(
         `${completedBatches}개 배치까지 반영되었습니다.${recoveryMessage} 목록을 다시 export해 dry-run을 재실행해 주세요. ${describeError(caught, "일괄 적용 중 오류가 발생했습니다.")}`
       );
+      setResultOpen(true);
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <section className="admin-panel admin-ingredient-csv-panel">
-      <div className="admin-panel-header compact">
-        <div>
-          <p>운영 DB 대량 처리</p>
-          <h2>미판정 성분 CSV 일괄 매핑</h2>
-        </div>
-        <div className="admin-filter-row">
-          <button className="admin-secondary-button admin-light-button" disabled={busy !== null} onClick={() => void downloadCsv()} type="button">
-            {busy === "download" ? "내려받는 중..." : "서버 미판정 CSV 다운로드"}
-          </button>
-          <input
-            accept=".csv,.xlsx"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
-              setError(null);
-              resetPreview();
-            }}
-            ref={fileInputRef}
-            type="file"
-          />
-          <button className="admin-primary-button" disabled={busy !== null || !file} onClick={() => void runPreview()} type="button">
-            {busy === "preview" ? `dry-run ${progress}%` : "dry-run 실행"}
-          </button>
-        </div>
+    <>
+      <div className="admin-ingredient-csv-actions">
+        <button
+          className="admin-secondary-button admin-light-button"
+          disabled={busy !== null}
+          onClick={() => void downloadCsv()}
+          type="button"
+        >
+          {busy === "download" ? "내려받는 중..." : "서버 미판정 CSV 다운로드"}
+        </button>
+        <input
+          accept=".csv,.xlsx"
+          aria-label="성분 매핑 CSV 파일 선택"
+          className="admin-ingredient-csv-file-input"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+            setError(null);
+            resetPreview();
+          }}
+          ref={fileInputRef}
+          type="file"
+        />
+        <button
+          className="admin-secondary-button admin-light-button"
+          disabled={busy !== null}
+          onClick={() => fileInputRef.current?.click()}
+          title={file?.name ?? "CSV 또는 XLSX 파일 선택"}
+          type="button"
+        >
+          {file ? "파일 변경" : "파일 찾기"}
+        </button>
+        {file && <span className="admin-ingredient-csv-filename" title={file.name}>{file.name}</span>}
+        <button
+          className="admin-primary-button"
+          disabled={busy !== null || !file}
+          onClick={() => void runPreview()}
+          type="button"
+        >
+          {busy === "preview" ? `dry-run ${progress}%` : "dry-run 실행"}
+        </button>
       </div>
 
-      <p className="admin-muted-copy">
-        다운로드한 행에서 target 컬럼을 작성하세요. 기존 성분은 MAP_EXISTING, 복합 원료를 새 성분으로 만들 때만 CREATE_AND_MAP을 사용하고 생성 근거를 입력해야 합니다. 미판정으로 남길 행은 업로드 파일에서 제외하세요.
-      </p>
-      {file && <p className="admin-muted-copy">선택 파일: {file.name}</p>}
-      {error && <div className="admin-state-banner danger"><span>{error}</span></div>}
-      {resultMessage && <div className="admin-state-banner success"><span>{resultMessage}</span></div>}
-
-      {previewBatches.length > 0 && (
-        <>
-          <div className="admin-excel-summary-grid admin-ingredient-summary-grid">
-            <article className="admin-excel-summary neutral"><span>전체</span><strong>{summary.total.toLocaleString("ko-KR")}</strong></article>
-            <article className="admin-excel-summary success"><span>적용 가능</span><strong>{summary.valid.toLocaleString("ko-KR")}</strong></article>
-            <article className="admin-excel-summary danger"><span>오류</span><strong>{summary.invalid.toLocaleString("ko-KR")}</strong></article>
-            <article className="admin-excel-summary neutral"><span>이미 적용</span><strong>{summary.alreadyApplied.toLocaleString("ko-KR")}</strong></article>
-          </div>
-          <div className="admin-state-banner warning">
-            <span>적용 대상 연결 {summary.connectionCount.toLocaleString("ko-KR")}건. 오류가 1건이라도 있으면 전체 파일 적용을 시작할 수 없습니다.</span>
-          </div>
-          {invalidRows.length > 0 && (
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead><tr><th>CSV 행</th><th>pending 코드</th><th>오류 코드</th><th>설명</th></tr></thead>
-                <tbody>
-                  {invalidRows.slice(0, 100).map((row) => (
-                    <tr key={`${row.rowNumber}-${row.pendingCode}`}><td>{row.rowNumber}</td><td>{row.pendingCode}</td><td>{row.errorCode}</td><td>{row.message}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              {invalidRows.length > 100 && <p className="admin-muted-copy">오류는 처음 100건만 표시합니다.</p>}
-            </div>
-          )}
-          {summary.invalid === 0 && summary.valid > 0 && (
-            <div className="admin-filter-row">
-              <label>
-                확인 문구 <strong>{confirmationPhrase}</strong>
-                <input onChange={(event) => setConfirmation(event.target.value)} placeholder={confirmationPhrase} value={confirmation} />
-              </label>
-              <button className="admin-primary-button" disabled={!canApply} onClick={() => void applyCsv()} type="button">
-                {busy === "apply" ? `적용 ${progress}%` : "운영 DB에 적용"}
+      {resultOpen && (
+        <div className="admin-ingredient-modal-overlay">
+            <section
+              aria-labelledby="ingredient-csv-preview-title"
+            aria-modal="true"
+            className="admin-panel admin-ingredient-modal admin-ingredient-csv-modal"
+            role="dialog"
+          >
+            <div className="admin-ingredient-modal-heading">
+              <h2 id="ingredient-csv-preview-title">CSV dry-run 결과</h2>
+              <button
+                className="admin-ingredient-modal-close"
+                disabled={busy === "apply"}
+                aria-label="모달 닫기"
+                onClick={() => setResultOpen(false)}
+                type="button"
+              >
+                ×
               </button>
             </div>
-          )}
-        </>
+
+            <div className="admin-ingredient-csv-modal-body">
+              {error && (
+                <div className="admin-ingredient-csv-notice danger" role="alert">
+                  <strong>CSV 내용을 확인해 주세요.</strong>
+                  <p>{error}</p>
+                </div>
+              )}
+              {resultMessage && (
+                <div className="admin-ingredient-csv-notice success" role="status">
+                  <strong>적용이 완료되었습니다.</strong>
+                  <p>{resultMessage}</p>
+                </div>
+              )}
+
+              {previewBatches.length > 0 && (
+                <>
+                  <div className="admin-excel-summary-grid admin-ingredient-csv-summary-grid">
+                    <article className="admin-excel-summary neutral"><span>전체</span><strong>{summary.total.toLocaleString("ko-KR")}</strong></article>
+                    <article className="admin-excel-summary success"><span>적용 가능</span><strong>{summary.valid.toLocaleString("ko-KR")}</strong></article>
+                    <article className="admin-excel-summary danger"><span>오류</span><strong>{summary.invalid.toLocaleString("ko-KR")}</strong></article>
+                    <article className="admin-excel-summary neutral"><span>이미 적용</span><strong>{summary.alreadyApplied.toLocaleString("ko-KR")}</strong></article>
+                  </div>
+                  <div className={`admin-ingredient-csv-result-note ${summary.invalid > 0 ? "danger" : "ready"}`}>
+                    <strong>적용 대상 연결 {summary.connectionCount.toLocaleString("ko-KR")}건</strong>
+                    <span>
+                      {summary.invalid > 0
+                        ? "오류를 수정한 뒤 다시 dry-run해 주세요."
+                        : "확인 문구 입력 후 운영 DB에 적용할 수 있습니다."}
+                    </span>
+                  </div>
+                  {invalidRows.length > 0 && (
+                    <div className="admin-table-wrap admin-ingredient-csv-error-table">
+                      <table className="admin-table">
+                        <thead><tr><th>CSV 행</th><th>pending 코드</th><th>오류 코드</th><th>설명</th></tr></thead>
+                        <tbody>
+                          {invalidRows.slice(0, 100).map((row) => (
+                            <tr key={`${row.rowNumber}-${row.pendingCode}`}><td>{row.rowNumber}</td><td>{row.pendingCode}</td><td>{row.errorCode}</td><td>{row.message}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {invalidRows.length > 100 && <p className="admin-muted-copy">오류는 처음 100건만 표시합니다.</p>}
+                    </div>
+                  )}
+                  {summary.invalid === 0 && summary.valid > 0 && (
+                    <label className="admin-ingredient-csv-confirm">
+                      <span>확인 문구 <strong>{confirmationPhrase}</strong></span>
+                      <input
+                        onChange={(event) => setConfirmation(event.target.value)}
+                        placeholder={confirmationPhrase}
+                        value={confirmation}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className={`admin-ingredient-modal-actions ${previewBatches.length === 0 ? "single" : ""}`}>
+              <button
+                className="admin-secondary-button"
+                disabled={busy === "apply"}
+                onClick={() => setResultOpen(false)}
+                type="button"
+              >
+                닫기
+              </button>
+              {previewBatches.length > 0 && (
+                <button
+                  className="admin-ingredient-confirm-button approve"
+                  disabled={!canApply}
+                  onClick={() => void applyCsv()}
+                  type="button"
+                >
+                  {busy === "apply" ? `적용 ${progress}%` : "운영 DB에 적용"}
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
       )}
-    </section>
+    </>
   );
 }

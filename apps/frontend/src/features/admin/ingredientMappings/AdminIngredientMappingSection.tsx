@@ -439,19 +439,22 @@ export function AdminIngredientMappingSection({
         </div>
       )}
 
-      <AdminIngredientMappingCsvPanel
-        onApplied={refresh}
-        onOperationLog={onOperationLog}
-        parseSpreadsheet={parseSpreadsheet}
-      />
-
       <section className="admin-panel admin-ingredient-queue">
-        <div className="admin-panel-header compact">
+        <div className="admin-panel-header compact admin-ingredient-queue-heading">
           <div>
             <p>검수 대기열</p>
             <h2>pending 원문 그룹</h2>
           </div>
-          <form className="admin-filter-row" onSubmit={handleSearchSubmit}>
+          <AdminIngredientMappingCsvPanel
+            onApplied={refresh}
+            onOperationLog={onOperationLog}
+            parseSpreadsheet={parseSpreadsheet}
+          />
+        </div>
+        <form
+          className="admin-filter-row admin-ingredient-queue-filters"
+          onSubmit={handleSearchSubmit}
+        >
             <select
               className="admin-secondary-button"
               onChange={(event) =>
@@ -516,8 +519,7 @@ export function AdminIngredientMappingSection({
             <button className="admin-secondary-button admin-light-button" onClick={resetFilters} type="button">
               초기화
             </button>
-          </form>
-        </div>
+        </form>
 
         {error && (
           <div className="admin-state-banner danger">
