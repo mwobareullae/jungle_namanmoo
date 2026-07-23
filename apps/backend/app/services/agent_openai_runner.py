@@ -76,6 +76,7 @@ from app.services.agent_orchestration import (
     RouteDecision,
     build_router_input,
     build_specialist_input,
+    normalize_route_decision,
     select_specialist_tool_names,
     validate_route_decision,
 )
@@ -422,6 +423,10 @@ class CommerceAgentContext:
     agent_context: AgentContext = field(default_factory=AgentContext)
     user_message: str = ""
     last_tool_result: AgentLastToolResult | None = None
+    router_action: AgentToolName | None = None
+    router_target_scope: str = "none"
+    router_reference_position: Literal["last"] | None = None
+    router_reference_rank: int | None = None
     last_tool_response: AgentChatResponse | None = None
     local_trace: AgentLocalTrace | None = None
     active_agent_stage: Literal["single", "specialist", "fallback"] = "single"
@@ -838,21 +843,6 @@ async def run_openai_agent_chat(
         single_model_override = (
             execution_override.specialist_model or execution_override.router_model
         )
-    preflight_model = (
-        _resolve_router_specialist_models(model_override, execution_override)[1]
-        if execution_mode == "router_specialist"
-        else _resolve_agent_model(single_model_override)[0]
-    )
-    preflight_response = _try_bulk_wishlist_preflight(
-        request,
-        user=user,
-        workflow_timing=workflow_timing,
-        local_trace=local_trace,
-        configured_model=preflight_model,
-    )
-    if preflight_response is not None:
-        return preflight_response
-
     if execution_mode == "router_specialist":
         return await _run_router_specialist_agent_chat(
             session,
@@ -1373,20 +1363,6 @@ async def _run_router_specialist_agent_chat(
     legacy single-Agent path, which keeps a rollback explicit and observable.
     """
 
-    fast_response = _try_router_specialist_fast_path(
-        session,
-        request,
-        user=user,
-        request_id=request_id,
-        session_id=session_id,
-        anonymous_user_id=anonymous_user_id,
-        anonymous_cart_id=anonymous_cart_id,
-        local_trace=local_trace,
-        workflow_timing=workflow_timing,
-    )
-    if fast_response is not None:
-        return fast_response
-
     router_model, specialist_model, model_source = _resolve_router_specialist_models(
         model_override,
         execution_override,
@@ -1516,11 +1492,23 @@ async def _run_router_specialist_agent_chat(
                             "요청을 처리할 경로를 결정하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         ) from exc
 
+                    raw_target_scope = decision.target_scope
+                    decision = normalize_route_decision(decision, request=request)
+
                     if workflow_timing is not None:
                         workflow_timing.router_route = decision.route
                         workflow_timing.router_confidence = decision.confidence
                     if local_trace is not None:
                         local_trace.set_stage_value("router", "route", decision.route)
+                        local_trace.set_stage_value("router", "action", decision.action)
+                        local_trace.set_stage_value("router", "target_scope", decision.target_scope)
+                        if decision.target_scope != raw_target_scope:
+                            local_trace.set_stage_value(
+                                "router", "target_scope_original", raw_target_scope
+                            )
+                            local_trace.set_stage_value(
+                                "router", "target_scope_normalized", True
+                            )
                         local_trace.set_stage_value("router", "confidence", decision.confidence)
 
                     route_error = validate_route_decision(
@@ -1543,6 +1531,10 @@ async def _run_router_specialist_agent_chat(
                     elif route_error is not None:
                         response = _clarification_response(request.conversation_id, route_error)
                     else:
+                        context.router_action = decision.action
+                        context.router_target_scope = decision.target_scope
+                        context.router_reference_position = decision.reference_position
+                        context.router_reference_rank = decision.reference_rank
                         profile = SPECIALIST_PROFILES[decision.route]
                         specialist_tool_names = select_specialist_tool_names(
                             decision,
@@ -1573,6 +1565,8 @@ async def _run_router_specialist_agent_chat(
                                 agent_input=specialist_input,
                             )
                             local_trace.set_route_value("router_route", decision.route)
+                            local_trace.set_route_value("router_action", decision.action)
+                            local_trace.set_route_value("router_target_scope", decision.target_scope)
                             local_trace.set_route_value("router_confidence", decision.confidence)
                             local_trace.set_route_value("specialist_name", profile.name)
 
@@ -1732,6 +1726,8 @@ async def _run_router_specialist_agent_chat(
             "execution_mode": "router_specialist",
             "router_model": router_model,
             "router_route": decision.route,
+            "router_action": decision.action,
+            "router_target_scope": decision.target_scope,
             "router_confidence": decision.confidence,
             "specialist_model": specialist_model,
             "specialist_name": decision.route,
@@ -1821,6 +1817,39 @@ def _try_router_specialist_fast_path(
             request.conversation_id,
             shipping_address_clarification,
             tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+        )
+
+    current_product_checkout_arguments = _get_current_product_checkout_arguments(request)
+    if current_product_checkout_arguments is not None:
+        if user is None:
+            _record_fast_path(workflow_timing, "current_product_checkout_auth_required")
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="current_product_checkout_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            )
+        _record_fast_path(workflow_timing, "current_product_checkout")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="current_product_checkout",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            arguments=current_product_checkout_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            current_product_id=request.context.current_product_id,
+            last_tool_result=request.last_tool_result,
         )
 
     last_tool_result_checkout_arguments = _get_last_tool_result_product_checkout_arguments(request)
@@ -2315,6 +2344,11 @@ _LAST_TOOL_RESULT_PRODUCT_CHECKOUT_PATTERN = re.compile(
     r"(?:\s*(?:을|를))?\s*(?:주문|구매|결제)(?:\s*(?:해주세요|해줘|할게|할래|해))?\s*[.!?]*\s*$"
 )
 
+_CURRENT_PRODUCT_CHECKOUT_PATTERN = re.compile(
+    r"(?:이거|이상품|현재상품)(?:을|를)?(?:주문|구매|결제)(?:해줘|해주세요|해|하자|할래|할게|쩜)?[!.?]*",
+    re.IGNORECASE,
+)
+
 
 def _get_simple_recommendation_refinement_arguments(request: AgentChatRequest) -> dict[str, Any] | None:
     """Route an explicit price/category refinement without retaining stale concern filters."""
@@ -2428,6 +2462,28 @@ def _get_last_tool_result_product_checkout_arguments(
         "reference_source": "last_tool_result",
         "reference_rank": None,
         "reference_position": "last",
+    }
+
+
+def _get_current_product_checkout_arguments(
+    request: AgentChatRequest,
+) -> dict[str, Any] | None:
+    """Resolve deictic checkout requests to the product currently on screen."""
+
+    current_product_id = request.context.current_product_id
+    if not current_product_id:
+        return None
+    normalized_message = re.sub(r"\s+", "", request.message)
+    if not _CURRENT_PRODUCT_CHECKOUT_PATTERN.fullmatch(normalized_message):
+        return None
+    return {
+        "product_id": current_product_id,
+        "quantity": 1,
+        "recommendation_id": None,
+        "recommendation_rank": None,
+        "reference_source": None,
+        "reference_rank": None,
+        "reference_position": None,
     }
 
 
@@ -2599,6 +2655,11 @@ def _execute_tool(
         user_message=runtime_context.user_message,
         last_tool_result=runtime_context.last_tool_result,
     )
+    resolved_arguments = _apply_router_target_constraints(
+        tool_name=tool_name,
+        arguments=resolved_arguments,
+        runtime_context=runtime_context,
+    )
     reference_resolve_ms = elapsed_ms(reference_resolve_started_at)
     runtime_context.tool_reference_resolve_ms += reference_resolve_ms
     dispatch_started_at = current_time()
@@ -2724,6 +2785,107 @@ def _execute_tool(
     return sdk_return_value
 
 
+def _apply_router_target_constraints(
+    *,
+    tool_name: str,
+    arguments: dict[str, Any],
+    runtime_context: CommerceAgentContext,
+) -> dict[str, Any]:
+    """Bind Specialist arguments to the Router's server-validated target scope."""
+
+    normalized = dict(arguments)
+    scope = runtime_context.router_target_scope
+    if scope == "current_product":
+        current_product_id = runtime_context.agent_context.current_product_id
+        if current_product_id is None:
+            raise ApiError(400, "AGENT_CURRENT_PRODUCT_REQUIRED", "Current product is required.")
+        if tool_name in {
+            ADD_TO_CART_TOOL,
+            FIND_SIMILAR_PRODUCTS_TOOL,
+            PREPARE_PRODUCT_CHECKOUT_TOOL,
+        }:
+            normalized["product_id"] = current_product_id
+            if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+                normalized.update(
+                    {
+                        "reference_source": None,
+                        "reference_rank": None,
+                        "reference_position": None,
+                    }
+                )
+    elif scope == "selected_products":
+        selected_product_ids = runtime_context.agent_context.selected_product_ids
+        rank = runtime_context.router_reference_rank
+        if rank is None or rank < 1 or rank > len(selected_product_ids):
+            raise ApiError(
+                400,
+                "AGENT_SELECTED_PRODUCT_REFERENCE_REQUIRED",
+                "A selected product reference is required.",
+            )
+        if tool_name in {
+            ADD_TO_CART_TOOL,
+            FIND_SIMILAR_PRODUCTS_TOOL,
+            PREPARE_PRODUCT_CHECKOUT_TOOL,
+        }:
+            normalized["product_id"] = selected_product_ids[rank - 1]
+            if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+                normalized.update(
+                    {
+                        "reference_source": None,
+                        "reference_rank": None,
+                        "reference_position": None,
+                    }
+                )
+    elif scope == "cart_selection":
+        cart_item_ids = runtime_context.agent_context.cart_item_ids
+        if not cart_item_ids:
+            raise ApiError(400, "AGENT_CART_SELECTION_REQUIRED", "Cart selection is required.")
+        if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
+            normalized["cart_item_ids"] = list(cart_item_ids)
+    elif scope == "last_tool_result":
+        if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+            normalized.update(
+                {
+                    "product_id": None,
+                    "reference_source": "last_tool_result",
+                    "reference_rank": runtime_context.router_reference_rank,
+                    "reference_position": runtime_context.router_reference_position,
+                }
+            )
+    elif scope == "recommendation_result" and tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:
+        normalized.update(
+            {
+                "product_id": None,
+                "recommendation_id": runtime_context.agent_context.recommendation_id,
+                "recommendation_rank": runtime_context.router_reference_rank,
+                "reference_source": None,
+                "reference_rank": None,
+                "reference_position": None,
+            }
+        )
+    elif scope == "visible_products" and tool_name in {
+        ADD_TO_CART_TOOL,
+        FIND_SIMILAR_PRODUCTS_TOOL,
+        PREPARE_PRODUCT_CHECKOUT_TOOL,
+    }:
+        visible_product_ids = runtime_context.agent_context.visible_product_ids
+        rank = runtime_context.router_reference_rank
+        if rank is None:
+            rank = 1 if len(visible_product_ids) == 1 else None
+        if rank is None or rank < 1 or rank > len(visible_product_ids):
+            raise ApiError(400, "AGENT_VISIBLE_PRODUCT_REFERENCE_REQUIRED", "A visible product reference is required.")
+        normalized["product_id"] = visible_product_ids[rank - 1]
+        if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+            normalized.update(
+                {
+                    "reference_source": None,
+                    "reference_rank": None,
+                    "reference_position": None,
+                }
+            )
+    return normalized
+
+
 try:
     from agents import RunContextWrapper, function_tool
 except ImportError:
@@ -2742,7 +2904,9 @@ except ImportError:
 async def find_similar_products(
     ctx: RunContextWrapper[CommerceAgentContext],
     product_id: str,
-    limit: int = 10,
+    # Keep the OpenAI tool schema aligned with the dispatcher policy: the
+    # product-detail UI presents two alternatives, not a generic ten-item list.
+    limit: int = 2,
     min_price: int | None = None,
     max_price: int | None = None,
 ) -> str:
@@ -2820,7 +2984,7 @@ async def refine_product_results(
     page: int = 1,
     min_price: int | None = None,
     max_price: int | None = None,
-    category_code: str | None = None,
+    category_code: AgentCategoryCode | None = None,
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
