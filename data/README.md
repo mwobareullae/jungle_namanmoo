@@ -82,7 +82,7 @@ vector_docs.csv
 
 팀원5 데이터는 P2 자사몰 seed와 10만 feed dry-run의 기준입니다. `products.csv` 또는 `products/*.csv`, `product_ingredients.csv` 또는 `product_ingredients/*.csv`, `product_prices.csv`, `product_inventory.csv`, `product_image_assets.csv`는 각각 Product, Ingredient mapping, 기본 Offer seed, Inventory seed, Image storage 작업 큐로 해석합니다.
 
-`reconciliation/ingredient_mapping_ready_20260723.csv`는 seed가 아니라 2026-07-23 운영 미판정 그룹을 일회성으로 정리하기 위한 관리자 업로드 파일입니다. `scripts/generate_production_ingredient_mapping_csv.py`로 운영 export를 정규화하고 판단 불가 20건을 제외해 만들며, 관리자 화면의 dry-run과 적용 기능은 이후 최신 운영 export에도 계속 사용합니다.
+`reconciliation/ingredient_mapping_ready_20260723.csv`는 seed가 아니라 2026-07-23 운영 미판정 그룹을 일회성으로 정리하기 위한 관리자 업로드 파일입니다. `scripts/generate_production_ingredient_mapping_csv.py`에 같은 시점의 운영 export와 운영 canonical 추천 스냅샷을 입력하고 판단 불가 20건을 제외해 만듭니다. 운영 export의 식별자는 수정하지 않으며, 관리자 화면의 dry-run과 적용 기능은 이후 최신 운영 export에도 계속 사용합니다.
 
 상품 수나 상품-성분 매핑 행이 늘어 단일 CSV가 커지는 경우에는 같은 이름의 디렉터리에 같은 헤더의 CSV 조각을 나눠 둡니다. 예를 들어 `products.csv`는 `products/*.csv`, `product_ingredients.csv`는 `product_ingredients/*.csv`로 분할할 수 있습니다. 백엔드 loader는 단일 파일이 있으면 단일 파일을 읽고, 단일 파일이 없으면 같은 이름의 디렉터리 안 `*.csv`를 파일명 순서대로 읽습니다. 중복 적재를 막기 위해 단일 파일과 분할 디렉터리를 동시에 두지 않습니다.
 
