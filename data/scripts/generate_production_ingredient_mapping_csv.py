@@ -5,7 +5,7 @@ import csv
 import json
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -23,7 +23,8 @@ OUTPUT_FIELDS = [
     "source_reference",
 ]
 PENDING_PREFIXES = ("ing_pending_", "foreign_pending_")
-MOJIBAKE_MARKERS = frozenset("ÃÂâìëð�")
+SOURCE_REFERENCE = "운영 미판정 export 및 운영 추천 스냅샷 2026-07-23"
+GENERATED_SOURCE_REFERENCE = f"{SOURCE_REFERENCE}; production mapping generator"
 BOILERPLATE_PATTERNS = (
     r"\s+[Tt]he list of ingredients\b",
     r"\s+[Ii]ngredients may change\b",
@@ -47,23 +48,24 @@ MARKETING_MARKERS = (
     "servings per container",
     "visit ",
 )
+# NFKC 후 종성 자리에 남은 현대 한글 초성을 앞 음절의 종성으로 결합한다.
 STRAY_CHOSEONG_TO_JONGSEONG = {
-    "ᄀ": 1,
-    "ᄁ": 2,
-    "ᄂ": 4,
-    "ᄃ": 7,
-    "ᄅ": 8,
-    "ᄆ": 16,
-    "ᄇ": 17,
-    "ᄉ": 19,
-    "ᄊ": 20,
-    "ᄋ": 21,
-    "ᄌ": 22,
-    "ᄎ": 23,
-    "ᄏ": 24,
-    "ᄐ": 25,
-    "ᄑ": 26,
-    "ᄒ": 27,
+    "\u1100": 1,
+    "\u1101": 2,
+    "\u1102": 4,
+    "\u1103": 7,
+    "\u1105": 8,
+    "\u1106": 16,
+    "\u1107": 17,
+    "\u1109": 19,
+    "\u110a": 20,
+    "\u110b": 21,
+    "\u110c": 22,
+    "\u110e": 23,
+    "\u110f": 24,
+    "\u1110": 25,
+    "\u1111": 26,
+    "\u1112": 27,
 }
 
 
@@ -95,11 +97,15 @@ def backend_normalize(value: str | None) -> str:
 
 
 def _mojibake_score(value: str) -> int:
-    return sum(char in MOJIBAKE_MARKERS or 0x80 <= ord(char) <= 0x9F for char in value)
+    replacement = value.count("\ufffd") + len(re.findall(r"\?{2,}", value))
+    control = sum(0x80 <= ord(char) <= 0x9F for char in value)
+    common_markers = sum(value.count(marker) for marker in ("Ã", "Â", "â", "í", "ë", "ì", "ð"))
+    hangul = sum("가" <= char <= "힣" for char in value)
+    return replacement * 100 + control * 20 + common_markers * 3 - hangul
 
 
 def repair_mojibake(value: str) -> str:
-    """UTF-8 바이트를 latin-1/cp1252로 잘못 읽은 원문을 보수적으로 복구한다."""
+    """UTF-8 바이트가 latin-1/cp1252로 잘못 해석된 원문을 보수적으로 복구한다."""
 
     best = value
     for _ in range(2):
@@ -121,8 +127,6 @@ def repair_mojibake(value: str) -> str:
 
 
 def _attach_stray_choseong(value: str) -> str:
-    """NFKC 뒤 남은 초성 자모를 직전 완성형 음절의 종성으로 결합한다."""
-
     output: list[str] = []
     for char in value:
         jongseong = STRAY_CHOSEONG_TO_JONGSEONG.get(char)
@@ -136,7 +140,7 @@ def _attach_stray_choseong(value: str) -> str:
 
 
 def normalize_display_name(value: str | None) -> str:
-    """신규 canonical 표시명에만 적용하는 복구/정리 규칙."""
+    """신규 canonical 표시명에만 적용하는 복구·정리 규칙."""
 
     text = repair_mojibake(value or "")
     text = _attach_stray_choseong(unicodedata.normalize("NFKC", text))
@@ -168,115 +172,221 @@ def _new_target_code(pending_code: str) -> str:
     return f"ing_generated_{suffix}"
 
 
-def _risk(row: dict[str, str], cleaned_name: str, ambiguous: bool) -> tuple[int, str]:
-    raw = row.get("raw_name", "")
-    repaired_raw = repair_mojibake(raw)
-    lowered = repaired_raw.casefold()
-    reasons: list[str] = []
+def _display_risk(value: str) -> int:
+    lowered = value.casefold()
     score = 0
+    if not value:
+        return 100_000
+    if len(value) > 255:
+        score += 90_000 + len(value)
+    if any(marker in lowered for marker in MARKETING_MARKERS):
+        score += 2_000
+    if "http://" in lowered or "https://" in lowered or "www." in lowered:
+        score += 2_000
+    if "\ufffd" in value or re.search(r"\?{2,}", value):
+        score += 1_500
+    score += max(0, len(value) - 100)
+    if len(value) < 2:
+        score += 1_000
+    return score
+
+
+def _row_risk(
+    row: dict[str, str],
+    cleaned_name: str,
+    candidate_type: str,
+) -> tuple[int, str]:
+    normalized = row.get("normalized_source_name", "")
+    raw = row.get("raw_name", "")
+    reasons: list[str] = []
+    score = _display_risk(cleaned_name)
+    if not normalized:
+        score += 200_000
+        reasons.append("정규화 원문 없음")
+    elif len(normalized) > 255:
+        score += 200_000 + len(normalized)
+        reasons.append("정규화 원문 255자 초과")
+    elif normalized != backend_normalize(normalized):
+        score += 200_000
+        reasons.append("백엔드 정규화 규칙 불일치")
     if not cleaned_name:
-        score += 10_000
-        reasons.append("정규화 후 빈 값")
-    if ambiguous:
-        score += 4_000
-        reasons.append("기존 canonical 정확 일치 충돌")
-    marker_count = sum(marker in lowered for marker in MARKETING_MARKERS)
-    boilerplate_recovered = (
-        marker_count > 0
-        and len(cleaned_name) >= 2
-        and len(cleaned_name) <= max(2, int(len(repaired_raw) * 0.6))
-    )
-    if marker_count and not boilerplate_recovered:
-        score += 1_000 + marker_count * 100
-        reasons.append("마케팅/안내 문구 포함")
+        reasons.append("신규 canonical 표시명 없음")
+    elif len(cleaned_name) > 255:
+        reasons.append("신규 canonical 표시명 255자 초과")
+    lowered = raw.casefold()
+    if any(marker in lowered for marker in MARKETING_MARKERS):
+        score += 1_000
+        reasons.append("마케팅·안내 문구 포함")
     if "http://" in lowered or "https://" in lowered or "www." in lowered:
         score += 900
         reasons.append("URL 포함")
-    replacement_count = raw.count("�") + len(re.findall(r"\?{2,}", raw))
-    if replacement_count:
-        score += 700 + replacement_count * 20
-        reasons.append("깨진 문자 잔존")
-    remaining_mojibake = _mojibake_score(repair_mojibake(raw))
-    if remaining_mojibake:
-        score += 600 + remaining_mojibake * 10
-        reasons.append("복구 불가 인코딩")
-    if len(cleaned_name) > 160:
-        score += 100 + len(cleaned_name)
-        reasons.append("비정상적으로 긴 원문")
-    elif len(cleaned_name) > 100:
-        score += 120 + len(cleaned_name)
-        reasons.append("긴 복합 원문")
-    if len(cleaned_name) < 2:
-        score += 500
-        reasons.append("성분명 길이 부족")
-    return score, ", ".join(reasons) or "낮은 자동 판정 신뢰도"
+    if "\ufffd" in raw or re.search(r"\?{2,}", raw):
+        score += 700
+        reasons.append("깨진 문자 의심")
+    if candidate_type == "EXACT_MATCH_CONFLICT":
+        score += 100_000
+        reasons.append("운영 canonical 정확 일치 충돌")
+    if len(raw) > 255:
+        score += len(raw)
+        reasons.append("긴 원문")
+    return score, ", ".join(reasons) or "자동 판정 보류 상위 위험군"
 
 
-def _load_canonical_index(
-    ingredients_path: Path,
-    aliases_path: Path,
-) -> tuple[dict[str, set[str]], dict[str, str]]:
-    index: dict[str, set[str]] = defaultdict(set)
+def _load_pending_names(ingredients_path: Path | None) -> dict[str, str]:
+    if ingredients_path is None or not ingredients_path.exists():
+        return {}
     pending_names: dict[str, str] = {}
-    canonical_codes: set[str] = set()
-    ingredient_rows = read_csv(ingredients_path)
-    for row in ingredient_rows:
-        code = row["ingredient_id"].strip()
-        if code.startswith(PENDING_PREFIXES):
-            pending_names[code] = row.get("name_ko", "").strip() or row.get("name_en", "").strip()
+    for row in read_csv(ingredients_path):
+        code = row.get("ingredient_id", "").strip()
+        if not code.startswith(PENDING_PREFIXES):
             continue
-        canonical_codes.add(code)
-        for name in (row.get("name_ko", ""), row.get("name_en", "")):
-            key = backend_normalize(name)
-            if key:
-                index[key].add(code)
-    for row in read_csv(aliases_path):
-        code = row.get("canonical_id", "").strip()
-        key = backend_normalize(row.get("alias", ""))
-        if code in canonical_codes and key:
-            index[key].add(code)
-    return index, pending_names
+        name = row.get("name_ko", "").strip() or row.get("name_en", "").strip()
+        if name:
+            pending_names[code] = name
+    return pending_names
+
+
+def _load_suggestions(path: Path) -> dict[tuple[str, str], dict[str, str]]:
+    suggestions: dict[tuple[str, str], dict[str, str]] = {}
+    for row in read_csv(path):
+        key = (row.get("pending_code", "").strip(), row.get("normalized_source_name", ""))
+        if not all(key):
+            raise ValueError(f"운영 추천 스냅샷에 빈 식별자가 있습니다: {key!r}")
+        if key in suggestions:
+            raise ValueError(f"운영 추천 스냅샷에 중복 식별자가 있습니다: {key!r}")
+        suggestions[key] = row
+    return suggestions
+
+
+def _select_display_names(
+    pending_rows: list[dict[str, str]],
+    pending_names: dict[str, str],
+) -> dict[str, str]:
+    candidates: dict[str, list[tuple[bool, str]]] = defaultdict(list)
+    for row in pending_rows:
+        code = row.get("pending_code", "").strip()
+        if code in pending_names:
+            candidates[code].append((True, normalize_display_name(pending_names[code])))
+        candidates[code].append((False, normalize_display_name(row.get("raw_name", ""))))
+
+    selected: dict[str, str] = {}
+    for code, values in candidates.items():
+        distinct = {(is_master, value) for is_master, value in values if value}
+        if not distinct:
+            selected[code] = ""
+            continue
+        selected[code] = min(
+            distinct,
+            key=lambda item: (
+                _display_risk(item[1]),
+                0 if item[0] else 1,
+                len(item[1]),
+                item[1].casefold(),
+            ),
+        )[1]
+    return selected
+
+
+def _validate_output_rows(
+    rows: list[dict[str, str]],
+    expected_count: int,
+) -> None:
+    errors: list[str] = []
+    if len(rows) != expected_count:
+        errors.append(f"행 수 불일치: expected={expected_count}, actual={len(rows)}")
+    identities: set[tuple[str, str]] = set()
+    create_definitions: dict[str, tuple[str, str]] = {}
+    for number, row in enumerate(rows, start=2):
+        key = (row["pending_code"], row["normalized_source_name"])
+        if key in identities:
+            errors.append(f"{number}행 중복 식별자: {key!r}")
+        identities.add(key)
+        for field, limit in (
+            ("pending_code", 64),
+            ("normalized_source_name", 255),
+            ("target_ingredient_code", 64),
+            ("target_name_ko", 255),
+            ("target_name_en", 255),
+            ("decision_reason", 1000),
+            ("source_reference", 255),
+        ):
+            if len(row[field]) > limit:
+                errors.append(f"{number}행 {field} {limit}자 초과")
+        if not row["pending_code"] or not row["normalized_source_name"] or not row["target_ingredient_code"]:
+            errors.append(f"{number}행 필수 식별자 누락")
+        if row["normalized_source_name"] != backend_normalize(row["normalized_source_name"]):
+            errors.append(f"{number}행 normalized_source_name 정규화 불일치")
+        try:
+            if int(row["expected_connection_count"]) < 1:
+                raise ValueError
+        except ValueError:
+            errors.append(f"{number}행 expected_connection_count 오류")
+        if row["action"] == "CREATE_AND_MAP":
+            if not row["target_name_ko"] or not row["source_reference"]:
+                errors.append(f"{number}행 신규 canonical 필수값 누락")
+            definition = (row["target_name_ko"], row["target_name_en"])
+            previous = create_definitions.setdefault(row["target_ingredient_code"], definition)
+            if previous != definition:
+                errors.append(f"{number}행 신규 canonical 이름 정의 충돌")
+        elif row["action"] != "MAP_EXISTING":
+            errors.append(f"{number}행 지원하지 않는 action")
+    if errors:
+        preview = "\n".join(errors[:20])
+        suffix = f"\n외 {len(errors) - 20}건" if len(errors) > 20 else ""
+        raise ValueError(f"생성 CSV 검증 실패:\n{preview}{suffix}")
 
 
 def generate_mapping_csv(
     *,
     pending_path: Path,
-    ingredients_path: Path,
-    aliases_path: Path,
+    suggestions_path: Path,
     output_path: Path,
+    ingredients_path: Path | None = None,
     excluded_count: int = 20,
     report_path: Path | None = None,
 ) -> tuple[GenerationSummary, list[ExcludedRow]]:
     pending_rows = read_csv(pending_path)
-    index, pending_names = _load_canonical_index(ingredients_path, aliases_path)
-    prepared: list[tuple[dict[str, str], dict[str, str], int, str]] = []
-    create_candidates: list[tuple[int, str, str]] = []
+    suggestions = _load_suggestions(suggestions_path)
+    pending_names = _load_pending_names(ingredients_path)
+    display_names = _select_display_names(pending_rows, pending_names)
 
-    for position, row in enumerate(pending_rows):
+    pending_keys = [
+        (row.get("pending_code", "").strip(), row.get("normalized_source_name", ""))
+        for row in pending_rows
+    ]
+    duplicate_keys = {key for key, count in Counter(pending_keys).items() if count > 1}
+    if duplicate_keys:
+        raise ValueError(f"운영 export에 중복 식별자가 있습니다: {sorted(duplicate_keys)[:5]!r}")
+    missing = set(pending_keys) - set(suggestions)
+    extra = set(suggestions) - set(pending_keys)
+    if missing or extra:
+        raise ValueError(
+            "운영 export와 추천 스냅샷 식별자가 일치하지 않습니다: "
+            f"missing={len(missing)}, extra={len(extra)}"
+        )
+    if excluded_count < 0 or excluded_count > len(pending_rows):
+        raise ValueError("excluded_count는 0 이상 입력 행 수 이하여야 합니다.")
+
+    prepared: list[tuple[dict[str, str], dict[str, str], int, str]] = []
+    for row in pending_rows:
         pending_code = row.get("pending_code", "").strip()
-        raw_name = row.get("raw_name", "")
-        master_name = pending_names.get(pending_code, raw_name)
-        cleaned_name = normalize_display_name(master_name) or normalize_display_name(raw_name)
-        lookup_keys = {
-            backend_normalize(raw_name),
-            backend_normalize(row.get("normalized_source_name", "")),
-            backend_normalize(cleaned_name),
-        }
-        matches: set[str] = set()
-        for key in lookup_keys:
-            if key:
-                matches.update(index.get(key, set()))
-        ambiguous = len(matches) > 1
-        risk_score, risk_reason = _risk(row, cleaned_name, ambiguous)
+        normalized = row.get("normalized_source_name", "")
+        suggestion = suggestions[(pending_code, normalized)]
+        target_code = suggestion.get("target_ingredient_code", "").strip()
+        candidate_type = suggestion.get("candidate_type", "").strip()
+        cleaned_name = display_names.get(pending_code, "")
+        risk_score, risk_reason = _row_risk(row, cleaned_name, candidate_type)
         output = {field: row.get(field, "") for field in OUTPUT_FIELDS}
-        if len(matches) == 1:
+        output["pending_code"] = pending_code
+
+        if target_code:
             output.update(
                 action="MAP_EXISTING",
-                target_ingredient_code=next(iter(matches)),
+                target_ingredient_code=target_code,
                 target_name_ko="",
                 target_name_en="",
-                decision_reason="정규화명 또는 별칭 정확 일치",
-                source_reference="운영 미판정 일회성 매핑 2026-07-23",
+                decision_reason="운영 DB canonical 정확 일치 추천",
+                source_reference=SOURCE_REFERENCE,
             )
         else:
             output.update(
@@ -284,28 +394,26 @@ def generate_mapping_csv(
                 target_ingredient_code=_new_target_code(pending_code),
                 target_name_ko=cleaned_name,
                 target_name_en=cleaned_name if _looks_latin(cleaned_name) else "",
-                decision_reason="복합 원료 또는 신규 원문 canonical 생성",
-                source_reference=(
-                    "운영 미판정 일회성 매핑 2026-07-23; "
-                    "generate_production_ingredient_mapping_csv.py"
-                ),
+                decision_reason="미판정 원문을 신규 canonical 성분으로 생성 후 연결",
+                source_reference=GENERATED_SOURCE_REFERENCE,
             )
-            create_candidates.append((risk_score, pending_code, row.get("normalized_source_name", "")))
         prepared.append((row, output, risk_score, risk_reason))
 
     excluded_keys = {
-        (pending_code, normalized_name)
-        for _, pending_code, normalized_name in sorted(
-            create_candidates,
-            key=lambda item: (-item[0], item[1], item[2]),
+        (source.get("pending_code", "").strip(), source.get("normalized_source_name", ""))
+        for source, _, _, _ in sorted(
+            prepared,
+            key=lambda item: (
+                -item[2],
+                item[0].get("pending_code", ""),
+                item[0].get("normalized_source_name", ""),
+            ),
         )[:excluded_count]
     }
     output_rows: list[dict[str, str]] = []
     excluded: list[ExcludedRow] = []
-    mapped_existing = 0
-    created_canonical = 0
     for source, output, risk_score, risk_reason in prepared:
-        key = (source.get("pending_code", ""), source.get("normalized_source_name", ""))
+        key = (source.get("pending_code", "").strip(), source.get("normalized_source_name", ""))
         if key in excluded_keys:
             excluded.append(
                 ExcludedRow(
@@ -318,11 +426,8 @@ def generate_mapping_csv(
             )
             continue
         output_rows.append(output)
-        if output["action"] == "MAP_EXISTING":
-            mapped_existing += 1
-        else:
-            created_canonical += 1
 
+    _validate_output_rows(output_rows, len(pending_rows) - excluded_count)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=OUTPUT_FIELDS, lineterminator="\n")
@@ -332,8 +437,8 @@ def generate_mapping_csv(
     summary = GenerationSummary(
         input_rows=len(pending_rows),
         output_rows=len(output_rows),
-        mapped_existing=mapped_existing,
-        created_canonical=created_canonical,
+        mapped_existing=sum(row["action"] == "MAP_EXISTING" for row in output_rows),
+        created_canonical=sum(row["action"] == "CREATE_AND_MAP" for row in output_rows),
         excluded_rows=len(excluded),
     )
     if report_path:
@@ -351,18 +456,18 @@ def generate_mapping_csv(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="운영 미판정 성분을 관리자 업로드용 매핑 CSV로 변환")
+    parser = argparse.ArgumentParser(description="운영 DB 미판정 성분용 관리자 일괄 매핑 CSV 생성")
     parser.add_argument("--pending-csv", type=Path, required=True)
+    parser.add_argument("--suggestions-csv", type=Path, required=True)
     parser.add_argument("--ingredients-csv", type=Path, default=Path("data/ingredients.csv"))
-    parser.add_argument("--aliases-csv", type=Path, default=Path("data/ingredient_aliases.csv"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--excluded-count", type=int, default=20)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     summary, excluded = generate_mapping_csv(
         pending_path=args.pending_csv,
+        suggestions_path=args.suggestions_csv,
         ingredients_path=args.ingredients_csv,
-        aliases_path=args.aliases_csv,
         output_path=args.output,
         excluded_count=args.excluded_count,
         report_path=args.report,
