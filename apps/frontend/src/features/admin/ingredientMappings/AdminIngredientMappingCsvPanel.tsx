@@ -9,6 +9,7 @@ import {
   previewIngredientMappingCsv,
   refreshIngredientMappingPendingGroups
 } from "../api/adminIngredientMappingCsvApi";
+import { readIngredientMappingCsvCell } from "./ingredientMappingCsvParser";
 
 type SpreadsheetParser = (file: File) => Promise<string[][] | null>;
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
@@ -128,7 +129,7 @@ export function AdminIngredientMappingCsvPanel({
     const missingRequiredRows: number[] = [];
     const rows: IngredientMappingCsvRowInput[] = [];
     grid.slice(1).forEach((cells, index) => {
-      const value = (name: string) => String(cells[column(name)] ?? "").trim();
+      const value = (name: string) => readIngredientMappingCsvCell(cells, column(name), name);
       if (cells.every((cell) => String(cell ?? "").trim() === "")) return;
       const rowNumber = index + 2;
       const action = value("action");
