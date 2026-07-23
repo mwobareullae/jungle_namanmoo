@@ -11,6 +11,7 @@ import {
   IngredientMappingStatusFilter,
   IngredientMappingSort
 } from "../api/adminIngredientMappingApi";
+import { AdminIngredientMappingCsvPanel } from "./AdminIngredientMappingCsvPanel";
 import { useAdminIngredientMappings } from "./useAdminIngredientMappings";
 
 // 관리자 성분 매핑 검수 조회 화면 (P1-M2-A Chunk 4, 조회 전용).
@@ -21,6 +22,7 @@ type BadgeTone = "success" | "warning" | "danger" | "neutral" | "review";
 
 type AdminIngredientMappingSectionProps = {
   active: boolean;
+  parseSpreadsheet: (file: File) => Promise<string[][] | null>;
   onOperationLog: (area: string, title: string, detail: string, tone?: BadgeTone) => void;
 };
 
@@ -131,6 +133,7 @@ const formatEventState = (
 
 export function AdminIngredientMappingSection({
   active,
+  parseSpreadsheet,
   onOperationLog
 }: AdminIngredientMappingSectionProps) {
   const {
@@ -435,6 +438,12 @@ export function AdminIngredientMappingSection({
           <span>{bulkError}</span>
         </div>
       )}
+
+      <AdminIngredientMappingCsvPanel
+        onApplied={refresh}
+        onOperationLog={onOperationLog}
+        parseSpreadsheet={parseSpreadsheet}
+      />
 
       <section className="admin-panel admin-ingredient-queue">
         <div className="admin-panel-header compact">
