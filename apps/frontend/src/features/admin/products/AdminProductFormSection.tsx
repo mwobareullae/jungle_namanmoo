@@ -52,8 +52,10 @@ export function AdminProductFormSection({
   const isEdit = productCode !== null;
   const [confirmingNavigation, setConfirmingNavigation] = useState(false);
   const [thumbnailPreviewError, setThumbnailPreviewError] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const thumbnailStorageKey = values.thumbnailStorageKey.trim();
   const thumbnailPreviewUrl = thumbnailStorageKey ? getProductImageUrl(thumbnailStorageKey) : "";
+  const showNameRequiredError = !values.name.trim() && (nameTouched || values.name.length > 0);
 
   // 신규 등록 중 "운영 기본값" 위젯에 보여줄 미리보기. 매 입력마다가 아니라, 필드에서
   // 포커스가 빠질 때(다른 곳 클릭 시)만 반영한다 — 타이핑 중 계속 흔들리지 않게.
@@ -63,6 +65,10 @@ export function AdminProductFormSection({
   // 다른 상품으로 전환하면(수정 대상이 바뀌면) 이전 상품의 미리보기 실패 상태가 남지 않게 한다.
   useEffect(() => {
     void Promise.resolve().then(() => setThumbnailPreviewError(false));
+  }, [productCode]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => setNameTouched(false));
   }, [productCode]);
 
   // 상품을 새로 불러오거나(수정 대상 전환) 저장에 성공하면 기준값이 바뀌므로, 운영 기본값
@@ -87,6 +93,7 @@ export function AdminProductFormSection({
   const handleReset = () => {
     reset();
     setPreviewValues(originalValues);
+    setNameTouched(false);
   };
 
   const previewBrandName = brands.find((brand) => brand.code === previewValues.brandCode)?.name ?? "-";
@@ -142,7 +149,6 @@ export function AdminProductFormSection({
                 optionsLoading ||
                 submitting ||
                 Boolean(optionsError) ||
-                (isEdit && !dirty) ||
                 (!isEdit && !canCreate)
               }
               type="submit"
@@ -183,12 +189,22 @@ export function AdminProductFormSection({
               상품명 <span className="admin-required-mark">*</span>
             </span>
             <input
+              aria-describedby={showNameRequiredError ? "admin-product-name-error" : undefined}
+              aria-invalid={showNameRequiredError}
               disabled={loading || submitting}
-              onBlur={commitPreview}
+              onBlur={() => {
+                setNameTouched(true);
+                commitPreview();
+              }}
               onChange={(event) => patchValues({ name: event.target.value })}
               placeholder="상품명을 입력하세요"
               value={values.name}
             />
+            {showNameRequiredError && (
+              <span className="admin-field-error" id="admin-product-name-error" role="alert">
+                상품명을 입력해 주세요.
+              </span>
+            )}
           </label>
           <label>
             <span className="admin-form-label-text">
