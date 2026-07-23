@@ -1282,6 +1282,7 @@ function AdminDashboardPage() {
           key="admin-ingredient-mapping"
           active={activeView === "ingredientReview"}
           onOperationLog={pushOperationLog}
+          parseSpreadsheet={parseExcelUpload}
         />
         <AdminProductSection
           key="admin-product"

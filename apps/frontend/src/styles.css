@@ -2183,6 +2183,194 @@
   grid-column: 1 / -1;
 }
 
+.admin-ingredient-queue-heading {
+  gap: 14px;
+}
+
+.admin-ingredient-csv-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-ingredient-csv-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.admin-ingredient-csv-filename {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-ingredient-queue-filters {
+  padding: 0 18px 16px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-ingredient-csv-modal {
+  width: min(100%, 760px);
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-heading {
+  align-items: center;
+  padding: 20px 22px 16px;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-close {
+  display: grid;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--admin-muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-close:hover:not(:disabled) {
+  background: #f2f4f6;
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 28px 24px;
+}
+
+.admin-ingredient-csv-notice {
+  display: grid;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.admin-ingredient-csv-notice strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.admin-ingredient-csv-notice p {
+  max-height: 88px;
+  margin: 0;
+  overflow: auto;
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-actions.single {
+  grid-template-columns: minmax(0, 320px);
+  justify-content: center;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-actions.single .admin-secondary-button:hover:not(:disabled) {
+  border-color: #cfd6df;
+  background: #f2f4f6;
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-notice.danger strong,
+.admin-ingredient-csv-result-note.danger strong {
+  color: #ff6b52;
+}
+
+.admin-ingredient-csv-notice.success strong {
+  color: #2aa6d1;
+}
+
+.admin-ingredient-csv-summary-grid {
+  padding: 0;
+}
+
+.admin-ingredient-csv-result-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.admin-ingredient-csv-result-note strong {
+  color: var(--admin-text);
+  font-size: 13px;
+}
+
+.admin-ingredient-csv-result-note span {
+  text-align: right;
+}
+
+.admin-ingredient-csv-error-table {
+  max-height: 300px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.admin-ingredient-csv-error-table .admin-table {
+  min-width: 640px;
+}
+
+.admin-ingredient-csv-error-table .admin-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.admin-ingredient-csv-confirm {
+  display: grid;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-ingredient-csv-confirm strong {
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-confirm input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.admin-ingredient-csv-confirm input:focus {
+  border-color: var(--admin-accent-2);
+  outline: 2px solid rgba(94, 198, 232, 0.2);
+  outline-offset: 1px;
+}
+
 .admin-ingredient-summary-grid {
   padding-top: 18px;
 }
@@ -2285,6 +2473,19 @@
 
 @media (prefers-reduced-motion: reduce) {
   .admin-skeleton-bar { animation: none; }
+}
+
+@media (max-width: 1100px) {
+  .admin-ingredient-queue-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-ingredient-csv-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 .admin-ingredient-variants,
