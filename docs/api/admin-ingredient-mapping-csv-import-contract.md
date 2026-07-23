@@ -13,8 +13,29 @@
 5. 프론트는 큰 파일을 1,000행 단위로 순차 처리하고 마지막 배치에서만 pending materialized view를 갱신한다.
 6. 완료 후 Elasticsearch 상품 색인은 별도 운영 재색인을 실행한다.
 
-CSV 파일을 Git에 저장하거나 로컬 seed CSV로 변환하지 않는다. export와 적용은 모두 요청 시점의 운영 DB를 기준으로 한다.
+기본 운영 흐름에서는 CSV를 Git에 저장하거나 로컬 seed CSV로 변환하지 않는다. export와 적용은 모두 요청 시점의 운영 DB를 기준으로 한다.
+다만 대량 초기 정리처럼 재현성과 검수가 필요한 일회성 작업은 운영 export를 입력으로 생성한 완성 CSV와 생성·정규화 코드를 함께 커밋할 수 있다. 이 스냅샷은 seed가 아니며 관리자 화면에서 dry-run을 통과한 뒤에만 적용한다.
 계속 미판정으로 남길 약 20건은 적용 파일에서 행을 제외하며 운영 DB에서는 그대로 유지한다.
+
+### 2026-07-23 일회성 운영 스냅샷
+
+- 입력: 2026-07-23 운영 DB 미판정 그룹 export 70,442건
+- 생성기: `data/scripts/generate_production_ingredient_mapping_csv.py`
+- 완성 파일: `data/reconciliation/ingredient_mapping_ready_20260723.csv`
+- 완성 행: 70,422건 (`MAP_EXISTING` 6,861건, `CREATE_AND_MAP` 63,561건)
+- 제외: 자동 판정 위험 점수가 높은 20건. 운영 DB에서는 계속 미판정으로 유지
+- 적용: 관리자 화면에서 파일 선택 → 1,000행 단위 dry-run → 오류 0건 확인 → 적용
+- 주의: export 이후 운영 연결 수가 달라지면 `CONNECTION_COUNT_CHANGED`로 차단되므로 파일을 임의 수정해 우회하지 않고 운영 export부터 다시 생성한다.
+
+생성 예시:
+
+```powershell
+python data/scripts/generate_production_ingredient_mapping_csv.py `
+  --pending-csv <운영-export.csv> `
+  --output data/reconciliation/ingredient_mapping_ready_20260723.csv `
+  --excluded-count 20 `
+  --report <검수-report.json>
+```
 
 ## CSV 컬럼
 

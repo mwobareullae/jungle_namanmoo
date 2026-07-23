@@ -223,6 +223,10 @@ Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredien
 
 `GET /api/admin/ingredient-mappings/csv-export`로 내려받는 CSV는 레포 seed 파일이 아니라 운영 DB 현재 상태의 일회성 검수 파일입니다. 로컬 `data/ingredient_canonical_mappings.csv`를 수정해 운영 DB에 직접 반영한 것으로 간주하지 않습니다.
 
+대량 초기 정리처럼 재현성과 코드 리뷰가 필요한 일회성 작업은 운영 export를 입력으로 만든 적용용 CSV를 `data/reconciliation/`에 커밋할 수 있습니다. 적용용 CSV는 seed 정본이 아니며, 생성·정규화 코드와 함께 보관하고 관리자 dry-run을 통과한 뒤에만 운영 DB에 적용합니다. 상시 운영에서는 계속 `csv-export`로 최신 상태를 내려받아 처리합니다.
+
+2026-07-23 스냅샷 `data/reconciliation/ingredient_mapping_ready_20260723.csv`는 운영 미판정 70,442그룹 중 판단 불가 20그룹을 제외한 70,422그룹을 담습니다. 생성 규칙은 `data/scripts/generate_production_ingredient_mapping_csv.py`가 정본이며, 같은 pending code로 생성되는 신규 canonical은 항상 같은 코드와 표시명을 사용해야 합니다.
+
 - 식별 계약: `(pending_code, normalized_source_name)`
 - 동시성 확인: `expected_connection_count`
 - 기존 canonical 연결: `action=MAP_EXISTING`
