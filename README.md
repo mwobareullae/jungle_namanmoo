@@ -7,7 +7,7 @@
 [문서 길잡이](docs/README.md) · [Frontend](apps/frontend/README.md) · [Backend](apps/backend/README.md) · [API 계약](docs/api/)
 
 <p align="center">
-  <img src="docs/images/service-home.png" alt="뭐바를래 홈 화면과 AI 쇼핑 에이전트" width="100%" />
+  <img src="docs/images/service-home-window.png" alt="macOS 창 프레임으로 감싼 뭐바를래 홈 화면과 AI 쇼핑 에이전트" width="100%" />
 </p>
 
 ## 목차
