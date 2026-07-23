@@ -1,14 +1,17 @@
-"""관리자 성분 매핑 검수 라우트 (P1-M2-A, 조회 + 판정).
+"""관리자 성분 매핑 검수 라우트 (P1-M2-A 조회/판정 + M2-B CSV 적용).
 
 인증/인가는 admin_router 공통 가드(get_current_admin)가 적용한다. 판정 액션은
 서비스가 `flush()` 까지만 하고, 여기서 commit/rollback 과 성공·실패 성능 로그를
-담당한다(§8). 기존 `product_ingredients`·전역 alias 는 변경하지 않는다.
+담당한다(§8). 단건 판정은 기존 연결을 변경하지 않는다. CSV 적용 API만 dry-run
+재검증 뒤 `product_ingredients` 연결과 판정 이력을 같은 트랜잭션으로 갱신한다.
 """
 
 from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
+from starlette.responses import StreamingResponse
 
 from app.api.dependencies import get_current_admin
 from app.core.performance_logging import current_time, elapsed_ms, log_error_event, log_performance_event
@@ -26,6 +29,12 @@ from app.schemas.admin.ingredient_mapping import (
     IngredientMappingReasonRequest,
     IngredientMappingRejectRequest,
 )
+from app.schemas.admin.ingredient_mapping_csv_import import (
+    IngredientMappingCsvApplyRequest,
+    IngredientMappingCsvApplyResponse,
+    IngredientMappingCsvPreviewRequest,
+    IngredientMappingCsvPreviewResponse,
+)
 from app.schemas.common import ApiError, ErrorResponse
 from app.services.admin.ingredient_mapping_mutation_service import (
     approve_ingredient_mapping,
@@ -36,6 +45,15 @@ from app.services.admin.ingredient_mapping_mutation_service import (
 from app.services.admin.ingredient_mapping_bulk_approval_service import (
     approve_kcia_alias_exact_batch,
     get_kcia_alias_exact_bulk_preview,
+)
+from app.services.admin.ingredient_mapping_csv_import_service import (
+    apply_csv_mapping_batch,
+    iter_pending_mapping_csv,
+    preview_csv_mapping_batch,
+)
+from app.services.admin.ingredient_mapping_pending_groups import (
+    PendingIngredientGroupsRefreshError,
+    refresh_pending_ingredient_mapping_groups,
 )
 from app.services.admin.ingredient_mapping_service import (
     CANONICAL_SEARCH_DEFAULT_LIMIT,
@@ -152,6 +170,125 @@ def post_bulk_approval(
         metadata={"approved_count": response.approved_count, "batch_reference": response.batch_reference},
     )
     return response
+
+
+@router.get("/ingredient-mappings/csv-export")
+def export_pending_mapping_csv(
+    session: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> StreamingResponse:
+    """운영 DB의 현재 미분류 원문 그룹을 편집 가능한 CSV로 내려준다."""
+
+    return StreamingResponse(
+        iter_pending_mapping_csv(session),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="mwbl_ingredient_mapping_pending.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.post(
+    "/ingredient-mappings/csv-preview",
+    response_model=IngredientMappingCsvPreviewResponse,
+    responses=_ACTION_RESPONSES,
+)
+def preview_mapping_csv(
+    body: IngredientMappingCsvPreviewRequest,
+    session: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> IngredientMappingCsvPreviewResponse:
+    """CSV 한 배치를 운영 DB 현재 상태와 대조하되 아무것도 저장하지 않는다."""
+
+    return preview_csv_mapping_batch(session, body.rows)
+
+
+@router.post(
+    "/ingredient-mappings/csv-apply",
+    response_model=IngredientMappingCsvApplyResponse,
+    responses=_ACTION_RESPONSES,
+)
+def apply_mapping_csv(
+    body: IngredientMappingCsvApplyRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> IngredientMappingCsvApplyResponse:
+    """미리보기와 동일한 CSV 배치를 재검증해 판정과 실제 연결을 함께 적용한다."""
+
+    started_at = current_time()
+    try:
+        outcome = apply_csv_mapping_batch(
+            session,
+            rows=body.rows,
+            expected_preview_digest=body.preview_digest,
+            confirmed_count=body.confirmed_count,
+            actor_user_id=int(current_user.id),
+        )
+        session.commit()
+    except ApiError as exc:
+        session.rollback()
+        log_performance_event(
+            "admin_ingredient_mapping_csv_apply_failed",
+            duration_ms=elapsed_ms(started_at),
+            metadata={"error_code": exc.code, "row_count": len(body.rows)},
+        )
+        raise
+    except Exception as exc:
+        session.rollback()
+        log_error_event(
+            "admin_ingredient_mapping_csv_apply_failed",
+            started_at=started_at,
+            metadata={"error_code": "UNEXPECTED_ERROR", "row_count": len(body.rows)},
+            exc=exc,
+        )
+        raise
+
+    response = outcome.response
+    if body.refresh_pending_groups:
+        try:
+            refresh_pending_ingredient_mapping_groups(_session_engine(session))
+            response.review_refresh = "OK"
+        except PendingIngredientGroupsRefreshError:
+            response.review_refresh = "FAILED"
+    log_performance_event(
+        "admin_ingredient_mapping_csv_apply_completed",
+        duration_ms=elapsed_ms(started_at),
+        metadata={
+            "batch_reference": response.batch_reference,
+            "applied": response.applied,
+            "moved_connections": response.moved_connections,
+            "collapsed_duplicates": response.collapsed_duplicates,
+            "affected_products": response.affected_products,
+            "review_refresh": response.review_refresh,
+        },
+    )
+    return response
+
+
+@router.post("/ingredient-mappings/csv-refresh")
+def refresh_mapping_csv_pending_groups(
+    session: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> dict[str, str]:
+    """중단된 다중 배치 적용 뒤 운영 pending 목록을 현재 연결 기준으로 복구한다."""
+
+    try:
+        refresh_pending_ingredient_mapping_groups(_session_engine(session))
+    except PendingIngredientGroupsRefreshError as exc:
+        raise ApiError(
+            503,
+            "INGREDIENT_MAPPING_PENDING_REFRESH_FAILED",
+            "Pending ingredient list refresh failed. Retry before exporting again.",
+        ) from exc
+    return {"status": "OK"}
+
+
+def _session_engine(session: Session) -> Engine:
+    bind = session.get_bind()
+    if isinstance(bind, Connection):
+        return bind.engine
+    return bind
 
 
 @router.get(
