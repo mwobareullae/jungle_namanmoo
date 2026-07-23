@@ -75,13 +75,13 @@ const getBlockPages = (current: number, total: number): number[] => {
   return pages;
 };
 
-export function AdminInventoryPriceSection() {
-  const inventory = useAdminInventoryPrice({ enabled: true });
+export function AdminInventoryPriceSection({ initialProductCode = null }: { initialProductCode?: string | null }) {
+  const inventory = useAdminInventoryPrice({ enabled: true, initialProductCode });
   const tableScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     tableScrollRef.current?.scrollTo({ top: 0 });
   }, [inventory.page]);
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInput] = useState(initialProductCode ?? "");
   const [draftProductCode, setDraftProductCode] = useState<string | null>(null);
   const [stockDraft, setStockDraft] = useState("");
   const [priceDraft, setPriceDraft] = useState("");
