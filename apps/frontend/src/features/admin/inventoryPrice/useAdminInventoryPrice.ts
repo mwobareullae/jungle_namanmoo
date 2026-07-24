@@ -60,8 +60,14 @@ const describeApiError = (caughtError: unknown, fallbackMessage: string): string
   }
 };
 
-export function useAdminInventoryPrice({ enabled }: { enabled: boolean }) {
-  const [query, setQuery] = useState("");
+export function useAdminInventoryPrice({
+  enabled,
+  initialProductCode = null
+}: {
+  enabled: boolean;
+  initialProductCode?: string | null;
+}) {
+  const [query, setQuery] = useState(initialProductCode ?? "");
   const [brandCodeFilter, setBrandCodeFilterState] = useState<string | null>(null);
   const [categoryCodeFilter, setCategoryCodeFilterState] = useState<string | null>(null);
   const [activeFilter, setActiveFilterState] = useState<AdminInventoryActiveFilter>("all");
@@ -81,7 +87,7 @@ export function useAdminInventoryPrice({ enabled }: { enabled: boolean }) {
   const [summary, setSummary] = useState<AdminInventorySummary | null>(null);
   const summaryRequestIdRef = useRef(0);
 
-  const [selectedProductCode, setSelectedProductCode] = useState<string | null>(null);
+  const [selectedProductCode, setSelectedProductCode] = useState<string | null>(initialProductCode);
   const [history, setHistory] = useState<AdminInventoryMovement[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);

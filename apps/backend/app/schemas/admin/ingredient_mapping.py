@@ -101,10 +101,19 @@ class IngredientMappingSummary(BaseModel):
     rejected_count: int
 
 
+class IngredientMappingPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
 class IngredientMappingListResponse(BaseModel):
     items: list[IngredientMappingListItem]
     summary: IngredientMappingSummary
-    next_cursor: str | None
+    pagination: IngredientMappingPagination
 
 
 class IngredientMappingRawNameVariant(BaseModel):

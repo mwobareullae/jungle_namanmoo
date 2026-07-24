@@ -57,9 +57,9 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
   // useAdminRowAction 의 resync 콜백은 아래 fetchPage 를 가리켜야 하는데, fetchPage 자체가
   // useAdminRowAction 이 돌려주는 actionInFlightRef 를 필요로 해 서로를 참조한다. ref 로
   // "최신 fetchPage" 를 담아 이 순환을 끊는다.
-  const fetchPageRef = useRef<(options: { targetPage: number; silent?: boolean }) => Promise<boolean>>(
-    () => Promise.resolve(false)
-  );
+  const fetchPageRef = useRef<
+    (options: { targetPage: number; silent?: boolean }) => Promise<"success" | "stale" | "error">
+  >(() => Promise.resolve("stale"));
 
   const { actionInFlightRef, actionTargetKey, actionError, syncWarning, runAction, clearFeedback } =
     useAdminRowAction<AdminOrderRow, AdminOrderShipmentActionResult>({
@@ -76,14 +76,21 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
       }),
       // 배송 액션 성공 후에는 지금 보고 있는 페이지를 그대로 다시 조회한다(페이지 1로
       // 돌아가지 않음 — 관리자가 다른 페이지를 보던 중이었다면 그 자리를 유지).
-      resync: () => fetchPageRef.current({ targetPage: currentQueryRef.current.page, silent: true }),
+      // superseded(다른 요청에 새치기당함)는 실패가 아니므로 syncWarning을 띄우지 않는다.
+      resync: async () => {
+        const outcome = await fetchPageRef.current({ targetPage: currentQueryRef.current.page, silent: true });
+        return outcome !== "error";
+      },
       resyncFailureMessage: "배송 상태는 반영됐지만 목록 재조회에 실패했습니다. 새로고침을 눌러 최신 상태를 확인해 주세요.",
       describeError: describeApiError
     });
 
+  // superseded(다른 요청에 새치기당함)와 실제 오류를 구분해야 호출부가 "새로고침 실패"를
+  // 오발생시키지 않는다 — 둘 다 false로 뭉뚱그리면 새로고침 도중 필터를 바꾸는 정상적인
+  // 조작에도 실패 알림이 잘못 뜬다.
   const fetchPage = useCallback(
-    async (options: { targetPage: number; silent?: boolean }): Promise<boolean> => {
-      if (actionInFlightRef.current && !options.silent) return false;
+    async (options: { targetPage: number; silent?: boolean }): Promise<"success" | "stale" | "error"> => {
+      if (actionInFlightRef.current && !options.silent) return "stale";
       const requestId = ++requestIdRef.current;
       activeListRequestIdRef.current = requestId;
       // silent: 배송 액션 성공 후·30초 자동 새로고침용. 로딩 스피너·전체 에러 배너를 띄우지
@@ -100,21 +107,21 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
           page: options.targetPage,
           pageSize
         });
-        if (requestId !== requestIdRef.current) return false; // 이후 요청이 이미 진행 중 — 이 응답은 버림
+        if (requestId !== requestIdRef.current) return "stale"; // 이후 요청이 이미 진행 중 — 이 응답은 버림
 
         setItems(result.items);
         setSummary(result.summary);
         setPagination(result.pagination);
-        return true;
+        return "success";
       } catch (caughtError: unknown) {
-        if (requestId !== requestIdRef.current) return false;
+        if (requestId !== requestIdRef.current) return "stale";
         if (!options.silent) {
           setError(describeApiError(caughtError, "주문 목록을 불러오지 못했습니다."));
           setItems([]);
           setSummary(null);
           setPagination(null);
         }
-        return false;
+        return "error";
       } finally {
         if (activeListRequestIdRef.current === requestId) {
           activeListRequestIdRef.current = null;
@@ -165,8 +172,8 @@ export function useAdminOrders({ enabled }: UseAdminOrdersOptions) {
     };
   }, [enabled, fetchPage, actionInFlightRef]);
 
-  const refresh = useCallback((): Promise<boolean> => {
-    if (!enabled || actionInFlightRef.current) return Promise.resolve(false);
+  const refresh = useCallback((): Promise<"success" | "stale" | "error"> => {
+    if (!enabled || actionInFlightRef.current) return Promise.resolve("stale");
     return fetchPage({ targetPage: page });
   }, [enabled, fetchPage, actionInFlightRef, page]);
 

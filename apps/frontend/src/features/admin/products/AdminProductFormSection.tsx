@@ -52,8 +52,10 @@ export function AdminProductFormSection({
   const isEdit = productCode !== null;
   const [confirmingNavigation, setConfirmingNavigation] = useState(false);
   const [thumbnailPreviewError, setThumbnailPreviewError] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const thumbnailStorageKey = values.thumbnailStorageKey.trim();
   const thumbnailPreviewUrl = thumbnailStorageKey ? getProductImageUrl(thumbnailStorageKey) : "";
+  const showNameRequiredError = !values.name.trim() && (nameTouched || values.name.length > 0);
 
   // 신규 등록 중 "운영 기본값" 위젯에 보여줄 미리보기. 매 입력마다가 아니라, 필드에서
   // 포커스가 빠질 때(다른 곳 클릭 시)만 반영한다 — 타이핑 중 계속 흔들리지 않게.
@@ -63,6 +65,10 @@ export function AdminProductFormSection({
   // 다른 상품으로 전환하면(수정 대상이 바뀌면) 이전 상품의 미리보기 실패 상태가 남지 않게 한다.
   useEffect(() => {
     void Promise.resolve().then(() => setThumbnailPreviewError(false));
+  }, [productCode]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => setNameTouched(false));
   }, [productCode]);
 
   // 상품을 새로 불러오거나(수정 대상 전환) 저장에 성공하면 기준값이 바뀌므로, 운영 기본값
@@ -87,6 +93,7 @@ export function AdminProductFormSection({
   const handleReset = () => {
     reset();
     setPreviewValues(originalValues);
+    setNameTouched(false);
   };
 
   const previewBrandName = brands.find((brand) => brand.code === previewValues.brandCode)?.name ?? "-";
@@ -95,6 +102,15 @@ export function AdminProductFormSection({
   const previewPrice = Number(previewValues.price);
   const previewPriceLabel =
     previewValues.price && Number.isFinite(previewPrice) ? `${previewPrice.toLocaleString("ko-KR")}원` : "-";
+
+  // 새 상품 등록 시 필수 항목(상품명·브랜드·카테고리·판매가)이 하나라도 비어 있으면
+  // 등록 버튼을 비활성 상태로 시작한다 — useAdminProductForm.submit() 의 검증 규칙과 동일하다.
+  const canCreate =
+    Boolean(values.name.trim()) &&
+    Boolean(values.brandCode) &&
+    Boolean(values.categoryCode) &&
+    Number.isInteger(Number(values.price)) &&
+    Number(values.price) > 0;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -128,7 +144,13 @@ export function AdminProductFormSection({
             </button>
             <button
               className="admin-primary-button"
-              disabled={loading || optionsLoading || submitting || Boolean(optionsError) || (isEdit && !dirty)}
+              disabled={
+                loading ||
+                optionsLoading ||
+                submitting ||
+                Boolean(optionsError) ||
+                (!isEdit && !canCreate)
+              }
               type="submit"
             >
               {submitting ? "저장 중..." : isEdit ? "수정 저장" : "상품 등록"}
@@ -163,17 +185,31 @@ export function AdminProductFormSection({
             </label>
           )}
           <label>
-            상품명
+            <span className="admin-form-label-text">
+              상품명 <span className="admin-required-mark">*</span>
+            </span>
             <input
+              aria-describedby={showNameRequiredError ? "admin-product-name-error" : undefined}
+              aria-invalid={showNameRequiredError}
               disabled={loading || submitting}
-              onBlur={commitPreview}
+              onBlur={() => {
+                setNameTouched(true);
+                commitPreview();
+              }}
               onChange={(event) => patchValues({ name: event.target.value })}
               placeholder="상품명을 입력하세요"
               value={values.name}
             />
+            {showNameRequiredError && (
+              <span className="admin-field-error" id="admin-product-name-error" role="alert">
+                상품명을 입력해 주세요.
+              </span>
+            )}
           </label>
           <label>
-            브랜드
+            <span className="admin-form-label-text">
+              브랜드 <span className="admin-required-mark">*</span>
+            </span>
             <SearchableSelect
               ariaLabel="브랜드"
               disabled={optionsLoading || submitting}
@@ -185,7 +221,9 @@ export function AdminProductFormSection({
             />
           </label>
           <label>
-            카테고리
+            <span className="admin-form-label-text">
+              카테고리 <span className="admin-required-mark">*</span>
+            </span>
             <SearchableSelect
               ariaLabel="카테고리"
               disabled={optionsLoading || submitting}
@@ -197,7 +235,9 @@ export function AdminProductFormSection({
             />
           </label>
           <label>
-            판매가
+            <span className="admin-form-label-text">
+              판매가 <span className="admin-required-mark">*</span>
+            </span>
             <input
               disabled={loading || submitting}
               min="1"

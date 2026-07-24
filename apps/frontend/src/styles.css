@@ -182,55 +182,92 @@
 }
 
 .admin-toast {
-  display: flex;
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  z-index: 2200;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  max-width: 460px;
-  min-height: 42px;
-  padding: 9px 10px 9px 14px;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  min-height: 48px;
+  padding: 0 14px 0 18px;
   border: 1px solid var(--admin-line);
-  border-left-width: 4px;
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--admin-white);
-  box-shadow: 0 10px 30px rgba(11, 42, 58, 0.08);
+  box-shadow: 0 12px 32px rgba(16, 28, 42, 0.12);
+  color: var(--admin-text);
+  transform: translateX(-50%);
+}
+
+.admin-toast__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--admin-accent-2);
+  flex: 0 0 auto;
 }
 
 .admin-toast.success {
-  border-left-color: #26a269;
+  border-color: rgba(38, 162, 105, 0.42);
+  background: #eefaf3;
+  color: #1a7a4f;
+}
+
+.admin-toast.success .admin-toast__dot {
+  background: #26a269;
 }
 
 .admin-toast.warning {
-  border-left-color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.42);
+  background: #fff8ea;
+  color: #92620a;
+}
+
+.admin-toast.warning .admin-toast__dot {
+  background: #f59e0b;
 }
 
 .admin-toast.danger {
-  border-left-color: #ff6b52;
+  border-color: rgba(239, 111, 94, 0.42);
+  background: #fff6f4;
+  color: #d92d20;
+}
+
+.admin-toast.danger .admin-toast__dot {
+  background: #ef6f5e;
 }
 
 .admin-toast.neutral,
 .admin-toast.review {
-  border-left-color: var(--admin-accent-2);
+  border-color: rgba(94, 198, 232, 0.42);
+  background: #eef9fd;
+  color: #0b6f8f;
 }
 
 .admin-toast span {
   min-width: 0;
-  color: var(--admin-text);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .admin-toast button {
   flex: 0 0 auto;
   min-height: 28px;
   border: 0;
-  border-radius: 6px;
-  background: #eef7fa;
-  color: var(--admin-ink-navy);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
+  opacity: 0.7;
+}
+
+.admin-toast button:hover {
+  opacity: 1;
 }
 
 .admin-panel-header h2 {
@@ -698,7 +735,7 @@
 
 .admin-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -1463,6 +1500,21 @@
   font-weight: 800;
 }
 
+.admin-required-mark {
+  color: #d64a34;
+}
+
+.admin-field-error {
+  color: var(--color-brand-danger);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-form-grid input[aria-invalid="true"] {
+  border-color: var(--color-brand-danger);
+}
+
 .admin-form-grid input,
 .admin-form-grid select,
 .admin-form-grid textarea {
@@ -1738,6 +1790,7 @@
   min-width: 0;
 }
 
+.admin-excel-summary-panel,
 .admin-excel-failure-panel {
   grid-column: 1 / -1;
 }
@@ -1772,6 +1825,11 @@
   font-size: 17px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  transition: color 0.15s ease;
+}
+
+.admin-upload-zone strong:hover {
+  color: #1a1a1a;
 }
 
 .admin-upload-zone p {
@@ -1920,7 +1978,7 @@
 }
 
 .admin-excel-table td {
-  vertical-align: top;
+  vertical-align: middle;
   line-height: 1.45;
 }
 
@@ -2112,7 +2170,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-ingredient-hero,
@@ -2125,8 +2183,220 @@
   grid-column: 1 / -1;
 }
 
+.admin-ingredient-queue-heading {
+  gap: 14px;
+}
+
+.admin-ingredient-csv-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-ingredient-csv-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.admin-ingredient-csv-filename {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-ingredient-queue-filters {
+  padding: 0 18px 16px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-ingredient-csv-modal {
+  width: min(100%, 760px);
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-heading {
+  align-items: center;
+  padding: 20px 22px 16px;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-close {
+  display: grid;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--admin-muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-close:hover:not(:disabled) {
+  background: #f2f4f6;
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 28px 24px;
+}
+
+.admin-ingredient-csv-notice {
+  display: grid;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.admin-ingredient-csv-notice strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.admin-ingredient-csv-notice p {
+  max-height: 88px;
+  margin: 0;
+  overflow: auto;
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-actions.single {
+  grid-template-columns: minmax(0, 320px);
+  justify-content: center;
+}
+
+.admin-ingredient-csv-modal .admin-ingredient-modal-actions.single .admin-secondary-button:hover:not(:disabled) {
+  border-color: #cfd6df;
+  background: #f2f4f6;
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-notice.danger strong,
+.admin-ingredient-csv-result-note.danger strong {
+  color: #ff6b52;
+}
+
+.admin-ingredient-csv-notice.success strong {
+  color: #2aa6d1;
+}
+
+.admin-ingredient-csv-summary-grid {
+  padding: 0;
+}
+
+.admin-ingredient-csv-result-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.admin-ingredient-csv-result-note strong {
+  color: var(--admin-text);
+  font-size: 13px;
+}
+
+.admin-ingredient-csv-result-note span {
+  text-align: right;
+}
+
+.admin-ingredient-csv-error-table {
+  max-height: 300px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.admin-ingredient-csv-error-table .admin-table {
+  min-width: 640px;
+}
+
+.admin-ingredient-csv-error-table .admin-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.admin-ingredient-csv-confirm {
+  display: grid;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-ingredient-csv-confirm strong {
+  color: var(--admin-text);
+}
+
+.admin-ingredient-csv-confirm input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.admin-ingredient-csv-confirm input:focus {
+  border-color: var(--admin-accent-2);
+  outline: 2px solid rgba(94, 198, 232, 0.2);
+  outline-offset: 1px;
+}
+
 .admin-ingredient-summary-grid {
   padding-top: 18px;
+}
+
+/* 검수 대기열/선택 성분 위젯을 각각 독립적으로 스크롤한다(재고/가격 확인·주문 상태 확인과
+   동일 패턴) — 페이지 전체 스크롤 대신, 마우스가 올라간 위젯만 스크롤한다. 두 위젯을 flex
+   세로열로 만들어 헤더·필터·페이지네이션은 고정하고, 실제 목록/상세 내용만 담긴 자식
+   (.admin-ingredient-table-scroll, .admin-ingredient-detail-scroll)에 overflow-y:auto 를 준다. */
+.admin-ingredient-queue {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-ingredient-queue > .admin-panel-header,
+.admin-ingredient-queue > .admin-list-toolbar,
+.admin-ingredient-queue > .admin-pagination-row,
+.admin-ingredient-queue > .admin-state-banner,
+.admin-ingredient-detail > .admin-panel-header {
+  flex-shrink: 0;
+}
+
+/* 표 헤더 56px + tbody tr 56px x 10 = 616px — 재고/가격 확인·주문 상태 확인과 같은 기준으로
+   기본 10행이 보이는 높이를 고정하고, 그 이상은 내부 스크롤로 처리한다. */
+.admin-ingredient-table-scroll {
+  height: 616px;
+  overflow-y: auto;
 }
 
 .admin-ingredient-table {
@@ -2166,8 +2436,15 @@
 }
 
 .admin-ingredient-detail {
-  position: sticky;
-  top: 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-ingredient-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-ingredient-detail .admin-metric-list dd {
@@ -2198,10 +2475,31 @@
   .admin-skeleton-bar { animation: none; }
 }
 
+@media (max-width: 1100px) {
+  .admin-ingredient-queue-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-ingredient-csv-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 .admin-ingredient-variants,
 .admin-ingredient-samples,
 .admin-ingredient-events {
   padding: 0 18px 14px;
+}
+
+/* .admin-metric-group-title 는 좌우 margin 18px 를 자체적으로 갖고 있는데, 이 컨테이너들은
+   이미 padding 18px 를 갖고 있어 그대로 두면 제목만 36px 밀려 아래 목록과 어긋난다. */
+.admin-ingredient-variants > .admin-metric-group-title,
+.admin-ingredient-samples > .admin-metric-group-title {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .admin-ingredient-variants ul,
@@ -2215,7 +2513,6 @@
 }
 
 .admin-ingredient-variants li,
-.admin-ingredient-samples li,
 .admin-ingredient-events li {
   display: flex;
   justify-content: space-between;
@@ -2223,14 +2520,54 @@
   align-items: baseline;
 }
 
-.admin-ingredient-variants li > span,
-.admin-ingredient-samples li > span,
 .admin-ingredient-events li > span {
   overflow-wrap: anywhere;
 }
 
+/* 원문 표기 목록은 이름(admin-product-name)이 길면 한 줄 말줄임으로 자르고, 뒤에 붙는
+   연결 수(admin-product-code)는 항상 제 너비를 유지한다. flex 자식은 기본 min-width:auto 라
+   이걸 0으로 낮춰야 overflow:hidden 말줄임이 실제로 동작한다. */
+.admin-ingredient-variants li > .admin-product-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.admin-ingredient-variants li > .admin-product-code {
+  flex: 0 0 auto;
+  margin-top: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* 대표 상품은 pending 성분명이 기본 정보에 이미 나와 있어 원문명을 다시 쓰지 않고 상품명만
+   보여준다. 옆 목록(원문 표기)의 값 폰트와 크기를 맞춘다(14px) — admin-product-name 은
+   다른 화면(표 셀 등)에서 더 큰 글자로도 쓰여서 공용 클래스를 그대로 쓰면 이 위젯만 커 보였다. */
+.admin-ingredient-sample-name {
+  display: block;
+  overflow: hidden;
+  color: var(--admin-text);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-ingredient-sample-toggle {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .admin-ingredient-events button {
   width: 100%;
+}
+
+.admin-ingredient-bulk-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-ingredient-action-panel {
@@ -2538,6 +2875,30 @@
 .admin-ingredient-canonical-search input {
   min-height: 40px;
   padding: 0 12px;
+}
+
+/* .admin-ingredient-reason textarea 는 이미 width:100% 인데, 같은 라벨 아래 쓰이는 일반
+   text/url input(확인 문구, 근거 출처 URL, 원본 파일 식별자)은 규칙이 없어 브라우저 기본
+   크기(~20자)로 어정쩡하게 좁게 나온다. textarea 와 같은 톤으로 너비를 꽉 채운다. */
+.admin-ingredient-reason input[type="text"],
+.admin-ingredient-reason input[type="url"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-white);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.admin-ingredient-reason input[type="text"]:focus,
+.admin-ingredient-reason input[type="url"]:focus {
+  border-color: var(--admin-accent-2);
+  outline: 2px solid rgba(94, 198, 232, 0.2);
+  outline-offset: 1px;
 }
 
 .admin-ingredient-canonical-search input:focus,
@@ -3016,6 +3377,14 @@
   min-width: 0;
 }
 
+/* 완료 처리는 다른 액션(승인 등)과 달리 이 그리드에서 단독으로 뜰 때가 많은데, 그러면 왼쪽
+   칸에만 걸려 왼쪽으로 치우쳐 보였다. 전체 폭을 차지하되 버튼 자체는 오른쪽 끝에 붙인다. */
+.admin-order-action-grid .admin-claim-complete-button {
+  grid-column: 1 / -1;
+  width: auto;
+  margin-left: auto;
+}
+
 .admin-order-timeline {
   display: grid;
   gap: 12px;
@@ -3170,8 +3539,7 @@
   }
 
   .admin-toast {
-    width: 100%;
-    max-width: none;
+    max-width: calc(100vw - 32px);
   }
 
   .admin-panel-header > div:first-child p,
@@ -4113,6 +4481,14 @@ body {
 /* 홈 진입부는 헤더 아래의 강조선을 사용하지 않는다. */
 .home-hero {
   border-top: 0 !important;
+}
+
+.spa-origin-shell .home-hero .search-btn {
+  color: #063445 !important;
+}
+
+.spa-origin-shell .home-hero .search-btn svg {
+  stroke: currentColor !important;
 }
 
 .hero-inner {
@@ -7084,10 +7460,26 @@ body.search-results-page .flow-tag.profile,
 }
 
 .home-original-section .key-ingredients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   min-height: 26px;
   margin-bottom: 0;
   align-items: flex-start;
   align-content: flex-start;
+}
+
+.home-original-section .key-ingredients .ingr-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 224, 248, 0.75);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
 .home-original-section .product-price-row {
@@ -13181,8 +13573,8 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 999px;
   background: #f5f9fe;
   color: #238ca1;
-  font-size: 14px;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -13195,8 +13587,8 @@ html[data-app-mode="community"] .search-results-shell {
   border-radius: 999px;
   background: #FFF1EB;
   color: #E07852;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.3;
 }
 

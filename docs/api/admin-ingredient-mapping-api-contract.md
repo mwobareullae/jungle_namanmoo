@@ -3,7 +3,9 @@
 ## 목적
 
 관리자는 pending 성분 원문 그룹을 정식 성분에 연결하거나, 연결하지 않는 최종 사유를 남긴다.
-이 API는 **판정 기록만** 저장하며 기존 `product_ingredients`를 변경하지 않는다.
+이 문서의 단건 판정 API는 **판정 기록만** 저장하며 기존 `product_ingredients`를 변경하지 않는다.
+운영 DB 연결을 실제 이동하는 CSV M2-B 계약은
+[`admin-ingredient-mapping-csv-import-contract.md`](./admin-ingredient-mapping-csv-import-contract.md)를 따른다.
 
 ## 최종 상태
 
