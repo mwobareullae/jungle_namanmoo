@@ -2777,7 +2777,7 @@ function AgentFloatingButton({
                       <div className="agent-chat-quick-questions">
                         {quickQuestions.map((suggestion) => (
                           <button
-                            className="agent-chat-question-row"
+                            className="agent-chat-question-row quick"
                             disabled={isSubmitting}
                             key={suggestion.prompt}
                             onClick={() => void sendMessage(suggestion.prompt)}
