@@ -63,7 +63,6 @@ const AGENT_SUGGESTION_PROMPTS = {
   orderFirstProduct: "첫번째 상품 주문해줘",
   orderCurrentProduct: "지금 상품 주문해줘",
   addCurrentProductToCart: "이 상품을 장바구니에 담아줘",
-  openLastRecommendationCheckout: "추천 결과의 마지막 상품 주문서로 열어줘",
 } as const;
 
 const COMMON_PUBLIC_SUGGESTIONS: AgentSuggestion[] = [
@@ -73,8 +72,12 @@ const COMMON_PUBLIC_SUGGESTIONS: AgentSuggestion[] = [
 
 const COMMON_AUTHENTICATED_SUGGESTIONS: AgentSuggestion[] = [
   { label: AGENT_SUGGESTION_PROMPTS.completedOrders, prompt: AGENT_SUGGESTION_PROMPTS.completedOrders },
-  { label: AGENT_SUGGESTION_PROMPTS.recentOrderStatus, prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus },
 ];
+
+const RECENT_ORDER_STATUS_SUGGESTION: AgentSuggestion = {
+  label: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
+  prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
+};
 
 const buildAgentQuickQuestions = (
   context: AgentSuggestionContext,
@@ -117,10 +120,6 @@ const buildAgentQuickQuestions = (
               label: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
               prompt: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
             },
-            {
-              label: AGENT_SUGGESTION_PROMPTS.openLastRecommendationCheckout,
-              prompt: AGENT_SUGGESTION_PROMPTS.openLastRecommendationCheckout,
-            },
           ]
         : []),
       ...common,
@@ -139,10 +138,14 @@ const buildAgentQuickQuestions = (
           ]
         : []),
       ...common,
+      ...(isAuthenticated ? [RECENT_ORDER_STATUS_SUGGESTION] : []),
     ];
   }
 
-  return common;
+  return [
+    ...common,
+    ...(isAuthenticated ? [RECENT_ORDER_STATUS_SUGGESTION] : []),
+  ];
 };
 
 const buildAgentMiniChatSuggestions = (
