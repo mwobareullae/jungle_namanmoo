@@ -1,401 +1,347 @@
 # 뭐바를래
 
-내 피부 고민에 맞는 화장품을 성분 근거와 구매 흐름까지 이어서 추천하는 P2 자사몰 프로젝트입니다.
+> 피부 고민을 자연어로 이해하고, 성분 근거 기반 추천부터 비교·장바구니·주문 준비까지 연결하는 AI 뷰티 커머스 서비스
 
-- 서비스 식별자: `mwobareullae`
-- 현재 방향: P2 자사몰 완성 -> P3 자사몰 고도화 -> P4+ 마켓플레이스 확장
-- 실행 기준: 루트 `docker-compose.yml`
-- 환경변수 기준: 루트 `.env.example`
+[![CI](https://github.com/mwobareullae/jungle_namanmoo/actions/workflows/ci.yml/badge.svg)](https://github.com/mwobareullae/jungle_namanmoo/actions/workflows/ci.yml)
 
-## 현재 단계
+[서비스 화면 아카이브](docs/service-screen-archive.md) · [문서 길잡이](docs/README.md) · [Frontend](apps/frontend/README.md) · [Backend](apps/backend/README.md) · [API 계약](docs/api/)
 
-현재 repo는 초기 stub 단계를 지나 P2 자사몰 구현과 P3 고도화 준비를 함께 진행 중입니다.
+<p align="center">
+  <img src="docs/images/service-home-window.png" alt="macOS 창 프레임으로 감싼 뭐바를래 홈 화면과 AI 쇼핑 에이전트" width="100%" />
+</p>
 
-- Frontend: Vite, React, TypeScript 기반 고객 화면
-- Backend: FastAPI, SQLAlchemy, Alembic 기반 API
-- Database: RDS PostgreSQL + pgvector
-- Data: CSV/JSON seed, 상품/성분/이미지/검색 문서 데이터
-- Infra: Docker Compose, GitHub Actions CI/CD, EC2 dev 배포
-- Dev infra profile: Redis, Elasticsearch 컨테이너를 `server`/`backend-dev` profile로 추가
-- Image assets: S3 + CloudFront 기준 운영 설계
+## 목차
 
-현재 백엔드는 `health`, `auth`, `skin`, `home`, `recommendations`, `products`, `user_activity`, `cart`, `addresses`, `orders`, `payments`, `events`, `agent` API를 포함합니다. 프론트는 홈, 추천/검색, 상품 상세, 로그인/회원가입, 피부 테스트, 마이페이지, 장바구니, checkout/payment mock 화면을 포함하며, 커뮤니티 모드에서는 커머스 행동을 제한합니다.
+- [프로젝트 소개](#프로젝트-소개)
+- [핵심 기능](#핵심-기능)
+- [서비스 흐름](#서비스-흐름)
+- [시스템 아키텍처](#시스템-아키텍처)
+- [핵심 기술 설계](#핵심-기술-설계)
+- [성능 최적화](#성능-최적화)
+- [Quick Start](#quick-start)
+- [API 및 프로젝트 구조](#api-및-프로젝트-구조)
+- [기술 스택](#기술-스택)
+- [프로젝트 포스터](#프로젝트-포스터)
 
-## 기준 문서
+## 프로젝트 소개
 
-- 작업 규칙과 역할 범위: `AGENTS.md`
-- 데이터 계약: `docs/data/data-contract.md`
-- 배포 결정 기록: `docs/00-overview/deployment-summary.md`
-- 이벤트/GA4 로드맵: `docs/analytics/analytics-event-roadmap.md`
-- P2 AI commerce 계약: `docs/00-overview/p2-ai-commerce-contract.md`
-- 프론트 상세: `apps/frontend/README.md`
-- 백엔드 상세: `apps/backend/README.md`
+화장품을 고를 때 인기 순위나 광고 문구만으로는 내 피부 고민에 맞는 제품인지 판단하기 어렵습니다. 뭐바를래는 사용자가 자연어로 입력한 피부 고민을 표준 고민과 기대 효능으로 구조화하고, 상품의 성분·근거·함량·피부 적합도·구매 조건을 함께 계산해 추천합니다.
 
-문서와 코드가 다르면 실제 코드, migration, 테스트를 먼저 확인하고 문서를 갱신합니다.
+추천 이후에는 AI 쇼핑 에이전트가 현재 화면과 대화 맥락을 바탕으로 상품 검색, 결과 좁히기, 비교, 장바구니, 주문 준비까지 연결합니다. 추천 순위 자체는 LLM이 결정하지 않으며, 재현 가능한 점수 계산 로직이 담당합니다.
 
-## 로컬 개발 환경
+### 해결하려는 문제
 
-### 1. 환경변수 파일 만들기
+- 사용자가 성분표와 논문 근거를 직접 해석해야 하는 탐색 비용
+- 인기순만으로는 반영하기 어려운 피부 타입·민감도·회피 성분
+- 추천 결과를 받은 뒤 다시 검색·비교·구매해야 하는 단절된 흐름
+
+### 제공하는 방식
+
+- 자연어 고민을 표준 고민·효능·검색 및 구매 조건으로 변환
+- 검색으로 후보를 찾고 12개 평가축으로 후보 안의 순위를 계산
+- 상품 상세에서 핵심 성분, 함량 상태, 근거와 주의 정보를 제공
+- 대화로 비교·장바구니·주문 준비 기능을 실행
+
+## 핵심 기능
+
+| 기능 | 사용자에게 제공하는 가치 |
+| --- | --- |
+| 자연어 피부 고민 이해 | 일상적인 표현을 표준 고민과 필요한 효능으로 구조화합니다. |
+| 12축 추천 점수 | 성분·효능·근거·피부 적합도·검색 및 구매 맥락·리뷰 신호를 함께 계산합니다. |
+| 추천 근거 확인 | 추천 총점뿐 아니라 성분, 기대 효능, 함량 상태, 근거 출처와 주의 정보를 구분해 보여줍니다. |
+| 검색 후보 생성·재매칭 | Elasticsearch로 추천 후보를 생성하고, 사용할 수 없을 때는 DB 인기순 후보로 전환합니다. 생성된 후보 안에서 keyword·pgvector 매칭 점수를 다시 계산합니다. |
+| AI 쇼핑 에이전트 | 자연어 요청으로 추천, 결과 좁히기, 비교, 장바구니, 주문 준비를 이어갑니다. |
+| 안전한 실행 정책 | 서버가 인증·입력 스키마·화면 동작을 재검증하고, 주문 생성·주문 취소·다중 카테고리 장바구니 구성·대량 찜은 사용자 확인 후 실행합니다. |
+
+## 서비스 흐름
+
+### 추천
+
+<p align="center">
+  <img src="docs/images/recommendation-pipeline.svg" alt="자연어 구조화부터 추천 결과와 설명 생성까지의 추천 파이프라인" width="100%" />
+</p>
+
+추천 파이프라인은 Elasticsearch로 후보를 먼저 좁히고, 사용할 수 없을 때는 DB 인기순 후보로 전환합니다. 이후 해당 후보 안에서 keyword·pgvector 매칭과 성분, 개인화, 구매 맥락, 리뷰 신호를 결합해 순위를 계산합니다. LLM은 애매한 자연어 구조화와 최종 설명 생성을 보조하지만 점수와 정렬을 직접 생성하지 않습니다.
+
+### AI 쇼핑 에이전트
+
+```mermaid
+flowchart LR
+    A["사용자 요청"] --> B["화면·대화 맥락 전달"]
+    B --> C["LLM이 도구 선택"]
+    C --> D["Dispatcher가 인증·스키마 재검증"]
+    D --> E{"사용자 확인 필요?"}
+    E -- "예" --> F["확인 후 실행"]
+    E -- "아니오" --> G["즉시 실행"]
+    F --> H["결과와 화면 동작 반환"]
+    G --> H
+```
+
+에이전트에는 17개 typed tool이 등록되어 있습니다. 상품 탐색과 조회는 바로 실행할 수 있고, 다중 상품 장바구니 구성·다중 찜·주문 생성·주문 취소처럼 영향이 큰 작업은 확인 절차를 거칩니다.
+
+## 시스템 아키텍처
+
+<p align="center">
+  <img src="docs/images/system-architecture.png" alt="뭐바를래 시스템 아키텍처" width="100%" />
+</p>
+
+| 영역 | 책임 |
+| --- | --- |
+| React / Vite | 고객 화면, 추천·검색·커머스 흐름, AI 에이전트 인터페이스 |
+| FastAPI | 인증, 피부 프로필, 상품, 추천, 장바구니, 주문·결제, 에이전트 API |
+| PostgreSQL / pgvector | 상품·성분·사용자·커머스 데이터와 벡터 검색 데이터 |
+| Elasticsearch / nori | 일반 상품 검색과 추천 후보 탐색을 위한 색인 |
+| Redis | 추천 후보 캐시, 에이전트 동시성·요청 제한 등 런타임 제어 |
+| OpenAI API | 애매한 고민 구조화 보조, 에이전트 도구 선택, 추천 설명 생성 |
+| S3 / CloudFront | 상품 이미지 원본 저장과 공개 이미지 전송 |
+| GitHub Actions / Docker Compose | CI, 개발 서버 배포와 컨테이너 실행 |
+
+배포 환경별로 활성화되는 구성은 다릅니다. 로컬·개발 서버의 구체적인 실행 조합은 [배포 구성 문서](docs/00-overview/deployment-summary.md)와 루트 `docker-compose.yml`을 기준으로 확인합니다.
+
+## 핵심 기술 설계
+
+### 1. 검색 후보 생성과 추천 순위 계산의 분리
+
+<p align="center">
+  <img src="docs/images/search-structure.svg" alt="일반 상품 검색과 추천 검색의 후보 생성 및 재매칭 구조 비교" width="100%" />
+</p>
+
+일반 상품 검색과 추천 검색은 서로 다른 경로입니다. 추천 후보 생성은 Elasticsearch를 우선 사용하고 실패·비활성 시 DB 인기순 fallback을 사용합니다. pgvector는 후보 생성 소스가 아니며, 생성된 후보 안에서 검색 매칭 점수를 다시 계산할 때 임베딩과 입력 조건이 갖춰진 경우에만 사용합니다. 이후 12축 점수와 위험 성분 감점으로 최종 순위를 정합니다.
+
+관련 문서:
+
+- [추천 스코어링 계약](docs/recommendation/backend-scoring-v0.md)
+- [후보 생성 설계](docs/recommendation/f180-candidate-generation-plan.md)
+- [일반 상품 검색 동작](docs/search/catalog-search-v1-behavior-spec.md)
+
+### 2. 결정론적 12축 추천 스코어링
+
+현재 총점은 다음 12개 축을 가중 결합합니다. 요청 의도와 사용 가능한 개인화 데이터에 따라 실제 적용 가중치는 조정되며, API는 `score_breakdown.adjusted_weights`로 그 결과를 제공합니다.
+
+| 대분류 | 점수축 |
+| --- | --- |
+| 성분·효능·근거 | `ingredient_effect`, `ingredient_evidence`, `concentration_fit`, `functional_claim` |
+| 피부·사용자 개인화 | `skin_profile`, `skin_test_context`, `behavior_personalization` |
+| 검색·구매 맥락 | `search_match`, `price`, `market_signal` |
+| 리뷰 신뢰 | `review_quality`, `review_profile_affinity` |
+
+회피 성분은 후보 단계에서 제외하고, 민감 위험 성분은 노출 정보와 `risk_penalty` 감점으로 구분합니다. 리뷰나 개인화 데이터가 없을 때는 적용 여부 플래그를 통해 실데이터와 중립값을 구별합니다.
+
+### 3. LLM과 결정론적 로직의 경계
+
+| 구간 | LLM 사용 | 순위 결정 |
+| --- | ---: | ---: |
+| 자연어 고민 구조화 | 규칙 파서가 모호할 때 보조 | 아니오 |
+| 추천 후보·12축 점수·정렬 | 사용하지 않음 | 예 |
+| 추천 설명 문구 | 응답에 포함된 사실을 바탕으로 생성 | 아니오 |
+| 에이전트 도구 선택 | 화면·대화 맥락을 보고 선택 | 아니오 |
+| 실제 도구 실행 | 서버 dispatcher가 검증 후 실행 | 해당 없음 |
+
+### 4. 에이전트 도구 정책과 재검증
+
+에이전트의 선택은 곧바로 시스템 변경으로 이어지지 않습니다. 서버는 도구별로 다음 정책을 다시 확인합니다.
+
+- 로그인 필요 여부
+- 읽기·쓰기·파괴적 작업 위험 등급
+- 사용자 확인 필요 여부
+- 허용할 수 있는 화면 동작
+- 반환 가능한 최대 항목 수
+- 도구별 제한 시간
+
+비회원은 추천·검색·비교와 비회원 장바구니 기능을 사용할 수 있습니다. 배송지, 주문 내역, 주문 생성·취소처럼 사용자 귀속이나 개인정보가 필요한 기능은 로그인 여부를 서버에서 검증합니다.
+
+관련 문서:
+
+- [액션 에이전트 API 계약](docs/api/action-agent-api-contract.md)
+- [에이전트 런타임 API 계약](docs/api/agent-runtime-api-contract.md)
+- [에이전트 런타임 제어](docs/operations/agent-runtime-control.md)
+
+### 5. 데이터 수집·정제·적재
+
+```text
+원천 상품·성분·리뷰·이미지 데이터
+→ 스키마 및 참조 무결성 검증
+→ 성분·브랜드 정규화
+→ dry-run 검증
+→ PostgreSQL upsert 및 집계
+→ Elasticsearch 색인 / S3 이미지 저장
+```
+
+상품·성분·효능·근거·리뷰·이미지는 파일별 계약과 검수 규칙을 거쳐 적재합니다. 서비스 DB에는 이미지의 공개 URL을 직접 저장하지 않고 `storage_key`를 유지하며, 프론트가 CloudFront 기준 URL을 조합합니다.
+
+상세한 필드와 적재 규칙은 README에 중복하지 않고 아래 문서를 정본으로 사용합니다.
+
+- [데이터 계약](docs/data/data-contract.md)
+- [데이터 디렉터리 안내](data/README.md)
+- [성분 seed 가이드](docs/data/ingredient-seed-guide.md)
+- [리뷰 적재 운영](docs/operations/review-import-operations.md)
+
+## 성능 최적화
+
+79,952개 상품에서 저장 피부 프로필, 스킨 테스트, 행동 이력과 리뷰 신호를 함께 계산하는 개인화 추천 요청을 단계별로 계측했습니다. 최종 결과만 캐시하기보다 병목 구간을 분리하고, 후보 탐색과 점수 입력 데이터 조회 구조를 순서대로 변경했습니다.
+
+### 측정 조건
+
+- 데이터: 실제 상품 `79,952개`
+- 시나리오: `full-personalized`
+- 부하: `VUS 10`, `3분`
+- 캐시: `cold`
+- 주요 지표: End-to-end p95, Scoring p95, 처리량, 오류율
+- 오류 gate: `1% 이하`
+
+<p align="center">
+  <img src="docs/performance/results/recommendation/overview/03-optimization-timeline.png" alt="개인화 추천 파이프라인 최적화 단계별 p95 변화" width="100%" />
+</p>
+
+### 병목과 개선 단계
+
+| 단계 | 확인한 병목 | 적용한 변경 | End-to-end p95 | 오류율 |
+| --- | --- | --- | ---: | ---: |
+| Baseline | 후보 추출 전 브랜드 alias 전수 매칭과 온라인 점수 입력 계산 | 문제 재현 및 단계별 계측 추가 | 52.01초 | 2.00% |
+| Opt1 | Python 파서와 Elasticsearch에 중복된 검색 책임 | 브랜드 전수 매칭 제거, ES 중심 후보 추출 | 12.80초 | 0.00% |
+| Opt2 | 변하지 않는 상품 특징과 사용자 선호를 요청마다 반복 계산 | feature·preference rollup/read model 사전 계산 | 7.77초 | 0.00% |
+| Opt3 | 후보 점수 데이터를 여러 쿼리와 Python 조립으로 조회 | 후보 ID 기준 단일 bulk JOIN prefetch | 7.38초 | 0.00% |
+
+Baseline은 오류 gate를 초과했기 때문에 문제 재현 자료로만 사용하며, `52.01초 → 7.38초`를 확정 개선율로 계산하지 않습니다. 같은 성공 조건끼리 비교하면 Opt1→Opt2에서 End-to-end p95가 `39.3%`, Scoring p95가 `51.8%` 개선됐고, Opt2→Opt3에서는 각각 `5.0%`, `14.1%` 개선됐습니다.
+
+현재 README 수치는 비교 조건과 원본 run이 연결된 Baseline~Opt3 생성 리포트를 기준으로 합니다. 후속 단계는 같은 조건과 provenance가 확인된 뒤 이 표에 추가합니다.
+
+### VUS 100 확장성 실험
+
+단일 요청의 병목 개선과 별도로, 배포 환경에서 `100 VUS`가 추천 API를 10분간 반복 호출하는 부하 테스트를 수행했습니다. 이 결과는 위의 `VUS 10·3분·cold cache` 최적화 단계와 조건이 다르므로 같은 개선 추이에 합산하지 않습니다.
+
+| 구성 | 실행 시간 | 추천 API p95 | 처리량 | 오류율 | 요청 수 | p95 3초 SLA |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| ASG 자동 확장 | 10분 | 15.35초 | 18.17 RPS | 0.0363% | 11,011 | 실패 |
+| ASG 5대 고정 | 10분 | 4.81초 | 30.86 RPS | 0.0054% | 18,568 | 실패 |
+
+5대를 미리 실행한 구성은 자동 확장 run보다 더 높은 처리량과 낮은 p95를 기록했지만, 두 구성 모두 목표인 p95 3초를 충족하지 못했습니다. 따라서 이 결과는 “오토스케일링으로 성능 문제가 해결됐다”는 근거가 아니라, 급격한 부하에서는 사전 용량 확보와 애플리케이션 병목 개선이 함께 필요하다는 실험 결과로 사용합니다.
+
+> 원본 k6 출력은 로컬 `perf-runs/asg-scaling-20260722-211212`와 `perf-runs/asg-fixed5-20260722-214757`에서 확인했습니다. 발표 비교표의 단일 서버 `p95 6.448초` 행은 현재 저장소에서 대응 raw run과 실행 manifest를 찾지 못해 위 확정 표에는 포함하지 않았습니다.
+
+관련 문서:
+
+- [추천 성능 최적화 Case Study](docs/performance/recommendation-performance-case-study.md)
+- [추천 성능 측정 결과](docs/performance/results/recommendation/README.md)
+- [성능 테스트 실행·재생성 방법](docs/performance/README.md)
+
+## Quick Start
+
+### 요구 환경
+
+- Docker
+- Docker Compose
+- Git
+- AI 에이전트와 LLM 보조 기능 사용 시 OpenAI API key
+
+### 1. 저장소와 환경변수 준비
 
 ```bash
+git clone https://github.com/mwobareullae/jungle_namanmoo.git
+cd jungle_namanmoo
 cp .env.example .env
 ```
 
-`.env`는 로컬 또는 서버에서만 사용합니다. 실제 API key, secret, credential은 커밋하지 않습니다.
+`.env`에는 실제 secret을 커밋하지 않습니다. 브라우저에 노출되는 `VITE_*` 변수에도 secret을 넣지 않습니다.
 
-루트 `.env.example` 하나를 Docker Compose 실행 기준 source of truth로 둡니다.
-
-- `VITE_*`: 브라우저에 노출되는 프론트 공개값입니다. secret을 넣지 않습니다.
-- Vercel Frontend 배포의 `VITE_*` 값은 Vercel dashboard의 Production/Preview 환경변수에도 별도로 등록합니다.
-- `DATABASE_URL`: 백엔드가 실제로 사용하는 DB 연결 문자열입니다.
-- `POSTGRES_*`: `local-db` profile의 Docker Postgres 초기화/포트 설정값입니다.
-- `BACKEND_CORS_ORIGINS`: 브라우저에서 API 호출을 허용할 프론트 origin 목록입니다.
-- `REDIS_*`, `ELASTICSEARCH_*`: Dev 통합 확인용 Redis/Elasticsearch 연결과 prefix 기준입니다.
-- `COMPOSE_PROJECT_NAME`: Docker Compose project/container 이름 prefix를 고정합니다.
-- `COMPOSE_PROFILES`: 기본값은 비워두고, 실행 명령에서 역할별 profile을 명시합니다.
-- 로컬 `.env`의 `COMPOSE_PROFILES`에 값이 있으면 모든 compose 명령에 추가 적용되므로, 특별한 이유가 없으면 빈 값으로 둡니다.
-- `DEV_HOST`, `DEV_SSH_KEY` 같은 배포 secret은 `.env.example`에 넣지 않고 GitHub Secrets에만 둡니다.
-- EC2 서버의 `.env`는 배포 workflow가 덮어쓰지 않습니다. 서버에서 직접 관리합니다.
-
-### 2. Docker Compose 설정 확인
-
-```bash
-docker compose config
-```
-
-proxy 구성을 함께 확인할 때:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml config
-```
-
-### 3. Docker Compose 실행 조합
-
-RDS 분리 이후 서버 배포에서는 Docker Postgres와 frontend를 실행하지 않습니다. 필요한 조합은 역할별 profile로 실행합니다.
-
-| 목적 | 명령 |
-| --- | --- |
-| 서버 배포: backend + redis + elasticsearch + caddy | `docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up -d --build backend redis elasticsearch caddy` |
-| backend 개발자: backend + postgres + redis + elasticsearch | `docker compose --profile backend-dev up -d --build` |
-| frontend 개발자: 로컬 backend 사용 | `docker compose --profile frontend-local-backend up -d --build` |
-| frontend 개발자: Dev API 사용 | `docker compose --profile frontend-dev-server up -d --build` |
-
-Profile 기준:
-
-| profile | 서비스 | 용도 |
-| --- | --- | --- |
-| `server` | `backend`, `redis`, `elasticsearch` | 서버 배포용 |
-| `backend-dev` | `backend`, `postgres`, `redis`, `elasticsearch` | backend 개발과 검색/캐시 통합 확인 |
-| `frontend-local-backend` | `frontend`, `backend`, `postgres` | frontend가 로컬 backend를 함께 확인 |
-| `frontend-dev-server` | `frontend` | frontend만 실행하고 API는 개발 서버 사용 |
-| `frontend`, `local-db`, `search-cache` | 일부 서비스 | 기존 명령 호환용 |
-
-- Backend: <http://localhost:8000>
-- Backend health: <http://localhost:8000/api/health>
-- Frontend: <http://localhost:5173>
-- Postgres(local-db): `localhost:5432`
-- Redis(server/backend-dev): `127.0.0.1:6379`
-- Elasticsearch(server/backend-dev): <http://127.0.0.1:9200>
-
-DB만 실행할 때:
-
-```bash
-docker compose --profile local-db up -d postgres
-```
-
-중지:
-
-```bash
-docker compose down
-```
-
-DB volume까지 초기화해야 할 때만 아래 명령을 사용합니다.
-
-```bash
-docker compose down -v
-```
-
-### 4. 역할별 실행 모드
-
-프론트 작업자가 Dev API를 바라볼 때는 프론트만 로컬에서 띄웁니다.
-
-```env
-VITE_API_BASE_URL=https://dev.api.mubarelle.com/api
-```
-
-```bash
-docker compose --profile frontend-dev-server up -d --build
-```
-
-프론트 작업자가 로컬 backend까지 함께 확인할 때는 frontend/backend/postgres를 같이 띄웁니다.
-
-```bash
-docker compose --profile frontend-local-backend up -d --build
-```
-
-백엔드 작업자는 backend/postgres/redis/elasticsearch를 함께 띄웁니다.
-
-```bash
-docker compose --profile backend-dev up -d --build
-```
-
-서버 배포는 RDS를 기준으로 하므로 Docker Postgres를 실행하지 않습니다.
-서버 전용 `docker-compose.proxy.yml`이 backend 실행 명령을 덮어써서 Uvicorn의 `--reload`를 비활성화합니다.
+### 2. 전체 로컬 개발 구성 실행
 
 ```bash
 docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.proxy.yml \
-  --profile server \
-  up -d --build backend redis elasticsearch caddy
+  --profile backend-dev \
+  --profile frontend-local-backend \
+  config
+
+docker compose \
+  --profile backend-dev \
+  --profile frontend-local-backend \
+  up -d --build
 ```
 
-## 환경변수 운영 기준
-
-서버 `.env`에서 FastAPI 추천/검색 튜닝값을 조절하려면 `.env.example`과 `docker-compose.yml`의 `backend.environment`가 함께 맞아야 합니다.
-
-```text
-server .env
--> docker compose variable substitution
--> backend container environment
--> FastAPI config.py os.getenv()
--> recommendation/search logic
-```
-
-현재 조절 가능한 추천/검색 값:
-
-```env
-HYBRID_KEYWORD_WEIGHT=0.5
-HYBRID_VECTOR_WEIGHT=0.5
-RECOMMENDATION_CANDIDATE_POOL_LIMIT=500
-EMBEDDING_DIMENSIONS=1536
-```
-
-`EMBEDDING_DIMENSIONS`는 vector DB/index 생성 후 마음대로 바꾸면 안 됩니다. 변경이 필요하면 migration 또는 index rebuild 계획을 같이 잡아야 합니다.
-
-### Auth / CORS
-
-프론트 Auth 요청은 `fetch(..., { credentials: "include" })` 기준으로 이동 중입니다. 백엔드는 CORS `allow_credentials=True`로 동작하므로, 배포 환경의 `BACKEND_CORS_ORIGINS`에는 실제 프론트 origin을 정확히 넣어야 합니다.
-
-```env
-# Local/dev default
-BACKEND_CORS_ORIGINS=http://localhost:5173
-
-# Dev frontend on Vercel
-BACKEND_CORS_ORIGINS=https://dev.mubarelle.com
-
-# Release server .env
-BACKEND_CORS_ORIGINS=https://mubarelle.com,https://www.mubarelle.com
-```
-
-credentials 요청에는 wildcard origin `*`를 쓰지 않습니다. HTTPOnly cookie 인증의 `Set-Cookie`, 만료, `SameSite`, `Secure`, `/me` cookie 처리 전환은 백엔드 Auth 작업에서 별도로 추적합니다.
-
-Vercel Preview 배포를 백엔드에 붙일 때는 Preview URL origin도 `BACKEND_CORS_ORIGINS`에 포함해야 합니다. Preview URL이 매번 바뀌면 backend CORS allowlist 정책을 별도로 정합니다.
-
-Docker 로그와 메모리 제한은 `.env`에서 조절합니다.
-
-```env
-DOCKER_LOG_MAX_SIZE=10m
-DOCKER_LOG_MAX_FILE=5
-FRONTEND_MEMORY_LIMIT=1g
-BACKEND_MEMORY_LIMIT=2g
-POSTGRES_MEMORY_LIMIT=2g
-REDIS_MEMORY_LIMIT=512m
-ELASTICSEARCH_MEMORY_LIMIT=2g
-ELASTICSEARCH_HEAP_SIZE=1g
-```
-
-Redis와 Elasticsearch는 첫 단계에서 Dev 인프라만 제공합니다. 실제 cache/rate limit, ES 검색 ranking 연결은 담당 기능 PR에서 별도로 진행합니다.
-
-```env
-REDIS_URL=redis://redis:6379/0
-REDIS_KEY_PREFIX=mubarelle:dev:
-ELASTICSEARCH_URL=http://elasticsearch:9200
-ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
-```
-
-### Redis / Elasticsearch smoke 기준
-
-Dev 서버에서 Redis/Elasticsearch까지 확인할 때는 서버에 SSH 접속한 뒤 `DEV_APP_DIR`에서 아래 순서로 확인합니다.
+### 3. DB migration
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server config
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml --profile server up -d redis elasticsearch
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml ps redis elasticsearch
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml exec -T redis redis-cli ping
-curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
+docker compose exec backend python -m alembic upgrade head
 ```
 
-통과 기준:
-
-- Redis/Elasticsearch container status가 `healthy`
-- Redis 응답이 `PONG`
-- Elasticsearch cluster status가 `green` 또는 `yellow`
-- compose config에서 Redis `6379`, Elasticsearch `9200` host bind가 `127.0.0.1`
-- EC2 security group에서 `6379`, `9200` 외부 공개 금지
-
-서버 역할별 prefix는 아래 기준으로 분리합니다. 같은 Redis/Elasticsearch를 임시 공유하더라도 prefix는 공유하지 않습니다.
-
-```env
-# Dev
-REDIS_KEY_PREFIX=mubarelle:dev:
-ELASTICSEARCH_INDEX_PREFIX=mubarelle_dev
-
-# 실유저 테스트
-REDIS_KEY_PREFIX=mubarelle:user-test:
-ELASTICSEARCH_INDEX_PREFIX=mubarelle_user_test
-
-# 발표 서버를 별도 prefix로 동결할 때
-REDIS_KEY_PREFIX=mubarelle:demo:
-ELASTICSEARCH_INDEX_PREFIX=mubarelle_demo
-```
-
-## CI
-
-현재 GitHub Actions CI는 `main`, `dev` push와 PR에서 실행됩니다.
-
-- frontend dependency install
-- frontend lint
-- frontend build
-- 필수 파일 존재 확인
-- 실제 `.env` 파일 커밋 여부 확인
-- `docker compose --profile backend-dev --profile frontend-dev-server config`
-- Docker Compose backend/postgres 기동
-- backend health check
-- backend pytest
-- Alembic heads 확인
-
-로컬에서 PR 전 최소 확인:
+가벼운 예제 데이터가 필요할 때:
 
 ```bash
-docker compose --profile backend-dev --profile frontend-dev-server config
-docker compose --profile backend-dev up --build -d backend postgres
+docker compose exec backend \
+  python -m app.cli.seed_data --data-dir /data/examples
+```
+
+전체 데이터 적재와 검색 색인은 실행 시간과 환경 의존성이 크므로 [Backend 실행 문서](apps/backend/README.md), [데이터 안내](data/README.md), [검색 문서](docs/search/)를 확인합니다.
+
+### 4. 접속 확인
+
+| 대상 | 주소 |
+| --- | --- |
+| Frontend | <http://localhost:5173> |
+| Backend | <http://localhost:8000> |
+| Health check | <http://localhost:8000/api/health> |
+| Swagger UI | <http://localhost:8000/docs> |
+| OpenAPI JSON | <http://localhost:8000/openapi.json> |
+| Elasticsearch | <http://127.0.0.1:9200> |
+
+```bash
 curl http://localhost:8000/api/health
-docker compose exec -T backend python -m pytest
-docker compose exec -T backend python -m alembic heads
+```
+
+종료:
+
+```bash
 docker compose down
 ```
 
-## Dev 서버 배포
+## API 및 프로젝트 구조
 
-현재 별도 production 서버 자동 배포는 만들지 않습니다. `dev` 브랜치에 push되면 GitHub Actions가 EC2 개발 서버로 소스를 동기화한 뒤 backend/API 중심 Docker Compose를 재실행합니다. 프론트는 Vercel이 담당합니다.
+### API 확인 방법
 
-```text
-dev push -> GitHub Actions checkout -> rsync to EC2 -> data/dev-small 재생성 -> base/proxy Compose 병합 -> backend(--reload 없음), redis, elasticsearch, caddy 재실행
-dev push -> Vercel Production Branch(dev) -> frontend production deployment
-PR/feature push with apps/frontend changes -> Vercel Preview deployment
-```
+README에는 주요 API 영역과 문서 위치만 제공합니다. 실행 중인 API의 전체 endpoint와 스키마는 Swagger UI에서 확인하고, 프론트·백엔드 간 세부 계약은 `docs/api/` 문서를 기준으로 확인합니다.
 
-CD의 `rsync --delete`로 서버에서 만든 `data/dev-small`이 사라질 수 있으므로, Dev 배포 workflow는 `data/products.csv` 또는 `data/products/`가 있을 때 1,000개 subset CSV를 자동으로 다시 생성합니다.
+| API 영역 | 주요 기능 | 상세 문서 |
+| --- | --- | --- |
+| Auth / Skin | 인증 세션, 피부 프로필·피부 테스트 | [인증 쿠키](docs/api/auth-session-cookie.md) |
+| Home / Search | 홈 섹션, 일반 상품 검색·자동완성 | [홈](docs/api/home-sections-api-contract.md), [검색](docs/api/catalog-search-api-contract.md) |
+| Recommendation / Product | 맞춤 추천 생성·조회, 상품 상세 | [스코어링](docs/recommendation/backend-scoring-v0.md), [상품 상세](docs/api/product-detail-purchase-info-api.md) |
+| Cart / Order / Payment | 비회원·회원 장바구니, checkout, 주문·결제 | [장바구니](docs/api/cart-checkout-api-contract.md), [주문·결제](docs/api/order-payment-api-contract.md) |
+| Agent | 도구 선택, 실행 결과, confirmation | [액션 에이전트](docs/api/action-agent-api-contract.md), [런타임](docs/api/agent-runtime-api-contract.md) |
+| Review / Activity | 리뷰, 찜, 최근 본 상품 | [리뷰](docs/api/review-api-contract.md), [사용자 활동](docs/api/wishlist-recent-api-contract.md) |
 
-### EC2 구성 기준
-
-- AWS EC2 1대
-- Docker + Docker Compose
-- `backend`, `caddy` 컨테이너를 EC2에서 실행
-- `frontend` 컨테이너는 로컬 개발용으로 compose에 남기지만 Dev 서버 CD에서는 실행하지 않음
-- `redis`, `elasticsearch` 컨테이너는 현재 EC2에서 실행하되, 후속 작업에서 별도 서버로 분리 예정
-- DB는 RDS PostgreSQL을 사용하고, Docker Postgres는 로컬/CI용 `local-db` profile에서만 실행
-- EC2에 repository clone은 필수 아님
-- 서버 `.env`는 EC2에서 직접 관리
-
-최초 준비 예시:
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl rsync
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker ubuntu
-```
-
-권한 적용을 위해 SSH 재접속 후 확인합니다.
-
-```bash
-docker --version
-docker compose version
-```
-
-### GitHub Secrets
-
-Repository Settings > Secrets and variables > Actions에 아래 값을 등록합니다.
+### 프로젝트 구조
 
 ```text
-DEV_HOST      EC2 public IP 또는 DNS
-DEV_USER      예: ubuntu
-DEV_SSH_KEY   EC2 접속 private key
-DEV_APP_DIR   예: /home/ubuntu/mwobareullae
-SLACK_WEBHOOK_URL   선택: PR/댓글/dev 배포 완료 Slack 알림용 incoming webhook
+jungle_namanmoo/
+├── apps/
+│   ├── frontend/          # React·Vite 고객 화면
+│   └── backend/           # FastAPI API와 도메인 서비스
+├── data/                  # 상품·성분·근거·리뷰 데이터와 적재 입력
+├── docker/                # Elasticsearch 등 커스텀 이미지
+├── docs/                  # API·데이터·추천·검색·운영 문서
+├── scripts/               # 운영·검증 스크립트
+├── tests/                 # 통합·부하 테스트 자산
+├── docker-compose.yml     # 로컬·개발 실행 기준
+└── .env.example           # 환경변수 계약
 ```
 
-`DEV_SSH_KEY`는 공개키가 아니라 private key입니다. 레포 파일에 넣지 않습니다.
+세부 문서는 [문서 길잡이](docs/README.md), 프론트와 백엔드의 개별 명령은 각각의 README에서 확인합니다.
 
-### 보안그룹 기준
+## 기술 스택
 
-초기 dev 확인 단계:
+| 영역 | 기술 |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS |
+| Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic |
+| Database | PostgreSQL 16, pgvector |
+| Search / Cache | Elasticsearch 8.15, nori, Redis 7.2 |
+| AI | OpenAI API, OpenAI Agents SDK, `text-embedding-3-small` |
+| Commerce | Toss Payments SDK, Confirm API, Webhook |
+| Storage / Delivery | AWS S3, CloudFront |
+| Infra / DevOps | AWS EC2·RDS, Docker Compose, GitHub Actions, Vercel, CloudWatch |
 
-```text
-22    SSH, 관리자 IP 또는 GitHub Actions 접근 방식에 맞게 제한
-8000  backend, 팀원 IP 또는 임시 공개
-5173  frontend, Dev 서버에서는 사용하지 않음. 로컬/Vercel 기준
-5432  RDS/Postgres, 외부 공개 금지
-6379  redis, 외부 공개 금지
-9200  elasticsearch, 외부 공개 금지
-```
+## 프로젝트 포스터
 
-Caddy/Nginx를 붙인 뒤:
-
-```text
-22    관리자 IP만 허용
-80    전체 허용
-443   전체 허용
-5173  외부 차단
-8000  외부 차단
-5432  외부 차단
-6379  외부 차단
-9200  외부 차단
-```
-
-## 이미지 자산 인프라
-
-P2 상품 이미지 적재와 공개 서빙은 EC2 로컬 디스크가 아니라 S3 + CloudFront 기준입니다.
-
-- S3 bucket: `mubarelle-images`
-- Region: `ap-northeast-2`
-- CloudFront domain: `https://d3hg0esuwey1za.cloudfront.net`
-- 원본: `original/{storage_key}`
-- 공개 이미지: `resized/w400/{storage_key}`, `resized/w1200/{storage_key}`
-- 브라우저 공개 base URL: `VITE_IMAGE_CDN_BASE_URL`
-
-서비스 DB에는 CloudFront 절대 URL을 저장하지 않고 `storage_key` 기준을 유지합니다.
-
-## 개발 흐름
-
-1. `dev` 브랜치에서 작업 브랜치를 생성합니다.
-2. 브랜치 이름은 `feat/*`, `fix/*`, `docs/*`, `chore/*` 규칙을 따릅니다.
-3. 담당 영역만 수정합니다.
-4. 커밋 메시지는 Angular 스타일과 한글 요약을 사용합니다.
-5. PR을 열고 CI 통과 후 `dev`에 머지합니다.
-6. `main`에 직접 push하지 않습니다.
-
-예시:
-
-```text
-chore(infra): 환경변수 예시와 README 정리
-feat(backend): 인증 사용자 모델 추가
-docs(data): 자사몰 판매 구조 기준 정리
-```
-
-## 아직 하지 않는 것
-
-- production 자동 배포
-- ECS/Fargate
-- ALB
-- ECR
-- 자동 DB 백업
-- production Elasticsearch 운영 클러스터
-- production Redis 운영 구성
-- Redis cache/rate limit 기능 연결
-- Elasticsearch 검색 ranking 기능 연결
-- GA4 전체 매핑
-
-이 항목들은 P2/P3 일정과 발표 전 안정화 기준에 맞춰 별도 이슈와 PR로 결정합니다.
+<p align="center">
+  <img src="docs/images/project-poster.png" alt="뭐바를래 프로젝트 포스터" width="100%" />
+</p>
