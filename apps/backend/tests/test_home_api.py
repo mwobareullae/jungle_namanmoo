@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from dataclasses import replace
 
 from datetime import UTC, datetime, timedelta
 
@@ -18,6 +19,9 @@ from app.main import app
 from app.services import home_sections
 from app.services.db_seed import seed_database
 from app.services.home_section_snapshot_rollup import rollup_home_section_snapshots
+from app.services.home_evidence_pick_feature_rollup import (
+    rollup_home_evidence_pick_features,
+)
 from app.services.recommendation_coarse_feature_rollup import (
     rollup_product_recommendation_coarse_features,
 )
@@ -447,6 +451,63 @@ def test_home_for_you_returns_anonymous_fallback(client: TestClient) -> None:
     assert 0 < len(data["products"]) <= 3
 
 
+def test_home_for_you_score_boosts_oliveyoung_and_market_popularity() -> None:
+    product = home_sections._ProductBase(
+        db_product_id=1,
+        product_id="product-1",
+        brand="brand",
+        brand_code="brand",
+        category_code="serum",
+        category_name="Serum",
+        name="product",
+        thumbnail_url="",
+        lowest_price=20_000,
+        oliveyoung_available=False,
+        sales_status="ON_SALE",
+        stock_status="IN_STOCK",
+        available_quantity=10,
+        in_stock=True,
+    )
+    signals = home_sections._ProductSignals(
+        key_ingredients=(),
+        effects=(),
+        tag_effect="",
+        tag_ingredient="",
+        ingredient_codes=(),
+        effect_codes=(),
+        max_effect_score=0.7,
+        max_evidence_score=0.6,
+    )
+    context = home_sections._ForYouContext(
+        skin_type="normal",
+        sensitivity="medium",
+        request_skin_type=None,
+        request_sensitivity=None,
+        concern=None,
+        effect=None,
+        manual_skin_type=None,
+        manual_sensitivity=None,
+        skin_test_context=None,
+        behavior_context=None,
+        sources=("fallback",),
+    )
+
+    baseline = home_sections._for_you_score(product, signals, None, 0.5, context)
+    popular = home_sections._for_you_score(product, signals, None, 0.9, context)
+    oliveyoung = home_sections._for_you_score(
+        replace(product, oliveyoung_available=True),
+        signals,
+        None,
+        0.5,
+        context,
+    )
+
+    assert popular > baseline
+    assert oliveyoung == pytest.approx(
+        min(1.0, baseline + home_sections.OLIVEYOUNG_AVAILABILITY_BONUS)
+    )
+
+
 def test_home_for_you_applies_selected_context(client: TestClient) -> None:
     response = client.get(
         "/api/home/for-you",
@@ -566,6 +627,7 @@ def _rollup_home_coarse_features(db_engine: Engine) -> None:
     with Session(db_engine) as session:
         rollup_product_recommendation_features(session)
         rollup_product_recommendation_coarse_features(session)
+        rollup_home_evidence_pick_features(session)
         session.commit()
 
 

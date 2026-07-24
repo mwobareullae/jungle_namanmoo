@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.catalog import (
@@ -14,6 +14,7 @@ from app.db.models.catalog import (
     ProductPrice,
     ProductSkinProfile,
 )
+from app.db.models.commerce import ProductPopularityMetric
 from app.db.models.recommendation import (
     ProductEffectRecommendationFeature,
     ProductRecommendationCoarseFeature,
@@ -29,6 +30,11 @@ from app.services.recommendation_feature_versions import (
 
 
 SCORE_SCALE = 10_000
+HOME_POPULARITY_WINDOW_DAYS = 7
+HOME_SHORTLIST_EVIDENCE_WEIGHT = 0.50
+HOME_SHORTLIST_EFFECT_WEIGHT = 0.25
+HOME_SHORTLIST_POPULARITY_WEIGHT = 0.15
+HOME_SHORTLIST_OLIVEYOUNG_WEIGHT = 0.10
 EFFECT_COLUMN_PREFIXES = {
     "effect_acne_sebum": "acne_sebum",
     "effect_brightening": "brightening",
@@ -187,10 +193,12 @@ def load_product_recommendation_coarse_feature_source_rows(
                 product_id,
                 (0, 0),
             )
-            home_lowest_price, home_has_image = home_summaries_by_product.get(
-                product_id,
-                (0, False),
-            )
+            (
+                home_lowest_price,
+                home_has_image,
+                home_oliveyoung_available,
+                home_popularity_score,
+            ) = home_summaries_by_product.get(product_id, (0, False, False, 0))
             row: dict[str, object] = {
                 "product_id": product_id,
                 **{column: 0 for column in EFFECT_SCORE_COLUMNS},
@@ -215,6 +223,14 @@ def load_product_recommendation_coarse_feature_source_rows(
                 "home_max_evidence_score": home_evidence_score,
                 "home_lowest_price": home_lowest_price,
                 "home_has_image": home_has_image,
+                "home_oliveyoung_available": home_oliveyoung_available,
+                "home_popularity_score": home_popularity_score,
+                "home_shortlist_score": _home_shortlist_score(
+                    evidence_score=home_evidence_score,
+                    effect_score=home_effect_score,
+                    popularity_score=home_popularity_score,
+                    oliveyoung_available=home_oliveyoung_available,
+                ),
                 "home_source_current": False,
                 "source_current": False,
                 "feature_version": PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
@@ -308,7 +324,7 @@ def _load_home_signal_scores(
 def _load_home_product_summaries(
     session: Session,
     product_ids: list[int],
-) -> dict[int, tuple[int, bool]]:
+) -> dict[int, tuple[int, bool, bool, int]]:
     lowest_price = (
         select(func.min(ProductPrice.price))
         .where(ProductPrice.product_id == Product.id)
@@ -319,17 +335,61 @@ def _load_home_product_summaries(
         .where(ProductImage.product_id == Product.id)
         .exists()
     )
+    has_oliveyoung_offer = (
+        select(ProductPrice.id)
+        .where(
+            ProductPrice.product_id == Product.id,
+            or_(
+                ProductPrice.mall_name.like("%올리브영%"),
+                func.lower(ProductPrice.mall_name).like("%oliveyoung%"),
+            ),
+        )
+        .exists()
+    )
     rows = session.execute(
         select(
             Product.id,
             lowest_price.label("lowest_price"),
             has_image.label("has_image"),
-        ).where(Product.id.in_(product_ids))
+            has_oliveyoung_offer.label("has_oliveyoung_offer"),
+            ProductPopularityMetric.popularity_score.label("popularity_score"),
+        )
+        .outerjoin(
+            ProductPopularityMetric,
+            and_(
+                ProductPopularityMetric.product_id == Product.id,
+                ProductPopularityMetric.window_days == HOME_POPULARITY_WINDOW_DAYS,
+            ),
+        )
+        .where(Product.id.in_(product_ids))
     ).all()
     return {
-        int(row.id): (int(row.lowest_price or 0), bool(row.has_image))
+        int(row.id): (
+            int(row.lowest_price or 0),
+            bool(row.has_image),
+            bool(row.has_oliveyoung_offer),
+            _scaled_home_score(row.popularity_score),
+        )
         for row in rows
     }
+
+
+def _home_shortlist_score(
+    *,
+    evidence_score: int,
+    effect_score: int,
+    popularity_score: int,
+    oliveyoung_available: bool,
+) -> int:
+    oliveyoung_score = SCORE_SCALE if oliveyoung_available else 0
+    return int(
+        round(
+            evidence_score * HOME_SHORTLIST_EVIDENCE_WEIGHT
+            + effect_score * HOME_SHORTLIST_EFFECT_WEIGHT
+            + popularity_score * HOME_SHORTLIST_POPULARITY_WEIGHT
+            + oliveyoung_score * HOME_SHORTLIST_OLIVEYOUNG_WEIGHT
+        )
+    )
 
 
 def _scaled_score(value: Decimal | float | int | None) -> int:

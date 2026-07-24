@@ -7,16 +7,25 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.cli import rollup_product_recommendation_coarse_features as coarse_cli
 from app.db.base import Base
-from app.db.models.catalog import Product
-from app.db.models.recommendation import ProductRecommendationCoarseFeature
+from app.db.models.catalog import Product, ProductPrice
+from app.db.models.commerce import ProductPopularityMetric
+from app.db.models.recommendation import (
+    HomeEvidencePickFeature,
+    ProductRecommendationCoarseFeature,
+)
 from app.db.session import make_engine
 from app.services.db_seed import seed_database
 from app.services.recommendation_coarse_feature_rollup import (
     EFFECT_SCORE_COLUMNS,
+    SCORE_SCALE,
+    _home_shortlist_score,
     rollup_product_recommendation_coarse_features,
 )
 from app.services.recommendation_feature_rollup import (
     rollup_product_recommendation_features,
+)
+from app.services.home_evidence_pick_feature_rollup import (
+    rollup_home_evidence_pick_features,
 )
 from app.services.recommendation_feature_versions import (
     PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
@@ -26,6 +35,16 @@ from tests.test_data_loader import EXAMPLES_DIR
 
 def test_coarse_feature_rollup_is_idempotent_and_numeric_only() -> None:
     session = _seed_example_session()
+    product_ids = list(session.execute(select(Product.id).order_by(Product.id)).scalars())
+    for price in session.execute(select(ProductPrice)).scalars():
+        price.mall_name = "올리브영" if price.product_id == product_ids[0] else "other-mall"
+    session.add(
+        ProductPopularityMetric(
+            product_id=product_ids[0],
+            window_days=7,
+            popularity_score=100,
+        )
+    )
     computed_at = datetime(2026, 7, 17, 3, 0, tzinfo=UTC)
 
     first = rollup_product_recommendation_coarse_features(
@@ -51,6 +70,22 @@ def test_coarse_feature_rollup_is_idempotent_and_numeric_only() -> None:
     assert _coarse_values(session) == first_rows
     assert session.query(ProductRecommendationCoarseFeature).count() == 2
     assert any(any(score > 0 for score in row[1]) for row in first_rows)
+    home_availability = list(
+        session.execute(
+            select(ProductRecommendationCoarseFeature.home_oliveyoung_available).order_by(
+                ProductRecommendationCoarseFeature.product_id
+            )
+        ).scalars()
+    )
+    assert home_availability == [True, False]
+    home_popularity_scores = list(
+        session.execute(
+            select(ProductRecommendationCoarseFeature.home_popularity_score).order_by(
+                ProductRecommendationCoarseFeature.product_id
+            )
+        ).scalars()
+    )
+    assert home_popularity_scores == [SCORE_SCALE, 0]
     assert all(
         row.feature_version == PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION
         for row in session.query(ProductRecommendationCoarseFeature)
@@ -64,6 +99,41 @@ def test_coarse_feature_rollup_is_idempotent_and_numeric_only() -> None:
         "top_ingredient_codes",
         "skin_profile_reason",
     }.isdisjoint(ProductRecommendationCoarseFeature.__table__.columns.keys())
+
+
+def test_home_shortlist_score_uses_configured_weight_mix() -> None:
+    score = _home_shortlist_score(
+        evidence_score=SCORE_SCALE,
+        effect_score=SCORE_SCALE,
+        popularity_score=SCORE_SCALE,
+        oliveyoung_available=True,
+    )
+
+    assert score == SCORE_SCALE
+
+
+def test_evidence_pick_rollup_is_independent_from_for_you_shortlist_score() -> None:
+    session = _seed_example_session()
+    rollup_product_recommendation_coarse_features(session)
+    session.execute(
+        ProductRecommendationCoarseFeature.__table__.update().values(
+            home_shortlist_score=0,
+            home_oliveyoung_available=False,
+            home_popularity_score=0,
+        )
+    )
+
+    result = rollup_home_evidence_pick_features(session, batch_size=1)
+    session.commit()
+
+    rows = session.execute(
+        select(HomeEvidencePickFeature).order_by(HomeEvidencePickFeature.product_id)
+    ).scalars().all()
+    assert result.evidence_pick_feature_count == 2
+    assert result.source_current_count == 2
+    assert len(rows) == 2
+    assert any(row.max_evidence_score > 0 for row in rows)
+    assert all(row.feature_version == "home_evidence_pick_v1" for row in rows)
 
 
 def test_coarse_feature_rollup_uses_fixed_select_count_per_batch() -> None:
@@ -173,6 +243,7 @@ def _coarse_values(session: Session) -> list[tuple[object, ...]]:
             row.home_max_evidence_score,
             row.home_lowest_price,
             row.home_has_image,
+            row.home_oliveyoung_available,
             row.home_source_current,
             row.source_current,
             row.feature_version,

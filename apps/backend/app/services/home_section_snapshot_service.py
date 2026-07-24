@@ -21,7 +21,7 @@ HOME_FOR_YOU_SNAPSHOT_SECTION_ID = "for_you"
 HOME_GUEST_SKIN_TYPES = ("건성", "지성", "복합성", "수부지", "중성")
 HOME_EVIDENCE_SNAPSHOT_SIZE = 50
 HOME_FOR_YOU_SNAPSHOT_SIZE = 200
-HOME_SNAPSHOT_ALGORITHM_VERSION = "home_section_snapshot_v1"
+HOME_SNAPSHOT_ALGORITHM_VERSION = "home_section_snapshot_v4"
 HOME_SNAPSHOT_MAX_AGE = timedelta(days=2)
 
 

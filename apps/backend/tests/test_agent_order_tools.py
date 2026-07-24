@@ -286,18 +286,19 @@ def test_agent_cart_checkout_and_confirmed_toss_order(
     with Session(db_engine) as session:
         user = _load_user(session, email)
         cart = get_agent_cart(session, user, conversation_id="conv_commerce")
+        selected_item_ids = [cart.ui_action.payload["items"][0]["id"]]
         preview = prepare_agent_checkout(
             session,
             user,
             conversation_id="conv_commerce",
-            cart_item_ids=None,
+            cart_item_ids=selected_item_ids,
             address_id=address_id,
         )
         prepared = prepare_agent_order(
             session,
             user,
             conversation_id="conv_commerce",
-            cart_item_ids=None,
+            cart_item_ids=selected_item_ids,
             address_id=address_id,
             request_id="req_commerce",
             session_id="session_commerce",
