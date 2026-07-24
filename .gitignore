@@ -65,3 +65,7 @@ perf-runs/*
 
 # Generated evidence-discovery reports
 artifacts/evidence-discovery/
+
+# Local Agent model-evaluation outputs. Fixtures and instructions under
+# docs/agent-evals remain tracked; raw traces stay under apps/backend/.local.
+docs/agent-evals/results/

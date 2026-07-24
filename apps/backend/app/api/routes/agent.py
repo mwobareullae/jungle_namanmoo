@@ -22,7 +22,11 @@ from app.core.config import settings
 from app.core.performance_logging import current_time, elapsed_ms, log_performance_event
 from app.services.agent_order_tools import confirm_agent_tool_call
 from app.services.agent_local_trace import create_agent_local_trace
-from app.services.agent_openai_runner import AgentWorkflowTiming, run_openai_agent_chat
+from app.services.agent_openai_runner import (
+    AgentWorkflowTiming,
+    build_local_agent_execution_override,
+    run_openai_agent_chat,
+)
 from app.services.agent_idempotency import (
     claim_agent_request_execution,
     complete_agent_request_execution,
@@ -51,9 +55,10 @@ class _AgentRequestTelemetry:
     rate_limited: bool = False
     global_slot_acquired: bool = False
     global_slot_rejected: bool = False
+    workflow_metadata: dict[str, str | int | float | bool | None] = field(default_factory=dict)
 
     def metadata(self) -> dict[str, float | str | bool]:
-        return {
+        metadata: dict[str, str | int | float | bool | None] = {
             "agent_total_ms": round(elapsed_ms(self.started_at), 2),
             "agent_idempotency_ms": round(self.idempotency_ms, 2),
             "agent_rate_limit_ms": round(self.rate_limit_ms, 2),
@@ -67,6 +72,8 @@ class _AgentRequestTelemetry:
             "agent_global_slot_acquired": self.global_slot_acquired,
             "agent_global_slot_rejected": self.global_slot_rejected,
         }
+        metadata.update(self.workflow_metadata)
+        return metadata
 
 
 @router.post(
@@ -88,12 +95,39 @@ async def post_agent_chat(
     http_response: Response,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     local_model_override: str | None = Header(default=None, alias="X-Agent-Local-Model"),
+    local_execution_mode_override: str | None = Header(
+        default=None,
+        alias="X-Agent-Local-Execution-Mode",
+    ),
+    local_router_model_override: str | None = Header(
+        default=None,
+        alias="X-Agent-Local-Router-Model",
+    ),
+    local_specialist_model_override: str | None = Header(
+        default=None,
+        alias="X-Agent-Local-Specialist-Model",
+    ),
+    local_specialist_fallback_enabled_override: str | None = Header(
+        default=None,
+        alias="X-Agent-Local-Specialist-Fallback-Enabled",
+    ),
+    local_specialist_fallback_model_override: str | None = Header(
+        default=None,
+        alias="X-Agent-Local-Specialist-Fallback-Model",
+    ),
     anonymous_cart_id: str | None = Cookie(default=None, alias=ANONYMOUS_CART_COOKIE_NAME),
     current_user: User | None = Depends(get_optional_current_user),
     session: Session = Depends(get_db),
 ) -> AgentChatResponse:
     telemetry = _AgentRequestTelemetry()
     request_id = getattr(request.state, "request_id", None)
+    local_execution_override = build_local_agent_execution_override(
+        execution_mode=local_execution_mode_override,
+        router_model=local_router_model_override,
+        specialist_model=local_specialist_model_override,
+        specialist_fallback_enabled=local_specialist_fallback_enabled_override,
+        specialist_fallback_model=local_specialist_fallback_model_override,
+    )
     local_trace = create_agent_local_trace(
         request_id=request_id,
         route=request.url.path,
@@ -103,6 +137,34 @@ async def post_agent_chat(
     if local_trace is not None:
         http_response.headers["X-Agent-Local-Trace-Id"] = local_trace.trace_id
         local_trace.set_route_value("requested_model", local_model_override)
+        local_trace.set_route_value(
+            "requested_execution_mode",
+            local_execution_override.execution_mode if local_execution_override else None,
+        )
+        local_trace.set_route_value(
+            "requested_router_model",
+            local_execution_override.router_model if local_execution_override else None,
+        )
+        local_trace.set_route_value(
+            "requested_specialist_model",
+            local_execution_override.specialist_model if local_execution_override else None,
+        )
+        local_trace.set_route_value(
+            "requested_specialist_fallback_enabled",
+            (
+                local_execution_override.specialist_fallback_enabled
+                if local_execution_override
+                else None
+            ),
+        )
+        local_trace.set_route_value(
+            "requested_specialist_fallback_model",
+            (
+                local_execution_override.specialist_fallback_model
+                if local_execution_override
+                else None
+            ),
+        )
     execution = None
     agent_response: AgentChatResponse | None = None
     workflow_timing = AgentWorkflowTiming()
@@ -180,6 +242,7 @@ async def post_agent_chat(
             ),
             local_trace=local_trace,
             model_override=local_model_override,
+            execution_override=local_execution_override,
         )
         persist_started_at = current_time()
         complete_agent_request_execution(execution, agent_response)
@@ -224,6 +287,7 @@ async def post_agent_chat(
         telemetry.global_slot_rejected = (
             telemetry.global_slot_rejected or workflow_timing.global_slot_rejected
         )
+        telemetry.workflow_metadata = workflow_timing.telemetry_metadata()
         if local_trace is not None:
             try:
                 local_trace.set_route_value("idempotency_key", idempotency_key)
@@ -279,7 +343,7 @@ def _build_trace_metadata(
     conversation_id: str | None,
     route: str,
     authenticated: bool,
-) -> dict[str, str | bool]:
+) -> dict[str, str]:
     """Return only correlation metadata that is safe for OpenAI trace export."""
 
     return {
@@ -287,7 +351,7 @@ def _build_trace_metadata(
         "conversation_id": conversation_id or "conversation-new",
         "environment": settings.app_env,
         "route": route,
-        "authenticated": authenticated,
+        "authenticated": "true" if authenticated else "false",
         "agent_release": settings.agent_release,
     }
 

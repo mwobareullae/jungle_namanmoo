@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.schemas.order import DirectShippingAddressRequest
 
 
@@ -22,3 +25,13 @@ def test_direct_shipping_address_allows_missing_detail_address() -> None:
     )
 
     assert request.address2 is None
+
+
+def test_direct_shipping_address_rejects_non_five_digit_postal_code() -> None:
+    with pytest.raises(ValidationError, match="postal_code must contain exactly 5 digits"):
+        DirectShippingAddressRequest(
+            recipient_name="Recipient",
+            phone="01012345678",
+            postal_code="0452",
+            address1="Seoul Jung-gu Sejong-daero 110",
+        )

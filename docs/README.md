@@ -10,9 +10,10 @@
 4. [홈 섹션 API](api/home-sections-api-contract.md)
 5. [주문·결제 API](api/order-payment-api-contract.md)
 6. [커머스 액션 에이전트 API](api/action-agent-api-contract.md)
-7. [홈 개인화 추천](recommendation/home-personalized-ranking.md)
-8. [추천 기본 스코어링](recommendation/backend-scoring-v0.md)
-9. [백엔드 테스트](operations/backend-testing.md)
+7. [AI Agent 오케스트레이션 결정 기록](agent-orchestration-decision.md)
+8. [홈 개인화 추천](recommendation/home-personalized-ranking.md)
+9. [추천 기본 스코어링](recommendation/backend-scoring-v0.md)
+10. [백엔드 테스트](operations/backend-testing.md)
 
 ## 폴더별 역할
 

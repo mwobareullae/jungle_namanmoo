@@ -29,6 +29,7 @@ TOKEN_USAGE_DETAIL_PATHS = {
 # than logging a misleading estimate.
 MODEL_TOKEN_PRICES = {
     "gpt-5.5": {"input": 5.0, "cached_input": 0.5, "output": 30.0},
+    "gpt-5.4-nano": {"input": 0.2, "cached_input": 0.02, "output": 1.25},
     "gpt-5.4-mini": {"input": 0.75, "cached_input": 0.075, "output": 4.5},
     "gpt-5.4": {"input": 2.5, "cached_input": 0.25, "output": 15.0},
     "gpt-5-mini": {"input": 0.25, "cached_input": 0.025, "output": 2.0},
