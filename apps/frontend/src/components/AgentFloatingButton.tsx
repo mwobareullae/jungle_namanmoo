@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { navigateWithinApp } from "../lib/navigation";
 import { storeAgentClaimDraft, storeAgentReviewDraft } from "../lib/agentDrafts";
@@ -31,8 +31,6 @@ import type { ApiError } from "../types/recommendation";
 
 type AgentFloatingButtonProps = {
   isAgentResponding?: boolean;
-  isAuthenticated?: boolean;
-  quickQuestionContext?: QuickQuestionContext;
   skinProfile?: {
     avoidIngredients?: string[];
     sensitivity: string;
@@ -40,22 +38,7 @@ type AgentFloatingButtonProps = {
   };
   skinProfileStatus?: "empty" | "saved" | "temporary";
   storageScope: AgentChatStorageScope;
-  surface?: "home" | "productDetail" | "context" | "minimal";
 };
-
-type QuickQuestionContext =
-  | "auth"
-  | "cart"
-  | "checkout"
-  | "home"
-  | "mypage"
-  | "order"
-  | "productDetail"
-  | "productList"
-  | "recent"
-  | "searchResults"
-  | "skinProfile"
-  | "wishlist";
 
 type AgentChatBaseMessage = {
   createdAt?: number;
@@ -153,121 +136,6 @@ const composeCategoryLabelMap: Record<string, string> = {
   serum: "세럼",
   cream: "크림",
 };
-
-const quickQuestionsByContext: Record<QuickQuestionContext, string[]> = {
-  auth: [
-    "로그인하면 장바구니와 주문을 어떻게 이어서 볼 수 있어?",
-    "로그인 후 내 피부 타입으로 맞춤 루틴을 만들고 싶어",
-    "비회원으로 이용할 수 있는 기능을 알려줘",
-  ],
-  cart: [
-    "현재 장바구니 상품으로 주문서 열어줘",
-    "내 피부에 맞는 토너와 크림을 5만원 안으로 추가해줘",
-    "장바구니 상품과 총금액 다시 보여줘",
-  ],
-  checkout: [
-    "이 주문서 내용으로 주문 생성해줘",
-    "이 주문서로 결제 진행해줘",
-    "결제 예정 금액과 배송지를 다시 확인해줘",
-  ],
-  home: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘",
-    "최근 주문 배송 상태 알려줘",
-    "장바구니에 담긴 상품과 총금액 보여줘",
-  ],
-  mypage: [
-    "최근 주문 배송 상태 보여줘",
-    "내 피부 타입에 맞는 토너와 크림을 5만원 이내로 구성해줘",
-    "내 장바구니 상품과 총금액 보여줘",
-  ],
-  order: [
-    "현재 주문 상태와 상품을 보여줘",
-    "현재 주문을 취소해줘",
-    "최근 주문 배송 상태를 보여줘",
-  ],
-  productDetail: [
-    "이 상품과 비슷한 상품 2개 보여줘",
-    "이 상품을 장바구니에 담아줘",
-    "이 상품과 비슷한 상품을 비교해줘",
-  ],
-  productList: [
-    "화면에 보이는 첫 두 상품을 비교해줘",
-    "화면 상품 중 5만원 이하만 보여줘",
-    "화면 상품을 내 피부 타입 기준으로 추려줘",
-  ],
-  recent: [
-    "최근 본 첫 두 상품을 비교해줘",
-    "최근 본 상품 중 5만원 이하만 보여줘",
-    "최근 본 상품을 내 피부 타입 기준으로 추려줘",
-  ],
-  searchResults: [
-    "2만원대 상품만 보여줘",
-    "3만원 이하 세럼만 보여줘",
-    "추천 결과 상위 2개 비교해줘",
-  ],
-  skinProfile: [
-    "내 피부 타입에 맞는 토너, 세럼, 크림을 추천해줘",
-    "민감도에 맞는 진정 제품 3개 추천해줘",
-    "피부 고민에 맞는 성분 근거 제품을 보여줘",
-  ],
-  wishlist: [
-    "찜한 첫 두 상품을 비교해줘",
-    "찜한 상품 중 5만원 이하만 보여줘",
-    "찜한 상품을 내 피부 타입 기준으로 추려줘",
-  ],
-};
-
-const miniChatLabelsByContext: Record<QuickQuestionContext, string[]> = {
-  auth: ["로그인하면 이어지는 기능은?", "로그인 후 맞춤 루틴 만들기"],
-  cart: ["이 장바구니로 주문서 열어줘", "5만원 맞춤 상품 추가해줘"],
-  checkout: ["이 주문서로 주문 생성해줘", "결제 진행해줘"],
-  home: ["5만원 맞춤 루틴 구성해줘", "최근 주문 배송 보여줘"],
-  mypage: ["최근 주문 배송 보여줘", "5만원 맞춤 루틴 구성해줘"],
-  order: ["현재 주문 상태 보여줘", "현재 주문 취소해줘"],
-  productDetail: ["비슷한 상품 2개 보여줘", "이 상품 장바구니에 담아줘"],
-  productList: ["첫 두 상품 비교해줘", "5만원 이하 상품만 보여줘"],
-  recent: ["최근 본 두 상품 비교해줘", "5만원 이하만 보여줘"],
-  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
-  skinProfile: ["내 피부 타입에 맞는 제품 추천해줘", "민감도에 맞는 진정 제품 추천해줘"],
-  wishlist: ["찜한 두 상품 비교해줘", "5만원 이하만 보여줘"],
-};
-
-const guestQuickQuestionsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
-  home: [
-    "내 피부 고민에 맞는 제품 추천해줘",
-    "5만원 이하 제품 추천해줘",
-    "장바구니 상품과 총금액 보여줘",
-  ],
-  cart: [
-    "장바구니 상품과 총금액 보여줘",
-    "내 피부 고민에 맞는 제품 추천해줘",
-    "5만원 이하 제품 추천해줘",
-  ],
-  skinProfile: [
-    "내 피부 고민에 맞는 제품 추천해줘",
-    "민감 피부 진정 제품 추천해줘",
-    "피부 프로필 설정 방법 알려줘",
-  ],
-  searchResults: [
-    "2만원대 상품만 보여줘",
-    "3만원 이하 세럼만 보여줘",
-    "장바구니 상품과 총금액 보여줘",
-  ],
-};
-
-const guestMiniChatLabelsByContext: Partial<Record<QuickQuestionContext, string[]>> = {
-  home: ["피부 고민 제품 추천해줘", "5만원 이하 제품 추천해줘"],
-  cart: ["장바구니 상품과 총금액 보여줘", "피부 고민 제품 추천해줘"],
-  searchResults: ["2만원대 상품만 보여줘", "3만원 이하 세럼만 보여줘"],
-  skinProfile: ["내 피부 고민 제품 추천해줘", "민감 피부 진정 제품 추천해줘"],
-};
-
-const emptySearchQuickQuestions = [
-  "내 피부 고민에 맞는 제품 추천해줘",
-  "5만원 이하 제품 추천해줘",
-];
-
-const emptySearchMiniChatLabels = ["피부 고민 제품 추천해줘", "5만원 이하 추천해줘"];
 
 const completedStatusSteps: AgentStatusStep[] = [
   { label: "피부 타입 확인", status: "done" },
@@ -1704,12 +1572,9 @@ const setAgentCartTargetBusy = (active: boolean) => {
 
 function AgentFloatingButton({
   isAgentResponding = false,
-  isAuthenticated = false,
-  quickQuestionContext = "home",
   skinProfile,
   skinProfileStatus = "empty",
   storageScope,
-  surface = "home",
 }: AgentFloatingButtonProps) {
   const { openComparison, comparisonIntent } = useProductComparison();
   const [activeView, setActiveView] = useState<AgentChatView>("home");
@@ -1718,7 +1583,6 @@ function AgentFloatingButton({
   const [conversationId, setConversationId] = useState<string | null>(() => readStoredConversationId(storageScope));
   const [isOpen, setIsOpen] = useState(false);
   const [isChatMounted, setIsChatMounted] = useState(false);
-  const [isTeaserVisible, setIsTeaserVisible] = useState(surface !== "home");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState("");
   const [lastSentMessage, setLastSentMessage] = useState("");
@@ -1727,19 +1591,15 @@ function AgentFloatingButton({
   const [answerReactions, setAnswerReactions] = useState<Record<string, AgentAnswerReaction | undefined>>({});
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialStoredMessages);
   const [lastToolResultContext, setLastToolResultContext] = useState(() => buildLastToolResult(initialStoredMessages));
-  const [hasSearchProducts, setHasSearchProducts] = useState(quickQuestionContext !== "productList");
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<AgentChatThreadSummary[]>(() => readStoredThreads(storageScope));
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatPopupRef = useRef<HTMLElement | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
-  const teaserRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
-  const teaserTimerRef = useRef<number | null>(null);
   const copyFeedbackTimerRef = useRef<number | null>(null);
-  const teaserVisibilityFrameRef = useRef<number | null>(null);
   const openChatRef = useRef<() => void>(() => undefined);
   const sendMessageRef = useRef<(
     message: string,
@@ -1748,28 +1608,7 @@ function AgentFloatingButton({
     retryIdempotencyKey?: string,
     retryRequestMessage?: string,
   ) => Promise<AgentChatResponse | null>>(async () => null);
-  const hasDismissedTeaserRef = useRef(false);
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
-  const previousSurfaceRef = useRef(surface);
-  const quickQuestions = useMemo(
-    () => quickQuestionContext === "productList" && !hasSearchProducts
-      ? emptySearchQuickQuestions
-      : !isAuthenticated && guestQuickQuestionsByContext[quickQuestionContext]
-        ? guestQuickQuestionsByContext[quickQuestionContext]!
-        : quickQuestionsByContext[quickQuestionContext],
-    [hasSearchProducts, isAuthenticated, quickQuestionContext],
-  );
-  const miniChatQuestions = useMemo(
-    () => quickQuestions.slice(0, 2).map((prompt, index) => ({
-      label: quickQuestionContext === "productList" && !hasSearchProducts
-        ? emptySearchMiniChatLabels[index]
-        : !isAuthenticated && guestMiniChatLabelsByContext[quickQuestionContext]
-          ? guestMiniChatLabelsByContext[quickQuestionContext]![index]
-          : miniChatLabelsByContext[quickQuestionContext][index],
-      prompt,
-    })),
-    [hasSearchProducts, isAuthenticated, quickQuestionContext, quickQuestions],
-  );
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
   const hasSkinProfile = skinProfileStatus !== "empty";
@@ -1780,7 +1619,6 @@ function AgentFloatingButton({
       : "피부 정보를 추가하면 더 정확히 답변해드려요";
 
   const openChat = () => {
-    setIsTeaserVisible(false);
     if (closeTimerRef.current !== null && typeof window !== "undefined") {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -1795,8 +1633,6 @@ function AgentFloatingButton({
 
   const closeChat = () => {
     setIsOpen(false);
-    hasDismissedTeaserRef.current = true;
-    setIsTeaserVisible(false);
     triggerButtonRef.current?.focus();
     if (typeof window !== "undefined") {
       closeTimerRef.current = window.setTimeout(() => {
@@ -1809,79 +1645,6 @@ function AgentFloatingButton({
   };
 
   openChatRef.current = openChat;
-
-  const handleTeaserClick = (question: string) => {
-    openChat();
-    void sendMessage(question);
-  };
-
-  const updateTeaserVisibility = useCallback(() => {
-    if (isOpen || hasDismissedTeaserRef.current) {
-      setIsTeaserVisible(false);
-      return;
-    }
-
-    setIsTeaserVisible(true);
-  }, [isOpen]);
-
-  const scheduleTeaserVisibilityCheck = useCallback(() => {
-    if (typeof window === "undefined" || teaserVisibilityFrameRef.current !== null) {
-      return;
-    }
-
-    teaserVisibilityFrameRef.current = window.requestAnimationFrame(() => {
-      teaserVisibilityFrameRef.current = null;
-      updateTeaserVisibility();
-    });
-  }, [updateTeaserVisibility]);
-
-  useEffect(() => {
-    if (previousSurfaceRef.current !== surface) {
-      previousSurfaceRef.current = surface;
-      hasDismissedTeaserRef.current = false;
-      setIsTeaserVisible(surface !== "home");
-    }
-
-    if (hasDismissedTeaserRef.current) {
-      setIsTeaserVisible(false);
-      return undefined;
-    }
-
-    const scheduleIdle = () => {
-      if (teaserTimerRef.current !== null) {
-        window.clearTimeout(teaserTimerRef.current);
-      }
-      teaserTimerRef.current = window.setTimeout(scheduleTeaserVisibilityCheck, 2500);
-    };
-
-    const handleScroll = () => {
-      scheduleTeaserVisibilityCheck();
-    };
-
-    const handleResize = () => {
-      scheduleTeaserVisibilityCheck();
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleResize);
-    if (surface === "home") {
-      scheduleIdle();
-    } else {
-      scheduleTeaserVisibilityCheck();
-    }
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleResize);
-      if (teaserTimerRef.current !== null) {
-        window.clearTimeout(teaserTimerRef.current);
-      }
-      if (teaserVisibilityFrameRef.current !== null) {
-        window.cancelAnimationFrame(teaserVisibilityFrameRef.current);
-        teaserVisibilityFrameRef.current = null;
-      }
-    };
-  }, [isOpen, scheduleTeaserVisibilityCheck, surface]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2302,24 +2065,11 @@ function AgentFloatingButton({
       setIsAwaitingAddressInput(false);
       pendingCheckoutCartItemIdsRef.current = [];
       setAnswerReactions({});
-      setHasSearchProducts(false);
-    };
-
-    const handleRecommendationState = (event: Event) => {
-      const detail = (event as CustomEvent<{
-        scope?: string;
-        status?: string;
-        recommendation?: { products?: unknown[] } | null;
-      }>).detail;
-      if (detail?.scope !== "search") return;
-      setHasSearchProducts(detail.status === "success" && Boolean(detail.recommendation?.products?.length));
     };
 
     window.addEventListener("home-search-pending", handleSearchPending);
-    window.addEventListener("home-recommendation-state", handleRecommendationState);
     return () => {
       window.removeEventListener("home-search-pending", handleSearchPending);
-      window.removeEventListener("home-recommendation-state", handleRecommendationState);
     };
   }, []);
 
@@ -2795,16 +2545,6 @@ function AgentFloatingButton({
   return (
     <>
       <div className={`agent-floating-entry${isOpen ? " is-open" : ""}`} aria-label="AI 에이전트 진입점">
-        <div
-          ref={teaserRef}
-          className={`agent-floating-entry__teasers${!isTeaserVisible || (isChatMounted && isOpen) ? " is-hidden" : ""}`}
-        >
-          {miniChatQuestions.map((question) => (
-            <button key={question.prompt} onClick={() => handleTeaserClick(question.prompt)} type="button">
-              {question.label}
-            </button>
-          ))}
-        </div>
         {isChatMounted ? (
           <section
             aria-modal={isOpen ? "true" : undefined}
@@ -2851,40 +2591,6 @@ function AgentFloatingButton({
                     <span aria-hidden="true">{hasSkinProfile ? "✓" : "＋"}</span>
                     <span>{skinProfileChipLabel}</span>
                   </div>
-
-                  <div className="agent-chat-divider" />
-                  <div className="agent-chat-section-label">빠른 질문</div>
-                    <div className="agent-chat-quick-questions">
-                    {quickQuestions.map((question) => (
-                      <button
-                      className="agent-chat-question-row quick"
-                      disabled={isSubmitting}
-                      key={question}
-                      onClick={() => void sendMessage(question)}
-                      type="button"
-                    >
-                      <span className="agent-chat-row-icon" aria-hidden="true">
-                        <svg fill="none" viewBox="0 0 24 24">
-                          <path
-                            d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2L12 3.5Z"
-                            stroke="currentColor"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                          <path
-                            d="M18.5 15.5v3M20 17h-3M5.5 4.5v2M6.5 5.5h-2"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                        </svg>
-                      </span>
-                      <span>{question}</span>
-                      <span aria-hidden="true">›</span>
-                      </button>
-                    ))}
-                    </div>
 
                   {chatThreads.length > 0 ? (
                     <>
