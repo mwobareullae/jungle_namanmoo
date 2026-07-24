@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import AgentFloatingButton from "./components/AgentFloatingButton";
+import AgentFloatingButton, { type AgentSuggestionContext } from "./components/AgentFloatingButton";
 import AgentCommerceOverlay from "./components/AgentCommerceOverlay";
 import AppFooter from "./components/AppFooter";
 import HomeHeader from "./components/HomeHeader";
@@ -867,50 +867,24 @@ function GlobalAgentEntry() {
       : isSkinProfileResolved
         ? "empty"
         : "empty";
-
-  const path = location.pathname;
-  const quickQuestionContext = path.startsWith("/product-detail")
-    ? "productDetail"
-    : path.startsWith("/search")
+  const suggestionContext: AgentSuggestionContext = location.pathname === "/"
+    ? "home"
+    : location.pathname === "/search"
       ? "searchResults"
-    : path === "/cart"
-      ? "cart"
-      : path.startsWith("/checkout")
-        ? "checkout"
-        : path.startsWith("/payment-complete") || path.startsWith("/mypage/orders")
-          ? "order"
-          : path.startsWith("/mypage/skin-profile") || path.startsWith("/skin-test")
-            ? "skinProfile"
-            : path.startsWith("/mypage/wishlist")
-              ? "wishlist"
-              : path.startsWith("/mypage/recent")
-                ? "recent"
-                : path.startsWith("/login") || path.startsWith("/signup")
-                  ? "auth"
-                  : path === "/mypage" || path.startsWith("/mypage/")
-                    ? "mypage"
-                    : /search|category|products|brands/.test(path)
-                      ? "productList"
-                      : "home";
-  const agentSurface = path.startsWith("/product-detail")
-    ? "productDetail"
-    : path.startsWith("/search")
-      ? "context"
-    : /recommend|skin-test|recommendations/.test(path)
-      ? "context"
-      : /mypage|cart|checkout|login|signup|order/.test(path)
-        ? "minimal"
-        : "home";
+      : location.pathname === "/product-detail" || location.pathname === "/product-detail-preview"
+        ? "productDetail"
+        : location.pathname === "/products/popular"
+          ? "best"
+          : "none";
 
   return (
     <AgentFloatingButton
-      key={agentChatStorageScope}
       isAuthenticated={Boolean(user)}
-      quickQuestionContext={quickQuestionContext}
+      key={agentChatStorageScope}
+      suggestionContext={suggestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       storageScope={agentChatStorageScope}
-      surface={agentSurface}
     />
   );
 }
