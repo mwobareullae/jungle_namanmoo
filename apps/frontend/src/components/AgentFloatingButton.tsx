@@ -51,44 +51,22 @@ type AgentSuggestion = {
 
 const AGENT_SUGGESTION_PROMPTS = {
   recommendSensitiveDry: "민감하고 건조한 피부에 맞는 진정 보습 제품을 추천해줘",
-  completedOrders: "최근 3개월 배송완료 주문만 보여줘",
   recentOrderStatus: "최근 주문 배송 상태 알려줘",
   cartSummary: "장바구니 상품과 총금액 보여줘",
   refineBySkin: "추천 결과를 내 피부타입과 민감도 기준으로 다시 추려줘",
   serumUnderThirtyThousand: "3만원 이하 세럼만 보여줘",
-  twentyThousandRange: "2만원대만 보여줘",
   compareFirstTwo: "화면의 첫 번째와 두 번째 상품을 비교해줘",
   wishlistPopularNiacinamide: "최근 7일 인기 20위 안에서 나이아신아마이드가 들어간 상품을 모두 찜해줘",
   similarProducts: "이 상품과 비슷한 상품 2개 보여줘",
-  orderFirstProduct: "첫번째 상품 주문해줘",
   orderCurrentProduct: "지금 상품 주문해줘",
   addCurrentProductToCart: "이 상품을 장바구니에 담아줘",
 } as const;
-
-const COMMON_PUBLIC_SUGGESTIONS: AgentSuggestion[] = [
-  { label: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry, prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
-  { label: AGENT_SUGGESTION_PROMPTS.cartSummary, prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
-];
-
-const COMMON_AUTHENTICATED_SUGGESTIONS: AgentSuggestion[] = [
-  { label: AGENT_SUGGESTION_PROMPTS.completedOrders, prompt: AGENT_SUGGESTION_PROMPTS.completedOrders },
-];
-
-const RECENT_ORDER_STATUS_SUGGESTION: AgentSuggestion = {
-  label: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
-  prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
-};
 
 const buildAgentQuickQuestions = (
   context: AgentSuggestionContext,
   isAuthenticated: boolean,
 ): AgentSuggestion[] => {
   if (context === "none") return [];
-
-  const common = [
-    ...COMMON_PUBLIC_SUGGESTIONS,
-    ...(isAuthenticated ? COMMON_AUTHENTICATED_SUGGESTIONS : []),
-  ];
 
   if (context === "searchResults") {
     return [
@@ -97,9 +75,7 @@ const buildAgentQuickQuestions = (
         label: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
         prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
       },
-      { label: AGENT_SUGGESTION_PROMPTS.twentyThousandRange, prompt: AGENT_SUGGESTION_PROMPTS.twentyThousandRange },
       { label: AGENT_SUGGESTION_PROMPTS.compareFirstTwo, prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
-      ...common,
     ];
   }
 
@@ -116,13 +92,8 @@ const buildAgentQuickQuestions = (
               label: AGENT_SUGGESTION_PROMPTS.orderCurrentProduct,
               prompt: AGENT_SUGGESTION_PROMPTS.orderCurrentProduct,
             },
-            {
-              label: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
-              prompt: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
-            },
           ]
         : []),
-      ...common,
     ];
   }
 
@@ -137,14 +108,27 @@ const buildAgentQuickQuestions = (
             },
           ]
         : []),
-      ...common,
-      ...(isAuthenticated ? [RECENT_ORDER_STATUS_SUGGESTION] : []),
+      {
+        label: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry,
+        prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry,
+      },
     ];
   }
 
   return [
-    ...common,
-    ...(isAuthenticated ? [RECENT_ORDER_STATUS_SUGGESTION] : []),
+    {
+      label: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry,
+      prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry,
+    },
+    { label: AGENT_SUGGESTION_PROMPTS.cartSummary, prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
+    ...(isAuthenticated
+      ? [
+          {
+            label: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
+            prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus,
+          },
+        ]
+      : []),
   ];
 };
 
