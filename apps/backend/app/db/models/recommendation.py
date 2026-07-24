@@ -290,8 +290,47 @@ class ProductRecommendationCoarseFeature(Base):
     home_has_image: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    home_oliveyoung_available: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    home_popularity_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    home_shortlist_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
     home_source_current: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    source_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class HomeEvidencePickFeature(Base):
+    """Independent materialized candidate set for the evidence-led home section."""
+
+    __tablename__ = "home_evidence_pick_features"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        primary_key=True,
+    )
+    max_evidence_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    max_effect_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    lowest_price: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
     source_current: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"

@@ -23,10 +23,15 @@ from app.schemas.agent import AgentContextResultItem, AgentLastToolResult
 from app.services.agent_openai_runner import CommerceAgentContext, _execute_tool
 from app.services.agent_order_tools import confirm_agent_tool_call
 from app.services.agent_commerce_tools import add_agent_cart_item
+from app.services.agent_bulk_wishlist import DEFAULT_BULK_WISHLIST_RANK
 from app.services.cart_service import get_cart_response
 from app.services.user_activity_service import add_wishlist_item, upsert_recent_view
 from app.services.agent_policy import AGENT_TOOL_POLICIES
-from app.services.agent_tool_dispatcher import execute_agent_tool, list_agent_tool_names
+from app.services.agent_tool_dispatcher import (
+    BulkWishlistByPopularIngredientArgs,
+    execute_agent_tool,
+    list_agent_tool_names,
+)
 from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 from tests.test_review_api import _create_order_item
@@ -51,6 +56,12 @@ def db_engine() -> Generator[Engine, None, None]:
 
 def test_dispatcher_lists_registered_agent_tools() -> None:
     assert set(list_agent_tool_names()) == set(AGENT_TOOL_POLICIES)
+
+
+def test_bulk_popular_ingredient_wishlist_schema_defaults_to_top_fifty() -> None:
+    arguments = BulkWishlistByPopularIngredientArgs(ingredient_name="나이아신아마이드")
+
+    assert arguments.rank_limit == DEFAULT_BULK_WISHLIST_RANK
 
 
 def test_dispatcher_executes_product_tool_and_records_tool_call(db_engine: Engine) -> None:

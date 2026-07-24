@@ -26,6 +26,7 @@ from app.services.skin_profile_service import load_skin_profile_for_user
 BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL = "bulk_wishlist_by_popular_ingredient"
 BULK_WISHLIST_CONFIRMATION_TTL_MINUTES = 10
 MAX_BULK_WISHLIST_RANK = 50
+DEFAULT_BULK_WISHLIST_RANK = MAX_BULK_WISHLIST_RANK
 _CATEGORY_QUERY_ALIASES = {
     "세럼": "serum",
     "토너": "toner",
