@@ -380,6 +380,19 @@ function HomeDealSection({
     setIsInfoOpen(true);
   };
 
+  useEffect(() => {
+    if (!isInfoOpen) return;
+
+    const closeInfo = () => setIsInfoOpen(false);
+    window.addEventListener("scroll", closeInfo, true);
+    window.addEventListener("resize", closeInfo);
+
+    return () => {
+      window.removeEventListener("scroll", closeInfo, true);
+      window.removeEventListener("resize", closeInfo);
+    };
+  }, [isInfoOpen]);
+
   const sourceLabels: Record<string, string> = {
     request_context: "이번 화면에서 선택한 피부 타입·조건",
     manual_skin_profile: "저장된 피부 프로필",
@@ -406,13 +419,14 @@ function HomeDealSection({
             {section.section_id === "for_you" ? (
               <div
                 className="home-recommendation-info"
+                onBlur={() => setIsInfoOpen(false)}
                 onMouseEnter={openInfo}
+                onMouseLeave={() => setIsInfoOpen(false)}
               >
                 <button
                   aria-expanded={isInfoOpen}
                   aria-label="너를 위한 추천 기준 보기"
                   className="home-recommendation-info-button"
-                  onClick={() => (isInfoOpen ? setIsInfoOpen(false) : openInfo())}
                   onFocus={openInfo}
                   ref={infoButtonRef}
                   type="button"
@@ -429,14 +443,6 @@ function HomeDealSection({
                   >
                     <div className="home-recommendation-info-head">
                       <strong>너를 위한 추천 기준</strong>
-                      <button
-                        aria-label="추천 기준 닫기"
-                        className="home-recommendation-info-close"
-                        onClick={() => setIsInfoOpen(false)}
-                        type="button"
-                      >
-                        ×
-                      </button>
                     </div>
                     <p>
                       {section.skin_type ?? "현재 선택한 피부 타입"}
