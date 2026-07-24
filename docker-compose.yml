@@ -1,0 +1,248 @@
+name: mwobareullae
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+services:
+  frontend:
+    build:
+      context: ./apps/frontend
+    container_name: mwobareullae-frontend
+    restart: unless-stopped
+    profiles:
+      - frontend
+      - frontend-local-backend
+      - frontend-dev-server
+    environment:
+      VITE_APP_MODE: ${VITE_APP_MODE:-commerce}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+      VITE_ENABLE_MOCKS: ${VITE_ENABLE_MOCKS:-false}
+      VITE_GA_MEASUREMENT_ID: ${VITE_GA_MEASUREMENT_ID:-}
+      VITE_IMAGE_CDN_BASE_URL: ${VITE_IMAGE_CDN_BASE_URL:-https://d3hg0esuwey1za.cloudfront.net}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+      VITE_TOSS_CLIENT_KEY: ${VITE_TOSS_CLIENT_KEY:-}
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./apps/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${FRONTEND_MEMORY_LIMIT:-1g}"
+    networks:
+      - app_network
+
+  backend:
+    build:
+      context: ./apps/backend
+      args:
+        INSTALL_DEV: "true"
+    container_name: mwobareullae-backend
+    restart: unless-stopped
+    profiles:
+      - server
+      - backend-dev
+      - frontend-local-backend
+    environment:
+      APP_NAME: ${APP_NAME:-mwobareullae}
+      APP_ENV: ${APP_ENV:-local}
+      API_BASE_PATH: ${API_BASE_PATH:-/api}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mwobareullae:change-me@postgres:5432/mwobareullae}
+      DATA_DIR: ${DATA_DIR:-/data}
+      SEED_PRODUCT_INGREDIENT_BATCH_SIZE: ${SEED_PRODUCT_INGREDIENT_BATCH_SIZE:-10000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_AGENT_MODEL: ${OPENAI_AGENT_MODEL:-gpt-5.5}
+      OPENAI_AGENT_EXECUTION_MODE: ${OPENAI_AGENT_EXECUTION_MODE:-router_specialist}
+      OPENAI_AGENT_ROUTER_MODEL: ${OPENAI_AGENT_ROUTER_MODEL:-gpt-5.4-nano-2026-03-17}
+      OPENAI_AGENT_SPECIALIST_MODEL: ${OPENAI_AGENT_SPECIALIST_MODEL:-gpt-5.4-nano-2026-03-17}
+      OPENAI_AGENT_SPECIALIST_FALLBACK_ENABLED: ${OPENAI_AGENT_SPECIALIST_FALLBACK_ENABLED:-false}
+      OPENAI_AGENT_SPECIALIST_FALLBACK_MODEL: ${OPENAI_AGENT_SPECIALIST_FALLBACK_MODEL:-gpt-5.5}
+      OPENAI_AGENT_LOCAL_TRACE_ENABLED: ${OPENAI_AGENT_LOCAL_TRACE_ENABLED:-false}
+      OPENAI_AGENT_LOCAL_TRACE_DIR: ${OPENAI_AGENT_LOCAL_TRACE_DIR:-/app/.local/agent-traces}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      HYBRID_KEYWORD_WEIGHT: ${HYBRID_KEYWORD_WEIGHT:-0.5}
+      HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.5}
+      RECOMMENDATION_CANDIDATE_POOL_LIMIT: ${RECOMMENDATION_CANDIDATE_POOL_LIMIT:-500}
+      RECOMMENDATION_SCORING_READ_PATH: ${RECOMMENDATION_SCORING_READ_PATH:-legacy_bulk}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-mubarelle:dev:}
+      RECOMMENDATION_CANDIDATE_CACHE_ENABLED: ${RECOMMENDATION_CANDIDATE_CACHE_ENABLED:-false}
+      RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS: ${RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS:-300}
+      RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS: ${RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS:-60}
+      RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS: ${RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS:-0.05}
+      RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS: ${RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS:-0.05}
+      SEARCH_BACKEND_MODE: ${SEARCH_BACKEND_MODE:-auto}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-mubarelle_dev}
+      ELASTICSEARCH_PRODUCTS_ALIAS: ${ELASTICSEARCH_PRODUCTS_ALIAS:-mubarelle_dev_products_current}
+      ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS: ${ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS:-mubarelle_dev_catalog_products_current}
+      ELASTICSEARCH_TIMEOUT_SECONDS: ${ELASTICSEARCH_TIMEOUT_SECONDS:-2.0}
+      ELASTICSEARCH_MAX_RETRIES: ${ELASTICSEARCH_MAX_RETRIES:-0}
+      ELASTICSEARCH_CIRCUIT_BREAKER_SECONDS: ${ELASTICSEARCH_CIRCUIT_BREAKER_SECONDS:-60}
+      AUTH_JWT_SECRET_KEY: ${AUTH_JWT_SECRET_KEY:-change-me-local-secret}
+      AUTH_SESSION_COOKIE_NAME: ${AUTH_SESSION_COOKIE_NAME:-mwbl_session}
+      AUTH_SESSION_TTL_DAYS: ${AUTH_SESSION_TTL_DAYS:-14}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@mubarelle.com}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_REQUEST_LOGGING: ${ENABLE_REQUEST_LOGGING:-true}
+      ENABLE_PERFORMANCE_LOGGING: ${ENABLE_PERFORMANCE_LOGGING:-true}
+      ENABLE_DB_SLOW_QUERY_LOGGING: ${ENABLE_DB_SLOW_QUERY_LOGGING:-true}
+      DB_SLOW_QUERY_THRESHOLD_MS: ${DB_SLOW_QUERY_THRESHOLD_MS:-100}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./apps/backend:/app
+      - ${DATA_HOST_DIR:-./data}:/data:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).read()\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${BACKEND_MEMORY_LIMIT:-2g}"
+    networks:
+      - app_network
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mwobareullae-postgres
+    restart: unless-stopped
+    profiles:
+      - local-db
+      - backend-dev
+      - frontend-local-backend
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mwobareullae}
+      POSTGRES_USER: ${POSTGRES_USER:-mwobareullae}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${POSTGRES_MEMORY_LIMIT:-2g}"
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: mwobareullae-redis
+    restart: unless-stopped
+    profiles:
+      - search-cache
+      - server
+      - backend-dev
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "${REDIS_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru"
+      ]
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${REDIS_MEMORY_LIMIT:-512m}"
+    networks:
+      - app_network
+
+  elasticsearch:
+    build:
+      context: ./docker/elasticsearch
+    image: mwobareullae-elasticsearch:8.15.3-nori
+    container_name: mwobareullae-elasticsearch
+    restart: unless-stopped
+    profiles:
+      - search-cache
+      - server
+      - backend-dev
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      bootstrap.memory_lock: "false"
+      ES_JAVA_OPTS: "-Xms${ELASTICSEARCH_HEAP_SIZE:-1g} -Xmx${ELASTICSEARCH_HEAP_SIZE:-1g}"
+    ports:
+      - "${ELASTICSEARCH_BIND_HOST:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9200/_cat/plugins | grep -q analysis-nori"
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: "${ELASTICSEARCH_MEMORY_LIMIT:-2g}"
+    networks:
+      - app_network
+
+volumes:
+  frontend_node_modules:
+    name: mwobareullae_frontend_node_modules
+  postgres_data:
+    name: mwobareullae_postgres_data
+  redis_data:
+    name: mwobareullae_redis_data
+  elasticsearch_data:
+    name: mwobareullae_elasticsearch_data
+
+networks:
+  app_network:
+    name: mwobareullae_network
+    driver: bridge

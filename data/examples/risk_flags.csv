@@ -1,0 +1,2 @@
+ingredient_id,risk_type,display_text,severity,severity_score,applies_to,condition,source_type,source_url
+ing_fragrance,fragrance_allergen,향료에 민감한 피부는 주의가 필요합니다,medium,0.6,sensitive,향료 알레르기 또는 민감 피부는 주의,official,https://example.com/sources/fragrance-risk

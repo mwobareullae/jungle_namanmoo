@@ -1,0 +1,984 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  :
+else
+  # The deployed server copy may not contain .git; benchmarkctl lives two
+  # directories below the repository root in that case.
+  REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+PROFILE_DIR="$SCRIPT_DIR/profiles"
+DEFAULT_BENCHMARK_RUNTIME_ROOT="$(cd "$REPO_DIR/.." && pwd)/$(basename "$REPO_DIR")-benchmark"
+CONFIG_FILE="${BENCHMARK_CONFIG_FILE:-$DEFAULT_BENCHMARK_RUNTIME_ROOT/config.benchmark.env}"
+CONFIG_K6_RESULT_FILE="${BENCHMARK_K6_RESULT_FILE-}"
+CONFIG_K6_RESULT_FILE_SET="${BENCHMARK_K6_RESULT_FILE+x}"
+CONFIG_K6_OUTPUT_FILE="${BENCHMARK_K6_OUTPUT_FILE-}"
+CONFIG_K6_OUTPUT_FILE_SET="${BENCHMARK_K6_OUTPUT_FILE+x}"
+CONFIG_USER_TYPE="${BENCHMARK_USER_TYPE-}"
+CONFIG_USER_TYPE_SET="${BENCHMARK_USER_TYPE+x}"
+CONFIG_VUS="${BENCHMARK_VUS-}"
+CONFIG_VUS_SET="${BENCHMARK_VUS+x}"
+CONFIG_DURATION="${BENCHMARK_DURATION-}"
+CONFIG_DURATION_SET="${BENCHMARK_DURATION+x}"
+CONFIG_QUERY_ID="${BENCHMARK_QUERY_ID-}"
+CONFIG_QUERY_ID_SET="${BENCHMARK_QUERY_ID+x}"
+CONFIG_SERVER_HOST="${BENCHMARK_SERVER_HOST-}"
+CONFIG_SERVER_HOST_SET="${BENCHMARK_SERVER_HOST+x}"
+CONFIG_RUN_STARTED_AT="${BENCHMARK_RUN_STARTED_AT-}"
+CONFIG_RUN_STARTED_AT_SET="${BENCHMARK_RUN_STARTED_AT+x}"
+CONFIG_RUN_FINISHED_AT="${BENCHMARK_RUN_FINISHED_AT-}"
+CONFIG_RUN_FINISHED_AT_SET="${BENCHMARK_RUN_FINISHED_AT+x}"
+CONFIG_K6_EXIT_CODE="${BENCHMARK_K6_EXIT_CODE-}"
+CONFIG_K6_EXIT_CODE_SET="${BENCHMARK_K6_EXIT_CODE+x}"
+CONFIG_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH-}"
+CONFIG_SCORING_READ_PATH_SET="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH+x}"
+CONFIG_CANDIDATE_CACHE_STATE="${BENCHMARK_CANDIDATE_CACHE_STATE-}"
+CONFIG_CANDIDATE_CACHE_STATE_SET="${BENCHMARK_CANDIDATE_CACHE_STATE+x}"
+CONFIG_CANDIDATE_CACHE_ENABLED="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED-}"
+CONFIG_CANDIDATE_CACHE_ENABLED_SET="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED+x}"
+CONFIG_UVICORN_WORKERS="${BENCHMARK_UVICORN_WORKERS-}"
+CONFIG_UVICORN_WORKERS_SET="${BENCHMARK_UVICORN_WORKERS+x}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+# Command-line environment overrides must win over values in the config file.
+restore_env_override() {
+  local name="$1"
+  local is_set="$2"
+  local value="$3"
+  if [[ "$is_set" == "x" ]]; then
+    export "$name=$value"
+  fi
+}
+
+restore_env_override BENCHMARK_K6_RESULT_FILE "$CONFIG_K6_RESULT_FILE_SET" "$CONFIG_K6_RESULT_FILE"
+restore_env_override BENCHMARK_K6_OUTPUT_FILE "$CONFIG_K6_OUTPUT_FILE_SET" "$CONFIG_K6_OUTPUT_FILE"
+restore_env_override BENCHMARK_USER_TYPE "$CONFIG_USER_TYPE_SET" "$CONFIG_USER_TYPE"
+restore_env_override BENCHMARK_VUS "$CONFIG_VUS_SET" "$CONFIG_VUS"
+restore_env_override BENCHMARK_DURATION "$CONFIG_DURATION_SET" "$CONFIG_DURATION"
+restore_env_override BENCHMARK_QUERY_ID "$CONFIG_QUERY_ID_SET" "$CONFIG_QUERY_ID"
+restore_env_override BENCHMARK_SERVER_HOST "$CONFIG_SERVER_HOST_SET" "$CONFIG_SERVER_HOST"
+restore_env_override BENCHMARK_RUN_STARTED_AT "$CONFIG_RUN_STARTED_AT_SET" "$CONFIG_RUN_STARTED_AT"
+restore_env_override BENCHMARK_RUN_FINISHED_AT "$CONFIG_RUN_FINISHED_AT_SET" "$CONFIG_RUN_FINISHED_AT"
+restore_env_override BENCHMARK_K6_EXIT_CODE "$CONFIG_K6_EXIT_CODE_SET" "$CONFIG_K6_EXIT_CODE"
+restore_env_override BENCHMARK_RECOMMENDATION_SCORING_READ_PATH \
+  "$CONFIG_SCORING_READ_PATH_SET" \
+  "$CONFIG_SCORING_READ_PATH"
+restore_env_override BENCHMARK_CANDIDATE_CACHE_STATE \
+  "$CONFIG_CANDIDATE_CACHE_STATE_SET" \
+  "$CONFIG_CANDIDATE_CACHE_STATE"
+restore_env_override BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED \
+  "$CONFIG_CANDIDATE_CACHE_ENABLED_SET" \
+  "$CONFIG_CANDIDATE_CACHE_ENABLED"
+restore_env_override BENCHMARK_UVICORN_WORKERS \
+  "$CONFIG_UVICORN_WORKERS_SET" \
+  "$CONFIG_UVICORN_WORKERS"
+
+BENCHMARK_RUNTIME_ROOT="${BENCHMARK_RUNTIME_ROOT:-$DEFAULT_BENCHMARK_RUNTIME_ROOT}"
+BENCHMARK_DATA_HOST_DIR="${BENCHMARK_DATA_HOST_DIR:-$BENCHMARK_RUNTIME_ROOT/data}"
+RESULT_ROOT="${BENCHMARK_RESULT_ROOT:-$BENCHMARK_RUNTIME_ROOT/runs}"
+BENCHMARK_RECOMMENDATION_SCORING_READ_PATH="${BENCHMARK_RECOMMENDATION_SCORING_READ_PATH:-legacy_bulk}"
+BENCHMARK_CANDIDATE_CACHE_STATE="${BENCHMARK_CANDIDATE_CACHE_STATE:-off}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED:-false}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS:-300}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS:-60}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS:-0.05}"
+BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS="${BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS:-0.05}"
+BENCHMARK_UVICORN_WORKERS="${BENCHMARK_UVICORN_WORKERS:-1}"
+BENCHMARK_SERVER_LABEL="${BENCHMARK_SERVER_LABEL:-}"
+export BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
+export BENCHMARK_CANDIDATE_CACHE_STATE
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_CONNECT_TIMEOUT_SECONDS
+export BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_SOCKET_TIMEOUT_SECONDS
+export BENCHMARK_UVICORN_WORKERS
+BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
+ELASTICSEARCH_SERVICE="${ELASTICSEARCH_SERVICE:-elasticsearch}"
+REDIS_SERVICE="${REDIS_SERVICE:-redis}"
+COMPOSE_FILES=(-f "$REPO_DIR/docker-compose.yml" -f "$REPO_DIR/docker-compose.benchmark.yml")
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/perf/benchmarkctl prepare <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl verify-users <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl seed-users <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl activate <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl clear-candidate-cache <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl monitor-start <run_id> <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl monitor-stop <run_id> <1000|5000|10000|80000>
+  scripts/perf/benchmarkctl build <source_dir> [output_root]
+  scripts/perf/benchmarkctl collect <run_id> [dataset]
+
+prepare seeds, rolls up scoring inputs, and indexes the configured benchmark database.
+activate restarts only the backend with that benchmark database and alias.
+build creates deterministic product-related subsets for all four datasets.
+Set BENCHMARK_ACTIVATE=true to activate automatically after prepare.
+EOF
+}
+
+die() {
+  echo "benchmarkctl: $*" >&2
+  exit 1
+}
+
+case "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" in
+  legacy_bulk|compact_v2|coarse_top50_v1) ;;
+  *) die "BENCHMARK_RECOMMENDATION_SCORING_READ_PATH must be legacy_bulk, compact_v2, or coarse_top50_v1" ;;
+esac
+
+case "$BENCHMARK_CANDIDATE_CACHE_STATE" in
+  off|cold|warm) ;;
+  *) die "BENCHMARK_CANDIDATE_CACHE_STATE must be off, cold, or warm" ;;
+esac
+
+case "$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED" in
+  true|false) ;;
+  *) die "BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED must be true or false" ;;
+esac
+
+[[ "$BENCHMARK_UVICORN_WORKERS" =~ ^[1-9][0-9]*$ ]] || die \
+  "BENCHMARK_UVICORN_WORKERS must be a positive integer"
+
+safe_label() {
+  printf '%s' "$1" | tr -cs '[:alnum:]_.-' '-'
+}
+
+load_profile() {
+  local dataset="${1:-}"
+  case "$dataset" in
+    1000|5000|10000|80000) ;;
+    *) die "dataset must be 1000, 5000, 10000, or 80000" ;;
+  esac
+
+  # shellcheck disable=SC1090
+  source "$PROFILE_DIR/benchmark-$dataset.env"
+  DATASET_LABEL="$dataset"
+  [[ "${PRODUCT_COUNT:-}" == "$dataset" ]] || die "profile product count mismatch: $dataset"
+  [[ -n "${DATA_DIR:-}" ]] || die "DATA_DIR is missing from profile"
+  [[ -n "${ELASTICSEARCH_INDEX:-}" ]] || die "ELASTICSEARCH_INDEX is missing from profile"
+  [[ -n "${ELASTICSEARCH_ALIAS:-}" ]] || die "ELASTICSEARCH_ALIAS is missing from profile"
+
+  # docker-compose.benchmark.yml interpolates these values before the command
+  # starts, so expose the selected profile to every compose invocation.
+  export BENCHMARK_DATA_DIR="$DATA_DIR"
+  export BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS"
+  export BENCHMARK_REDIS_KEY_PREFIX="${BENCHMARK_REDIS_KEY_PREFIX:-mubarelle:benchmark:${DATASET_LABEL}:}"
+}
+
+require_benchmark_database() {
+  [[ -n "${BENCHMARK_DATABASE_URL:-}" ]] || die \
+    "BENCHMARK_DATABASE_URL must be set in the benchmark config file on the server"
+}
+
+compose() {
+  DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" \
+    docker compose "${COMPOSE_FILES[@]}" "$@"
+}
+
+backend_exec() {
+  compose exec -T \
+    -e "DATABASE_URL=$BENCHMARK_DATABASE_URL" \
+    -e "DATA_DIR=$DATA_DIR" \
+    -e "ELASTICSEARCH_CATALOG_PRODUCTS_ALIAS=$ELASTICSEARCH_ALIAS" \
+    -e "RECOMMENDATION_SCORING_READ_PATH=$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD=${BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD:-}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_COUNT=${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX=${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    -e "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN=${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}" \
+    "$BACKEND_SERVICE" "$@"
+}
+
+print_context() {
+  cat <<EOF
+dataset=$DATASET_LABEL
+product_count=$PRODUCT_COUNT
+data_dir=$DATA_DIR
+database=benchmark database configured
+elasticsearch_index=$ELASTICSEARCH_INDEX
+elasticsearch_alias=$ELASTICSEARCH_ALIAS
+query_set=$QUERY_SET
+bench_mode=$BENCH_MODE
+cache_state=$CACHE_STATE
+candidate_pool_limit=$CANDIDATE_POOL_LIMIT
+recommendation_scoring_read_path=$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH
+candidate_cache_state=$BENCHMARK_CANDIDATE_CACHE_STATE
+candidate_cache_enabled=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED
+candidate_cache_ttl_seconds=$BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS
+candidate_cache_redis_key_prefix=$BENCHMARK_REDIS_KEY_PREFIX
+uvicorn_workers=$BENCHMARK_UVICORN_WORKERS
+server_label=${BENCHMARK_SERVER_LABEL:-unknown}
+EOF
+}
+
+clear_candidate_cache() {
+  local pattern="${BENCHMARK_REDIS_KEY_PREFIX}recommendation:candidate_bundle:*"
+  local deleted
+  deleted="$(compose exec -T "$REDIS_SERVICE" sh -lc '
+set -eu
+pattern="$1"
+redis-cli --scan --pattern "$pattern" \
+  | xargs -r redis-cli del \
+  | awk "{ total += \$1 } END { print total + 0 }"
+' _ "$pattern")"
+  echo "candidate_cache_deleted=${deleted:-0}"
+  echo "candidate_cache_pattern=$pattern"
+}
+
+verify_data_dir() {
+  backend_exec test -d "$DATA_DIR" || die "DATA_DIR does not exist in backend container: $DATA_DIR"
+  backend_exec test -f "$DATA_DIR/product_prices.csv" || die "product_prices.csv is missing: $DATA_DIR"
+  validate_dataset_manifest
+}
+
+validate_dataset_manifest() {
+  backend_exec python - "$DATA_DIR" "$DATASET_LABEL" "$PRODUCT_COUNT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data_dir = Path(sys.argv[1])
+dataset = sys.argv[2]
+target = int(sys.argv[3])
+manifest_path = data_dir / "manifest.json"
+if not manifest_path.exists():
+    raise SystemExit(f"dataset manifest is missing: {manifest_path}")
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+requested = int(manifest.get("requested_product_count", manifest.get("product_count", 0)))
+actual = int(manifest.get("product_count", 0))
+if requested != target:
+    raise SystemExit(f"dataset manifest target={requested}, profile target={target}")
+if actual > target:
+    raise SystemExit(f"dataset product count exceeds target: {actual} > {target}")
+if dataset != "80000" and actual != target:
+    raise SystemExit(f"dataset product count mismatch: expected {target}, got {actual}")
+print(f"dataset_manifest_target={target}")
+print(f"dataset_manifest_product_count={actual}")
+print(f"dataset_manifest_shortfall={actual < target}")
+PY
+}
+
+expected_product_count() {
+  backend_exec python - "$DATA_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads((Path(sys.argv[1]) / "manifest.json").read_text(encoding="utf-8"))
+print(int(manifest["product_count"]))
+PY
+}
+
+verify_database_counts() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    products = int(session.execute(text("select count(*) from products")).scalar_one())
+    documents = int(session.execute(text("select count(*) from search_documents")).scalar_one())
+    embedded = int(
+        session.execute(
+            text("select count(*) from search_documents where embedding is not null")
+        ).scalar_one()
+    )
+
+print(f"products={products}")
+print(f"search_documents={documents}")
+print(f"embedded_documents={embedded}")
+if products != expected:
+    raise SystemExit(f"expected products={expected}, got {products}")
+if documents != expected:
+    raise SystemExit(f"expected search_documents={expected}, got {documents}")
+PY
+}
+
+verify_recommendation_scoring_read_models() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, or_, select
+
+from app.db.models.recommendation import (
+    ProductRecommendationScoringReadModel,
+)
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+    PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION,
+)
+from app.services.review_rollup import REVIEW_SCORE_VERSION
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    read_model_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            )
+        ).scalar_one()
+    )
+    version_mismatch_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                ProductRecommendationScoringReadModel.read_model_version
+                != PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION
+            )
+        ).scalar_one()
+    )
+    stale_product_feature_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                or_(
+                    ProductRecommendationScoringReadModel.product_feature_version
+                    != PRODUCT_RECOMMENDATION_FEATURE_VERSION,
+                    ProductRecommendationScoringReadModel.product_feature_source_current
+                    .is_(False),
+                )
+            )
+        ).scalar_one()
+    )
+    stale_review_metric_count = int(
+        session.execute(
+            select(
+                func.count(ProductRecommendationScoringReadModel.product_id)
+            ).where(
+                ProductRecommendationScoringReadModel.review_quality_score
+                .is_not(None),
+                or_(
+                    ProductRecommendationScoringReadModel.review_score_version
+                    .is_(None),
+                    ProductRecommendationScoringReadModel.review_score_version
+                    != REVIEW_SCORE_VERSION,
+                ),
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_scoring_read_models={read_model_count}")
+print(
+    "recommendation_scoring_read_model_version="
+    f"{PRODUCT_RECOMMENDATION_SCORING_READ_MODEL_VERSION}"
+)
+print(f"recommendation_scoring_read_model_version_mismatches={version_mismatch_count}")
+print(f"recommendation_product_feature_stale={stale_product_feature_count}")
+print(f"recommendation_review_metric_stale={stale_review_metric_count}")
+if read_model_count != expected:
+    raise SystemExit(
+        f"expected recommendation scoring read models={expected}, got {read_model_count}"
+    )
+if version_mismatch_count:
+    raise SystemExit(
+        "recommendation scoring read model version mismatch: "
+        f"{version_mismatch_count} row(s)"
+    )
+if stale_product_feature_count:
+    raise SystemExit(
+        "recommendation product feature is stale: "
+        f"{stale_product_feature_count} row(s)"
+    )
+if stale_review_metric_count:
+    raise SystemExit(
+        "recommendation review metric is stale: "
+        f"{stale_review_metric_count} row(s)"
+    )
+PY
+}
+
+verify_recommendation_coarse_features() {
+  local expected
+  expected="$(expected_product_count)"
+  backend_exec python - "$expected" <<'PY'
+import sys
+
+from sqlalchemy import func, or_, select
+
+from app.db.models.recommendation import ProductRecommendationCoarseFeature
+from app.db.session import SessionLocal
+from app.services.recommendation_feature_versions import (
+    PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+)
+
+expected = int(sys.argv[1])
+with SessionLocal() as session:
+    coarse_feature_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id))
+        ).scalar_one()
+    )
+    invalid_count = int(
+        session.execute(
+            select(func.count(ProductRecommendationCoarseFeature.product_id)).where(
+                or_(
+                    ProductRecommendationCoarseFeature.feature_version
+                    != PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION,
+                    ProductRecommendationCoarseFeature.source_current.is_(False),
+                )
+            )
+        ).scalar_one()
+    )
+
+print(f"recommendation_coarse_features={coarse_feature_count}")
+print(
+    "recommendation_coarse_feature_version="
+    f"{PRODUCT_RECOMMENDATION_COARSE_FEATURE_VERSION}"
+)
+print(f"recommendation_coarse_feature_invalid={invalid_count}")
+if coarse_feature_count != expected:
+    raise SystemExit(
+        f"expected recommendation coarse features={expected}, got {coarse_feature_count}"
+    )
+if invalid_count:
+    raise SystemExit(
+        f"recommendation coarse feature is stale or invalid: {invalid_count} row(s)"
+    )
+PY
+}
+
+verify_elasticsearch() {
+  local count expected
+  expected="$(expected_product_count)"
+  count="$(compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    "http://127.0.0.1:9200/$ELASTICSEARCH_ALIAS/_count" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+  echo "elasticsearch_alias_count=$count"
+  [[ "$count" == "$expected" ]] || die \
+    "expected Elasticsearch count=$expected, got $count"
+}
+
+switch_elasticsearch_alias() {
+  local payload
+  payload="$(python3 - "$ELASTICSEARCH_INDEX" "$ELASTICSEARCH_ALIAS" <<'PY'
+import json
+import sys
+
+index_name, alias_name = sys.argv[1:3]
+print(
+    json.dumps(
+        {
+            "actions": [
+                {
+                    "remove": {
+                        "index": "*",
+                        "alias": alias_name,
+                        "must_exist": False,
+                    }
+                },
+                {"add": {"index": index_name, "alias": alias_name}},
+            ]
+        }
+    )
+)
+PY
+)"
+  compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS \
+    -H "Content-Type: application/json" \
+    -X POST "http://127.0.0.1:9200/_aliases" \
+    -d "$payload" >/dev/null
+  echo "elasticsearch alias switched: $ELASTICSEARCH_ALIAS -> $ELASTICSEARCH_INDEX"
+}
+
+prepare() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  echo "Applying migrations to the configured benchmark database..."
+  backend_exec python -m alembic upgrade head
+  echo "Seeding benchmark dataset..."
+  backend_exec python -m app.cli.seed_data --data-dir "$DATA_DIR"
+  echo "Rolling up recommendation product features..."
+  backend_exec python -m app.cli.rollup_product_recommendation_features \
+    --full \
+    --batch-size 500
+  echo "Rolling up recommendation scoring read models..."
+  backend_exec python -m app.cli.rollup_product_recommendation_scoring_read_models \
+    --full \
+    --batch-size 500
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    echo "Rolling up recommendation coarse features..."
+    backend_exec python -m app.cli.rollup_product_recommendation_coarse_features \
+      --full \
+      --batch-size 500
+  fi
+  echo "Indexing benchmark dataset..."
+  backend_exec python -m app.cli.index_catalog_products_to_elasticsearch \
+    --full \
+    --index-name "$ELASTICSEARCH_INDEX" \
+    --alias-name "$ELASTICSEARCH_ALIAS" \
+    --no-cleanup \
+    --retain-previous-indices 4
+  verify_database_counts
+  verify_recommendation_scoring_read_models
+  if [[ "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH" == "coarse_top50_v1" ]]; then
+    verify_recommendation_coarse_features
+  fi
+  verify_elasticsearch
+  if [[ "${BENCHMARK_ACTIVATE:-false}" == "true" ]]; then
+    activate
+  else
+    echo "Prepared only. Set BENCHMARK_ACTIVATE=true or run benchmarkctl activate $DATASET_LABEL."
+  fi
+}
+
+activate() {
+  require_benchmark_database
+  print_context
+  switch_elasticsearch_alias
+  BENCHMARK_DATABASE_URL="$BENCHMARK_DATABASE_URL" \
+    BENCHMARK_DATA_DIR="$DATA_DIR" \
+    BENCHMARK_ES_ALIAS="$ELASTICSEARCH_ALIAS" \
+    compose --profile server up -d --force-recreate "$BACKEND_SERVICE"
+  echo "backend activated for dataset=$DATASET_LABEL"
+}
+
+verify() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  verify_database_counts
+  verify_recommendation_scoring_read_models
+  verify_elasticsearch
+  [[ -f "$REPO_DIR/$QUERY_SET" ]] || die "query set is missing: $REPO_DIR/$QUERY_SET"
+  python3 -m json.tool "$REPO_DIR/$QUERY_SET" >/dev/null
+  echo "query_set=valid"
+  [[ -f "$REPO_DIR/docs/performance/benchmark-users.json" ]] || die "benchmark user fixture is missing"
+  python3 -m json.tool "$REPO_DIR/docs/performance/benchmark-users.json" >/dev/null
+  echo "benchmark_users=valid"
+  if [[ "${BENCHMARK_VERIFY_USERS:-false}" == "true" ]]; then
+    verify_users
+  fi
+  echo "benchmark verification passed"
+}
+
+verify_users() {
+  backend_exec python - \
+    "${BENCHMARK_PROFILE_USER_EMAIL:-}" \
+    "${BENCHMARK_SKIN_TEST_USER_EMAIL:-}" \
+    "${BENCHMARK_BEHAVIOR_USER_EMAIL:-}" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+profile_email, skin_test_email, behavior_email = sys.argv[1:]
+required = {
+    "profile": profile_email,
+    "skin-test": skin_test_email,
+    "behavior": behavior_email,
+}
+missing_email = [key for key, email in required.items() if not email]
+if missing_email:
+    raise SystemExit(f"benchmark user email is missing: {','.join(missing_email)}")
+
+with SessionLocal() as session:
+    for key, email in required.items():
+        user = session.execute(
+            text("select id from users where email = :email and status = 'ACTIVE'"),
+            {"email": email},
+        ).first()
+        if user is None:
+            raise SystemExit(f"benchmark user is missing or inactive: {key} ({email})")
+        user_id = int(user[0])
+
+        if key == "profile":
+            query = text("select count(*) from skin_profiles where user_id = :user_id")
+        elif key == "skin-test":
+            query = text(
+                "select count(*) from skin_profiles "
+                "where user_id = :user_id and latest_skin_test_result_id is not null"
+            )
+        else:
+            query = text("select count(*) from event_logs where user_id = :user_id")
+
+        count = int(session.execute(query, {"user_id": user_id}).scalar_one())
+        if count < 1:
+            raise SystemExit(f"benchmark user context is missing: {key} ({email})")
+        print(f"benchmark_user={key} status=ready")
+PY
+  verify_full_personalized_users
+}
+
+verify_full_personalized_users() {
+  backend_exec python - \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAILS:-}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}" <<'PY'
+import sys
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+raw_emails, count_raw, prefix, domain = sys.argv[1:5]
+emails = [email.strip() for email in raw_emails.split(",") if email.strip()]
+if not emails:
+    count = int(count_raw or "10")
+    emails = [f"{prefix}_{index:02d}@{domain}" for index in range(1, count + 1)]
+
+checks = {
+    "skin_profile": "select count(*) from skin_profiles where user_id = :user_id",
+    "skin_test": (
+        "select count(*) from skin_profiles "
+        "where user_id = :user_id and latest_skin_test_result_id is not null"
+    ),
+    "event_logs": "select count(*) from event_logs where user_id = :user_id",
+    "wishlists": "select count(*) from wishlists where user_id = :user_id",
+    "recent_views": "select count(*) from recent_views where user_id = :user_id",
+    "cart_items": (
+        "select count(*) from carts c join cart_items ci on ci.cart_id = c.id "
+        "where c.user_id = :user_id and c.status = 'ACTIVE'"
+    ),
+    "orders": (
+        "select count(*) from orders o join order_items oi on oi.order_id = o.id "
+        "where o.user_id = :user_id and o.status = 'DELIVERED' and oi.status = 'DELIVERED'"
+    ),
+    "reviews": (
+        "select count(*) from product_reviews "
+        "where user_id = :user_id and status = 'PUBLISHED'"
+    ),
+}
+
+with SessionLocal() as session:
+    for email in emails:
+        user = session.execute(
+            text("select id from users where email = :email and status = 'ACTIVE'"),
+            {"email": email},
+        ).first()
+        if user is None:
+            raise SystemExit(f"full-personalized benchmark user is missing or inactive: {email}")
+        user_id = int(user[0])
+        missing = []
+        counts = {}
+        for label, sql in checks.items():
+            count = int(session.execute(text(sql), {"user_id": user_id}).scalar_one())
+            counts[label] = count
+            if count < 1:
+                missing.append(label)
+        if missing:
+            raise SystemExit(
+                f"full-personalized context is missing for {email}: {','.join(missing)}"
+            )
+        count_text = ",".join(f"{key}={value}" for key, value in sorted(counts.items()))
+        print(f"benchmark_user=full-personalized email={email} status=ready {count_text}")
+PY
+}
+
+seed_users() {
+  require_benchmark_database
+  verify_data_dir
+  print_context
+  [[ -n "${BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD:-}" ]] || die \
+    "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD must be set in the benchmark config file"
+  backend_exec python -m app.cli.seed_benchmark_users \
+    --count "${BENCHMARK_FULL_PERSONALIZED_USER_COUNT:-10}" \
+    --email-prefix "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX:-benchmark_full}" \
+    --email-domain "${BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN:-example.test}"
+  verify_full_personalized_users
+}
+
+monitor_start() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local resources_dir="$result_dir/resources"
+  local elasticsearch_dir="$result_dir/elasticsearch"
+  local pid_file="$resources_dir/monitor.pid"
+  local docker_interval="${BENCHMARK_DOCKER_STATS_INTERVAL_SECONDS:-1}"
+  local es_interval="${BENCHMARK_ES_STATS_INTERVAL_SECONDS:-5}"
+  local host_interval="${BENCHMARK_HOST_STATS_INTERVAL_SECONDS:-$docker_interval}"
+  mkdir -p "$resources_dir" "$elasticsearch_dir"
+
+  if [[ -f "$pid_file" ]]; then
+    local existing_pid
+    while IFS= read -r existing_pid; do
+      if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        die "monitor is already running: pid=$existing_pid"
+      fi
+    done <"$pid_file"
+  fi
+
+  cat >"$resources_dir/monitor-context.txt" <<EOF
+run_id=$run_id
+dataset=$DATASET_LABEL
+started_at=${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}
+docker_stats_interval_seconds=$docker_interval
+elasticsearch_stats_interval_seconds=$es_interval
+host_stats_interval_seconds=$host_interval
+EOF
+  printf 'timestamp,name,cpu_percent,mem_usage,mem_percent\n' >"$resources_dir/docker-stats.csv"
+  : >"$elasticsearch_dir/node-stats.ndjson"
+  python3 "$SCRIPT_DIR/monitor_host_resources.py" snapshot \
+    --output "$resources_dir/host-profile.json" \
+    --server-label "$BENCHMARK_SERVER_LABEL" \
+    >"$resources_dir/host-profile.log" 2>&1 || true
+
+  DATA_HOST_DIR="$BENCHMARK_DATA_HOST_DIR" nohup bash -c '
+set +e
+data_host_dir="$1"
+compose_file_1="$2"
+compose_file_2="$3"
+elasticsearch_service="$4"
+resources_dir="$5"
+elasticsearch_dir="$6"
+docker_interval="$7"
+es_interval="$8"
+docker_stats_file="$resources_dir/docker-stats.csv"
+docker_stats_error_file="$resources_dir/docker-stats.err"
+es_stats_file="$elasticsearch_dir/node-stats.ndjson"
+es_stats_error_file="$elasticsearch_dir/node-stats.err"
+tick=0
+while true; do
+  ts="$(date -u -Is)"
+  docker stats --no-stream --format "{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}" 2>>"$docker_stats_error_file" \
+    | while IFS= read -r row; do
+        if [[ -n "$row" ]]; then
+          printf "%s,%s\n" "$ts" "$row"
+        fi
+      done >>"$docker_stats_file"
+
+  if (( tick % es_interval == 0 )); then
+    tmp_file="$elasticsearch_dir/node-stats.$$.tmp"
+    if DATA_HOST_DIR="$data_host_dir" docker compose -f "$compose_file_1" -f "$compose_file_2" \
+      exec -T "$elasticsearch_service" \
+      curl -fsS "http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process" >"$tmp_file" 2>>"$es_stats_error_file"; then
+      python3 - "$ts" "$tmp_file" >>"$es_stats_file" <<'"'"'PY'"'"'
+import json
+import sys
+
+timestamp, path = sys.argv[1:3]
+with open(path, encoding="utf-8") as handle:
+    stats = json.load(handle)
+print(json.dumps({"timestamp": timestamp, "stats": stats}, ensure_ascii=False))
+PY
+    fi
+    rm -f "$tmp_file"
+  fi
+
+  tick=$((tick + docker_interval))
+  sleep "$docker_interval"
+done
+' _ \
+    "$BENCHMARK_DATA_HOST_DIR" \
+    "$REPO_DIR/docker-compose.yml" \
+    "$REPO_DIR/docker-compose.benchmark.yml" \
+    "$ELASTICSEARCH_SERVICE" \
+    "$resources_dir" \
+    "$elasticsearch_dir" \
+    "$docker_interval" \
+    "$es_interval" \
+    >"$resources_dir/monitor.log" 2>&1 &
+
+  local docker_monitor_pid="$!"
+  nohup python3 "$SCRIPT_DIR/monitor_host_resources.py" monitor \
+    --output "$resources_dir/host-stats.csv" \
+    --interval "$host_interval" \
+    >"$resources_dir/host-monitor.log" 2>&1 &
+  local host_monitor_pid="$!"
+  printf '%s\n%s\n' "$docker_monitor_pid" "$host_monitor_pid" >"$pid_file"
+  echo "monitor_started=$result_dir docker_pid=$docker_monitor_pid host_pid=$host_monitor_pid"
+}
+
+monitor_stop() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local resources_dir="$result_dir/resources"
+  local pid_file="$resources_dir/monitor.pid"
+  local stopped_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+
+  if [[ ! -f "$pid_file" ]]; then
+    echo "monitor_not_running=$result_dir"
+    return 0
+  fi
+
+  local pid
+  while IFS= read -r pid; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 1
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+  done <"$pid_file"
+  rm -f "$pid_file"
+  echo "stopped_at=$stopped_at" >"$resources_dir/monitor-stopped-at.txt"
+  echo "monitor_stopped=$result_dir"
+}
+
+collect() {
+  local run_id="${1:-}"
+  local dataset="${2:-${DATASET_LABEL:-}}"
+  [[ -n "$run_id" ]] || die "run_id is required"
+  [[ "$run_id" != */* && "$run_id" != *..* ]] || die "run_id must be a simple directory name"
+  [[ -n "$dataset" ]] || die "dataset is required when DATASET_LABEL is not set"
+  load_profile "$dataset"
+  require_benchmark_database
+
+  local result_dir="$RESULT_ROOT/$run_id"
+  local started_at="${BENCHMARK_RUN_STARTED_AT:-$(date -u -Is)}"
+  local finished_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+  local k6_result_present=false
+  local k6_output_present=false
+  local k6_exit_code_json="null"
+  local embedding_coverage="null"
+  local actual_product_count="$PRODUCT_COUNT"
+  mkdir -p "$result_dir/backend" "$result_dir/database" "$result_dir/elasticsearch" "$result_dir/resources" "$result_dir/k6" "$result_dir/summary"
+  print_context | tee "$result_dir/context.txt"
+  if ! compose logs --no-color --since "$started_at" --until "$finished_at" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1; then
+    compose logs --no-color --tail="${BENCHMARK_LOG_TAIL:-5000}" "$BACKEND_SERVICE" >"$result_dir/backend/backend.log" 2>&1 || true
+  fi
+  grep '"event":"db_slow_query"' "$result_dir/backend/backend.log" >"$result_dir/database/slow-query.log" || true
+  backend_exec python - <<'PY' >"$result_dir/database/counts.json" 2>&1 || true
+import json
+from sqlalchemy import text
+
+from app.db.session import SessionLocal
+
+with SessionLocal() as session:
+    products = int(session.execute(text("select count(*) from products")).scalar_one())
+    documents = int(session.execute(text("select count(*) from search_documents")).scalar_one())
+    embedded = int(
+        session.execute(
+            text("select count(*) from search_documents where embedding is not null")
+        ).scalar_one()
+    )
+
+coverage = embedded / documents if documents else None
+print(json.dumps({
+    "products": products,
+    "search_documents": documents,
+    "embedded_documents": embedded,
+    "embedding_coverage": coverage,
+}, ensure_ascii=False))
+PY
+  if [[ -s "$result_dir/database/counts.json" ]]; then
+    actual_product_count="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("products", 0))' "$result_dir/database/counts.json" 2>/dev/null || printf '%s' "$PRODUCT_COUNT")"
+    embedding_coverage="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])).get("embedding_coverage")))' "$result_dir/database/counts.json" 2>/dev/null || printf 'null')"
+  fi
+  if [[ -f "$result_dir/resources/docker-stats.csv" ]]; then
+    docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats-final.csv" || true
+  else
+    docker stats --no-stream --format '{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >"$result_dir/resources/docker-stats.csv" || true
+  fi
+  compose ps >"$result_dir/resources/compose-ps.txt" 2>&1 || true
+  docker ps --format '{{.Names}}' \
+    | grep '^mwobareullae-' \
+    | while IFS= read -r container_name; do
+        docker inspect "$container_name" \
+          --format='{{.Name}} status={{.State.Status}} restart={{.RestartCount}} oom={{.State.OOMKilled}} exit_code={{.State.ExitCode}}'
+      done >"$result_dir/resources/container-health.txt" 2>&1 || true
+  if [[ -f "$result_dir/elasticsearch/node-stats.ndjson" ]]; then
+    compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats-final.json" || true
+  else
+    compose exec -T "$ELASTICSEARCH_SERVICE" curl -fsS 'http://127.0.0.1:9200/_nodes/stats/jvm,thread_pool,process' >"$result_dir/elasticsearch/node-stats.json" || true
+  fi
+  if [[ "${BENCHMARK_RDS_METRICS_ENABLED:-false}" == "true" && -x "$SCRIPT_DIR/collect_rds_metrics.sh" ]]; then
+    local rds_end_at="${BENCHMARK_RUN_FINISHED_AT:-$(date -u -Is)}"
+    "$SCRIPT_DIR/collect_rds_metrics.sh" "$started_at" "$rds_end_at" "$result_dir/database/rds-metrics.json" || true
+  fi
+  if [[ -n "${BENCHMARK_K6_RESULT_FILE:-}" && -f "$BENCHMARK_K6_RESULT_FILE" ]]; then
+    cp "$BENCHMARK_K6_RESULT_FILE" "$result_dir/k6/k6-summary.json"
+    k6_result_present=true
+  fi
+  if [[ -n "${BENCHMARK_K6_OUTPUT_FILE:-}" && -f "$BENCHMARK_K6_OUTPUT_FILE" ]]; then
+    cp "$BENCHMARK_K6_OUTPUT_FILE" "$result_dir/k6/k6-output.txt"
+    k6_output_present=true
+  fi
+  if [[ "${BENCHMARK_K6_EXIT_CODE:-}" =~ ^-?[0-9]+$ ]]; then
+    k6_exit_code_json="$BENCHMARK_K6_EXIT_CODE"
+  fi
+  cat >"$result_dir/manifest.json" <<EOF
+{
+  "run_id": "$(safe_label "$run_id")",
+  "started_at": "$started_at",
+  "finished_at": "$finished_at",
+  "dataset": "$DATASET_LABEL",
+  "product_count": $actual_product_count,
+  "target_product_count": $PRODUCT_COUNT,
+  "git_sha": "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)",
+  "data_dir": "$DATA_DIR",
+  "database": "benchmark database configured",
+  "embedding_coverage": $embedding_coverage,
+  "elasticsearch_index": "$ELASTICSEARCH_INDEX",
+  "elasticsearch_alias": "$ELASTICSEARCH_ALIAS",
+  "user_type": "${BENCHMARK_USER_TYPE:-unknown}",
+  "bench_mode": "$BENCH_MODE",
+  "cache_state": "$CACHE_STATE",
+  "vus": ${BENCHMARK_VUS:-0},
+  "duration": "${BENCHMARK_DURATION:-unknown}",
+  "query_id": "$(safe_label "${BENCHMARK_QUERY_ID:-all}")",
+  "query_set": "$QUERY_SET",
+  "candidate_pool_limit": $CANDIDATE_POOL_LIMIT,
+  "recommendation_scoring_read_path": "$BENCHMARK_RECOMMENDATION_SCORING_READ_PATH",
+  "candidate_cache_state": "$BENCHMARK_CANDIDATE_CACHE_STATE",
+  "candidate_cache_enabled": $BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_ENABLED,
+  "candidate_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_CACHE_TTL_SECONDS,
+  "candidate_price_cache_ttl_seconds": $BENCHMARK_RECOMMENDATION_CANDIDATE_PRICE_CACHE_TTL_SECONDS,
+  "candidate_cache_redis_key_prefix": "$BENCHMARK_REDIS_KEY_PREFIX",
+  "server_label": "${BENCHMARK_SERVER_LABEL:-unknown}",
+  "uvicorn_workers": $BENCHMARK_UVICORN_WORKERS,
+  "server_host": "${BENCHMARK_SERVER_HOST:-unknown}",
+  "k6_result_present": $k6_result_present,
+  "k6_output_present": $k6_output_present,
+  "k6_exit_code": $k6_exit_code_json
+}
+EOF
+  echo "collected=$result_dir"
+}
+
+build() {
+  local source_dir="${1:-}"
+  local output_root="${2:-$BENCHMARK_DATA_HOST_DIR/generated-subsets}"
+  [[ -n "$source_dir" ]] || die "source_dir is required"
+  python3 "$SCRIPT_DIR/build_benchmark_dataset.py" \
+    --source-dir "$source_dir" \
+    --output-root "$output_root" \
+    --sizes 1000 5000 10000 80000 \
+    --allow-shortfall
+}
+
+COMMAND="${1:-help}"
+case "$COMMAND" in
+  prepare) load_profile "${2:-}"; prepare ;;
+  activate) load_profile "${2:-}"; activate ;;
+  verify) load_profile "${2:-}"; verify ;;
+  verify-users) load_profile "${2:-}"; require_benchmark_database; verify_data_dir; verify_users ;;
+  seed-users) load_profile "${2:-}"; seed_users ;;
+  clear-candidate-cache) load_profile "${2:-}"; clear_candidate_cache ;;
+  monitor-start) monitor_start "${2:-}" "${3:-}" ;;
+  monitor-stop) monitor_stop "${2:-}" "${3:-}" ;;
+  build) build "${2:-}" "${3:-}" ;;
+  collect) collect "${2:-}" "${3:-}" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

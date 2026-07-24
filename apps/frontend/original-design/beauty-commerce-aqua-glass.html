@@ -1,0 +1,4160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뭐바를래 - Aqua Glass 쇼핑</title>
+<style>
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('./system_design/Pretendard-1.3.9/web/variable/woff2/PretendardVariable.woff2') format('woff2-variations');
+}
+
+:root {
+  --mint: #94e0f8;
+  --mint-bg: rgba(148,224,248,0.16);
+  --mint-mid: rgba(148,224,248,0.22);
+  --mint-border: rgba(148,224,248,0.44);
+  --coral: #FF6B52;
+  --coral-bg: rgba(255,107,82,0.09);
+  --ochre: #F59E0B;
+  --slate: #6B7280;
+  --edge: rgba(0,0,0,0.07);
+  --espresso: #0C1117;
+  --bg: #FAFAFA;
+  --white: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink2: #3D3D3D;
+  --muted: #6B7280;
+  --faint: #9CA3AF;
+  --light: #E5E7EB;
+  --border: rgba(0,0,0,0.07);
+  --shadow: 0 2px 24px rgba(0,0,0,0.06);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.10);
+  --dark: #0C1117;
+  --r: 20px;
+  --rm: 14px;
+  --rs: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Pretendard Variable', 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body.search-results-page .hero {
+  padding: 30px 40px 34px;
+  border-top: 0;
+}
+
+body.search-results-page .hero::before,
+body.search-results-page .hero::after,
+body.search-results-page .hero h1,
+body.search-results-page .hero p,
+body.search-results-page .search-examples {
+  display: none;
+}
+
+body.search-results-page .hero-inner,
+body.search-results-page .search-container {
+  max-width: 960px;
+}
+
+body.search-results-page .main-content {
+  max-width: 1360px;
+  padding: 24px 40px 56px;
+}
+
+body.search-results-page .how-section,
+body.search-results-page .ingr-section,
+body.search-results-page .review-strip {
+  display: none;
+}
+
+body.search-results-page #searchResultsSection {
+  scroll-margin-top: 88px;
+}
+
+.search-results-shell {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.search-filter-sidebar {
+  position: sticky;
+  top: 88px;
+  display: grid;
+  gap: 12px;
+}
+
+.filter-card {
+  background: var(--white);
+  border: 1px solid #e6ecef;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.filter-card-title {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf1f3;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.filter-options {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.filter-check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #d9e1e4;
+  border-radius: 4px;
+  background: #ffffff;
+  flex: 0 0 auto;
+}
+
+.filter-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94e0f8;
+  flex: 0 0 auto;
+}
+
+.filter-note {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.search-results-panel {
+  background: var(--white);
+  border: 1px solid #e1e7ea;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.search-result-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid #e8eef1;
+}
+
+.search-result-tab {
+  min-height: 46px;
+  border: 0;
+  border-right: 1px solid #e8eef1;
+  background: #ffffff;
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-result-tab:last-child {
+  border-right: 0;
+}
+
+.search-result-tab.active {
+  background: #1687f8;
+  color: #ffffff;
+}
+
+.api-result-summary {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #e8eef1;
+  background: #f8fbfb;
+}
+
+.api-result-summary.active {
+  display: flex;
+}
+
+.api-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 224, 248, 0.7);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.api-summary-chip.warning {
+  border-color: rgba(238, 105, 85, 0.36);
+  background: rgba(238, 105, 85, 0.08);
+  color: #9b4636;
+}
+
+.score-breakdown-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.score-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef8fb;
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.score-mini-chip.warning {
+  background: rgba(238, 105, 85, 0.1);
+  color: #9b4636;
+}
+
+body.search-results-page #searchResultsSection .results-header {
+  padding: 18px 22px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #e8eef1;
+}
+
+.search-result-guide {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 22px;
+  border-bottom: 1px solid #eef2f4;
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+body.search-results-page #searchResultsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+body.search-results-page #searchResultsGrid .product-card {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 148px;
+  gap: 24px;
+  min-height: 214px;
+  padding: 22px;
+  border: 0;
+  border-bottom: 1px solid #e8eef1;
+  border-radius: 0;
+  box-shadow: none;
+  align-items: center;
+}
+
+body.search-results-page #searchResultsGrid .product-card:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border);
+  background: #fbfdfe;
+}
+
+body.search-results-page #searchResultsGrid .product-img {
+  width: 168px;
+  aspect-ratio: 1;
+  border: 1px solid #eef2f3;
+  border-radius: var(--rs);
+  background: var(--white);
+}
+
+body.search-results-page #searchResultsGrid .product-info {
+  min-width: 0;
+  padding: 0;
+}
+
+body.search-results-page #searchResultsGrid .product-brand {
+  margin-bottom: 6px;
+}
+
+body.search-results-page #searchResultsGrid .product-name {
+  max-width: 720px;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 700;
+  -webkit-line-clamp: 2;
+}
+
+body.search-results-page #searchResultsGrid .match-reason {
+  max-width: 760px;
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.search-result-side {
+  display: grid;
+  gap: 16px;
+  justify-items: end;
+  align-self: stretch;
+  align-content: center;
+  border-left: 1px solid #eef2f4;
+  padding-left: 20px;
+}
+
+.search-result-note {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.search-result-side .product-price-row {
+  width: 100%;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.search-result-side .cart-add-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+body.search-results-page .search-related-placeholder {
+  display: none;
+}
+
+/* ===== HEADER ===== */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(20px);
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 40px;
+}
+
+.header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  height: 64px;
+  gap: 32px;
+}
+
+.logo {
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logo span { color: #000; }
+
+nav {
+  display: flex;
+  gap: 28px;
+  flex: 1;
+}
+
+nav a {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+nav a:hover { color: var(--ink); }
+nav a.nav-ai { color: var(--accent-text); font-weight: 500; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--rm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: background 0.2s, color 0.2s;
+}
+
+.icon-btn:hover { background: var(--bg); color: var(--ink); }
+
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 15px;
+  height: 15px;
+  background: var(--mint);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-login {
+  padding: 8px 18px;
+  background: var(--ink);
+  color: white;
+  border: none;
+  border-radius: var(--rs);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  font-family: inherit;
+}
+
+.btn-login:hover { opacity: 0.8; }
+
+/* ===== HERO ===== */
+.hero {
+  background: var(--bg);
+  border-top: 5px solid var(--mint);
+  border-bottom: 1.5px solid var(--border);
+  padding: 80px 40px 96px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -180px;
+  width: 520px;
+  height: 520px;
+  background: var(--mint-bg);
+  border-radius: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 72px;
+  right: 96px;
+  width: 160px;
+  height: 160px;
+  border: 2px solid rgba(148,224,248,0.42);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: 100px;
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+
+.hero-badge .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--mint);
+  border-radius: 50%;
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.hero h1 {
+  font-size: 48px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-bottom: 16px;
+  letter-spacing: 0;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: var(--ink);
+}
+
+.hero p {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 48px;
+}
+
+/* ===== CONCERN SEARCH ===== */
+.search-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  justify-content: center;
+}
+
+.search-label span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ai-chip {
+  padding: 3px 10px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  letter-spacing: 0;
+}
+
+.search-container {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  z-index: 20;
+  --search-border-width: 1.5px;
+  --search-open-border: rgba(148,224,248,0.8);
+}
+
+.search-combo {
+  position: relative;
+}
+
+.search-container.suggestions-open .search-combo {
+  border-radius: var(--rm) var(--rm) 22px 22px;
+}
+
+.search-box {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: var(--rm);
+  padding: 6px 6px 6px 20px;
+  border: 1.5px solid var(--border);
+  gap: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-md);
+}
+
+.search-container.suggestions-open .search-box {
+  border-color: var(--search-open-border);
+  border-bottom-color: transparent;
+  border-radius: var(--rm) var(--rm) 0 0;
+  box-shadow: none;
+}
+
+.search-box:focus-within {
+  border-color: var(--mint);
+  box-shadow: 0 0 0 3px rgba(148,224,248,0.24), var(--shadow-md);
+}
+
+.search-container.suggestions-open .search-box:focus-within {
+  border-color: var(--search-open-border);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+.search-icon { color: var(--mint); flex-shrink: 0; }
+
+.search-profile-chip {
+  display: none;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148,224,248,0.65);
+  border-radius: 999px;
+  background: rgba(148,224,248,0.16);
+  color: #063445;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.search-container.suggestions-open .search-profile-chip {
+  display: inline-flex;
+}
+
+#searchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--ink);
+  background: transparent;
+  font-family: inherit;
+  padding: 10px 0;
+}
+
+#searchInput::placeholder { color: var(--faint); }
+
+.search-btn {
+  padding: 11px 24px;
+  background: var(--mint);
+  color: white;
+  border: none;
+  border-radius: var(--rs);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.search-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.search-suggest-panel {
+  position: absolute;
+  top: calc(100% - var(--search-border-width));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: none;
+  padding: 12px;
+  background: #ffffff;
+  border: var(--search-border-width) solid var(--search-open-border);
+  border-top: 0;
+  border-radius: 0 0 22px 22px;
+  box-shadow: none;
+  text-align: left;
+}
+
+.search-suggest-panel.active {
+  display: block;
+}
+
+.suggest-section + .suggest-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.suggest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 6px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recent-clear {
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.recent-clear:hover,
+.recent-clear:focus {
+  outline: none;
+  color: var(--ink2);
+}
+
+.recent-list {
+  display: grid;
+  gap: 2px;
+}
+
+.recent-empty {
+  padding: 14px 10px 12px;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recent-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 10px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.recent-item:hover,
+.recent-item:focus-within {
+  background: #edf8fb;
+}
+
+.recent-query {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-query:focus {
+  outline: none;
+}
+
+.recent-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-delete {
+  width: 34px;
+  height: 34px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recent-delete:hover,
+.recent-delete:focus {
+  outline: none;
+  background: rgba(0,0,0,0.05);
+  color: var(--ink2);
+}
+
+.recent-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+.profile-picker-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.profile-picker-label {
+  display: block;
+  margin: 0 8px 7px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-segments {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1.5px solid #d9e1e4;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.profile-segments.skin {
+  grid-template-columns: repeat(5, minmax(64px, 1fr));
+}
+
+.profile-segments.sensitivity {
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+}
+
+.profile-option {
+  position: relative;
+  min-height: 44px;
+  border: 0;
+  border-right: 1px solid #e6ecef;
+  background: #ffffff;
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.profile-option:last-child {
+  border-right: 0;
+}
+
+.profile-option:hover {
+  background: #edf8fb;
+}
+
+.profile-option.active {
+  background: #f7fdff;
+  color: #063445;
+}
+
+.suggest-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 8px 2px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.profile-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.flow-tag.profile {
+  background: #edf8fb;
+  border-color: #94e0f8;
+  color: var(--accent-text);
+}
+
+.search-examples {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.search-container.suggestions-open .search-examples {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+}
+
+.example-chip {
+  padding: 7px 14px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.example-chip:hover {
+  background: #edf8fb;
+  border-color: #d9e1e4;
+  color: var(--ink2);
+}
+
+/* ===== MATCH RESULT SECTION ===== */
+.ai-result-section {
+  display: none;
+  background: var(--white);
+  border-bottom: 1.5px solid var(--border);
+}
+
+.ai-result-section.active { display: block; }
+
+.ai-result-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px;
+}
+
+.ai-thinking {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+  padding: 16px 20px;
+  background: var(--mint-bg);
+  border-radius: var(--rm);
+  border: 1.5px solid var(--mint-border);
+}
+
+.thinking-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--mint);
+  border-radius: var(--rm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+  animation: spin-slow 3s linear infinite;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.thinking-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent-text);
+  margin-bottom: 3px;
+}
+
+.thinking-text span { font-size: 13px; color: var(--muted); }
+
+body.search-results-page .ai-result-section {
+  background: #f4f6f7;
+  border-bottom: 0;
+}
+
+body.search-results-page .ai-result-inner {
+  max-width: 1360px;
+  padding: 18px 40px;
+}
+
+body.search-results-page .ai-thinking {
+  position: relative;
+  margin-bottom: 16px;
+  border: 1px solid #c9edf8;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(35, 144, 181, 0.08);
+  overflow: hidden;
+}
+
+body.search-results-page .ai-thinking::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #94e0f8 0%, #1687f8 48%, #94e0f8 100%);
+  transform-origin: left;
+  animation: search-progress-run 1.2s ease-in-out infinite;
+}
+
+@keyframes search-progress-run {
+  0% { transform: translateX(-85%) scaleX(0.35); }
+  55% { transform: translateX(25%) scaleX(0.58); }
+  100% { transform: translateX(105%) scaleX(0.35); }
+}
+
+body.search-results-page .analysis-flow {
+  position: relative;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+body.search-results-page .flow-arrow {
+  display: none;
+}
+
+body.search-results-page .flow-card {
+  min-height: 144px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e1e7ea;
+  border-radius: 10px;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body.search-results-page .flow-card.active {
+  border-color: #b9eaf8;
+  background: #ffffff;
+}
+
+body.search-results-page .flow-step {
+  color: var(--muted);
+}
+
+body.search-results-page .step-num {
+  background: #1687f8;
+}
+
+body.search-results-page .flow-card h4 {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+body.search-results-page .flow-tags {
+  max-height: none;
+  overflow: visible;
+}
+
+.analysis-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  gap: 0;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 26px;
+  color: var(--accent-text);
+  font-size: 18px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.flow-card {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--rm);
+  padding: 20px;
+}
+
+.flow-card.active {
+  border-color: var(--mint-border);
+  background: var(--mint-bg);
+}
+
+.flow-step {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-num {
+  width: 18px;
+  height: 18px;
+  background: var(--mint);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flow-card h4 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.flow-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.flow-tag {
+  padding: 4px 10px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--ink2);
+  font-weight: 400;
+}
+
+.flow-tag.highlight {
+  background: var(--mint);
+  border-color: var(--mint);
+  color: white;
+  font-weight: 500;
+}
+
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.score-track {
+  flex: 1;
+  height: 5px;
+  background: var(--light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: var(--mint);
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+
+.score-num {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  min-width: 32px;
+}
+
+/* ===== MAIN CONTENT ===== */
+.main-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 48px 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.sec-eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.see-all {
+  font-size: 13px;
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 400;
+}
+
+/* ===== CATEGORY TABS ===== */
+.cat-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 36px;
+  flex-wrap: wrap;
+}
+
+.cat-tab {
+  padding: 9px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--white);
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+
+.cat-tab:hover { background: #ffffff; border-color: #d9e1e4; color: var(--ink2); }
+.cat-tab.active { background: #edf8fb; border-color: #d9e1e4; color: var(--ink2); }
+
+/* ===== PRODUCT GRID ===== */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.product-card {
+  background: var(--white);
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+  cursor: pointer;
+  position: relative;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--mint-border);
+}
+
+.product-img {
+  aspect-ratio: 1;
+  background: var(--mint-bg);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-img-icon {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+}
+
+.product-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 18px;
+  background: var(--white);
+  display: block;
+}
+
+.product-image-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #f7fafb;
+  color: var(--faint);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.cart-product-photo,
+.feat-product-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.product-labels {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  padding: 3px 8px;
+  border-radius: var(--rs);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  display: inline-block;
+}
+
+.label-ai { background: var(--mint); color: white; }
+.label-new { background: var(--slate); color: white; }
+.label-sale { background: var(--coral); color: white; }
+.label-best { background: var(--espresso); color: white; }
+
+.wish-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--rm);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+  color: var(--faint);
+}
+
+.wish-btn:hover { border-color: var(--coral); color: var(--coral); }
+.wish-btn.active { color: var(--coral); border-color: var(--coral); }
+
+.match-score {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.match-score .score-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent-text);
+}
+
+.match-score .score-label {
+  font-size: 12px;
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.product-info { padding: 16px; }
+
+.product-brand {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.product-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink);
+  line-height: 1.4;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.match-reason {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.match-reason-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--mint);
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.key-ingredients {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.key-ingredients.empty {
+  color: var(--faint);
+}
+
+.ingr-tag {
+  padding: 3px 8px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--accent-text);
+  font-weight: 400;
+}
+
+.ingr-tag.missing {
+  background: #ffffff;
+  border-color: #d9e1e4;
+  color: var(--faint);
+}
+
+.product-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.stars { color: var(--ochre); font-size: 12px; }
+
+.rating-num {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink2);
+}
+
+.review-count { font-size: 12px; color: var(--faint); }
+
+.product-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.original-price {
+  font-size: 12px;
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+.sale-price {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.sale-price.price-missing {
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.sale-percent {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--coral);
+  margin-left: 3px;
+}
+
+.cart-add-btn {
+  width: 36px;
+  height: 36px;
+  background: var(--mint);
+  border: none;
+  border-radius: var(--rs);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.18s, transform 0.18s;
+}
+
+.cart-add-btn:hover { opacity: 0.85; transform: scale(1.05); }
+
+/* ===== FEATURED BANNER ===== */
+.featured-banner {
+  background: var(--mint-bg);
+  border-radius: var(--r);
+  padding: 48px;
+  margin-bottom: 56px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid var(--mint-border);
+  box-shadow: var(--shadow);
+}
+
+.featured-banner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  background: var(--mint);
+}
+
+.featured-text .kicker {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.featured-text h2 {
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.25;
+  letter-spacing: 0;
+  margin-bottom: 14px;
+}
+
+.featured-text p {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 24px;
+  background: var(--mint);
+  color: white;
+  border: none;
+  border-radius: var(--rm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.featured-visual {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.feat-product-card {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--rm);
+  padding: 20px;
+  text-align: center;
+  flex: 1;
+}
+
+.feat-product-card:first-child { transform: translateY(-10px); }
+
+.feat-icon {
+  width: 60px;
+  height: 60px;
+  background: var(--mint-bg);
+  border-radius: var(--rm);
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feat-name {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.feat-price {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.feat-score {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  margin-top: 8px;
+}
+
+/* ===== HOW IT WORKS ===== */
+.how-section {
+  background: var(--white);
+  padding: 72px 40px;
+  border-top: 1.5px solid var(--border);
+}
+
+.how-inner { max-width: 1280px; margin: 0 auto; }
+.how-inner .section-title { color: var(--ink) !important; }
+.how-inner .section-subtitle { color: var(--muted); }
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 40px;
+  position: relative;
+}
+
+.how-steps::before {
+  content: '';
+  position: absolute;
+  top: 32px;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: var(--mint-border);
+}
+
+.how-step { text-align: center; position: relative; }
+
+.step-icon {
+  width: 64px;
+  height: 64px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: var(--r);
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.step-number {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  background: var(--mint);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.how-step h4 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.how-step p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+/* ===== INGREDIENTS ===== */
+.ingr-section {
+  background: var(--bg);
+  padding: 72px 40px;
+  border-top: 1.5px solid var(--border);
+}
+
+.ingr-inner { max-width: 1280px; margin: 0 auto; }
+
+.ingr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.ingr-card {
+  background: var(--white);
+  border-radius: var(--r);
+  padding: 28px;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.ingr-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.ingr-card-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--mint-bg);
+  border-radius: var(--rm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.ingr-card h4 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 5px;
+}
+
+.ingr-card .ingr-effect {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-text);
+  letter-spacing: 0;
+  margin-bottom: 10px;
+}
+
+.ingr-card p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+/* ===== REVIEWS ===== */
+.review-strip {
+  padding: 72px 40px;
+  background: var(--white);
+  border-top: 1.5px solid var(--border);
+}
+
+.review-inner { max-width: 1280px; margin: 0 auto; }
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.review-card {
+  background: var(--bg);
+  border-radius: var(--r);
+  padding: 24px;
+  border: 1.5px solid var(--border);
+}
+
+.reviewer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--mint-bg);
+  border: 1.5px solid var(--mint-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reviewer-info strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.reviewer-info span { font-size: 12px; color: var(--faint); }
+
+.review-stars { color: var(--ochre); font-size: 13px; margin-bottom: 8px; }
+
+.review-text {
+  font-size: 14px;
+  color: var(--ink2);
+  line-height: 1.65;
+}
+
+.review-keyword {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 3px 10px;
+  background: var(--mint-bg);
+  border: 1px solid var(--mint-border);
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+/* ===== CART SIDEBAR ===== */
+.cart-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(23,19,16,0.35);
+  z-index: 200;
+  backdrop-filter: blur(4px);
+}
+
+.cart-overlay.active { display: block; }
+
+.cart-sidebar {
+  position: fixed;
+  top: 0;
+  right: -420px;
+  width: 420px;
+  height: 100vh;
+  background: var(--white);
+  z-index: 201;
+  box-shadow: -20px 0 60px rgba(0,0,0,0.15);
+  transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  display: flex;
+  flex-direction: column;
+}
+
+.cart-sidebar.active { right: 0; }
+
+.cart-header {
+  padding: 24px;
+  border-bottom: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cart-header h3 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.close-btn {
+  width: 34px;
+  height: 34px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--rs);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.close-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+.cart-items { flex: 1; overflow-y: auto; padding: 20px; }
+
+.cart-empty {
+  padding: 48px 12px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.cart-item {
+  display: flex;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.cart-item-img {
+  width: 68px;
+  height: 68px;
+  background: var(--mint-bg);
+  border-radius: var(--rm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid var(--mint-border);
+}
+
+.cart-item-info { flex: 1; }
+
+.cart-item-brand {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.cart-item-name {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 2px 0 8px;
+  line-height: 1.4;
+}
+
+.cart-item-qty { display: flex; align-items: center; gap: 10px; }
+
+.qty-btn {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.qty-btn:hover { border-color: var(--mint); color: var(--accent-text); }
+.qty-num { font-size: 13px; font-weight: 500; color: var(--ink); }
+
+.cart-item-price {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  align-self: flex-end;
+  flex-shrink: 0;
+}
+
+.cart-footer {
+  padding: 20px 24px;
+  border-top: 1.5px solid var(--border);
+  background: var(--bg);
+}
+
+.cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.cart-total-label { font-size: 14px; color: var(--muted); }
+.cart-total-price { font-size: 22px; font-weight: 500; color: var(--ink); }
+
+.checkout-btn {
+  width: 100%;
+  padding: 15px;
+  background: var(--mint);
+  color: white;
+  border: none;
+  border-radius: var(--rm);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  font-family: inherit;
+}
+
+.checkout-btn:hover { opacity: 0.88; }
+
+/* ===== SEARCH RESULTS HEADER ===== */
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.results-query { font-size: 14px; color: var(--muted); }
+.results-query strong { color: var(--accent-text); font-weight: 500; }
+
+.sort-select {
+  padding: 8px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  font-size: 13px;
+  color: var(--ink2);
+  background: var(--white);
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+}
+
+.sort-select:focus { border-color: var(--mint); }
+
+.search-empty {
+  padding: 52px 24px;
+  color: var(--muted);
+  font-size: 15px;
+  text-align: center;
+}
+
+.search-skeleton {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-loading-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e8eef1;
+  background: linear-gradient(90deg, #f7fdff 0%, #ffffff 100%);
+}
+
+.search-loading-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.search-loading-subtitle {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.search-loading-meter {
+  position: relative;
+  width: min(220px, 28vw);
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dff4fb;
+  flex: 0 0 auto;
+}
+
+.search-loading-meter::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 48%;
+  border-radius: inherit;
+  background: #1687f8;
+  animation: search-meter 1.1s ease-in-out infinite;
+}
+
+@keyframes search-meter {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(230%); }
+}
+
+.skeleton-card {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 148px;
+  gap: 24px;
+  min-height: 214px;
+  padding: 22px;
+  border-bottom: 1px solid #e8eef1;
+  align-items: center;
+}
+
+.skeleton-media,
+.skeleton-line,
+.skeleton-pill,
+.skeleton-price {
+  position: relative;
+  overflow: hidden;
+  background: #edf3f5;
+}
+
+.skeleton-media::after,
+.skeleton-line::after,
+.skeleton-pill::after,
+.skeleton-price::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.68), rgba(255,255,255,0));
+  animation: skeleton-shimmer 1.35s infinite;
+}
+
+.skeleton-media {
+  width: 168px;
+  aspect-ratio: 1;
+  border-radius: var(--rs);
+}
+
+.skeleton-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 999px;
+}
+
+.skeleton-line.brand { width: 88px; }
+.skeleton-line.title { width: min(520px, 86%); height: 18px; }
+.skeleton-line.reason { width: min(680px, 100%); }
+
+.skeleton-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.skeleton-pill {
+  width: 78px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.skeleton-price {
+  width: 112px;
+  height: 22px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.skeleton-side {
+  display: grid;
+  gap: 16px;
+  justify-items: end;
+  border-left: 1px solid #eef2f4;
+  padding-left: 20px;
+}
+
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border-top: 1.5px solid var(--border);
+  background: #ffffff;
+}
+
+.page-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  background: var(--white);
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.page-btn:hover:not(:disabled),
+.page-btn.active {
+  background: #edf8fb;
+  border-color: #94e0f8;
+  color: #063445;
+}
+
+.page-btn:disabled {
+  color: var(--faint);
+  cursor: default;
+  opacity: 0.56;
+}
+
+.page-btn.nav {
+  min-width: 58px;
+}
+
+.page-ellipsis {
+  min-width: 24px;
+  color: var(--faint);
+  text-align: center;
+}
+
+.search-page-summary {
+  margin-left: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--espresso);
+  color: white;
+  padding: 13px 22px;
+  border-radius: var(--rm);
+  font-size: 14px;
+  font-weight: 400;
+  z-index: 300;
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(250,250,248,0.16);
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+.toast-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--mint);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== LOADING DOTS ===== */
+.loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+.loading-dots span {
+  width: 5px; height: 5px; background: var(--mint); border-radius: 50%;
+  animation: dot-bounce 1.4s ease-in-out infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-7px); opacity: 1; }
+}
+
+/* ===== FOOTER ===== */
+footer {
+  background: var(--white);
+  border-top: 1.5px solid var(--border);
+  padding: 60px 40px 40px;
+}
+
+.footer-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+.footer-brand .logo { font-size: 22px; display: block; margin-bottom: 14px; color: var(--ink); }
+.footer-brand .logo span { color: var(--accent-text); }
+
+.footer-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.footer-col h5 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 16px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.footer-col ul { list-style: none; }
+.footer-col li { margin-bottom: 10px; }
+.footer-col a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-col a:hover { color: var(--accent-text); }
+
+.footer-bottom {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--faint);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+  .product-grid { grid-template-columns: repeat(3, 1fr); }
+  .analysis-flow { grid-template-columns: 1fr; gap: 10px; }
+  .flow-arrow { display: none; }
+}
+
+@media (max-width: 768px) {
+  header { padding: 0 20px; }
+  .header-inner { gap: 16px; justify-content: space-between; }
+  .header-actions { gap: 6px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .btn-login { display: none; }
+  nav { display: none; }
+  .hero { padding: 48px 20px 60px; }
+  .hero h1 { font-size: 32px; }
+  .search-box { align-items: center; flex-wrap: wrap; padding: 12px; }
+  .search-icon { padding-top: 0; }
+  #searchInput { flex: 1 1 calc(100% - 42px); min-width: 0; }
+  .search-btn { flex: 0 0 100%; width: 100%; justify-content: center; }
+  .search-suggest-panel { top: 100%; padding: 10px; }
+  .suggest-actions { align-items: stretch; flex-direction: column; }
+  .main-content { padding: 32px 20px; }
+  body.search-results-page .main-content {
+    padding: 20px;
+  }
+  body.search-results-page .ai-result-inner {
+    padding: 14px 20px 0;
+  }
+  .search-results-shell {
+    grid-template-columns: 1fr;
+  }
+  .search-filter-sidebar {
+    position: static;
+    grid-template-columns: 1fr;
+  }
+  .search-result-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body.search-results-page .analysis-flow {
+    grid-template-columns: 1fr;
+  }
+  .results-header { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .sort-select { width: 100%; }
+  .product-grid { grid-template-columns: repeat(2, 1fr); }
+  body.search-results-page #searchResultsGrid .product-card {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+  }
+  body.search-results-page #searchResultsGrid .product-card .search-result-side {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    border-left: 0;
+    border-top: 1px solid #eef2f4;
+    padding: 12px 0 0;
+  }
+  body.search-results-page #searchResultsGrid .product-img {
+    width: 112px;
+  }
+  body.search-results-page #searchResultsGrid .product-name {
+    font-size: 14px;
+  }
+  .skeleton-card {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+    min-height: 166px;
+  }
+  .skeleton-media {
+    width: 112px;
+  }
+  .skeleton-side {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    border-left: 0;
+    border-top: 1px solid #eef2f4;
+    padding: 12px 0 0;
+  }
+  .search-loading-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .search-loading-meter {
+    width: 100%;
+  }
+  .search-pagination {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 18px 16px;
+  }
+  .search-page-summary {
+    flex: 0 0 100%;
+    margin-left: 0;
+    margin-top: 4px;
+  }
+  .featured-banner { grid-template-columns: 1fr; padding: 32px; }
+  .how-steps { grid-template-columns: repeat(2, 1fr); }
+  .ingr-grid { grid-template-columns: 1fr; }
+  .review-grid { grid-template-columns: 1fr; }
+  .cart-sidebar { width: min(100vw, 420px); }
+  .footer-inner { grid-template-columns: 1fr 1fr; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .how-section, .ingr-section, .review-strip { padding: 48px 20px; }
+}
+
+html[data-app-mode="community"] [data-commerce-only] {
+  display: none !important;
+}
+
+html[data-app-mode="community"] .search-results-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+</style>
+<link rel="stylesheet" href="./Design_system/aqua-glass-system.css">
+<link rel="stylesheet" href="./Design_system/aqua-glass-shopping.css">
+<style>
+:root {
+  --aqua-100: #eafaff;
+  --aqua-200: #c7f0fc;
+  --aqua-300: #94e0f8;
+  --aqua-500: #94e0f8;
+  --aqua-700: #94e0f8;
+  --aqua-primary: #94e0f8;
+  --aqua-primary-hover: #94e0f8;
+  --aqua-primary-text: #063445;
+  --glass-blue: #94e0f8;
+  --clear-50: #ffffff;
+  --mist-100: #ffffff;
+  --mist-200: #f4f7f8;
+  --bg: #ffffff;
+  --mint: #94e0f8;
+  --mint-bg: rgba(148,224,248,0.18);
+  --mint-mid: rgba(148,224,248,0.24);
+  --mint-border: rgba(148,224,248,0.46);
+  --accent-text: #2aa6d1;
+  --shadow: 0 8px 28px rgba(35, 144, 181, 0.08);
+  --shadow-md: 0 16px 44px rgba(35, 144, 181, 0.12);
+}
+
+html,
+body {
+  background: #ffffff;
+}
+
+header {
+  background: rgba(255,255,255,0.94);
+}
+
+.hero {
+  background: #ffffff;
+}
+
+.hero-inner {
+  isolation: isolate;
+}
+
+.hero-inner > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-inner::before,
+.hero-inner::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-inner::before {
+  left: 50%;
+  top: 30%;
+  width: min(720px, 94vw);
+  height: 240px;
+  background:
+    radial-gradient(circle at 63% 42%, rgba(42,166,209,0.14) 0 14%, rgba(42,166,209,0.06) 28%, rgba(42,166,209,0) 54%),
+    radial-gradient(circle at 38% 58%, rgba(148,224,248,0.16) 0 18%, rgba(148,224,248,0.07) 34%, rgba(148,224,248,0) 58%),
+    radial-gradient(ellipse at center, rgba(148,224,248,0.10) 0 22%, rgba(148,224,248,0) 66%);
+  filter: blur(30px);
+  border-radius: 48% 52% 44% 56%;
+  transform: translate(-50%, -50%) scale(0.92);
+  animation: hero-aurora-flow 3.6s ease-in-out infinite;
+  opacity: 0.62;
+}
+
+.hero-inner::after {
+  left: 58%;
+  top: 24%;
+  width: min(420px, 68vw);
+  height: 180px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(148,224,248,0.18) 0 18%, rgba(148,224,248,0.08) 34%, rgba(148,224,248,0) 66%);
+  filter: blur(42px);
+  border-radius: 54% 46% 56% 44%;
+  transform: translate(-50%, -50%) scale(0.9);
+  animation: hero-aurora-drift 4.4s ease-in-out infinite;
+  opacity: 0.42;
+}
+
+@keyframes hero-aurora-flow {
+  0%, 100% {
+    border-radius: 48% 52% 44% 56%;
+    transform: translate(-50%, -50%) scale(0.94) rotate(0deg);
+  }
+  50% {
+    border-radius: 55% 45% 58% 42%;
+    transform: translate(-48%, -58%) scale(1.05) rotate(2deg);
+  }
+}
+
+@keyframes hero-aurora-drift {
+  0%, 100% {
+    border-radius: 54% 46% 56% 44%;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  50% {
+    border-radius: 46% 54% 42% 58%;
+    transform: translate(-56%, -52%) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-inner::before,
+  .hero-inner::after {
+    animation: none;
+  }
+}
+
+.header-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.category-menu-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.category-menu-btn:hover {
+  background: rgba(148,224,248,0.18);
+}
+
+.category-menu-btn svg {
+  display: block;
+}
+
+.category-panel {
+  position: fixed;
+  top: 58px;
+  left: max(20px, calc((100vw - 1280px) / 2 + 40px));
+  z-index: 150;
+  width: 230px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #d9e1e4;
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(18, 43, 54, 0.14);
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top left;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.18s ease, opacity 0.16s ease;
+}
+
+.category-panel.active {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.category-panel a {
+  display: block;
+  padding: 9px 12px;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.category-panel a:hover {
+  color: #000;
+  background: #edf8fb;
+}
+
+.category-panel-backdrop {
+  position: fixed;
+  inset: 64px 0 0;
+  z-index: 140;
+  display: none;
+  background: transparent;
+}
+
+.category-panel-backdrop.active {
+  display: block;
+}
+
+.logo,
+.footer-brand .logo,
+.logo span,
+.footer-brand .logo span {
+  color: #000;
+}
+
+nav a.nav-ai {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.btn-login {
+  display: inline;
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--ink2);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+.btn-login:hover {
+  background: transparent;
+  color: var(--ink);
+  opacity: 1;
+}
+
+.search-box:focus-within {
+  box-shadow: 0 0 0 3px rgba(148,224,248,0.24), var(--shadow-md);
+}
+
+.search-container.suggestions-open .search-box:focus-within {
+  border-bottom: 0;
+  box-shadow: none;
+}
+
+.search-btn,
+.badge,
+.cart-add-btn,
+.step-num,
+.step-number,
+.hero-badge .dot,
+.thinking-icon,
+.label-ai {
+  background: #94e0f8;
+}
+
+.ai-thinking,
+.flow-card,
+.flow-card.active,
+.featured-banner,
+.step-icon,
+.ingr-card-icon,
+.match-reason {
+  background: #ffffff;
+}
+
+.step-icon {
+  border-color: #94e0f8;
+}
+
+.flow-card.active,
+.ai-thinking {
+  border-color: var(--mint-border);
+}
+
+.ingr-card .ingr-effect,
+.flow-step,
+.hero-badge,
+.ai-chip,
+.thinking-text strong,
+.flow-arrow,
+.sec-eyebrow,
+.see-all,
+.featured-text .kicker,
+.feat-score,
+.review-keyword,
+.score-num,
+.match-score .score-val,
+.results-query strong,
+.footer-brand .logo span,
+.footer-col a:hover,
+.ingr-tag {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.ingr-tag {
+  background: #ffffff;
+  border-color: #94e0f8;
+}
+
+.ingr-card-icon {
+  display: none;
+}
+
+.cat-tab:hover,
+.cat-tab.active {
+  border-color: #d9e1e4;
+  color: var(--ink2);
+}
+
+.cat-tab:hover {
+  background: #ffffff;
+}
+
+.cat-tab.active {
+  background: #edf8fb;
+}
+
+.example-chip:hover,
+.example-chip:active,
+.example-chip:focus {
+  background: #edf8fb;
+  border-color: #d9e1e4;
+  color: var(--ink2);
+}
+
+@media (max-width: 768px) {
+  .category-panel {
+    top: 58px;
+    left: 20px;
+    width: calc(100vw - 40px);
+  }
+
+  .category-panel a {
+    font-size: 14px;
+    padding: 9px 12px;
+  }
+}
+</style>
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const envAppMode = "%VITE_APP_MODE%";
+  const envApiBaseUrl = "%VITE_API_BASE_URL%";
+  const runtimeMode = window.MWBR_APP_MODE && !String(window.MWBR_APP_MODE).startsWith("%") ? window.MWBR_APP_MODE : "";
+  const viteMode = envAppMode && !envAppMode.startsWith("%") ? envAppMode : "";
+  const viteApiBaseUrl = envApiBaseUrl && !envApiBaseUrl.startsWith("%") ? envApiBaseUrl : "";
+  const rawMode = params.get("app_mode") || params.get("mode") || runtimeMode || localStorage.getItem("mwbr_app_mode") || viteMode || "commerce";
+  const mode = String(rawMode).toLowerCase() === "community" ? "community" : "commerce";
+  document.documentElement.dataset.appMode = mode;
+  window.MWBR_APP_MODE = mode;
+  window.MW_API_BASE_URL = window.MW_API_BASE_URL || viteApiBaseUrl;
+})();
+</script>
+</head>
+<body>
+
+<!-- CART OVERLAY -->
+<div data-commerce-only class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+
+<!-- CART SIDEBAR -->
+<div data-commerce-only class="cart-sidebar" id="cartSidebar">
+  <div class="cart-header">
+    <h3>장바구니 <span style="color:var(--accent-text)" id="cartCount">(0)</span></h3>
+    <button class="close-btn" onclick="toggleCart()">✕</button>
+  </div>
+  <div class="cart-items">
+    <div class="cart-empty">담긴 상품이 없습니다.</div>
+  </div>
+  <div class="cart-footer">
+    <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--faint);margin-bottom:10px;">
+      <span>상품 0개</span><span style="color:var(--accent-text);font-weight:500;">배송비 없음</span>
+    </div>
+    <div class="cart-total-row">
+      <span class="cart-total-label">총 결제금액</span>
+      <span class="cart-total-price">0원</span>
+    </div>
+    <button class="checkout-btn" type="button" disabled>구매하기</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span class="toast-dot"></span>
+  <span id="toastMsg">알림</span>
+</div>
+
+<!-- CATEGORY PANEL -->
+<div class="category-panel-backdrop" id="categoryPanelBackdrop" onclick="closeCategoryMenu()"></div>
+<aside class="category-panel" id="categoryPanel" aria-label="카테고리 메뉴">
+  <a href="#">스킨케어</a>
+  <a href="#">메이크업/네일</a>
+  <a href="#">뷰티소품</a>
+  <a href="#">향수/디퓨저</a>
+  <a href="#">헤어케어</a>
+  <a href="#">바디케어</a>
+</aside>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div class="header-brand">
+      <button class="category-menu-btn" type="button" aria-label="카테고리 메뉴 열기" aria-controls="categoryPanel" aria-expanded="false" onclick="toggleCategoryMenu()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+      <a href="./beauty-commerce-aqua-glass.html" class="logo">뭐바를래</a>
+    </div>
+    <nav>
+      <a href="#">신상품</a>
+      <a href="#">베스트</a>
+      <a href="#">스킨케어</a>
+      <a href="#">메이크업</a>
+      <a href="#">헤어/바디</a>
+      <a href="#">브랜드</a>
+      <a href="#" class="nav-ai">맞춤 추천</a>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="focusSearch()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <button data-commerce-only class="icon-btn" onclick="showToast('찜 기능은 준비 중입니다')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
+      <button data-commerce-only class="icon-btn" onclick="toggleCart()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span class="badge" id="headerCartBadge">0</span>
+      </button>
+      <a data-commerce-only href="#" class="btn-login" onclick="event.preventDefault();showToast('로그인 기능은 준비 중입니다')">로그인</a>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <h1>내 피부 고민에 맞는<br><em>최적의 화장품 추천</em></h1>
+    <p>피부 고민을 입력하면 성분 효능 근거를 바탕으로<br>지금 필요한 제품을 찾아드려요</p>
+
+    <div class="search-container">
+      <div class="search-combo">
+        <div class="search-box" id="searchBox">
+          <div class="search-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </div>
+          <button class="search-profile-chip" id="searchProfileChip" type="button" onclick="openSearchSuggestions()">수부지 · 보통</button>
+          <input type="text" id="searchInput"
+            placeholder="모공이 넓고 번들거려요"
+            onkeypress="handleSearch(event)" />
+          <button class="search-btn" onclick="doSearch()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/></svg>
+            추천 찾기
+          </button>
+        </div>
+
+        <div class="search-suggest-panel" id="searchSuggestPanel" aria-label="최근 고민과 피부 조건">
+          <div class="suggest-section">
+            <div class="suggest-header">
+              <span>최근 고민</span>
+              <button class="recent-clear" id="recentClearButton" type="button" onclick="clearRecentConcerns(event)">전체 삭제</button>
+            </div>
+            <div class="recent-list" id="recentConcernList"></div>
+          </div>
+
+          <div class="suggest-section">
+            <div class="profile-picker-grid">
+              <div class="profile-picker-group">
+                <span class="profile-picker-label">피부 타입</span>
+                <div class="profile-segments skin" role="radiogroup" aria-label="피부 타입">
+                  <button class="profile-option" type="button" data-profile="skin" data-value="건성" onclick="selectProfileOption('skin', '건성')">건성</button>
+                  <button class="profile-option" type="button" data-profile="skin" data-value="지성" onclick="selectProfileOption('skin', '지성')">지성</button>
+                  <button class="profile-option" type="button" data-profile="skin" data-value="복합성" onclick="selectProfileOption('skin', '복합성')">복합성</button>
+                  <button class="profile-option active" type="button" data-profile="skin" data-value="수부지" onclick="selectProfileOption('skin', '수부지')">수부지</button>
+                  <button class="profile-option" type="button" data-profile="skin" data-value="중성" onclick="selectProfileOption('skin', '중성')">중성</button>
+                </div>
+              </div>
+
+              <div class="profile-picker-group">
+                <span class="profile-picker-label">민감도</span>
+                <div class="profile-segments sensitivity" role="radiogroup" aria-label="민감도">
+                  <button class="profile-option" type="button" data-profile="sensitivity" data-value="낮음" onclick="selectProfileOption('sensitivity', '낮음')">낮음</button>
+                  <button class="profile-option active" type="button" data-profile="sensitivity" data-value="보통" onclick="selectProfileOption('sensitivity', '보통')">보통</button>
+                  <button class="profile-option" type="button" data-profile="sensitivity" data-value="높음" onclick="selectProfileOption('sensitivity', '높음')">높음</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="suggest-actions">
+              <span class="profile-summary" id="profileSummary">수부지 · 민감도 보통 기준으로 추천</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-examples">
+        <span class="example-chip" onclick="setSearch('모공이 넓고 피지가 많아요')">모공이 넓고 피지가 많아요</span>
+        <span class="example-chip" onclick="setSearch('건조하고 주름이 걱정돼요')">건조하고 주름이 걱정돼요</span>
+        <span class="example-chip" onclick="setSearch('색소침착과 잡티가 있어요')">색소침착과 잡티가 있어요</span>
+        <span class="example-chip" onclick="setSearch('민감하고 자주 붉어져요')">민감하고 자주 붉어져요</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MATCH RESULT SECTION -->
+<div class="ai-result-section" id="aiResultSection">
+  <div class="ai-result-inner">
+    <div class="ai-thinking" id="aiThinking">
+      <div class="thinking-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      </div>
+      <div class="thinking-text">
+        <strong>성분 근거를 확인 중...</strong>
+        <span>피부 고민을 분석하고 최적의 성분과 제품을 찾고 있어요 <span class="loading-dots"><span></span><span></span><span></span></span></span>
+      </div>
+    </div>
+
+    <div class="analysis-flow" id="analysisFlow" style="display:none">
+      <div class="flow-card active">
+        <div class="flow-step"><span class="step-num">1</span>피부 고민</div>
+        <h4 id="flowConcern">입력된 고민</h4>
+        <div class="flow-tags" id="flowConcernTags"></div>
+      </div>
+      <div class="flow-arrow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <div class="flow-card active">
+        <div class="flow-step"><span class="step-num">2</span>필요 효능</div>
+        <h4>분석된 효능</h4>
+        <div class="flow-tags" id="flowEffects"></div>
+      </div>
+      <div class="flow-arrow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <div class="flow-card active">
+        <div class="flow-step"><span class="step-num">3</span>핵심 성분</div>
+        <h4>추천 성분</h4>
+        <div class="flow-tags" id="flowIngredients"></div>
+      </div>
+      <div class="flow-arrow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <div class="flow-card active">
+        <div class="flow-step"><span class="step-num">4</span>매칭 결과</div>
+        <h4>추천 상품 <span id="matchCount">4</span>개</h4>
+        <div id="flowScores"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<main class="main-content" id="mainContent">
+
+  <!-- Search Results -->
+  <div id="searchResultsSection" style="display:none">
+    <div class="search-results-shell">
+      <aside data-commerce-only class="search-filter-sidebar" aria-label="검색 조건">
+        <div class="filter-card">
+          <div class="filter-card-title">추천 기준</div>
+          <div class="filter-options">
+            <div class="filter-option"><span class="filter-dot"></span><span id="filterConcern">피부 고민 분석</span></div>
+            <div class="filter-option"><span class="filter-dot"></span><span id="filterProfile">수부지 · 민감도 보통</span></div>
+            <div class="filter-note">입력한 고민과 피부 조건을 기준으로 성분 효능 근거를 먼저 비교합니다.</div>
+          </div>
+        </div>
+        <div class="filter-card">
+          <div class="filter-card-title">결과 기준</div>
+          <div class="filter-options">
+            <div class="filter-option"><span class="filter-check"></span><span>성분 효능 근거</span></div>
+            <div class="filter-option"><span class="filter-check"></span><span>피부 타입 적합도</span></div>
+            <div class="filter-option"><span class="filter-check"></span><span>가격 정보</span></div>
+            <div class="filter-note">표시되는 값은 추천 API 응답 기준입니다.</div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="search-results-panel">
+        <div class="results-header">
+          <div>
+            <div class="sec-eyebrow">맞춤 매칭 결과</div>
+            <div class="results-query">"<strong id="queryDisplay"></strong>" 검색 결과 · <span id="sortDisplay">매칭 점수순</span></div>
+            <div class="section-subtitle" style="margin-top:4px">4개 제품이 피부 고민에 매칭되었습니다</div>
+          </div>
+          <select class="sort-select" aria-label="검색 결과 정렬">
+            <option value="score">매칭 점수순</option>
+            <option value="price-low">가격 낮은순</option>
+            <option value="price-high">가격 높은순</option>
+          </select>
+        </div>
+        <div class="api-result-summary" id="apiResultSummary"></div>
+        <div data-commerce-only class="search-result-tabs" aria-label="결과 유형">
+          <button class="search-result-tab active" type="button">전체</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">성분 근거</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">피부 타입</button>
+          <button class="search-result-tab" type="button" onclick="showToast('필터 기능은 준비 중입니다')">가격</button>
+        </div>
+        <div class="product-grid" id="searchResultsGrid"></div>
+        <div class="search-pagination" id="searchPagination"></div>
+        <div data-commerce-only class="search-related-placeholder" style="margin-top:40px;padding-top:40px;border-top:1.5px solid var(--border)">
+          <div class="section-header">
+            <div>
+              <div class="sec-eyebrow">함께 구매</div>
+              <div class="section-title">비슷한 고민의 고객이 함께 구매한 제품</div>
+            </div>
+            <a href="#" class="see-all" onclick="event.preventDefault();showToast('함께 구매 데이터는 준비 중입니다')">전체보기</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Default Section -->
+  <div id="defaultSection">
+    <!-- Category Tabs -->
+    <div class="section-header">
+      <div>
+        <div class="sec-eyebrow">Best Sellers</div>
+        <div class="section-title">지금 인기있는 제품</div>
+      <div class="section-subtitle">실시간 인기와 성분 근거를 함께 본 베스트셀러</div>
+      </div>
+      <a href="#" class="see-all">전체보기</a>
+    </div>
+
+    <div class="cat-tabs">
+      <button class="cat-tab active" onclick="filterCat(this,'all')">전체</button>
+      <button class="cat-tab" onclick="filterCat(this,'toner')">토너</button>
+      <button class="cat-tab" onclick="filterCat(this,'serum')">세럼/앰플</button>
+      <button class="cat-tab" onclick="filterCat(this,'cream')">크림/밤</button>
+      <button class="cat-tab" onclick="filterCat(this,'device')">디바이스</button>
+      <button class="cat-tab" onclick="filterCat(this,'powder')">파우더</button>
+    </div>
+
+    <div class="product-grid" id="defaultProductGrid"></div>
+  </div>
+</main>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <div class="how-inner">
+    <div>
+      <div class="sec-eyebrow">How It Works</div>
+      <div class="section-title" style="font-size:24px;margin-top:4px">어떻게 작동하나요?</div>
+      <div class="section-subtitle">4단계 성분 근거 분석으로 필요한 제품을 추천합니다</div>
+    </div>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="step-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="step-number">1</span>
+        </div>
+        <h4>피부 고민 입력</h4>
+        <p>일상 언어로 편하게 고민을 말씀해 주세요. 피부 타입, 트러블, 원하는 효과 모두 OK</p>
+      </div>
+      <div class="how-step">
+        <div class="step-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span class="step-number">2</span>
+        </div>
+        <h4>효능 분석</h4>
+        <p>피부 고민에 필요한 효능을 도출합니다. 보습, 진정, 미백, 각질 제거 등</p>
+      </div>
+      <div class="how-step">
+        <div class="step-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="12" r="3"/></svg>
+          <span class="step-number">3</span>
+        </div>
+        <h4>성분 매핑</h4>
+        <p>효능을 발휘하는 핵심 성분을 식별하고 성분 데이터베이스와 매칭합니다</p>
+      </div>
+      <div class="how-step">
+        <div class="step-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+          <span class="step-number">4</span>
+        </div>
+        <h4>제품 점수 추천</h4>
+        <p>성분 함량·조합·리뷰를 종합해 0~100점 매칭 스코어로 최적 제품을 추천합니다</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INGREDIENTS -->
+<section class="ingr-section">
+  <div class="ingr-inner">
+    <div class="section-header">
+      <div>
+        <div class="sec-eyebrow">Ingredient Guide</div>
+        <div class="section-title">대표 성분 가이드</div>
+        <div class="section-subtitle">각 고민별 핵심 성분을 미리 알아보세요</div>
+      </div>
+    </div>
+    <div class="ingr-grid">
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <h4>나이아신아마이드</h4>
+        <div class="ingr-effect">미백 · 모공 축소 · 피지 조절</div>
+        <p>멜라닌 전달을 억제해 피부 톤을 균일하게 만들고, 피지 분비를 억제해 모공을 줄여줍니다. 민감한 피부에도 비교적 안전합니다.</p>
+      </div>
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <h4>살리실산 (BHA)</h4>
+        <div class="ingr-effect">각질 제거 · 모공 청소 · 항균</div>
+        <p>지용성 성분으로 모공 속까지 침투해 피지와 각질을 녹입니다. 여드름성·지성 피부에 탁월한 효과를 보입니다.</p>
+      </div>
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        </div>
+        <h4>히알루론산</h4>
+        <div class="ingr-effect">수분 공급 · 피부 장벽 강화</div>
+        <p>자기 무게의 1000배 수분을 머금는 능력으로 피부 깊숙이 수분을 공급하고 촉촉함을 오래 유지시킵니다.</p>
+      </div>
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <h4>레티놀</h4>
+        <div class="ingr-effect">주름 개선 · 세포 재생 · 피부 탄력</div>
+        <p>세포 재생을 촉진하고 콜라겐 합성을 자극합니다. 처음 사용 시 저농도로 시작하는 것을 권장합니다.</p>
+      </div>
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h4>세라마이드</h4>
+        <div class="ingr-effect">피부 장벽 복구 · 보습 · 민감 진정</div>
+        <p>피부 장벽의 핵심 구성 요소로 외부 자극으로부터 피부를 보호하고 수분 손실을 막아줍니다.</p>
+      </div>
+      <div class="ingr-card">
+        <div class="ingr-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
+        <h4>판테놀 (비타민B5)</h4>
+        <div class="ingr-effect">진정 · 보습 · 상처 회복</div>
+        <p>트러블 후 피부 회복을 돕고 강력한 보습 효과로 민감해진 피부를 부드럽게 진정시켜 줍니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a href="./beauty-commerce-aqua-glass.html" class="logo">뭐바를래</a>
+      <p class="footer-desc">피부 고민에서 시작해 최적의 성분과 제품까지.<br>뭐바를래는 성분 함량과 근거 데이터를 함께 보고<br>납득 가능한 선택지를 골라드립니다.</p>
+    </div>
+    <div class="footer-col">
+      <h5>고객 지원</h5>
+      <ul>
+        <li><a href="#">공지사항</a></li>
+        <li><a href="#">자주 묻는 질문</a></li>
+        <li><a href="#">1:1 문의</a></li>
+        <li><a href="#">교환/반품 안내</a></li>
+        <li><a href="#">배송 조회</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>쇼핑</h5>
+      <ul>
+        <li><a href="#">신상품</a></li>
+        <li><a href="#">베스트</a></li>
+        <li><a href="#">세일</a></li>
+        <li><a href="#">브랜드</a></li>
+        <li><a href="#">맞춤 추천</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>회사</h5>
+      <ul>
+        <li><a href="#">회사소개</a></li>
+        <li><a href="#">이용약관</a></li>
+        <li><a href="#">개인정보처리방침</a></li>
+        <li><a href="#">입점 문의</a></li>
+        <li><a href="#">채용</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2025 뭐바를래. All rights reserved.</span>
+    <span>사업자등록번호 123-45-67890 | 대표 홍길동</span>
+  </div>
+</footer>
+
+<script>
+// ===== PRODUCT SVG ICONS =====
+const icons = {
+  serum: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3l.5 2h5L15 3"/><path d="M7.5 5L6 20h12L16.5 5"/><path d="M9 11h6M9 15h4"/></svg>`,
+  toner: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4l1 4H9L10 2z"/><path d="M8 8v1a4 4 0 0 0 8 0V8"/><rect x="7" y="8" width="10" height="12" rx="2"/></svg>`,
+  cream: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="13" rx="3"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><path d="M8 14h8"/></svg>`,
+  mask: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3C7 3 4 7 4 12s3 9 8 9 8-4 8-9-3-9-8-9z"/><path d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 0 0 5 0"/></svg>`,
+  sun: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
+  vitamin: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94e0f8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 3"/><path d="M9 2l1.5 2.5M15 2l-1.5 2.5"/></svg>`,
+};
+
+// ===== DATA =====
+const allProducts = [];
+
+const searchRecs = {};
+
+const concernFlowData = {};
+
+const RECENT_CONCERNS_KEY = 'mwobareullae_recent_concerns';
+const MAX_RECENT_CONCERNS = 3;
+const fallbackRecentConcerns = [
+  '수부지인데 모공과 좁쌀이 고민이에요',
+  '민감하고 자주 붉어져요',
+  '건조하고 화장이 들떠요'
+];
+const searchProfile = {
+  skin: '수부지',
+  sensitivity: '보통'
+};
+const IS_SEARCH_RESULTS_PAGE = window.location.pathname.includes('beauty-commerce-search.html');
+const API_BASE_URL = (window.MW_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000/api`).replace(/\/$/, '');
+const API_TIMEOUT_MS = 15000;
+const SEARCH_PAGE_SIZE = 10;
+let searchResultProducts = [];
+let searchCurrentPage = 1;
+let searchPagination = null;
+let searchRecommendationId = '';
+let searchLastQuery = '';
+let searchPageLoading = false;
+
+if (IS_SEARCH_RESULTS_PAGE) {
+  document.body.classList.add('search-results-page');
+}
+
+function getRecentConcerns() {
+  try {
+    const raw = localStorage.getItem(RECENT_CONCERNS_KEY);
+    if (raw === null) return [];
+    const saved = JSON.parse(raw);
+    const concerns = Array.isArray(saved) ? saved : [];
+    return concerns.slice(0, MAX_RECENT_CONCERNS);
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveRecentConcern(text) {
+  const clean = text.trim();
+  if (!clean) return;
+
+  const current = getRecentConcerns().filter((item) => item !== clean);
+  const next = [clean, ...current].slice(0, MAX_RECENT_CONCERNS);
+  localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify(next));
+  renderRecentConcerns();
+}
+
+function deleteRecentConcern(text, event) {
+  event?.stopPropagation();
+  const next = getRecentConcerns().filter((item) => item !== text);
+  localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify(next));
+  renderRecentConcerns();
+}
+
+function clearRecentConcerns(event) {
+  event?.stopPropagation();
+  localStorage.setItem(RECENT_CONCERNS_KEY, JSON.stringify([]));
+  renderRecentConcerns();
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function formatPrice(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '가격 정보 없음';
+  return `${value.toLocaleString('ko-KR')}원`;
+}
+
+function getUniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal
+  }).finally(() => clearTimeout(timeoutId));
+}
+
+function buildPaginationQuery(page = 1) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(SEARCH_PAGE_SIZE)
+  });
+  return params.toString();
+}
+
+async function requestRecommendation(query, page = 1) {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/recommendations?${buildPaginationQuery(page)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      concern_text: query,
+      skin_type: searchProfile.skin,
+      sensitivity: searchProfile.sensitivity,
+      avoid_ingredients: []
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`recommendation api failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function requestRecommendationPage(recommendationId, page = 1) {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/recommendations/${encodeURIComponent(recommendationId)}?${buildPaginationQuery(page)}`);
+
+  if (!response.ok) {
+    throw new Error(`recommendation page api failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function hasUsableImageUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) return false;
+  return !/(^|\/)(noimg|no-image|no_image|placeholder)[^/]*\.(gif|png|jpe?g|webp)(\?|$)/i.test(value);
+}
+
+function renderProductImageFallback() {
+  return '<div class="product-image-empty"><span>이미지 준비중</span></div>';
+}
+
+function markMissingProductImage(image) {
+  image.style.display = 'none';
+  if (!image.parentElement?.querySelector('.product-image-empty')) {
+    image.insertAdjacentHTML('afterend', renderProductImageFallback());
+  }
+}
+
+function mapApiProduct(product, recommendationId) {
+  const rawImage = product.thumbnail_url || '';
+  const keyIngredients = Array.isArray(product.key_ingredients)
+    ? product.key_ingredients.filter(Boolean)
+    : [];
+
+  return {
+    id: product.product_id,
+    rank: product.rank,
+    recommendationId,
+    brand: product.brand || '브랜드 정보 없음',
+    name: product.name || '상품명 정보 없음',
+    image: hasUsableImageUrl(rawImage) ? rawImage : '',
+    price: product.lowest_price,
+    priceDisplay: formatPrice(product.lowest_price),
+    originalDisplay: '',
+    discount: 0,
+    ingredients: keyIngredients,
+    concerns: Array.isArray(product.evidence_tags) ? product.evidence_tags : [],
+    category: 'serum',
+    label: 'ai',
+    score: product.total_score || 0,
+    matchScore: product.total_score || 0,
+    scoreBreakdown: product.score_breakdown || null,
+    matchReason: product.reason_summary || '추천 근거를 준비 중입니다'
+  };
+}
+
+function buildSearchResultsUrl(query, page = 1) {
+  const params = new URLSearchParams({
+    keyword: query,
+    skin_type: searchProfile.skin,
+    sensitivity: searchProfile.sensitivity,
+    page_size: String(SEARCH_PAGE_SIZE)
+  });
+  if (page > 1) params.set('page', String(page));
+  return `./beauty-commerce-search.html?${params.toString()}`;
+}
+
+function goToSearchResultsPage(query) {
+  saveRecentConcern(query);
+  closeSearchSuggestions();
+  window.location.href = buildSearchResultsUrl(query);
+}
+
+function renderRecentConcerns() {
+  const list = document.getElementById('recentConcernList');
+  if (!list) return;
+  const clearButton = document.getElementById('recentClearButton');
+  const concerns = getRecentConcerns();
+
+  if (clearButton) clearButton.style.display = concerns.length > 0 ? 'inline-flex' : 'none';
+
+  if (concerns.length === 0) {
+    list.innerHTML = '<div class="recent-empty">최근 고민이 없습니다</div>';
+    return;
+  }
+
+  list.innerHTML = concerns.map((text) => `
+    <div class="recent-item">
+      <button class="recent-query" type="button" data-query="${escapeHtml(text)}" onclick="useRecentConcern(this.dataset.query)">
+        <svg class="recent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7"/>
+          <path d="M3 4v6h6"/>
+          <path d="M12 7v5l3 2"/>
+        </svg>
+        <span class="recent-text">${escapeHtml(text)}</span>
+      </button>
+      <button class="recent-delete" type="button" data-query="${escapeHtml(text)}" aria-label="최근 고민 삭제" onclick="deleteRecentConcern(this.dataset.query, event)">×</button>
+    </div>
+  `).join('');
+}
+
+function openSearchSuggestions() {
+  const panel = document.getElementById('searchSuggestPanel');
+  const container = document.querySelector('.search-container');
+  if (!panel || !container) return;
+
+  renderRecentConcerns();
+  panel.classList.add('active');
+  container.classList.add('suggestions-open');
+}
+
+function closeSearchSuggestions() {
+  const panel = document.getElementById('searchSuggestPanel');
+  const container = document.querySelector('.search-container');
+  if (!panel || !container) return;
+
+  panel.classList.remove('active');
+  container.classList.remove('suggestions-open');
+}
+
+function selectProfileOption(profile, value) {
+  searchProfile[profile] = value;
+  document.querySelectorAll(`.profile-option[data-profile="${profile}"]`).forEach((button) => {
+    button.classList.toggle('active', button.dataset.value === value);
+  });
+  updateProfileSummary();
+}
+
+function updateProfileSummary() {
+  const summary = document.getElementById('profileSummary');
+  const chip = document.getElementById('searchProfileChip');
+  const label = `${searchProfile.skin} · ${searchProfile.sensitivity}`;
+  if (summary) summary.textContent = `${searchProfile.skin} · 민감도 ${searchProfile.sensitivity} 기준으로 추천`;
+  if (chip) chip.textContent = label;
+}
+
+function getProfileTags() {
+  return [
+    `<span class="flow-tag profile">피부 ${searchProfile.skin}</span>`,
+    `<span class="flow-tag profile">민감도 ${searchProfile.sensitivity}</span>`
+  ];
+}
+
+function useRecentConcern(text) {
+  const input = document.getElementById('searchInput');
+  input.value = text;
+  input.focus();
+  openSearchSuggestions();
+}
+
+function applySuggestedSearch() {
+  const input = document.getElementById('searchInput');
+  if (!input.value.trim()) input.value = getRecentConcerns()[0] || fallbackRecentConcerns[0];
+  doSearch();
+}
+
+// ===== RENDER =====
+function renderProducts(products, containerId, showScore = false) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  if (!products.length && containerId === 'defaultProductGrid') {
+    c.innerHTML = '<div class="empty-state">추천 검색을 시작하면 상품이 표시됩니다.</div>';
+    return;
+  }
+  c.innerHTML = products.map(p => {
+    const productId = encodeURIComponent(p.id);
+    const detailUrl = p.recommendationId
+      ? `./beauty-commerce-product-detail.html?id=${productId}&recommendation_id=${encodeURIComponent(p.recommendationId)}`
+      : `./beauty-commerce-product-detail.html?id=${productId}`;
+    const productName = escapeHtml(p.name);
+    const productBrand = escapeHtml(p.brand);
+    const productImage = escapeHtml(p.image);
+    const productAlt = escapeHtml(`${p.brand} ${p.name}`);
+    const ingredients = Array.isArray(p.ingredients) ? p.ingredients.filter(Boolean) : [];
+    const hasImage = hasUsableImageUrl(p.image);
+    const imageMarkup = hasImage
+      ? `<img class="product-photo" src="${productImage}" alt="${productAlt}" loading="lazy" onerror="markMissingProductImage(this)">`
+      : renderProductImageFallback();
+    const ingredientMarkup = ingredients.length > 0
+      ? ingredients.slice(0,3).map(i=>`<span class="ingr-tag">${escapeHtml(i)}</span>`).join('')
+      : '<span class="ingr-tag missing">대표 성분 정보 없음</span>';
+    const breakdown = p.scoreBreakdown || {};
+    const breakdownChips = [
+      ['효능', breakdown.ingredient_effect_score, '점'],
+      ['근거', breakdown.ingredient_evidence_score, '점'],
+      ['함량', breakdown.concentration_fit_score, '점'],
+      ['피부', breakdown.skin_type_score, '점'],
+      ['가격', breakdown.price_score, '점'],
+      ['검색', breakdown.search_match_score, '점'],
+      ['키워드', breakdown.keyword_score, '점'],
+      ['벡터', breakdown.vector_score, '점'],
+      ['위험', breakdown.risk_penalty, '점'],
+      ['농도', breakdown.concentration_bucket, '']
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+    const concentrationWarning = breakdown.concentration_warning
+      ? `<span class="score-mini-chip warning">${escapeHtml(breakdown.concentration_warning)}</span>`
+      : '';
+    const breakdownMarkup = showScore && p.scoreBreakdown ? `
+      <div class="score-breakdown-mini">
+        ${breakdownChips.map(([label, value, suffix]) => `<span class="score-mini-chip">${label} ${escapeHtml(String(value))}${suffix}</span>`).join('')}
+        ${concentrationWarning}
+      </div>
+    ` : '';
+    const priceMissing = p.priceDisplay === '가격 정보 없음';
+    const cartButtonMarkup = '';
+	    const priceMarkup = `
+	      <div class="product-price-row">
+	        <div>
+	          ${p.originalDisplay ? `<div class="original-price">${p.originalDisplay}</div>` : ''}
+	          <div><span class="sale-price ${priceMissing ? 'price-missing' : ''}">${p.priceDisplay}</span>${p.discount ? `<span class="sale-percent">-${p.discount}%</span>` : ''}</div>
+	        </div>
+	        ${cartButtonMarkup}
+	      </div>
+	    `;
+    return `
+    <div class="product-card ${hasImage ? '' : 'is-missing-image'}" onclick="location.href='${detailUrl}'">
+      <div class="product-img">
+        ${imageMarkup}
+        <div class="product-labels">
+          ${p.label==='ai' ? `<span class="label label-ai">${p.rank ? `${p.rank}위` : '추천'}</span>` : ''}
+          ${p.label==='new' ? '<span class="label label-new">NEW</span>' : ''}
+          ${p.label==='best' ? '<span class="label label-best">BEST</span>' : ''}
+          ${p.discount ? '<span class="label label-sale">SALE</span>' : ''}
+        </div>
+        ${showScore && p.matchScore ? `<div class="match-score"><span class="score-val">${p.matchScore}</span><span class="score-label">점</span></div>` : ''}
+      </div>
+      <div class="product-info">
+        <div class="product-brand">${productBrand}</div>
+        <div class="product-name">${productName}</div>
+        <div class="key-ingredients ${ingredients.length ? '' : 'empty'}">${ingredientMarkup}</div>
+        ${breakdownMarkup}
+        ${showScore ? '' : priceMarkup}
+      </div>
+      ${showScore ? `
+        <div class="search-result-side">
+          <div class="search-result-note">성분 근거 기준</div>
+          ${priceMarkup}
+        </div>
+      ` : ''}
+    </div>
+  `}).join('');
+}
+
+function getVisibleSearchPages(totalPages) {
+  const pages = new Set([1, totalPages, searchCurrentPage]);
+  if (searchCurrentPage > 1) pages.add(searchCurrentPage - 1);
+  if (searchCurrentPage < totalPages) pages.add(searchCurrentPage + 1);
+
+  return [...pages]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+}
+
+function normalizeSearchPagination(rawPagination, productCount) {
+  const pageSize = rawPagination?.page_size || SEARCH_PAGE_SIZE;
+  const totalItems = rawPagination?.total_items ?? productCount;
+  const totalPages = rawPagination?.total_pages ?? (totalItems ? Math.ceil(totalItems / pageSize) : 0);
+
+  return {
+    page: rawPagination?.page || 1,
+    page_size: pageSize,
+    total_items: totalItems,
+    total_pages: totalPages,
+    has_next: rawPagination?.has_next ?? false,
+    has_prev: rawPagination?.has_prev ?? false
+  };
+}
+
+function getCurrentSearchSort() {
+  return document.querySelector('.sort-select')?.value || 'score';
+}
+
+
+function getSortablePrice(product) {
+  return typeof product.price === 'number' && !Number.isNaN(product.price) ? product.price : null;
+}
+
+function getSortedSearchProducts(products) {
+  const sortType = getCurrentSearchSort();
+  return [...products].sort((a, b) => {
+    const aPrice = getSortablePrice(a);
+    const bPrice = getSortablePrice(b);
+
+    if (sortType === 'price-low') {
+      if (aPrice === null && bPrice === null) return (b.matchScore || 0) - (a.matchScore || 0);
+      if (aPrice === null) return 1;
+      if (bPrice === null) return -1;
+      return aPrice - bPrice;
+    }
+
+    if (sortType === 'price-high') {
+      if (aPrice === null && bPrice === null) return (b.matchScore || 0) - (a.matchScore || 0);
+      if (aPrice === null) return 1;
+      if (bPrice === null) return -1;
+      return bPrice - aPrice;
+    }
+
+    return (b.matchScore || 0) - (a.matchScore || 0);
+  });
+}
+
+function updateSearchSortLabel() {
+  const select = document.querySelector('.sort-select');
+  const sortDisplay = document.getElementById('sortDisplay');
+  if (sortDisplay && select) {
+    sortDisplay.textContent = select.options[select.selectedIndex]?.textContent || '매칭 점수순';
+  }
+}
+
+function renderSortedSearchProducts() {
+  if (!searchResultProducts.length) return;
+  updateSearchSortLabel();
+  renderProducts(getSortedSearchProducts(searchResultProducts), 'searchResultsGrid', true);
+}
+
+function renderSearchPagination(paginationState) {
+  const pagination = document.getElementById('searchPagination');
+  if (!pagination) return;
+
+  const totalPages = paginationState?.total_pages || 0;
+  if (totalPages <= 1) {
+    pagination.innerHTML = '';
+    return;
+  }
+
+  searchCurrentPage = paginationState.page;
+  const pages = getVisibleSearchPages(totalPages);
+  const totalItems = paginationState.total_items;
+  const pageSize = paginationState.page_size;
+  const start = totalItems === 0 ? 0 : (searchCurrentPage - 1) * pageSize + 1;
+  const end = Math.min(searchCurrentPage * pageSize, totalItems);
+  let previousPage = 0;
+
+  const pageButtons = pages.map((page) => {
+    const ellipsis = page - previousPage > 1 ? '<span class="page-ellipsis">...</span>' : '';
+    previousPage = page;
+    return `${ellipsis}<button class="page-btn ${page === searchCurrentPage ? 'active' : ''}" type="button" onclick="goToSearchPage(${page})">${page}</button>`;
+  }).join('');
+
+  pagination.innerHTML = `
+    <button class="page-btn nav" type="button" ${!paginationState.has_prev ? 'disabled' : ''} onclick="goToSearchPage(${searchCurrentPage - 1})">이전</button>
+    ${pageButtons}
+    <button class="page-btn nav" type="button" ${!paginationState.has_next ? 'disabled' : ''} onclick="goToSearchPage(${searchCurrentPage + 1})">다음</button>
+    <span class="search-page-summary">${start}-${end} / ${totalItems}개</span>
+  `;
+}
+
+function renderSearchSkeleton(count = 6) {
+  const grid = document.getElementById('searchResultsGrid');
+  const pagination = document.getElementById('searchPagination');
+  if (!grid) return;
+
+  grid.innerHTML = `
+    <div class="search-skeleton" aria-label="추천 결과 불러오는 중">
+      <div class="search-loading-banner">
+        <div>
+          <div class="search-loading-title">피부 고민을 분석하고 있어요</div>
+          <div class="search-loading-subtitle">필요 효능, 근거 성분, 상품 점수를 순서대로 계산하는 중입니다.</div>
+        </div>
+        <div class="search-loading-meter" aria-hidden="true"></div>
+      </div>
+      ${Array.from({ length: count }).map(() => `
+        <div class="skeleton-card">
+          <div class="skeleton-media"></div>
+          <div class="skeleton-body">
+            <div class="skeleton-line brand"></div>
+            <div class="skeleton-line title"></div>
+            <div class="skeleton-line reason"></div>
+            <div class="skeleton-tags">
+              <div class="skeleton-pill"></div>
+              <div class="skeleton-pill"></div>
+              <div class="skeleton-pill"></div>
+            </div>
+            <div class="skeleton-price"></div>
+          </div>
+          <div class="skeleton-side">
+            <div class="skeleton-line brand"></div>
+            <div class="skeleton-price"></div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  if (pagination) pagination.innerHTML = '';
+}
+
+function showSearchLoadingState(query) {
+  const section = document.getElementById('searchResultsSection');
+  const queryDisplay = document.getElementById('queryDisplay');
+  const resultSubtitle = document.querySelector('#searchResultsSection .section-subtitle');
+  const filterConcern = document.getElementById('filterConcern');
+  const filterProfile = document.getElementById('filterProfile');
+
+  if (queryDisplay) queryDisplay.textContent = query;
+  if (resultSubtitle) resultSubtitle.textContent = '추천 결과를 불러오는 중입니다';
+  if (filterConcern) filterConcern.textContent = query || '피부 고민 분석';
+  if (filterProfile) filterProfile.textContent = `${searchProfile.skin} · 민감도 ${searchProfile.sensitivity}`;
+  if (section) section.style.display = 'block';
+  renderSearchSkeleton();
+}
+
+function scrollToSearchResults(behavior = 'smooth') {
+  document.getElementById('searchResultsSection')?.scrollIntoView({ behavior, block: 'start' });
+}
+
+function renderApiResultSummary(recommendation) {
+  const container = document.getElementById('apiResultSummary');
+  if (!container) return;
+
+  const summary = recommendation?.summary || {};
+  const constraints = summary.purchase_constraints || {};
+  const chips = [];
+
+  if (Array.isArray(recommendation?.unmatched_terms) && recommendation.unmatched_terms.length > 0) {
+    chips.push(...recommendation.unmatched_terms.map((term) => ({
+      text: `추가 확인 필요: ${term}`,
+      warning: true
+    })));
+  }
+
+  if (Array.isArray(summary.avoid_ingredients) && summary.avoid_ingredients.length > 0) {
+    chips.push({ text: `회피 성분: ${summary.avoid_ingredients.join(', ')}`, warning: true });
+  }
+
+  if (Array.isArray(constraints.categories) && constraints.categories.length > 0) {
+    chips.push({ text: `카테고리: ${constraints.categories.map((item) => item.name).join(', ')}` });
+  }
+
+  if (Array.isArray(constraints.brands) && constraints.brands.length > 0) {
+    chips.push({ text: `브랜드: ${constraints.brands.map((item) => item.name).join(', ')}` });
+  }
+
+  if (constraints.price_text || constraints.price_max_text || constraints.price_min || constraints.price_max) {
+    const priceText = constraints.price_text || constraints.price_max_text || [
+      constraints.price_min ? `${formatPrice(constraints.price_min)} 이상` : '',
+      constraints.price_max ? `${formatPrice(constraints.price_max)} 이하` : ''
+    ].filter(Boolean).join(' ');
+    chips.push({ text: `가격 조건: ${priceText}` });
+  }
+
+  container.classList.toggle('active', chips.length > 0);
+  container.innerHTML = chips.map((chip) => `
+    <span class="api-summary-chip ${chip.warning ? 'warning' : ''}">${escapeHtml(chip.text)}</span>
+  `).join('');
+}
+
+function renderSearchResults(recommendation) {
+  const grid = document.getElementById('searchResultsGrid');
+  const pagination = document.getElementById('searchPagination');
+  if (!grid) return;
+
+  const products = Array.isArray(recommendation?.products)
+    ? recommendation.products.map((product) => mapApiProduct(product, recommendation.recommendation_id))
+    : [];
+  const paginationState = normalizeSearchPagination(recommendation?.pagination, products.length);
+
+  searchRecommendationId = recommendation?.recommendation_id || searchRecommendationId;
+  searchResultProducts = products;
+  searchPagination = paginationState;
+  searchCurrentPage = paginationState.page;
+  renderApiResultSummary(recommendation);
+
+  if (searchResultProducts.length === 0) {
+    grid.innerHTML = '<div class="search-empty">검색 결과가 없습니다. 다른 고민으로 다시 검색해 주세요.</div>';
+    if (pagination) pagination.innerHTML = '';
+    return { products, pagination: paginationState };
+  }
+
+  renderSortedSearchProducts();
+  renderSearchPagination(paginationState);
+  return { products, pagination: paginationState };
+}
+
+async function goToSearchPage(page) {
+  if (!searchRecommendationId || searchPageLoading) return;
+
+  const totalPages = searchPagination?.total_pages || 1;
+  const nextPage = Math.min(Math.max(page, 1), totalPages);
+  if (nextPage === searchCurrentPage) return;
+
+  const grid = document.getElementById('searchResultsGrid');
+  const pagination = document.getElementById('searchPagination');
+  const previousGridHtml = grid?.innerHTML || '';
+  const previousPaginationHtml = pagination?.innerHTML || '';
+  if (pagination) pagination.setAttribute('aria-busy', 'true');
+  renderSearchSkeleton();
+  scrollToSearchResults();
+  searchPageLoading = true;
+
+  try {
+    const recommendation = await requestRecommendationPage(searchRecommendationId, nextPage);
+    const rendered = renderSearchResults(recommendation);
+    updateSearchResultMeta(searchLastQuery, rendered.pagination);
+    window.history.replaceState(null, '', buildSearchResultsUrl(searchLastQuery, nextPage));
+  } catch (error) {
+    if (grid) grid.innerHTML = previousGridHtml;
+    if (pagination) pagination.innerHTML = previousPaginationHtml;
+    showToast('페이지를 불러오지 못했어요. 잠시 후 다시 시도해주세요');
+  } finally {
+    searchPageLoading = false;
+    if (pagination) pagination.removeAttribute('aria-busy');
+  }
+}
+
+renderProducts(allProducts, 'defaultProductGrid');
+
+// ===== SEARCH =====
+function handleSearch(e) { if (e.key==='Enter') doSearch(); }
+
+function setSearch(text) {
+  document.getElementById('searchInput').value = text;
+  closeSearchSuggestions();
+  goToSearchResultsPage(text);
+}
+
+function focusSearch() {
+  document.getElementById('searchInput').focus();
+  openSearchSuggestions();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleCategoryMenu() {
+  const panel = document.getElementById('categoryPanel');
+  const backdrop = document.getElementById('categoryPanelBackdrop');
+  const btn = document.querySelector('.category-menu-btn');
+  const willOpen = !panel.classList.contains('active');
+  panel.classList.toggle('active', willOpen);
+  backdrop.classList.toggle('active', willOpen);
+  btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+}
+
+function closeCategoryMenu() {
+  const panel = document.getElementById('categoryPanel');
+  const backdrop = document.getElementById('categoryPanelBackdrop');
+  const btn = document.querySelector('.category-menu-btn');
+  panel.classList.remove('active');
+  backdrop.classList.remove('active');
+  btn.setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeCategoryMenu();
+    closeSearchSuggestions();
+  }
+});
+
+document.querySelectorAll('.category-panel a').forEach((link) => {
+  link.addEventListener('click', closeCategoryMenu);
+});
+
+function toggleCart() {
+  document.getElementById('cartSidebar')?.classList.toggle('active');
+  document.getElementById('cartOverlay')?.classList.toggle('active');
+}
+
+function detectConcern(q) {
+  if (q.includes('모공')||q.includes('피지')||q.includes('번들')) return '모공';
+  if (q.includes('건조')||q.includes('수분')||q.includes('당김')) return '건조';
+  if (q.includes('주름')||q.includes('탄력')||q.includes('노화')) return '주름';
+  if (q.includes('민감')||q.includes('붉')||q.includes('자극')) return '민감';
+  if (q.includes('여드름')||q.includes('트러블')||q.includes('뾰루지')) return '여드름';
+  if (q.includes('미백')||q.includes('잡티')||q.includes('색소')) return '미백';
+  return 'default';
+}
+
+function updateSearchResultMeta(query, paginationState) {
+  const totalItems = paginationState?.total_items ?? searchResultProducts.length;
+  const queryDisplay = document.getElementById('queryDisplay');
+  const resultSubtitle = document.querySelector('#searchResultsSection .section-subtitle');
+  const matchCount = document.getElementById('matchCount');
+  const filterConcern = document.getElementById('filterConcern');
+  const filterProfile = document.getElementById('filterProfile');
+
+  if (queryDisplay) queryDisplay.textContent = query;
+  if (resultSubtitle) resultSubtitle.textContent = `${totalItems}개 제품이 피부 고민에 매칭되었습니다`;
+  if (matchCount) matchCount.textContent = totalItems;
+  if (filterConcern) filterConcern.textContent = query || '피부 고민 분석';
+  if (filterProfile) filterProfile.textContent = `${searchProfile.skin} · 민감도 ${searchProfile.sensitivity}`;
+}
+
+async function doSearch(page = 1) {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  if (!IS_SEARCH_RESULTS_PAGE) {
+    goToSearchResultsPage(query);
+    return;
+  }
+
+  saveRecentConcern(query);
+  closeSearchSuggestions();
+  searchLastQuery = query;
+  window.history.replaceState(null, '', buildSearchResultsUrl(query, page));
+
+  const aiSection = document.getElementById('aiResultSection');
+  aiSection.classList.add('active');
+
+  const thinking = document.getElementById('aiThinking');
+  const flow = document.getElementById('analysisFlow');
+  thinking.style.display = 'flex';
+  flow.style.display = 'none';
+
+  document.getElementById('defaultSection').style.display = 'none';
+  showSearchLoadingState(query);
+  setTimeout(() => scrollToSearchResults(), 80);
+
+  const searchButton = document.querySelector('.search-btn');
+  if (searchButton) searchButton.disabled = true;
+
+  try {
+    const recommendation = await requestRecommendation(query, page);
+    const rendered = renderSearchResults(recommendation);
+    const products = rendered.products;
+    const paginationState = rendered.pagination;
+    const summary = recommendation.summary || {};
+    const matchedConcerns = Array.isArray(summary.matched_concerns) ? summary.matched_concerns : [];
+    const expectedEffects = Array.isArray(summary.expected_effects) ? summary.expected_effects : [];
+    const keyIngredients = getUniqueValues(products.flatMap((product) => product.ingredients)).slice(0, 6);
+    const scoreItems = products.slice(0, 4).map((product) => ({
+      name: product.brand,
+      score: product.matchScore
+    }));
+
+    thinking.style.display = 'none';
+    flow.style.display = 'grid';
+
+    document.getElementById('flowConcern').textContent = query.length > 30 ? query.substring(0,30)+'...' : query;
+    document.getElementById('flowConcernTags').innerHTML = [
+      ...(matchedConcerns.length ? matchedConcerns.map((t,i)=>`<span class="flow-tag ${i<2?'highlight':''}">${escapeHtml(t)}</span>`) : ['<span class="flow-tag">매칭 고민 정보 없음</span>']),
+      ...getProfileTags()
+    ].join('');
+    document.getElementById('flowEffects').innerHTML = expectedEffects.length
+      ? expectedEffects.map((e,i)=>`<span class="flow-tag ${i<2?'highlight':''}">${escapeHtml(e)}</span>`).join('')
+      : '<span class="flow-tag">효능 정보 없음</span>';
+    document.getElementById('flowIngredients').innerHTML = keyIngredients.length
+      ? keyIngredients.map((ig,i)=>`<span class="flow-tag ${i<2?'highlight':''}">${escapeHtml(ig)}</span>`).join('')
+      : '<span class="flow-tag">성분 정보 없음</span>';
+    document.getElementById('flowScores').innerHTML = `
+      <div style="margin-bottom:8px;font-size: 12px;font-weight:500;color:var(--accent-text);letter-spacing: 0;text-transform:uppercase;">매칭 점수</div>
+      ${scoreItems.length ? scoreItems.map(s=>`
+        <div class="score-bar">
+          <span style="font-size: 12px;min-width:90px;color:var(--muted)">${escapeHtml(s.name)}</span>
+          <div class="score-track"><div class="score-fill" style="width:${s.score}%"></div></div>
+          <span class="score-num">${s.score}점</span>
+        </div>`).join('') : '<span class="flow-tag">점수 정보 없음</span>'}`;
+    document.getElementById('searchResultsSection').style.display = 'block';
+    updateSearchResultMeta(query, paginationState);
+    requestAnimationFrame(() => scrollToSearchResults());
+  } catch (error) {
+    thinking.style.display = 'none';
+    flow.style.display = 'none';
+    aiSection.classList.remove('active');
+    document.getElementById('defaultSection').style.display = 'block';
+    renderSearchResults({
+      recommendation_id: '',
+      products: [],
+      pagination: {
+        page: 1,
+        page_size: SEARCH_PAGE_SIZE,
+        total_items: 0,
+        total_pages: 0,
+        has_next: false,
+        has_prev: false
+      }
+    });
+    showToast('분석에 실패했어요. 잠시 후 다시 시도해주세요');
+  } finally {
+    if (searchButton) searchButton.disabled = false;
+  }
+}
+
+// ===== CATEGORY =====
+function filterCat(el, cat) {
+  document.querySelectorAll('.cat-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const filtered = cat==='all' ? allProducts : allProducts.filter(p=>p.category===cat);
+  renderProducts(filtered, 'defaultProductGrid');
+}
+
+document.querySelectorAll('.sort-select').forEach((select) => {
+  select.addEventListener('change', renderSortedSearchProducts);
+});
+updateSearchSortLabel();
+
+// ===== TOAST =====
+let toastT;
+function showToast(msg) {
+  document.getElementById('toastMsg').textContent = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== PLACEHOLDER TYPEWRITER =====
+const placeholderExamples = [
+  '모공이 넓고 번들거려요',
+  '건조하고 주름이 걱정돼요',
+  '색소침착과 잡티가 있어요',
+  '민감하고 자주 붉어져요',
+];
+
+const placeholderInput = document.getElementById('searchInput');
+let placeholderIndex = 0;
+let placeholderChar = 0;
+let placeholderDeleting = false;
+
+placeholderInput.addEventListener('focus', openSearchSuggestions);
+placeholderInput.addEventListener('click', openSearchSuggestions);
+
+document.addEventListener('click', (event) => {
+  const searchContainer = document.querySelector('.search-container');
+  if (searchContainer && !searchContainer.contains(event.target)) {
+    closeSearchSuggestions();
+  }
+});
+
+renderRecentConcerns();
+updateProfileSummary();
+
+function initSearchResultsPage() {
+  if (!IS_SEARCH_RESULTS_PAGE) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const keyword = params.get('keyword') || '';
+  const skinType = params.get('skin_type');
+  const sensitivity = params.get('sensitivity');
+  const page = Math.max(Number(params.get('page') || 1), 1);
+
+  if (skinType) selectProfileOption('skin', skinType);
+  if (sensitivity) selectProfileOption('sensitivity', sensitivity);
+
+  if (keyword) {
+    placeholderInput.value = keyword;
+    doSearch(page);
+    return;
+  }
+
+  document.getElementById('defaultSection').style.display = 'none';
+  document.getElementById('searchInput').focus();
+}
+
+initSearchResultsPage();
+
+function animatePlaceholder() {
+  if (!placeholderInput.value) {
+    const phrase = placeholderExamples[placeholderIndex];
+    placeholderInput.placeholder = phrase.slice(0, placeholderChar);
+
+    if (!placeholderDeleting && placeholderChar < phrase.length) {
+      placeholderChar += 1;
+      setTimeout(animatePlaceholder, 70);
+      return;
+    }
+
+    if (!placeholderDeleting && placeholderChar === phrase.length) {
+      placeholderDeleting = true;
+      setTimeout(animatePlaceholder, 1500);
+      return;
+    }
+
+    if (placeholderDeleting && placeholderChar > 0) {
+      placeholderChar -= 1;
+      setTimeout(animatePlaceholder, 32);
+      return;
+    }
+
+    placeholderDeleting = false;
+    placeholderIndex = (placeholderIndex + 1) % placeholderExamples.length;
+  }
+
+  setTimeout(animatePlaceholder, placeholderInput.value ? 300 : 240);
+}
+
+animatePlaceholder();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "comparison": {
+    "dataset": 80000,
+    "actual_product_count": 79952,
+    "vus": 10,
+    "duration": "3m",
+    "user_type": "full-personalized",
+    "query_id": "all",
+    "cache_state": "cold",
+    "max_error_rate": 0.01
+  },
+  "loose_run_root": "perf-runs/inbox",
+  "supplemental_run_roots": [],
+  "stages": [
+    {
+      "id": "baseline-v1",
+      "label": "Baseline",
+      "order": 0,
+      "color": "#6B7280",
+      "status": "measured",
+      "compared_to": null,
+      "roots": [
+        "perf-runs/stages/baseline-v1/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260714-053424"
+      ],
+      "change": "최적화 전 개인화 추천 파이프라인",
+      "focus_metrics": [
+        "candidate_pool_ms_p95",
+        "intent_parse_ms_p95",
+        "scoring_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-performance-case-study.md"
+    },
+    {
+      "id": "opt1-es-retrieval",
+      "label": "Opt1 ES retrieval",
+      "order": 1,
+      "color": "#2563EB",
+      "status": "measured",
+      "compared_to": "baseline-v1",
+      "roots": [
+        "perf-runs/stages/opt1-es-retrieval/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260714-225808",
+        "recommendation-80000-full-personalized-20260715-001631",
+        "recommendation-80000-full-personalized-20260715-004324"
+      ],
+      "change": "브랜드 전수 매칭을 제거하고 ES 중심 후보 추출로 전환",
+      "observation": "의도 분석 안의 구매 조건 파서가 일반 고민 문장에도 브랜드 alias 전체를 검사했다.",
+      "cause": "약 2,657개 alias 정규식 전수 검사가 후보 추출 전에 매 요청 반복됐고, 검색 책임이 Python 파서와 Elasticsearch에 중복 배치돼 있었다.",
+      "alternatives": "정규식 캐시나 Aho-Corasick으로 전수 매칭 자체를 빠르게 만드는 대안도 검토했지만, 검색 책임 중복을 유지한다는 한계가 있었다.",
+      "tradeoff": "후보 품질이 Elasticsearch 색인과 field boost 설정에 더 의존한다. 대신 Python은 점수 계산에 필요한 고민·효능 구조화에 집중한다.",
+      "implementation": "브랜드·카테고리·상품명 탐색을 ES retrieval로 이동하고, Python hard filter 생성 경로를 축소했다.",
+      "next_bottleneck": "후보 추출 이후 개인화 scoring이 전체 backend 시간의 중심으로 이동했다.",
+      "focus_metrics": [
+        "intent_parse_ms_p95",
+        "candidate_pool_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-es-retrieval-optimization.md"
+    },
+    {
+      "id": "opt2-precomputed-features",
+      "label": "Opt2 precomputed features",
+      "order": 2,
+      "color": "#0F766E",
+      "status": "measured",
+      "compared_to": "opt1-es-retrieval",
+      "roots": [
+        "perf-runs/stages/opt2-precomputed-features/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260715-053752",
+        "recommendation-80000-full-personalized-20260715-054137",
+        "recommendation-80000-full-personalized-20260715-054517"
+      ],
+      "change": "상품 특징과 사용자 선호를 rollup/read model로 사전 계산",
+      "observation": "후보마다 성분·효능 특징을 만들고 사용자 행동 로그를 다시 집계하는 작업이 scoring에서 반복됐다.",
+      "cause": "요청 시점에 변하지 않는 상품 특징과 느리게 변하는 사용자 선호까지 온라인 경로에서 매번 계산했다.",
+      "alternatives": "최종 추천 결과 캐시와 Redis 캐시도 검토할 수 있지만 검색어·피부 프로필 조합별 폭증과 무효화 복잡도가 크다.",
+      "tradeoff": "rollup 최신성 관리와 배치 운영이 필요하다. 누락·구버전 행은 기존 온라인 계산으로 fallback해 정확성을 보존한다.",
+      "implementation": "상품 feature read model과 사용자 preference profile을 미리 계산하고 요청에서는 유효한 버전을 조회한다.",
+      "next_bottleneck": "계산량은 줄었지만 후보 점수 데이터의 여러 loader와 score loop가 다음 병목으로 남았다.",
+      "focus_metrics": [
+        "scoring_ms_p95",
+        "scoring_data_prefetch_ms_p95",
+        "score_loop_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-feature-rollup.md"
+    },
+    {
+      "id": "opt3-bulk-prefetch",
+      "label": "Opt3 bulk prefetch",
+      "order": 3,
+      "color": "#EA580C",
+      "status": "measured",
+      "compared_to": "opt2-precomputed-features",
+      "roots": [
+        "perf-runs/stages/opt3-bulk-prefetch/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260715-092247",
+        "recommendation-80000-full-personalized-20260715-092634",
+        "recommendation-80000-full-personalized-20260715-093021"
+      ],
+      "change": "후보 점수 데이터를 단일 bulk JOIN 경로로 통합",
+      "observation": "Opt2 이후 scoring 사전 조회 구간에서 후보별 점수 데이터 loader 비용이 남아 있다.",
+      "cause": "동일 후보 집합에 필요한 관계 데이터를 여러 조회와 Python 조립 단계로 나눠 가져온다.",
+      "alternatives": "완전한 상품 snapshot 테이블도 대안이지만 중복 데이터와 갱신 비용이 커서 측정 없이 먼저 도입하지 않는다.",
+      "tradeoff": "bulk JOIN은 왕복 횟수를 줄이지만 행 폭과 중복 전송량이 커질 수 있어 batch 크기와 메모리를 함께 관찰해야 한다.",
+      "implementation": "후보 ID 묶음을 기준으로 점수 입력 데이터를 한 번에 prefetch하고 기존 점수식에는 같은 구조를 전달한다.",
+      "next_bottleneck": "후보 일괄 조회로 scoring prefetch는 줄었지만 candidate retrieval과 score loop 비용이 다음 관찰 대상이다.",
+      "focus_metrics": [
+        "scoring_data_prefetch_ms_p95",
+        "prefetch_candidate_bundle_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-bulk-prefetch.md"
+    },
+    {
+      "id": "opt4b-compact-read-model",
+      "label": "Opt4b compact read model",
+      "order": 4,
+      "color": "#B91C1C",
+      "status": "measured",
+      "compared_to": "opt3-bulk-prefetch",
+      "roots": [
+        "perf-runs/stages/opt4b-compact-read-model/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260716-233731",
+        "recommendation-80000-full-personalized-20260716-234122",
+        "recommendation-80000-full-personalized-20260716-234511"
+      ],
+      "change": "500개 후보의 스코어링 입력을 compact read model 한 번으로 조회",
+      "observation": "Opt3의 여러 loader를 합치기 위해 상품별 상세 피처를 넓은 read model에 평탄화했다.",
+      "cause": "DB 왕복은 줄었지만 500개 후보의 넓은 행과 JSON payload를 매 요청 역직렬화하고 Python 객체로 다시 조립하는 비용이 커졌다.",
+      "alternatives": "read model 컬럼과 payload를 더 줄이는 방법도 가능하지만, 정확 점수에 필요한 상세 데이터를 500개 전부 읽는 구조 자체가 남는다.",
+      "tradeoff": "조회 횟수 감소만으로는 전송량·역직렬화·객체 조립 비용을 상쇄하지 못했다. 실패 실험으로 보존하고 기본 경로로 채택하지 않는다.",
+      "implementation": "compact_v2 경로를 계측해 Opt3 대비 회귀를 확인하고 legacy_bulk rollback 경로를 유지했다.",
+      "next_bottleneck": "정확 스코어링용 상세 조회 대상을 500개보다 먼저 줄여야 한다.",
+      "focus_metrics": [
+        "scoring_ms_p95",
+        "scoring_compact_read_model_load_ms_p95",
+        "score_loop_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-scoring-snapshot.md"
+    },
+    {
+      "id": "opt4c-coarse-top50",
+      "label": "Opt4c coarse top-50",
+      "order": 5,
+      "color": "#0891B2",
+      "status": "measured",
+      "compared_to": "opt3-bulk-prefetch",
+      "roots": [
+        "perf-runs/stages/opt4c-coarse-top50/runs"
+      ],
+      "runs": [],
+      "headline_run_ids": [
+        "recommendation-80000-full-personalized-20260717-043340",
+        "recommendation-80000-full-personalized-20260717-043735",
+        "recommendation-80000-full-personalized-20260717-044128"
+      ],
+      "change": "경량 피처로 후보를 먼저 선별하고 상위 50개만 정확 스코어링",
+      "observation": "최종 정확도에 필요한 상세 피처를 약 500개 후보 모두에 조회·계산하는 비용이 scoring을 지배했다.",
+      "cause": "최종 노출 경쟁과 거리가 먼 후보까지 리뷰·기능성·성분 상세 데이터를 읽고 동일한 정확 점수식을 실행했다.",
+      "alternatives": "최종 결과 캐시나 500개 전체 read model 축소도 가능하지만 질의·사용자 조합 무효화 또는 상세 조회량 문제가 남는다.",
+      "tradeoff": "1차 근사 선별의 품질 guardrail과 피처 최신성 관리가 필요하다. 상위 50개에는 기존 정확 점수식과 설명 생성을 그대로 적용한다.",
+      "implementation": "약 500개를 숫자형 coarse 피처로 순위화한 뒤 상위 50개만 legacy_bulk로 조회해 정확 재랭킹한다.",
+      "next_bottleneck": "scoring은 감소했지만 exact top-50 prefetch와 coarse Python loop, 저장·응답 구간이 다음 측정 대상이다.",
+      "focus_metrics": [
+        "scoring_ms_p95",
+        "coarse_feature_query_ms_p95",
+        "coarse_score_loop_ms_p95",
+        "exact_prefetch_ms_p95",
+        "exact_score_loop_ms_p95"
+      ],
+      "detail_doc": "docs/performance/recommendation-coarse-top50.md"
+    }
+  ]
+}

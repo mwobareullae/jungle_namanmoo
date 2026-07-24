@@ -1,0 +1,605 @@
+"""관리자 재고·가격 조회 서비스 (P1-M4, Chunk 1).
+
+상품 기본 CRUD 목록(product_service.list_admin_products)과 같은 page 방식으로
+브랜드·카테고리·노출 필터, 파생 재고 상태, 재고 이력을 제공한다. 읽기 전용
+서비스이므로 transaction commit은 호출자가 필요로 하지 않는다.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.orm import Session
+
+from app.db.models.catalog import Brand, Product, ProductCategory, ProductPrice
+from app.db.models.commerce import Inventory, InventoryMovement, Seller
+from app.schemas.admin.inventory_price import (
+    AdminInventoryAdjustmentResponse,
+    AdminInventoryHistoryResponse,
+    AdminInventoryMovementItem,
+    AdminInventoryPriceListItem,
+    AdminInventoryPriceListResponse,
+    AdminInventoryPriceUpdateResponse,
+    AdminInventorySummaryResponse,
+    AdminProductSaleStartResponse,
+)
+from app.schemas.admin.product import AdminProductAvailability, AdminProductPagination
+from app.schemas.common import ApiError
+from app.services.product_availability import build_product_availability
+from app.services.product_pricing import (
+    MAX_PRODUCT_PRICE,
+    build_product_url,
+    get_or_create_first_party_price_for_update,
+    load_first_party_price_for_update,
+)
+
+
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 100
+HISTORY_LIMIT = 20
+INVENTORY_STOCK_MAX = 1_000_000
+
+VALID_SALES_STATUS_FILTERS = frozenset({"ON_SALE", "SOLD_OUT", "HIDDEN"})
+VALID_STOCK_STATUS_FILTERS = frozenset({"IN_STOCK", "LOW_STOCK", "SOLD_OUT", "HIDDEN"})
+
+
+@dataclass(frozen=True)
+class AdminInventoryPriceUpdateOutcome:
+    """라우트가 commit 뒤 ES 동기화 여부를 판단하기 위한 내부 결과."""
+
+    response: AdminInventoryPriceUpdateResponse
+    requires_catalog_sync: bool
+
+
+def list_admin_inventory_prices(
+    session: Session,
+    *,
+    query: str | None,
+    brand_code: str | None = None,
+    category_code: str | None = None,
+    is_active: bool | None = None,
+    sales_status: str | None,
+    stock_status: str | None,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
+) -> AdminInventoryPriceListResponse:
+    """재고·가격 운영 목록을 상품 조회 화면과 같은 page 방식으로 반환한다.
+
+    재고 행이 없는 기존 예외 상품은 목록에 ``UNKNOWN``으로 남긴다. 이는 운영자가
+    데이터 이상을 확인할 수 있게 하기 위한 것이며, ``UNKNOWN`` 전용 필터는 제공하지
+    않는다. 재고 저장은 Chunk 2에서 명시적으로 거절한다.
+    """
+
+    normalized_query = _normalize_query(query)
+    normalized_sales_status = _normalize_sales_status(sales_status)
+    normalized_stock_status = _normalize_stock_status(stock_status)
+    normalized_page = page if page >= 1 else DEFAULT_PAGE
+    normalized_page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
+
+    statement, stock_status_sql = _base_statement()
+    if normalized_query:
+        statement = statement.where(Product.product_name.ilike(f"%{normalized_query}%"))
+    if brand_code:
+        statement = statement.where(Brand.brand_code == brand_code)
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    if is_active is not None:
+        statement = statement.where(Product.is_active.is_(is_active))
+    if normalized_sales_status:
+        statement = statement.where(Inventory.sales_status == normalized_sales_status)
+    if normalized_stock_status:
+        statement = statement.where(stock_status_sql == normalized_stock_status)
+
+    total_items = session.execute(select(func.count()).select_from(statement.subquery())).scalar_one()
+
+    rows = session.execute(
+        statement.order_by(Product.updated_at.desc(), Product.id.desc())
+        .limit(normalized_page_size)
+        .offset((normalized_page - 1) * normalized_page_size)
+    ).all()
+    prices_by_product_id = _load_first_party_prices(session, rows)
+    items = [
+        _to_list_item(row, price=prices_by_product_id.get(int(row.product_db_id))) for row in rows
+    ]
+
+    total_pages = max((total_items + normalized_page_size - 1) // normalized_page_size, 1)
+    return AdminInventoryPriceListResponse(
+        items=items,
+        pagination=AdminProductPagination(
+            page=normalized_page,
+            page_size=normalized_page_size,
+            total_items=total_items,
+            total_pages=total_pages,
+            has_next=normalized_page < total_pages,
+            has_prev=normalized_page > 1,
+        ),
+    )
+
+
+def get_admin_inventory_summary(
+    session: Session,
+    *,
+    query: str | None,
+    brand_code: str | None = None,
+    category_code: str | None = None,
+    is_active: bool | None = None,
+) -> AdminInventorySummaryResponse:
+    """운영 현황 요약 카드(품절임박/판매 시작 전/재고 정보 없음)용 전체 집계.
+
+    목록 화면의 판매·재고 상태 드롭다운은 일부러 반영하지 않는다 — 그 두 필터가 바로 이
+    집계가 나누는 축이라, 반영하면 필터링할수록 나머지 카드가 0에 가까워져 상시 운영
+    현황판 역할을 못 한다. 검색어·카테고리·브랜드·노출 필터만 반영해 "지금 이 범위 안에서
+    전체적으로 뭐가 몇 건인지"를 보여준다.
+    """
+
+    normalized_query = _normalize_query(query)
+    statement, stock_status_sql = _base_statement()
+    if normalized_query:
+        statement = statement.where(Product.product_name.ilike(f"%{normalized_query}%"))
+    if brand_code:
+        statement = statement.where(Brand.brand_code == brand_code)
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    if is_active is not None:
+        statement = statement.where(Product.is_active.is_(is_active))
+
+    statement = statement.add_columns(stock_status_sql.label("computed_stock_status"))
+    inner = statement.subquery()
+
+    row = session.execute(
+        select(
+            func.sum(case((inner.c.computed_stock_status == "LOW_STOCK", 1), else_=0)).label("low_stock"),
+            func.sum(case((inner.c.sales_status == "HIDDEN", 1), else_=0)).label("hidden"),
+            func.sum(case((inner.c.computed_stock_status == "UNKNOWN", 1), else_=0)).label("unknown"),
+        ).select_from(inner)
+    ).one()
+
+    return AdminInventorySummaryResponse(
+        low_stock_count=int(row.low_stock or 0),
+        hidden_count=int(row.hidden or 0),
+        unknown_count=int(row.unknown or 0),
+    )
+
+
+def get_admin_inventory_history(session: Session, *, product_code: str) -> AdminInventoryHistoryResponse:
+    """선택 상품의 실제 재고 변동 이력 최신 20건을 반환한다.
+
+    관리자 조정뿐 아니라 주문 예약·결제·취소가 만든 ``InventoryMovement``도 함께
+    반환해, 현재 재고가 바뀐 이유를 운영자가 확인할 수 있게 한다.
+    """
+
+    normalized_code = product_code.strip()
+    product = session.execute(select(Product).where(Product.product_code == normalized_code)).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    rows = session.execute(
+        select(InventoryMovement)
+        .where(InventoryMovement.product_id == product.id)
+        .order_by(InventoryMovement.created_at.desc(), InventoryMovement.id.desc())
+        .limit(HISTORY_LIMIT)
+    ).scalars()
+    return AdminInventoryHistoryResponse(
+        product_code=product.product_code,
+        items=[
+            AdminInventoryMovementItem(
+                movement_type=row.movement_type,
+                quantity_delta=row.quantity_delta,
+                stock_after=row.stock_after,
+                reason=row.reason,
+                reference_type=row.reference_type,
+                reference_id=row.reference_id,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ],
+    )
+
+
+def adjust_admin_inventory(
+    session: Session,
+    *,
+    product_code: str,
+    stock_quantity: int,
+    reason: str,
+    now: datetime | None = None,
+) -> AdminInventoryAdjustmentResponse:
+    """관리자 재고를 절대 수량으로 조정하고 ``ADMIN_ADJUST`` 이력을 남긴다.
+
+    주문·결제·취소·환불과 같은 ``Inventory FOR UPDATE`` 잠금을 사용한다. 이 함수는
+    flush까지만 수행하며 commit과 ES 동기화는 라우트 책임이다.
+    """
+
+    normalized_code = product_code.strip()
+    product = session.execute(select(Product).where(Product.product_code == normalized_code)).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    inventory = session.execute(
+        select(Inventory).where(Inventory.product_id == product.id).with_for_update()
+    ).scalar_one_or_none()
+    if inventory is None:
+        raise ApiError(404, "INVENTORY_ROW_NOT_FOUND", "상품의 재고 행을 찾을 수 없습니다.")
+
+    normalized_stock_quantity = _normalize_adjusted_stock_quantity(stock_quantity)
+    normalized_reason = _normalize_adjustment_reason(reason)
+    previous_stock_quantity = int(inventory.stock_quantity)
+    availability = _availability_for_inventory(inventory)
+
+    if normalized_stock_quantity == previous_stock_quantity:
+        return AdminInventoryAdjustmentResponse(
+            changed=False,
+            product_code=product.product_code,
+            stock_quantity=previous_stock_quantity,
+            reserved_quantity=int(inventory.reserved_quantity),
+            safety_stock=int(inventory.safety_stock),
+            availability=availability,
+            updated_at=inventory.updated_at,
+            movement=None,
+        )
+
+    if normalized_stock_quantity - int(inventory.reserved_quantity) - int(inventory.safety_stock) < 0:
+        raise ApiError(
+            409,
+            "INVENTORY_AVAILABLE_QUANTITY_NEGATIVE",
+            "예약 수량과 안전 재고보다 낮게 재고를 설정할 수 없습니다.",
+        )
+
+    timestamp = now or datetime.now(UTC)
+    inventory.stock_quantity = normalized_stock_quantity
+    inventory.updated_at = timestamp
+    movement = InventoryMovement(
+        inventory_id=inventory.id,
+        product_id=product.id,
+        movement_type="ADMIN_ADJUST",
+        quantity_delta=normalized_stock_quantity - previous_stock_quantity,
+        stock_after=normalized_stock_quantity,
+        reason=normalized_reason,
+        reference_type="admin_inventory",
+        reference_id=product.product_code,
+        created_at=timestamp,
+    )
+    session.add(movement)
+    session.flush()
+
+    return AdminInventoryAdjustmentResponse(
+        changed=True,
+        product_code=product.product_code,
+        stock_quantity=normalized_stock_quantity,
+        reserved_quantity=int(inventory.reserved_quantity),
+        safety_stock=int(inventory.safety_stock),
+        availability=_availability_for_inventory(inventory),
+        updated_at=inventory.updated_at,
+        movement=AdminInventoryMovementItem(
+            movement_type=movement.movement_type,
+            quantity_delta=movement.quantity_delta,
+            stock_after=movement.stock_after,
+            reason=movement.reason,
+            reference_type=movement.reference_type,
+            reference_id=movement.reference_id,
+            created_at=movement.created_at,
+        ),
+    )
+
+
+def update_admin_inventory_price(
+    session: Session,
+    *,
+    product_code: str,
+    price: int,
+    now: datetime | None = None,
+) -> AdminInventoryPriceUpdateOutcome:
+    """자사 가격을 절대값으로 갱신하고, no-op은 멱등 성공으로 반환한다.
+
+    이 함수는 flush까지만 수행한다. commit 및 커밋 후 ES 동기화는 라우트 책임이다.
+    """
+
+    normalized_code = product_code.strip()
+    normalized_price = _normalize_inventory_price(price)
+    product = session.execute(
+        select(Product).where(Product.product_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    seller = session.execute(select(Seller).where(Seller.id == product.seller_id)).scalar_one()
+    timestamp = now or datetime.now(UTC)
+    price_row, created = get_or_create_first_party_price_for_update(
+        session,
+        product=product,
+        mall_name=seller.display_name,
+        price=normalized_price,
+        timestamp=timestamp,
+    )
+    if not created and int(price_row.price) == normalized_price:
+        return AdminInventoryPriceUpdateOutcome(
+            response=AdminInventoryPriceUpdateResponse(
+                changed=False,
+                product_code=product.product_code,
+                price=int(price_row.price),
+                currency=price_row.currency,
+                is_lowest=price_row.is_lowest,
+                collected_at=price_row.collected_at,
+                updated_at=product.updated_at,
+            ),
+            requires_catalog_sync=False,
+        )
+
+    price_row.price = normalized_price
+    price_row.currency = "KRW"
+    price_row.is_lowest = True
+    price_row.product_url = build_product_url(product.product_code)
+    price_row.collected_at = timestamp
+    product.updated_at = timestamp
+    session.flush()
+
+    sales_status = session.execute(
+        select(Inventory.sales_status).where(Inventory.product_id == product.id)
+    ).scalar_one_or_none()
+    return AdminInventoryPriceUpdateOutcome(
+        response=AdminInventoryPriceUpdateResponse(
+            changed=True,
+            product_code=product.product_code,
+            price=int(price_row.price),
+            currency=price_row.currency,
+            is_lowest=price_row.is_lowest,
+            collected_at=price_row.collected_at,
+            updated_at=product.updated_at,
+        ),
+        requires_catalog_sync=sales_status != "HIDDEN",
+    )
+
+
+def start_admin_product_sale(
+    session: Session,
+    *,
+    product_code: str,
+    now: datetime | None = None,
+) -> AdminProductSaleStartResponse:
+    """HIDDEN 상품을 판매 가능한 상태로 원자적으로 전환한다.
+
+    M3-A의 ``PRODUCT_NOT_READY_FOR_ACTIVATION`` 경로를 호출하지 않는다.
+    대신 가격·가용 재고·현재 브랜드/카테고리 활성 여부를 포함한 더 강한
+    조건을 직접 확인해 같은 목적(준비되지 않은 상품의 판매 방지)을 충족한다.
+    commit과 ES 동기화는 라우트가 담당한다.
+    """
+
+    normalized_code = product_code.strip()
+    product = session.execute(
+        select(Product).where(Product.product_code == normalized_code).with_for_update()
+    ).scalar_one_or_none()
+    if product is None:
+        raise ApiError(404, "PRODUCT_NOT_FOUND", "상품을 찾을 수 없습니다.")
+
+    inventory = session.execute(
+        select(Inventory).where(Inventory.product_id == product.id).with_for_update()
+    ).scalar_one_or_none()
+    if inventory is None:
+        raise ApiError(
+            409,
+            "INSUFFICIENT_STOCK_FOR_SALE",
+            "재고 행이 없거나 판매 가능한 재고가 없습니다.",
+        )
+    if inventory.sales_status != "HIDDEN":
+        raise ApiError(409, "PRODUCT_NOT_HIDDEN", "HIDDEN 상태의 상품만 판매를 시작할 수 있습니다.")
+
+    seller = session.execute(select(Seller).where(Seller.id == product.seller_id)).scalar_one()
+    price_row = load_first_party_price_for_update(
+        session,
+        product_id=product.id,
+        mall_name=seller.display_name,
+    )
+    if price_row is None or int(price_row.price) <= 0:
+        raise ApiError(409, "PRICE_NOT_READY", "판매 시작 전 자사몰 가격을 설정해 주세요.")
+
+    available_quantity = (
+        int(inventory.stock_quantity) - int(inventory.reserved_quantity) - int(inventory.safety_stock)
+    )
+    if available_quantity <= 0:
+        raise ApiError(409, "INSUFFICIENT_STOCK_FOR_SALE", "판매 가능한 재고가 없습니다.")
+
+    _assert_current_product_taxonomy_active(session, product=product)
+
+    timestamp = now or datetime.now(UTC)
+    inventory.sales_status = "ON_SALE"
+    product.is_active = True
+    product.updated_at = timestamp
+    session.flush()
+
+    return AdminProductSaleStartResponse(
+        product_code=product.product_code,
+        sales_status=inventory.sales_status,
+        is_active=product.is_active,
+        started_at=timestamp,
+    )
+
+
+def _assert_current_product_taxonomy_active(session: Session, *, product: Product) -> None:
+    """상품에 이미 연결된 브랜드·카테고리의 현재 활성 상태를 확인한다."""
+
+    brand_is_active = session.execute(
+        select(Brand.is_active).where(Brand.id == product.brand_id)
+    ).scalar_one_or_none()
+    if brand_is_active is not True:
+        raise ApiError(409, "BRAND_INACTIVE", "비활성 브랜드 상품은 판매를 시작할 수 없습니다.")
+
+    category_is_active = session.execute(
+        select(ProductCategory.is_active).where(ProductCategory.id == product.category_id)
+    ).scalar_one_or_none()
+    if category_is_active is not True:
+        raise ApiError(409, "CATEGORY_INACTIVE", "비활성 카테고리 상품은 판매를 시작할 수 없습니다.")
+
+
+def _base_statement() -> tuple[Any, Any]:
+    """재고 운영용 페이지 조회 query와 파생 재고 상태 SQL을 만든다.
+
+    가격은 페이지에 포함된 상품 ID만 별도 조회한다. 전체 ``product_prices``를 먼저
+    집계하면 50개 목록을 위해 수만 행을 매번 읽게 되기 때문이다.
+    """
+
+    raw_available_quantity = (
+        Inventory.stock_quantity - Inventory.reserved_quantity - Inventory.safety_stock
+    )
+    available_quantity = case(
+        (raw_available_quantity < 0, 0),
+        else_=raw_available_quantity,
+    )
+    # build_product_availability()과 같은 우선순위다. SQL 필터에는 DB 조건식이 필요해
+    # 아래 표현을 쓰고, 최종 응답은 반드시 공통 Python 함수로 계산한다.
+    stock_status = case(
+        (Inventory.id.is_(None), "UNKNOWN"),
+        (Inventory.sales_status == "HIDDEN", "HIDDEN"),
+        (
+            or_(Inventory.sales_status == "SOLD_OUT", available_quantity <= 0),
+            "SOLD_OUT",
+        ),
+        (available_quantity <= 5, "LOW_STOCK"),
+        else_="IN_STOCK",
+    )
+    statement = (
+        select(
+            Product.id.label("product_db_id"),
+            Product.product_code,
+            Product.product_name,
+            Product.is_active,
+            Product.updated_at,
+            Brand.brand_code,
+            Brand.name.label("brand_name"),
+            ProductCategory.category_code,
+            ProductCategory.name.label("category_name"),
+            Seller.display_name.label("seller_name"),
+            Inventory.id.label("inventory_id"),
+            Inventory.stock_quantity,
+            Inventory.reserved_quantity,
+            Inventory.safety_stock,
+            Inventory.sales_status,
+        )
+        .join(Brand, Product.brand_id == Brand.id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .join(Seller, Product.seller_id == Seller.id)
+        .outerjoin(Inventory, Inventory.product_id == Product.id)
+    )
+    return statement, stock_status
+
+
+def _load_first_party_prices(session: Session, rows: list[Any]) -> dict[int, int]:
+    if not rows:
+        return {}
+    seller_name_by_product_id = {
+        int(row.product_db_id): str(row.seller_name)
+        for row in rows
+    }
+    price_rows = session.execute(
+        select(ProductPrice.product_id, ProductPrice.mall_name, ProductPrice.price)
+        .where(
+            ProductPrice.product_id.in_(seller_name_by_product_id),
+            ProductPrice.currency == "KRW",
+            ProductPrice.is_lowest.is_(True),
+        )
+    ).all()
+    prices: dict[int, int] = {}
+    for row in price_rows:
+        product_id = int(row.product_id)
+        if row.mall_name != seller_name_by_product_id.get(product_id):
+            continue
+        price = int(row.price)
+        existing = prices.get(product_id)
+        prices[product_id] = price if existing is None else min(existing, price)
+    return prices
+
+
+def _to_list_item(row: Any, *, price: int | None) -> AdminInventoryPriceListItem:
+    availability = build_product_availability(
+        inventory_exists=row.inventory_id is not None,
+        sales_status=row.sales_status,
+        stock_quantity=row.stock_quantity,
+        reserved_quantity=row.reserved_quantity,
+        safety_stock=row.safety_stock,
+    )
+    return AdminInventoryPriceListItem(
+        product_code=row.product_code,
+        name=row.product_name,
+        brand_code=row.brand_code,
+        brand=row.brand_name,
+        category_code=row.category_code,
+        category_name=row.category_name,
+        is_active=row.is_active,
+        price=price,
+        stock_quantity=row.stock_quantity,
+        reserved_quantity=row.reserved_quantity,
+        safety_stock=row.safety_stock,
+        availability=AdminProductAvailability(
+            sales_status=availability.sales_status,
+            stock_status=availability.stock_status,
+            available_quantity=availability.available_quantity,
+            in_stock=availability.in_stock,
+        ),
+        updated_at=row.updated_at,
+    )
+
+
+def _availability_for_inventory(inventory: Inventory) -> AdminProductAvailability:
+    availability = build_product_availability(
+        inventory_exists=True,
+        sales_status=inventory.sales_status,
+        stock_quantity=inventory.stock_quantity,
+        reserved_quantity=inventory.reserved_quantity,
+        safety_stock=inventory.safety_stock,
+    )
+    return AdminProductAvailability(
+        sales_status=availability.sales_status,
+        stock_status=availability.stock_status,
+        available_quantity=availability.available_quantity,
+        in_stock=availability.in_stock,
+    )
+
+
+def _normalize_adjusted_stock_quantity(stock_quantity: int) -> int:
+    if isinstance(stock_quantity, bool) or not isinstance(stock_quantity, int):
+        raise ApiError(400, "INVALID_INVENTORY_STOCK", "재고는 0 이상 1,000,000 이하의 정수여야 합니다.")
+    if stock_quantity < 0 or stock_quantity > INVENTORY_STOCK_MAX:
+        raise ApiError(400, "INVALID_INVENTORY_STOCK", "재고는 0 이상 1,000,000 이하의 정수여야 합니다.")
+    return stock_quantity
+
+
+def _normalize_inventory_price(price: int) -> int:
+    if isinstance(price, bool) or not isinstance(price, int):
+        raise ApiError(400, "INVALID_PRICE", "가격은 1 이상 100,000,000 이하의 정수여야 합니다.")
+    if price < 1 or price > MAX_PRODUCT_PRICE:
+        raise ApiError(400, "INVALID_PRICE", "가격은 1 이상 100,000,000 이하의 정수여야 합니다.")
+    return price
+
+
+def _normalize_adjustment_reason(reason: str) -> str:
+    normalized = reason.strip() if isinstance(reason, str) else ""
+    if not normalized or len(normalized) > 500:
+        raise ApiError(400, "INVALID_INVENTORY_ADJUSTMENT_REASON", "재고 조정 사유는 1~500자로 입력해 주세요.")
+    return normalized
+
+
+def _normalize_query(query: str | None) -> str:
+    return (query or "").strip()
+
+
+def _normalize_sales_status(sales_status: str | None) -> str | None:
+    if sales_status is None or not sales_status.strip():
+        return None
+    normalized = sales_status.strip().upper()
+    if normalized not in VALID_SALES_STATUS_FILTERS:
+        raise ApiError(400, "INVALID_INVENTORY_SALES_STATUS", "유효하지 않은 판매 상태입니다.")
+    return normalized
+
+
+def _normalize_stock_status(stock_status: str | None) -> str | None:
+    if stock_status is None or not stock_status.strip():
+        return None
+    normalized = stock_status.strip().upper()
+    if normalized not in VALID_STOCK_STATUS_FILTERS:
+        raise ApiError(400, "INVALID_INVENTORY_STOCK_STATUS", "유효하지 않은 재고 상태입니다.")
+    return normalized
+
+

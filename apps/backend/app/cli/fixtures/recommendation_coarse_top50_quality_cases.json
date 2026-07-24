@@ -1,0 +1,76 @@
+{
+  "version": "recommendation-coarse-top50-quality-v1",
+  "cases": [
+    {
+      "id": "hydration-sensitive",
+      "query": "건조하고 민감한 피부를 위한 보습 제품 추천해줘",
+      "skin_type": "건성",
+      "sensitivity": "높음",
+      "weight": 0.15
+    },
+    {
+      "id": "oily-light",
+      "query": "지성 피부에 가볍게 바를 로션 추천해줘",
+      "skin_type": "지성",
+      "sensitivity": "보통",
+      "weight": 0.1
+    },
+    {
+      "id": "trouble-calming",
+      "query": "트러블과 붉은기를 진정시키는 제품 추천해줘",
+      "skin_type": "지성",
+      "sensitivity": "높음",
+      "weight": 0.15
+    },
+    {
+      "id": "brightening",
+      "query": "잡티와 색소침착에 좋은 세럼 추천해줘",
+      "skin_type": "중성",
+      "sensitivity": "보통",
+      "weight": 0.1
+    },
+    {
+      "id": "anti-aging",
+      "query": "주름과 탄력 개선에 좋은 제품 추천해줘",
+      "skin_type": "건성",
+      "sensitivity": "보통",
+      "weight": 0.1
+    },
+    {
+      "id": "price",
+      "query": "3만원 이하 가성비 좋은 세럼 추천해줘",
+      "skin_type": "중성",
+      "sensitivity": "보통",
+      "weight": 0.1
+    },
+    {
+      "id": "brand",
+      "query": "라운드랩 제품 중 수분 제품 추천해줘",
+      "skin_type": "중성",
+      "sensitivity": "보통",
+      "weight": 0.1
+    },
+    {
+      "id": "category",
+      "query": "민감한 피부에 순한 토너 추천해줘",
+      "skin_type": "건성",
+      "sensitivity": "높음",
+      "weight": 0.1
+    },
+    {
+      "id": "avoid-ingredient",
+      "query": "향료 없는 진정 제품 추천해줘",
+      "skin_type": "복합성",
+      "sensitivity": "높음",
+      "avoid_ingredients": ["향료"],
+      "weight": 0.05
+    },
+    {
+      "id": "no-result",
+      "query": "존재하지 않는 브랜드의 100원 이하 크림 추천해줘",
+      "skin_type": "중성",
+      "sensitivity": "보통",
+      "weight": 0.05
+    }
+  ]
+}

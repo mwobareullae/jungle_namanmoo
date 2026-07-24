@@ -1,0 +1,5 @@
+product_id,image_type,display_order,source_image_url,storage_key,public_url,upload_status
+prod_001,thumbnail,1,https://example.com/images/prod_001_thumb.jpg,products/prod_001/thumbnail.jpg,products/prod_001/thumbnail.jpg,PENDING_UPLOAD
+prod_001,detail,1,https://example.com/images/prod_001_1.jpg,products/prod_001/detail_001.jpg,products/prod_001/detail_001.jpg,PENDING_UPLOAD
+prod_002,thumbnail,1,https://example.com/images/prod_002_thumb.jpg,products/prod_002/thumbnail.jpg,products/prod_002/thumbnail.jpg,PENDING_UPLOAD
+prod_002,detail,1,https://example.com/images/prod_002_1.jpg,products/prod_002/detail_001.jpg,products/prod_002/detail_001.jpg,PENDING_UPLOAD

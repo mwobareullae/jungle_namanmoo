@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "users": [
+    {
+      "key": "anonymous",
+      "auth_required": false,
+      "description": "No saved profile, skin test, or behavior context",
+      "request_context": {
+        "skin_type": "\uc911\uc131",
+        "sensitivity": "\ubcf4\ud1b5",
+        "avoid_ingredients": []
+      }
+    },
+    {
+      "key": "profile",
+      "auth_required": true,
+      "email_env": "BENCHMARK_PROFILE_USER_EMAIL",
+      "password_env": "BENCHMARK_PROFILE_USER_PASSWORD",
+      "description": "Saved skin type, sensitivity, and avoided ingredients",
+      "request_context": {
+        "skin_type": "\uac74\uc131",
+        "sensitivity": "\ub192\uc74c",
+        "avoid_ingredients": ["\uc5d0\ud0c4\uc62c"]
+      }
+    },
+    {
+      "key": "skin-test",
+      "auth_required": true,
+      "email_env": "BENCHMARK_SKIN_TEST_USER_EMAIL",
+      "password_env": "BENCHMARK_SKIN_TEST_USER_PASSWORD",
+      "description": "Latest skin test result with inferred axes",
+      "request_context": {
+        "skin_type": "\uc9c0\uc131",
+        "sensitivity": "\ub192\uc74c",
+        "avoid_ingredients": []
+      }
+    },
+    {
+      "key": "behavior",
+      "auth_required": true,
+      "email_env": "BENCHMARK_BEHAVIOR_USER_EMAIL",
+      "password_env": "BENCHMARK_BEHAVIOR_USER_PASSWORD",
+      "description": "Fixed search, wishlist, cart, purchase, and review context",
+      "request_context": {
+        "skin_type": "\ubcf5\ud569\uc131",
+        "sensitivity": "\ubcf4\ud1b5",
+        "avoid_ingredients": []
+      }
+    },
+    {
+      "key": "full-personalized",
+      "auth_required": true,
+      "email_list_env": "BENCHMARK_FULL_PERSONALIZED_USER_EMAILS",
+      "email_count_env": "BENCHMARK_FULL_PERSONALIZED_USER_COUNT",
+      "email_prefix_env": "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_PREFIX",
+      "email_domain_env": "BENCHMARK_FULL_PERSONALIZED_USER_EMAIL_DOMAIN",
+      "generated_email_count": 10,
+      "generated_email_prefix": "benchmark_full",
+      "generated_email_domain": "example.test",
+      "password_env": "BENCHMARK_FULL_PERSONALIZED_USER_PASSWORD",
+      "description": "Rotates users with saved SkinProfile, latest skin test, event logs, cart, wishlist, purchase, and review history",
+      "request_context": {
+        "skin_type": null,
+        "sensitivity": null,
+        "avoid_ingredients": []
+      }
+    }
+  ],
+  "credentials": "Provide values only in ignored local benchmark config files; never commit them."
+}

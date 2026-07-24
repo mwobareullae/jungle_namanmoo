@@ -1,0 +1,851 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import CommercePageHeader from "../components/CommercePageHeader";
+import HomeHeader from "../components/HomeHeader";
+import ProductSoldOutOverlay from "../components/ProductSoldOutOverlay";
+import { useAuth } from "../contexts/useAuth";
+import { cartQueryKey, useCartQuery } from "../hooks/useCartQuery";
+import { deleteCartItem, deleteCartItems, previewCheckout, updateCartItem } from "../lib/cartApi";
+import { getProductImageUrl } from "../lib/imageUrls";
+import { playAgentClickInteraction, waitForAgentInteraction } from "../lib/agentVisualInteraction";
+import { navigateWithinApp } from "../lib/navigation";
+import { isProductSoldOut } from "../lib/productAvailability";
+import type { CartResponse, CheckoutPreviewResponse } from "../types/cart";
+import type { CartItem } from "../types/cart";
+
+const TOTAL_DISCOUNT_AMOUNT = 0;
+const unavailableStockStatuses = new Set(["LOW_STOCK", "OUT_OF_STOCK", "SOLD_OUT", "UNAVAILABLE"]);
+const unavailableSalesStatuses = new Set([
+  "INACTIVE",
+  "STOPPED",
+  "SUSPENDED",
+  "DISCONTINUED",
+  "DELETED",
+  "UNAVAILABLE",
+  "NOT_FOR_SALE",
+  "OUT_OF_SALE",
+]);
+
+const formatStockStatus = (stockStatus: string) => {
+  switch (stockStatus) {
+    case "IN_STOCK":
+      return "재고 있음";
+    case "LOW_STOCK":
+      return "재고 부족";
+    case "OUT_OF_STOCK":
+    case "SOLD_OUT":
+      return "일시품절";
+    case "UNAVAILABLE":
+      return "구매 불가";
+    default:
+      return "재고 확인 필요";
+  }
+};
+
+const getCartProductDetailPath = (item: CartItem) => {
+  const params = new URLSearchParams({ id: item.product_id });
+  if (item.source === "ai_recommendation" && item.recommendation_id) {
+    params.set("recommendation_id", item.recommendation_id);
+    if (item.recommendation_rank != null) {
+      params.set("recommendation_rank", String(item.recommendation_rank));
+    }
+  }
+  return `/product-detail?${params.toString()}`;
+};
+
+const isPurchasableCartItem = (item: CartItem) =>
+  !unavailableStockStatuses.has(item.product.stock_status) &&
+  !unavailableSalesStatuses.has(item.product.sales_status);
+
+const getStockStatusClassName = (stockStatus: string) => {
+  if (unavailableStockStatuses.has(stockStatus)) {
+    return " out";
+  }
+
+  if (stockStatus === "LOW_STOCK") {
+    return " low";
+  }
+
+  if (stockStatus !== "IN_STOCK") {
+    return " unknown";
+  }
+
+  return "";
+};
+
+const getStringField = (source: unknown, keys: string[]) => {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+};
+
+const getCartItemOptionLabel = (item: CartItem) => {
+  const directOption = getStringField(item, [
+    "option_label",
+    "option_text",
+    "selected_option",
+    "variant_label",
+    "variant_name",
+    "option_name",
+  ]);
+
+  if (directOption) {
+    return directOption;
+  }
+
+  const productOption = getStringField(item.product, [
+    "option_label",
+    "option_text",
+    "variant_label",
+    "variant_name",
+  ]);
+
+  if (productOption) {
+    return productOption;
+  }
+
+  const volume = getStringField(item, ["volume_text", "capacity_text", "size_text"]) ??
+    getStringField(item.product, ["volume_text", "capacity_text", "size_text"]);
+  const unit = getStringField(item, ["unit_text", "packaging_text", "option_value"]);
+  const parts = [volume, unit].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+};
+
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+  }
+
+  return fallback;
+};
+
+const notifyCartUpdated = () => {
+  window.dispatchEvent(new CustomEvent("cart:updated", { detail: { source: "cart-page" } }));
+};
+
+function CartPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthLoading, user } = useAuth();
+  const queryClient = useQueryClient();
+  const cartQuery = useCartQuery(user?.id ?? null, !isAuthLoading);
+  const [cart, setCart] = useState<CartResponse | null>(null);
+  const isLoading = isAuthLoading || cartQuery.isPending;
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const queryErrorMessage = cartQuery.error
+    ? cartQuery.error instanceof Error
+      ? cartQuery.error.message
+      : "장바구니를 불러오지 못했습니다."
+    : null;
+  const visibleErrorMessage = queryErrorMessage ?? errorMessage;
+  const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [isDeletingUnavailable, setIsDeletingUnavailable] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreviewResponse | null>(null);
+  const [isCheckoutPreviewLoading, setIsCheckoutPreviewLoading] = useState(false);
+  const [checkoutPreviewErrorMessage, setCheckoutPreviewErrorMessage] = useState("");
+  const agentCheckoutStartedRef = useRef(false);
+  const cartMutationPendingRef = useRef(false);
+  const agentCheckoutParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const isAgentCheckout = agentCheckoutParams.get("agent_checkout") === "1";
+  const requestedAgentCartItemIds = useMemo(
+    () => agentCheckoutParams.getAll("cart_item_ids")
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0),
+    [agentCheckoutParams],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    if (cartQuery.error) {
+      return () => {
+        isMounted = false;
+      };
+    }
+    if (cartQuery.data) {
+      queueMicrotask(() => {
+        if (!isMounted) return;
+        setErrorMessage(null);
+        setCart(cartQuery.data);
+        const purchasableIds = cartQuery.data.items.filter(isPurchasableCartItem).map((item) => item.id);
+        const requestedIds = requestedAgentCartItemIds.filter((id) => purchasableIds.includes(id));
+        setSelectedItemIds(isAgentCheckout && requestedIds.length > 0 ? requestedIds : purchasableIds);
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [cartQuery.data, cartQuery.error, cartQuery.isPending, isAgentCheckout, requestedAgentCartItemIds]);
+
+  useEffect(() => {
+    const handleCartUpdated = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail?.source === "cart-page") return;
+      void queryClient.invalidateQueries({ queryKey: cartQueryKey(user?.id ?? null) });
+    };
+    window.addEventListener("cart:updated", handleCartUpdated);
+
+    return () => {
+      window.removeEventListener("cart:updated", handleCartUpdated);
+    };
+  }, [queryClient, user?.id]);
+
+  const handleUpdateQuantity = async (itemId: number, nextQuantity: number) => {
+    if (nextQuantity < 1 || cartMutationPendingRef.current) {
+      return;
+    }
+
+    cartMutationPendingRef.current = true;
+    setUpdatingItemId(itemId);
+    setErrorMessage(null);
+
+    try {
+      const updatedCart = await updateCartItem(itemId, { quantity: nextQuantity });
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), updatedCart);
+      setCart(updatedCart);
+      setSelectedItemIds((currentIds) =>
+        currentIds.filter((id) => updatedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+      );
+      notifyCartUpdated();
+    } catch (error) {
+      setErrorMessage(getRequestErrorMessage(error, "수량 변경에 실패했습니다."));
+    } finally {
+      cartMutationPendingRef.current = false;
+      setUpdatingItemId(null);
+    }
+  };
+
+  const handleDeleteItem = async (itemId: number) => {
+    if (cartMutationPendingRef.current) {
+      return;
+    }
+
+    cartMutationPendingRef.current = true;
+    setDeletingItemId(itemId);
+    setErrorMessage(null);
+
+    try {
+      const response = await deleteCartItem(itemId);
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), response.cart);
+      setCart(response.cart);
+      setSelectedItemIds((currentIds) => currentIds.filter((id) => id !== itemId));
+      notifyCartUpdated();
+    } catch (error) {
+      try {
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
+        setCart(refreshedCart);
+        setSelectedItemIds((currentIds) =>
+          currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+        );
+        if (refreshedCart.items.some((item) => item.id === itemId)) {
+          setErrorMessage(getRequestErrorMessage(error, "상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "상품 삭제에 실패했습니다."));
+      }
+    } finally {
+      cartMutationPendingRef.current = false;
+      setDeletingItemId(null);
+    }
+  };
+
+  const hasCartItems = Boolean(cart && cart.total_quantity > 0);
+  const purchasableItemIds = cart ? cart.items.filter(isPurchasableCartItem).map((item) => item.id) : [];
+  const allItemsSelected = Boolean(
+    purchasableItemIds.length > 0 && selectedItemIds.length === purchasableItemIds.length,
+  );
+  const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+  const selectedItems = useMemo(
+    () => cart ? cart.items.filter((item) => selectedItemIdSet.has(item.id) && isPurchasableCartItem(item)) : [],
+    [cart, selectedItemIdSet],
+  );
+  const selectedCheckoutItemIds = useMemo(() => selectedItems.map((item) => item.id), [selectedItems]);
+  const selectedCheckoutItemKey = useMemo(
+    () => selectedItems.map((item) => `${item.id}:${item.quantity}:${item.line_subtotal}`).join(","),
+    [selectedItems],
+  );
+  const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.line_subtotal, 0);
+  const previewSubtotal = checkoutPreview?.subtotal ?? selectedSubtotal;
+  const selectedShippingFee = checkoutPreview?.shipping_fee ?? 0;
+  const selectedShippingFeeLabel = isCheckoutPreviewLoading
+    ? "확인 중"
+    : checkoutPreview
+      ? selectedShippingFee === 0
+        ? "무료"
+        : `${selectedShippingFee.toLocaleString()}원`
+      : selectedItems.length === 0
+        ? "0원"
+        : "확인 필요";
+  const selectedPaymentTotal = checkoutPreview
+    ? checkoutPreview.total
+    : Math.max(0, selectedSubtotal - TOTAL_DISCOUNT_AMOUNT);
+  const selectedPaymentTotalLabel = isCheckoutPreviewLoading
+    ? "확인 중"
+    : checkoutPreview || selectedItems.length === 0
+      ? `${selectedPaymentTotal.toLocaleString()}원`
+      : "확인 필요";
+  const expectedPointAmount = Math.round(selectedSubtotal * 0.01);
+  const freeShippingThreshold = checkoutPreview?.shipping_groups.find((group) => group.free_shipping_threshold !== null)
+    ?.free_shipping_threshold ?? null;
+  const remainingFreeShippingAmount = freeShippingThreshold === null
+    ? 0
+    : Math.max(0, freeShippingThreshold - previewSubtotal);
+  const freeShippingProgress = freeShippingThreshold === null
+    ? 0
+    : Math.min(100, Math.round((previewSubtotal / freeShippingThreshold) * 100));
+  const unavailableItemIds = cart
+    ? cart.items
+        .filter((item) => !isPurchasableCartItem(item))
+        .map((item) => item.id)
+    : [];
+  const hasUnavailableItems = unavailableItemIds.length > 0;
+  const deliveryPolicyLabel = isCheckoutPreviewLoading
+    ? "배송비 정책 확인 중"
+    : freeShippingThreshold !== null
+      ? `${freeShippingThreshold.toLocaleString()}원 이상 무료배송`
+      : checkoutPreview
+        ? "판매자 배송 정책 적용"
+        : "배송비는 주문서에서 확인됩니다";
+  const freeShippingMessage = selectedItems.length === 0
+    ? "구매할 상품을 선택해 주세요."
+    : isCheckoutPreviewLoading
+      ? "배송비를 확인하고 있어요."
+      : checkoutPreviewErrorMessage
+        ? "배송비를 확인하지 못했어요. 잠시 후 다시 시도해주세요."
+        : freeShippingThreshold === null
+          ? "배송비는 판매자 정책에 따라 계산돼요."
+          : selectedShippingFee === 0
+            ? "🎉 무료배송 조건을 충족했어요."
+            : `🚚 ${remainingFreeShippingAmount.toLocaleString()}원 더 담으면 무료배송이에요.`;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const previewTimer = window.setTimeout(() => {
+      if (!isMounted) return;
+
+      if (selectedCheckoutItemIds.length === 0) {
+        setCheckoutPreview(null);
+        setCheckoutPreviewErrorMessage("");
+        setIsCheckoutPreviewLoading(false);
+        return;
+      }
+
+      setIsCheckoutPreviewLoading(true);
+      setCheckoutPreviewErrorMessage("");
+
+      previewCheckout({ cart_item_ids: selectedCheckoutItemIds })
+        .then((preview) => {
+          if (!isMounted) return;
+          setCheckoutPreview(preview);
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          setCheckoutPreview(null);
+          setCheckoutPreviewErrorMessage(error instanceof Error ? error.message : "배송비를 확인하지 못했습니다.");
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsCheckoutPreviewLoading(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(previewTimer);
+    };
+  }, [selectedCheckoutItemIds, selectedCheckoutItemKey]);
+
+  const handleGoToCheckout = () => {
+    if (selectedItems.length === 0) {
+      return;
+    }
+
+    if (!user) {
+      navigate("/login", { state: { from: "/cart" } });
+      return;
+    }
+
+    const params = new URLSearchParams();
+    selectedItems.forEach((item) => {
+      params.append("cart_item_ids", String(item.id));
+    });
+
+    navigateWithinApp(`/checkout?${params.toString()}`);
+  };
+
+  useEffect(() => {
+    if (
+      !isAgentCheckout ||
+      agentCheckoutStartedRef.current ||
+      isLoading ||
+      isCheckoutPreviewLoading ||
+      !checkoutPreview ||
+      checkoutPreviewErrorMessage ||
+      !user ||
+      selectedItems.length === 0
+    ) {
+      return;
+    }
+
+    agentCheckoutStartedRef.current = true;
+    const continueToCheckout = async () => {
+      await waitForAgentInteraction(520);
+      const checkoutTarget = document.querySelector<HTMLElement>("[data-agent-checkout-target]");
+      await playAgentClickInteraction(checkoutTarget);
+      const params = new URLSearchParams();
+      selectedItems.forEach((item) => params.append("cart_item_ids", String(item.id)));
+      await navigateWithinApp(`/checkout?${params.toString()}`);
+    };
+    void continueToCheckout();
+  }, [
+    checkoutPreview,
+    checkoutPreviewErrorMessage,
+    isAgentCheckout,
+    isCheckoutPreviewLoading,
+    isLoading,
+    selectedItems,
+    user,
+  ]);
+
+  const handleToggleSelectAll = () => {
+    if (!cart) {
+      return;
+    }
+
+    setSelectedItemIds(allItemsSelected ? [] : purchasableItemIds);
+  };
+
+  const handleToggleSelectItem = (item: CartItem) => {
+    if (!isPurchasableCartItem(item)) {
+      return;
+    }
+
+    setSelectedItemIds((currentIds) =>
+      currentIds.includes(item.id)
+        ? currentIds.filter((id) => id !== item.id)
+        : [...currentIds, item.id],
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedItemIds.length === 0 || cartMutationPendingRef.current) {
+      return;
+    }
+
+    cartMutationPendingRef.current = true;
+    setIsDeletingSelected(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await deleteCartItems(selectedItemIds);
+      queryClient.setQueryData(cartQueryKey(user?.id ?? null), response.cart);
+      setCart(response.cart);
+
+      setSelectedItemIds([]);
+      notifyCartUpdated();
+    } catch (error) {
+      try {
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
+        const remainingIds = selectedItemIds.filter((itemId) =>
+          refreshedCart.items.some((item) => item.id === itemId),
+        );
+        setCart(refreshedCart);
+        setSelectedItemIds(remainingIds);
+        if (remainingIds.length > 0) {
+          setErrorMessage(getRequestErrorMessage(error, "선택한 상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "선택한 상품 삭제에 실패했습니다."));
+      }
+    } finally {
+      cartMutationPendingRef.current = false;
+      setIsDeletingSelected(false);
+    }
+  };
+
+  const handleDeleteUnavailableItems = async () => {
+    if (unavailableItemIds.length === 0 || cartMutationPendingRef.current) {
+      return;
+    }
+
+    cartMutationPendingRef.current = true;
+    setIsDeletingUnavailable(true);
+    setErrorMessage(null);
+
+    try {
+      let latestCart: CartResponse | null = null;
+
+      for (const itemId of unavailableItemIds) {
+        const response = await deleteCartItem(itemId);
+        latestCart = response.cart;
+      }
+
+      if (latestCart) {
+        queryClient.setQueryData(cartQueryKey(user?.id ?? null), latestCart);
+        setCart(latestCart);
+        setSelectedItemIds((currentIds) =>
+          currentIds.filter((id) => latestCart?.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+        );
+      }
+
+      notifyCartUpdated();
+    } catch (error) {
+      try {
+        const refreshedCart = await cartQuery.refetch().then((result) => result.data);
+        if (!refreshedCart) {
+          setErrorMessage(getRequestErrorMessage(error, "장바구니를 불러오지 못했습니다."));
+          return;
+        }
+        const remainingUnavailableIds = unavailableItemIds.filter((itemId) =>
+          refreshedCart.items.some((item) => item.id === itemId),
+        );
+        setCart(refreshedCart);
+        setSelectedItemIds((currentIds) =>
+          currentIds.filter((id) => refreshedCart.items.some((item) => item.id === id && isPurchasableCartItem(item))),
+        );
+        if (remainingUnavailableIds.length > 0) {
+          setErrorMessage(getRequestErrorMessage(error, "구매 불가 상품 삭제에 실패했습니다."));
+        } else {
+          notifyCartUpdated();
+        }
+      } catch {
+        setErrorMessage(getRequestErrorMessage(error, "구매 불가 상품 삭제에 실패했습니다."));
+      }
+    } finally {
+      cartMutationPendingRef.current = false;
+      setIsDeletingUnavailable(false);
+    }
+  };
+
+  const isCartMutationPending =
+    updatingItemId !== null ||
+    deletingItemId !== null ||
+    isDeletingSelected ||
+    isDeletingUnavailable;
+
+  return (
+    <>
+      <HomeHeader />
+      <main className="checkout-page cart-page">
+        <section className="checkout-shell">
+          <CommercePageHeader currentStep="cart" title="장바구니" />
+
+          {isLoading && (
+            <div className="cart-page-layout" aria-label="장바구니 로딩 중">
+              <section className="cart-page-list-section">
+                <div className="cart-page-section-head">
+                  <div>
+                    <span className="cart-skeleton cart-skeleton-label" />
+                    <span className="cart-skeleton cart-skeleton-title" />
+                  </div>
+                  <span className="cart-skeleton cart-skeleton-count" />
+                </div>
+
+                <div className="cart-page-list">
+                  <article className="cart-page-item">
+                    <span className="cart-skeleton cart-skeleton-check" />
+                    <span className="cart-skeleton cart-skeleton-thumb" />
+                    <div className="cart-page-item-main">
+                      <span className="cart-skeleton cart-skeleton-brand" />
+                      <span className="cart-skeleton cart-skeleton-name" />
+                      <span className="cart-skeleton cart-skeleton-option" />
+                    </div>
+                    <div className="cart-page-item-meta">
+                      <span className="cart-skeleton cart-skeleton-quantity" />
+                      <span className="cart-skeleton cart-skeleton-price" />
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <aside className="cart-page-summary-card">
+                <span className="cart-skeleton cart-skeleton-summary-title" />
+                <div>
+                  <span>총 수량</span>
+                  <span className="cart-skeleton cart-skeleton-summary-value" />
+                </div>
+                <div>
+                  <span>상품 금액</span>
+                  <span className="cart-skeleton cart-skeleton-summary-value" />
+                </div>
+                <button className="checkout-btn-main" disabled type="button">
+                  구매하기
+                </button>
+              </aside>
+            </div>
+          )}
+
+          {!isLoading && (visibleErrorMessage || !cart) && (
+            <div className="cart-page-status-card">
+              {visibleErrorMessage ? (
+                <p>{visibleErrorMessage}</p>
+              ) : (
+                <p>장바구니 정보가 없습니다.</p>
+              )}
+            </div>
+          )}
+
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && !user && (
+            <section className="cart-page-login-banner" aria-label="비로그인 장바구니 안내">
+              <div className="cart-page-login-banner-copy">
+                <span className="cart-page-login-banner-icon" aria-hidden="true">
+                  ✦
+                </span>
+                <div>
+                  <h2>로그인하고 적립 혜택을 받아보세요</h2>
+                  <p>구매 금액의 최대 1% 적립과 주문내역 저장을 이용할 수 있습니다.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => navigate("/login", { state: { from: "/cart" } })}>
+                로그인
+              </button>
+            </section>
+          )}
+
+          {!isLoading && !visibleErrorMessage && cart && !isAuthLoading && user && (
+            <div className="cart-page-login-banner-spacer" aria-hidden="true" />
+          )}
+
+          {!isLoading && !visibleErrorMessage && cart && cart.total_quantity === 0 && (
+            <div className="cart-page-empty-state">
+              <span className="cart-page-empty-icon" aria-hidden="true">
+                EMPTY
+              </span>
+              <h2>{user ? `${user.nickname ?? "회원"}님의 장바구니가 비어 있어요` : "장바구니가 비어 있어요"}</h2>
+              <p>추천받은 뷰티 상품을 담아보세요.</p>
+              <div className="cart-page-empty-actions">
+                <button type="button" onClick={() => void navigateWithinApp("/products/popular")}>
+                  인기 상품 보기
+                </button>
+                {user && (
+                  <button
+                    className="cart-page-empty-link"
+                    type="button"
+                    onClick={() => navigateWithinApp("/mypage/recent")}
+                  >
+                    최근 본 상품 보기
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {cart && cart.warnings.length > 0 && (
+            <div className="cart-page-warning-list">
+              {cart.warnings.map((warning) => (
+                <div
+                  className={`cart-page-warning${warning.severity === "BLOCKING" ? " blocking" : ""}`}
+                  key={`${warning.code}-${warning.item_id ?? warning.product_id ?? warning.message}`}
+                >
+                  <strong>{warning.severity === "BLOCKING" ? "구매 불가" : "확인 필요"}</strong>
+                  <p>{warning.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {cart && hasCartItems && (
+            <div className="cart-page-layout">
+              <section className="cart-page-list-section">
+                <div className="cart-page-selection-bar">
+                  <label className="cart-page-select-all">
+                    <input checked={allItemsSelected} onChange={handleToggleSelectAll} type="checkbox" />
+                    <span>전체선택</span>
+                    <em>
+                      ({selectedItems.length}/{purchasableItemIds.length})
+                    </em>
+                  </label>
+                  <div className="cart-page-selection-actions">
+                    <button
+                      disabled={selectedItemIds.length === 0 || isCartMutationPending}
+                      onClick={handleDeleteSelected}
+                      type="button"
+                    >
+                      선택삭제
+                    </button>
+                    {hasUnavailableItems && (
+                      <button
+                        disabled={isCartMutationPending}
+                        onClick={handleDeleteUnavailableItems}
+                        type="button"
+                      >
+                        구매불가 삭제
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="cart-page-delivery-group">
+                  <strong>일반배송</strong>
+                  <span>{deliveryPolicyLabel}</span>
+                </div>
+
+                <div className="cart-page-list">
+                  {cart.items.map((item) => {
+                    const imageUrl = getProductImageUrl(item.product.thumbnail_url, "w400");
+                    const optionLabel = getCartItemOptionLabel(item);
+                    const isUnavailableItem = !isPurchasableCartItem(item);
+                    const isSoldOut = isProductSoldOut(item.product);
+                    const stockStatusClassName = getStockStatusClassName(item.product.stock_status);
+                    const productDetailPath = getCartProductDetailPath(item);
+
+                    return (
+                      <article className={`cart-page-item${isUnavailableItem ? " unavailable" : ""}`} key={item.id}>
+                        <label className="cart-page-item-check">
+                          <input
+                            checked={selectedItemIdSet.has(item.id)}
+                            disabled={isUnavailableItem}
+                            onChange={() => handleToggleSelectItem(item)}
+                            type="checkbox"
+                          />
+                          <span className="sr-only">{item.product.name} 선택</span>
+                        </label>
+
+                        <div className="cart-page-item-thumb">
+                          {imageUrl ? (
+                            <Link aria-label={`${item.product.name} 상품 상세 보기`} to={productDetailPath}>
+                              <img alt={item.product.name} src={imageUrl} />
+                            </Link>
+                          ) : (
+                            <span>이미지 준비중</span>
+                          )}
+                          {isSoldOut ? <ProductSoldOutOverlay /> : null}
+                        </div>
+
+                        <div className="cart-page-item-main">
+                          <p className="cart-page-item-brand">{item.product.brand}</p>
+                          <h2 className="cart-page-item-name">
+                            <Link to={productDetailPath}>{item.product.name}</Link>
+                          </h2>
+                          {optionLabel && <p className="cart-page-item-option">{optionLabel}</p>}
+                          <p className={`cart-page-stock-text${stockStatusClassName}`}>
+                            {formatStockStatus(item.product.stock_status)}
+                          </p>
+                        </div>
+
+                        <div className="cart-page-item-meta">
+                          <button
+                            className="cart-page-remove-button"
+                            aria-label={`${item.product.name} 삭제`}
+                            disabled={isCartMutationPending}
+                            onClick={() => handleDeleteItem(item.id)}
+                            type="button"
+                          >
+                            ×
+                          </button>
+                          <div className="cart-page-quantity-control" aria-label={`${item.product.name} 수량`}>
+                            <button
+                              aria-label={`${item.product.name} 수량 감소`}
+                              disabled={isUnavailableItem || isCartMutationPending || item.quantity <= 1}
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                              type="button"
+                            >
+                              -
+                            </button>
+                            <span>{item.quantity}개</span>
+                            <button
+                              aria-label={`${item.product.name} 수량 증가`}
+                              disabled={isUnavailableItem || isCartMutationPending}
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                              type="button"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="cart-page-item-price">
+                            <span>상품 금액</span>
+                            <strong className={isSoldOut ? "product-price--sold-out" : ""}>{item.line_subtotal.toLocaleString()}원</strong>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <aside className="cart-page-summary-card">
+                <h2>결제금액</h2>
+                <div>
+                  <span>상품금액</span>
+                  <strong>{selectedSubtotal.toLocaleString()}원</strong>
+                </div>
+                <div>
+                  <span>상품할인금액</span>
+                  <strong>{TOTAL_DISCOUNT_AMOUNT.toLocaleString()}원</strong>
+                </div>
+                <div>
+                  <span>배송비</span>
+                  <strong>{selectedItems.length === 0 ? "0원" : selectedShippingFeeLabel}</strong>
+                </div>
+                <div className="cart-page-summary-total">
+                  <span>결제예정금액</span>
+                  <strong>{selectedPaymentTotalLabel}</strong>
+                </div>
+                <p className="cart-page-point-note">
+                  {selectedItems.length === 0
+                    ? "구매할 상품을 선택해 주세요."
+                    : user
+                      ? `결제 시 ${expectedPointAmount.toLocaleString()}원 적립 예정`
+                      : `로그인하면 최대 ${expectedPointAmount.toLocaleString()}원 적립`}
+                </p>
+                <button
+                  className="checkout-btn-main"
+                  data-agent-checkout-target
+                  disabled={
+                    selectedItems.length === 0 ||
+                    isAuthLoading ||
+                    isCheckoutPreviewLoading ||
+                    Boolean(checkoutPreviewErrorMessage)
+                  }
+                  type="button"
+                  onClick={handleGoToCheckout}
+                >
+                  {user ? "결제하기" : "로그인하고 결제하기"}
+                </button>
+                <div className="cart-page-free-shipping">
+                  <span>
+                    <i style={{ width: `${freeShippingProgress}%` }} />
+                  </span>
+                  <p>{freeShippingMessage}</p>
+                </div>
+              </aside>
+            </div>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
+
+export default CartPage;

@@ -1,0 +1,3 @@
+product_id,brand,name,category,skin_type_tags,thumbnail_url,image_urls,functional_review_text,functional_cosmetic_status,functional_cosmetic_claims,functional_claim_confidence,functional_claim_basis
+prod_001,라운드랩,자작나무 수분 크림,cream,"건성;중성;수부지",https://example.com/images/prod_001_thumb.jpg,"https://example.com/images/prod_001_1.jpg;https://example.com/images/prod_001_2.jpg",해당사항 없음,NOT_FUNCTIONAL,,not_applicable,제공고시에 기능성 화장품 해당사항 없음으로 표시됨
+prod_002,아누아,어성초 진정 세럼,serum,"지성;복합성;민감",https://example.com/images/prod_002_thumb.jpg,"https://example.com/images/prod_002_1.jpg;https://example.com/images/prod_002_2.jpg",화장품법에 따른 기능성 화장품 심사(또는 보고)를 필함,FUNCTIONAL_CONFIRMED,,unknown,기능성 심사/보고 문구는 있으나 기능성 종류를 특정할 근거가 부족함

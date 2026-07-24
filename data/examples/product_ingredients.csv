@@ -1,0 +1,6 @@
+product_id,ingredient_id,ingredient_name,content_confidence,display_order,concentration_text,concentration_value,concentration_unit,concentration_confidence,normalized_concentration_value,normalized_concentration_unit
+prod_001,ing_panthenol,판테놀,high,1,,,,unknown,,
+prod_001,ing_glycerin,글리세린,medium,2,,,,unknown,,
+prod_001,ing_ceramide_np,세라마이드엔피,medium,3,,,,unknown,,
+prod_002,ing_heartleaf,어성초추출물,high,1,,,,unknown,,
+prod_002,ing_niacinamide,나이아신아마이드,medium,2,나이아신아마이드 5%,5,%,high,5,%

@@ -1,0 +1,40 @@
+candidate_group,proposed_canonical_id,name_ko,name_en,priority,split_policy,observed_count_note,source_ingredient_ids,notes
+토코페롤/비타민E,tocopherol,토코페롤,Tocopherol,core,separate,481 products / 485 rows,ing_pending_c868df5fca6e,Vitamin E core candidate
+토코페롤/비타민E,tocopheryl_acetate,토코페릴아세테이트,Tocopheryl Acetate,core,separate,94 products / 94 rows,ing_pending_377b4dfa71b4,Tocopherol derivative; decide scoring separately from tocopherol
+토코페롤/비타민E,tocopheryl_glucoside,토코페릴글루코사이드,Tocopheryl Glucoside,review,hold_low_frequency,2 products / 2 rows,ing_pending_9f1312eb9265,Low frequency derivative
+센텔라 활성 3종,asiaticoside,아시아티코사이드,Asiaticoside,core,separate,1602 products / 1608 normalized-exact source rows,ing_pending_35006ed60aa6;ing_pending_e81d4e5d2311;ing_pending_33c182c05f59;ing_pending_97d99791ed02,Do not merge into centella_asiatica; exact labels plus spacing/case/empty-parenthesis variants only
+센텔라 활성 3종,madecassic_acid,마데카식애씨드,Madecassic Acid,core,separate,120 products / 120 rows,ing_pending_10d6c77df0e3,Do not merge into madecassoside or centella_asiatica automatically
+센텔라 활성 3종,asiatic_acid,아시아틱애씨드,Asiatic Acid,core,separate,120 products / 120 rows,ing_pending_0e1ae9322504,Do not merge into centella_asiatica automatically
+콜라겐 계열,collagen,콜라겐 계열,Collagen,core,family_candidate,221 products / 225 rows,ing_pending_11e567a5ff52;ing_pending_04d5b452c1bb;ing_pending_380c27f10ec6;ing_pending_dec3d0d3f32c;ing_pending_8f415c36392e,Score conservatively for surface moisturizing/conditioning only
+베타-글루칸,beta_glucan,베타-글루칸,Beta-Glucan,core,family_candidate,206 products / 207 rows,ing_pending_7494c935a2e9;ing_pending_45d2fbd598af;ing_pending_4133ebbbf09e,Strong B candidate
+베타-글루칸,sodium_carboxymethyl_beta_glucan,소듐카복시메틸베타-글루칸,Sodium Carboxymethyl Beta-Glucan,review,hold_low_frequency,2 products / 3 rows,ing_pending_243b01c0fec0,Derivative; review before aliasing to beta_glucan family
+감초 활성염,dipotassium_glycyrrhizate,다이포타슘글리시리제이트,Dipotassium Glycyrrhizate,core,separate,169 products / 169 rows,ing_pending_76b0eea43494;ing_pending_359c5cbb7033,Do not merge into licorice_extract automatically
+감초 활성염,glycyrrhizic_acid,글리시리직애씨드,Glycyrrhizic Acid,review,separate_or_family_review,3 products / 3 rows,ing_pending_3a3079e161f0,Low frequency licorice active
+감초 활성염,ammonium_glycyrrhizate,암모늄글리시리제이트,Ammonium Glycyrrhizate,review,separate_or_family_review,2 products / 2 rows,ing_pending_5c1ab0754347,Low frequency licorice active salt
+감초 단일 활성,glabridin,글라브리딘,Glabridin,core,separate,10 products / 10 normalized-exact rows,ing_pending_bb8eb932c3a5;ing_pending_55ec79293ee3,Do not merge into licorice_extract; exact labels plus spacing/case variants only
+비타민C 유도체,sodium_ascorbyl_phosphate,소듐아스코빌포스페이트,Sodium Ascorbyl Phosphate,core,separate,55 products / 55 rows,ing_pending_ec6da355243d;ing_pending_814933332576,Do not merge into ascorbic_acid
+비타민C 유도체,ethyl_ascorbic_acid,3-O-에틸아스코빅애씨드,3-O-Ethyl Ascorbic Acid,core,separate,51+ products / 51+ rows,ing_pending_dc4a7ec43c6c;ing_pending_715b46cc1f00;ing_pending_798b56a035c0;ing_pending_8bec5c130588,Unify Korean spelling variants after review
+비타민C 유도체,ascorbyl_glucoside,아스코빌글루코사이드,Ascorbyl Glucoside,core,separate,34+ products / 34+ rows,ing_pending_46f9055cd877;ing_pending_1e31e12b42ce,Do not merge into ascorbic_acid
+비타민C 유도체,magnesium_ascorbyl_phosphate,마그네슘아스코빌포스페이트,Magnesium Ascorbyl Phosphate,core,separate,11 products / 11 rows,ing_pending_a3eb5fab4bd4,Do not merge into ascorbic_acid
+비타민C 유도체,ascorbyl_palmitate,아스코빌팔미테이트,Ascorbyl Palmitate,review,separate,13 products / 13 rows,ing_pending_2abf71b3b4c3,Oil-soluble derivative; efficacy axis may differ
+비타민C 유도체,ascorbyl_tetraisopalmitate,아스코빌테트라이소팔미테이트,Ascorbyl Tetraisopalmitate,review,separate,9 products / 9 rows,ing_pending_32ea9c187d66,Oil-soluble derivative; review separately
+피토스핑고신/스핑고신,phytosphingosine,피토스핑고신,Phytosphingosine,core,separate,86 products / 86 rows,ing_pending_bdd5cbb12d73,Do not merge into ceramides automatically
+피토스핑고신/스핑고신,sphingosine_derivatives,스핑고신 유도체,Sphingosine Derivatives,review,hold_low_frequency,8 products / 8 rows,ing_pending_f455c71ab3ac;ing_pending_c4bd7481272b;ing_pending_98d4f273ddd6;ing_pending_2cb23451f469;ing_pending_23a12f863226,Low frequency mixed derivatives
+글루타티온,glutathione,글루타티온,Glutathione,core,separate,79 products / 79 rows,ing_pending_8b7db27df17c,Core whitening/antioxidant candidate
+글루타티온,oxidized_glutathione,옥시다이즈드글루타티온,Oxidized Glutathione,review,hold_low_frequency,1 product / 1 row,ing_pending_3aab52c595cf,Low frequency form
+약모밀/어성초,houttuynia_cordata_extract,약모밀추출물,Houttuynia Cordata Extract,core,family_candidate,55 products / 55 rows,ing_pending_7e1542d1e080;ing_pending_748047733bd4;ing_pending_44e097eed6ef,Extract family candidate
+약모밀/어성초,houttuynia_cordata_water,약모밀수,Houttuynia Cordata Water,review,separate_or_family_review,7 products / 7 rows,ing_pending_e11efd7e558d;ing_pending_2ae9e18a2f14,Water form may not equal extract
+약모밀/어성초,houttuynia_cordata_exosome,약모밀소포,Houttuynia Cordata Exosome,review,hold,5 products / 5 rows,ing_pending_8fc558733e4e,Exosome form requires policy decision
+BHA 유도체,capryloyl_salicylic_acid,카프릴로일살리실릭애씨드,Capryloyl Salicylic Acid,core,separate,52 products / 52 rows,ing_pending_0e2b041409e0,Do not merge into salicylic_acid_bha
+BHA 유도체,betaine_salicylate,베타인살리실레이트,Betaine Salicylate,core,separate,8 products / 8 rows,ing_pending_0036a4c14fd7,Do not merge into salicylic_acid_bha
+BHA 유도체,benzyl_salicylate,벤질살리실레이트,Benzyl Salicylate,hold,not_bha_exfoliant,17 products / 17 rows,ing_pending_873e728b86c2,Fragrance allergen-style salicylate; not an exfoliant BHA candidate
+PHA 단일 성분,gluconolactone,글루코노락톤,Gluconolactone,core,separate,818 products / 819 normalized-exact rows,pha;ing_pending_5b50fe940d19;ing_pending_a9820c0a0b40,Move exact labels out of broad pha; keep generic PHA labels on pha
+PHA 단일 성분,lactobionic_acid,락토바이오닉애씨드,Lactobionic Acid,core,separate,78 products / 78 normalized-exact rows,pha;ing_pending_127a44cfe4a0,Move exact labels out of broad pha; keep generic PHA labels on pha
+소듐PCA/NMF,sodium_pca,소듐PCA,Sodium PCA,core,separate,41 products / 41 rows,ing_pending_ecc0a7de773c,Do not merge into zinc_pca
+아연염,zinc_sulfate,징크설페이트,Zinc Sulfate,core,separate,154 products / 154 normalized-exact rows,ing_pending_3eb1631fe132;ing_pending_d4919509205b,Do not merge into zinc_pca; exact labels plus spacing/case variants only
+카페인,caffeine,카페인,Caffeine,core,separate,53 products / 53 rows,ing_pending_13aca48e3dea;ing_pending_27e669a40768,Core candidate
+다이메티콘올,dimethiconol,다이메티콘올,Dimethiconol,core,separate,45 products / 45 rows,ing_pending_d3eda56bd42b,Do not merge into dimethicone automatically
+레티노이드 유도체,hydroxypinacolone_retinoate,하이드록시피나콜론레티노에이트,Hydroxypinacolone Retinoate,core,separate,12 products / 12 rows,ing_pending_f96ad6535c76,Do not merge into retinol
+레티노이드 유도체,retinyl_palmitate,레티닐팔미테이트,Retinyl Palmitate,core,separate,12 products / 12 rows,ing_pending_0c2c5f096a50,Do not merge into retinol
+레티노이드 유도체,retinyl_propionate,레티닐프로피오네이트,Retinyl Propionate,review,hold_low_frequency,1 product / 1 row,ing_pending_417e03f06700,Low frequency retinyl ester
+알파-알부틴,alpha_arbutin,알파-알부틴,Alpha-Arbutin,core,separate,19 products / 19 rows,ing_pending_53824849c9ba,Do not merge into arbutin without score review

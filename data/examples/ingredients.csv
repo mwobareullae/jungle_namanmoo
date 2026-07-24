@@ -1,0 +1,7 @@
+ingredient_id,name_ko,name_en,description,source_url
+ing_panthenol,판테놀,Panthenol,피부 진정과 보습에 도움을 줄 수 있는 성분,https://example.com/ingredients/panthenol
+ing_glycerin,글리세린,Glycerin,수분을 끌어당겨 보습을 돕는 대표 보습 성분,https://example.com/ingredients/glycerin
+ing_ceramide_np,세라마이드엔피,Ceramide NP,피부 장벽 보조에 활용되는 지질 성분,https://example.com/ingredients/ceramide-np
+ing_heartleaf,어성초추출물,Houttuynia Cordata Extract,민감 피부 진정 컨셉에 자주 쓰이는 식물 추출물,https://example.com/ingredients/heartleaf
+ing_niacinamide,나이아신아마이드,Niacinamide,피부결과 피지 고민에 활용되는 성분,https://example.com/ingredients/niacinamide
+ing_fragrance,향료,Fragrance,향을 내기 위해 쓰이며 민감 피부는 주의가 필요한 성분,https://example.com/ingredients/fragrance

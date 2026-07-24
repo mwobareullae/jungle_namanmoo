@@ -37,3 +37,35 @@ target/
 docker-data/
 tmp/
 temp/
+data/batch_runs/
+data/dev-small/
+data/dev-recommendable/
+data/generated-subsets/
+apps/frontend/public/image-assets/
+
+# Local-only personal agent instructions
+AGENTS.local.md
+AGENTS.*.md
+AGENTS.md
+apps/backend/.local/agent-traces/
+
+# Local implementation planning notes
+docs/skin-test-ui-milestones.local.md
+docs/skin-test-backend-handoff.local.md
+apps/frontend/docs/
+docs/admin
+
+# Performance test local config and outputs
+scripts/perf/config.env
+scripts/perf/config.benchmark.env
+scripts/perf/config.benchmark.local.env
+scripts/perf/results/
+perf-runs/*
+!perf-runs/README.md
+
+# Generated evidence-discovery reports
+artifacts/evidence-discovery/
+
+# Local Agent model-evaluation outputs. Fixtures and instructions under
+# docs/agent-evals remain tracked; raw traces stay under apps/backend/.local.
+docs/agent-evals/results/

@@ -1,0 +1,73 @@
+ingredient_id,effect_id,unit,meaningful_min,optimal_min,optimal_max,excessive_min,range_confidence,source_type,source_url,note
+niacinamide,effect_brightening,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_moisture_barrier,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_acne_sebum,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_wrinkle,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+niacinamide,effect_calming,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%
+salicylic_acid_bha,effect_acne_sebum,%,0.5,0.5,0.5,,high,unknown,,source_confidence=high; 여드름0.5%(세정용고시)·세정제≤2%·두발용≤3%·leave-on 활성금지
+salicylic_acid_bha,effect_exfoliation,%,0.5,0.5,0.5,,high,unknown,,source_confidence=high; 여드름0.5%(세정용고시)·세정제≤2%·두발용≤3%·leave-on 활성금지
+aha,effect_exfoliation,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+aha,effect_wrinkle,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+aha,effect_moisture_barrier,%,5,5,10,,medium,unknown,,source_confidence=med; 글라이콜릭·락틱 5~10%(통상) · 국내 배합한도 없음(>10%/pH<3.5시 주의표기) · 고시 아님
+pha,effect_exfoliation,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_moisture_barrier,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_wrinkle,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+pha,effect_calming,%,4,4,10,,medium,unknown,,source_confidence=med; 글루코노락톤·락토비오닉 4~10% · 국내 배합한도/고시 없음 · 광민감 없음
+zinc_pca,effect_acne_sebum,%,0.1,0.1,1,,medium,unknown,,source_confidence=med; 0.1~1%(통상) · 고시 아님
+zinc_pca,effect_moisture_barrier,%,0.1,0.1,1,,medium,unknown,,source_confidence=med; 0.1~1%(통상) · 고시 아님
+glycerin,effect_moisture_barrier,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+glycerin,effect_calming,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+glycerin,effect_exfoliation,%,2,2,20,,high,unknown,,source_confidence=high; 2~20%(통상 3~10%) · 고시/배합한도 없음
+panthenol,effect_moisture_barrier,%,1,1,5,,high,unknown,,source_confidence=high; 1~5%(통상) · 피부효능 고시 아님(탈모 덱스판테놀은 별건)
+panthenol,effect_calming,%,1,1,5,,high,unknown,,source_confidence=high; 1~5%(통상) · 피부효능 고시 아님(탈모 덱스판테놀은 별건)
+ceramides,effect_moisture_barrier,%,0.1,0.1,1,,high,unknown,,"source_confidence=high; 0.1~1%(통상 <0.5%, 콜레스테롤·지방산 비율 중요) · 장벽 기능성 카테고리 존재(심사기반, 고시 함량 없음) · NP/AP/EOP/NS/AS/NG"
+ceramides,effect_calming,%,0.1,0.1,1,,high,unknown,,"source_confidence=high; 0.1~1%(통상 <0.5%, 콜레스테롤·지방산 비율 중요) · 장벽 기능성 카테고리 존재(심사기반, 고시 함량 없음) · NP/AP/EOP/NS/AS/NG"
+cholesterol_fatty_acids,effect_moisture_barrier,%,0.5,0.5,3,,medium,unknown,,"source_confidence=med-high; 콜레스테롤 ~0.5~3%, 지방산 가변 · 생리지질 복합(총 >5%)에서 효능 · 고시 없음"
+cholesterol_fatty_acids,effect_calming,%,0.5,0.5,3,,medium,unknown,,"source_confidence=med-high; 콜레스테롤 ~0.5~3%, 지방산 가변 · 생리지질 복합(총 >5%)에서 효능 · 고시 없음"
+hyaluronic_acid,effect_moisture_barrier,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+hyaluronic_acid,effect_wrinkle,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+hyaluronic_acid,effect_calming,%,0.1,0.1,2,,high,unknown,,"source_confidence=high; 0.1~2%(통상 0.1~1%, 점도) · 분자량별 거동(고분자=표면막/저분자=침투) · 고시 없음"
+squalane,effect_moisture_barrier,%,100,100,100,,medium,unknown,,source_confidence=med-high; 가변(단독 오일 100%~배합 수%) · 경량 폐색 에몰리언트 · 고시 없음
+dimethicone,effect_moisture_barrier,%,1,1,30,,high,unknown,,source_confidence=high; 1~30%(FDA 피부보호제) · 통기성 실리콘 폐색·포뮬러 의존 · 한국 고시 없음
+dimethicone,effect_calming,%,1,1,30,,high,unknown,,source_confidence=high; 1~30%(FDA 피부보호제) · 통기성 실리콘 폐색·포뮬러 의존 · 한국 고시 없음
+petrolatum_mineral_oil,effect_moisture_barrier,%,100,100,100,,high,unknown,,source_confidence=high; 가변(순수 100%~배합) · FDA 피부보호제 · 고형=강폐색/액상·미네랄오일=경량 · 한국 고시 없음
+petrolatum_mineral_oil,effect_calming,%,100,100,100,,high,unknown,,source_confidence=high; 가변(순수 100%~배합) · FDA 피부보호제 · 고형=강폐색/액상·미네랄오일=경량 · 한국 고시 없음
+urea,effect_moisture_barrier,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+urea,effect_exfoliation,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+urea,effect_calming,%,10,10,10,,high,unknown,,source_confidence=high; 저농도 2-10%(보습)/중농도 15-30%(AD·건선·어린선)/고농도 30-50%(과각질·조갑 keratolytic) — 농도가 효능 결정 · 고시 없음
+centella_asiatica,effect_calming,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+centella_asiatica,effect_wrinkle,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+centella_asiatica,effect_moisture_barrier,unknown,,,,,unknown,unknown,,source_confidence=high; 추출물 가변(표준화 TECA/asiaticoside·madecassoside 기준) · 고시 없음 · 전체 추출물(25 마데카소사이드는 분리 단일)
+madecassoside,effect_calming,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+madecassoside,effect_wrinkle,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+madecassoside,effect_moisture_barrier,%,0.1,0.1,1,,high,unknown,,source_confidence=high; 보통 0.1~1%(고순도 정제) · 고시 없음 · 센텔라의 분리 단일 triterpene
+tea_tree,effect_acne_sebum,%,5,5,5,,medium,unknown,,source_confidence=med-high; 여드름 임상 5% gel · 통상 ≤5%(정유 희석) · ISO 4730(terpinen-4-ol ≥30%/cineole ≤15%) · 고시 없음 · ★산화 시 자극/감작↑
+allantoin,effect_calming,%,0.5,0.5,2,,high,unknown,,source_confidence=high; 0.5~2%(FDA 피부보호제 21CFR347.10) · 통상 0.1~2%(용해도 한계) · 한국 고시 없음 · 매우 순함(비자극/비감작)
+allantoin,effect_moisture_barrier,%,0.5,0.5,2,,high,unknown,,source_confidence=high; 0.5~2%(FDA 피부보호제 21CFR347.10) · 통상 0.1~2%(용해도 한계) · 한국 고시 없음 · 매우 순함(비자극/비감작)
+colloidal_oatmeal,effect_calming,%,1,1,1,,high,unknown,,source_confidence=high; FDA 피부보호제 등재(2003 OTC 모노그래프) · AD 임상 1% 크림 · 한국 고시 없음 · 영유아 OK(매우 순함)
+colloidal_oatmeal,effect_moisture_barrier,%,1,1,1,,high,unknown,,source_confidence=high; FDA 피부보호제 등재(2003 OTC 모노그래프) · AD 임상 1% 크림 · 한국 고시 없음 · 영유아 OK(매우 순함)
+bisabolol,effect_brightening,%,0.1,0.1,1,,medium,unknown,,source_confidence=med-high; 통상 0.1~1%(흔히 0.2~0.5%) · 고시 없음 · 비자극/비광독성 · ★Asteraceae 교차 알레르기 주의
+green_tea,effect_acne_sebum,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+green_tea,effect_calming,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+green_tea,effect_wrinkle,%,1,1,5,,medium,unknown,,"source_confidence=med-high; 통상 1~5% 추출물(여드름 국소 임상 ~2%) · EGCG 함량 가변(정제도 의존) · 고시 없음 · ★EGCG 불안정(고온·고pH·산소·빛에 취약→갈변·역가저하, 제형 안정화 필수 — 안전 risk_flag 아닌 제형/QC 이슈)"
+retinol,effect_wrinkle,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_brightening,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_exfoliation,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinol,effect_acne_sebum,%,0.075,0.075,0.3,,high,unknown,,source_confidence=high; 0.075~0.3%
+retinal,effect_wrinkle,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+retinal,effect_exfoliation,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+retinal,effect_brightening,%,0.05,0.05,0.1,,high,unknown,,source_confidence=high; 0.05~0.1%
+adenosine,effect_wrinkle,%,0.04,0.04,0.04,,high,unknown,,source_confidence=high; 0.04%(고시)
+peptides,effect_wrinkle,unknown,,,,,unknown,unknown,,source_confidence=med; 성분별 상이
+ascorbic_acid,effect_brightening,%,10,10,20,,medium,unknown,,source_confidence=med; 순수10~20%/유도체2%
+ascorbic_acid,effect_wrinkle,%,10,10,20,,medium,unknown,,source_confidence=med; 순수10~20%/유도체2%
+arbutin,effect_brightening,%,2,2,5,,high,unknown,,source_confidence=high; 2~5%(고시)
+tranexamic_acid,effect_brightening,%,2,2,5,,medium,unknown,,source_confidence=med; 2~5%
+kojic_acid,effect_brightening,%,1,1,2,,medium,unknown,,source_confidence=med; 1~2%
+licorice_extract,effect_brightening,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
+licorice_extract,effect_calming,%,0.05,0.05,0.05,,high,unknown,,"source_confidence=high; 0.05%(유용성감초,고시)"
+phytosphingosine,effect_moisture_barrier,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
+phytosphingosine,effect_acne_sebum,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
+glutathione,effect_brightening,unknown,,,,,unknown,unknown,,B군 batch1; concentration range pending; neutral concentration adjustment
+beta_glucan,effect_moisture_barrier,unknown,,,,,unknown,unknown,,B군 followup; concentration range pending; neutral concentration adjustment
+dipotassium_glycyrrhizate,effect_calming,unknown,,,,,unknown,unknown,,B군 followup; concentration range pending; neutral concentration adjustment

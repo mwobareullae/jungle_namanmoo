@@ -1,0 +1,375 @@
+export type SkinType = "건성" | "지성" | "복합성" | "수부지" | "중성";
+
+export type Sensitivity = "낮음" | "보통" | "높음";
+
+export type SortOption = "score" | "price" | "risk";
+
+export type ContentConfidence = "high" | "medium" | "low" | "unknown";
+
+export type MatchedCategoryConstraint = {
+  category_code: string;
+  name: string;
+  matched_text: string;
+};
+
+export type MatchedBrandConstraint = {
+  brand_code: string;
+  name: string;
+  matched_text: string;
+};
+
+export type PurchaseConstraints = {
+  categories: MatchedCategoryConstraint[];
+  brands: MatchedBrandConstraint[];
+  price_min: number | null;
+  price_max: number | null;
+  price_text: string | null;
+  price_max_text: string | null;
+};
+
+export type RecommendationRequest = {
+  skin_type: SkinType;
+  sensitivity: Sensitivity;
+  avoid_ingredients: string[];
+  required_ingredient_names?: string[];
+  concern_text: string;
+};
+
+export type RecommendationProfile = {
+  skin: SkinType;
+  sensitivity: Sensitivity;
+  avoidIngredients: string[];
+};
+
+export type SearchMode = "ai" | "general";
+
+export type CatalogSearchSort = "relevance" | "popular" | "newest" | "price_asc" | "price_desc" | "rating";
+
+export type CatalogSearchFacet = {
+  count: number;
+  label: string;
+  value: string;
+};
+
+export type CatalogSearchItem = {
+  brand: string;
+  category_code: string;
+  category_name: string;
+  lowest_price: number | null;
+  name: string;
+  product_id: string;
+  rating: number | null;
+  review_count: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
+  thumbnail_url: string | null;
+};
+
+export type CatalogSearchResponse = {
+  facets: {
+    availability: CatalogSearchFacet[];
+    brands: CatalogSearchFacet[];
+    categories: CatalogSearchFacet[];
+    features: CatalogSearchFacet[];
+    price_ranges: CatalogSearchFacet[];
+    skin_types: CatalogSearchFacet[];
+  };
+  items: CatalogSearchItem[];
+  pagination: RecommendationPagination;
+  query: string;
+};
+
+export type CatalogSearchParams = {
+  brands?: string[];
+  categories?: string[];
+  features?: string[];
+  inStock?: boolean;
+  page?: number;
+  pageSize?: number;
+  query: string;
+  sort?: CatalogSearchSort;
+  skinTypes?: string[];
+};
+
+export type ScoreBreakdown = {
+  ingredient_effect_score: number;
+  ingredient_evidence_score: number;
+  functional_claim_score?: number;
+  concentration_fit_score: number;
+  concentration_bucket: string | null;
+  concentration_warning: string | null;
+  skin_type_match_score: number;
+  skin_profile_score?: number;
+  sensitivity_score?: number;
+  price_value_score: number;
+  keyword_score?: number;
+  vector_score?: number;
+  search_match_score?: number;
+  risk_penalty: number;
+  review_quality_score?: number;
+  review_quality_applied?: boolean;
+  review_quality_confidence?: number;
+  review_count?: number;
+  review_profile_affinity_score?: number;
+  review_profile_affinity_applied?: boolean;
+  review_profile_affinity_dimensions?: Record<string, number>;
+  review_profile_matched_segments?: ReviewProfileMatchedSegment[];
+  skin_test_context_score?: number;
+  skin_test_context_applied?: boolean;
+  skin_test_context_axes?: Record<string, number>;
+  skin_test_context_matched_axes?: string[];
+  skin_test_context_query_conflict_axes?: string[];
+  skin_test_context_manual_conflict_axes?: string[];
+  behavior_personalization_score?: number;
+  behavior_personalization_applied?: boolean;
+  behavior_personalization_sources?: string[];
+  behavior_personalization_source_scores?: Record<string, number>;
+  behavior_personalization_affinity_components?: Record<string, number>;
+  behavior_personalization_negative_guard_score?: number;
+  behavior_personalization_event_counts?: Record<string, number>;
+  market_signal_score?: number;
+  base_weights?: Record<string, number>;
+  adjusted_weights?: Record<string, number>;
+  applied_multipliers?: Record<string, number>;
+  risk_flag_count?: number;
+  risk_warnings?: string[];
+  risk_policy?: string | null;
+};
+
+export type ReviewProfileMatchedSegment = {
+  dimension: string;
+  value_code: string;
+  strength: number;
+  segment_score: number;
+  applied_score: number;
+  effective_sample_size: number;
+  review_count: number;
+  eligible: boolean;
+  sources: string[];
+};
+
+export type ProductCardItem = {
+  product_id: string;
+  rank: number;
+  total_score: number;
+  reason_summary: string;
+  brand: string;
+  name: string;
+  thumbnail_url: string | null;
+  lowest_price: number | null;
+  evidence_tags: string[];
+  key_ingredients: string[];
+  risk_flags: string[];
+  risk_flag_count?: number;
+  sales_status?: string;
+  stock_status?: string;
+  available_quantity?: number | null;
+  in_stock?: boolean;
+  score_breakdown?: ScoreBreakdown;
+};
+
+export type HomeSectionProduct = {
+  product_id: string;
+  brand: string;
+  name: string;
+  category_code: string;
+  category_name: string;
+  thumbnail_url: string | null;
+  lowest_price: number | null;
+  original_price: number | null;
+  discount_rate: number | null;
+  purchase_url: string | null;
+  badges: string[];
+  tags: string[];
+  reason_summary: string;
+  display_score: number;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+  in_stock: boolean;
+};
+
+export type HomeSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  algorithm: string;
+  category_code: string | null;
+  limit: number;
+  products: HomeSectionProduct[];
+  skin_type: string | null;
+  sensitivity: string | null;
+  personalization_sources: string[];
+};
+
+export type HomeLayoutSection = {
+  section_id: string;
+  title: string;
+  subtitle: string;
+  section_type: string;
+  endpoint: string;
+  lazy_load: boolean;
+};
+
+export type HomeLayoutResponse = {
+  sections: HomeLayoutSection[];
+};
+
+export type RecommendationSummary = {
+  concern_text: string;
+  skin_type: string;
+  sensitivity: string;
+  avoid_ingredients: string[];
+  concerns: string[];
+  effects: string[];
+  matched_concerns?: string[];
+  expected_effects?: string[];
+  purchase_constraints: PurchaseConstraints;
+};
+
+export type RecommendationResponse = {
+  recommendation_id: string;
+  summary: RecommendationSummary;
+  unmatched_terms: string[];
+  products: ProductCardItem[];
+  pagination: RecommendationPagination;
+};
+
+export type RecommendationRefinementFilters = {
+  min_price?: number;
+  max_price?: number;
+  category_code?: string;
+  skin_type?: string;
+  sensitivity?: string;
+  effect_keywords?: string[];
+  required_ingredient_names?: string[];
+};
+
+export type RecommendationNarrativeRequest = {
+  mode?: string;
+  view?: "cards" | "detail" | "full";
+  product_id?: string;
+  product_limit?: number;
+  use_llm?: boolean;
+};
+
+export type RecommendationNarrativeOverview = {
+  headline: string;
+  summary: string;
+  key_points: string[];
+};
+
+export type RecommendationNarrativeCard = {
+  headline: string;
+  reason: string;
+  chips: string[];
+};
+
+export type RecommendationNarrativeDetailSection = {
+  title: string;
+  body: string;
+};
+
+export type RecommendationNarrativeProduct = {
+  product_id: string;
+  rank: number;
+  role: string;
+  card: RecommendationNarrativeCard;
+  detail_sections: RecommendationNarrativeDetailSection[];
+  caution: string | null;
+};
+
+export type RecommendationNarrativeResponse = {
+  recommendation_id: string;
+  narrative: {
+    generation_source: string;
+    fallback_reason: string | null;
+    overview: RecommendationNarrativeOverview;
+    product_explanations: RecommendationNarrativeProduct[];
+    selection_guide: string | null;
+  };
+};
+
+export type RecommendationPagination = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+export type IngredientEvidence = {
+  ingredient_name: string;
+  effect_name: string;
+  evidence_level?: "high" | "medium" | "low" | null;
+  evidence_text: string;
+  source_title: string | null;
+};
+
+export type ProductPrice = {
+  mall_name: string;
+  price: number;
+  product_url: string;
+  is_lowest: boolean;
+};
+
+export type ProductSource = {
+  title: string;
+  url: string;
+  source_type: string;
+};
+
+export type ProductIngredient = {
+  name: string;
+  purpose: string;
+  risk_note: string | null;
+};
+
+export type ProductPurchaseInfo = {
+  seller_code: string;
+  seller_name: string;
+  seller_type: string;
+  price: number | null;
+  currency: string | null;
+  purchase_url: string | null;
+  can_purchase: boolean;
+  sales_status: string;
+  stock_status: string;
+  available_quantity: number | null;
+};
+
+export type ProductReviewSummary = {
+  review_count: number;
+  average_rating: number | null;
+  rating_distribution: Record<string, number>;
+  general_review_count: number;
+  month_use_review_count: number;
+  repurchase_known_count: number;
+  repurchase_review_count: number;
+  repurchase_rate: number | null;
+  profile_labeled_review_count: number;
+  last_reviewed_at: string | null;
+};
+
+export type ProductDetail = ProductCardItem & {
+  image_urls: string[];
+  content_confidence: ContentConfidence;
+  related_ingredients: string[];
+  ingredients: ProductIngredient[];
+  purchase_url: string | null;
+  purchase_info?: ProductPurchaseInfo;
+  review_summary?: ProductReviewSummary;
+  evidence: IngredientEvidence[];
+  prices: ProductPrice[];
+  sources: ProductSource[];
+};
+
+export type ApiError = {
+  code?: string;
+  status: number;
+  message: string;
+};
