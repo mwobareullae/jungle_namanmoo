@@ -66,7 +66,7 @@ def get_kcia_alias_exact_bulk_preview(session: Session) -> IngredientMappingBulk
         text(
             f"""
             select g.pending_code, g.normalized_source_name, g.raw_name,
-                   g.product_count, g.connection_count,
+                   g.connection_count,
                    target.ingredient_code as target_ingredient_code,
                    target.name_ko as target_ingredient_name,
                    a.source as alias_source, target.source_url as canonical_source_url
@@ -86,7 +86,7 @@ def get_kcia_alias_exact_bulk_preview(session: Session) -> IngredientMappingBulk
                 pending_code=row.pending_code,
                 normalized_source_name=row.normalized_source_name,
                 raw_name=row.raw_name,
-                product_count=int(row.product_count),
+                product_count=int(row.connection_count),
                 connection_count=int(row.connection_count),
                 target_ingredient_code=row.target_ingredient_code,
                 target_ingredient_name=row.target_ingredient_name,

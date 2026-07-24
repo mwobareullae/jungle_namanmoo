@@ -219,6 +219,25 @@ Seed는 상품-성분 적재 시 먼저 `(source_ingredient_id, source_ingredien
 
 이 파일은 검수 완료 매핑만 담는 append-oriented 정본입니다. 기존 매핑을 제거하거나 대상을 바꿀 때는 과거 canonical 연결 정리가 필요하므로 별도 데이터 정리와 검증을 수행해야 합니다.
 
+### 운영 관리자 미판정 성분 CSV
+
+`GET /api/admin/ingredient-mappings/csv-export`로 내려받는 CSV는 레포 seed 파일이 아니라 운영 DB 현재 상태의 일회성 검수 파일입니다. 로컬 `data/ingredient_canonical_mappings.csv`를 수정해 운영 DB에 직접 반영한 것으로 간주하지 않습니다.
+
+대량 초기 정리처럼 재현성과 코드 리뷰가 필요한 일회성 작업은 운영 export를 입력으로 만든 적용용 CSV를 `data/reconciliation/`에 커밋할 수 있습니다. 적용용 CSV는 seed 정본이 아니며, 생성·정규화 코드와 함께 보관하고 관리자 dry-run을 통과한 뒤에만 운영 DB에 적용합니다. 상시 운영에서는 계속 `csv-export`로 최신 상태를 내려받아 처리합니다.
+
+2026-07-23 스냅샷 `data/reconciliation/ingredient_mapping_ready_20260723.csv`는 운영 미판정 70,442그룹 중 판단 불가 20그룹을 제외한 70,422그룹을 담습니다. 생성 규칙은 `data/scripts/generate_production_ingredient_mapping_csv.py`가 정본이며, 같은 pending code로 생성되는 신규 canonical은 항상 같은 코드와 표시명을 사용해야 합니다. 기존 canonical 연결은 같은 시점 운영 추천 스냅샷에서 확인된 133그룹만 허용하고, 로컬 seed의 이름·별칭으로 추정하지 않습니다. 운영 export의 `normalized_source_name`은 식별자이므로 복구·정규화 없이 그대로 보존합니다.
+
+- 식별 계약: `(pending_code, normalized_source_name)`
+- 동시성 확인: `expected_connection_count`
+- 기존 canonical 연결: `action=MAP_EXISTING`
+- 복합 원료 등 신규 canonical 생성: `action=CREATE_AND_MAP`, `target_name_ko`와 `source_reference` 필수
+- 적용 계약: dry-run이 반환한 digest와 같은 행만 1,000건 단위로 적용
+- 실제 변경: 판정 이력과 `product_ingredients` 연결 이동을 같은 트랜잭션에서 처리
+- 중복 처리: 같은 상품에 target canonical 연결이 이미 있으면 pending 연결을 삭제해 `(product_id, ingredient_id)` 유일성을 유지
+- 후속 처리: 마지막 배치 뒤 pending materialized view 갱신, 고객 검색 반영 전 Elasticsearch catalog 재색인
+
+상세 API와 CSV 컬럼 계약은 `docs/api/admin-ingredient-mapping-csv-import-contract.md`를 따릅니다.
+
 ### canonicalization 80% 배치 산출물
 
 - `data/reconciliation/ingredient_canonicalization_top4000_80pct.csv`는 기존 exact/wildcard 매핑을 적용한 뒤에도 남는 pending source ID를 상품행 빈도순으로 정리한 검수 인벤토리입니다.

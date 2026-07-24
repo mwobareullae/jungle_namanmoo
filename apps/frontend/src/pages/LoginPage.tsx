@@ -12,6 +12,7 @@ import { consumeSessionExpiredFlag } from "../contexts/AuthContext";
 import { useAuth } from "../contexts/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { mergeCart } from "../lib/cartApi";
+import { getPostLoginRedirectPath } from "../lib/postLoginRedirect";
 import { markSkinTestPromptPending } from "../lib/skinTestPrompt";
 import { useActivityToast } from "../hooks/useActivityToast";
 
@@ -73,14 +74,6 @@ const getRedirectPath = (from?: string) => {
   }
 
   return from;
-};
-
-const getPostLoginRedirectPath = (redirectPath: string) => {
-  if (redirectPath.startsWith("/checkout")) {
-    return "/cart";
-  }
-
-  return redirectPath;
 };
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
@@ -153,15 +146,17 @@ function LoginPage() {
 
   const completeLogin = useCallback(
     async (response: Response, fallbackUser?: AuthUser) => {
+      let authenticatedUser = fallbackUser;
       if (fallbackUser) {
         flushSync(() => setAuthenticatedUser(fallbackUser));
       }
 
       const data = (await response.json().catch(() => null)) as LoginResponse | null;
       if (data?.user) {
+        authenticatedUser = data.user;
         flushSync(() => setAuthenticatedUser(data.user!));
       } else {
-        await refreshAuthenticatedUser().catch(() => null);
+        authenticatedUser = (await refreshAuthenticatedUser().catch(() => null)) ?? authenticatedUser;
       }
 
       await mergeCart()
@@ -170,7 +165,7 @@ function LoginPage() {
 
       clearToast();
       markSkinTestPromptPending();
-      navigate(getPostLoginRedirectPath(redirectPath), { replace: true });
+      navigate(getPostLoginRedirectPath(redirectPath, authenticatedUser?.role), { replace: true });
     },
     [clearToast, navigate, redirectPath, refreshAuthenticatedUser, setAuthenticatedUser]
   );

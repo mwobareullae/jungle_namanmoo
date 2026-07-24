@@ -34,10 +34,13 @@ export function SearchableSelect({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 부모가 value 를 바꾸면(예: 다른 상품 불러오기, 입력값 되돌리기) 표시 텍스트도 맞춘다.
+  // options 도 의존성에 포함해야 한다 — 상세 데이터가 코드값을 먼저 채우고 옵션 목록이
+  // 뒤늦게 로드되는 경우(예: 상품 수정 진입 직후) options 만 바뀌어도 이름을 다시 찾아야
+  // 표시 텍스트가 빈 값으로 고정되지 않는다.
   useEffect(() => {
     void Promise.resolve().then(() => setInputValue(selectedOption?.name ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, options]);
 
   const filtered =
     inputValue.trim() && inputValue !== selectedOption?.name
