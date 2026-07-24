@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 from app.db.models.auth import User
 from app.db.models.catalog import Brand, Product, ProductCategory, ProductIngredient, ProductPrice, ProductSkinProfile
 from app.db.models.commerce import Inventory, ProductPopularityMetric
-from app.db.models.recommendation import ProductRecommendationCoarseFeature
+from app.db.models.recommendation import (
+    HomeEvidencePickFeature,
+    ProductRecommendationCoarseFeature,
+)
 from app.db.models.taxonomy import Effect, Ingredient, IngredientEffect, IngredientEvidence
 from app.schemas.home import (
     HomeLayoutResponse,
@@ -37,6 +40,8 @@ MAX_HOME_LIMIT_PER_SECTION = 20
 MAX_HOME_LOOKUP_IDS = 10_000
 HOME_EVIDENCE_SHORTLIST_LIMIT = 50
 HOME_FOR_YOU_SHORTLIST_LIMIT = 200
+OLIVEYOUNG_AVAILABILITY_BONUS = 0.10
+MARKET_POPULARITY_WEIGHT = 0.10
 
 
 HOME_LAYOUT_SECTIONS = (
@@ -78,6 +83,7 @@ class _ProductBase:
     name: str
     thumbnail_url: str
     lowest_price: int
+    oliveyoung_available: bool
     sales_status: str
     stock_status: str
     available_quantity: int | None
@@ -161,7 +167,7 @@ def get_evidence_picks_response(
         snapshot_response = get_evidence_snapshot_response(session, limit=normalized_limit)
         if snapshot_response is not None:
             return snapshot_response
-    shortlist_product_ids = _load_home_coarse_shortlist_product_ids(
+    shortlist_product_ids = _load_evidence_pick_shortlist_product_ids(
         session,
         category_code=category_code,
         limit=HOME_EVIDENCE_SHORTLIST_LIMIT,
@@ -228,7 +234,7 @@ def get_for_you_response(
         )
         if snapshot_response is not None:
             return snapshot_response
-    shortlist_product_ids = _load_home_coarse_shortlist_product_ids(
+    shortlist_product_ids = _load_for_you_coarse_shortlist_product_ids(
         session,
         category_code=category_code,
         limit=HOME_FOR_YOU_SHORTLIST_LIMIT,
@@ -386,9 +392,12 @@ def _for_you_score(
         ]
     )
     if popularity_score is not None:
-        components.append((popularity_score, 0.06))
+        components.append((popularity_score, MARKET_POPULARITY_WEIGHT))
 
-    return _weighted_average(tuple(components))
+    base_score = _weighted_average(tuple(components))
+    if product.oliveyoung_available:
+        return min(1.0, base_score + OLIVEYOUNG_AVAILABILITY_BONUS)
+    return base_score
 
 
 def _manual_profile_fit_score(
@@ -608,7 +617,45 @@ def _section_to_response(
     )
 
 
-def _load_home_coarse_shortlist_product_ids(
+def _load_evidence_pick_shortlist_product_ids(
+    session: Session,
+    *,
+    category_code: str | None,
+    limit: int,
+) -> list[int] | None:
+    statement = (
+        select(
+            HomeEvidencePickFeature.product_id,
+            HomeEvidencePickFeature.max_evidence_score,
+            HomeEvidencePickFeature.max_effect_score,
+            HomeEvidencePickFeature.lowest_price,
+        )
+        .join(Product, Product.id == HomeEvidencePickFeature.product_id)
+        .join(ProductCategory, Product.category_id == ProductCategory.id)
+        .where(
+            Product.is_active.is_(True),
+            Product.is_recommendable.is_(True),
+            HomeEvidencePickFeature.source_current.is_(True),
+        )
+    )
+    if category_code:
+        statement = statement.where(ProductCategory.category_code == category_code)
+    rows = session.execute(statement).all()
+    if not rows:
+        return None
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -int(row.max_evidence_score or 0),
+            -int(row.max_effect_score or 0),
+            int(row.lowest_price or 0),
+            int(row.product_id),
+        ),
+    )
+    return [int(row.product_id) for row in ranked[:limit]]
+
+
+def _load_for_you_coarse_shortlist_product_ids(
     session: Session,
     *,
     category_code: str | None,
@@ -617,6 +664,7 @@ def _load_home_coarse_shortlist_product_ids(
     statement = (
         select(
             ProductRecommendationCoarseFeature.product_id,
+            ProductRecommendationCoarseFeature.home_shortlist_score,
             ProductRecommendationCoarseFeature.home_max_evidence_score,
             ProductRecommendationCoarseFeature.home_max_effect_score,
             ProductRecommendationCoarseFeature.home_lowest_price,
@@ -638,6 +686,7 @@ def _load_home_coarse_shortlist_product_ids(
     ranked = sorted(
         rows,
         key=lambda row: (
+            -int(row.home_shortlist_score or 0),
             -int(row.home_max_evidence_score or 0),
             -int(row.home_max_effect_score or 0),
             int(row.home_lowest_price or 0),
@@ -663,6 +712,7 @@ def _load_products(
             ProductCategory.name.label("category_name"),
             Product.product_name,
             lowest_price.label("lowest_price"),
+            ProductRecommendationCoarseFeature.home_oliveyoung_available,
             Inventory.id.label("inventory_id"),
             Inventory.stock_quantity,
             Inventory.reserved_quantity,
@@ -672,6 +722,10 @@ def _load_products(
         .join(Brand, Product.brand_id == Brand.id)
         .join(ProductCategory, Product.category_id == ProductCategory.id)
         .join(ProductPrice, ProductPrice.product_id == Product.id)
+        .outerjoin(
+            ProductRecommendationCoarseFeature,
+            ProductRecommendationCoarseFeature.product_id == Product.id,
+        )
         .outerjoin(Inventory, Inventory.product_id == Product.id)
         .where(
             Product.is_active.is_(True),
@@ -688,6 +742,7 @@ def _load_products(
             ProductCategory.category_code,
             ProductCategory.name,
             Product.product_name,
+            ProductRecommendationCoarseFeature.home_oliveyoung_available,
             Inventory.id,
             Inventory.stock_quantity,
             Inventory.reserved_quantity,
@@ -723,6 +778,7 @@ def _load_products(
             name=row.product_name,
             thumbnail_url=thumbnail_storage_keys.get(int(row.id), ""),
             lowest_price=int(row.lowest_price or 0),
+            oliveyoung_available=bool(row.home_oliveyoung_available),
             sales_status=availability.sales_status,
             stock_status=availability.stock_status,
             available_quantity=availability.available_quantity,
