@@ -53,7 +53,6 @@ const AGENT_SUGGESTION_PROMPTS = {
   recommendSensitiveDry: "민감하고 건조한 피부에 맞는 진정 보습 제품을 추천해줘",
   recentOrderStatus: "최근 주문 배송 상태 알려줘",
   cartSummary: "장바구니 상품과 총금액 보여줘",
-  refineBySkin: "추천 결과를 내 피부타입과 민감도 기준으로 다시 추려줘",
   serumUnderThirtyThousand: "3만원 이하 세럼만 보여줘",
   compareFirstTwo: "화면의 첫 번째와 두 번째 상품을 비교해줘",
   wishlistPopularNiacinamide: "최근 7일 인기 20위 안에서 나이아신아마이드가 들어간 상품을 모두 찜해줘",
@@ -70,7 +69,6 @@ const buildAgentQuickQuestions = (
 
   if (context === "searchResults") {
     return [
-      { label: AGENT_SUGGESTION_PROMPTS.refineBySkin, prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
       {
         label: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
         prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
@@ -138,7 +136,6 @@ const buildAgentMiniChatSuggestions = (
 ): AgentSuggestion[] => {
   if (context === "searchResults") {
     return [
-      { label: "피부 조건으로 다시 추려줘", prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
       { label: "3만원 이하 세럼만 보여줘", prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand },
     ];
   }
