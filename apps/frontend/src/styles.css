@@ -14511,7 +14511,7 @@ html[data-app-mode="community"] .search-results-shell {
   align-items: center;
   min-height: 46px;
   color: #263442;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 550;
   line-height: 1.35;
 }
@@ -14546,7 +14546,7 @@ html[data-app-mode="community"] .search-results-shell {
   border: 0;
   background: transparent;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   text-align: left;
 }
 

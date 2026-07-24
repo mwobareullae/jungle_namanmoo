@@ -154,33 +154,33 @@ const buildAgentMiniChatSuggestions = (
 ): AgentSuggestion[] => {
   if (context === "searchResults") {
     return [
-      { label: "피부 조건으로 다시 추리기", prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
-      { label: "3만원 이하 세럼만", prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand },
+      { label: "피부 조건으로 다시 추려줘", prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
+      { label: "3만원 이하 세럼만 보여줘", prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand },
     ];
   }
 
   if (context === "productDetail") {
     return [
-      { label: "비슷한 상품 2개", prompt: AGENT_SUGGESTION_PROMPTS.similarProducts },
-      { label: "이 상품 장바구니 담기", prompt: AGENT_SUGGESTION_PROMPTS.addCurrentProductToCart },
+      { label: "비슷한 상품 2개 보여줘", prompt: AGENT_SUGGESTION_PROMPTS.similarProducts },
+      { label: "이 상품 장바구니에 담아줘", prompt: AGENT_SUGGESTION_PROMPTS.addCurrentProductToCart },
     ];
   }
 
   if (context === "best") {
     return [
-      { label: "첫 두 상품 비교", prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
+      { label: "첫 두 상품 비교해줘", prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
       isAuthenticated
-        ? { label: "인기 성분 상품 찜", prompt: AGENT_SUGGESTION_PROMPTS.wishlistPopularNiacinamide }
-        : { label: "진정·보습 제품 추천", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
+        ? { label: "인기 성분 상품 찜해줘", prompt: AGENT_SUGGESTION_PROMPTS.wishlistPopularNiacinamide }
+        : { label: "진정·보습 제품 추천해줘", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
     ];
   }
 
   if (context === "home") {
     return [
-      { label: "진정·보습 제품 추천", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
+      { label: "진정·보습 제품 추천해줘", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
       isAuthenticated
-        ? { label: "최근 주문 배송 확인", prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus }
-        : { label: "장바구니 확인", prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
+        ? { label: "최근 주문 배송 확인해줘", prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus }
+        : { label: "장바구니 확인해줘", prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
     ];
   }
 
