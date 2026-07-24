@@ -868,49 +868,12 @@ function GlobalAgentEntry() {
         ? "empty"
         : "empty";
 
-  const path = location.pathname;
-  const quickQuestionContext = path.startsWith("/product-detail")
-    ? "productDetail"
-    : path.startsWith("/search")
-      ? "searchResults"
-    : path === "/cart"
-      ? "cart"
-      : path.startsWith("/checkout")
-        ? "checkout"
-        : path.startsWith("/payment-complete") || path.startsWith("/mypage/orders")
-          ? "order"
-          : path.startsWith("/mypage/skin-profile") || path.startsWith("/skin-test")
-            ? "skinProfile"
-            : path.startsWith("/mypage/wishlist")
-              ? "wishlist"
-              : path.startsWith("/mypage/recent")
-                ? "recent"
-                : path.startsWith("/login") || path.startsWith("/signup")
-                  ? "auth"
-                  : path === "/mypage" || path.startsWith("/mypage/")
-                    ? "mypage"
-                    : /search|category|products|brands/.test(path)
-                      ? "productList"
-                      : "home";
-  const agentSurface = path.startsWith("/product-detail")
-    ? "productDetail"
-    : path.startsWith("/search")
-      ? "context"
-    : /recommend|skin-test|recommendations/.test(path)
-      ? "context"
-      : /mypage|cart|checkout|login|signup|order/.test(path)
-        ? "minimal"
-        : "home";
-
   return (
     <AgentFloatingButton
       key={agentChatStorageScope}
-      isAuthenticated={Boolean(user)}
-      quickQuestionContext={quickQuestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       storageScope={agentChatStorageScope}
-      surface={agentSurface}
     />
   );
 }
