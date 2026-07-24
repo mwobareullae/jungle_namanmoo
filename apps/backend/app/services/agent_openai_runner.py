@@ -67,6 +67,7 @@ from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
 from app.services.agent_bulk_wishlist import (
     BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+    DEFAULT_BULK_WISHLIST_RANK,
     MAX_BULK_WISHLIST_RANK,
 )
 from app.services.agent_local_trace import AgentLocalTrace
@@ -192,12 +193,13 @@ _CLARIFICATION_MESSAGES = {
 }
 EXPLICIT_BULK_WISHLIST_INSTRUCTIONS = """
 Handle exactly one popular-rank based wishlist batch request. Call
-bulk_wishlist_by_popular_ingredient exactly once. Extract a rank_limit from 1 through
-50; one or more named ingredients; all/any ingredient semantics when stated; category;
-and min/max price when stated. Use window_days=7 unless the user states a different
-period. Do not silently shrink a requested rank. Do not call another tool, infer
-product IDs, or perform the write; the backend resolves current products and requires
-confirmation before any wishlist change.
+bulk_wishlist_by_popular_ingredient exactly once. Extract one or more named
+ingredients; all/any ingredient semantics when stated; category; and min/max price
+when stated. If the user omits a rank, use rank_limit=50. A stated rank must be from 1
+through 50; do not silently shrink a larger requested rank. Use window_days=7 unless
+the user states a different period. Do not call another tool, infer product IDs, or
+perform the write; the backend resolves current products and requires confirmation
+before any wishlist change.
 """
 
 
@@ -234,19 +236,9 @@ _AMBIGUOUS_BULK_REQUEST_PATTERN = re.compile(r"^\s*(?:상위\s*상품|인기\s*�
 _COMPLEX_MULTI_ACTION_PATTERN = re.compile(
     r"(?:인기|베스트|수부지|건성|지성|복합성|민감).{0,80}(?:\d+\s*개|상위\s*\d+).{0,40}(?:장바구니|찜|담아|넣어)"
 )
-_POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
-    r"(?:인기|베스트)"
-    r".{0,40}?"
-    r"(?:(?P<rank>\d+)\s*위\s*(?:이내|안|까지|내)?|상위\s*(?P<top>\d+)\s*(?:위|개)?)?"
-    r".{0,60}?"
-    r"(?P<ingredient>[가-힣A-Za-z0-9·ㆍ\-\s]{1,40})\s*성분"
-    r".{0,20}?(?:들어|포함)"
-    r".{0,40}?(?:찜|위시)",
-)
-
 _EXPLICIT_POPULAR_INGREDIENT_WISHLIST_PATTERN = re.compile(
-    r"(?=.*(?:인기|베스트|상위).{0,32}(?:\d+\s*위(?:\s*(?:안|이내))?|\d+\s*개))"
-    r"(?=.*(?:들어간|함유|포함).{0,48}(?:찜|위시리스트))",
+    r"(?=.*(?:인기|베스트|상위))"
+    r"(?=.*(?:성분|들어\s*(?:간|있는)|함유|포함).{0,80}(?:찜|위시리스트))",
     re.IGNORECASE,
 )
 
@@ -274,6 +266,7 @@ _AGENT_TOOL_ORDER: tuple[AgentToolName, ...] = (
 _PUBLIC_TOOL_NAMES = frozenset(
     tool_name for tool_name in _AGENT_TOOL_ORDER if not get_tool_policy(tool_name).requires_auth
 )
+_GLOBAL_AUTHENTICATED_TOOL_NAMES = frozenset({BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL})
 _PAGE_TOOL_ALLOWLISTS: dict[str, frozenset[AgentToolName]] = {
     "login": _PUBLIC_TOOL_NAMES,
     "skin_test": frozenset(
@@ -391,6 +384,10 @@ def _select_agent_tool_names(
     page_allowlist = _PAGE_TOOL_ALLOWLISTS.get(context.page or "")
     if page_allowlist is not None:
         allowed.intersection_update(page_allowlist)
+    if user is not None:
+        # The server resolves popularity candidates, so this action does not depend on
+        # page-visible products, cart state, or a recommendation result.
+        allowed.update(_GLOBAL_AUTHENTICATED_TOOL_NAMES)
 
     visible_reference_ids = set(context.visible_product_ids)
     visible_reference_ids.update(context.selected_product_ids)
@@ -838,6 +835,20 @@ async def run_openai_agent_chat(
     if workflow_timing is not None:
         workflow_timing.execution_mode = execution_mode
 
+    bulk_wishlist_preflight = _try_bulk_wishlist_preflight(
+        request,
+        user=user,
+        workflow_timing=workflow_timing,
+        local_trace=local_trace,
+        configured_model=(
+            settings.openai_agent_specialist_model
+            if execution_mode == "router_specialist"
+            else settings.openai_agent_model
+        ),
+    )
+    if bulk_wishlist_preflight is not None:
+        return bulk_wishlist_preflight
+
     single_model_override = model_override
     if single_model_override is None and execution_override is not None:
         single_model_override = (
@@ -955,21 +966,6 @@ async def _run_single_agent_chat(
             session,
             tool_name=REFINE_PRODUCT_RESULTS_TOOL,
             arguments=simple_refinement_arguments,
-            user=user,
-            conversation_id=request.conversation_id,
-            request_id=request_id,
-            session_id=session_id,
-            anonymous_user_id=anonymous_user_id,
-            anonymous_cart_id=anonymous_cart_id,
-            last_tool_result=request.last_tool_result,
-        )
-
-    deterministic_bulk_wishlist_arguments = _get_popular_ingredient_wishlist_arguments(request.message)
-    if deterministic_bulk_wishlist_arguments is not None:
-        return execute_agent_tool(
-            session,
-            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
-            arguments=deterministic_bulk_wishlist_arguments,
             user=user,
             conversation_id=request.conversation_id,
             request_id=request_id,
@@ -1362,6 +1358,20 @@ async def _run_router_specialist_agent_chat(
     entire workflow.  A Router or Specialist failure is never redirected to the
     legacy single-Agent path, which keeps a rollback explicit and observable.
     """
+
+    fast_path_response = _try_router_specialist_fast_path(
+        session,
+        request,
+        user=user,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        local_trace=local_trace,
+        workflow_timing=workflow_timing,
+    )
+    if fast_path_response is not None:
+        return fast_path_response
 
     router_model, specialist_model, model_source = _resolve_router_specialist_models(
         model_override,
@@ -2421,29 +2431,6 @@ def _get_multi_action_clarification(message: str) -> str | None:
     )
 
 
-def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] | None:
-    if _has_compound_popular_wishlist_criteria(message):
-        return None
-    match = _POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message)
-    if match is None:
-        return None
-    ingredient_name = _normalize_popular_ingredient_query(match.group("ingredient"))
-    if not ingredient_name:
-        return None
-    raw_rank = match.group("rank") or match.group("top")
-    rank_limit = int(raw_rank) if raw_rank else 20
-    window_days = 7
-    if re.search(r"1\s*(?:일|day)", message):
-        window_days = 1
-    elif re.search(r"30\s*(?:일|day)", message):
-        window_days = 30
-    return {
-        "ingredient_name": ingredient_name,
-        "rank_limit": rank_limit,
-        "window_days": window_days,
-    }
-
-
 def _get_last_tool_result_product_checkout_arguments(
     request: AgentChatRequest,
 ) -> dict[str, Any] | None:
@@ -2485,35 +2472,6 @@ def _get_current_product_checkout_arguments(
         "reference_rank": None,
         "reference_position": None,
     }
-
-
-def _has_compound_popular_wishlist_criteria(message: str) -> bool:
-    """Keep only truly single-ingredient requests on the deterministic fast path."""
-    return bool(
-        re.search(
-            r"(?:그리고|\s와\s|\s및\s|,|카테고리|세럼|크림|토너|로션|클렌저|선크림|"
-            r"마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)"
-            r".{0,80}(?:찜|위시)|(?:찜|위시).{0,80}(?:그리고|\s와\s|\s및\s|,|카테고리|"
-            r"세럼|크림|토너|로션|클렌저|선크림|마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)",
-            message,
-        )
-    )
-
-
-def _normalize_popular_ingredient_query(value: str) -> str:
-    normalized = re.sub(r"\s+", " ", value).strip(" \t\n\r,，.。!?！？·ㆍ-")
-    prefix_patterns = (
-        r"^(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의|그중|그 중)\s+",
-        r"^(?:상위\s*)?\d+\s*(?:위|개)\s*(?:이내|안|까지|내|중|에서|의)?\s*",
-    )
-    while True:
-        before = normalized
-        for pattern in prefix_patterns:
-            normalized = re.sub(pattern, "", normalized)
-        if normalized == before:
-            break
-    normalized = re.sub(r"\s*(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의)$", "", normalized)
-    return normalized.strip()
 
 
 def _get_explicit_bulk_wishlist_rank_limit(message: str) -> int | None:
@@ -3192,7 +3150,7 @@ async def explicit_bulk_wishlist_by_popular_ingredient(
     category: str | None = None,
     price_min: int | None = None,
     price_max: int | None = None,
-    rank_limit: int = 20,
+    rank_limit: int = DEFAULT_BULK_WISHLIST_RANK,
     window_days: Literal[1, 7, 30] = 7,
 ) -> str:
     """Preview a 1-50 rank wishlist batch; the backend always asks for confirmation."""
@@ -3223,7 +3181,7 @@ async def bulk_wishlist_by_popular_ingredient(
     category: str | None = None,
     price_min: int | None = None,
     price_max: int | None = None,
-    rank_limit: int = 20,
+    rank_limit: int = DEFAULT_BULK_WISHLIST_RANK,
     window_days: Literal[1, 7, 30] = 7,
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
     sensitivity: Literal["낮음", "보통", "높음"] | None = None,

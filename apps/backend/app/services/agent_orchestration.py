@@ -124,9 +124,10 @@ Korean reference rules:
 - Use order_after_sales only for an already-created order's history, status,
   cancellation, review, return, exchange, or refund. Do not use it merely because a
   user says "주문" or "구매" for a product.
-- A request such as "인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘"
-  is complete when it names a rank from 1 through 50 and at least one ingredient.
-  Set route=bulk_wishlist, action=bulk_wishlist_by_popular_ingredient, and
+- A request such as "인기 상품 중 나이아신아마이드가 들어간 제품을 전부 찜해줘"
+  is complete when it names at least one ingredient. If no rank is stated, use the
+  standard top-50 range. A stated rank must be from 1 through 50. Set
+  route=bulk_wishlist, action=bulk_wishlist_by_popular_ingredient, and
   target_scope=none. It does not refer to a current product, cart item, or prior result,
   and must not be treated as ambiguous merely because the user asks for every match.
 - A natural delivery-address entry such as
@@ -135,6 +136,12 @@ Korean reference rules:
   address. Set route=cart_checkout, action=register_shipping_address, and
   target_scope=none. It is independent of the current product and must not be blocked
   by a missing product reference.
+- A multi-category routine composition with a total budget, such as
+  "내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘", is not a
+  product search. Set route=cart_checkout, action=compose_cart, and
+  target_scope=none. The stated budget is the total budget for the entire
+  composition, never a per-product price filter. Do not select
+  create_recommendation or refine_product_results for this request.
 """.strip()
 
 
@@ -201,7 +208,12 @@ prepare_product_checkout directly; do not ask them to name that product again.
 
 _CART_CHECKOUT_INSTRUCTIONS = """
 Handle only cart, checkout, natural delivery-address input, or multi-category routine
-composition. Use the available tool that matches the request. For a natural address,
+composition. Use the available tool that matches the request. When the selected action
+is compose_cart, call it exactly once. Treat the stated budget as max_budget for the
+entire set, not as a per-product price ceiling. Extract each stated product category
+using only toner, serum, and cream. If the user requests a routine composition without
+listing categories, use toner, serum, and cream. The tool returns a confirmation-gated
+proposal, so do not claim that the cart has already changed. For a natural address,
 extract recipient, phone, postal code, address1, optional address2, and optional memo
 from any order or label style. Call register_shipping_address when required fields are
 present; otherwise ask only for the missing required field. Never repeat a full address
@@ -219,13 +231,13 @@ user's factual experience and ask for only the missing factual field.
 
 _BULK_WISHLIST_INSTRUCTIONS = """
 Handle only a popular-rank based bulk wishlist request. Call
-bulk_wishlist_by_popular_ingredient exactly once when the request has a usable rank
-range and conditions. Extract rank_limit from 1 through 50, one or more named
-ingredients, explicit all/any semantics when stated, category, and min/max price when
-stated. Do not silently shrink the requested rank. The server resolves real popularity,
-ingredient relations, products, and confirmation; never invent IDs or perform the
-wishlist write yourself. Ask a clarification only when the requested condition is
-actually unsupported or missing.
+bulk_wishlist_by_popular_ingredient exactly once when the request has one or more
+supported criteria. Extract one or more named ingredients, explicit all/any semantics
+when stated, category, and min/max price when stated. If no rank is stated, use the
+standard top-50 range. A stated rank must be from 1 through 50; do not silently shrink
+the requested rank. The server resolves real popularity, ingredient relations, products,
+and confirmation; never invent IDs or perform the wishlist write yourself. Ask a
+clarification only when the requested condition is actually unsupported or missing.
 
 Preserve every explicit supported condition in the tool arguments. When a product type
 is named, always set category to that exact Korean product type: 세럼, 토너, 크림, or
@@ -314,6 +326,37 @@ _SELECTED_PRODUCT_ORDINAL_RE = re.compile(
 _ENGLISH_ORDINAL_RANKS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
 _KOREAN_ORDINAL_RANKS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
 
+_ROUTINE_CATEGORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("toner", re.compile(r"(?:토너|스킨)")),
+    ("serum", re.compile(r"(?:세럼|앰플)")),
+    ("cream", re.compile(r"(?:크림|로션)")),
+)
+_ROUTINE_COMPOSITION_RE = re.compile(r"(?:루틴|구성|세트|조합)")
+_TOTAL_BUDGET_RE = re.compile(r"\d[\d,]*(?:\s*만원|\s*만\s*원|\s*원)")
+
+
+def _is_explicit_routine_composition_request(message: str) -> bool:
+    """Recognize an unambiguous total-budget multi-category composition request.
+
+    This is a Router contract safeguard, not a tool-executing natural-language fast
+    path. It only corrects a semantically impossible Router decision where a request
+    names multiple routine categories, a total budget, and an explicit composition
+    intent. The Specialist still extracts the tool arguments and the backend keeps the
+    confirmation gate before changing the cart.
+    """
+
+    if (
+        _ROUTINE_COMPOSITION_RE.search(message) is None
+        or _TOTAL_BUDGET_RE.search(message) is None
+    ):
+        return False
+    matched_categories = {
+        category_code
+        for category_code, pattern in _ROUTINE_CATEGORY_PATTERNS
+        if pattern.search(message) is not None
+    }
+    return len(matched_categories) >= 2
+
 
 def _selected_product_ordinal_rank(message: str, *, selected_count: int) -> int | None:
     """Return an explicit comparison-card ordinal when it is in range."""
@@ -336,13 +379,24 @@ def normalize_route_decision(
     *,
     request: AgentChatRequest,
 ) -> RouteDecision:
-    """Keep a generic product-detail action bound to the visible current product.
+    """Apply narrow server-owned constraints to a Router decision.
 
-    This is not a natural-language fast path. The Router still selects the route and
-    action. It only prevents an erroneous ``last_tool_result`` selector from overriding
-    a product explicitly present on the current page. A user can still select a prior
-    result with an explicit ordinal such as "last product" or "second product".
+    These checks do not execute tools or replace general natural-language routing. They
+    only preserve unambiguous contracts that would otherwise be unsafe or impossible to
+    recover in the Specialist because it sees just the Router-selected tool.
     """
+
+    if _is_explicit_routine_composition_request(request.message):
+        return decision.model_copy(
+            update={
+                "route": "cart_checkout",
+                "action": COMPOSE_CART_TOOL,
+                "target_scope": "none",
+                "reference_position": None,
+                "reference_rank": None,
+                "confidence": "high",
+            }
+        )
 
     selected_rank = _selected_product_ordinal_rank(
         request.message,
