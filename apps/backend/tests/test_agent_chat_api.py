@@ -54,6 +54,9 @@ from app.services.db_seed import seed_database
 from tests.test_data_loader import EXAMPLES_DIR
 
 
+SINGLE_AGENT_TEST_OVERRIDE = LocalAgentExecutionOverride(execution_mode="single")
+
+
 @pytest.fixture()
 def db_engine() -> Generator[Engine, None, None]:
     engine = create_engine(
@@ -423,6 +426,7 @@ async def test_agent_resilience_integration_limits_concurrency_without_opening_c
                 Session(),
                 AgentChatRequest(message=f"보습 세럼 추천 요청 {index}"),
                 request_id=f"req-load-{index}",
+                execution_override=SINGLE_AGENT_TEST_OVERRIDE,
             )
         except ApiError as exc:
             return exc
@@ -486,6 +490,7 @@ async def test_agent_resilience_integration_retries_429_without_opening_circuit(
             await run_openai_agent_chat(
                 Session(),
                 AgentChatRequest(message=f"세럼 추천 {index}"),
+                execution_override=SINGLE_AGENT_TEST_OVERRIDE,
             )
         assert captured.value.code == "AGENT_OPENAI_RATE_LIMITED"
 
@@ -495,6 +500,7 @@ async def test_agent_resilience_integration_retries_429_without_opening_circuit(
     response = await run_openai_agent_chat(
         Session(),
         AgentChatRequest(message="세럼 추천 정상화"),
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
     assert response.message == "회로 정상"
 
@@ -544,6 +550,7 @@ async def test_agent_resilience_integration_opens_circuit_only_for_provider_fail
             await run_openai_agent_chat(
                 Session(),
                 AgentChatRequest(message="민감 피부 세럼 추천"),
+                execution_override=SINGLE_AGENT_TEST_OVERRIDE,
             )
         assert captured.value.code == expected_error_code
 
@@ -551,6 +558,7 @@ async def test_agent_resilience_integration_opens_circuit_only_for_provider_fail
         await run_openai_agent_chat(
             Session(),
             AgentChatRequest(message="회로 차단 확인"),
+            execution_override=SINGLE_AGENT_TEST_OVERRIDE,
         )
     assert blocked.value.code == "AGENT_OPENAI_CIRCUIT_OPEN"
     assert provider_calls == 2
@@ -580,7 +588,11 @@ def test_api_error_response_includes_retry_after_header(
 async def test_agent_bulk_cart_request_returns_clarification_without_openai() -> None:
     request = AgentChatRequest(message="1~5위 장바구니에 담아줘")
 
-    response = await run_openai_agent_chat(Session(), request)
+    response = await run_openai_agent_chat(
+        Session(),
+        request,
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
+    )
 
     assert response.error is not None
     assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
@@ -956,6 +968,7 @@ async def test_runner_passes_only_selected_guest_tools_and_logs_the_list(
                 recommendation_id="rec_001",
             ),
         ),
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
 
     assert captured_tool_names == [
@@ -1107,7 +1120,11 @@ async def test_popular_ingredient_wishlist_without_rank_defaults_to_top_fifty(
     ],
 )
 async def test_agent_ambiguous_requests_ask_for_missing_scope_without_openai(message: str, expected: str) -> None:
-    response = await run_openai_agent_chat(Session(), AgentChatRequest(message=message))
+    response = await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(message=message),
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
+    )
 
     assert response.error is not None
     assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
@@ -1120,6 +1137,7 @@ async def test_agent_multi_action_request_requires_staged_selection_without_open
     response = await run_openai_agent_chat(
         Session(),
         AgentChatRequest(message="인기 상품 중 수부지에 맞는 제품 4개 장바구니에 담아줘"),
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
 
     assert response.error is not None
@@ -1536,6 +1554,7 @@ async def test_agent_trace_adds_only_safe_correlation_metadata(
         ),
         user=SimpleNamespace(id=999, email="private@example.com"),
         trace_metadata=metadata,
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
 
     assert response.message == "처리했어요."
@@ -1615,6 +1634,7 @@ async def test_agent_runner_writes_local_raw_input_schema_and_output(
         local_trace=trace,
         workflow_timing=AgentWorkflowTiming(),
         model_override="gpt-5.4-mini",
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
     trace.capture_final_response(response.model_dump(mode="json"), model_dump_ms=0.0, json_encode_ms=0.0)
     written_path = trace.finish(outcome="succeeded")
@@ -1671,6 +1691,7 @@ async def test_global_queue_wait_does_not_consume_agent_execution_timeout(
         AgentChatRequest(message="보습 세럼을 추천해 주세요."),
         runtime_control=DelayedGlobalControl(),
         workflow_timing=timing,
+        execution_override=SINGLE_AGENT_TEST_OVERRIDE,
     )
 
     assert response.message == "대기 뒤에 정상 실행했어요."

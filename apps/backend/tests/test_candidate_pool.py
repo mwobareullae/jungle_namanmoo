@@ -23,6 +23,7 @@ from tests.test_data_loader import EXAMPLES_DIR
 def test_generate_candidate_pool_uses_only_catalog_es_on_success(monkeypatch) -> None:
     session = _seed_example_session()
     intent = _build_intent()
+    cache = _MemoryCandidateCache()
     es_candidates = (_candidate(2), _candidate(1))
 
     monkeypatch.setattr(
@@ -47,6 +48,7 @@ def test_generate_candidate_pool_uses_only_catalog_es_on_success(monkeypatch) ->
             es_candidates,
             direct_match_count=2,
         ),
+        candidate_cache=cache,
     )
 
     assert [candidate.product_id for candidate in pool.candidates] == [
@@ -70,6 +72,7 @@ def test_generate_candidate_pool_does_not_fallback_when_es_returns_fewer_candida
 ) -> None:
     session = _seed_example_session()
     intent = _build_intent()
+    cache = _MemoryCandidateCache()
     monkeypatch.setattr(
         candidate_pool_service,
         "list_recommendation_fallback_candidates",
@@ -89,6 +92,7 @@ def test_generate_candidate_pool_does_not_fallback_when_es_returns_fewer_candida
             direct_match_count=1,
             total_hit_count=1,
         ),
+        candidate_cache=cache,
     )
 
     assert [candidate.product_id for candidate in pool.candidates] == ["prod_001"]
@@ -99,6 +103,7 @@ def test_generate_candidate_pool_does_not_fallback_when_es_returns_fewer_candida
 def test_generate_candidate_pool_caps_and_deduplicates_es_results() -> None:
     session = _seed_example_session()
     intent = _build_intent()
+    cache = _MemoryCandidateCache()
     candidates = tuple(_candidate(product_id) for product_id in range(1, 502))
 
     pool = generate_candidate_pool(
@@ -113,6 +118,7 @@ def test_generate_candidate_pool_caps_and_deduplicates_es_results() -> None:
             (*candidates, candidates[0]),
             direct_match_count=502,
         ),
+        candidate_cache=cache,
     )
 
     assert len(pool.candidates) == 500
