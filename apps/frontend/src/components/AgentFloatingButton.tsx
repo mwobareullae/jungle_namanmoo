@@ -29,8 +29,12 @@ import type {
 } from "../types/agent";
 import type { ApiError } from "../types/recommendation";
 
+export type AgentSuggestionContext = "best" | "home" | "none" | "productDetail" | "searchResults";
+
 type AgentFloatingButtonProps = {
+  isAuthenticated: boolean;
   isAgentResponding?: boolean;
+  suggestionContext: AgentSuggestionContext;
   skinProfile?: {
     avoidIngredients?: string[];
     sensitivity: string;
@@ -38,6 +42,146 @@ type AgentFloatingButtonProps = {
   };
   skinProfileStatus?: "empty" | "saved" | "temporary";
   storageScope: AgentChatStorageScope;
+};
+
+type AgentSuggestion = {
+  label: string;
+  prompt: string;
+};
+
+const AGENT_SUGGESTION_PROMPTS = {
+  recommendSensitiveDry: "민감하고 건조한 피부에 맞는 진정 보습 제품을 추천해줘",
+  completedOrders: "최근 3개월 배송완료 주문만 보여줘",
+  recentOrderStatus: "최근 주문 배송 상태 알려줘",
+  cartSummary: "장바구니 상품과 총금액 보여줘",
+  refineBySkin: "추천 결과를 내 피부타입과 민감도 기준으로 다시 추려줘",
+  serumUnderThirtyThousand: "3만원 이하 세럼만 보여줘",
+  twentyThousandRange: "2만원대만 보여줘",
+  compareFirstTwo: "화면의 첫 번째와 두 번째 상품을 비교해줘",
+  wishlistPopularNiacinamide: "최근 7일 인기 20위 안에서 나이아신아마이드가 들어간 상품을 모두 찜해줘",
+  similarProducts: "이 상품과 비슷한 상품 2개 보여줘",
+  orderFirstProduct: "첫번째 상품 주문해줘",
+  orderCurrentProduct: "지금 상품 주문해줘",
+  addCurrentProductToCart: "이 상품을 장바구니에 담아줘",
+  openLastRecommendationCheckout: "추천 결과의 마지막 상품 주문서로 열어줘",
+} as const;
+
+const COMMON_PUBLIC_SUGGESTIONS: AgentSuggestion[] = [
+  { label: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry, prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
+  { label: AGENT_SUGGESTION_PROMPTS.cartSummary, prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
+];
+
+const COMMON_AUTHENTICATED_SUGGESTIONS: AgentSuggestion[] = [
+  { label: AGENT_SUGGESTION_PROMPTS.completedOrders, prompt: AGENT_SUGGESTION_PROMPTS.completedOrders },
+  { label: AGENT_SUGGESTION_PROMPTS.recentOrderStatus, prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus },
+];
+
+const buildAgentQuickQuestions = (
+  context: AgentSuggestionContext,
+  isAuthenticated: boolean,
+): AgentSuggestion[] => {
+  if (context === "none") return [];
+
+  const common = [
+    ...COMMON_PUBLIC_SUGGESTIONS,
+    ...(isAuthenticated ? COMMON_AUTHENTICATED_SUGGESTIONS : []),
+  ];
+
+  if (context === "searchResults") {
+    return [
+      { label: AGENT_SUGGESTION_PROMPTS.refineBySkin, prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
+      {
+        label: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
+        prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand,
+      },
+      { label: AGENT_SUGGESTION_PROMPTS.twentyThousandRange, prompt: AGENT_SUGGESTION_PROMPTS.twentyThousandRange },
+      { label: AGENT_SUGGESTION_PROMPTS.compareFirstTwo, prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
+      ...common,
+    ];
+  }
+
+  if (context === "productDetail") {
+    return [
+      { label: AGENT_SUGGESTION_PROMPTS.similarProducts, prompt: AGENT_SUGGESTION_PROMPTS.similarProducts },
+      {
+        label: AGENT_SUGGESTION_PROMPTS.addCurrentProductToCart,
+        prompt: AGENT_SUGGESTION_PROMPTS.addCurrentProductToCart,
+      },
+      ...(isAuthenticated
+        ? [
+            {
+              label: AGENT_SUGGESTION_PROMPTS.orderCurrentProduct,
+              prompt: AGENT_SUGGESTION_PROMPTS.orderCurrentProduct,
+            },
+            {
+              label: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
+              prompt: AGENT_SUGGESTION_PROMPTS.orderFirstProduct,
+            },
+            {
+              label: AGENT_SUGGESTION_PROMPTS.openLastRecommendationCheckout,
+              prompt: AGENT_SUGGESTION_PROMPTS.openLastRecommendationCheckout,
+            },
+          ]
+        : []),
+      ...common,
+    ];
+  }
+
+  if (context === "best") {
+    return [
+      { label: AGENT_SUGGESTION_PROMPTS.compareFirstTwo, prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
+      ...(isAuthenticated
+        ? [
+            {
+              label: AGENT_SUGGESTION_PROMPTS.wishlistPopularNiacinamide,
+              prompt: AGENT_SUGGESTION_PROMPTS.wishlistPopularNiacinamide,
+            },
+          ]
+        : []),
+      ...common,
+    ];
+  }
+
+  return common;
+};
+
+const buildAgentMiniChatSuggestions = (
+  context: AgentSuggestionContext,
+  isAuthenticated: boolean,
+): AgentSuggestion[] => {
+  if (context === "searchResults") {
+    return [
+      { label: "피부 조건으로 다시 추리기", prompt: AGENT_SUGGESTION_PROMPTS.refineBySkin },
+      { label: "3만원 이하 세럼만", prompt: AGENT_SUGGESTION_PROMPTS.serumUnderThirtyThousand },
+    ];
+  }
+
+  if (context === "productDetail") {
+    return [
+      { label: "비슷한 상품 2개", prompt: AGENT_SUGGESTION_PROMPTS.similarProducts },
+      { label: "이 상품 장바구니 담기", prompt: AGENT_SUGGESTION_PROMPTS.addCurrentProductToCart },
+    ];
+  }
+
+  if (context === "best") {
+    return [
+      { label: "첫 두 상품 비교", prompt: AGENT_SUGGESTION_PROMPTS.compareFirstTwo },
+      isAuthenticated
+        ? { label: "인기 성분 상품 찜", prompt: AGENT_SUGGESTION_PROMPTS.wishlistPopularNiacinamide }
+        : { label: "진정·보습 제품 추천", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
+    ];
+  }
+
+  if (context === "home") {
+    return [
+      { label: "진정·보습 제품 추천", prompt: AGENT_SUGGESTION_PROMPTS.recommendSensitiveDry },
+      isAuthenticated
+        ? { label: "최근 주문 배송 확인", prompt: AGENT_SUGGESTION_PROMPTS.recentOrderStatus }
+        : { label: "장바구니 확인", prompt: AGENT_SUGGESTION_PROMPTS.cartSummary },
+    ];
+  }
+
+  return [];
 };
 
 type AgentChatBaseMessage = {
@@ -1571,7 +1715,9 @@ const setAgentCartTargetBusy = (active: boolean) => {
 };
 
 function AgentFloatingButton({
+  isAuthenticated,
   isAgentResponding = false,
+  suggestionContext,
   skinProfile,
   skinProfileStatus = "empty",
   storageScope,
@@ -1611,6 +1757,14 @@ function AgentFloatingButton({
   const pendingCheckoutCartItemIdsRef = useRef<number[]>([]);
   const isThreadView = activeView === "thread" && messages.length > 0;
   const isAgentBusy = isSubmitting || isAgentResponding;
+  const quickQuestions = useMemo(
+    () => buildAgentQuickQuestions(suggestionContext, isAuthenticated),
+    [isAuthenticated, suggestionContext],
+  );
+  const miniChatSuggestions = useMemo(
+    () => buildAgentMiniChatSuggestions(suggestionContext, isAuthenticated),
+    [isAuthenticated, suggestionContext],
+  );
   const hasSkinProfile = skinProfileStatus !== "empty";
   const skinProfileChipLabel = skinProfileStatus === "saved"
     ? "내 피부 타입 적용 중"
@@ -2545,6 +2699,25 @@ function AgentFloatingButton({
   return (
     <>
       <div className={`agent-floating-entry${isOpen ? " is-open" : ""}`} aria-label="AI 에이전트 진입점">
+        {!isOpen && miniChatSuggestions.length > 0 ? (
+          <div className="agent-floating-entry__teasers" aria-label="AI 추천 질문">
+            {miniChatSuggestions.map((suggestion) => (
+              <button
+                className="agent-floating-entry__teaser"
+                disabled={isSubmitting}
+                key={suggestion.prompt}
+                onClick={() => {
+                  openChat();
+                  void sendMessage(suggestion.prompt);
+                }}
+                type="button"
+              >
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {isChatMounted ? (
           <section
             aria-modal={isOpen ? "true" : undefined}
@@ -2591,6 +2764,30 @@ function AgentFloatingButton({
                     <span aria-hidden="true">{hasSkinProfile ? "✓" : "＋"}</span>
                     <span>{skinProfileChipLabel}</span>
                   </div>
+
+                  {quickQuestions.length > 0 ? (
+                    <>
+                      <div className="agent-chat-divider" />
+                      <div className="agent-chat-section-label">
+                        <span>빠른 질문</span>
+                      </div>
+                      <div className="agent-chat-quick-questions">
+                        {quickQuestions.map((suggestion) => (
+                          <button
+                            className="agent-chat-question-row"
+                            disabled={isSubmitting}
+                            key={suggestion.prompt}
+                            onClick={() => void sendMessage(suggestion.prompt)}
+                            type="button"
+                          >
+                            <span className="agent-chat-row-icon" aria-hidden="true">＋</span>
+                            <span>{suggestion.label}</span>
+                            <span aria-hidden="true">›</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
 
                   {chatThreads.length > 0 ? (
                     <>

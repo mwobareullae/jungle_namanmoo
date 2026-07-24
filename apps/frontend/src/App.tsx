@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import AgentFloatingButton from "./components/AgentFloatingButton";
+import AgentFloatingButton, { type AgentSuggestionContext } from "./components/AgentFloatingButton";
 import AgentCommerceOverlay from "./components/AgentCommerceOverlay";
 import AppFooter from "./components/AppFooter";
 import HomeHeader from "./components/HomeHeader";
@@ -867,10 +867,21 @@ function GlobalAgentEntry() {
       : isSkinProfileResolved
         ? "empty"
         : "empty";
+  const suggestionContext: AgentSuggestionContext = location.pathname === "/"
+    ? "home"
+    : location.pathname === "/search"
+      ? "searchResults"
+      : location.pathname === "/product-detail" || location.pathname === "/product-detail-preview"
+        ? "productDetail"
+        : location.pathname === "/products/popular"
+          ? "best"
+          : "none";
 
   return (
     <AgentFloatingButton
+      isAuthenticated={Boolean(user)}
       key={agentChatStorageScope}
+      suggestionContext={suggestionContext}
       skinProfile={savedSkinProfile ?? undefined}
       skinProfileStatus={skinProfileStatus}
       storageScope={agentChatStorageScope}
