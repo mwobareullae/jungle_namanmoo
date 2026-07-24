@@ -14227,7 +14227,7 @@ html[data-app-mode="community"] .search-results-shell {
   color: #1a1a1a;
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
