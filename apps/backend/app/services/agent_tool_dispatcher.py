@@ -54,6 +54,7 @@ from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL, prepare_r
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL, prepare_claim_draft
 from app.services.agent_bulk_wishlist import (
     BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+    DEFAULT_BULK_WISHLIST_RANK,
     prepare_bulk_wishlist_by_popular_ingredient,
 )
 
@@ -260,7 +261,12 @@ class BulkWishlistByPopularIngredientArgs(BaseModel):
     sensitivity: Literal["낮음", "보통", "높음"] | None = None
     # The service emits a user-facing explanation for rank 51+ instead of
     # silently shrinking it. The wider schema ceiling only rejects nonsense.
-    rank_limit: int = Field(default=20, ge=1, le=1000, description="Use ranks 1 through 50.")
+    rank_limit: int = Field(
+        default=DEFAULT_BULK_WISHLIST_RANK,
+        ge=1,
+        le=1000,
+        description="Use ranks 1 through 50. Defaults to 50 when omitted.",
+    )
     window_days: Literal[1, 7, 30] = 7
 
     @model_validator(mode="after")

@@ -291,6 +291,51 @@ def test_generic_product_detail_checkout_keeps_the_current_product() -> None:
     assert normalized.reference_rank is None
 
 
+def test_explicit_multi_category_budget_composition_overrides_recommendation_route() -> None:
+    request = AgentChatRequest(
+        message="내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘",
+        context=AgentContext(page="search_results"),
+    )
+    incorrect_router_decision = RouteDecision(
+        route="recommendation",
+        action="create_recommendation",
+        target_scope="none",
+        confidence="high",
+    )
+
+    normalized = normalize_route_decision(incorrect_router_decision, request=request)
+
+    assert normalized.route == "cart_checkout"
+    assert normalized.action == "compose_cart"
+    assert normalized.target_scope == "none"
+    assert validate_route_decision(
+        normalized,
+        request=request,
+        user=SimpleNamespace(id=1),
+        allowed_tool_names=("create_recommendation", "compose_cart"),
+    ) is None
+    assert select_specialist_tool_names(
+        normalized,
+        request=request,
+        allowed_tool_names=("create_recommendation", "compose_cart"),
+    ) == ("compose_cart",)
+
+
+def test_single_category_price_filter_keeps_recommendation_route() -> None:
+    request = AgentChatRequest(
+        message="3만원 이하 세럼만 보여줘",
+        context=AgentContext(page="search_results"),
+    )
+    decision = RouteDecision(
+        route="recommendation",
+        action="create_recommendation",
+        target_scope="none",
+        confidence="high",
+    )
+
+    assert normalize_route_decision(decision, request=request) == decision
+
+
 def test_explicit_last_product_keeps_the_previous_result_reference() -> None:
     request = AgentChatRequest(
         message="마지막 상품 주문해 줘",
@@ -477,6 +522,155 @@ async def test_router_specialist_runs_tool_free_router_then_narrow_specialist(
     ]
     assert calls[1]["tools"] == ("create_recommendation",)
     assert calls[1]["model"] == "specialist-nano"
+
+
+@pytest.mark.anyio
+async def test_router_specialist_routes_rankless_popular_ingredient_wishlist_to_its_single_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agents
+    from agents import Runner
+
+    calls: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_trace(*_args, **_kwargs):
+        yield SimpleNamespace()
+
+    async def fake_run(agent, *, input, context, **_kwargs):
+        tool_names = tuple(getattr(tool, "name", None) for tool in agent.tools)
+        calls.append({"name": agent.name, "tools": tool_names, "input": input})
+        if len(calls) == 1:
+            assert tool_names == ()
+            return SimpleNamespace(
+                final_output=RouteDecision(
+                    route="bulk_wishlist",
+                    action="bulk_wishlist_by_popular_ingredient",
+                    target_scope="none",
+                    confidence="high",
+                )
+            )
+
+        context.last_tool_response = AgentChatResponse(
+            conversation_id="conv_bulk_wishlist_router",
+            message="찜할 상품을 확인했어요.",
+            tool_name="bulk_wishlist_by_popular_ingredient",
+            requires_confirmation=True,
+            tool_call_id="tool_bulk_wishlist_router",
+            ui_action=AgentUiAction(type="open_modal", target="agent_confirmation"),
+        )
+        return SimpleNamespace(final_output="unused")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_execution_mode", "router_specialist")
+    monkeypatch.setattr(settings, "openai_agent_router_model", "router-nano")
+    monkeypatch.setattr(settings, "openai_agent_specialist_model", "specialist-nano")
+    monkeypatch.setattr(settings, "openai_agent_specialist_fallback_enabled", False)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(agents, "trace", fake_trace)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=2, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    response = await run_openai_agent_chat(
+        SimpleNamespace(),
+        AgentChatRequest(
+            message="인기 상품 중 나이아신아마이드가 들어있는 제품을 전부 찜해줘",
+            context=AgentContext(page="home"),
+        ),
+        user=SimpleNamespace(id=1),
+    )
+
+    specialist_input = json.loads(calls[1]["input"])
+    assert response.tool_name == "bulk_wishlist_by_popular_ingredient"
+    assert response.requires_confirmation is True
+    assert [call["name"] for call in calls] == [
+        "mwobarellae_action_router",
+        "mwobarellae_bulk_wishlist_specialist",
+    ]
+    assert calls[1]["tools"] == ("bulk_wishlist_by_popular_ingredient",)
+    assert specialist_input["route"] == "bulk_wishlist"
+    assert specialist_input["action"] == "bulk_wishlist_by_popular_ingredient"
+
+
+@pytest.mark.anyio
+async def test_router_specialist_corrects_explicit_composition_to_compose_cart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agents
+    from agents import Runner
+
+    calls: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_trace(*_args, **_kwargs):
+        yield SimpleNamespace()
+
+    async def fake_run(agent, *, input, context, **_kwargs):
+        tool_names = tuple(getattr(tool, "name", None) for tool in agent.tools)
+        calls.append({"name": agent.name, "tools": tool_names, "input": input})
+        if len(calls) == 1:
+            # The Router can still make this semantic mistake.  The server-owned
+            # composition contract must correct it before the Specialist is built.
+            return SimpleNamespace(
+                final_output=RouteDecision(
+                    route="recommendation",
+                    action="create_recommendation",
+                    target_scope="none",
+                    confidence="high",
+                )
+            )
+
+        context.last_tool_response = AgentChatResponse(
+            conversation_id="conv_compose_route",
+            message="토너, 세럼, 크림 구성을 준비했어요.",
+            tool_name="compose_cart",
+            requires_confirmation=True,
+            tool_call_id="tool_compose_route",
+            ui_action=AgentUiAction(type="open_modal", target="agent_confirmation"),
+        )
+        return SimpleNamespace(final_output="unused")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_execution_mode", "router_specialist")
+    monkeypatch.setattr(settings, "openai_agent_router_model", "router-nano")
+    monkeypatch.setattr(settings, "openai_agent_specialist_model", "specialist-nano")
+    monkeypatch.setattr(settings, "openai_agent_specialist_fallback_enabled", False)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(agents, "trace", fake_trace)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=2, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    response = await run_openai_agent_chat(
+        SimpleNamespace(id=1),
+        AgentChatRequest(
+            message="내 피부 타입에 맞는 토너, 세럼, 크림을 5만원 이내로 구성해줘",
+            context=AgentContext(page="search_results"),
+        ),
+        user=SimpleNamespace(id=1),
+    )
+
+    specialist_input = json.loads(calls[1]["input"])
+    assert response.tool_name == "compose_cart"
+    assert response.requires_confirmation is True
+    assert [call["name"] for call in calls] == [
+        "mwobarellae_action_router",
+        "mwobarellae_cart_checkout_specialist",
+    ]
+    assert calls[1]["tools"] == ("compose_cart",)
+    assert specialist_input["route"] == "cart_checkout"
+    assert specialist_input["action"] == "compose_cart"
 
 
 @pytest.mark.anyio
@@ -686,7 +880,6 @@ async def test_router_specialist_fast_path_prepares_current_product_checkout(
     }
 
 
-@pytest.mark.skip(reason="bulk rank validation now runs through the selected tool")
 @pytest.mark.anyio
 @pytest.mark.parametrize("execution_mode", ["single", "router_specialist"])
 async def test_all_execution_modes_reject_bulk_wishlist_rank_above_fifty_without_llm(

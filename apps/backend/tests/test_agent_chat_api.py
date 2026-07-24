@@ -39,6 +39,7 @@ from app.services.agent_openai_runner import (
     _expected_tool_error_response,
     _extract_retry_after_seconds,
     _get_openai_retry_delay_seconds,
+    _is_explicit_popular_ingredient_wishlist_request,
     _log_openai_failure_counter,
     _resolve_agent_model,
     _is_retryable_openai_exception,
@@ -593,42 +594,41 @@ def test_agent_instructions_require_one_clarification_before_ambiguous_tool_use(
 
 
 @pytest.mark.anyio
-async def test_popular_ingredient_wishlist_routes_deterministically_before_llm(
+async def test_popular_ingredient_wishlist_uses_the_single_tool_llm_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
 
-    def fake_execute_agent_tool(*_args, **kwargs):
-        captured.update(kwargs)
-        return AgentChatResponse(
-            conversation_id="conv_bulk",
-            message="찜할 상품을 확인했어요.",
-            tool_name="bulk_wishlist_by_popular_ingredient",
-            ui_action=AgentUiAction(type="open_modal", target="agent_confirmation", payload={}),
-            items=[],
-            requires_confirmation=True,
-        )
+    from agents import Runner
 
+    async def fake_run(agent, *_args, **_kwargs):
+        captured["tool_names"] = [tool.name for tool in agent.tools]
+        captured["instructions"] = agent.instructions
+        return SimpleNamespace(final_output="찜할 상품을 확인할게요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
     monkeypatch.setattr(
-        "app.services.agent_openai_runner.execute_agent_tool",
-        fake_execute_agent_tool,
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
     )
-    monkeypatch.setattr(settings, "openai_api_key", None)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
 
     response = await run_openai_agent_chat(
         None,  # type: ignore[arg-type]
         AgentChatRequest(message="인기 상품 상위 20개 중 스쿠알란 성분 들어있는 제품만 찜해줘"),
         user=SimpleNamespace(id=1),
         request_id="req_bulk_deterministic",
+        execution_override=LocalAgentExecutionOverride(execution_mode="single"),
     )
 
-    assert response.tool_name == "bulk_wishlist_by_popular_ingredient"
-    assert captured["tool_name"] == "bulk_wishlist_by_popular_ingredient"
-    assert captured["arguments"] == {
-        "ingredient_name": "스쿠알란",
-        "rank_limit": 20,
-        "window_days": 7,
-    }
+    assert response.tool_name is None
+    assert captured["tool_names"] == ["bulk_wishlist_by_popular_ingredient"]
+    assert "A stated rank must be from 1" in captured["instructions"]
 
 
 @pytest.mark.anyio
@@ -789,12 +789,12 @@ def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
     [
         ("product_detail", 12),
         ("search_results", 11),
-        ("order_history", 9),
-        ("order_detail", 9),
+        ("order_history", 10),
+        ("order_detail", 10),
         ("checkout", 10),
         ("payment_complete", 9),
-        ("skin_test", 6),
-        ("login", 6),
+        ("skin_test", 7),
+        ("login", 7),
         ("home", 17),
     ],
 )
@@ -815,6 +815,36 @@ def test_authenticated_tool_exposure_is_conservative_by_page(
     )
 
     assert len(tool_names) == expected_count
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "login",
+        "skin_test",
+        "search_results",
+        "product_detail",
+        "order_history",
+        "order_detail",
+        "checkout",
+        "payment_complete",
+        "home",
+    ],
+)
+def test_authenticated_popular_bulk_wishlist_is_available_from_every_page(page: str) -> None:
+    tool_names = _select_agent_tool_names(
+        user=SimpleNamespace(id=1),
+        context=AgentContext(page=page),
+        last_tool_result=None,
+    )
+
+    assert "bulk_wishlist_by_popular_ingredient" in tool_names
+
+
+def test_popular_ingredient_wishlist_without_rank_uses_the_explicit_tool_flow() -> None:
+    assert _is_explicit_popular_ingredient_wishlist_request(
+        "인기 상품 중 나이아신아마이드가 들어간 제품을 전부 찜해줘"
+    )
 
 
 def test_shipping_address_tool_stays_available_for_interrupted_checkout() -> None:
@@ -1005,6 +1035,7 @@ async def test_explicit_bulk_wishlist_uses_one_tool_and_short_instructions(
             context=AgentContext(page="home"),
         ),
         user=SimpleNamespace(id=1),
+        execution_override=LocalAgentExecutionOverride(execution_mode="single"),
     )
 
     assert captured["tool_names"] == ["bulk_wishlist_by_popular_ingredient"]
@@ -1020,6 +1051,49 @@ async def test_explicit_bulk_wishlist_uses_one_tool_and_short_instructions(
         "rank_limit",
         "window_days",
     }
+
+
+@pytest.mark.anyio
+async def test_popular_ingredient_wishlist_without_rank_defaults_to_top_fifty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents import Runner
+
+    captured: dict[str, object] = {}
+
+    async def fake_run(agent, *_args, **_kwargs):
+        captured["tool_names"] = [tool.name for tool in agent.tools]
+        captured["instructions"] = agent.instructions
+        captured["rank_default"] = agent.tools[0].params_json_schema["properties"]["rank_limit"][
+            "default"
+        ]
+        return SimpleNamespace(final_output="찜할 상품을 확인할게요.")
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_agent_max_retries", 0)
+    monkeypatch.setattr(Runner, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CONCURRENCY_LIMITER",
+        _OpenAIConcurrencyLimiter(max_concurrency=3, queue_timeout_seconds=0.1),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_openai_runner._OPENAI_CIRCUIT_BREAKER",
+        _OpenAICircuitBreaker(),
+    )
+
+    await run_openai_agent_chat(
+        Session(),
+        AgentChatRequest(
+            message="인기 상품 중 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            context=AgentContext(page="order_history"),
+        ),
+        user=SimpleNamespace(id=1),
+        execution_override=LocalAgentExecutionOverride(execution_mode="single"),
+    )
+
+    assert captured["tool_names"] == ["bulk_wishlist_by_popular_ingredient"]
+    assert captured["instructions"] == EXPLICIT_BULK_WISHLIST_INSTRUCTIONS
+    assert captured["rank_default"] == 50
 
 
 @pytest.mark.anyio
